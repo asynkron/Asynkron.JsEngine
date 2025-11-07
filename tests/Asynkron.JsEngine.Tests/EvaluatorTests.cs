@@ -1,0 +1,565 @@
+using Asynkron.JsEngine;
+
+namespace Asynkron.JsEngine.Tests;
+
+public class EvaluatorTests
+{
+    [Fact]
+    public void EvaluateArithmeticAndVariableLookup()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("let answer = 1 + 2 * 3; answer;");
+        Assert.Equal(7d, result);
+    }
+
+    [Fact]
+    public void EvaluateFunctionDeclarationAndInvocation()
+    {
+        var engine = new JsEngine();
+        var source = "function add(a, b) { return a + b; } let result = add(2, 3); result;";
+        var result = engine.Evaluate(source);
+        Assert.Equal(5d, result);
+    }
+
+    [Fact]
+    public void EvaluateClosureCapturesOuterVariable()
+    {
+        var engine = new JsEngine();
+        var source = "function makeAdder(x) { function inner(y) { return x + y; } return inner; } let plusTen = makeAdder(10); let fifteen = plusTen(5); fifteen;";
+        var result = engine.Evaluate(source);
+        Assert.Equal(15d, result);
+    }
+
+    [Fact]
+    public void EvaluateFunctionExpression()
+    {
+        var engine = new JsEngine();
+        var source = "let add = function(a, b) { return a + b; }; add(4, 5);";
+        var result = engine.Evaluate(source);
+        Assert.Equal(9d, result);
+    }
+
+    [Fact]
+    public void HostFunctionInterop()
+    {
+        var captured = new List<object?>();
+        var engine = new JsEngine();
+        engine.SetGlobalFunction("collect", args =>
+        {
+            captured.AddRange(args);
+            return args.Count;
+        });
+
+        var result = engine.Evaluate("collect(\"hello\", 3); collect(\"world\");");
+
+        Assert.Equal(1, result); // last call returns number of args
+        Assert.Collection(captured,
+            item => Assert.Equal("hello", item),
+            item => Assert.Equal(3d, item),
+            item => Assert.Equal("world", item));
+    }
+
+    [Fact]
+    public void EvaluateObjectLiteralAndPropertyUsage()
+    {
+        var engine = new JsEngine();
+        var source = "let obj = { a: 10, x: function () { return 5; } }; let total = obj.a + obj.x(); total;";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(15d, result); // object property read plus function invocation
+    }
+
+    [Fact]
+    public void EvaluateArrayLiteralSupportsIndexing()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let values = [1, 2];
+values[2] = values[0] + values[1];
+let alias = values[""length""];
+let missing = values[5];
+if (missing == null) { missing = 1; } else { missing = 0; }
+alias + missing + values[2];
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(7d, result); // length reflects new entry and missing reads return null
+    }
+
+    [Fact]
+    public void LogicalOperatorsShortCircuitAndReturnOperands()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let hits = 0;
+function record(value) {
+    hits = hits + 1;
+    return value; // propagate the input to observe operator return values
+}
+
+let andResult = false && record(1);
+let orResult = true || record(2);
+let coalesceResult = null ?? record(3);
+let coalesceNonNull = 0 ?? record(4);
+";
+
+        engine.Evaluate(source);
+
+        Assert.Equal(1d, engine.Evaluate("hits;")); // only the nullish coalescing branch invokes record
+        Assert.False(Assert.IsType<bool>(engine.Evaluate("andResult;")));
+        Assert.True(Assert.IsType<bool>(engine.Evaluate("orResult;")));
+        Assert.Equal(3d, engine.Evaluate("coalesceResult;"));
+        Assert.Equal(0d, engine.Evaluate("coalesceNonNull;"));
+    }
+
+    [Fact]
+    public void StrictEqualityRequiresMatchingTypes()
+    {
+        var engine = new JsEngine();
+        engine.SetGlobalFunction("getInt", _ => 1);
+
+        var source = @"
+let outcomes = [
+    1 === 1,
+    1 === ""1"",
+    1 !== 2,
+    null === null,
+    getInt() === 1
+];
+outcomes;
+";
+
+        engine.Evaluate(source);
+
+        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[0];")));
+        Assert.False(Assert.IsType<bool>(engine.Evaluate("outcomes[1];")));
+        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[2];")));
+        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[3];")));
+        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[4];")));
+    }
+
+    [Fact]
+    public void VarDeclarationHoistsToFunctionScope()
+    {
+        var engine = new JsEngine();
+        var source = @"
+function sample() {
+    if (true) {
+        var hidden = 41;
+    }
+
+    return hidden + 1;
+}
+sample();
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(42d, result);
+    }
+
+    [Fact]
+    public void ConstAssignmentThrows()
+    {
+        var engine = new JsEngine();
+
+        Assert.Throws<InvalidOperationException>(() => engine.Evaluate("const fixed = 1; fixed = 2;"));
+    }
+
+    [Fact]
+    public void TryCatchFinallyBindsThrownValueAndRunsCleanup()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let captured = 0;
+try {
+    throw 21;
+} catch (err) {
+    captured = err;
+} finally {
+    captured = captured + 21;
+}
+captured;
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(42d, result); // catch observes thrown value and finally still executes
+    }
+
+    [Fact]
+    public void FinallyRunsForUnhandledThrow()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let cleanup = 0;
+try {
+    throw ""boom"";
+} finally {
+    cleanup = cleanup + 1;
+}
+";
+
+        Assert.ThrowsAny<Exception>(() => engine.Evaluate(source));
+
+        var cleanupValue = engine.Evaluate("cleanup;");
+        Assert.Equal(1d, cleanupValue); // finally executed even though the throw escaped
+    }
+
+    [Fact]
+    public void FinallyReturnOverridesTryReturn()
+    {
+        var engine = new JsEngine();
+        var source = @"
+function sample() {
+    try {
+        return 1;
+    } finally {
+        return 2;
+    }
+}
+sample();
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(2d, result); // return inside finally shadows earlier return
+    }
+
+    [Fact]
+    public void MethodInvocationBindsThis()
+    {
+        var engine = new JsEngine();
+        var source = "let obj = { x: 10, f: function () { return this.x; } }; obj.f();";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public void IndexedMethodInvocationBindsThis()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let obj = { value: 10, getter: function() { return this.value; } };
+obj[""getter""]();
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public void HostFunctionReceivesThisBinding()
+    {
+        var engine = new JsEngine();
+        engine.SetGlobalFunction("reflectThis", (self, _) => self);
+
+        var result = engine.Evaluate("let obj = { value: 42, reflect: reflectThis }; obj.reflect();");
+
+        var thisBinding = Assert.IsAssignableFrom<IDictionary<string, object?>>(result);
+        Assert.Equal(42d, thisBinding["value"]);
+    }
+
+    [Fact]
+    public void PrototypeLookupResolvesInheritedMethods()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let base = {
+    multiplier: 2,
+    calculate: function(value) { return value * this.multiplier; }
+};
+let derived = { value: 7, __proto__: base };
+derived.calculate(derived.value);
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(14d, result);
+    }
+
+    [Fact]
+    public void PrototypeAssignmentLinksObjectsAfterCreation()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let base = { greet: function() { return ""hi "" + this.name; } };
+let user = { name: ""Alice"" };
+user.__proto__ = base;
+user.greet();
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal("hi Alice", result);
+    }
+
+    [Fact]
+    public void NewCreatesInstancesWithConstructorPrototypes()
+    {
+        var engine = new JsEngine();
+        var source = @"
+function Person(name) {
+    this.name = name;
+}
+Person.prototype.describe = function() { return ""Person:"" + this.name; };
+let person = new Person(""Bob"");
+person.describe();
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal("Person:Bob", result);
+    }
+
+    [Fact]
+    public void MethodClosuresCanReachThisViaCapturedReference()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let obj = {
+    value: 10,
+    makeIncrementer: function(step) {
+        let receiver = this; // capture the current method receiver for later use
+        return function(extra) {
+            return receiver.value + step + extra;
+        };
+    }
+};
+let inc = obj.makeIncrementer(5);
+inc(3);
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(18d, result);
+    }
+
+    [Fact]
+    public void DistinctMethodCallsProvideIndependentThisBindings()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let factory = {
+    create: function(number) {
+        return {
+            value: number,
+            read: function() { return this.value; } // rely on this binding when invoked as a method
+        };
+    }
+};
+let first = factory.create(7);
+let second = factory.create(8);
+first.read() + second.read();
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(15d, result);
+    }
+
+    [Fact]
+    public void ClassDeclarationSupportsConstructorsAndMethods()
+    {
+        var engine = new JsEngine();
+        var source = @"
+class Counter {
+    constructor(start) {
+        this.value = start;
+    }
+
+    increment() {
+        this.value = this.value + 1; // mutate state then return it for verification
+        return this.value;
+    }
+}
+let instance = new Counter(5);
+instance.increment();
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public void ClassWithoutExplicitConstructorFallsBackToDefault()
+    {
+        var engine = new JsEngine();
+        var source = @"
+class Widget {
+    describe() { return ""widget""; }
+}
+let widget = new Widget();
+Widget.prototype.constructor == Widget;
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.True(Assert.IsType<bool>(result));
+    }
+
+    [Fact]
+    public void ClassInheritanceSupportsSuperConstructorAndMethodCalls()
+    {
+        var engine = new JsEngine();
+        var source = @"
+class Base {
+    constructor(value) {
+        this.base = value;
+    }
+
+    read() {
+        return this.base;
+    }
+}
+
+class Derived extends Base {
+    constructor(value) {
+        super(value + 1); // forward to the base constructor with a transformed argument
+        this.extra = 5;
+    }
+
+    read() {
+        return super.read() + this.extra; // reuse the base implementation and add derived state
+    }
+}
+
+let instance = new Derived(2);
+instance.read();
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal(8d, result);
+    }
+
+    [Fact]
+    public void EvaluateIfElseAndBlockScopes()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let value = 0;
+if (false) {
+    value = 1;
+} else {
+    value = 2;
+}
+value;
+";
+
+        var result = engine.Evaluate(source);
+        Assert.Equal(2d, result);
+    }
+
+    [Fact]
+    public void EvaluateWhileLoopUpdatesValues()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let total = 0;
+let current = 1;
+while (current <= 3) {
+    total = total + current;
+    current = current + 1;
+}
+total;
+";
+
+        var result = engine.Evaluate(source);
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public void EvaluateForLoopHonoursBreakAndContinue()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let sum = 0;
+for (let i = 0; i < 10; i = i + 1) {
+    if (i == 3) {
+        continue;
+    }
+
+    if (i == 5) {
+        break;
+    }
+
+    sum = sum + i;
+}
+sum;
+";
+
+        var result = engine.Evaluate(source);
+        Assert.Equal(7d, result); // adds 0 + 1 + 2 + 4 before breaking at 5
+    }
+
+    [Fact]
+    public void SwitchStatementSupportsFallthrough()
+    {
+        var engine = new JsEngine();
+        var source = @"
+function describe(value) {
+    switch (value) {
+        case 1:
+            return ""one"";
+        case 2:
+        case 3:
+            return ""few"";
+        default:
+            return ""many"";
+    }
+}
+describe(3);
+";
+
+        var result = engine.Evaluate(source);
+
+        Assert.Equal("few", result);
+    }
+
+    [Fact]
+    public void SwitchBreakRemainsInsideLoop()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let total = 0;
+for (let i = 0; i < 3; i = i + 1) {
+    switch (i) {
+        case 1:
+            total = total + 10;
+            break;
+        default:
+            total = total + 1;
+    }
+}
+total;
+";
+
+        var result = engine.Evaluate(source);
+
+        // Ensure the break only exits the switch and not the outer loop.
+        Assert.Equal(12d, result);
+    }
+
+    [Fact]
+    public void EvaluateDoWhileRunsBodyAtLeastOnce()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let attempts = 0;
+do {
+    attempts = attempts + 1;
+} while (false);
+attempts;
+";
+
+        var result = engine.Evaluate(source);
+        Assert.Equal(1d, result);
+    }
+}

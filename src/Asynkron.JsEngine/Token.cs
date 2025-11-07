@@ -16,6 +16,7 @@ internal enum TokenType
     Minus,
     Star,
     Slash,
+    Question,
     AmpAmp,
     PipePipe,
     QuestionQuestion,

@@ -15,7 +15,7 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Prototypes**: `__proto__` chain for property lookups
 - **Control flow**: `if`/`else`, `for`, `while`, `do-while`, `switch`/`case`
 - **Error handling**: `try`/`catch`/`finally`, `throw`
-- **Operators**: Arithmetic, logical (`&&`, `||`, `??`), comparison (`===`, `!==`, etc.)
+- **Operators**: Arithmetic, logical (`&&`, `||`, `??`), comparison (`===`, `!==`, etc.), ternary (`? :`)
 - **Classes**: `class`, `extends`, `super`, `new`
 - **Comments**: Single-line `//` comments
 - **Type coercion**: Basic truthiness evaluation
@@ -31,7 +31,6 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - Standard library (Array methods, Math, Date, JSON, etc.)
 - Getters/setters
 - Modules (import/export)
-- Ternary operator (`? :`)
 
 ## Architecture
 
@@ -170,6 +169,28 @@ var result = engine.Evaluate(@"
 Console.WriteLine(result); // Output: 6
 ```
 
+### Ternary Operator
+
+```csharp
+var engine = new JsEngine();
+
+// Simple ternary
+var result = engine.Evaluate(@"
+    let age = 20;
+    let status = age >= 18 ? ""adult"" : ""minor"";
+    status;
+");
+Console.WriteLine(result); // Output: adult
+
+// Nested ternary for grading
+var grade = engine.Evaluate(@"
+    let score = 85;
+    let grade = score >= 90 ? ""A"" : score >= 80 ? ""B"" : score >= 70 ? ""C"" : ""D"";
+    grade;
+");
+Console.WriteLine(grade); // Output: B
+```
+
 ## Running the Demo
 
 A console application demo is included in the `examples/Demo` folder:
@@ -184,6 +205,8 @@ The demo showcases:
 - Variables and functions
 - Closures
 - Objects and arrays
+- Control flow
+- Ternary operator
 - Control flow
 - Host function interop
 

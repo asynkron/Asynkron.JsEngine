@@ -562,4 +562,108 @@ attempts;
         var result = engine.Evaluate(source);
         Assert.Equal(1d, result);
     }
+
+    [Fact]
+    public void TernaryOperatorReturnsThenBranchWhenConditionIsTrue()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("true ? 10 : 20;");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public void TernaryOperatorReturnsElseBranchWhenConditionIsFalse()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("false ? 10 : 20;");
+        Assert.Equal(20d, result);
+    }
+
+    [Fact]
+    public void TernaryOperatorEvaluatesConditionForTruthiness()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let x = 5;
+let result = x > 3 ? ""big"" : ""small"";
+result;
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal("big", result);
+    }
+
+    [Fact]
+    public void TernaryOperatorWithZeroAsFalsyCondition()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"0 ? ""yes"" : ""no"";");
+        Assert.Equal("no", result);
+    }
+
+    [Fact]
+    public void TernaryOperatorWithNullAsFalsyCondition()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("null ? 1 : 2;");
+        Assert.Equal(2d, result);
+    }
+
+    [Fact]
+    public void TernaryOperatorCanBeNested()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let score = 85;
+let grade = score >= 90 ? ""A"" : score >= 80 ? ""B"" : score >= 70 ? ""C"" : ""D"";
+grade;
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal("B", result);
+    }
+
+    [Fact]
+    public void TernaryOperatorOnlyEvaluatesSelectedBranch()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let sideEffect = 0;
+function increment() {
+    sideEffect = sideEffect + 1;
+    return sideEffect;
+}
+let result = true ? 100 : increment();
+sideEffect;
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal(0d, result); // increment should not be called
+    }
+
+    [Fact]
+    public void TernaryOperatorWorksInComplexExpressions()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let a = 5;
+let b = 10;
+let max = a > b ? a : b;
+let doubled = (max === 10 ? max : 0) * 2;
+doubled;
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal(20d, result);
+    }
+
+    [Fact]
+    public void TernaryOperatorInFunctionReturn()
+    {
+        var engine = new JsEngine();
+        var source = @"
+function absoluteValue(x) {
+    return x >= 0 ? x : -x;
+}
+absoluteValue(-42);
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal(42d, result);
+    }
 }

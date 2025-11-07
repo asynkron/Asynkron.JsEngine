@@ -130,7 +130,7 @@ internal sealed class Lexer
                 }
                 else
                 {
-                    throw new ParseException("Unexpected '?' – conditional expressions are not yet supported.");
+                    AddToken(TokenType.Question);
                 }
                 break;
             case '/':

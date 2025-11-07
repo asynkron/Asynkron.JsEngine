@@ -477,7 +477,7 @@ internal sealed class Parser
 
     private object? ParseAssignment()
     {
-        var expr = ParseLogicalOr();
+        var expr = ParseTernary();
 
         if (Match(TokenType.Equal))
         {
@@ -504,6 +504,21 @@ internal sealed class Parser
             }
 
             throw new ParseException($"Invalid assignment target near line {equals.Line} column {equals.Column}.");
+        }
+
+        return expr;
+    }
+
+    private object? ParseTernary()
+    {
+        var expr = ParseLogicalOr();
+
+        if (Match(TokenType.Question))
+        {
+            var thenBranch = ParseExpression();
+            Consume(TokenType.Colon, "Expected ':' after then branch of ternary expression.");
+            var elseBranch = ParseTernary();
+            return Cons.FromEnumerable(new object?[] { JsSymbols.Ternary, expr, thenBranch, elseBranch });
         }
 
         return expr;

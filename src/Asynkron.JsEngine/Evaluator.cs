@@ -648,6 +648,16 @@ internal static class Evaluator
             return new JsFunction(maybeName, ToSymbolList(parameters), body, environment);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.Ternary))
+        {
+            var condition = EvaluateExpression(cons.Rest.Head, environment);
+            var thenBranch = cons.Rest.Rest.Head;
+            var elseBranch = cons.Rest.Rest.Rest.Head;
+            return IsTruthy(condition)
+                ? EvaluateExpression(thenBranch, environment)
+                : EvaluateExpression(elseBranch, environment);
+        }
+
         return EvaluateBinary(cons, environment, symbol);
     }
 

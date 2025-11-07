@@ -63,8 +63,19 @@ var result5 = engine.Evaluate(@"
 ");
 Console.WriteLine($"   Sum of 1 to 5 = {result5}\n");
 
-// Example 6: Host function interop
-Console.WriteLine("6. Host Function Interop:");
+// Example 6: Ternary operator
+Console.WriteLine("6. Ternary Operator:");
+var result6 = engine.Evaluate(@"
+    let score = 85;
+    let grade = score >= 90 ? ""A"" : score >= 80 ? ""B"" : ""C"";
+    let age = 17;
+    let canVote = age >= 18 ? ""Yes"" : ""No"";
+    grade + "" - Can vote: "" + canVote;
+");
+Console.WriteLine($"   {result6}\n");
+
+// Example 7: Host function interop
+Console.WriteLine("7. Host Function Interop:");
 engine.SetGlobalFunction("log", args =>
 {
     Console.WriteLine($"   [JS Log] {string.Join(", ", args)}");

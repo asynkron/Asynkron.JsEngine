@@ -18,7 +18,12 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Operators**: Arithmetic, logical (`&&`, `||`, `??`), comparison (`===`, `!==`, `==`, `!=`, etc.), ternary (`? :`), `typeof`
 - **Classes**: `class`, `extends`, `super`, `new`
 - **Comments**: Single-line `//` comments
-- **Type coercion**: Basic truthiness evaluation, null/undefined coercion (null to 0, undefined to NaN in arithmetic)
+- **Type coercion**: Comprehensive type coercion including:
+  - Truthiness evaluation (falsy values: false, 0, "", null, undefined, NaN)
+  - ToString conversions (arrays join with comma, objects to "[object Object]")
+  - ToNumber conversions (empty/whitespace strings to 0, arrays, objects)
+  - Loose equality (==) with proper type coercion
+  - Null/undefined coercion (null to 0, undefined to NaN in arithmetic)
 - **Arrays**: Array literals, indexing, dynamic length
 - **Template literals**: Backtick strings with `${}` expression interpolation
 - **Getters/setters**: `get`/`set` property accessors in objects and classes
@@ -42,7 +47,6 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 
 ### 🚧 Not Yet Implemented
 
-- Complex type coercion rules (comprehensive toString, toNumber conversions)
 - Modules (import/export)
 
 ## Architecture
@@ -985,6 +989,45 @@ var undefinedArithmetic = engine.Evaluate("undefined + 5;");
 Console.WriteLine(undefinedArithmetic); // Output: NaN (undefined coerces to NaN)
 ```
 
+### Type Coercion
+
+```csharp
+var engine = new JsEngine();
+
+// Array to string conversion
+var arrayToString = engine.Evaluate("\"Result: \" + [1, 2, 3];");
+Console.WriteLine(arrayToString); // Output: Result: 1,2,3
+
+// Object to string conversion
+var objectToString = engine.Evaluate("\"Value: \" + {};");
+Console.WriteLine(objectToString); // Output: Value: [object Object]
+
+// Array to number conversion
+var emptyArrayToNumber = engine.Evaluate("[] - 0;");
+Console.WriteLine(emptyArrayToNumber); // Output: 0
+
+var singleElementArray = engine.Evaluate("[5] - 0;");
+Console.WriteLine(singleElementArray); // Output: 5
+
+// Empty string to number
+var emptyStringToNumber = engine.Evaluate("\"\" - 0;");
+Console.WriteLine(emptyStringToNumber); // Output: 0
+
+// Loose equality with type coercion
+var looseEquality1 = engine.Evaluate("0 == \"\";");
+Console.WriteLine(looseEquality1); // Output: True
+
+var looseEquality2 = engine.Evaluate("false == \"0\";");
+Console.WriteLine(looseEquality2); // Output: True
+
+var looseEquality3 = engine.Evaluate("[5] == 5;");
+Console.WriteLine(looseEquality3); // Output: True
+
+// String concatenation with type coercion
+var arrayPlusNumber = engine.Evaluate("[1, 2] + 3;");
+Console.WriteLine(arrayPlusNumber); // Output: 1,23
+```
+
 ## Running the Demo
 
 Console application demos are included in the `examples` folder:
@@ -1062,21 +1105,17 @@ dotnet test
 - **String Literals**: Only double-quoted strings and template literals (backticks) are supported (no single quotes)
 - **Semicolons**: Statement-ending semicolons are required
 - **Number Types**: All numbers are treated as doubles (no BigInt)
-- **Type Coercion**: Only basic type coercion is implemented
 - **Reserved Keywords as Properties**: When using reserved keywords like `catch` and `finally` as property names, you must use bracket notation (e.g., `promise["catch"](...)` instead of `promise.catch(...)`)
 
 ## Future Roadmap
 
-The engine now has full support for async/await, generators, destructuring, and regex literals. It provides comprehensive string methods and regular expression support. See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for async/await implementation details and [docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md](docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md) for destructuring details.
+The engine now has full support for async/await, generators, destructuring, regex literals, and comprehensive type coercion. It provides comprehensive string methods and regular expression support. See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for async/await implementation details and [docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md](docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md) for destructuring details.
 
 For information about alternative approaches to implementing control flow (return, break, continue), see [docs/CONTROL_FLOW_ALTERNATIVES.md](docs/CONTROL_FLOW_ALTERNATIVES.md).
 
 Future enhancements may include:
-
-Future enhancements may include:
 - ES6 modules (import/export)
 - Additional string methods (localeCompare, normalize, etc.)
-- Enhanced type coercion
 - Performance improvements to control flow mechanisms
 
 ## Contributing

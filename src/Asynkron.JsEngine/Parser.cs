@@ -77,7 +77,7 @@ internal sealed class Parser
         var body = ParseBlock();
 
         var functionType = isGenerator ? JsSymbols.Generator : JsSymbols.Function;
-        return Cons.FromEnumerable(new object?[] { functionType, name, parameters, body });
+        return Cons.FromEnumerable([functionType, name, parameters, body]);
     }
 
     private object ParseAsyncFunctionDeclaration()
@@ -89,7 +89,7 @@ internal sealed class Parser
         Consume(TokenType.RightParen, "Expected ')' after function parameters.");
         var body = ParseBlock();
 
-        return Cons.FromEnumerable(new object?[] { JsSymbols.Async, name, parameters, body });
+        return Cons.FromEnumerable([JsSymbols.Async, name, parameters, body]);
     }
 
     private object ParseClassDeclaration()
@@ -101,7 +101,7 @@ internal sealed class Parser
         if (Match(TokenType.Extends))
         {
             var baseExpression = ParseExpression();
-            extendsClause = Cons.FromEnumerable(new object?[] { JsSymbols.Extends, baseExpression });
+            extendsClause = Cons.FromEnumerable([JsSymbols.Extends, baseExpression]);
         }
 
         Consume(TokenType.LeftBrace, "Expected '{' after class name or extends clause.");
@@ -119,7 +119,7 @@ internal sealed class Parser
                 Consume(TokenType.LeftParen, "Expected '(' after getter name.");
                 Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
                 var body = ParseBlock();
-                methods.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Getter, methodName, body }));
+                methods.Add(Cons.FromEnumerable([JsSymbols.Getter, methodName, body]));
             }
             else if (Match(TokenType.Set))
             {
@@ -130,7 +130,7 @@ internal sealed class Parser
                 var param = Symbol.Intern(paramToken.Lexeme);
                 Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
                 var body = ParseBlock();
-                methods.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Setter, methodName, param, body }));
+                methods.Add(Cons.FromEnumerable([JsSymbols.Setter, methodName, param, body]));
             }
             else
             {
@@ -144,7 +144,7 @@ internal sealed class Parser
                 var lambdaName = string.Equals(methodName, "constructor", StringComparison.Ordinal)
                     ? name
                     : null;
-                var lambda = Cons.FromEnumerable(new object?[] { JsSymbols.Lambda, lambdaName, parameters, body });
+                var lambda = Cons.FromEnumerable([JsSymbols.Lambda, lambdaName, parameters, body]);
 
                 if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
                 {
@@ -157,7 +157,7 @@ internal sealed class Parser
                 }
                 else
                 {
-                    methods.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Method, methodName, lambda }));
+                    methods.Add(Cons.FromEnumerable([JsSymbols.Method, methodName, lambda]));
                 }
             }
         }
@@ -168,7 +168,7 @@ internal sealed class Parser
         constructor ??= CreateDefaultConstructor(name);
         var methodList = Cons.FromEnumerable(methods);
 
-        return Cons.FromEnumerable(new object?[] { JsSymbols.Class, name, extendsClause, constructor, methodList });
+        return Cons.FromEnumerable([JsSymbols.Class, name, extendsClause, constructor, methodList]);
     }
 
     private Cons ParseParameterList()
@@ -183,7 +183,7 @@ internal sealed class Parser
                 {
                     var restIdentifier = Consume(TokenType.Identifier, "Expected parameter name after '...'.");
                     var restParam = Symbol.Intern(restIdentifier.Lexeme);
-                    parameters.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Rest, restParam }));
+                    parameters.Add(Cons.FromEnumerable([JsSymbols.Rest, restParam]));
                     // Rest parameter must be last
                     break;
                 }
@@ -266,7 +266,7 @@ internal sealed class Parser
             _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
         };
 
-        return Cons.FromEnumerable(new object?[] { tag, name, initializer });
+        return Cons.FromEnumerable([tag, name, initializer]);
     }
 
     private object ParseArrayDestructuring(TokenType kind, string keyword)
@@ -290,7 +290,7 @@ internal sealed class Parser
             _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
         };
         
-        return Cons.FromEnumerable(new object?[] { tag, pattern, initializer });
+        return Cons.FromEnumerable([tag, pattern, initializer]);
     }
     
     private object ParseObjectDestructuring(TokenType kind, string keyword)
@@ -314,7 +314,7 @@ internal sealed class Parser
             _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
         };
         
-        return Cons.FromEnumerable(new object?[] { tag, pattern, initializer });
+        return Cons.FromEnumerable([tag, pattern, initializer]);
     }
     
     private Cons ParseArrayDestructuringPattern()
@@ -336,7 +336,7 @@ internal sealed class Parser
                 if (Match(TokenType.DotDotDot))
                 {
                     var name = Consume(TokenType.Identifier, "Expected identifier after '...'.");
-                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternRest, Symbol.Intern(name.Lexeme) }));
+                    elements.Add(Cons.FromEnumerable([JsSymbols.PatternRest, Symbol.Intern(name.Lexeme)]));
                     break; // Rest must be last
                 }
                 
@@ -345,14 +345,14 @@ internal sealed class Parser
                 {
                     Consume(TokenType.LeftBracket, "Expected '[' for nested array pattern.");
                     var nestedPattern = ParseArrayDestructuringPattern();
-                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, nestedPattern, null }));
+                    elements.Add(Cons.FromEnumerable([JsSymbols.PatternElement, nestedPattern, null]));
                 }
                 // Check for nested object pattern
                 else if (Check(TokenType.LeftBrace))
                 {
                     Consume(TokenType.LeftBrace, "Expected '{' for nested object pattern.");
                     var nestedPattern = ParseObjectDestructuringPattern();
-                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, nestedPattern, null }));
+                    elements.Add(Cons.FromEnumerable([JsSymbols.PatternElement, nestedPattern, null]));
                 }
                 else
                 {
@@ -367,7 +367,7 @@ internal sealed class Parser
                         defaultValue = ParseExpression();
                     }
                     
-                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, identifier, defaultValue }));
+                    elements.Add(Cons.FromEnumerable([JsSymbols.PatternElement, identifier, defaultValue]));
                 }
             } while (Match(TokenType.Comma));
         }
@@ -388,7 +388,7 @@ internal sealed class Parser
                 if (Match(TokenType.DotDotDot))
                 {
                     var name = Consume(TokenType.Identifier, "Expected identifier after '...'.");
-                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternRest, Symbol.Intern(name.Lexeme) }));
+                    properties.Add(Cons.FromEnumerable([JsSymbols.PatternRest, Symbol.Intern(name.Lexeme)]));
                     break; // Rest must be last
                 }
                 
@@ -403,13 +403,15 @@ internal sealed class Parser
                     {
                         Consume(TokenType.LeftBracket, "Expected '[' for nested array pattern.");
                         var nestedPattern = ParseArrayDestructuringPattern();
-                        properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, propertyName, nestedPattern, null }));
+                        properties.Add(Cons.FromEnumerable([JsSymbols.PatternProperty, propertyName, nestedPattern, null
+                        ]));
                     }
                     else if (Check(TokenType.LeftBrace))
                     {
                         Consume(TokenType.LeftBrace, "Expected '{' for nested object pattern.");
                         var nestedPattern = ParseObjectDestructuringPattern();
-                        properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, propertyName, nestedPattern, null }));
+                        properties.Add(Cons.FromEnumerable([JsSymbols.PatternProperty, propertyName, nestedPattern, null
+                        ]));
                     }
                     else
                     {
@@ -423,7 +425,8 @@ internal sealed class Parser
                             defaultValue = ParseExpression();
                         }
                         
-                        properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, propertyName, target, defaultValue }));
+                        properties.Add(Cons.FromEnumerable([JsSymbols.PatternProperty, propertyName, target, defaultValue
+                        ]));
                     }
                 }
                 else
@@ -438,7 +441,8 @@ internal sealed class Parser
                         defaultValue = ParseExpression();
                     }
                     
-                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, propertyName, identifier, defaultValue }));
+                    properties.Add(Cons.FromEnumerable([JsSymbols.PatternProperty, propertyName, identifier, defaultValue
+                    ]));
                 }
             } while (Match(TokenType.Comma));
         }
@@ -482,13 +486,13 @@ internal sealed class Parser
         if (Match(TokenType.Break))
         {
             Consume(TokenType.Semicolon, "Expected ';' after break statement.");
-            return Cons.FromEnumerable(new object?[] { JsSymbols.Break });
+            return Cons.FromEnumerable([JsSymbols.Break]);
         }
 
         if (Match(TokenType.Continue))
         {
             Consume(TokenType.Semicolon, "Expected ';' after continue statement.");
-            return Cons.FromEnumerable(new object?[] { JsSymbols.Continue });
+            return Cons.FromEnumerable([JsSymbols.Continue]);
         }
 
         if (Match(TokenType.Return))
@@ -525,12 +529,11 @@ internal sealed class Parser
             {
                 var test = ParseExpression();
                 Consume(TokenType.Colon, "Expected ':' after case expression.");
-                clauses.Add(Cons.FromEnumerable(new object?[]
-                {
+                clauses.Add(Cons.FromEnumerable([
                     JsSymbols.Case,
                     test,
                     ParseSwitchClauseStatements()
-                }));
+                ]));
                 continue;
             }
 
@@ -543,11 +546,10 @@ internal sealed class Parser
 
                 seenDefault = true;
                 Consume(TokenType.Colon, "Expected ':' after default keyword.");
-                clauses.Add(Cons.FromEnumerable(new object?[]
-                {
+                clauses.Add(Cons.FromEnumerable([
                     JsSymbols.Default,
                     ParseSwitchClauseStatements()
-                }));
+                ]));
                 continue;
             }
 
@@ -555,12 +557,11 @@ internal sealed class Parser
         }
 
         Consume(TokenType.RightBrace, "Expected '}' after switch body.");
-        return Cons.FromEnumerable(new object?[]
-        {
+        return Cons.FromEnumerable([
             JsSymbols.Switch,
             discriminant,
             Cons.FromEnumerable(clauses)
-        });
+        ]);
     }
 
     private Cons ParseSwitchClauseStatements()
@@ -586,12 +587,11 @@ internal sealed class Parser
             var catchSymbol = Symbol.Intern(identifier.Lexeme);
             Consume(TokenType.RightParen, "Expected ')' after catch parameter.");
             var catchBlock = ParseBlock();
-            catchClause = Cons.FromEnumerable(new object?[]
-            {
+            catchClause = Cons.FromEnumerable([
                 JsSymbols.Catch,
                 catchSymbol,
                 catchBlock
-            });
+            ]);
         }
 
         Cons? finallyBlock = null;
@@ -605,13 +605,12 @@ internal sealed class Parser
             throw new ParseException("Try statement requires at least a catch or finally clause.");
         }
 
-        return Cons.FromEnumerable(new object?[]
-        {
+        return Cons.FromEnumerable([
             JsSymbols.Try,
             tryBlock,
             catchClause,
             finallyBlock
-        });
+        ]);
     }
 
     private object ParseIfStatement()
@@ -626,7 +625,7 @@ internal sealed class Parser
             elseBranch = ParseStatement();
         }
 
-        return Cons.FromEnumerable(new object?[] { JsSymbols.If, condition, thenBranch, elseBranch });
+        return Cons.FromEnumerable([JsSymbols.If, condition, thenBranch, elseBranch]);
     }
 
     private object ParseWhileStatement()
@@ -635,7 +634,7 @@ internal sealed class Parser
         var condition = ParseExpression();
         Consume(TokenType.RightParen, "Expected ')' after while condition.");
         var body = ParseStatement();
-        return Cons.FromEnumerable(new object?[] { JsSymbols.While, condition, body });
+        return Cons.FromEnumerable([JsSymbols.While, condition, body]);
     }
 
     private object ParseDoWhileStatement()
@@ -646,7 +645,7 @@ internal sealed class Parser
         var condition = ParseExpression();
         Consume(TokenType.RightParen, "Expected ')' after do-while condition.");
         Consume(TokenType.Semicolon, "Expected ';' after do-while statement.");
-        return Cons.FromEnumerable(new object?[] { JsSymbols.DoWhile, condition, body });
+        return Cons.FromEnumerable([JsSymbols.DoWhile, condition, body]);
     }
 
     private object ParseForStatement()
@@ -692,7 +691,7 @@ internal sealed class Parser
         Consume(TokenType.RightParen, "Expected ')' after for clauses.");
         var body = ParseStatement();
 
-        return Cons.FromEnumerable(new object?[] { JsSymbols.For, initializer, condition, increment, body });
+        return Cons.FromEnumerable([JsSymbols.For, initializer, condition, increment, body]);
     }
 
     private object ParseReturnStatement()
@@ -707,22 +706,22 @@ internal sealed class Parser
 
         Consume(TokenType.Semicolon, "Expected ';' after return statement.");
         return hasValue
-            ? Cons.FromEnumerable(new object?[] { JsSymbols.Return, value })
-            : Cons.FromEnumerable(new object?[] { JsSymbols.Return });
+            ? Cons.FromEnumerable([JsSymbols.Return, value])
+            : Cons.FromEnumerable([JsSymbols.Return]);
     }
 
     private object ParseThrowStatement()
     {
         var value = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after throw statement.");
-        return Cons.FromEnumerable(new object?[] { JsSymbols.Throw, value });
+        return Cons.FromEnumerable([JsSymbols.Throw, value]);
     }
 
     private object ParseExpressionStatement()
     {
         var expression = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after expression statement.");
-        return Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, expression });
+        return Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression]);
     }
 
     private Cons ParseBlock(bool leftBraceConsumed = false)
@@ -755,35 +754,35 @@ internal sealed class Parser
 
             if (expr is Symbol symbol)
             {
-                return Cons.FromEnumerable(new object?[] { JsSymbols.Assign, symbol, value });
+                return Cons.FromEnumerable([JsSymbols.Assign, symbol, value]);
             }
 
             if (expr is Cons { Head: Symbol head } assignmentTarget && ReferenceEquals(head, JsSymbols.GetProperty))
             {
                 var target = assignmentTarget.Rest.Head;
                 var propertyName = assignmentTarget.Rest.Rest.Head;
-                return Cons.FromEnumerable(new object?[] { JsSymbols.SetProperty, target, propertyName, value });
+                return Cons.FromEnumerable([JsSymbols.SetProperty, target, propertyName, value]);
             }
 
             if (expr is Cons { Head: Symbol indexHead } indexTarget && ReferenceEquals(indexHead, JsSymbols.GetIndex))
             {
                 var target = indexTarget.Rest.Head;
                 var index = indexTarget.Rest.Rest.Head;
-                return Cons.FromEnumerable(new object?[] { JsSymbols.SetIndex, target, index, value });
+                return Cons.FromEnumerable([JsSymbols.SetIndex, target, index, value]);
             }
 
             // Check if this is an array literal that should be treated as a destructuring pattern
             if (expr is Cons { Head: Symbol arrayHead } arrayLiteral && ReferenceEquals(arrayHead, JsSymbols.ArrayLiteral))
             {
                 var pattern = ConvertArrayLiteralToPattern(arrayLiteral);
-                return Cons.FromEnumerable(new object?[] { JsSymbols.DestructuringAssignment, pattern, value });
+                return Cons.FromEnumerable([JsSymbols.DestructuringAssignment, pattern, value]);
             }
 
             // Check if this is an object literal that should be treated as a destructuring pattern
             if (expr is Cons { Head: Symbol objectHead } objectLiteral && ReferenceEquals(objectHead, JsSymbols.ObjectLiteral))
             {
                 var pattern = ConvertObjectLiteralToPattern(objectLiteral);
-                return Cons.FromEnumerable(new object?[] { JsSymbols.DestructuringAssignment, pattern, value });
+                return Cons.FromEnumerable([JsSymbols.DestructuringAssignment, pattern, value]);
             }
 
             throw new ParseException($"Invalid assignment target near line {equals.Line} column {equals.Column}.");
@@ -801,7 +800,7 @@ internal sealed class Parser
             var thenBranch = ParseExpression();
             Consume(TokenType.Colon, "Expected ':' after then branch of ternary expression.");
             var elseBranch = ParseTernary();
-            return Cons.FromEnumerable(new object?[] { JsSymbols.Ternary, expr, thenBranch, elseBranch });
+            return Cons.FromEnumerable([JsSymbols.Ternary, expr, thenBranch, elseBranch]);
         }
 
         return expr;
@@ -814,12 +813,11 @@ internal sealed class Parser
         while (Match(TokenType.PipePipe))
         {
             var right = ParseLogicalAnd();
-            expr = Cons.FromEnumerable(new object?[]
-            {
+            expr = Cons.FromEnumerable([
                 JsSymbols.Operator("||"),
                 expr,
                 right
-            });
+            ]);
         }
 
         return expr;
@@ -832,12 +830,11 @@ internal sealed class Parser
         while (Match(TokenType.AmpAmp))
         {
             var right = ParseNullishCoalescing();
-            expr = Cons.FromEnumerable(new object?[]
-            {
+            expr = Cons.FromEnumerable([
                 JsSymbols.Operator("&&"),
                 expr,
                 right
-            });
+            ]);
         }
 
         return expr;
@@ -850,12 +847,11 @@ internal sealed class Parser
         while (Match(TokenType.QuestionQuestion))
         {
             var right = ParseEquality();
-            expr = Cons.FromEnumerable(new object?[]
-            {
+            expr = Cons.FromEnumerable([
                 JsSymbols.Operator("??"),
                 expr,
                 right
-            });
+            ]);
         }
 
         return expr;
@@ -878,12 +874,11 @@ internal sealed class Parser
                 _ => throw new InvalidOperationException("Unexpected equality operator.")
             };
 
-            expr = Cons.FromEnumerable(new object?[]
-            {
+            expr = Cons.FromEnumerable([
                 JsSymbols.Operator(op),
                 expr,
                 right
-            });
+            ]);
         }
 
         return expr;
@@ -905,7 +900,7 @@ internal sealed class Parser
                 _ => throw new InvalidOperationException("Unexpected comparison operator.")
             };
 
-            expr = Cons.FromEnumerable(new object?[] { symbol, expr, right });
+            expr = Cons.FromEnumerable([symbol, expr, right]);
         }
 
         return expr;
@@ -919,7 +914,7 @@ internal sealed class Parser
             var op = Previous();
             var right = ParseFactor();
             var symbol = JsSymbols.Operator(op.Type == TokenType.Plus ? "+" : "-");
-            expr = Cons.FromEnumerable(new object?[] { symbol, expr, right });
+            expr = Cons.FromEnumerable([symbol, expr, right]);
         }
 
         return expr;
@@ -933,7 +928,7 @@ internal sealed class Parser
             var op = Previous();
             var right = ParseUnary();
             var symbol = JsSymbols.Operator(op.Type == TokenType.Star ? "*" : "/");
-            expr = Cons.FromEnumerable(new object?[] { symbol, expr, right });
+            expr = Cons.FromEnumerable([symbol, expr, right]);
         }
 
         return expr;
@@ -943,17 +938,17 @@ internal sealed class Parser
     {
         if (Match(TokenType.Bang))
         {
-            return Cons.FromEnumerable(new object?[] { JsSymbols.Not, ParseUnary() });
+            return Cons.FromEnumerable([JsSymbols.Not, ParseUnary()]);
         }
 
         if (Match(TokenType.Minus))
         {
-            return Cons.FromEnumerable(new object?[] { JsSymbols.Negate, ParseUnary() });
+            return Cons.FromEnumerable([JsSymbols.Negate, ParseUnary()]);
         }
 
         if (Match(TokenType.Typeof))
         {
-            return Cons.FromEnumerable(new object?[] { JsSymbols.Typeof, ParseUnary() });
+            return Cons.FromEnumerable([JsSymbols.Typeof, ParseUnary()]);
         }
 
         if (Match(TokenType.Yield))
@@ -961,14 +956,14 @@ internal sealed class Parser
             // yield can be followed by an expression or nothing
             // We'll parse an assignment expression (one level below expression)
             var value = ParseAssignment();
-            return Cons.FromEnumerable(new object?[] { JsSymbols.Yield, value });
+            return Cons.FromEnumerable([JsSymbols.Yield, value]);
         }
 
         if (Match(TokenType.Await))
         {
             // await must be followed by an expression
             var value = ParseUnary();
-            return Cons.FromEnumerable(new object?[] { JsSymbols.Await, value });
+            return Cons.FromEnumerable([JsSymbols.Await, value]);
         }
 
         return ParseCall();
@@ -1022,7 +1017,7 @@ internal sealed class Parser
                 if (Match(TokenType.DotDotDot))
                 {
                     var expr = ParseExpression();
-                    arguments.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Spread, expr }));
+                    arguments.Add(Cons.FromEnumerable([JsSymbols.Spread, expr]));
                 }
                 else
                 {
@@ -1174,7 +1169,7 @@ internal sealed class Parser
         // The isGenerator flag would need to be stored separately, but for now
         // we'll use Generator symbol for generator function expressions
         var functionType = isGenerator ? JsSymbols.Generator : JsSymbols.Lambda;
-        return Cons.FromEnumerable(new object?[] { functionType, name, parameters, body });
+        return Cons.FromEnumerable([functionType, name, parameters, body]);
     }
 
     private object ParseAsyncFunctionExpression()
@@ -1190,7 +1185,7 @@ internal sealed class Parser
         Consume(TokenType.RightParen, "Expected ')' after lambda parameters.");
         var body = ParseBlock();
         
-        return Cons.FromEnumerable(new object?[] { JsSymbols.Async, name, parameters, body });
+        return Cons.FromEnumerable([JsSymbols.Async, name, parameters, body]);
     }
 
     private object ParseObjectLiteral()
@@ -1207,7 +1202,7 @@ internal sealed class Parser
                     Consume(TokenType.LeftParen, "Expected '(' after getter name.");
                     Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
                     var body = ParseBlock();
-                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Getter, name, body }));
+                    properties.Add(Cons.FromEnumerable([JsSymbols.Getter, name, body]));
                 }
                 else if (Match(TokenType.Set))
                 {
@@ -1217,14 +1212,14 @@ internal sealed class Parser
                     var param = Symbol.Intern(paramToken.Lexeme);
                     Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
                     var body = ParseBlock();
-                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Setter, name, param, body }));
+                    properties.Add(Cons.FromEnumerable([JsSymbols.Setter, name, param, body]));
                 }
                 else
                 {
                     var name = ParseObjectPropertyName();
                     Consume(TokenType.Colon, "Expected ':' after property name.");
                     var value = ParseExpression();
-                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Property, name, value }));
+                    properties.Add(Cons.FromEnumerable([JsSymbols.Property, name, value]));
                 }
             } while (Match(TokenType.Comma));
         }
@@ -1246,7 +1241,7 @@ internal sealed class Parser
                 if (Match(TokenType.DotDotDot))
                 {
                     var expr = ParseExpression();
-                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Spread, expr }));
+                    elements.Add(Cons.FromEnumerable([JsSymbols.Spread, expr]));
                 }
                 else
                 {
@@ -1264,7 +1259,7 @@ internal sealed class Parser
     private object ParseTemplateLiteralExpression()
     {
         var token = Previous();
-        var parts = token.Literal as List<object> ?? new List<object>();
+        var parts = token.Literal as List<object> ?? [];
         
         // (template part1 expr1 part2 expr2 ...)
         var items = new List<object?> { JsSymbols.TemplateLiteral };
@@ -1328,20 +1323,20 @@ internal sealed class Parser
     {
         var nameToken = Consume(TokenType.Identifier, "Expected property name after '.'.");
         var propertyName = nameToken.Lexeme;
-        return Cons.FromEnumerable(new object?[] { JsSymbols.GetProperty, target, propertyName });
+        return Cons.FromEnumerable([JsSymbols.GetProperty, target, propertyName]);
     }
 
     private object FinishIndex(object? target)
     {
         var indexExpression = ParseExpression();
         Consume(TokenType.RightBracket, "Expected ']' after index expression.");
-        return Cons.FromEnumerable(new object?[] { JsSymbols.GetIndex, target, indexExpression });
+        return Cons.FromEnumerable([JsSymbols.GetIndex, target, indexExpression]);
     }
 
     private static Cons CreateDefaultConstructor(Symbol name)
     {
-        var body = Cons.FromEnumerable(new object?[] { JsSymbols.Block });
-        return Cons.FromEnumerable(new object?[] { JsSymbols.Lambda, name, Cons.Empty, body });
+        var body = Cons.FromEnumerable([JsSymbols.Block]);
+        return Cons.FromEnumerable([JsSymbols.Lambda, name, Cons.Empty, body]);
     }
 
     private bool Match(params TokenType[] types)
@@ -1412,13 +1407,13 @@ internal sealed class Parser
                 {
                     throw new ParseException("Rest element must be an identifier");
                 }
-                elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternRest, restSymbol }));
+                elements.Add(Cons.FromEnumerable([JsSymbols.PatternRest, restSymbol]));
                 break; // Rest must be last
             }
             else if (item is Symbol symbol)
             {
                 // Simple identifier
-                elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, symbol, null }));
+                elements.Add(Cons.FromEnumerable([JsSymbols.PatternElement, symbol, null]));
             }
             else if (item is Cons { Head: Symbol itemHead } itemCons)
             {
@@ -1426,12 +1421,12 @@ internal sealed class Parser
                 if (ReferenceEquals(itemHead, JsSymbols.ArrayLiteral))
                 {
                     var nestedPattern = ConvertArrayLiteralToPattern(itemCons);
-                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, nestedPattern, null }));
+                    elements.Add(Cons.FromEnumerable([JsSymbols.PatternElement, nestedPattern, null]));
                 }
                 else if (ReferenceEquals(itemHead, JsSymbols.ObjectLiteral))
                 {
                     var nestedPattern = ConvertObjectLiteralToPattern(itemCons);
-                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, nestedPattern, null }));
+                    elements.Add(Cons.FromEnumerable([JsSymbols.PatternElement, nestedPattern, null]));
                 }
                 else
                 {
@@ -1466,7 +1461,7 @@ internal sealed class Parser
                 {
                     throw new ParseException("Rest property must be an identifier");
                 }
-                properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternRest, restSymbol }));
+                properties.Add(Cons.FromEnumerable([JsSymbols.PatternRest, restSymbol]));
                 break; // Rest must be last
             }
             else if (ReferenceEquals(propHead, JsSymbols.Property))
@@ -1482,7 +1477,7 @@ internal sealed class Parser
                 if (value is Symbol targetSymbol)
                 {
                     // Simple property: {x} or {x: y}
-                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, key, targetSymbol, null }));
+                    properties.Add(Cons.FromEnumerable([JsSymbols.PatternProperty, key, targetSymbol, null]));
                 }
                 else if (value is Cons { Head: Symbol valueHead } valueCons)
                 {
@@ -1490,12 +1485,12 @@ internal sealed class Parser
                     if (ReferenceEquals(valueHead, JsSymbols.ArrayLiteral))
                     {
                         var nestedPattern = ConvertArrayLiteralToPattern(valueCons);
-                        properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, key, nestedPattern, null }));
+                        properties.Add(Cons.FromEnumerable([JsSymbols.PatternProperty, key, nestedPattern, null]));
                     }
                     else if (ReferenceEquals(valueHead, JsSymbols.ObjectLiteral))
                     {
                         var nestedPattern = ConvertObjectLiteralToPattern(valueCons);
-                        properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, key, nestedPattern, null }));
+                        properties.Add(Cons.FromEnumerable([JsSymbols.PatternProperty, key, nestedPattern, null]));
                     }
                     else
                     {

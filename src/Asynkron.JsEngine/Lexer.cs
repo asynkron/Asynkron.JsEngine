@@ -45,7 +45,7 @@ internal sealed class Lexer
     };
 
     private readonly string _source;
-    private readonly List<Token> _tokens = new();
+    private readonly List<Token> _tokens = [];
     private int _start;
     private int _current;
     private int _line = 1;

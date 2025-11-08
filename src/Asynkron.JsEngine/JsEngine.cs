@@ -11,7 +11,7 @@ public sealed class JsEngine
     private readonly CpsTransformer _cpsTransformer = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
-    private readonly HashSet<Task> _activeTimerTasks = new();
+    private readonly HashSet<Task> _activeTimerTasks = [];
     private int _nextTimerId = 1;
 
     /// <summary>
@@ -195,7 +195,7 @@ public sealed class JsEngine
                 {
                     ScheduleTask(() =>
                     {
-                        callback.Invoke(Array.Empty<object?>(), null);
+                        callback.Invoke([], null);
                         return Task.CompletedTask;
                     });
                 }
@@ -252,7 +252,7 @@ public sealed class JsEngine
                     {
                         ScheduleTask(() =>
                         {
-                            callback.Invoke(Array.Empty<object?>(), null);
+                            callback.Invoke([], null);
                             return Task.CompletedTask;
                         });
                     }

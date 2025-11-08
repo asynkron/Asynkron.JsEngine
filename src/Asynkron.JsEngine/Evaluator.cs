@@ -581,7 +581,7 @@ internal static class Evaluator
                 var methodName = methodCons.Rest.Head as string
                     ?? throw new InvalidOperationException("Expected getter name.");
                 var body = ExpectCons(methodCons.Rest.Rest.Head, "Expected getter body.");
-                var getter = new JsFunction(null, Array.Empty<Symbol>(), null, body, environment);
+                var getter = new JsFunction(null, [], null, body, environment);
                 
                 if (superConstructor is not null || superPrototype is not null)
                 {
@@ -1064,7 +1064,7 @@ internal static class Evaluator
             {
                 // (getter "name" (block ...))
                 var body = ExpectCons(propertyCons.Rest.Rest.Head, "Expected getter body.");
-                var getter = new JsFunction(null, Array.Empty<Symbol>(), null, body, environment);
+                var getter = new JsFunction(null, [], null, body, environment);
                 result.SetGetter(propertyName, getter);
             }
             else if (ReferenceEquals(propertyTag, JsSymbols.Setter))
@@ -1482,7 +1482,7 @@ internal static class Evaluator
                 var getter = jsObject.GetGetter(propertyName);
                 if (getter != null)
                 {
-                    value = getter.Invoke(Array.Empty<object?>(), jsObject);
+                    value = getter.Invoke([], jsObject);
                     return true;
                 }
                 if (jsObject.TryGetProperty(propertyName, out value))
@@ -1529,7 +1529,7 @@ internal static class Evaluator
                 var setter = jsObject.GetSetter(propertyName);
                 if (setter != null)
                 {
-                    setter.Invoke(new[] { value }, jsObject);
+                    setter.Invoke([value], jsObject);
                 }
                 else
                 {

@@ -40,7 +40,7 @@ internal sealed class JsGenerator : IJsCallable
         _parameters = parameters ?? throw new ArgumentNullException(nameof(parameters));
         _body = body ?? throw new ArgumentNullException(nameof(body));
         _closure = closure ?? throw new ArgumentNullException(nameof(closure));
-        _arguments = arguments ?? Array.Empty<object?>();
+        _arguments = arguments ?? [];
         _state = GeneratorState.Start;
         _done = false;
         _currentYieldIndex = 0;

@@ -167,13 +167,12 @@ public sealed class CpsTransformer
         // Use Lambda for anonymous functions (function expressions), Function for named functions (function declarations)
         var functionType = name == null ? JsSymbols.Lambda : JsSymbols.Function;
         
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             functionType, 
             name, 
             parameters, 
-            promiseBody 
-        });
+            promiseBody
+        ]);
     }
 
     /// <summary>
@@ -185,40 +184,36 @@ public sealed class CpsTransformer
         // Create the executor function: (lambda (resolve reject) body-with-awaits)
         var resolveParam = Symbol.Intern("__resolve");
         var rejectParam = Symbol.Intern("__reject");
-        var executorParams = Cons.FromEnumerable(new object?[] { resolveParam, rejectParam });
+        var executorParams = Cons.FromEnumerable([resolveParam, rejectParam]);
         
         // The executor body needs to handle the transformed body
         var executorBody = CreateAsyncExecutorBody(body, resolveParam, rejectParam);
         
-        var executor = Cons.FromEnumerable(new object?[] 
-        { 
+        var executor = Cons.FromEnumerable([
             JsSymbols.Lambda, 
             null, 
             executorParams, 
-            executorBody 
-        });
+            executorBody
+        ]);
 
         // Create: (new Promise executor)
-        var promiseCall = Cons.FromEnumerable(new object?[] 
-        { 
+        var promiseCall = Cons.FromEnumerable([
             JsSymbols.New, 
             Symbol.Intern("Promise"), 
-            executor 
-        });
+            executor
+        ]);
 
         // Wrap in return statement
-        var returnStatement = Cons.FromEnumerable(new object?[] 
-        { 
+        var returnStatement = Cons.FromEnumerable([
             JsSymbols.Return, 
-            promiseCall 
-        });
+            promiseCall
+        ]);
 
         // Wrap in block
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             JsSymbols.Block, 
-            returnStatement 
-        });
+            returnStatement
+        ]);
     }
 
     /// <summary>
@@ -232,37 +227,33 @@ public sealed class CpsTransformer
         
         // Wrap in a try-catch that calls resolve/reject
         var catchParam = Symbol.Intern("__error");
-        var rejectCall = Cons.FromEnumerable(new object?[] 
-        { 
+        var rejectCall = Cons.FromEnumerable([
             JsSymbols.Call, 
             rejectParam, 
-            catchParam 
-        });
+            catchParam
+        ]);
 
-        var catchBlock = Cons.FromEnumerable(new object?[] 
-        { 
+        var catchBlock = Cons.FromEnumerable([
             JsSymbols.Block, 
-            Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, rejectCall })
-        });
+            Cons.FromEnumerable([JsSymbols.ExpressionStatement, rejectCall])
+        ]);
 
         // Create the catch clause: (catch catchParam catchBlock)
-        var catchClause = Cons.FromEnumerable(new object?[] 
-        { 
+        var catchClause = Cons.FromEnumerable([
             JsSymbols.Catch, 
             catchParam, 
-            catchBlock 
-        });
+            catchBlock
+        ]);
 
         // Create try statement with catch and no finally (null)
-        var tryStatement = Cons.FromEnumerable(new object?[] 
-        { 
+        var tryStatement = Cons.FromEnumerable([
             JsSymbols.Try, 
             transformedBody, 
             catchClause,
             null  // No finally clause
-        });
+        ]);
 
-        return Cons.FromEnumerable(new object?[] { JsSymbols.Block, tryStatement });
+        return Cons.FromEnumerable([JsSymbols.Block, tryStatement]);
     }
 
     /// <summary>
@@ -367,12 +358,11 @@ public sealed class CpsTransformer
             return Cons.FromEnumerable(flattenedStatements);
         }
         
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             JsSymbols.Block, 
             statement, 
-            rest 
-        });
+            rest
+        ]);
     }
 
     /// <summary>
@@ -394,43 +384,37 @@ public sealed class CpsTransformer
             var valueParam = Symbol.Intern("__value");
             
             // Create the .then() callback: function(__value) { resolve(__value); }
-            var resolveCall = Cons.FromEnumerable(new object?[] 
-            { 
+            var resolveCall = Cons.FromEnumerable([
                 JsSymbols.Call, 
                 resolveParam, 
-                valueParam 
-            });
+                valueParam
+            ]);
             
-            var thenCallback = Cons.FromEnumerable(new object?[] 
-            { 
+            var thenCallback = Cons.FromEnumerable([
                 JsSymbols.Lambda, 
                 null, 
-                Cons.FromEnumerable(new object?[] { valueParam }), 
-                Cons.FromEnumerable(new object?[] 
-                { 
+                Cons.FromEnumerable([valueParam]), 
+                Cons.FromEnumerable([
                     JsSymbols.Block, 
-                    Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, resolveCall })
-                })
-            });
+                    Cons.FromEnumerable([JsSymbols.ExpressionStatement, resolveCall])
+                ])
+            ]);
             
             // Create: promiseExpr.then(callback)
-            var thenCall = Cons.FromEnumerable(new object?[] 
-            { 
+            var thenCall = Cons.FromEnumerable([
                 JsSymbols.Call, 
-                Cons.FromEnumerable(new object?[] 
-                { 
+                Cons.FromEnumerable([
                     JsSymbols.GetProperty, 
                     promiseExpr, 
-                    "then" 
-                }), 
-                thenCallback 
-            });
+                    "then"
+                ]), 
+                thenCallback
+            ]);
             
-            return Cons.FromEnumerable(new object?[] 
-            { 
+            return Cons.FromEnumerable([
                 JsSymbols.Block, 
-                Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, thenCall })
-            });
+                Cons.FromEnumerable([JsSymbols.ExpressionStatement, thenCall])
+            ]);
         }
         
         // Regular return, call resolve with the value
@@ -497,33 +481,29 @@ public sealed class CpsTransformer
                         var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam);
                         
                         // Create the .then() callback: function(varName) { [continuation] }
-                        var thenCallback = Cons.FromEnumerable(new object?[] 
-                        { 
+                        var thenCallback = Cons.FromEnumerable([
                             JsSymbols.Lambda, 
                             null, 
-                            Cons.FromEnumerable(new object?[] { varName }), 
-                            continuation 
-                        });
+                            Cons.FromEnumerable([varName]), 
+                            continuation
+                        ]);
                         
                         // Create the .then() call: promiseExpr.then(thenCallback)
-                        var thenCall = Cons.FromEnumerable(new object?[] 
-                        { 
+                        var thenCall = Cons.FromEnumerable([
                             JsSymbols.Call, 
-                            Cons.FromEnumerable(new object?[] 
-                            { 
+                            Cons.FromEnumerable([
                                 JsSymbols.GetProperty, 
                                 promiseExpr, 
-                                "then" 
-                            }), 
-                            thenCallback 
-                        });
+                                "then"
+                            ]), 
+                            thenCallback
+                        ]);
                         
                         // Wrap in expression statement and block
-                        return Cons.FromEnumerable(new object?[] 
-                        { 
+                        return Cons.FromEnumerable([
                             JsSymbols.Block, 
-                            Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, thenCall })
-                        });
+                            Cons.FromEnumerable([JsSymbols.ExpressionStatement, thenCall])
+                        ]);
                     }
                     // Check if value is a complex expression containing await
                     else if (ContainsAwait(value))
@@ -546,23 +526,20 @@ public sealed class CpsTransformer
                         var promiseExpr = retValueCons.Rest.Head;
                         
                         // Create: promiseExpr.then(resolve)
-                        var thenCall = Cons.FromEnumerable(new object?[] 
-                        { 
+                        var thenCall = Cons.FromEnumerable([
                             JsSymbols.Call, 
-                            Cons.FromEnumerable(new object?[] 
-                            { 
+                            Cons.FromEnumerable([
                                 JsSymbols.GetProperty, 
                                 promiseExpr, 
-                                "then" 
-                            }), 
-                            resolveParam 
-                        });
+                                "then"
+                            ]), 
+                            resolveParam
+                        ]);
                         
-                        return Cons.FromEnumerable(new object?[] 
-                        { 
+                        return Cons.FromEnumerable([
                             JsSymbols.Block, 
-                            Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, thenCall })
-                        });
+                            Cons.FromEnumerable([JsSymbols.ExpressionStatement, thenCall])
+                        ]);
                     }
                 }
                 
@@ -574,12 +551,11 @@ public sealed class CpsTransformer
 
         // Default: include the statement as-is and continue
         var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             JsSymbols.Block, 
             statement, 
-            rest 
-        });
+            rest
+        ]);
     }
 
     /// <summary>
@@ -613,12 +589,11 @@ public sealed class CpsTransformer
                     var catchBlock = catchParts[2];
                     var transformedCatchBlock = TransformBlockInAsyncContext(catchBlock, resolveParam, rejectParam);
                     
-                    transformedCatchClause = Cons.FromEnumerable(new object?[] 
-                    { 
+                    transformedCatchClause = Cons.FromEnumerable([
                         catchSymbol, 
                         catchParam, 
-                        transformedCatchBlock 
-                    });
+                        transformedCatchBlock
+                    ]);
                 }
             }
         }
@@ -633,27 +608,25 @@ public sealed class CpsTransformer
         var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
 
         // Build the transformed try statement
-        var transformedTry = Cons.FromEnumerable(new object?[] 
-        { 
+        var transformedTry = Cons.FromEnumerable([
             JsSymbols.Try, 
             transformedTryBlock, 
             transformedCatchClause, 
-            transformedFinallyBlock 
-        });
+            transformedFinallyBlock
+        ]);
 
         // If rest is just resolving null, return just the try statement
         if (IsSimpleResolveCall(rest))
         {
-            return Cons.FromEnumerable(new object?[] { JsSymbols.Block, transformedTry });
+            return Cons.FromEnumerable([JsSymbols.Block, transformedTry]);
         }
 
         // Combine with rest
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             JsSymbols.Block, 
             transformedTry, 
-            rest 
-        });
+            rest
+        ]);
     }
 
     /// <summary>
@@ -736,18 +709,17 @@ public sealed class CpsTransformer
         {
             // No awaits found, shouldn't happen but handle gracefully
             var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
-            return Cons.FromEnumerable(new object?[] 
-            { 
+            return Cons.FromEnumerable([
                 JsSymbols.Block, 
-                Cons.FromEnumerable(new object?[] { varKeyword, varName, expr }), 
-                rest 
-            });
+                Cons.FromEnumerable([varKeyword, varName, expr]), 
+                rest
+            ]);
         }
 
         // Build the chain from innermost to outermost
         // Start with the variable declaration and remaining statements
         var restStatements = statements.Skip(index + 1).ToList();
-        var varDecl = Cons.FromEnumerable(new object?[] { varKeyword, varName, transformedExpr });
+        var varDecl = Cons.FromEnumerable([varKeyword, varName, transformedExpr]);
         var innerStatements = new List<object?> { varDecl };
         innerStatements.AddRange(restStatements);
         var innerBody = ChainStatementsWithAwaits(innerStatements, 0, resolveParam, rejectParam);
@@ -758,33 +730,29 @@ public sealed class CpsTransformer
             var (promiseExpr, tempVar) = awaits[i];
             
             // Create the .then() callback: function(tempVar) { innerBody }
-            var thenCallback = Cons.FromEnumerable(new object?[] 
-            { 
+            var thenCallback = Cons.FromEnumerable([
                 JsSymbols.Lambda, 
                 null, 
-                Cons.FromEnumerable(new object?[] { tempVar }), 
-                innerBody 
-            });
+                Cons.FromEnumerable([tempVar]), 
+                innerBody
+            ]);
             
             // Create the .then() call: promiseExpr.then(thenCallback)
-            var thenCall = Cons.FromEnumerable(new object?[] 
-            { 
+            var thenCall = Cons.FromEnumerable([
                 JsSymbols.Call, 
-                Cons.FromEnumerable(new object?[] 
-                { 
+                Cons.FromEnumerable([
                     JsSymbols.GetProperty, 
                     promiseExpr, 
-                    "then" 
-                }), 
-                thenCallback 
-            });
+                    "then"
+                ]), 
+                thenCallback
+            ]);
             
             // Wrap in block for next iteration
-            innerBody = Cons.FromEnumerable(new object?[] 
-            { 
+            innerBody = Cons.FromEnumerable([
                 JsSymbols.Block, 
-                Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, thenCall })
-            });
+                Cons.FromEnumerable([JsSymbols.ExpressionStatement, thenCall])
+            ]);
         }
 
         return innerBody;
@@ -849,11 +817,10 @@ public sealed class CpsTransformer
         }
         var resolveCall = Cons.FromEnumerable(args);
 
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             JsSymbols.Block, 
-            Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, resolveCall })
-        });
+            Cons.FromEnumerable([JsSymbols.ExpressionStatement, resolveCall])
+        ]);
     }
 
     /// <summary>
@@ -890,7 +857,7 @@ public sealed class CpsTransformer
         var transformedExpr = TransformExpression(expression);
 
         // For now, keep the await construct - the evaluator will handle it
-        return Cons.FromEnumerable(new object?[] { JsSymbols.Await, transformedExpr });
+        return Cons.FromEnumerable([JsSymbols.Await, transformedExpr]);
     }
 
     /// <summary>
@@ -908,12 +875,11 @@ public sealed class CpsTransformer
         var name = parts[1];
         var value = parts[2];
 
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             keyword, 
             name, 
-            TransformExpression(value) 
-        });
+            TransformExpression(value)
+        ]);
     }
 
     /// <summary>
@@ -935,11 +901,10 @@ public sealed class CpsTransformer
 
         // In an async function context, we need to call resolve
         // For now, we'll transform the return and let the evaluator handle it
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             JsSymbols.Return, 
-            transformedValue 
-        });
+            transformedValue
+        ]);
     }
 
     /// <summary>
@@ -959,21 +924,19 @@ public sealed class CpsTransformer
 
         if (elseBranch != null)
         {
-            return Cons.FromEnumerable(new object?[] 
-            { 
+            return Cons.FromEnumerable([
                 JsSymbols.If, 
                 condition, 
                 thenBranch, 
-                elseBranch 
-            });
+                elseBranch
+            ]);
         }
 
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             JsSymbols.If, 
             condition, 
-            thenBranch 
-        });
+            thenBranch
+        ]);
     }
 
     /// <summary>
@@ -987,11 +950,10 @@ public sealed class CpsTransformer
             return cons;
         }
 
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             JsSymbols.ExpressionStatement, 
-            TransformExpression(parts[1]) 
-        });
+            TransformExpression(parts[1])
+        ]);
     }
 
     /// <summary>
@@ -1022,12 +984,11 @@ public sealed class CpsTransformer
             return cons;
         }
 
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             JsSymbols.Assign, 
             parts[1], 
-            TransformExpression(parts[2]) 
-        });
+            TransformExpression(parts[2])
+        ]);
     }
 
     /// <summary>
@@ -1058,12 +1019,11 @@ public sealed class CpsTransformer
                     var catchParam = catchParts[1];
                     var catchBlock = TransformExpression(catchParts[2]);
                     
-                    catchClause = Cons.FromEnumerable(new object?[] 
-                    { 
+                    catchClause = Cons.FromEnumerable([
                         catchSymbol, 
                         catchParam, 
-                        catchBlock 
-                    });
+                        catchBlock
+                    ]);
                 }
             }
         }
@@ -1074,13 +1034,12 @@ public sealed class CpsTransformer
             finallyBlock = TransformExpression(parts[3]);
         }
 
-        return Cons.FromEnumerable(new object?[] 
-        { 
+        return Cons.FromEnumerable([
             JsSymbols.Try, 
             tryBlock, 
             catchClause, 
-            finallyBlock 
-        });
+            finallyBlock
+        ]);
     }
 
     /// <summary>

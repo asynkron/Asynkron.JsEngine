@@ -602,7 +602,7 @@ internal static class StandardLibrary
             for (int i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
-                var mapped = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                var mapped = callback.Invoke([element, (double)i, jsArray], null);
                 result.Push(mapped);
             }
             AddArrayMethods(result);
@@ -619,7 +619,7 @@ internal static class StandardLibrary
             for (int i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
-                var keep = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                var keep = callback.Invoke([element, (double)i, jsArray], null);
                 if (IsTruthy(keep))
                 {
                     result.Push(element);
@@ -656,7 +656,7 @@ internal static class StandardLibrary
             for (int i = startIndex; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
-                accumulator = callback.Invoke(new object?[] { accumulator, element, (double)i, jsArray }, null);
+                accumulator = callback.Invoke([accumulator, element, (double)i, jsArray], null);
             }
 
             return accumulator;
@@ -671,7 +671,7 @@ internal static class StandardLibrary
             for (int i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
-                callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                callback.Invoke([element, (double)i, jsArray], null);
             }
 
             return null;
@@ -686,7 +686,7 @@ internal static class StandardLibrary
             for (int i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
-                var match = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                var match = callback.Invoke([element, (double)i, jsArray], null);
                 if (IsTruthy(match))
                 {
                     return element;
@@ -705,7 +705,7 @@ internal static class StandardLibrary
             for (int i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
-                var match = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                var match = callback.Invoke([element, (double)i, jsArray], null);
                 if (IsTruthy(match))
                 {
                     return (double)i;
@@ -724,7 +724,7 @@ internal static class StandardLibrary
             for (int i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
-                var result = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                var result = callback.Invoke([element, (double)i, jsArray], null);
                 if (IsTruthy(result))
                 {
                     return true;
@@ -743,7 +743,7 @@ internal static class StandardLibrary
             for (int i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
-                var result = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                var result = callback.Invoke([element, (double)i, jsArray], null);
                 if (!IsTruthy(result))
                 {
                     return false;
@@ -856,7 +856,7 @@ internal static class StandardLibrary
             int start = args.Count > 0 && args[0] is double startD ? (int)startD : 0;
             int deleteCount = args.Count > 1 && args[1] is double deleteD ? (int)deleteD : jsArray.Items.Count - start;
             
-            object?[] itemsToInsert = args.Count > 2 ? args.Skip(2).ToArray() : Array.Empty<object?>();
+            object?[] itemsToInsert = args.Count > 2 ? args.Skip(2).ToArray() : [];
             
             var deleted = jsArray.Splice(start, deleteCount, itemsToInsert);
             AddArrayMethods(deleted);
@@ -915,7 +915,7 @@ internal static class StandardLibrary
                 // Sort with custom compare function
                 items.Sort((a, b) =>
                 {
-                    var result = compareFn.Invoke(new object?[] { a, b }, null);
+                    var result = compareFn.Invoke([a, b], null);
                     if (result is double d)
                     {
                         return d > 0 ? 1 : d < 0 ? -1 : 0;
@@ -1022,7 +1022,7 @@ internal static class StandardLibrary
 
                 var finallyWrapper = new HostFunction(wrapperArgs =>
                 {
-                    onFinally.Invoke(Array.Empty<object?>(), null);
+                    onFinally.Invoke([], null);
                     return wrapperArgs.Count > 0 ? wrapperArgs[0] : null;
                 });
 
@@ -1034,7 +1034,7 @@ internal static class StandardLibrary
             // Execute the executor function immediately
             try
             {
-                executor.Invoke(new object?[] { resolve, reject }, null);
+                executor.Invoke([resolve, reject], null);
             }
             catch (Exception ex)
             {
@@ -1101,8 +1101,7 @@ internal static class StandardLibrary
                     // Check if item is a promise (JsObject with "then" method)
                     if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable thenCallable)
                     {
-                        thenCallable.Invoke(new object?[]
-                        {
+                        thenCallable.Invoke([
                             new HostFunction(resolveArgs =>
                             {
                                 results[index] = resolveArgs.Count > 0 ? resolveArgs[0] : null;
@@ -1125,7 +1124,7 @@ internal static class StandardLibrary
                                 resultPromise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
                                 return null;
                             })
-                        }, itemObj);
+                        ], itemObj);
                     }
                     else
                     {
@@ -1164,8 +1163,7 @@ internal static class StandardLibrary
                     // Check if item is a promise (JsObject with "then" method)
                     if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable thenCallable)
                     {
-                        thenCallable.Invoke(new object?[]
-                        {
+                        thenCallable.Invoke([
                             new HostFunction(resolveArgs =>
                             {
                                 if (!settled)
@@ -1184,7 +1182,7 @@ internal static class StandardLibrary
                                 }
                                 return null;
                             })
-                        }, itemObj);
+                        ], itemObj);
                     }
                     else if (!settled)
                     {
@@ -1230,7 +1228,7 @@ internal static class StandardLibrary
 
             var finallyWrapper = new HostFunction(wrapperArgs =>
             {
-                onFinally.Invoke(Array.Empty<object?>(), null);
+                onFinally.Invoke([], null);
                 return wrapperArgs.Count > 0 ? wrapperArgs[0] : null;
             });
 
@@ -1350,7 +1348,7 @@ internal static class StandardLibrary
         // split(separator, limit?)
         stringObj.SetProperty("split", new HostFunction(args =>
         {
-            if (args.Count == 0) return CreateArrayFromStrings(new[] { str });
+            if (args.Count == 0) return CreateArrayFromStrings([str]);
             
             var separator = args[0]?.ToString();
             var limit = args.Count > 1 && args[1] is double d ? (int)d : int.MaxValue;
@@ -1362,7 +1360,7 @@ internal static class StandardLibrary
                 return CreateArrayFromStrings(chars);
             }
             
-            var parts = str.Split(new[] { separator }, StringSplitOptions.None);
+            var parts = str.Split([separator], StringSplitOptions.None);
             if (limit < parts.Length)
             {
                 parts = parts.Take(limit).ToArray();

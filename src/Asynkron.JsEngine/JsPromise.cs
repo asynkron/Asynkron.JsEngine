@@ -14,7 +14,7 @@ internal sealed class JsPromise
 
     private PromiseState _state = PromiseState.Pending;
     private object? _value;
-    private readonly List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = new();
+    private readonly List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = [];
     private readonly JsEngine _engine;
     private readonly JsObject _jsObject;
 
@@ -89,13 +89,12 @@ internal sealed class JsPromise
                     {
                         if (onFulfilled != null)
                         {
-                            var result = onFulfilled.Invoke(new[] { _value }, null);
+                            var result = onFulfilled.Invoke([_value], null);
                             
                             // If the result is a promise (JsObject with "then" method), chain it
                             if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable thenCallable)
                             {
-                                thenCallable.Invoke(new object?[]
-                                {
+                                thenCallable.Invoke([
                                     new HostFunction(args =>
                                     {
                                         nextPromise.Resolve(args.Count > 0 ? args[0] : null);
@@ -106,7 +105,7 @@ internal sealed class JsPromise
                                         nextPromise.Reject(args.Count > 0 ? args[0] : null);
                                         return null;
                                     })
-                                }, resultObj);
+                                ], resultObj);
                             }
                             else
                             {
@@ -122,13 +121,12 @@ internal sealed class JsPromise
                     {
                         if (onRejected != null)
                         {
-                            var result = onRejected.Invoke(new[] { _value }, null);
+                            var result = onRejected.Invoke([_value], null);
                             
                             // If the result is a promise (JsObject with "then" method), chain it
                             if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable thenCallable)
                             {
-                                thenCallable.Invoke(new object?[]
-                                {
+                                thenCallable.Invoke([
                                     new HostFunction(args =>
                                     {
                                         nextPromise.Resolve(args.Count > 0 ? args[0] : null);
@@ -139,7 +137,7 @@ internal sealed class JsPromise
                                         nextPromise.Reject(args.Count > 0 ? args[0] : null);
                                         return null;
                                     })
-                                }, resultObj);
+                                ], resultObj);
                             }
                             else
                             {

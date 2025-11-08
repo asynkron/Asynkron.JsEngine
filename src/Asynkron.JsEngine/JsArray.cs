@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine;
 internal sealed class JsArray
 {
     private readonly JsObject _properties = new();
-    private readonly List<object?> _items = new();
+    private readonly List<object?> _items = [];
 
     public JsArray()
     {

@@ -6,6 +6,11 @@ internal static class Evaluator
 {
     public static object? EvaluateProgram(Cons program, Environment environment)
     {
+        return EvaluateProgram(program, environment, new EvaluationContext());
+    }
+
+    internal static object? EvaluateProgram(Cons program, Environment environment, EvaluationContext context)
+    {
         if (program.IsEmpty || program.Head is not Symbol { } tag || !ReferenceEquals(tag, JsSymbols.Program))
         {
             throw new InvalidOperationException("Program S-expression must start with the 'program' symbol.");
@@ -14,13 +19,20 @@ internal static class Evaluator
         object? result = null;
         foreach (var statement in program.Rest)
         {
-            result = EvaluateStatement(statement, environment);
+            result = EvaluateStatement(statement, environment, context);
+            if (context.ShouldStopEvaluation)
+                break;
         }
 
         return result;
     }
 
     public static object? EvaluateBlock(Cons block, Environment environment)
+    {
+        return EvaluateBlock(block, environment, new EvaluationContext());
+    }
+
+    internal static object? EvaluateBlock(Cons block, Environment environment, EvaluationContext context)
     {
         if (block.IsEmpty || block.Head is not Symbol { } tag || !ReferenceEquals(tag, JsSymbols.Block))
         {
@@ -31,13 +43,15 @@ internal static class Evaluator
         object? result = null;
         foreach (var statement in block.Rest)
         {
-            result = EvaluateStatement(statement, scope);
+            result = EvaluateStatement(statement, scope, context);
+            if (context.ShouldStopEvaluation)
+                break;
         }
 
         return result;
     }
 
-    private static object? EvaluateStatement(object? statement, Environment environment)
+    private static object? EvaluateStatement(object? statement, Environment environment, EvaluationContext context)
     {
         if (statement is not Cons cons)
         {
@@ -51,144 +65,155 @@ internal static class Evaluator
 
         if (ReferenceEquals(symbol, JsSymbols.Let))
         {
-            return EvaluateLet(cons, environment);
+            return EvaluateLet(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Var))
         {
-            return EvaluateVar(cons, environment);
+            return EvaluateVar(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Const))
         {
-            return EvaluateConst(cons, environment);
+            return EvaluateConst(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Function))
         {
-            return EvaluateFunctionDeclaration(cons, environment);
+            return EvaluateFunctionDeclaration(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Generator))
         {
-            return EvaluateGeneratorDeclaration(cons, environment);
+            return EvaluateGeneratorDeclaration(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Class))
         {
-            return EvaluateClass(cons, environment);
+            return EvaluateClass(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.If))
         {
-            return EvaluateIf(cons, environment);
+            return EvaluateIf(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.For))
         {
-            return EvaluateFor(cons, environment);
+            return EvaluateFor(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Switch))
         {
-            return EvaluateSwitch(cons, environment);
+            return EvaluateSwitch(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Try))
         {
-            return EvaluateTry(cons, environment);
+            return EvaluateTry(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.While))
         {
-            return EvaluateWhile(cons, environment);
+            return EvaluateWhile(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.DoWhile))
         {
-            return EvaluateDoWhile(cons, environment);
+            return EvaluateDoWhile(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Break))
         {
-            throw new BreakSignal();
+            context.SetBreak();
+            return null;
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Continue))
         {
-            throw new ContinueSignal();
+            context.SetContinue();
+            return null;
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Return))
         {
-            return EvaluateReturn(cons, environment);
+            return EvaluateReturn(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Throw))
         {
-            return EvaluateThrow(cons, environment);
+            return EvaluateThrow(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.ExpressionStatement))
         {
             var expression = cons.Rest.Head;
-            return EvaluateExpression(expression, environment);
+            return EvaluateExpression(expression, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Block))
         {
-            return EvaluateBlock(cons, environment);
+            return EvaluateBlock(cons, environment, context);
         }
 
-        return EvaluateExpression(cons, environment);
+        return EvaluateExpression(cons, environment, context);
     }
 
-    private static object? EvaluateIf(Cons cons, Environment environment)
+    private static object? EvaluateIf(Cons cons, Environment environment, EvaluationContext context)
     {
         var conditionExpression = cons.Rest.Head;
         var thenBranch = cons.Rest.Rest.Head;
         var elseBranch = cons.Rest.Rest.Rest.Head;
 
-        var condition = EvaluateExpression(conditionExpression, environment);
+        var condition = EvaluateExpression(conditionExpression, environment, context);
         if (IsTruthy(condition))
         {
-            return EvaluateStatement(thenBranch, environment);
+            return EvaluateStatement(thenBranch, environment, context);
         }
 
         if (elseBranch is not null)
         {
-            return EvaluateStatement(elseBranch, environment);
+            return EvaluateStatement(elseBranch, environment, context);
         }
 
         return null;
     }
 
-    private static object? EvaluateWhile(Cons cons, Environment environment)
+    private static object? EvaluateWhile(Cons cons, Environment environment, EvaluationContext context)
     {
         var conditionExpression = cons.Rest.Head;
         var body = cons.Rest.Rest.Head;
 
         object? lastResult = null;
-        while (IsTruthy(EvaluateExpression(conditionExpression, environment)))
+        while (IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
         {
-            try
+            if (context.ShouldStopEvaluation)
+                break;
+            
+            lastResult = EvaluateStatement(body, environment, context);
+            
+            if (context.IsContinue)
             {
-                lastResult = EvaluateStatement(body, environment);
-            }
-            catch (ContinueSignal)
-            {
+                context.ClearContinue();
                 continue;
             }
-            catch (BreakSignal)
+            
+            if (context.IsBreak)
             {
+                context.ClearBreak();
                 break;
+            }
+            
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;  // Propagate return/throw
             }
         }
 
         return lastResult;
     }
 
-    private static object? EvaluateDoWhile(Cons cons, Environment environment)
+    private static object? EvaluateDoWhile(Cons cons, Environment environment, EvaluationContext context)
     {
         var conditionExpression = cons.Rest.Head;
         var body = cons.Rest.Rest.Head;
@@ -196,20 +221,24 @@ internal static class Evaluator
         object? lastResult = null;
         while (true)
         {
-            try
+            lastResult = EvaluateStatement(body, environment, context);
+            
+            if (context.IsContinue)
             {
-                lastResult = EvaluateStatement(body, environment);
-            }
-            catch (ContinueSignal)
-            {
+                context.ClearContinue();
                 // fall through to condition check for the next iteration
             }
-            catch (BreakSignal)
+            else if (context.IsBreak)
             {
+                context.ClearBreak();
                 break;
             }
+            else if (context.IsReturn || context.IsThrow)
+            {
+                break;  // Propagate return/throw
+            }
 
-            if (!IsTruthy(EvaluateExpression(conditionExpression, environment)))
+            if (!IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
             {
                 break;
             }
@@ -218,7 +247,7 @@ internal static class Evaluator
         return lastResult;
     }
 
-    private static object? EvaluateFor(Cons cons, Environment environment)
+    private static object? EvaluateFor(Cons cons, Environment environment, EvaluationContext context)
     {
         var initializer = cons.Rest.Head;
         var conditionExpression = cons.Rest.Rest.Head;
@@ -229,44 +258,52 @@ internal static class Evaluator
 
         if (initializer is not null)
         {
-            EvaluateStatement(initializer, loopEnvironment);
+            EvaluateStatement(initializer, loopEnvironment, context);
         }
 
         object? lastResult = null;
-        while (conditionExpression is null || IsTruthy(EvaluateExpression(conditionExpression, loopEnvironment)))
+        while (conditionExpression is null || IsTruthy(EvaluateExpression(conditionExpression, loopEnvironment, context)))
         {
-            try
+            if (context.ShouldStopEvaluation)
+                break;
+            
+            lastResult = EvaluateStatement(body, loopEnvironment, context);
+            
+            if (context.IsContinue)
             {
-                lastResult = EvaluateStatement(body, loopEnvironment);
-            }
-            catch (ContinueSignal)
-            {
+                context.ClearContinue();
                 if (incrementExpression is not null)
                 {
-                    EvaluateExpression(incrementExpression, loopEnvironment);
+                    EvaluateExpression(incrementExpression, loopEnvironment, context);
                 }
-
                 continue;
             }
-            catch (BreakSignal)
+            
+            if (context.IsBreak)
             {
+                context.ClearBreak();
                 break;
+            }
+            
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;  // Propagate return/throw
             }
 
             if (incrementExpression is not null)
             {
-                EvaluateExpression(incrementExpression, loopEnvironment);
+                EvaluateExpression(incrementExpression, loopEnvironment, context);
             }
         }
 
         return lastResult;
     }
 
-    private static object? EvaluateSwitch(Cons cons, Environment environment)
+    private static object? EvaluateSwitch(Cons cons, Environment environment, EvaluationContext context)
     {
         var discriminantExpression = cons.Rest.Head;
         var clauses = ExpectCons(cons.Rest.Rest.Head, "Expected switch clause list.");
-        var discriminant = EvaluateExpression(discriminantExpression, environment);
+        var discriminant = EvaluateExpression(discriminantExpression, environment, context);
         var hasMatched = false; // Once a clause matches, we keep executing subsequent clauses to model fallthrough.
         object? result = null;
 
@@ -282,19 +319,21 @@ internal static class Evaluator
 
                 if (!hasMatched)
                 {
-                    var testValue = EvaluateExpression(testExpression, environment);
+                    var testValue = EvaluateExpression(testExpression, environment, context);
                     hasMatched = Equals(discriminant, testValue);
                 }
 
                 if (hasMatched)
                 {
-                    try
+                    result = ExecuteSwitchBody(body, environment, result, context);
+                    if (context.IsBreak)
                     {
-                        result = ExecuteSwitchBody(body, environment, result);
-                    }
-                    catch (BreakSignal)
-                    {
+                        context.ClearBreak();
                         return result;
+                    }
+                    if (context.IsReturn || context.IsThrow)
+                    {
+                        return result;  // Propagate
                     }
                 }
 
@@ -310,13 +349,15 @@ internal static class Evaluator
                     hasMatched = true;
                 }
 
-                try
+                result = ExecuteSwitchBody(body, environment, result, context);
+                if (context.IsBreak)
                 {
-                    result = ExecuteSwitchBody(body, environment, result);
-                }
-                catch (BreakSignal)
-                {
+                    context.ClearBreak();
                     return result;
+                }
+                if (context.IsReturn || context.IsThrow)
+                {
+                    return result;  // Propagate
                 }
 
                 continue;
@@ -328,18 +369,20 @@ internal static class Evaluator
         return result;
     }
 
-    private static object? ExecuteSwitchBody(Cons body, Environment environment, object? currentResult)
+    private static object? ExecuteSwitchBody(Cons body, Environment environment, object? currentResult, EvaluationContext context)
     {
         var result = currentResult;
         foreach (var statement in body.Rest)
         {
-            result = EvaluateStatement(statement, environment);
+            result = EvaluateStatement(statement, environment, context);
+            if (context.ShouldStopEvaluation)
+                break;
         }
 
         return result;
     }
 
-    private static object? EvaluateTry(Cons cons, Environment environment)
+    private static object? EvaluateTry(Cons cons, Environment environment, EvaluationContext context)
     {
         var tryStatement = cons.Rest.Head;
         var catchClause = cons.Rest.Rest.Head;
@@ -350,13 +393,13 @@ internal static class Evaluator
 
         try
         {
-            result = EvaluateStatement(tryStatement, environment);
+            result = EvaluateStatement(tryStatement, environment, context);
         }
         catch (ThrowSignal signal)
         {
             if (catchClause is Cons catchCons && ReferenceEquals(catchCons.Head, JsSymbols.Catch))
             {
-                result = ExecuteCatchClause(catchCons, signal.Value, environment);
+                result = ExecuteCatchClause(catchCons, signal.Value, environment, context);
             }
             else
             {
@@ -367,7 +410,7 @@ internal static class Evaluator
         {
             if (finallyClause is Cons finallyCons)
             {
-                EvaluateStatement(finallyCons, environment);
+                EvaluateStatement(finallyCons, environment, context);
             }
         }
 
@@ -379,7 +422,7 @@ internal static class Evaluator
         return result;
     }
 
-    private static object? EvaluateLet(Cons cons, Environment environment)
+    private static object? EvaluateLet(Cons cons, Environment environment, EvaluationContext context)
     {
         var target = cons.Rest.Head;
         
@@ -388,20 +431,20 @@ internal static class Evaluator
             (ReferenceEquals(patternSymbol, JsSymbols.ArrayPattern) || ReferenceEquals(patternSymbol, JsSymbols.ObjectPattern)))
         {
             var valueExpression = cons.Rest.Rest.Head;
-            var value = EvaluateExpression(valueExpression, environment);
-            DestructureAndDefine(patternCons, value, environment, false);
+            var value = EvaluateExpression(valueExpression, environment, context);
+            DestructureAndDefine(patternCons, value, environment, false, context);
             return value;
         }
         
         // Simple identifier case
         var name = ExpectSymbol(target, "Expected identifier in let declaration.");
         var initializer = cons.Rest.Rest.Head;
-        var simpleValue = EvaluateExpression(initializer, environment);
+        var simpleValue = EvaluateExpression(initializer, environment, context);
         environment.Define(name, simpleValue);
         return simpleValue;
     }
 
-    private static object? EvaluateVar(Cons cons, Environment environment)
+    private static object? EvaluateVar(Cons cons, Environment environment, EvaluationContext context)
     {
         var target = cons.Rest.Head;
         
@@ -410,8 +453,8 @@ internal static class Evaluator
             (ReferenceEquals(patternSymbol, JsSymbols.ArrayPattern) || ReferenceEquals(patternSymbol, JsSymbols.ObjectPattern)))
         {
             var valueExpression = cons.Rest.Rest.Head;
-            var value = EvaluateExpression(valueExpression, environment);
-            DestructureAndDefineFunctionScoped(patternCons, value, environment);
+            var value = EvaluateExpression(valueExpression, environment, context);
+            DestructureAndDefineFunctionScoped(patternCons, value, environment, context);
             return value;
         }
         
@@ -419,12 +462,12 @@ internal static class Evaluator
         var name = ExpectSymbol(target, "Expected identifier in var declaration.");
         var initializer = cons.Rest.Rest.Head;
         var hasInitializer = !ReferenceEquals(initializer, JsSymbols.Uninitialized);
-        var varValue = hasInitializer ? EvaluateExpression(initializer, environment) : null;
+        var varValue = hasInitializer ? EvaluateExpression(initializer, environment, context) : null;
         environment.DefineFunctionScoped(name, varValue, hasInitializer);
         return environment.Get(name);
     }
 
-    private static object? EvaluateConst(Cons cons, Environment environment)
+    private static object? EvaluateConst(Cons cons, Environment environment, EvaluationContext context)
     {
         var target = cons.Rest.Head;
         
@@ -433,20 +476,20 @@ internal static class Evaluator
             (ReferenceEquals(patternSymbol, JsSymbols.ArrayPattern) || ReferenceEquals(patternSymbol, JsSymbols.ObjectPattern)))
         {
             var valueExpression = cons.Rest.Rest.Head;
-            var value = EvaluateExpression(valueExpression, environment);
-            DestructureAndDefine(patternCons, value, environment, true);
+            var value = EvaluateExpression(valueExpression, environment, context);
+            DestructureAndDefine(patternCons, value, environment, true, context);
             return value;
         }
         
         // Simple identifier case
         var name = ExpectSymbol(target, "Expected identifier in const declaration.");
         var constValueExpression = cons.Rest.Rest.Head;
-        var constValue = EvaluateExpression(constValueExpression, environment);
+        var constValue = EvaluateExpression(constValueExpression, environment, context);
         environment.Define(name, constValue, isConst: true);
         return constValue;
     }
 
-    private static object? EvaluateFunctionDeclaration(Cons cons, Environment environment)
+    private static object? EvaluateFunctionDeclaration(Cons cons, Environment environment, EvaluationContext context)
     {
         var name = ExpectSymbol(cons.Rest.Head, "Expected function name.");
         var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected parameter list for function.");
@@ -457,7 +500,7 @@ internal static class Evaluator
         return function;
     }
 
-    private static object? EvaluateGeneratorDeclaration(Cons cons, Environment environment)
+    private static object? EvaluateGeneratorDeclaration(Cons cons, Environment environment, EvaluationContext context)
     {
         var name = ExpectSymbol(cons.Rest.Head, "Expected generator function name.");
         var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected parameter list for generator function.");
@@ -469,16 +512,16 @@ internal static class Evaluator
         return generatorFactory;
     }
 
-    private static object? EvaluateClass(Cons cons, Environment environment)
+    private static object? EvaluateClass(Cons cons, Environment environment, EvaluationContext context)
     {
         var name = ExpectSymbol(cons.Rest.Head, "Expected class name symbol.");
         var extendsEntry = cons.Rest.Rest.Head;
         var constructorExpression = cons.Rest.Rest.Rest.Head;
         var methodsList = ExpectCons(cons.Rest.Rest.Rest.Rest.Head, "Expected class body list.");
 
-        var (superConstructor, superPrototype) = ResolveSuperclass(extendsEntry, environment);
+        var (superConstructor, superPrototype) = ResolveSuperclass(extendsEntry, environment, context);
 
-        var constructorValue = EvaluateExpression(constructorExpression, environment);
+        var constructorValue = EvaluateExpression(constructorExpression, environment, context);
         if (constructorValue is not JsFunction constructor)
         {
             throw new InvalidOperationException("Class constructor must be a function.");
@@ -518,7 +561,7 @@ internal static class Evaluator
                 var methodName = methodCons.Rest.Head as string
                     ?? throw new InvalidOperationException("Expected method name.");
                 var functionExpression = methodCons.Rest.Rest.Head;
-                var methodValue = EvaluateExpression(functionExpression, environment);
+                var methodValue = EvaluateExpression(functionExpression, environment, context);
 
                 if (methodValue is not IJsCallable)
                 {
@@ -573,7 +616,7 @@ internal static class Evaluator
         return constructor;
     }
 
-    private static (JsFunction? Constructor, JsObject? Prototype) ResolveSuperclass(object? extendsEntry, Environment environment)
+    private static (JsFunction? Constructor, JsObject? Prototype) ResolveSuperclass(object? extendsEntry, Environment environment, EvaluationContext context)
     {
         if (extendsEntry is null)
         {
@@ -588,7 +631,7 @@ internal static class Evaluator
         }
 
         var baseExpression = extendsCons.Rest.Head;
-        var baseValue = EvaluateExpression(baseExpression, environment);
+        var baseValue = EvaluateExpression(baseExpression, environment, context);
 
         if (baseValue is null)
         {
@@ -609,25 +652,27 @@ internal static class Evaluator
         return (baseConstructor, basePrototype);
     }
 
-    private static object? EvaluateReturn(Cons cons, Environment environment)
+    private static object? EvaluateReturn(Cons cons, Environment environment, EvaluationContext context)
     {
         if (cons.Rest.IsEmpty)
         {
-            throw new ReturnSignal(null);
+            context.SetReturn(null);
+            return null;
         }
 
-        var value = EvaluateExpression(cons.Rest.Head, environment);
-        throw new ReturnSignal(value);
+        var value = EvaluateExpression(cons.Rest.Head, environment, context);
+        context.SetReturn(value);
+        return value;
     }
 
-    private static object? EvaluateThrow(Cons cons, Environment environment)
+    private static object? EvaluateThrow(Cons cons, Environment environment, EvaluationContext context)
     {
         var valueExpression = cons.Rest.Head;
-        var value = EvaluateExpression(valueExpression, environment);
+        var value = EvaluateExpression(valueExpression, environment, context);
         throw new ThrowSignal(value);
     }
 
-    private static object? ExecuteCatchClause(Cons catchClause, object? thrownValue, Environment environment)
+    private static object? ExecuteCatchClause(Cons catchClause, object? thrownValue, Environment environment, EvaluationContext context)
     {
         var tag = ExpectSymbol(catchClause.Head, "Expected catch clause tag.");
         if (!ReferenceEquals(tag, JsSymbols.Catch))
@@ -640,10 +685,10 @@ internal static class Evaluator
 
         var catchEnvironment = new Environment(environment);
         catchEnvironment.Define(binding, thrownValue);
-        return EvaluateStatement(body, catchEnvironment);
+        return EvaluateStatement(body, catchEnvironment, context);
     }
 
-    private static object? EvaluateExpression(object? expression, Environment environment)
+    private static object? EvaluateExpression(object? expression, Environment environment, EvaluationContext context)
     {
         switch (expression)
         {
@@ -663,13 +708,13 @@ internal static class Evaluator
                 }
                 return environment.Get(symbol);
             case Cons cons:
-                return EvaluateCompositeExpression(cons, environment);
+                return EvaluateCompositeExpression(cons, environment, context);
             default:
                 return expression;
         }
     }
 
-    private static object? EvaluateCompositeExpression(Cons cons, Environment environment)
+    private static object? EvaluateCompositeExpression(Cons cons, Environment environment, EvaluationContext context)
     {
         if (cons.Head is not Symbol symbol)
         {
@@ -680,7 +725,7 @@ internal static class Evaluator
         {
             var target = ExpectSymbol(cons.Rest.Head, "Expected assignment target.");
             var valueExpression = cons.Rest.Rest.Head;
-            var value = EvaluateExpression(valueExpression, environment);
+            var value = EvaluateExpression(valueExpression, environment, context);
             environment.Assign(target, value);
             return value;
         }
@@ -689,71 +734,71 @@ internal static class Evaluator
         {
             var pattern = ExpectCons(cons.Rest.Head, "Expected destructuring pattern.");
             var valueExpression = cons.Rest.Rest.Head;
-            var value = EvaluateExpression(valueExpression, environment);
-            DestructureAssignment(pattern, value, environment);
+            var value = EvaluateExpression(valueExpression, environment, context);
+            DestructureAssignment(pattern, value, environment, context);
             return value;
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Call))
         {
-            return EvaluateCall(cons, environment);
+            return EvaluateCall(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.ArrayLiteral))
         {
-            return EvaluateArrayLiteral(cons, environment);
+            return EvaluateArrayLiteral(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.TemplateLiteral))
         {
-            return EvaluateTemplateLiteral(cons, environment);
+            return EvaluateTemplateLiteral(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.ObjectLiteral))
         {
-            return EvaluateObjectLiteral(cons, environment);
+            return EvaluateObjectLiteral(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.GetIndex))
         {
-            return EvaluateGetIndex(cons, environment);
+            return EvaluateGetIndex(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.SetIndex))
         {
-            return EvaluateSetIndex(cons, environment);
+            return EvaluateSetIndex(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.GetProperty))
         {
-            return EvaluateGetProperty(cons, environment);
+            return EvaluateGetProperty(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.SetProperty))
         {
-            return EvaluateSetProperty(cons, environment);
+            return EvaluateSetProperty(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.New))
         {
-            return EvaluateNew(cons, environment);
+            return EvaluateNew(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Negate))
         {
-            var operand = EvaluateExpression(cons.Rest.Head, environment);
+            var operand = EvaluateExpression(cons.Rest.Head, environment, context);
             return -ToNumber(operand);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Not))
         {
-            var operand = EvaluateExpression(cons.Rest.Head, environment);
+            var operand = EvaluateExpression(cons.Rest.Head, environment, context);
             return !IsTruthy(operand);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Typeof))
         {
-            var operand = EvaluateExpression(cons.Rest.Head, environment);
+            var operand = EvaluateExpression(cons.Rest.Head, environment, context);
             return GetTypeofString(operand);
         }
 
@@ -778,7 +823,7 @@ internal static class Evaluator
         if (ReferenceEquals(symbol, JsSymbols.Yield))
         {
             // Evaluate the value to yield
-            var value = EvaluateExpression(cons.Rest.Head, environment);
+            var value = EvaluateExpression(cons.Rest.Head, environment, context);
             
             // Check if we have a yield tracker (only present in generator context)
             try
@@ -802,21 +847,21 @@ internal static class Evaluator
 
         if (ReferenceEquals(symbol, JsSymbols.Ternary))
         {
-            var condition = EvaluateExpression(cons.Rest.Head, environment);
+            var condition = EvaluateExpression(cons.Rest.Head, environment, context);
             var thenBranch = cons.Rest.Rest.Head;
             var elseBranch = cons.Rest.Rest.Rest.Head;
             return IsTruthy(condition)
-                ? EvaluateExpression(thenBranch, environment)
-                : EvaluateExpression(elseBranch, environment);
+                ? EvaluateExpression(thenBranch, environment, context)
+                : EvaluateExpression(elseBranch, environment, context);
         }
 
-        return EvaluateBinary(cons, environment, symbol);
+        return EvaluateBinary(cons, environment, symbol, context);
     }
 
-    private static object? EvaluateCall(Cons cons, Environment environment)
+    private static object? EvaluateCall(Cons cons, Environment environment, EvaluationContext context)
     {
         var calleeExpression = cons.Rest.Head;
-        var (callee, thisValue) = ResolveCallee(calleeExpression, environment);
+        var (callee, thisValue) = ResolveCallee(calleeExpression, environment, context);
         if (callee is not IJsCallable callable)
         {
             throw new InvalidOperationException("Attempted to call a non-callable value.");
@@ -828,7 +873,7 @@ internal static class Evaluator
             // Check if this is a spread argument
             if (argumentExpression is Cons { Head: Symbol head } spreadCons && ReferenceEquals(head, JsSymbols.Spread))
             {
-                var spreadValue = EvaluateExpression(spreadCons.Rest.Head, environment);
+                var spreadValue = EvaluateExpression(spreadCons.Rest.Head, environment, context);
                 // Spread arrays
                 if (spreadValue is JsArray array)
                 {
@@ -844,18 +889,18 @@ internal static class Evaluator
             }
             else
             {
-                arguments.Add(EvaluateExpression(argumentExpression, environment));
+                arguments.Add(EvaluateExpression(argumentExpression, environment, context));
             }
         }
 
         return callable.Invoke(arguments, thisValue);
     }
 
-    private static (object? Callee, object? ThisValue) ResolveCallee(object? calleeExpression, Environment environment)
+    private static (object? Callee, object? ThisValue) ResolveCallee(object? calleeExpression, Environment environment, EvaluationContext context)
     {
         if (calleeExpression is Symbol { } superSymbol && ReferenceEquals(superSymbol, JsSymbols.Super))
         {
-            var binding = ExpectSuperBinding(environment);
+            var binding = ExpectSuperBinding(environment, context);
             if (binding.Constructor is null)
             {
                 throw new InvalidOperationException("Super constructor is not available in this context.");
@@ -872,7 +917,7 @@ internal static class Evaluator
 
             if (targetExpression is Symbol { } targetSymbol && ReferenceEquals(targetSymbol, JsSymbols.Super))
             {
-                var binding = ExpectSuperBinding(environment);
+                var binding = ExpectSuperBinding(environment, context);
                 if (binding.TryGetProperty(propertyName, out var superValue))
                 {
                     return (superValue, binding.ThisValue);
@@ -881,7 +926,7 @@ internal static class Evaluator
                 return (null, binding.ThisValue);
             }
 
-            var target = EvaluateExpression(targetExpression, environment);
+            var target = EvaluateExpression(targetExpression, environment, context);
             if (TryGetPropertyValue(target, propertyName, out var value))
             {
                 return (value, target);
@@ -897,8 +942,8 @@ internal static class Evaluator
 
             if (targetExpression is Symbol { } indexTargetSymbol && ReferenceEquals(indexTargetSymbol, JsSymbols.Super))
             {
-                var binding = ExpectSuperBinding(environment);
-                var superIndex = EvaluateExpression(indexExpression, environment);
+                var binding = ExpectSuperBinding(environment, context);
+                var superIndex = EvaluateExpression(indexExpression, environment, context);
                 var superPropertyName = ToPropertyName(superIndex)
                     ?? throw new InvalidOperationException($"Unsupported index value '{superIndex}'.");
 
@@ -910,8 +955,8 @@ internal static class Evaluator
                 return (null, binding.ThisValue);
             }
 
-            var target = EvaluateExpression(targetExpression, environment);
-            var index = EvaluateExpression(indexExpression, environment);
+            var target = EvaluateExpression(targetExpression, environment, context);
+            var index = EvaluateExpression(indexExpression, environment, context);
 
             if (target is JsArray jsArray && TryConvertToIndex(index, out var arrayIndex))
             {
@@ -927,10 +972,10 @@ internal static class Evaluator
             return (null, target);
         }
 
-        return (EvaluateExpression(calleeExpression, environment), null);
+        return (EvaluateExpression(calleeExpression, environment, context), null);
     }
 
-    private static object EvaluateArrayLiteral(Cons cons, Environment environment)
+    private static object EvaluateArrayLiteral(Cons cons, Environment environment, EvaluationContext context)
     {
         var array = new JsArray();
         foreach (var elementExpression in cons.Rest)
@@ -938,7 +983,7 @@ internal static class Evaluator
             // Check if this is a spread element
             if (elementExpression is Cons { Head: Symbol head } spreadCons && ReferenceEquals(head, JsSymbols.Spread))
             {
-                var spreadValue = EvaluateExpression(spreadCons.Rest.Head, environment);
+                var spreadValue = EvaluateExpression(spreadCons.Rest.Head, environment, context);
                 // Spread arrays
                 if (spreadValue is JsArray spreadArray)
                 {
@@ -954,7 +999,7 @@ internal static class Evaluator
             }
             else
             {
-                array.Push(EvaluateExpression(elementExpression, environment));
+                array.Push(EvaluateExpression(elementExpression, environment, context));
             }
         }
 
@@ -964,7 +1009,7 @@ internal static class Evaluator
         return array;
     }
 
-    private static object EvaluateTemplateLiteral(Cons cons, Environment environment)
+    private static object EvaluateTemplateLiteral(Cons cons, Environment environment, EvaluationContext context)
     {
         var result = new System.Text.StringBuilder();
         
@@ -977,7 +1022,7 @@ internal static class Evaluator
             else
             {
                 // Evaluate the expression and convert to string
-                var value = EvaluateExpression(part, environment);
+                var value = EvaluateExpression(part, environment, context);
                 result.Append(ConvertToString(value));
             }
         }
@@ -997,7 +1042,7 @@ internal static class Evaluator
         };
     }
 
-    private static object EvaluateObjectLiteral(Cons cons, Environment environment)
+    private static object EvaluateObjectLiteral(Cons cons, Environment environment, EvaluationContext context)
     {
         var result = new JsObject();
         foreach (var propertyExpression in cons.Rest)
@@ -1012,7 +1057,7 @@ internal static class Evaluator
             if (ReferenceEquals(propertyTag, JsSymbols.Property))
             {
                 var valueExpression = propertyCons.Rest.Rest.Head;
-                var value = EvaluateExpression(valueExpression, environment);
+                var value = EvaluateExpression(valueExpression, environment, context);
                 result.SetProperty(propertyName, value);
             }
             else if (ReferenceEquals(propertyTag, JsSymbols.Getter))
@@ -1040,7 +1085,7 @@ internal static class Evaluator
         return result;
     }
 
-    private static object? EvaluateGetProperty(Cons cons, Environment environment)
+    private static object? EvaluateGetProperty(Cons cons, Environment environment, EvaluationContext context)
     {
         var targetExpression = cons.Rest.Head;
         var propertyName = cons.Rest.Rest.Head as string
@@ -1048,7 +1093,7 @@ internal static class Evaluator
 
         if (targetExpression is Symbol { } superSymbol && ReferenceEquals(superSymbol, JsSymbols.Super))
         {
-            var binding = ExpectSuperBinding(environment);
+            var binding = ExpectSuperBinding(environment, context);
             if (binding.TryGetProperty(propertyName, out var superValue))
             {
                 return superValue;
@@ -1057,7 +1102,7 @@ internal static class Evaluator
             throw new InvalidOperationException($"Cannot read property '{propertyName}' from super prototype.");
         }
 
-        var target = EvaluateExpression(targetExpression, environment);
+        var target = EvaluateExpression(targetExpression, environment, context);
         if (TryGetPropertyValue(target, propertyName, out var value))
         {
             return value;
@@ -1066,7 +1111,7 @@ internal static class Evaluator
         throw new InvalidOperationException($"Cannot read property '{propertyName}' from value '{target}'.");
     }
 
-    private static object? EvaluateSetProperty(Cons cons, Environment environment)
+    private static object? EvaluateSetProperty(Cons cons, Environment environment, EvaluationContext context)
     {
         var targetExpression = cons.Rest.Head;
         var propertyName = cons.Rest.Rest.Head as string
@@ -1078,21 +1123,21 @@ internal static class Evaluator
         }
 
         var valueExpression = cons.Rest.Rest.Rest.Head;
-        var target = EvaluateExpression(targetExpression, environment);
-        var value = EvaluateExpression(valueExpression, environment);
+        var target = EvaluateExpression(targetExpression, environment, context);
+        var value = EvaluateExpression(valueExpression, environment, context);
         AssignPropertyValue(target, propertyName, value);
         return value;
     }
 
-    private static object? EvaluateGetIndex(Cons cons, Environment environment)
+    private static object? EvaluateGetIndex(Cons cons, Environment environment, EvaluationContext context)
     {
         var targetExpression = cons.Rest.Head;
         var indexExpression = cons.Rest.Rest.Head;
 
         if (targetExpression is Symbol { } superSymbol && ReferenceEquals(superSymbol, JsSymbols.Super))
         {
-            var binding = ExpectSuperBinding(environment);
-            var superIndexValue = EvaluateExpression(indexExpression, environment);
+            var binding = ExpectSuperBinding(environment, context);
+            var superIndexValue = EvaluateExpression(indexExpression, environment, context);
             var superPropertyName = ToPropertyName(superIndexValue)
                 ?? throw new InvalidOperationException($"Unsupported index value '{superIndexValue}'.");
 
@@ -1104,8 +1149,8 @@ internal static class Evaluator
             throw new InvalidOperationException($"Cannot read property '{superPropertyName}' from super prototype.");
         }
 
-        var target = EvaluateExpression(targetExpression, environment);
-        var indexValue = EvaluateExpression(indexExpression, environment);
+        var target = EvaluateExpression(targetExpression, environment, context);
+        var indexValue = EvaluateExpression(indexExpression, environment, context);
 
         if (target is JsArray jsArray && TryConvertToIndex(indexValue, out var arrayIndex))
         {
@@ -1123,7 +1168,7 @@ internal static class Evaluator
         throw new InvalidOperationException($"Cannot read property '{propertyName}' from value '{target}'.");
     }
 
-    private static object? EvaluateSetIndex(Cons cons, Environment environment)
+    private static object? EvaluateSetIndex(Cons cons, Environment environment, EvaluationContext context)
     {
         var targetExpression = cons.Rest.Head;
         var indexExpression = cons.Rest.Rest.Head;
@@ -1134,9 +1179,9 @@ internal static class Evaluator
             throw new InvalidOperationException("Assigning through super is not supported in this interpreter.");
         }
 
-        var target = EvaluateExpression(targetExpression, environment);
-        var indexValue = EvaluateExpression(indexExpression, environment);
-        var value = EvaluateExpression(valueExpression, environment);
+        var target = EvaluateExpression(targetExpression, environment, context);
+        var indexValue = EvaluateExpression(indexExpression, environment, context);
+        var value = EvaluateExpression(valueExpression, environment, context);
 
         if (target is JsArray jsArray && TryConvertToIndex(indexValue, out var arrayIndex))
         {
@@ -1151,10 +1196,10 @@ internal static class Evaluator
         return value;
     }
 
-    private static object? EvaluateNew(Cons cons, Environment environment)
+    private static object? EvaluateNew(Cons cons, Environment environment, EvaluationContext context)
     {
         var constructorExpression = cons.Rest.Head;
-        var constructor = EvaluateExpression(constructorExpression, environment);
+        var constructor = EvaluateExpression(constructorExpression, environment, context);
         if (constructor is not IJsCallable callable)
         {
             throw new InvalidOperationException("Attempted to construct with a non-callable value.");
@@ -1169,7 +1214,7 @@ internal static class Evaluator
         var arguments = new List<object?>();
         foreach (var argumentExpression in cons.Rest.Rest)
         {
-            arguments.Add(EvaluateExpression(argumentExpression, environment));
+            arguments.Add(EvaluateExpression(argumentExpression, environment, context));
         }
 
         var result = callable.Invoke(arguments, instance);
@@ -1181,37 +1226,37 @@ internal static class Evaluator
         };
     }
 
-    private static object? EvaluateBinary(Cons cons, Environment environment, Symbol operatorSymbol)
+    private static object? EvaluateBinary(Cons cons, Environment environment, Symbol operatorSymbol, EvaluationContext context)
     {
         var leftExpression = cons.Rest.Head;
         var rightExpression = cons.Rest.Rest.Head;
-        var left = EvaluateExpression(leftExpression, environment);
+        var left = EvaluateExpression(leftExpression, environment, context);
         var operatorName = operatorSymbol.Name;
 
         switch (operatorName)
         {
             case "&&":
-                return IsTruthy(left) ? EvaluateExpression(rightExpression, environment) : left;
+                return IsTruthy(left) ? EvaluateExpression(rightExpression, environment, context) : left;
             case "||":
-                return IsTruthy(left) ? left : EvaluateExpression(rightExpression, environment);
+                return IsTruthy(left) ? left : EvaluateExpression(rightExpression, environment, context);
             case "??":
             {
                 var leftIsNullish = left is null || (left is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined));
-                return leftIsNullish ? EvaluateExpression(rightExpression, environment) : left;
+                return leftIsNullish ? EvaluateExpression(rightExpression, environment, context) : left;
             }
             case "===":
             {
-                var rightStrict = EvaluateExpression(rightExpression, environment);
+                var rightStrict = EvaluateExpression(rightExpression, environment, context);
                 return StrictEquals(left, rightStrict);
             }
             case "!==":
             {
-                var rightStrict = EvaluateExpression(rightExpression, environment);
+                var rightStrict = EvaluateExpression(rightExpression, environment, context);
                 return !StrictEquals(left, rightStrict);
             }
         }
 
-        var right = EvaluateExpression(rightExpression, environment);
+        var right = EvaluateExpression(rightExpression, environment, context);
 
         return operatorName switch
         {
@@ -1275,7 +1320,7 @@ internal static class Evaluator
     private static Cons ExpectCons(object? value, string message)
         => value is Cons cons ? cons : throw new InvalidOperationException(message);
 
-    private static SuperBinding ExpectSuperBinding(Environment environment)
+    private static SuperBinding ExpectSuperBinding(Environment environment, EvaluationContext context)
     {
         object? value;
         try
@@ -1545,7 +1590,7 @@ internal static class Evaluator
         _ => Convert.ToString(value, CultureInfo.InvariantCulture)
     };
 
-    private static void DestructureAndDefine(Cons pattern, object? value, Environment environment, bool isConst)
+    private static void DestructureAndDefine(Cons pattern, object? value, Environment environment, bool isConst, EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
         {
@@ -1554,11 +1599,11 @@ internal static class Evaluator
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
         {
-            DestructureArray(pattern, value, environment, isConst);
+            DestructureArray(pattern, value, environment, isConst, context);
         }
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
         {
-            DestructureObject(pattern, value, environment, isConst);
+            DestructureObject(pattern, value, environment, isConst, context);
         }
         else
         {
@@ -1566,7 +1611,7 @@ internal static class Evaluator
         }
     }
 
-    private static void DestructureAndDefineFunctionScoped(Cons pattern, object? value, Environment environment)
+    private static void DestructureAndDefineFunctionScoped(Cons pattern, object? value, Environment environment, EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
         {
@@ -1575,11 +1620,11 @@ internal static class Evaluator
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
         {
-            DestructureArrayFunctionScoped(pattern, value, environment);
+            DestructureArrayFunctionScoped(pattern, value, environment, context);
         }
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
         {
-            DestructureObjectFunctionScoped(pattern, value, environment);
+            DestructureObjectFunctionScoped(pattern, value, environment, context);
         }
         else
         {
@@ -1587,7 +1632,7 @@ internal static class Evaluator
         }
     }
 
-    private static void DestructureArray(Cons pattern, object? value, Environment environment, bool isConst)
+    private static void DestructureArray(Cons pattern, object? value, Environment environment, bool isConst, EvaluationContext context)
     {
         if (value is not JsArray array)
         {
@@ -1637,14 +1682,14 @@ internal static class Evaluator
                 // Apply default value if element is undefined
                 if (elementValue is null && defaultValue is not null)
                 {
-                    elementValue = EvaluateExpression(defaultValue, environment);
+                    elementValue = EvaluateExpression(defaultValue, environment, context);
                 }
 
                 // Check if target is a nested pattern
                 if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
                     (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) || ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
                 {
-                    DestructureAndDefine(nestedPattern, elementValue, environment, isConst);
+                    DestructureAndDefine(nestedPattern, elementValue, environment, isConst, context);
                 }
                 else if (target is Symbol identifier)
                 {
@@ -1660,7 +1705,7 @@ internal static class Evaluator
         }
     }
 
-    private static void DestructureArrayFunctionScoped(Cons pattern, object? value, Environment environment)
+    private static void DestructureArrayFunctionScoped(Cons pattern, object? value, Environment environment, EvaluationContext context)
     {
         if (value is not JsArray array)
         {
@@ -1710,14 +1755,14 @@ internal static class Evaluator
                 // Apply default value if element is undefined
                 if (elementValue is null && defaultValue is not null)
                 {
-                    elementValue = EvaluateExpression(defaultValue, environment);
+                    elementValue = EvaluateExpression(defaultValue, environment, context);
                 }
 
                 // Check if target is a nested pattern
                 if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
                     (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) || ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
                 {
-                    DestructureAndDefineFunctionScoped(nestedPattern, elementValue, environment);
+                    DestructureAndDefineFunctionScoped(nestedPattern, elementValue, environment, context);
                 }
                 else if (target is Symbol identifier)
                 {
@@ -1733,7 +1778,7 @@ internal static class Evaluator
         }
     }
 
-    private static void DestructureObject(Cons pattern, object? value, Environment environment, bool isConst)
+    private static void DestructureObject(Cons pattern, object? value, Environment environment, bool isConst, EvaluationContext context)
     {
         if (value is not JsObject obj)
         {
@@ -1785,14 +1830,14 @@ internal static class Evaluator
                 // Apply default value if property is undefined
                 if (propertyValue is null && defaultValue is not null)
                 {
-                    propertyValue = EvaluateExpression(defaultValue, environment);
+                    propertyValue = EvaluateExpression(defaultValue, environment, context);
                 }
 
                 // Check if target is a nested pattern
                 if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
                     (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) || ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
                 {
-                    DestructureAndDefine(nestedPattern, propertyValue, environment, isConst);
+                    DestructureAndDefine(nestedPattern, propertyValue, environment, isConst, context);
                 }
                 else if (target is Symbol identifier)
                 {
@@ -1806,7 +1851,7 @@ internal static class Evaluator
         }
     }
 
-    private static void DestructureObjectFunctionScoped(Cons pattern, object? value, Environment environment)
+    private static void DestructureObjectFunctionScoped(Cons pattern, object? value, Environment environment, EvaluationContext context)
     {
         if (value is not JsObject obj)
         {
@@ -1858,14 +1903,14 @@ internal static class Evaluator
                 // Apply default value if property is undefined
                 if (propertyValue is null && defaultValue is not null)
                 {
-                    propertyValue = EvaluateExpression(defaultValue, environment);
+                    propertyValue = EvaluateExpression(defaultValue, environment, context);
                 }
 
                 // Check if target is a nested pattern
                 if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
                     (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) || ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
                 {
-                    DestructureAndDefineFunctionScoped(nestedPattern, propertyValue, environment);
+                    DestructureAndDefineFunctionScoped(nestedPattern, propertyValue, environment, context);
                 }
                 else if (target is Symbol identifier)
                 {
@@ -1880,7 +1925,7 @@ internal static class Evaluator
     }
 
     // Public method to destructure function parameters (called from JsFunction)
-    public static void DestructureParameter(Cons pattern, object? value, Environment environment)
+    public static void DestructureParameter(Cons pattern, object? value, Environment environment, EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
         {
@@ -1889,11 +1934,11 @@ internal static class Evaluator
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
         {
-            DestructureArrayFunctionScoped(pattern, value, environment);
+            DestructureArrayFunctionScoped(pattern, value, environment, context);
         }
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
         {
-            DestructureObjectFunctionScoped(pattern, value, environment);
+            DestructureObjectFunctionScoped(pattern, value, environment, context);
         }
         else
         {
@@ -1901,7 +1946,7 @@ internal static class Evaluator
         }
     }
 
-    private static void DestructureAssignment(Cons pattern, object? value, Environment environment)
+    private static void DestructureAssignment(Cons pattern, object? value, Environment environment, EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
         {
@@ -1910,11 +1955,11 @@ internal static class Evaluator
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
         {
-            DestructureArrayAssignment(pattern, value, environment);
+            DestructureArrayAssignment(pattern, value, environment, context);
         }
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
         {
-            DestructureObjectAssignment(pattern, value, environment);
+            DestructureObjectAssignment(pattern, value, environment, context);
         }
         else
         {
@@ -1922,7 +1967,7 @@ internal static class Evaluator
         }
     }
 
-    private static void DestructureArrayAssignment(Cons pattern, object? value, Environment environment)
+    private static void DestructureArrayAssignment(Cons pattern, object? value, Environment environment, EvaluationContext context)
     {
         if (value is not JsArray array)
         {
@@ -1972,14 +2017,14 @@ internal static class Evaluator
                 // Apply default value if element is undefined
                 if (elementValue is null && defaultValue is not null)
                 {
-                    elementValue = EvaluateExpression(defaultValue, environment);
+                    elementValue = EvaluateExpression(defaultValue, environment, context);
                 }
 
                 // Check if target is a nested pattern
                 if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
                     (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) || ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
                 {
-                    DestructureAssignment(nestedPattern, elementValue, environment);
+                    DestructureAssignment(nestedPattern, elementValue, environment, context);
                 }
                 else if (target is Symbol identifier)
                 {
@@ -1995,7 +2040,7 @@ internal static class Evaluator
         }
     }
 
-    private static void DestructureObjectAssignment(Cons pattern, object? value, Environment environment)
+    private static void DestructureObjectAssignment(Cons pattern, object? value, Environment environment, EvaluationContext context)
     {
         if (value is not JsObject obj)
         {
@@ -2047,14 +2092,14 @@ internal static class Evaluator
                 // Apply default value if property is undefined
                 if (propertyValue is null && defaultValue is not null)
                 {
-                    propertyValue = EvaluateExpression(defaultValue, environment);
+                    propertyValue = EvaluateExpression(defaultValue, environment, context);
                 }
 
                 // Check if target is a nested pattern
                 if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
                     (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) || ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
                 {
-                    DestructureAssignment(nestedPattern, propertyValue, environment);
+                    DestructureAssignment(nestedPattern, propertyValue, environment, context);
                 }
                 else if (target is Symbol identifier)
                 {

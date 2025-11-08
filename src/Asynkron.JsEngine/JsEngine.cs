@@ -1,3 +1,5 @@
+using System.Threading.Channels;
+
 namespace Asynkron.JsEngine;
 
 /// <summary>
@@ -7,6 +9,7 @@ public sealed class JsEngine
 {
     private readonly Environment _global = new(isFunctionScope: true);
     private readonly CpsTransformer _cpsTransformer = new();
+    private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
 
     /// <summary>
     /// Initializes a new instance of JsEngine with standard library objects.
@@ -88,4 +91,44 @@ public sealed class JsEngine
     /// </summary>
     public void SetGlobalFunction(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
         => _global.Define(Symbol.Intern(name), new HostFunction(handler));
+
+    /// <summary>
+    /// Parses and evaluates the provided source code, then processes any scheduled events
+    /// in the event queue. The engine will continue running until the queue is empty.
+    /// </summary>
+    /// <param name="source">The JavaScript source code to execute</param>
+    /// <returns>A task that completes when all scheduled events have been processed</returns>
+    public async Task<object?> Run(string source)
+    {
+        // Parse and evaluate the source code
+        var result = Evaluate(source);
+        
+        // Process the event queue until it's empty
+        await ProcessEventQueue();
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Schedules a task to be executed on the event queue.
+    /// This allows promises and other async operations to schedule work.
+    /// </summary>
+    /// <param name="task">The task to schedule</param>
+    public void ScheduleTask(Func<Task> task)
+    {
+        _eventQueue.Writer.TryWrite(task);
+    }
+
+    /// <summary>
+    /// Processes all events in the event queue until it's empty.
+    /// Each event is executed and any new events scheduled during execution
+    /// will also be processed.
+    /// </summary>
+    private async Task ProcessEventQueue()
+    {
+        while (_eventQueue.Reader.TryRead(out var task))
+        {
+            await task();
+        }
+    }
 }

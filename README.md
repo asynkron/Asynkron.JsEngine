@@ -25,6 +25,8 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Spread/rest operators**: Rest parameters in functions (`...args`), spread in arrays (`[...arr]`), spread in calls (`fn(...args)`)
 - **Timers**: `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval` for scheduling asynchronous work
 - **Promises**: Promise constructor, `then`, `catch`, `finally` methods, and static methods (`Promise.resolve`, `Promise.reject`, `Promise.all`, `Promise.race`)
+- **Async/await**: Full async function support with `async`/`await` syntax, including error handling
+- **Generators**: Generator functions (`function*`, `yield`) with iterator protocol support
 - **Event Queue**: Asynchronous task scheduling and event loop integration
 - **Standard library**: 
   - Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
@@ -35,8 +37,6 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 
 ### 🚧 Not Yet Implemented
 
-- Async/await (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for implementation roadmap)
-- Generators (`function*`, `yield`) (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for implementation roadmap)
 - Destructuring
 - Regular expressions
 - Complex type coercion rules (comprehensive toString, toNumber conversions)
@@ -681,6 +681,128 @@ await engine.Run(@"
 ");
 ```
 
+### Async/Await
+
+```csharp
+var engine = new JsEngine();
+
+// Simple async function
+await engine.Run(@"
+    async function fetchData() {
+        return ""Hello from async"";
+    }
+    
+    fetchData().then(function(result) {
+        console.log(result); // Output: Hello from async
+    });
+");
+
+// Async function with await
+await engine.Run(@"
+    async function processData() {
+        let value1 = await Promise.resolve(10);
+        let value2 = await Promise.resolve(20);
+        return value1 + value2;
+    }
+    
+    processData().then(function(result) {
+        console.log(result); // Output: 30
+    });
+");
+
+// Async/await with error handling
+await engine.Run(@"
+    async function riskyOperation() {
+        try {
+            let result = await Promise.reject(""Something went wrong"");
+            return result;
+        } catch (error) {
+            return ""Caught: "" + error;
+        }
+    }
+    
+    riskyOperation().then(function(result) {
+        console.log(result); // Output: Caught: Something went wrong
+    });
+");
+
+// Async with multiple awaits in expressions
+await engine.Run(@"
+    async function calculate() {
+        let sum = (await Promise.resolve(5)) + (await Promise.resolve(10));
+        return sum * 2;
+    }
+    
+    calculate().then(function(result) {
+        console.log(result); // Output: 30
+    });
+");
+```
+
+### Generators
+
+```csharp
+var engine = new JsEngine();
+
+// Simple generator
+var result = engine.Evaluate(@"
+    function* countUpTo(max) {
+        let count = 1;
+        while (count <= max) {
+            yield count;
+            count = count + 1;
+        }
+    }
+    
+    let generator = countUpTo(3);
+    let first = generator.next().value;   // 1
+    let second = generator.next().value;  // 2
+    let third = generator.next().value;   // 3
+    first + second + third;
+");
+Console.WriteLine(result); // Output: 6
+
+// Generator with yield expressions
+engine.Evaluate(@"
+    function* fibonacci() {
+        let a = 0;
+        let b = 1;
+        while (true) {
+            yield a;
+            let temp = a;
+            a = b;
+            b = temp + b;
+        }
+    }
+    
+    let fib = fibonacci();
+    let f1 = fib.next().value;  // 0
+    let f2 = fib.next().value;  // 1
+    let f3 = fib.next().value;  // 1
+    let f4 = fib.next().value;  // 2
+    let f5 = fib.next().value;  // 3
+");
+
+// Generator iteration
+engine.Evaluate(@"
+    function* range(start, end) {
+        let i = start;
+        while (i < end) {
+            yield i;
+            i = i + 1;
+        }
+    }
+    
+    let gen = range(1, 5);
+    let sum = 0;
+    let result = gen.next();
+    while (!result.done) {
+        sum = sum + result.value;
+        result = gen.next();
+    }
+");
+```
+
 ## Running the Demo
 
 Console application demos are included in the `examples` folder:
@@ -754,8 +876,6 @@ dotnet test
 
 ## Limitations
 
-- **No Async/Await**: While Promises are supported, the `async`/`await` syntax is not yet implemented (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for roadmap)
-- **No Generators**: Generator functions (`function*`, `yield`) are not supported (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for roadmap)
 - **No Regex**: Regular expressions are not implemented
 - **No Destructuring**: Destructuring assignments are not supported
 - **No Modules**: ES6 import/export is not supported
@@ -767,11 +887,14 @@ dotnet test
 
 ## Future Roadmap
 
-See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for a detailed plan on implementing:
-- Continuation-Passing Style (CPS) transformation
-- Generator functions (`function*`, `yield`)
-- Async/await syntax
-- Implementation timeline and phases
+The engine now has full support for async/await and generators through CPS (Continuation-Passing Style) transformation. See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for implementation details.
+
+Future enhancements may include:
+- Destructuring assignments
+- Regular expressions
+- ES6 modules (import/export)
+- Additional string methods
+- Enhanced type coercion
 
 ## Contributing
 

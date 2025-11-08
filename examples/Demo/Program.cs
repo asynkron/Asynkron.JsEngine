@@ -74,8 +74,18 @@ var result6 = engine.Evaluate(@"
 ");
 Console.WriteLine($"   {result6}\n");
 
-// Example 7: Host function interop
-Console.WriteLine("7. Host Function Interop:");
+// Example 7: Math object
+Console.WriteLine("7. Math Object:");
+var result7 = engine.Evaluate(@"
+    let radius = 5;
+    let area = Math.PI * Math.pow(radius, 2);
+    let rounded = Math.round(area);
+    ""Circle area: "" + rounded;
+");
+Console.WriteLine($"   {result7}\n");
+
+// Example 8: Host function interop
+Console.WriteLine("8. Host Function Interop:");
 engine.SetGlobalFunction("log", args =>
 {
     Console.WriteLine($"   [JS Log] {string.Join(", ", args)}");

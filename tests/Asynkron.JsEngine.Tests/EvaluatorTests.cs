@@ -930,4 +930,160 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
         var result = engine.Evaluate(source);
         Assert.Equal(15d, result); // 0+1+2+3+4+5
     }
+
+    [Fact]
+    public void MathObjectProvidesConstants()
+    {
+        var engine = new JsEngine();
+        
+        var pi = engine.Evaluate("Math.PI;");
+        Assert.Equal(Math.PI, pi);
+        
+        var e = engine.Evaluate("Math.E;");
+        Assert.Equal(Math.E, e);
+        
+        var sqrt2 = engine.Evaluate("Math.SQRT2;");
+        Assert.Equal(Math.Sqrt(2), sqrt2);
+    }
+
+    [Fact]
+    public void MathSqrtCalculatesSquareRoot()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("Math.sqrt(16);");
+        Assert.Equal(4d, result);
+    }
+
+    [Fact]
+    public void MathPowCalculatesPower()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("Math.pow(2, 3);");
+        Assert.Equal(8d, result);
+    }
+
+    [Fact]
+    public void MathAbsReturnsAbsoluteValue()
+    {
+        var engine = new JsEngine();
+        
+        var positive = engine.Evaluate("Math.abs(-5);");
+        Assert.Equal(5d, positive);
+        
+        var alreadyPositive = engine.Evaluate("Math.abs(3);");
+        Assert.Equal(3d, alreadyPositive);
+    }
+
+    [Fact]
+    public void MathFloorCeilRound()
+    {
+        var engine = new JsEngine();
+        
+        var floor = engine.Evaluate("Math.floor(4.7);");
+        Assert.Equal(4d, floor);
+        
+        var ceil = engine.Evaluate("Math.ceil(4.3);");
+        Assert.Equal(5d, ceil);
+        
+        var round = engine.Evaluate("Math.round(4.5);");
+        Assert.Equal(5d, round);
+    }
+
+    [Fact]
+    public void MathMaxMinFunctions()
+    {
+        var engine = new JsEngine();
+        
+        var max = engine.Evaluate("Math.max(1, 5, 3, 9, 2);");
+        Assert.Equal(9d, max);
+        
+        var min = engine.Evaluate("Math.min(1, 5, 3, 9, 2);");
+        Assert.Equal(1d, min);
+    }
+
+    [Fact]
+    public void MathRandomReturnsBetweenZeroAndOne()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("Math.random();");
+        
+        Assert.IsType<double>(result);
+        var value = (double)result;
+        Assert.True(value >= 0 && value < 1);
+    }
+
+    [Fact]
+    public void MathTrigonometricFunctions()
+    {
+        var engine = new JsEngine();
+        
+        // Test sin(PI/2) = 1
+        var sin = engine.Evaluate("Math.sin(Math.PI / 2);");
+        Assert.Equal(1d, (double)sin!, precision: 10);
+        
+        // Test cos(PI) = -1
+        var cos = engine.Evaluate("Math.cos(Math.PI);");
+        Assert.Equal(-1d, (double)cos!, precision: 10);
+        
+        // Test tan(PI/4) ≈ 1
+        var tan = engine.Evaluate("Math.tan(Math.PI / 4);");
+        Assert.Equal(1d, (double)tan!, precision: 10);
+    }
+
+    [Fact]
+    public void MathLogarithmicFunctions()
+    {
+        var engine = new JsEngine();
+        
+        var log = engine.Evaluate("Math.log(Math.E);");
+        Assert.Equal(1d, (double)log!, precision: 10);
+        
+        var log10 = engine.Evaluate("Math.log10(100);");
+        Assert.Equal(2d, (double)log10!, precision: 10);
+        
+        var exp = engine.Evaluate("Math.exp(1);");
+        Assert.Equal(Math.E, (double)exp!, precision: 10);
+    }
+
+    [Fact]
+    public void MathCanBeUsedInComplexExpressions()
+    {
+        var engine = new JsEngine();
+        
+        // Calculate hypotenuse: sqrt(3^2 + 4^2) = 5
+        var result = engine.Evaluate(@"
+let a = 3;
+let b = 4;
+let c = Math.sqrt(Math.pow(a, 2) + Math.pow(b, 2));
+c;
+");
+        Assert.Equal(5d, result);
+    }
+
+    [Fact]
+    public void MathSignReturnsSignOfNumber()
+    {
+        var engine = new JsEngine();
+        
+        var positive = engine.Evaluate("Math.sign(10);");
+        Assert.Equal(1, positive);
+        
+        var negative = engine.Evaluate("Math.sign(-5);");
+        Assert.Equal(-1, negative);
+        
+        var zero = engine.Evaluate("Math.sign(0);");
+        Assert.Equal(0, zero);
+    }
+
+    [Fact]
+    public void MathTruncRemovesDecimalPart()
+    {
+        var engine = new JsEngine();
+        
+        var positive = engine.Evaluate("Math.trunc(4.9);");
+        Assert.Equal(4d, positive);
+        
+        var negative = engine.Evaluate("Math.trunc(-4.9);");
+        Assert.Equal(-4d, negative);
+    }
 }

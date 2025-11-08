@@ -23,13 +23,15 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Template literals**: Backtick strings with `${}` expression interpolation
 - **Getters/setters**: `get`/`set` property accessors in objects and classes
 - **Spread/rest operators**: Rest parameters in functions (`...args`), spread in arrays (`[...arr]`), spread in calls (`fn(...args)`)
+- **Standard library**: Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
 
 ### 🚧 Not Yet Implemented
 
 - Async/await, Promises
 - Destructuring
 - Regular expressions
-- Standard library (Array methods, Math, Date, JSON, etc.)
+- Standard library Array methods (map, filter, reduce, etc.)
+- Standard library Date and JSON objects
 - Complex type coercion rules (comprehensive toString, toNumber conversions)
 - Modules (import/export)
 
@@ -291,6 +293,45 @@ var grade = engine.Evaluate(@"
     grade;
 ");
 Console.WriteLine(grade); // Output: B
+```
+
+### Math Object
+
+```csharp
+var engine = new JsEngine();
+
+// Mathematical constants
+var pi = engine.Evaluate("Math.PI;");
+Console.WriteLine(pi); // Output: 3.141592653589793
+
+// Basic math operations
+var sqrt = engine.Evaluate("Math.sqrt(16);");
+Console.WriteLine(sqrt); // Output: 4
+
+var power = engine.Evaluate("Math.pow(2, 10);");
+Console.WriteLine(power); // Output: 1024
+
+// Rounding
+var floor = engine.Evaluate("Math.floor(4.7);");
+Console.WriteLine(floor); // Output: 4
+
+var ceil = engine.Evaluate("Math.ceil(4.3);");
+Console.WriteLine(ceil); // Output: 5
+
+var round = engine.Evaluate("Math.round(4.5);");
+Console.WriteLine(round); // Output: 5
+
+// Trigonometry
+var sine = engine.Evaluate("Math.sin(Math.PI / 2);");
+Console.WriteLine(sine); // Output: 1
+
+// Complex calculations
+var hypotenuse = engine.Evaluate(@"
+    let a = 3;
+    let b = 4;
+    Math.sqrt(Math.pow(a, 2) + Math.pow(b, 2));
+");
+Console.WriteLine(hypotenuse); // Output: 5
 ```
 
 ## Running the Demo

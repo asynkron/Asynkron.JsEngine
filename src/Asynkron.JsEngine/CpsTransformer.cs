@@ -350,7 +350,30 @@ public sealed class CpsTransformer
             // Extract the promise expression
             var promiseExpr = valueCons.Rest.Head;
             
-            // Create: promiseExpr.then(resolve)
+            // Create a temporary parameter name for the .then() callback
+            var valueParam = Symbol.Intern("__value");
+            
+            // Create the .then() callback: function(__value) { resolve(__value); }
+            var resolveCall = Cons.FromEnumerable(new object?[] 
+            { 
+                JsSymbols.Call, 
+                resolveParam, 
+                valueParam 
+            });
+            
+            var thenCallback = Cons.FromEnumerable(new object?[] 
+            { 
+                JsSymbols.Lambda, 
+                null, 
+                Cons.FromEnumerable(new object?[] { valueParam }), 
+                Cons.FromEnumerable(new object?[] 
+                { 
+                    JsSymbols.Block, 
+                    Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, resolveCall })
+                })
+            });
+            
+            // Create: promiseExpr.then(callback)
             var thenCall = Cons.FromEnumerable(new object?[] 
             { 
                 JsSymbols.Call, 
@@ -360,7 +383,7 @@ public sealed class CpsTransformer
                     promiseExpr, 
                     "then" 
                 }), 
-                resolveParam 
+                thenCallback 
             });
             
             return Cons.FromEnumerable(new object?[] 

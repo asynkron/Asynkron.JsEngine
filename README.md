@@ -23,14 +23,16 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Template literals**: Backtick strings with `${}` expression interpolation
 - **Getters/setters**: `get`/`set` property accessors in objects and classes
 - **Spread/rest operators**: Rest parameters in functions (`...args`), spread in arrays (`[...arr]`), spread in calls (`fn(...args)`)
-- **Standard library**: Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
+- **Standard library**: 
+  - Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
+  - Array methods (map, filter, reduce, forEach, find, findIndex, some, every, join, includes, indexOf, slice, push)
 
 ### 🚧 Not Yet Implemented
 
 - Async/await, Promises
 - Destructuring
 - Regular expressions
-- Standard library Array methods (map, filter, reduce, etc.)
+- More Array methods (shift, unshift, pop, splice, concat, reverse, sort, etc.)
 - Standard library Date and JSON objects
 - Complex type coercion rules (comprehensive toString, toNumber conversions)
 - Modules (import/export)
@@ -331,6 +333,81 @@ var hypotenuse = engine.Evaluate(@"
     let b = 4;
     Math.sqrt(Math.pow(a, 2) + Math.pow(b, 2));
 ");
+Console.WriteLine(hypotenuse); // Output: 5
+```
+
+### Array Methods
+
+```csharp
+var engine = new JsEngine();
+
+// map - transform each element
+var doubled = engine.Evaluate(@"
+    let numbers = [1, 2, 3, 4];
+    let doubled = numbers.map(function(x) { return x * 2; });
+    doubled[0] + doubled[1] + doubled[2] + doubled[3];
+");
+Console.WriteLine(doubled); // Output: 20
+
+// filter - select elements that match a condition
+var filtered = engine.Evaluate(@"
+    let numbers = [1, 2, 3, 4, 5, 6];
+    let greaterThanThree = numbers.filter(function(x) { return x > 3; });
+    greaterThanThree[""length""];
+");
+Console.WriteLine(filtered); // Output: 3
+
+// reduce - accumulate values
+var sum = engine.Evaluate(@"
+    let numbers = [1, 2, 3, 4, 5];
+    numbers.reduce(function(acc, x) { return acc + x; }, 0);
+");
+Console.WriteLine(sum); // Output: 15
+
+// forEach - iterate over elements
+engine.Evaluate(@"
+    let numbers = [1, 2, 3];
+    let sum = 0;
+    numbers.forEach(function(x) { sum = sum + x; });
+");
+
+// find - get first matching element
+var found = engine.Evaluate(@"
+    let numbers = [1, 2, 3, 4, 5];
+    numbers.find(function(x) { return x > 3; });
+");
+Console.WriteLine(found); // Output: 4
+
+// some - check if any element matches
+var hasLarge = engine.Evaluate(@"
+    let numbers = [1, 3, 5, 6];
+    numbers.some(function(x) { return x > 5; });
+");
+Console.WriteLine(hasLarge); // Output: True
+
+// every - check if all elements match
+var allPositive = engine.Evaluate(@"
+    let numbers = [1, 2, 3, 4];
+    numbers.every(function(x) { return x > 0; });
+");
+Console.WriteLine(allPositive); // Output: True
+
+// join - concatenate elements into string
+var joined = engine.Evaluate(@"
+    let items = [""a"", ""b"", ""c""];
+    items.join(""-"");
+");
+Console.WriteLine(joined); // Output: a-b-c
+
+// Method chaining
+var chained = engine.Evaluate(@"
+    let numbers = [1, 2, 3, 4, 5, 6];
+    numbers
+        .filter(function(x) { return x > 3; })
+        .map(function(x) { return x * 2; })
+        .reduce(function(acc, x) { return acc + x; }, 0);
+");
+Console.WriteLine(chained); // Output: 30
 Console.WriteLine(hypotenuse); // Output: 5
 ```
 

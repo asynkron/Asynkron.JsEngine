@@ -1086,4 +1086,208 @@ c;
         var negative = engine.Evaluate("Math.trunc(-4.9);");
         Assert.Equal(-4d, negative);
     }
+
+    [Fact]
+    public void ArrayMapTransformsElements()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [1, 2, 3, 4];
+let doubled = numbers.map(function(x) { return x * 2; });
+doubled[0] + doubled[1] + doubled[2] + doubled[3];
+");
+        Assert.Equal(20d, result); // 2 + 4 + 6 + 8
+    }
+
+    [Fact]
+    public void ArrayFilterSelectsElements()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [1, 2, 3, 4, 5, 6];
+let greaterThanThree = numbers.filter(function(x) { return x > 3; });
+greaterThanThree[""length""];
+");
+        Assert.Equal(3d, result); // [4, 5, 6]
+    }
+
+    [Fact]
+    public void ArrayReduceAccumulatesValues()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [1, 2, 3, 4, 5];
+let sum = numbers.reduce(function(acc, x, i, arr) { return acc + x; }, 0);
+sum;
+");
+        Assert.Equal(15d, result);
+    }
+
+    [Fact]
+    public void ArrayForEachIteratesElements()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [1, 2, 3];
+let sum = 0;
+numbers.forEach(function(x) { sum = sum + x; });
+sum;
+");
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public void ArrayFindReturnsFirstMatch()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [1, 2, 3, 4, 5];
+let found = numbers.find(function(x) { return x > 3; });
+found;
+");
+        Assert.Equal(4d, result);
+    }
+
+    [Fact]
+    public void ArrayFindIndexReturnsIndexOfFirstMatch()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [1, 2, 3, 4, 5];
+let index = numbers.findIndex(function(x) { return x > 3; });
+index;
+");
+        Assert.Equal(3d, result);
+    }
+
+    [Fact]
+    public void ArraySomeReturnsTrueIfAnyMatch()
+    {
+        var engine = new JsEngine();
+        
+        var hasLarge = engine.Evaluate(@"
+let numbers = [1, 3, 5, 6];
+numbers.some(function(x, i, arr) { return x > 5; });
+");
+        Assert.True((bool)hasLarge!);
+
+        var hasNegative = engine.Evaluate(@"
+let numbers = [1, 2, 3];
+numbers.some(function(x, i, arr) { return x < 0; });
+");
+        Assert.False((bool)hasNegative!);
+    }
+
+    [Fact]
+    public void ArrayEveryReturnsTrueIfAllMatch()
+    {
+        var engine = new JsEngine();
+        
+        var allPositive = engine.Evaluate(@"
+let numbers = [1, 2, 3, 4];
+numbers.every(function(x, i, arr) { return x > 0; });
+");
+        Assert.True((bool)allPositive!);
+
+        var allLarge = engine.Evaluate(@"
+let numbers = [2, 3, 4];
+numbers.every(function(x, i, arr) { return x > 3; });
+");
+        Assert.False((bool)allLarge!);
+    }
+
+    [Fact]
+    public void ArrayJoinConcatenatesElements()
+    {
+        var engine = new JsEngine();
+        
+        var withComma = engine.Evaluate(@"
+let items = [""a"", ""b"", ""c""];
+items.join("","");
+");
+        Assert.Equal("a,b,c", withComma);
+
+        var withDash = engine.Evaluate(@"
+let items = [""x"", ""y"", ""z""];
+items.join(""-"");
+");
+        Assert.Equal("x-y-z", withDash);
+    }
+
+    [Fact]
+    public void ArrayIncludesChecksForElement()
+    {
+        var engine = new JsEngine();
+        
+        var hasTwo = engine.Evaluate(@"
+let numbers = [1, 2, 3];
+numbers.includes(2);
+");
+        Assert.True((bool)hasTwo!);
+
+        var hasFive = engine.Evaluate(@"
+let numbers = [1, 2, 3];
+numbers.includes(5);
+");
+        Assert.False((bool)hasFive!);
+    }
+
+    [Fact]
+    public void ArrayIndexOfFindsElementPosition()
+    {
+        var engine = new JsEngine();
+        
+        var index = engine.Evaluate(@"
+let items = [""a"", ""b"", ""c"", ""b""];
+items.indexOf(""b"");
+");
+        Assert.Equal(1d, index);
+
+        var notFound = engine.Evaluate(@"
+let items = [""a"", ""b"", ""c""];
+items.indexOf(""d"");
+");
+        Assert.Equal(-1d, notFound);
+    }
+
+    [Fact]
+    public void ArraySliceExtractsSubarray()
+    {
+        var engine = new JsEngine();
+        
+        var result = engine.Evaluate(@"
+let numbers = [0, 1, 2, 3, 4];
+let slice = numbers.slice(1, 3);
+slice[0] + slice[1];
+");
+        Assert.Equal(3d, result); // [1, 2]
+    }
+
+    [Fact]
+    public void ArrayMethodsCanBeChained()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [1, 2, 3, 4, 5, 6];
+let result = numbers
+    .filter(function(x, i, arr) { return x > 3; })
+    .map(function(x, i, arr) { return x * 2; })
+    .reduce(function(acc, x, i, arr) { return acc + x; }, 0);
+result;
+");
+        Assert.Equal(30d, result); // filter: [4,5,6], map: [8,10,12], reduce: 30
+    }
+
+    [Fact]
+    public void ArrayPushAddsElements()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [1, 2, 3];
+numbers.push(4);
+numbers.push(5);
+numbers[""length""];
+");
+        Assert.Equal(5d, result);
+    }
 }

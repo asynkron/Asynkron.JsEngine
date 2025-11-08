@@ -84,8 +84,18 @@ var result7 = engine.Evaluate(@"
 ");
 Console.WriteLine($"   {result7}\n");
 
-// Example 8: Host function interop
-Console.WriteLine("8. Host Function Interop:");
+// Example 8: Array methods
+Console.WriteLine("8. Array Methods:");
+var result8 = engine.Evaluate(@"
+    let numbers = [1, 2, 3, 4, 5];
+    let doubled = numbers.map(function(x) { return x * 2; });
+    let sum = doubled.reduce(function(acc, x) { return acc + x; }, 0);
+    ""Sum of doubled: "" + sum;
+");
+Console.WriteLine($"   {result8}\n");
+
+// Example 9: Host function interop
+Console.WriteLine("9. Host Function Interop:");
 engine.SetGlobalFunction("log", args =>
 {
     Console.WriteLine($"   [JS Log] {string.Join(", ", args)}");

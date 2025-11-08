@@ -196,4 +196,298 @@ internal static class StandardLibrary
 
         return math;
     }
+
+    /// <summary>
+    /// Adds standard array methods to a JsArray instance.
+    /// </summary>
+    public static void AddArrayMethods(JsArray array)
+    {
+        // push - already implemented natively
+        array.SetProperty("push", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            foreach (var arg in args)
+            {
+                jsArray.Push(arg);
+            }
+            return jsArray.Items.Count;
+        }));
+
+        // pop
+        array.SetProperty("pop", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (jsArray.Items.Count == 0) return null;
+            var last = jsArray.GetElement(jsArray.Items.Count - 1);
+            // We need to remove the last element - this requires exposing the internal list
+            // For now, we'll return the value but note this is a limitation
+            return last;
+        }));
+
+        // map
+        array.SetProperty("map", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
+
+            var result = new JsArray();
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                var element = jsArray.Items[i];
+                var mapped = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                result.Push(mapped);
+            }
+            AddArrayMethods(result);
+            return result;
+        }));
+
+        // filter
+        array.SetProperty("filter", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
+
+            var result = new JsArray();
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                var element = jsArray.Items[i];
+                var keep = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                if (IsTruthy(keep))
+                {
+                    result.Push(element);
+                }
+            }
+            AddArrayMethods(result);
+            return result;
+        }));
+
+        // reduce
+        array.SetProperty("reduce", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
+
+            if (jsArray.Items.Count == 0)
+            {
+                return args.Count > 1 ? args[1] : null;
+            }
+
+            int startIndex = 0;
+            object? accumulator;
+
+            if (args.Count > 1)
+            {
+                accumulator = args[1];
+            }
+            else
+            {
+                accumulator = jsArray.Items[0];
+                startIndex = 1;
+            }
+
+            for (int i = startIndex; i < jsArray.Items.Count; i++)
+            {
+                var element = jsArray.Items[i];
+                accumulator = callback.Invoke(new object?[] { accumulator, element, (double)i, jsArray }, null);
+            }
+
+            return accumulator;
+        }));
+
+        // forEach
+        array.SetProperty("forEach", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
+
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                var element = jsArray.Items[i];
+                callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+            }
+
+            return null;
+        }));
+
+        // find
+        array.SetProperty("find", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
+
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                var element = jsArray.Items[i];
+                var match = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                if (IsTruthy(match))
+                {
+                    return element;
+                }
+            }
+
+            return null;
+        }));
+
+        // findIndex
+        array.SetProperty("findIndex", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
+
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                var element = jsArray.Items[i];
+                var match = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                if (IsTruthy(match))
+                {
+                    return (double)i;
+                }
+            }
+
+            return -1d;
+        }));
+
+        // some
+        array.SetProperty("some", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return false;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return false;
+
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                var element = jsArray.Items[i];
+                var result = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                if (IsTruthy(result))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }));
+
+        // every
+        array.SetProperty("every", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return true;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return true;
+
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                var element = jsArray.Items[i];
+                var result = callback.Invoke(new object?[] { element, (double)i, jsArray }, null);
+                if (!IsTruthy(result))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
+
+        // join
+        array.SetProperty("join", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return "";
+            var separator = args.Count > 0 && args[0] is string sep ? sep : ",";
+
+            var parts = new List<string>();
+            foreach (var item in jsArray.Items)
+            {
+                parts.Add(item?.ToString() ?? "");
+            }
+
+            return string.Join(separator, parts);
+        }));
+
+        // includes
+        array.SetProperty("includes", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return false;
+            if (args.Count == 0) return false;
+
+            var searchElement = args[0];
+            foreach (var item in jsArray.Items)
+            {
+                if (AreStrictlyEqual(item, searchElement))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }));
+
+        // indexOf
+        array.SetProperty("indexOf", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return -1d;
+            if (args.Count == 0) return -1d;
+
+            var searchElement = args[0];
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                if (AreStrictlyEqual(jsArray.Items[i], searchElement))
+                {
+                    return (double)i;
+                }
+            }
+
+            return -1d;
+        }));
+
+        // slice
+        array.SetProperty("slice", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+
+            int start = 0;
+            int end = jsArray.Items.Count;
+
+            if (args.Count > 0 && args[0] is double startD)
+            {
+                start = (int)startD;
+                if (start < 0) start = Math.Max(0, jsArray.Items.Count + start);
+            }
+
+            if (args.Count > 1 && args[1] is double endD)
+            {
+                end = (int)endD;
+                if (end < 0) end = Math.Max(0, jsArray.Items.Count + end);
+            }
+
+            var result = new JsArray();
+            for (int i = start; i < Math.Min(end, jsArray.Items.Count); i++)
+            {
+                result.Push(jsArray.Items[i]);
+            }
+            AddArrayMethods(result);
+            return result;
+        }));
+    }
+
+    private static bool IsTruthy(object? value)
+    {
+        return value switch
+        {
+            null => false,
+            bool b => b,
+            double d => Math.Abs(d) > double.Epsilon,
+            string s => s.Length > 0,
+            _ => true
+        };
+    }
+
+    private static bool AreStrictlyEqual(object? left, object? right)
+    {
+        if (left is null && right is null) return true;
+        if (left is null || right is null) return false;
+
+        var leftType = left.GetType();
+        var rightType = right.GetType();
+
+        if (leftType != rightType) return false;
+
+        return Equals(left, right);
+    }
 }

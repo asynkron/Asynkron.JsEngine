@@ -233,12 +233,3 @@ internal sealed class YieldTracker(int skipCount)
         return should;
     }
 }
-
-/// <summary>
-/// Signal used internally to implement yield behavior.
-/// Thrown when a yield expression is evaluated, caught by the generator.
-/// </summary>
-internal sealed class YieldSignal(object? value) : Exception
-{
-    public object? Value { get; } = value;
-}

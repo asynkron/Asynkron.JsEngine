@@ -158,10 +158,13 @@ public sealed class CpsTransformer
         // The async function will return a new Promise that resolves with the function's result
         var promiseBody = CreateAsyncPromiseWrapper(body);
 
-        // Return a regular function that returns a promise
+        // Return a regular function (declaration) or lambda (expression) that returns a promise
+        // Use Lambda for anonymous functions (function expressions), Function for named functions (function declarations)
+        var functionType = name == null ? JsSymbols.Lambda : JsSymbols.Function;
+        
         return Cons.FromEnumerable(new object?[] 
         { 
-            JsSymbols.Function, 
+            functionType, 
             name, 
             parameters, 
             promiseBody 
@@ -237,12 +240,21 @@ public sealed class CpsTransformer
             Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, rejectCall })
         });
 
+        // Create the catch clause: (catch catchParam catchBlock)
+        var catchClause = Cons.FromEnumerable(new object?[] 
+        { 
+            JsSymbols.Catch, 
+            catchParam, 
+            catchBlock 
+        });
+
+        // Create try statement with catch and no finally (null)
         var tryStatement = Cons.FromEnumerable(new object?[] 
         { 
             JsSymbols.Try, 
             transformedBody, 
-            catchParam, 
-            catchBlock 
+            catchClause,
+            null  // No finally clause
         });
 
         return Cons.FromEnumerable(new object?[] { JsSymbols.Block, tryStatement });
@@ -326,6 +338,21 @@ public sealed class CpsTransformer
 
         // No await and not a return, just include it and continue
         var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
+        
+        // If rest is a block, flatten it to avoid nested blocks
+        if (rest is Cons restCons && !restCons.IsEmpty && 
+            restCons.Head is Symbol restSymbol && ReferenceEquals(restSymbol, JsSymbols.Block))
+        {
+            // rest is (block stmts...), so we want to create (block statement stmts...)
+            var flattenedStatements = new List<object?> { JsSymbols.Block, statement };
+            var current = restCons.Rest;
+            while (current is Cons c && !c.IsEmpty)
+            {
+                flattenedStatements.Add(c.Head);
+                current = c.Rest;
+            }
+            return Cons.FromEnumerable(flattenedStatements);
+        }
         
         return Cons.FromEnumerable(new object?[] 
         { 

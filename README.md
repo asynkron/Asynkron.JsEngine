@@ -1119,10 +1119,25 @@ Learn about alternative evaluation approaches:
 - [Bytecode Compilation](docs/BYTECODE_COMPILATION.md) - How to transform the recursive evaluator to use bytecode and a virtual machine
 - [Iterative Evaluation](docs/ITERATIVE_EVALUATION.md) - How to transform from recursive to iterative evaluation using explicit stacks
 
-Future enhancements may include:
+### Missing Features
+
+For a comprehensive list of JavaScript features not yet implemented and their priority, see [docs/MISSING_FEATURES.md](docs/MISSING_FEATURES.md). This document provides:
+- Categorized list of missing features with code examples
+- Priority rankings (High/Medium/Low)
+- Implementation complexity estimates
+- Use cases for each feature
+- Recommended implementation phases
+
+Some notable missing features include:
 - ES6 modules (import/export)
-- Additional string methods (localeCompare, normalize, etc.)
-- Performance improvements to control flow mechanisms
+- Single-quoted strings
+- for...of and for...in loops
+- Object property/method shorthand
+- Symbol type
+- Map and Set collections
+- Bitwise operators
+- Increment/decrement operators (++, --)
+- Additional standard library methods
 
 ## Contributing
 

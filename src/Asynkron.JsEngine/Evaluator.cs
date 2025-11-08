@@ -848,6 +848,9 @@ internal static class Evaluator
             }
         }
 
+        // Add standard array methods
+        StandardLibrary.AddArrayMethods(array);
+
         return array;
     }
 

@@ -28,7 +28,9 @@ internal sealed class JsFunction : IJsCallable
         // With rest parameters, we accept variable arguments
         if (_restParameter is null)
         {
-            if (arguments.Count != _parameters.Count)
+            // JavaScript allows passing more arguments than parameters
+            // Only check for too few arguments
+            if (arguments.Count < _parameters.Count)
             {
                 throw new InvalidOperationException($"Function expected {_parameters.Count} arguments but received {arguments.Count}.");
             }

@@ -8,6 +8,15 @@ public sealed class JsEngine
     private readonly Environment _global = new(isFunctionScope: true);
 
     /// <summary>
+    /// Initializes a new instance of JsEngine with standard library objects.
+    /// </summary>
+    public JsEngine()
+    {
+        // Register standard library objects
+        SetGlobal("Math", StandardLibrary.CreateMathObject());
+    }
+
+    /// <summary>
     /// Parses JavaScript source code into an S-expression representation.
     /// </summary>
     public Cons Parse(string source)

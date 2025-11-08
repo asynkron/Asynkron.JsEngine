@@ -772,6 +772,20 @@ internal sealed class Parser
                 return Cons.FromEnumerable(new object?[] { JsSymbols.SetIndex, target, index, value });
             }
 
+            // Check if this is an array literal that should be treated as a destructuring pattern
+            if (expr is Cons { Head: Symbol arrayHead } arrayLiteral && ReferenceEquals(arrayHead, JsSymbols.ArrayLiteral))
+            {
+                var pattern = ConvertArrayLiteralToPattern(arrayLiteral);
+                return Cons.FromEnumerable(new object?[] { JsSymbols.DestructuringAssignment, pattern, value });
+            }
+
+            // Check if this is an object literal that should be treated as a destructuring pattern
+            if (expr is Cons { Head: Symbol objectHead } objectLiteral && ReferenceEquals(objectHead, JsSymbols.ObjectLiteral))
+            {
+                var pattern = ConvertObjectLiteralToPattern(objectLiteral);
+                return Cons.FromEnumerable(new object?[] { JsSymbols.DestructuringAssignment, pattern, value });
+            }
+
             throw new ParseException($"Invalid assignment target near line {equals.Line} column {equals.Column}.");
         }
 
@@ -1368,5 +1382,127 @@ internal sealed class Parser
         }
 
         throw new ParseException(message);
+    }
+
+    private Cons ConvertArrayLiteralToPattern(Cons arrayLiteral)
+    {
+        var elements = new List<object?> { JsSymbols.ArrayPattern };
+        
+        foreach (var item in arrayLiteral.Rest)
+        {
+            if (item is null)
+            {
+                elements.Add(null); // hole
+            }
+            else if (item is Cons { Head: Symbol spreadHead } spreadCons && ReferenceEquals(spreadHead, JsSymbols.Spread))
+            {
+                // Spread becomes rest pattern
+                var restTarget = spreadCons.Rest.Head;
+                if (restTarget is not Symbol restSymbol)
+                {
+                    throw new ParseException("Rest element must be an identifier");
+                }
+                elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternRest, restSymbol }));
+                break; // Rest must be last
+            }
+            else if (item is Symbol symbol)
+            {
+                // Simple identifier
+                elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, symbol, null }));
+            }
+            else if (item is Cons { Head: Symbol itemHead } itemCons)
+            {
+                // Check for nested patterns
+                if (ReferenceEquals(itemHead, JsSymbols.ArrayLiteral))
+                {
+                    var nestedPattern = ConvertArrayLiteralToPattern(itemCons);
+                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, nestedPattern, null }));
+                }
+                else if (ReferenceEquals(itemHead, JsSymbols.ObjectLiteral))
+                {
+                    var nestedPattern = ConvertObjectLiteralToPattern(itemCons);
+                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, nestedPattern, null }));
+                }
+                else
+                {
+                    throw new ParseException("Invalid destructuring pattern");
+                }
+            }
+            else
+            {
+                throw new ParseException("Invalid destructuring pattern");
+            }
+        }
+        
+        return Cons.FromEnumerable(elements);
+    }
+
+    private Cons ConvertObjectLiteralToPattern(Cons objectLiteral)
+    {
+        var properties = new List<object?> { JsSymbols.ObjectPattern };
+        
+        foreach (var prop in objectLiteral.Rest)
+        {
+            if (prop is not Cons { Head: Symbol propHead } propCons)
+            {
+                throw new ParseException("Invalid object destructuring pattern");
+            }
+            
+            if (ReferenceEquals(propHead, JsSymbols.Spread))
+            {
+                // Spread becomes rest property
+                var restTarget = propCons.Rest.Head;
+                if (restTarget is not Symbol restSymbol)
+                {
+                    throw new ParseException("Rest property must be an identifier");
+                }
+                properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternRest, restSymbol }));
+                break; // Rest must be last
+            }
+            else if (ReferenceEquals(propHead, JsSymbols.Property))
+            {
+                var key = propCons.Rest.Head as string;
+                var value = propCons.Rest.Rest.Head;
+                
+                if (key is null)
+                {
+                    throw new ParseException("Property key must be a string");
+                }
+                
+                if (value is Symbol targetSymbol)
+                {
+                    // Simple property: {x} or {x: y}
+                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, key, targetSymbol, null }));
+                }
+                else if (value is Cons { Head: Symbol valueHead } valueCons)
+                {
+                    // Nested pattern: {x: [a, b]}
+                    if (ReferenceEquals(valueHead, JsSymbols.ArrayLiteral))
+                    {
+                        var nestedPattern = ConvertArrayLiteralToPattern(valueCons);
+                        properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, key, nestedPattern, null }));
+                    }
+                    else if (ReferenceEquals(valueHead, JsSymbols.ObjectLiteral))
+                    {
+                        var nestedPattern = ConvertObjectLiteralToPattern(valueCons);
+                        properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, key, nestedPattern, null }));
+                    }
+                    else
+                    {
+                        throw new ParseException("Invalid nested destructuring pattern");
+                    }
+                }
+                else
+                {
+                    throw new ParseException("Invalid destructuring pattern value");
+                }
+            }
+            else
+            {
+                throw new ParseException("Invalid object destructuring pattern");
+            }
+        }
+        
+        return Cons.FromEnumerable(properties);
     }
 }

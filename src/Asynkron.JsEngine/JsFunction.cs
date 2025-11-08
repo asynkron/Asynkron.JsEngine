@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine;
 internal sealed class JsFunction : IJsCallable
 {
     private readonly Symbol? _name;
-    private readonly IReadOnlyList<Symbol> _parameters;
+    private readonly IReadOnlyList<object> _parameters; // Can be Symbol or Cons (for destructuring patterns)
     private readonly Symbol? _restParameter;
     private readonly Cons _body;
     private readonly Environment _closure;
@@ -11,7 +11,7 @@ internal sealed class JsFunction : IJsCallable
     private JsFunction? _superConstructor;
     private JsObject? _superPrototype;
 
-    public JsFunction(Symbol? name, IReadOnlyList<Symbol> parameters, Symbol? restParameter, Cons body, Environment closure)
+    public JsFunction(Symbol? name, IReadOnlyList<object> parameters, Symbol? restParameter, Cons body, Environment closure)
     {
         _name = name;
         _parameters = parameters;
@@ -45,10 +45,26 @@ internal sealed class JsFunction : IJsCallable
 
         var environment = new Environment(_closure, isFunctionScope: true);
         
-        // Bind regular parameters
+        // Bind regular parameters (could be symbols or destructuring patterns)
         for (var i = 0; i < _parameters.Count; i++)
         {
-            environment.Define(_parameters[i], arguments[i]);
+            var parameter = _parameters[i];
+            var argument = i < arguments.Count ? arguments[i] : null;
+            
+            if (parameter is Symbol symbol)
+            {
+                // Simple parameter
+                environment.Define(symbol, argument);
+            }
+            else if (parameter is Cons pattern)
+            {
+                // Destructuring parameter
+                Evaluator.DestructureParameter(pattern, argument, environment);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Invalid parameter type: {parameter?.GetType().Name ?? "null"}");
+            }
         }
 
         // Bind rest parameter if present

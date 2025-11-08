@@ -524,6 +524,52 @@ internal static class StandardLibrary
     }
 
     /// <summary>
+    /// Creates a RegExp constructor function.
+    /// </summary>
+    public static IJsCallable CreateRegExpConstructor()
+    {
+        return new HostFunction(args =>
+        {
+            if (args.Count == 0)
+            {
+                var emptyRegex = new JsRegExp("(?:)", "");
+                AddRegExpMethods(emptyRegex);
+                return emptyRegex.JsObject;
+            }
+            
+            var pattern = args[0]?.ToString() ?? "";
+            var flags = args.Count > 1 ? (args[1]?.ToString() ?? "") : "";
+            
+            var regex = new JsRegExp(pattern, flags);
+            regex.JsObject["__regex__"] = regex; // Store reference for internal use
+            AddRegExpMethods(regex);
+            return regex.JsObject;
+        });
+    }
+
+    /// <summary>
+    /// Adds RegExp instance methods to a JsRegExp object.
+    /// </summary>
+    private static void AddRegExpMethods(JsRegExp regex)
+    {
+        // test(string) - returns boolean
+        regex.SetProperty("test", new HostFunction((thisValue, args) =>
+        {
+            if (args.Count == 0) return false;
+            var input = args[0]?.ToString() ?? "";
+            return regex.Test(input);
+        }));
+
+        // exec(string) - returns array with match details or null
+        regex.SetProperty("exec", new HostFunction((thisValue, args) =>
+        {
+            if (args.Count == 0) return null;
+            var input = args[0]?.ToString() ?? "";
+            return regex.Exec(input);
+        }));
+    }
+
+    /// <summary>
     /// Adds standard array methods to a JsArray instance.
     /// </summary>
     public static void AddArrayMethods(JsArray array)
@@ -1328,14 +1374,71 @@ internal static class StandardLibrary
         stringObj.SetProperty("replace", new HostFunction(args =>
         {
             if (args.Count < 2) return str;
-            var searchValue = args[0]?.ToString() ?? "";
-            var replaceValue = args[1]?.ToString() ?? "";
             
-            // Only replaces first occurrence (regex version would replace all with /g flag)
+            // Check if first argument is a RegExp (JsObject with __regex__ property)
+            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) && regexValue is JsRegExp regex)
+            {
+                var replaceValue = args[1]?.ToString() ?? "";
+                if (regex.Global)
+                {
+                    return System.Text.RegularExpressions.Regex.Replace(str, regex.Pattern, replaceValue);
+                }
+                else
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(str, regex.Pattern);
+                    if (match.Success)
+                    {
+                        return str.Substring(0, match.Index) + replaceValue + str.Substring(match.Index + match.Length);
+                    }
+                    return str;
+                }
+            }
+            
+            // String replacement (only first occurrence)
+            var searchValue = args[0]?.ToString() ?? "";
+            var replaceStr = args[1]?.ToString() ?? "";
             var index = str.IndexOf(searchValue, StringComparison.Ordinal);
             if (index == -1) return str;
             
-            return str.Substring(0, index) + replaceValue + str.Substring(index + searchValue.Length);
+            return str.Substring(0, index) + replaceStr + str.Substring(index + searchValue.Length);
+        }));
+
+        // match(regexp)
+        stringObj.SetProperty("match", new HostFunction(args =>
+        {
+            if (args.Count == 0) return null;
+            
+            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) && regexValue is JsRegExp regex)
+            {
+                if (regex.Global)
+                {
+                    return regex.MatchAll(str);
+                }
+                else
+                {
+                    return regex.Exec(str);
+                }
+            }
+            
+            return null;
+        }));
+
+        // search(regexp)
+        stringObj.SetProperty("search", new HostFunction(args =>
+        {
+            if (args.Count == 0) return -1d;
+            
+            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) && regexValue is JsRegExp regex)
+            {
+                var result = regex.Exec(str);
+                if (result is JsArray arr && arr.TryGetProperty("index", out var indexObj) && indexObj is double d)
+                {
+                    return d;
+                }
+                return -1d;
+            }
+            
+            return -1d;
         }));
 
         // startsWith(searchString, position?)

@@ -46,6 +46,15 @@ public sealed class JsEngine
         // Register Promise constructor
         SetGlobal("Promise", StandardLibrary.CreatePromiseConstructor(this));
         
+        // Register Symbol constructor
+        SetGlobal("Symbol", StandardLibrary.CreateSymbolConstructor());
+        
+        // Register Map constructor
+        SetGlobal("Map", StandardLibrary.CreateMapConstructor());
+        
+        // Register Set constructor
+        SetGlobal("Set", StandardLibrary.CreateSetConstructor());
+        
         // Register timer functions
         SetGlobalFunction("setTimeout", args => SetTimeout(args));
         SetGlobalFunction("setInterval", args => SetInterval(args));

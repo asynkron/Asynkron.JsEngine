@@ -127,6 +127,11 @@ public sealed class CpsTransformer
             {
                 return TransformAssign(cons);
             }
+
+            if (symbol == JsSymbols.Try)
+            {
+                return TransformTry(cons);
+            }
         }
 
         // For other expressions, recursively transform children
@@ -329,6 +334,14 @@ public sealed class CpsTransformer
             return TransformReturnStatement(cons, resolveParam, statements, index);
         }
         
+        // Check if this is a try-catch statement
+        if (statement is Cons tryCons && !tryCons.IsEmpty && 
+            tryCons.Head is Symbol trySymbol && ReferenceEquals(trySymbol, JsSymbols.Try))
+        {
+            // Transform try-catch with special handling for async context
+            return TransformTryInAsyncContext(tryCons, statements, index, resolveParam, rejectParam);
+        }
+        
         // Check if this statement contains await
         if (ContainsAwait(statement))
         {
@@ -468,9 +481,11 @@ public sealed class CpsTransformer
                 var parts = ConsList(cons);
                 if (parts.Count >= 3)
                 {
-                    var varName = parts[1]; // variable name
-                    var value = parts[2];   // value expression
+                    var varKeyword = parts[0]; // let/var/const
+                    var varName = parts[1];    // variable name
+                    var value = parts[2];      // value expression
                     
+                    // Check if value is a simple await expression
                     if (value is Cons valueCons && !valueCons.IsEmpty && 
                         valueCons.Head is Symbol awaitSym && ReferenceEquals(awaitSym, JsSymbols.Await))
                     {
@@ -509,6 +524,12 @@ public sealed class CpsTransformer
                             JsSymbols.Block, 
                             Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, thenCall })
                         });
+                    }
+                    // Check if value is a complex expression containing await
+                    else if (ContainsAwait(value))
+                    {
+                        // Extract awaits from the complex expression and chain them
+                        return ExtractAndChainAwaits(varKeyword, varName, value, statements, index, resolveParam, rejectParam);
                     }
                 }
             }
@@ -559,6 +580,260 @@ public sealed class CpsTransformer
             statement, 
             rest 
         });
+    }
+
+    /// <summary>
+    /// Transforms a try-catch statement within an async function context.
+    /// Handles return statements in try and catch blocks by calling resolve.
+    /// </summary>
+    private object? TransformTryInAsyncContext(Cons tryCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    {
+        // tryCons is (try tryBlock catchClause? finallyBlock?)
+        var parts = ConsList(tryCons);
+        if (parts.Count < 2)
+        {
+            return tryCons;
+        }
+
+        // Transform the try block with async context
+        var tryBlock = parts[1];
+        var transformedTryBlock = TransformBlockInAsyncContext(tryBlock, resolveParam, rejectParam);
+
+        object? transformedCatchClause = null;
+        if (parts.Count > 2 && parts[2] != null)
+        {
+            // catchClause is (catch param block)
+            if (parts[2] is Cons catchCons && !catchCons.IsEmpty)
+            {
+                var catchParts = ConsList(catchCons);
+                if (catchParts.Count >= 3)
+                {
+                    var catchSymbol = catchParts[0]; // 'catch'
+                    var catchParam = catchParts[1];
+                    var catchBlock = catchParts[2];
+                    var transformedCatchBlock = TransformBlockInAsyncContext(catchBlock, resolveParam, rejectParam);
+                    
+                    transformedCatchClause = Cons.FromEnumerable(new object?[] 
+                    { 
+                        catchSymbol, 
+                        catchParam, 
+                        transformedCatchBlock 
+                    });
+                }
+            }
+        }
+
+        object? transformedFinallyBlock = null;
+        if (parts.Count > 3 && parts[3] != null)
+        {
+            transformedFinallyBlock = TransformBlockInAsyncContext(parts[3], resolveParam, rejectParam);
+        }
+
+        // Continue with remaining statements
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
+
+        // Build the transformed try statement
+        var transformedTry = Cons.FromEnumerable(new object?[] 
+        { 
+            JsSymbols.Try, 
+            transformedTryBlock, 
+            transformedCatchClause, 
+            transformedFinallyBlock 
+        });
+
+        // If rest is just resolving null, return just the try statement
+        if (IsSimpleResolveCall(rest))
+        {
+            return Cons.FromEnumerable(new object?[] { JsSymbols.Block, transformedTry });
+        }
+
+        // Combine with rest
+        return Cons.FromEnumerable(new object?[] 
+        { 
+            JsSymbols.Block, 
+            transformedTry, 
+            rest 
+        });
+    }
+
+    /// <summary>
+    /// Checks if an expression is a simple resolve call with null.
+    /// </summary>
+    private bool IsSimpleResolveCall(object? expr)
+    {
+        if (expr is not Cons cons || cons.IsEmpty)
+            return false;
+
+        if (cons.Head is not Symbol blockSym || !ReferenceEquals(blockSym, JsSymbols.Block))
+            return false;
+
+        var blockContents = cons.Rest;
+        if (blockContents is not Cons blockCons || blockCons.IsEmpty)
+            return false;
+
+        var firstStmt = blockCons.Head;
+        if (firstStmt is not Cons stmtCons || stmtCons.IsEmpty)
+            return false;
+
+        // Check if it's an expression statement with a call to resolve with no args or null
+        if (stmtCons.Head is Symbol exprSym && ReferenceEquals(exprSym, JsSymbols.ExpressionStatement))
+        {
+            var exprContent = stmtCons.Rest;
+            if (exprContent is Cons exprCons && !exprCons.IsEmpty &&
+                exprCons.Head is Cons callCons && !callCons.IsEmpty &&
+                callCons.Head is Symbol callSym && ReferenceEquals(callSym, JsSymbols.Call))
+            {
+                // It's a call - check if it's calling resolve with null or no args
+                var callArgs = ConsList(callCons);
+                return callArgs.Count <= 2; // call resolve [null]
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Transforms a block within an async function context, handling return statements.
+    /// </summary>
+    private object? TransformBlockInAsyncContext(object? block, Symbol resolveParam, Symbol rejectParam)
+    {
+        if (block is not Cons blockCons || blockCons.IsEmpty)
+        {
+            return block;
+        }
+
+        // Check if this is a block
+        if (blockCons.Head is Symbol blockSymbol && ReferenceEquals(blockSymbol, JsSymbols.Block))
+        {
+            var statements = new List<object?>();
+            var current = blockCons.Rest;
+            
+            while (current is Cons c && !c.IsEmpty)
+            {
+                statements.Add(c.Head);
+                current = c.Rest;
+            }
+
+            // Chain statements with async context
+            return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam);
+        }
+
+        return block;
+    }
+
+    /// <summary>
+    /// Extracts await expressions from a complex expression and chains them.
+    /// Example: let x = (await p1) + (await p2);
+    /// Becomes: p1.then(function(t1) { p2.then(function(t2) { let x = t1 + t2; [rest] }) })
+    /// </summary>
+    private object? ExtractAndChainAwaits(object? varKeyword, object? varName, object? expr, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    {
+        // Collect all await expressions in the expression
+        var awaits = new List<(object? promiseExpr, Symbol tempVar)>();
+        var transformedExpr = ExtractAwaitsFromExpression(expr, awaits);
+
+        if (awaits.Count == 0)
+        {
+            // No awaits found, shouldn't happen but handle gracefully
+            var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
+            return Cons.FromEnumerable(new object?[] 
+            { 
+                JsSymbols.Block, 
+                Cons.FromEnumerable(new object?[] { varKeyword, varName, expr }), 
+                rest 
+            });
+        }
+
+        // Build the chain from innermost to outermost
+        // Start with the variable declaration and remaining statements
+        var restStatements = statements.Skip(index + 1).ToList();
+        var varDecl = Cons.FromEnumerable(new object?[] { varKeyword, varName, transformedExpr });
+        var innerStatements = new List<object?> { varDecl };
+        innerStatements.AddRange(restStatements);
+        var innerBody = ChainStatementsWithAwaits(innerStatements, 0, resolveParam, rejectParam);
+
+        // Chain the awaits from right to left (innermost first)
+        for (int i = awaits.Count - 1; i >= 0; i--)
+        {
+            var (promiseExpr, tempVar) = awaits[i];
+            
+            // Create the .then() callback: function(tempVar) { innerBody }
+            var thenCallback = Cons.FromEnumerable(new object?[] 
+            { 
+                JsSymbols.Lambda, 
+                null, 
+                Cons.FromEnumerable(new object?[] { tempVar }), 
+                innerBody 
+            });
+            
+            // Create the .then() call: promiseExpr.then(thenCallback)
+            var thenCall = Cons.FromEnumerable(new object?[] 
+            { 
+                JsSymbols.Call, 
+                Cons.FromEnumerable(new object?[] 
+                { 
+                    JsSymbols.GetProperty, 
+                    promiseExpr, 
+                    "then" 
+                }), 
+                thenCallback 
+            });
+            
+            // Wrap in block for next iteration
+            innerBody = Cons.FromEnumerable(new object?[] 
+            { 
+                JsSymbols.Block, 
+                Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, thenCall })
+            });
+        }
+
+        return innerBody;
+    }
+
+    /// <summary>
+    /// Extracts await expressions from a complex expression, replacing them with temporary variables.
+    /// Returns the transformed expression and populates the awaits list.
+    /// </summary>
+    private object? ExtractAwaitsFromExpression(object? expr, List<(object? promiseExpr, Symbol tempVar)> awaits)
+    {
+        if (expr == null)
+        {
+            return null;
+        }
+
+        // If not a Cons, return as-is
+        if (expr is not Cons cons || cons.IsEmpty)
+        {
+            return expr;
+        }
+
+        // Check if this is an await expression
+        if (cons.Head is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Await))
+        {
+            // Extract the promise expression
+            var promiseExpr = cons.Rest.Head;
+            
+            // Create a temporary variable
+            var tempVar = Symbol.Intern($"__await{awaits.Count}");
+            
+            // Add to awaits list
+            awaits.Add((promiseExpr, tempVar));
+            
+            // Return the temporary variable
+            return tempVar;
+        }
+
+        // Recursively transform all children
+        var items = new List<object?>();
+        var current = cons;
+        
+        while (current is Cons c && !c.IsEmpty)
+        {
+            items.Add(ExtractAwaitsFromExpression(c.Head, awaits));
+            current = c.Rest;
+        }
+
+        return Cons.FromEnumerable(items);
     }
 
     /// <summary>
@@ -752,6 +1027,59 @@ public sealed class CpsTransformer
             JsSymbols.Assign, 
             parts[1], 
             TransformExpression(parts[2]) 
+        });
+    }
+
+    /// <summary>
+    /// Transforms a try-catch-finally statement.
+    /// Recursively transforms the try block, catch block, and finally block.
+    /// </summary>
+    private object? TransformTry(Cons cons)
+    {
+        // cons is (try tryBlock catchClause? finallyBlock?)
+        var parts = ConsList(cons);
+        if (parts.Count < 2)
+        {
+            return cons;
+        }
+
+        var tryBlock = TransformExpression(parts[1]);
+        
+        object? catchClause = null;
+        if (parts.Count > 2 && parts[2] != null)
+        {
+            // catchClause is (catch param block)
+            if (parts[2] is Cons catchCons && !catchCons.IsEmpty)
+            {
+                var catchParts = ConsList(catchCons);
+                if (catchParts.Count >= 3)
+                {
+                    var catchSymbol = catchParts[0]; // 'catch'
+                    var catchParam = catchParts[1];
+                    var catchBlock = TransformExpression(catchParts[2]);
+                    
+                    catchClause = Cons.FromEnumerable(new object?[] 
+                    { 
+                        catchSymbol, 
+                        catchParam, 
+                        catchBlock 
+                    });
+                }
+            }
+        }
+        
+        object? finallyBlock = null;
+        if (parts.Count > 3 && parts[3] != null)
+        {
+            finallyBlock = TransformExpression(parts[3]);
+        }
+
+        return Cons.FromEnumerable(new object?[] 
+        { 
+            JsSymbols.Try, 
+            tryBlock, 
+            catchClause, 
+            finallyBlock 
         });
     }
 

@@ -92,21 +92,10 @@ internal sealed class JsGenerator : IJsCallable
             var yieldTracker = new YieldTracker(_currentYieldIndex);
             _executionEnv.Define(Symbol.Intern("__yieldTracker__"), yieldTracker);
 
-            // Create context for this execution
-            var context = new EvaluationContext();
-            
             // Execute the body (or re-execute it to get to the next yield)
             try
             {
-                var result = Evaluator.EvaluateBlock(_body, _executionEnv, context);
-                
-                // Check if return was encountered
-                if (context.IsReturn)
-                {
-                    _state = GeneratorState.Completed;
-                    _done = true;
-                    return CreateIteratorResult(context.FlowValue, true);
-                }
+                var result = Evaluator.EvaluateBlock(_body, _executionEnv);
                 
                 // If we get here without a yield, the generator is complete
                 _state = GeneratorState.Completed;
@@ -120,6 +109,12 @@ internal sealed class JsGenerator : IJsCallable
                 _currentYieldIndex++;
                 return CreateIteratorResult(yieldSignal.Value, false);
             }
+        }
+        catch (ReturnSignal returnSignal)
+        {
+            _state = GeneratorState.Completed;
+            _done = true;
+            return CreateIteratorResult(returnSignal.Value, true);
         }
         catch (Exception)
         {

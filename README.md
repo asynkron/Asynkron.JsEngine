@@ -1052,15 +1052,12 @@ dotnet test
 
 The engine now has full support for async/await and generators through CPS (Continuation-Passing Style) transformation, as well as comprehensive string methods and regular expression support. See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for implementation details.
 
-For information about alternative approaches to implementing control flow (return, break, continue), see [docs/CONTROL_FLOW_ALTERNATIVES.md](docs/CONTROL_FLOW_ALTERNATIVES.md).
-
 Future enhancements may include:
 - Destructuring assignments (array and object destructuring)
 - Regex literal syntax (/pattern/flags)
 - ES6 modules (import/export)
 - Additional string methods (localeCompare, normalize, etc.)
 - Enhanced type coercion
-- Performance improvements to control flow mechanisms
 
 ## Contributing
 

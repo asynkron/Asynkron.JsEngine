@@ -34,6 +34,7 @@ internal sealed class Lexer
         ["new"] = TokenType.New,
         ["get"] = TokenType.Get,
         ["set"] = TokenType.Set,
+        ["yield"] = TokenType.Yield,
         ["true"] = TokenType.True,
         ["false"] = TokenType.False,
         ["null"] = TokenType.Null

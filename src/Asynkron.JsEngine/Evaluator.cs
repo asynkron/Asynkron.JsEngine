@@ -69,6 +69,11 @@ internal static class Evaluator
             return EvaluateFunctionDeclaration(cons, environment);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.Generator))
+        {
+            return EvaluateGeneratorDeclaration(cons, environment);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.Class))
         {
             return EvaluateClass(cons, environment);
@@ -413,6 +418,18 @@ internal static class Evaluator
         return function;
     }
 
+    private static object? EvaluateGeneratorDeclaration(Cons cons, Environment environment)
+    {
+        var name = ExpectSymbol(cons.Rest.Head, "Expected generator function name.");
+        var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected parameter list for generator function.");
+        var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected generator function body block.");
+        
+        // Create a generator factory function that returns a new generator instance when called
+        var generatorFactory = new GeneratorFactory(name, parameters, body, environment);
+        environment.Define(name, generatorFactory);
+        return generatorFactory;
+    }
+
     private static object? EvaluateClass(Cons cons, Environment environment)
     {
         var name = ExpectSymbol(cons.Rest.Head, "Expected class name symbol.");
@@ -688,6 +705,40 @@ internal static class Evaluator
             var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected lambda body block.");
             var (regularParams, restParam) = ParseParameterList(parameters);
             return new JsFunction(maybeName, regularParams, restParam, body, environment);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.Generator))
+        {
+            // Handle generator expressions like: function*() { yield 1; }
+            var maybeName = cons.Rest.Head as Symbol;
+            var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected generator parameters list.");
+            var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected generator body block.");
+            return new GeneratorFactory(maybeName, parameters, body, environment);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.Yield))
+        {
+            // Evaluate the value to yield
+            var value = EvaluateExpression(cons.Rest.Head, environment);
+            
+            // Check if we have a yield tracker (only present in generator context)
+            try
+            {
+                var trackerObj = environment.Get(Symbol.Intern("__yieldTracker__"));
+                if (trackerObj is YieldTracker tracker && tracker.ShouldYield())
+                {
+                    // This is the yield we should stop at
+                    throw new YieldSignal(value);
+                }
+                // Otherwise, this yield was already processed - skip it and return null
+                // (the value is not meaningful when skipping)
+                return null;
+            }
+            catch (InvalidOperationException)
+            {
+                // No tracker found - yield is outside a generator (shouldn't happen)
+                throw new InvalidOperationException("yield can only be used inside a generator function");
+            }
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Ternary))

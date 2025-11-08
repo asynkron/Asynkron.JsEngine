@@ -24,6 +24,12 @@ internal static class Evaluator
                 break;
         }
 
+        // If there's an unhandled throw, convert it to an exception
+        if (context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
         return result;
     }
 
@@ -388,35 +394,47 @@ internal static class Evaluator
         var catchClause = cons.Rest.Rest.Head;
         var finallyClause = cons.Rest.Rest.Rest.Head;
 
-        ThrowSignal? pendingThrow = null;
         object? result = null;
+        object? thrownValue = null;
+        bool hasThrow = false;
 
-        try
+        // Execute try block
+        result = EvaluateStatement(tryStatement, environment, context);
+        
+        // Check if a throw occurred
+        if (context.IsThrow)
         {
-            result = EvaluateStatement(tryStatement, environment, context);
-        }
-        catch (ThrowSignal signal)
-        {
+            thrownValue = context.FlowValue;
+            hasThrow = true;
+            
             if (catchClause is Cons catchCons && ReferenceEquals(catchCons.Head, JsSymbols.Catch))
             {
-                result = ExecuteCatchClause(catchCons, signal.Value, environment, context);
+                // Clear the throw state before executing catch block
+                context.Clear();
+                result = ExecuteCatchClause(catchCons, thrownValue, environment, context);
+                // If catch handled it successfully, don't re-throw
+                if (!context.IsThrow)
+                {
+                    hasThrow = false;
+                }
             }
-            else
-            {
-                pendingThrow = signal;
-            }
-        }
-        finally
-        {
-            if (finallyClause is Cons finallyCons)
-            {
-                EvaluateStatement(finallyCons, environment, context);
-            }
+            // If no catch clause or catch didn't handle it, keep the throw state
         }
 
-        if (pendingThrow is not null)
+        // Execute finally block regardless
+        if (finallyClause is Cons finallyCons)
         {
-            throw pendingThrow;
+            // Save current flow state in case finally changes it
+            var savedFlow = context.Flow;
+            var savedValue = context.FlowValue;
+            
+            EvaluateStatement(finallyCons, environment, context);
+            
+            // If finally didn't set a new flow, restore the previous one
+            if (context.Flow == EvaluationContext.ControlFlow.None && hasThrow)
+            {
+                context.SetThrow(thrownValue);
+            }
         }
 
         return result;
@@ -669,7 +687,8 @@ internal static class Evaluator
     {
         var valueExpression = cons.Rest.Head;
         var value = EvaluateExpression(valueExpression, environment, context);
-        throw new ThrowSignal(value);
+        context.SetThrow(value);
+        return value;
     }
 
     private static object? ExecuteCatchClause(Cons catchClause, object? thrownValue, Environment environment, EvaluationContext context)
@@ -832,7 +851,8 @@ internal static class Evaluator
                 if (trackerObj is YieldTracker tracker && tracker.ShouldYield())
                 {
                     // This is the yield we should stop at
-                    throw new YieldSignal(value);
+                    context.SetYield(value);
+                    return value;
                 }
                 // Otherwise, this yield was already processed - skip it and return null
                 // (the value is not meaningful when skipping)

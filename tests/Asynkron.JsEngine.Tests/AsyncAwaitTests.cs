@@ -400,4 +400,94 @@ public class AsyncAwaitTests
         Assert.NotNull(transformed);
         Assert.Same(program, transformed); // Should be the same instance
     }
+
+    [Fact]
+    public async Task AsyncFunction_SequentialAwaits()
+    {
+        // Arrange
+        var engine = new JsEngine();
+        var result = "";
+
+        engine.SetGlobalFunction("captureResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+            return null;
+        });
+
+        // Act
+        await engine.Run(@"
+            async function test() {
+                let a = await Promise.resolve(5);
+                let b = await Promise.resolve(a + 3);
+                let c = await Promise.resolve(b * 2);
+                return c;
+            }
+            
+            test().then(function(value) {
+                captureResult(value);
+            });
+        ");
+
+        // Assert
+        Assert.Equal("16", result);
+    }
+
+    [Fact]
+    public async Task AsyncFunction_ReturnsNull()
+    {
+        // Arrange
+        var engine = new JsEngine();
+        var wasCalled = false;
+
+        engine.SetGlobalFunction("markCalled", args =>
+        {
+            wasCalled = true;
+            return null;
+        });
+
+        // Act
+        await engine.Run(@"
+            async function test() {
+                return null;
+            }
+            
+            test().then(function(value) {
+                markCalled();
+            });
+        ");
+
+        // Assert
+        Assert.True(wasCalled);
+    }
+
+    [Fact]
+    public async Task AsyncFunction_NoReturn()
+    {
+        // Arrange
+        var engine = new JsEngine();
+        var wasCalled = false;
+
+        engine.SetGlobalFunction("markCalled", args =>
+        {
+            wasCalled = true;
+            return null;
+        });
+
+        // Act
+        await engine.Run(@"
+            async function test() {
+                // No return statement
+            }
+            
+            test().then(function(value) {
+                markCalled();
+            });
+        ");
+
+        // Assert
+        Assert.True(wasCalled);
+    }
 }

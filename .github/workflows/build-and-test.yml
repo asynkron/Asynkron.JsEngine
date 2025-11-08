@@ -9,7 +9,10 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     
     steps:
     - name: Checkout code
@@ -27,13 +30,20 @@ jobs:
       run: dotnet build --configuration Release --no-restore
       
     - name: Test
-      run: dotnet test --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+      run: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx"
+      
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      if: matrix.os == 'ubuntu-latest'
+      with:
+        files: '**/coverage.cobertura.xml'
+        fail_ci_if_error: false
       
     - name: Publish test results
       uses: dorny/test-reporter@v1
       if: always()
       with:
-        name: Test Results
+        name: Test Results (${{ matrix.os }})
         path: '**/test-results.trx'
         reporter: dotnet-trx
         fail-on-error: true

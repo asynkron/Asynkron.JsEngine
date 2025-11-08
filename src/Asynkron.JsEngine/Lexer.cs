@@ -99,7 +99,14 @@ internal sealed class Lexer
                 AddToken(TokenType.Plus);
                 break;
             case '.':
-                AddToken(TokenType.Dot);
+                if (Match('.') && Match('.'))
+                {
+                    AddToken(TokenType.DotDotDot);
+                }
+                else
+                {
+                    AddToken(TokenType.Dot);
+                }
                 break;
             case '-':
                 AddToken(TokenType.Minus);

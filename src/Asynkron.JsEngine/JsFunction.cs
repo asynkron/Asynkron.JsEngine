@@ -4,16 +4,18 @@ internal sealed class JsFunction : IJsCallable
 {
     private readonly Symbol? _name;
     private readonly IReadOnlyList<Symbol> _parameters;
+    private readonly Symbol? _restParameter;
     private readonly Cons _body;
     private readonly Environment _closure;
     private readonly JsObject _properties = new();
     private JsFunction? _superConstructor;
     private JsObject? _superPrototype;
 
-    public JsFunction(Symbol? name, IReadOnlyList<Symbol> parameters, Cons body, Environment closure)
+    public JsFunction(Symbol? name, IReadOnlyList<Symbol> parameters, Symbol? restParameter, Cons body, Environment closure)
     {
         _name = name;
         _parameters = parameters;
+        _restParameter = restParameter;
         _body = body;
         _closure = closure;
 
@@ -23,15 +25,44 @@ internal sealed class JsFunction : IJsCallable
 
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
     {
-        if (arguments.Count != _parameters.Count)
+        // With rest parameters, we accept variable arguments
+        if (_restParameter is null)
         {
-            throw new InvalidOperationException($"Function expected {_parameters.Count} arguments but received {arguments.Count}.");
+            if (arguments.Count != _parameters.Count)
+            {
+                throw new InvalidOperationException($"Function expected {_parameters.Count} arguments but received {arguments.Count}.");
+            }
+        }
+        else
+        {
+            if (arguments.Count < _parameters.Count)
+            {
+                throw new InvalidOperationException($"Function expected at least {_parameters.Count} arguments but received {arguments.Count}.");
+            }
         }
 
         var environment = new Environment(_closure, isFunctionScope: true);
+        
+        // Bind regular parameters
         for (var i = 0; i < _parameters.Count; i++)
         {
             environment.Define(_parameters[i], arguments[i]);
+        }
+
+        // Bind rest parameter if present
+        if (_restParameter is not null)
+        {
+            var restArgs = new List<object?>();
+            for (var i = _parameters.Count; i < arguments.Count; i++)
+            {
+                restArgs.Add(arguments[i]);
+            }
+            var restArray = new JsArray();
+            foreach (var arg in restArgs)
+            {
+                restArray.Push(arg);
+            }
+            environment.Define(_restParameter, restArray);
         }
 
         environment.Define(JsSymbols.This, thisValue);

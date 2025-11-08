@@ -149,6 +149,16 @@ internal sealed class Parser
         {
             do
             {
+                // Check for rest parameter
+                if (Match(TokenType.DotDotDot))
+                {
+                    var restIdentifier = Consume(TokenType.Identifier, "Expected parameter name after '...'.");
+                    var restParam = Symbol.Intern(restIdentifier.Lexeme);
+                    parameters.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Rest, restParam }));
+                    // Rest parameter must be last
+                    break;
+                }
+                
                 var identifier = Consume(TokenType.Identifier, "Expected parameter name.");
                 parameters.Add(Symbol.Intern(identifier.Lexeme));
             } while (Match(TokenType.Comma));
@@ -739,7 +749,16 @@ internal sealed class Parser
         {
             do
             {
-                arguments.Add(ParseExpression());
+                // Check for spread in arguments
+                if (Match(TokenType.DotDotDot))
+                {
+                    var expr = ParseExpression();
+                    arguments.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Spread, expr }));
+                }
+                else
+                {
+                    arguments.Add(ParseExpression());
+                }
             } while (Match(TokenType.Comma));
         }
 
@@ -913,7 +932,16 @@ internal sealed class Parser
         {
             do
             {
-                elements.Add(ParseExpression());
+                // Check for spread in array literal
+                if (Match(TokenType.DotDotDot))
+                {
+                    var expr = ParseExpression();
+                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Spread, expr }));
+                }
+                else
+                {
+                    elements.Add(ParseExpression());
+                }
             } while (Match(TokenType.Comma));
         }
 

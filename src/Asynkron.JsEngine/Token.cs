@@ -11,6 +11,7 @@ internal enum TokenType
     Comma,
     Colon,
     Dot,
+    DotDotDot,
     Semicolon,
     Plus,
     Minus,

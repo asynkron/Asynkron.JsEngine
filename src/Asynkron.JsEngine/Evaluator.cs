@@ -69,6 +69,11 @@ internal static class Evaluator
             return EvaluateFunctionDeclaration(cons, environment);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.Generator))
+        {
+            return EvaluateGeneratorDeclaration(cons, environment);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.Class))
         {
             return EvaluateClass(cons, environment);
@@ -413,6 +418,18 @@ internal static class Evaluator
         return function;
     }
 
+    private static object? EvaluateGeneratorDeclaration(Cons cons, Environment environment)
+    {
+        var name = ExpectSymbol(cons.Rest.Head, "Expected generator function name.");
+        var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected parameter list for generator function.");
+        var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected generator function body block.");
+        
+        // Create a generator factory function that returns a new generator instance when called
+        var generatorFactory = new GeneratorFactory(name, parameters, body, environment);
+        environment.Define(name, generatorFactory);
+        return generatorFactory;
+    }
+
     private static object? EvaluateClass(Cons cons, Environment environment)
     {
         var name = ExpectSymbol(cons.Rest.Head, "Expected class name symbol.");
@@ -688,6 +705,14 @@ internal static class Evaluator
             var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected lambda body block.");
             var (regularParams, restParam) = ParseParameterList(parameters);
             return new JsFunction(maybeName, regularParams, restParam, body, environment);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.Yield))
+        {
+            // Evaluate the value to yield
+            var value = EvaluateExpression(cons.Rest.Head, environment);
+            // Throw a YieldSignal to be caught by the generator
+            throw new YieldSignal(value, null);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Ternary))

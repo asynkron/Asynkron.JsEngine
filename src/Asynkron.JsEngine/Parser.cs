@@ -53,6 +53,9 @@ internal sealed class Parser
 
     private object ParseFunctionDeclaration()
     {
+        // Check if this is a generator function (function*)
+        var isGenerator = Match(TokenType.Star);
+        
         var nameToken = Consume(TokenType.Identifier, "Expected function name.");
         var name = Symbol.Intern(nameToken.Lexeme);
         Consume(TokenType.LeftParen, "Expected '(' after function name.");
@@ -60,7 +63,8 @@ internal sealed class Parser
         Consume(TokenType.RightParen, "Expected ')' after function parameters.");
         var body = ParseBlock();
 
-        return Cons.FromEnumerable(new object?[] { JsSymbols.Function, name, parameters, body });
+        var functionType = isGenerator ? JsSymbols.Generator : JsSymbols.Function;
+        return Cons.FromEnumerable(new object?[] { functionType, name, parameters, body });
     }
 
     private object ParseClassDeclaration()
@@ -702,6 +706,14 @@ internal sealed class Parser
             return Cons.FromEnumerable(new object?[] { JsSymbols.Negate, ParseUnary() });
         }
 
+        if (Match(TokenType.Yield))
+        {
+            // yield can be followed by an expression or nothing
+            // We'll parse an assignment expression (one level below expression)
+            var value = ParseAssignment();
+            return Cons.FromEnumerable(new object?[] { JsSymbols.Yield, value });
+        }
+
         return ParseCall();
     }
 
@@ -870,6 +882,9 @@ internal sealed class Parser
 
     private object ParseFunctionExpression()
     {
+        // Check if this is a generator function expression (function*)
+        var isGenerator = Match(TokenType.Star);
+        
         Symbol? name = null;
         if (Check(TokenType.Identifier))
         {
@@ -880,7 +895,12 @@ internal sealed class Parser
         var parameters = ParseParameterList();
         Consume(TokenType.RightParen, "Expected ')' after lambda parameters.");
         var body = ParseBlock();
-        return Cons.FromEnumerable(new object?[] { JsSymbols.Lambda, name, parameters, body });
+        
+        // Use Lambda for both regular and generator function expressions
+        // The isGenerator flag would need to be stored separately, but for now
+        // we'll use Generator symbol for generator function expressions
+        var functionType = isGenerator ? JsSymbols.Generator : JsSymbols.Lambda;
+        return Cons.FromEnumerable(new object?[] { functionType, name, parameters, body });
     }
 
     private object ParseObjectLiteral()

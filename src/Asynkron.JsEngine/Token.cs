@@ -61,6 +61,7 @@ internal enum TokenType
     New,
     Get,
     Set,
+    Yield,
     True,
     False,
     Null,

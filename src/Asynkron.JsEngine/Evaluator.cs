@@ -27,7 +27,7 @@ internal static class Evaluator
         // If there's an unhandled throw, convert it to an exception
         if (context.IsThrow)
         {
-            throw new ThrowSignal(context.FlowValue);
+            throw new ThrowSignal();
         }
 
         return result;

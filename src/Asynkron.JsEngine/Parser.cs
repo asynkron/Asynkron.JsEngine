@@ -951,6 +951,11 @@ internal sealed class Parser
             return Cons.FromEnumerable(new object?[] { JsSymbols.Negate, ParseUnary() });
         }
 
+        if (Match(TokenType.Typeof))
+        {
+            return Cons.FromEnumerable(new object?[] { JsSymbols.Typeof, ParseUnary() });
+        }
+
         if (Match(TokenType.Yield))
         {
             // yield can be followed by an expression or nothing
@@ -1050,6 +1055,11 @@ internal sealed class Parser
         if (Match(TokenType.Null))
         {
             return null;
+        }
+
+        if (Match(TokenType.Undefined))
+        {
+            return JsSymbols.Undefined;
         }
 
         if (Match(TokenType.Number))

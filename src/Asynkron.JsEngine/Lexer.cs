@@ -39,7 +39,9 @@ internal sealed class Lexer
         ["await"] = TokenType.Await,
         ["true"] = TokenType.True,
         ["false"] = TokenType.False,
-        ["null"] = TokenType.Null
+        ["null"] = TokenType.Null,
+        ["undefined"] = TokenType.Undefined,
+        ["typeof"] = TokenType.Typeof
     };
 
     private readonly string _source;

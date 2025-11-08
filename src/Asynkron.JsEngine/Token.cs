@@ -67,6 +67,8 @@ internal enum TokenType
     True,
     False,
     Null,
+    Undefined,
+    Typeof,
     Eof
 }
 

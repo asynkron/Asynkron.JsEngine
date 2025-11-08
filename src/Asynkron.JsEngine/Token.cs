@@ -58,6 +58,8 @@ internal enum TokenType
     This,
     Super,
     New,
+    Get,
+    Set,
     True,
     False,
     Null,

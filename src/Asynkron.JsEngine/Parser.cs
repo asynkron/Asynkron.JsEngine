@@ -82,30 +82,54 @@ internal sealed class Parser
 
         while (!Check(TokenType.RightBrace))
         {
-            var methodNameToken = Consume(TokenType.Identifier, "Expected method name in class body.");
-            var methodName = methodNameToken.Lexeme;
-            Consume(TokenType.LeftParen, "Expected '(' after method name.");
-            var parameters = ParseParameterList();
-            Consume(TokenType.RightParen, "Expected ')' after method parameters.");
-            var body = ParseBlock();
-
-            var lambdaName = string.Equals(methodName, "constructor", StringComparison.Ordinal)
-                ? name
-                : null;
-            var lambda = Cons.FromEnumerable(new object?[] { JsSymbols.Lambda, lambdaName, parameters, body });
-
-            if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
+            // Check for getter/setter in class
+            if (Match(TokenType.Get))
             {
-                if (constructor is not null)
-                {
-                    throw new ParseException("Class cannot declare multiple constructors.");
-                }
-
-                constructor = lambda;
+                var methodNameToken = Consume(TokenType.Identifier, "Expected getter name in class body.");
+                var methodName = methodNameToken.Lexeme;
+                Consume(TokenType.LeftParen, "Expected '(' after getter name.");
+                Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
+                var body = ParseBlock();
+                methods.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Getter, methodName, body }));
+            }
+            else if (Match(TokenType.Set))
+            {
+                var methodNameToken = Consume(TokenType.Identifier, "Expected setter name in class body.");
+                var methodName = methodNameToken.Lexeme;
+                Consume(TokenType.LeftParen, "Expected '(' after setter name.");
+                var paramToken = Consume(TokenType.Identifier, "Expected parameter name in setter.");
+                var param = Symbol.Intern(paramToken.Lexeme);
+                Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
+                var body = ParseBlock();
+                methods.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Setter, methodName, param, body }));
             }
             else
             {
-                methods.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Method, methodName, lambda }));
+                var methodNameToken = Consume(TokenType.Identifier, "Expected method name in class body.");
+                var methodName = methodNameToken.Lexeme;
+                Consume(TokenType.LeftParen, "Expected '(' after method name.");
+                var parameters = ParseParameterList();
+                Consume(TokenType.RightParen, "Expected ')' after method parameters.");
+                var body = ParseBlock();
+
+                var lambdaName = string.Equals(methodName, "constructor", StringComparison.Ordinal)
+                    ? name
+                    : null;
+                var lambda = Cons.FromEnumerable(new object?[] { JsSymbols.Lambda, lambdaName, parameters, body });
+
+                if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
+                {
+                    if (constructor is not null)
+                    {
+                        throw new ParseException("Class cannot declare multiple constructors.");
+                    }
+
+                    constructor = lambda;
+                }
+                else
+                {
+                    methods.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Method, methodName, lambda }));
+                }
             }
         }
 
@@ -847,10 +871,32 @@ internal sealed class Parser
         {
             do
             {
-                var name = ParseObjectPropertyName();
-                Consume(TokenType.Colon, "Expected ':' after property name.");
-                var value = ParseExpression();
-                properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Property, name, value }));
+                // Check for getter/setter
+                if (Match(TokenType.Get))
+                {
+                    var name = ParseObjectPropertyName();
+                    Consume(TokenType.LeftParen, "Expected '(' after getter name.");
+                    Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
+                    var body = ParseBlock();
+                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Getter, name, body }));
+                }
+                else if (Match(TokenType.Set))
+                {
+                    var name = ParseObjectPropertyName();
+                    Consume(TokenType.LeftParen, "Expected '(' after setter name.");
+                    var paramToken = Consume(TokenType.Identifier, "Expected parameter name in setter.");
+                    var param = Symbol.Intern(paramToken.Lexeme);
+                    Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
+                    var body = ParseBlock();
+                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Setter, name, param, body }));
+                }
+                else
+                {
+                    var name = ParseObjectPropertyName();
+                    Consume(TokenType.Colon, "Expected ':' after property name.");
+                    var value = ParseExpression();
+                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.Property, name, value }));
+                }
             } while (Match(TokenType.Comma));
         }
 

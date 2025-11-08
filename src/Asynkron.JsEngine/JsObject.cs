@@ -8,6 +8,8 @@ namespace Asynkron.JsEngine;
 internal sealed class JsObject : Dictionary<string, object?>
 {
     private const string PrototypeKey = "__proto__";
+    private const string GetterPrefix = "__getter__";
+    private const string SetterPrefix = "__setter__";
 
     private JsObject? _prototype;
 
@@ -37,6 +39,58 @@ internal sealed class JsObject : Dictionary<string, object?>
         {
             Remove(PrototypeKey);
         }
+    }
+
+    public void SetGetter(string name, IJsCallable getter)
+    {
+        this[GetterPrefix + name] = getter;
+    }
+
+    public void SetSetter(string name, IJsCallable setter)
+    {
+        this[SetterPrefix + name] = setter;
+    }
+
+    public bool HasGetter(string name)
+    {
+        return TryGetValue(GetterPrefix + name, out _);
+    }
+
+    public bool HasSetter(string name)
+    {
+        return TryGetValue(SetterPrefix + name, out _);
+    }
+
+    public IJsCallable? GetGetter(string name)
+    {
+        if (TryGetValue(GetterPrefix + name, out var getter))
+        {
+            return getter as IJsCallable;
+        }
+        
+        // Check prototype chain
+        if (_prototype != null)
+        {
+            return _prototype.GetGetter(name);
+        }
+        
+        return null;
+    }
+
+    public IJsCallable? GetSetter(string name)
+    {
+        if (TryGetValue(SetterPrefix + name, out var setter))
+        {
+            return setter as IJsCallable;
+        }
+        
+        // Check prototype chain
+        if (_prototype != null)
+        {
+            return _prototype.GetSetter(name);
+        }
+        
+        return null;
     }
 
     public void SetProperty(string name, object? value)

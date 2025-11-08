@@ -455,27 +455,62 @@ internal static class Evaluator
         {
             var methodCons = ExpectCons(methodExpression, "Expected method definition.");
             var tag = ExpectSymbol(methodCons.Head, "Expected method tag.");
-            if (!ReferenceEquals(tag, JsSymbols.Method))
+
+            if (ReferenceEquals(tag, JsSymbols.Method))
+            {
+                var methodName = methodCons.Rest.Head as string
+                    ?? throw new InvalidOperationException("Expected method name.");
+                var functionExpression = methodCons.Rest.Rest.Head;
+                var methodValue = EvaluateExpression(functionExpression, environment);
+
+                if (methodValue is not IJsCallable)
+                {
+                    throw new InvalidOperationException($"Class method '{methodName}' must be callable.");
+                }
+
+                if (methodValue is JsFunction methodFunction)
+                {
+                    methodFunction.SetSuperBinding(superConstructor, superPrototype);
+                }
+
+                prototype.SetProperty(methodName, methodValue);
+            }
+            else if (ReferenceEquals(tag, JsSymbols.Getter))
+            {
+                // (getter "name" (block ...))
+                var methodName = methodCons.Rest.Head as string
+                    ?? throw new InvalidOperationException("Expected getter name.");
+                var body = ExpectCons(methodCons.Rest.Rest.Head, "Expected getter body.");
+                var getter = new JsFunction(null, Array.Empty<Symbol>(), body, environment);
+                
+                if (superConstructor is not null || superPrototype is not null)
+                {
+                    getter.SetSuperBinding(superConstructor, superPrototype);
+                }
+                
+                prototype.SetGetter(methodName, getter);
+            }
+            else if (ReferenceEquals(tag, JsSymbols.Setter))
+            {
+                // (setter "name" param (block ...))
+                var methodName = methodCons.Rest.Head as string
+                    ?? throw new InvalidOperationException("Expected setter name.");
+                var param = ExpectSymbol(methodCons.Rest.Rest.Head, "Expected setter parameter.");
+                var body = ExpectCons(methodCons.Rest.Rest.Rest.Head, "Expected setter body.");
+                var paramList = new[] { param };
+                var setter = new JsFunction(null, paramList, body, environment);
+                
+                if (superConstructor is not null || superPrototype is not null)
+                {
+                    setter.SetSuperBinding(superConstructor, superPrototype);
+                }
+                
+                prototype.SetSetter(methodName, setter);
+            }
+            else
             {
                 throw new InvalidOperationException("Invalid entry in class body.");
             }
-
-            var methodName = methodCons.Rest.Head as string
-                ?? throw new InvalidOperationException("Expected method name.");
-            var functionExpression = methodCons.Rest.Rest.Head;
-            var methodValue = EvaluateExpression(functionExpression, environment);
-
-            if (methodValue is not IJsCallable)
-            {
-                throw new InvalidOperationException($"Class method '{methodName}' must be callable.");
-            }
-
-            if (methodValue is JsFunction methodFunction)
-            {
-                methodFunction.SetSuperBinding(superConstructor, superPrototype);
-            }
-
-            prototype.SetProperty(methodName, methodValue);
         }
 
         return constructor;
@@ -813,17 +848,38 @@ internal static class Evaluator
         foreach (var propertyExpression in cons.Rest)
         {
             var propertyCons = ExpectCons(propertyExpression, "Expected property description in object literal.");
-            if (propertyCons.Head is not Symbol { } propertyTag || !ReferenceEquals(propertyTag, JsSymbols.Property))
-            {
-                throw new InvalidOperationException("Object literal entries must begin with the 'prop' symbol.");
-            }
+            var propertyTag = propertyCons.Head as Symbol
+                ?? throw new InvalidOperationException("Object literal entries must start with a symbol.");
 
             var propertyName = propertyCons.Rest.Head as string
                 ?? throw new InvalidOperationException("Object literal property name must be a string.");
 
-            var valueExpression = propertyCons.Rest.Rest.Head;
-            var value = EvaluateExpression(valueExpression, environment);
-            result.SetProperty(propertyName, value);
+            if (ReferenceEquals(propertyTag, JsSymbols.Property))
+            {
+                var valueExpression = propertyCons.Rest.Rest.Head;
+                var value = EvaluateExpression(valueExpression, environment);
+                result.SetProperty(propertyName, value);
+            }
+            else if (ReferenceEquals(propertyTag, JsSymbols.Getter))
+            {
+                // (getter "name" (block ...))
+                var body = ExpectCons(propertyCons.Rest.Rest.Head, "Expected getter body.");
+                var getter = new JsFunction(null, Array.Empty<Symbol>(), body, environment);
+                result.SetGetter(propertyName, getter);
+            }
+            else if (ReferenceEquals(propertyTag, JsSymbols.Setter))
+            {
+                // (setter "name" param (block ...))
+                var param = ExpectSymbol(propertyCons.Rest.Rest.Head, "Expected setter parameter.");
+                var body = ExpectCons(propertyCons.Rest.Rest.Rest.Head, "Expected setter body.");
+                var paramList = new[] { param };
+                var setter = new JsFunction(null, paramList, body, environment);
+                result.SetSetter(propertyName, setter);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Unknown property type: {propertyTag}");
+            }
         }
 
         return result;
@@ -1142,8 +1198,19 @@ internal static class Evaluator
         {
             case JsArray jsArray when jsArray.TryGetProperty(propertyName, out value):
                 return true;
-            case JsObject jsObject when jsObject.TryGetProperty(propertyName, out value):
-                return true;
+            case JsObject jsObject:
+                // Check for getter first
+                var getter = jsObject.GetGetter(propertyName);
+                if (getter != null)
+                {
+                    value = getter.Invoke(Array.Empty<object?>(), jsObject);
+                    return true;
+                }
+                if (jsObject.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+                return false;
             case JsFunction function when function.TryGetProperty(propertyName, out value):
                 return true;
             case HostFunction hostFunction when hostFunction.TryGetProperty(propertyName, out value):
@@ -1164,7 +1231,16 @@ internal static class Evaluator
                 jsArray.SetProperty(propertyName, value);
                 break;
             case JsObject jsObject:
-                jsObject.SetProperty(propertyName, value);
+                // Check for setter first
+                var setter = jsObject.GetSetter(propertyName);
+                if (setter != null)
+                {
+                    setter.Invoke(new[] { value }, jsObject);
+                }
+                else
+                {
+                    jsObject.SetProperty(propertyName, value);
+                }
                 break;
             case JsFunction function:
                 function.SetProperty(propertyName, value);

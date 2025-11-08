@@ -5,20 +5,12 @@ namespace Asynkron.JsEngine;
 /// When a generator function is declared (function*), this factory is created.
 /// Calling the factory creates a new generator instance.
 /// </summary>
-internal sealed class GeneratorFactory : IJsCallable
+internal sealed class GeneratorFactory(Symbol? name, Cons parameters, Cons body, Environment closure)
+    : IJsCallable
 {
-    private readonly Symbol? _name;
-    private readonly Cons _parameters;
-    private readonly Cons _body;
-    private readonly Environment _closure;
-
-    public GeneratorFactory(Symbol? name, Cons parameters, Cons body, Environment closure)
-    {
-        _name = name;
-        _parameters = parameters ?? throw new ArgumentNullException(nameof(parameters));
-        _body = body ?? throw new ArgumentNullException(nameof(body));
-        _closure = closure ?? throw new ArgumentNullException(nameof(closure));
-    }
+    private readonly Cons _parameters = parameters ?? throw new ArgumentNullException(nameof(parameters));
+    private readonly Cons _body = body ?? throw new ArgumentNullException(nameof(body));
+    private readonly Environment _closure = closure ?? throw new ArgumentNullException(nameof(closure));
 
     /// <summary>
     /// When the generator factory is called, it creates and returns a new generator instance.
@@ -58,6 +50,6 @@ internal sealed class GeneratorFactory : IJsCallable
 
     public override string ToString()
     {
-        return _name != null ? $"[GeneratorFunction: {_name}]" : "[GeneratorFunction]";
+        return name != null ? $"[GeneratorFunction: {name}]" : "[GeneratorFunction]";
     }
 }

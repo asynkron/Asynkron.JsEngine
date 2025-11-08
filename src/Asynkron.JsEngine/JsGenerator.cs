@@ -224,20 +224,13 @@ internal sealed class JsGenerator : IJsCallable
 /// This is a simplified approach that works for sequential yields by re-executing
 /// the function and skipping yields that have already been processed.
 /// </summary>
-internal sealed class YieldTracker
+internal sealed class YieldTracker(int skipCount)
 {
-    private int _currentIndex;
-    private readonly int _skipCount;
-
-    public YieldTracker(int skipCount)
-    {
-        _skipCount = skipCount;
-        _currentIndex = 0;
-    }
+    private int _currentIndex = 0;
 
     public bool ShouldYield()
     {
-        var should = _currentIndex >= _skipCount;
+        var should = _currentIndex >= skipCount;
         _currentIndex++;
         return should;
     }
@@ -247,12 +240,7 @@ internal sealed class YieldTracker
 /// Signal used internally to implement yield behavior.
 /// Thrown when a yield expression is evaluated, caught by the generator.
 /// </summary>
-internal sealed class YieldSignal : Exception
+internal sealed class YieldSignal(object? value) : Exception
 {
-    public object? Value { get; }
-
-    public YieldSignal(object? value)
-    {
-        Value = value;
-    }
+    public object? Value { get; } = value;
 }

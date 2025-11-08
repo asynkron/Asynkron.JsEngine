@@ -1,14 +1,9 @@
 namespace Asynkron.JsEngine;
 
-internal sealed class Parser
+internal sealed class Parser(IReadOnlyList<Token> tokens)
 {
-    private readonly IReadOnlyList<Token> _tokens;
+    private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
     private int _current;
-
-    public Parser(IReadOnlyList<Token> tokens)
-    {
-        _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
-    }
 
     public Cons ParseProgram()
     {

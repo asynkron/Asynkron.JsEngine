@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 
 internal sealed record TemplateExpression(string ExpressionText);
 
-internal sealed class Lexer
+internal sealed class Lexer(string source)
 {
     private static readonly Dictionary<string, TokenType> Keywords = new(StringComparer.Ordinal)
     {
@@ -44,17 +44,12 @@ internal sealed class Lexer
         ["typeof"] = TokenType.Typeof
     };
 
-    private readonly string _source;
+    private readonly string _source = source ?? string.Empty;
     private readonly List<Token> _tokens = [];
     private int _start;
     private int _current;
     private int _line = 1;
     private int _column = 1;
-
-    public Lexer(string source)
-    {
-        _source = source ?? string.Empty;
-    }
 
     public IReadOnlyList<Token> Tokenize()
     {

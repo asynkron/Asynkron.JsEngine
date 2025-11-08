@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Represents a JavaScript Promise object that can be resolved or rejected.
 /// </summary>
-internal sealed class JsPromise
+internal sealed class JsPromise(JsEngine engine)
 {
     private enum PromiseState
     {
@@ -15,14 +15,7 @@ internal sealed class JsPromise
     private PromiseState _state = PromiseState.Pending;
     private object? _value;
     private readonly List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = [];
-    private readonly JsEngine _engine;
-    private readonly JsObject _jsObject;
-
-    public JsPromise(JsEngine engine)
-    {
-        _engine = engine;
-        _jsObject = new JsObject();
-    }
+    private readonly JsObject _jsObject = new();
 
     /// <summary>
     /// Gets the underlying JsObject for property access.
@@ -60,7 +53,7 @@ internal sealed class JsPromise
     /// </summary>
     public JsPromise Then(IJsCallable? onFulfilled, IJsCallable? onRejected = null)
     {
-        var nextPromise = new JsPromise(_engine);
+        var nextPromise = new JsPromise(engine);
         _handlers.Add((onFulfilled, onRejected, nextPromise));
 
         if (_state != PromiseState.Pending)
@@ -81,7 +74,7 @@ internal sealed class JsPromise
 
         foreach (var (onFulfilled, onRejected, nextPromise) in handlersToProcess)
         {
-            _engine.ScheduleTask(async () =>
+            engine.ScheduleTask(async () =>
             {
                 try
                 {

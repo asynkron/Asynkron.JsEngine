@@ -5,18 +5,13 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-internal sealed class JsObject : Dictionary<string, object?>
+internal sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal)
 {
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
 
     private JsObject? _prototype;
-
-    public JsObject()
-        : base(StringComparer.Ordinal)
-    {
-    }
 
     public JsObject? Prototype => _prototype;
 

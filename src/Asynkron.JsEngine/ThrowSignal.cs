@@ -1,11 +1,6 @@
 namespace Asynkron.JsEngine;
 
-internal sealed class ThrowSignal : Exception
+internal sealed class ThrowSignal(object? value) : Exception
 {
-    public ThrowSignal(object? value)
-    {
-        Value = value;
-    }
-
-    public object? Value { get; }
+    public object? Value { get; } = value;
 }

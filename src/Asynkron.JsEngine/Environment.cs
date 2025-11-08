@@ -1,29 +1,17 @@
 namespace Asynkron.JsEngine;
 
-internal sealed class Environment
+internal sealed class Environment(Environment? enclosing = null, bool isFunctionScope = false)
 {
-    private sealed class Binding
+    private sealed class Binding(object? value, bool isConst)
     {
-        public Binding(object? value, bool isConst)
-        {
-            Value = value;
-            IsConst = isConst;
-        }
+        public object? Value { get; set; } = value;
 
-        public object? Value { get; set; }
-
-        public bool IsConst { get; }
+        public bool IsConst { get; } = isConst;
     }
 
     private readonly Dictionary<Symbol, Binding> _values = new();
-    private readonly Environment? _enclosing;
-    private readonly bool _isFunctionScope;
-
-    public Environment(Environment? enclosing = null, bool isFunctionScope = false)
-    {
-        _enclosing = enclosing;
-        _isFunctionScope = isFunctionScope;
-    }
+    private readonly Environment? _enclosing = enclosing;
+    private readonly bool _isFunctionScope = isFunctionScope;
 
     public void Define(Symbol name, object? value, bool isConst = false)
     {

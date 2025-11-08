@@ -3,20 +3,13 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Captures superclass metadata for use by class constructors and methods when resolving <c>super</c> references.
 /// </summary>
-internal sealed class SuperBinding
+internal sealed class SuperBinding(JsFunction? constructor, JsObject? prototype, object? thisValue)
 {
-    public SuperBinding(JsFunction? constructor, JsObject? prototype, object? thisValue)
-    {
-        Constructor = constructor;
-        Prototype = prototype;
-        ThisValue = thisValue;
-    }
+    public JsFunction? Constructor { get; } = constructor;
 
-    public JsFunction? Constructor { get; }
+    public JsObject? Prototype { get; } = prototype;
 
-    public JsObject? Prototype { get; }
-
-    public object? ThisValue { get; }
+    public object? ThisValue { get; } = thisValue;
 
     public bool TryGetProperty(string name, out object? value)
     {

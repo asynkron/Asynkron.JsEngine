@@ -647,6 +647,64 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
     {
         Consume(TokenType.LeftParen, "Expected '(' after 'for'.");
 
+        // Check for for...in or for...of loops
+        // We need to look ahead to detect if this is a for...in/of loop
+        var checkpointPosition = _current;
+        
+        // Try to parse variable declaration or identifier
+        object? loopVariable = null;
+        TokenType? varKind = null;
+        
+        if (Match(TokenType.Let))
+        {
+            varKind = TokenType.Let;
+            var identifier = Consume(TokenType.Identifier, "Expected identifier in for loop.");
+            loopVariable = Symbol.Intern(identifier.Lexeme);
+        }
+        else if (Match(TokenType.Var))
+        {
+            varKind = TokenType.Var;
+            var identifier = Consume(TokenType.Identifier, "Expected identifier in for loop.");
+            loopVariable = Symbol.Intern(identifier.Lexeme);
+        }
+        else if (Match(TokenType.Const))
+        {
+            varKind = TokenType.Const;
+            var identifier = Consume(TokenType.Identifier, "Expected identifier in for loop.");
+            loopVariable = Symbol.Intern(identifier.Lexeme);
+        }
+        
+        // Check if this is for...in or for...of
+        if (loopVariable != null && (Match(TokenType.In) || Match(TokenType.Of)))
+        {
+            var isForOf = Previous().Type == TokenType.Of;
+            var iterableExpression = ParseExpression();
+            Consume(TokenType.RightParen, "Expected ')' after for...in/of clauses.");
+            var body = ParseStatement();
+            
+            var keyword = varKind switch
+            {
+                TokenType.Let => "let",
+                TokenType.Var => "var",
+                TokenType.Const => "const",
+                _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
+            };
+            
+            var varDecl = Cons.FromEnumerable([Symbol.Intern(keyword), loopVariable, null]);
+            
+            if (isForOf)
+            {
+                return Cons.FromEnumerable([JsSymbols.ForOf, varDecl, iterableExpression, body]);
+            }
+            else
+            {
+                return Cons.FromEnumerable([JsSymbols.ForIn, varDecl, iterableExpression, body]);
+            }
+        }
+        
+        // Not a for...in/of loop, reset and parse as regular for loop
+        _current = checkpointPosition;
+        
         object? initializer = null;
         if (Match(TokenType.Semicolon))
         {
@@ -684,9 +742,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         }
 
         Consume(TokenType.RightParen, "Expected ')' after for clauses.");
-        var body = ParseStatement();
+        var body2 = ParseStatement();
 
-        return Cons.FromEnumerable([JsSymbols.For, initializer, condition, increment, body]);
+        return Cons.FromEnumerable([JsSymbols.For, initializer, condition, increment, body2]);
     }
 
     private object ParseReturnStatement()
@@ -742,10 +800,35 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
     {
         var expr = ParseTernary();
 
-        if (Match(TokenType.Equal))
+        if (Match(TokenType.Equal, TokenType.PlusEqual, TokenType.MinusEqual, TokenType.StarEqual,
+                  TokenType.SlashEqual, TokenType.PercentEqual, TokenType.AmpEqual, TokenType.PipeEqual,
+                  TokenType.CaretEqual, TokenType.LessLessEqual, TokenType.GreaterGreaterEqual, 
+                  TokenType.GreaterGreaterGreaterEqual))
         {
-            var equals = Previous();
+            var op = Previous();
             var value = ParseAssignment();
+
+            // Handle compound assignments by converting them to: variable = variable op value
+            if (op.Type != TokenType.Equal)
+            {
+                var binaryOp = op.Type switch
+                {
+                    TokenType.PlusEqual => "+",
+                    TokenType.MinusEqual => "-",
+                    TokenType.StarEqual => "*",
+                    TokenType.SlashEqual => "/",
+                    TokenType.PercentEqual => "%",
+                    TokenType.AmpEqual => "&",
+                    TokenType.PipeEqual => "|",
+                    TokenType.CaretEqual => "^",
+                    TokenType.LessLessEqual => "<<",
+                    TokenType.GreaterGreaterEqual => ">>",
+                    TokenType.GreaterGreaterGreaterEqual => ">>>",
+                    _ => throw new InvalidOperationException("Unexpected compound assignment operator.")
+                };
+
+                value = Cons.FromEnumerable([JsSymbols.Operator(binaryOp), expr, value]);
+            }
 
             if (expr is Symbol symbol)
             {
@@ -780,7 +863,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                 return Cons.FromEnumerable([JsSymbols.DestructuringAssignment, pattern, value]);
             }
 
-            throw new ParseException($"Invalid assignment target near line {equals.Line} column {equals.Column}.");
+            throw new ParseException($"Invalid assignment target near line {op.Line} column {op.Column}.");
         }
 
         return expr;
@@ -837,13 +920,64 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object? ParseNullishCoalescing()
     {
-        var expr = ParseEquality();
+        var expr = ParseBitwiseOr();
 
         while (Match(TokenType.QuestionQuestion))
         {
-            var right = ParseEquality();
+            var right = ParseBitwiseOr();
             expr = Cons.FromEnumerable([
                 JsSymbols.Operator("??"),
+                expr,
+                right
+            ]);
+        }
+
+        return expr;
+    }
+
+    private object? ParseBitwiseOr()
+    {
+        var expr = ParseBitwiseXor();
+
+        while (Match(TokenType.Pipe))
+        {
+            var right = ParseBitwiseXor();
+            expr = Cons.FromEnumerable([
+                JsSymbols.Operator("|"),
+                expr,
+                right
+            ]);
+        }
+
+        return expr;
+    }
+
+    private object? ParseBitwiseXor()
+    {
+        var expr = ParseBitwiseAnd();
+
+        while (Match(TokenType.Caret))
+        {
+            var right = ParseBitwiseAnd();
+            expr = Cons.FromEnumerable([
+                JsSymbols.Operator("^"),
+                expr,
+                right
+            ]);
+        }
+
+        return expr;
+    }
+
+    private object? ParseBitwiseAnd()
+    {
+        var expr = ParseEquality();
+
+        while (Match(TokenType.Amp))
+        {
+            var right = ParseEquality();
+            expr = Cons.FromEnumerable([
+                JsSymbols.Operator("&"),
                 expr,
                 right
             ]);
@@ -881,11 +1015,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object? ParseComparison()
     {
-        var expr = ParseTerm();
+        var expr = ParseShift();
         while (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual))
         {
             var op = Previous();
-            var right = ParseTerm();
+            var right = ParseShift();
             var symbol = op.Type switch
             {
                 TokenType.Greater => JsSymbols.Operator(">"),
@@ -893,6 +1027,27 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                 TokenType.Less => JsSymbols.Operator("<"),
                 TokenType.LessEqual => JsSymbols.Operator("<="),
                 _ => throw new InvalidOperationException("Unexpected comparison operator.")
+            };
+
+            expr = Cons.FromEnumerable([symbol, expr, right]);
+        }
+
+        return expr;
+    }
+
+    private object? ParseShift()
+    {
+        var expr = ParseTerm();
+        while (Match(TokenType.LessLess, TokenType.GreaterGreater, TokenType.GreaterGreaterGreater))
+        {
+            var op = Previous();
+            var right = ParseTerm();
+            var symbol = op.Type switch
+            {
+                TokenType.LessLess => JsSymbols.Operator("<<"),
+                TokenType.GreaterGreater => JsSymbols.Operator(">>"),
+                TokenType.GreaterGreaterGreater => JsSymbols.Operator(">>>"),
+                _ => throw new InvalidOperationException("Unexpected shift operator.")
             };
 
             expr = Cons.FromEnumerable([symbol, expr, right]);
@@ -918,11 +1073,17 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
     private object? ParseFactor()
     {
         var expr = ParseUnary();
-        while (Match(TokenType.Star, TokenType.Slash))
+        while (Match(TokenType.Star, TokenType.Slash, TokenType.Percent))
         {
             var op = Previous();
             var right = ParseUnary();
-            var symbol = JsSymbols.Operator(op.Type == TokenType.Star ? "*" : "/");
+            var symbol = op.Type switch
+            {
+                TokenType.Star => JsSymbols.Operator("*"),
+                TokenType.Slash => JsSymbols.Operator("/"),
+                TokenType.Percent => JsSymbols.Operator("%"),
+                _ => throw new InvalidOperationException("Unexpected factor operator.")
+            };
             expr = Cons.FromEnumerable([symbol, expr, right]);
         }
 
@@ -941,9 +1102,26 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             return Cons.FromEnumerable([JsSymbols.Negate, ParseUnary()]);
         }
 
+        if (Match(TokenType.Tilde))
+        {
+            return Cons.FromEnumerable([JsSymbols.Operator("~"), ParseUnary()]);
+        }
+
         if (Match(TokenType.Typeof))
         {
             return Cons.FromEnumerable([JsSymbols.Typeof, ParseUnary()]);
+        }
+
+        if (Match(TokenType.PlusPlus))
+        {
+            var operand = ParseUnary();
+            return Cons.FromEnumerable([JsSymbols.Operator("++prefix"), operand]);
+        }
+
+        if (Match(TokenType.MinusMinus))
+        {
+            var operand = ParseUnary();
+            return Cons.FromEnumerable([JsSymbols.Operator("--prefix"), operand]);
         }
 
         if (Match(TokenType.Yield))
@@ -961,7 +1139,24 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             return Cons.FromEnumerable([JsSymbols.Await, value]);
         }
 
-        return ParseCall();
+        return ParsePostfix();
+    }
+
+    private object? ParsePostfix()
+    {
+        var expr = ParseCall();
+
+        if (Match(TokenType.PlusPlus))
+        {
+            return Cons.FromEnumerable([JsSymbols.Operator("++postfix"), expr]);
+        }
+
+        if (Match(TokenType.MinusMinus))
+        {
+            return Cons.FromEnumerable([JsSymbols.Operator("--postfix"), expr]);
+        }
+
+        return expr;
     }
 
     private object? ParseCall()
@@ -978,6 +1173,32 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             if (Match(TokenType.Dot))
             {
                 expr = FinishGet(expr);
+                continue;
+            }
+
+            if (Match(TokenType.QuestionDot))
+            {
+                // Optional chaining: obj?.prop or obj?.method() or obj?.[index]
+                if (Match(TokenType.LeftParen))
+                {
+                    // obj?.()
+                    var arguments = ParseArgumentList();
+                    var items = new List<object?> { JsSymbols.OptionalCall, expr };
+                    items.AddRange(arguments);
+                    expr = Cons.FromEnumerable(items);
+                }
+                else if (Match(TokenType.LeftBracket))
+                {
+                    // obj?.[index]
+                    var indexExpression = ParseExpression();
+                    Consume(TokenType.RightBracket, "Expected ']' after index expression.");
+                    expr = Cons.FromEnumerable([JsSymbols.OptionalGetIndex, expr, indexExpression]);
+                }
+                else
+                {
+                    // obj?.prop
+                    expr = FinishOptionalGet(expr);
+                }
                 continue;
             }
 
@@ -1195,6 +1416,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         {
             do
             {
+                // Check for spread in object literal (for object rest/spread - future feature)
+                if (Match(TokenType.DotDotDot))
+                {
+                    var expr = ParseExpression();
+                    properties.Add(Cons.FromEnumerable([JsSymbols.Spread, expr]));
+                    continue;
+                }
+
                 // Check for getter/setter
                 if (Match(TokenType.Get))
                 {
@@ -1214,12 +1443,57 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                     var body = ParseBlock();
                     properties.Add(Cons.FromEnumerable([JsSymbols.Setter, name, param, body]));
                 }
+                // Check for computed property name
+                else if (Check(TokenType.LeftBracket))
+                {
+                    Advance(); // consume '['
+                    var keyExpression = ParseExpression();
+                    Consume(TokenType.RightBracket, "Expected ']' after computed property name.");
+                    
+                    // Check if this is a method
+                    if (Check(TokenType.LeftParen))
+                    {
+                        Advance(); // consume '('
+                        var parameters = ParseParameterList();
+                        Consume(TokenType.RightParen, "Expected ')' after parameters.");
+                        var body = ParseBlock();
+                        var lambda = Cons.FromEnumerable([JsSymbols.Lambda, null, parameters, body]);
+                        properties.Add(Cons.FromEnumerable([JsSymbols.Property, keyExpression, lambda]));
+                    }
+                    else
+                    {
+                        Consume(TokenType.Colon, "Expected ':' after computed property name.");
+                        var value = ParseExpression();
+                        properties.Add(Cons.FromEnumerable([JsSymbols.Property, keyExpression, value]));
+                    }
+                }
                 else
                 {
                     var name = ParseObjectPropertyName();
-                    Consume(TokenType.Colon, "Expected ':' after property name.");
-                    var value = ParseExpression();
-                    properties.Add(Cons.FromEnumerable([JsSymbols.Property, name, value]));
+                    
+                    // Check for method shorthand: name() { ... }
+                    if (Check(TokenType.LeftParen))
+                    {
+                        Advance(); // consume '('
+                        var parameters = ParseParameterList();
+                        Consume(TokenType.RightParen, "Expected ')' after parameters.");
+                        var body = ParseBlock();
+                        var lambda = Cons.FromEnumerable([JsSymbols.Lambda, null, parameters, body]);
+                        properties.Add(Cons.FromEnumerable([JsSymbols.Property, name, lambda]));
+                    }
+                    // Check for property shorthand: { name } instead of { name: name }
+                    else if (name is string nameStr && !Check(TokenType.Colon))
+                    {
+                        // Property shorthand: use the identifier as both key and value
+                        var symbol = Symbol.Intern(nameStr);
+                        properties.Add(Cons.FromEnumerable([JsSymbols.Property, name, symbol]));
+                    }
+                    else
+                    {
+                        Consume(TokenType.Colon, "Expected ':' after property name.");
+                        var value = ParseExpression();
+                        properties.Add(Cons.FromEnumerable([JsSymbols.Property, name, value]));
+                    }
                 }
             } while (Match(TokenType.Comma));
         }
@@ -1350,9 +1624,43 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object FinishGet(object? target)
     {
-        var nameToken = Consume(TokenType.Identifier, "Expected property name after '.'.");
+        // Allow identifiers or keywords as property names (e.g., object.of, object.in, object.for)
+        if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
+        {
+            throw new ParseException("Expected property name after '.'.");
+        }
+        var nameToken = Advance();
         var propertyName = nameToken.Lexeme;
         return Cons.FromEnumerable([JsSymbols.GetProperty, target, propertyName]);
+    }
+
+    private object FinishOptionalGet(object? target)
+    {
+        // Allow identifiers or keywords as property names
+        if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
+        {
+            throw new ParseException("Expected property name after '?.'.");
+        }
+        var nameToken = Advance();
+        var propertyName = nameToken.Lexeme;
+        return Cons.FromEnumerable([JsSymbols.OptionalGetProperty, target, propertyName]);
+    }
+
+    private bool IsKeyword(Token token)
+    {
+        return token.Type switch
+        {
+            TokenType.Let or TokenType.Var or TokenType.Const or TokenType.Function or
+            TokenType.Class or TokenType.Extends or TokenType.If or TokenType.Else or
+            TokenType.For or TokenType.In or TokenType.Of or TokenType.While or TokenType.Do or
+            TokenType.Switch or TokenType.Case or TokenType.Default or TokenType.Break or
+            TokenType.Continue or TokenType.Return or TokenType.Try or TokenType.Catch or
+            TokenType.Finally or TokenType.Throw or TokenType.This or TokenType.Super or
+            TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
+            TokenType.Undefined or TokenType.Typeof or TokenType.Get or TokenType.Set or
+            TokenType.Yield or TokenType.Async or TokenType.Await => true,
+            _ => false
+        };
     }
 
     private object FinishIndex(object? target)

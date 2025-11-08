@@ -109,6 +109,16 @@ internal static class Evaluator
             return EvaluateFor(cons, environment, context);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.ForIn))
+        {
+            return EvaluateForIn(cons, environment, context);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.ForOf))
+        {
+            return EvaluateForOf(cons, environment, context);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.Switch))
         {
             return EvaluateSwitch(cons, environment, context);
@@ -299,6 +309,145 @@ internal static class Evaluator
             if (incrementExpression is not null)
             {
                 EvaluateExpression(incrementExpression, loopEnvironment, context);
+            }
+        }
+
+        return lastResult;
+    }
+
+    private static object? EvaluateForIn(Cons cons, Environment environment, EvaluationContext context)
+    {
+        // (for-in (let/var/const variable) iterable body)
+        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for...in loop.");
+        var iterableExpression = cons.Rest.Rest.Head;
+        var body = cons.Rest.Rest.Rest.Head;
+
+        // Extract variable name from declaration
+        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...in loop.");
+        
+        // Evaluate the iterable
+        var iterable = EvaluateExpression(iterableExpression, environment, context);
+        
+        var loopEnvironment = new Environment(environment);
+        object? lastResult = null;
+
+        // Get keys to iterate over
+        List<string> keys = new();
+        if (iterable is JsObject jsObject)
+        {
+            foreach (var key in jsObject.GetOwnPropertyNames())
+            {
+                keys.Add(key);
+            }
+        }
+        else if (iterable is JsArray jsArray)
+        {
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                keys.Add(i.ToString());
+            }
+        }
+        else if (iterable is string str)
+        {
+            for (int i = 0; i < str.Length; i++)
+            {
+                keys.Add(i.ToString());
+            }
+        }
+
+        foreach (var key in keys)
+        {
+            if (context.ShouldStopEvaluation)
+                break;
+
+            // Set loop variable
+            loopEnvironment.Define(variableName, key);
+            
+            lastResult = EvaluateStatement(body, loopEnvironment, context);
+            
+            if (context.IsContinue)
+            {
+                context.ClearContinue();
+                continue;
+            }
+            
+            if (context.IsBreak)
+            {
+                context.ClearBreak();
+                break;
+            }
+            
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;  // Propagate return/throw
+            }
+        }
+
+        return lastResult;
+    }
+
+    private static object? EvaluateForOf(Cons cons, Environment environment, EvaluationContext context)
+    {
+        // (for-of (let/var/const variable) iterable body)
+        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for...of loop.");
+        var iterableExpression = cons.Rest.Rest.Head;
+        var body = cons.Rest.Rest.Rest.Head;
+
+        // Extract variable name from declaration
+        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...of loop.");
+        
+        // Evaluate the iterable
+        var iterable = EvaluateExpression(iterableExpression, environment, context);
+        
+        var loopEnvironment = new Environment(environment);
+        object? lastResult = null;
+
+        // Get values to iterate over
+        List<object?> values = new();
+        if (iterable is JsArray jsArray)
+        {
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                values.Add(jsArray.GetElement(i));
+            }
+        }
+        else if (iterable is string str)
+        {
+            foreach (char c in str)
+            {
+                values.Add(c.ToString());
+            }
+        }
+        else
+        {
+            throw new InvalidOperationException($"Cannot iterate over non-iterable value '{iterable}'.");
+        }
+
+        foreach (var value in values)
+        {
+            if (context.ShouldStopEvaluation)
+                break;
+
+            // Set loop variable
+            loopEnvironment.Define(variableName, value);
+            
+            lastResult = EvaluateStatement(body, loopEnvironment, context);
+            
+            if (context.IsContinue)
+            {
+                context.ClearContinue();
+                continue;
+            }
+            
+            if (context.IsBreak)
+            {
+                context.ClearBreak();
+                break;
+            }
+            
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;  // Propagate return/throw
             }
         }
 
@@ -763,6 +912,11 @@ internal static class Evaluator
             return EvaluateCall(cons, environment, context);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.OptionalCall))
+        {
+            return EvaluateOptionalCall(cons, environment, context);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.ArrayLiteral))
         {
             return EvaluateArrayLiteral(cons, environment, context);
@@ -783,6 +937,11 @@ internal static class Evaluator
             return EvaluateGetIndex(cons, environment, context);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.OptionalGetIndex))
+        {
+            return EvaluateOptionalGetIndex(cons, environment, context);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.SetIndex))
         {
             return EvaluateSetIndex(cons, environment, context);
@@ -791,6 +950,11 @@ internal static class Evaluator
         if (ReferenceEquals(symbol, JsSymbols.GetProperty))
         {
             return EvaluateGetProperty(cons, environment, context);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.OptionalGetProperty))
+        {
+            return EvaluateOptionalGetProperty(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.SetProperty))
@@ -1071,8 +1235,35 @@ internal static class Evaluator
             var propertyTag = propertyCons.Head as Symbol
                 ?? throw new InvalidOperationException("Object literal entries must start with a symbol.");
 
-            var propertyName = propertyCons.Rest.Head as string
-                ?? throw new InvalidOperationException("Object literal property name must be a string.");
+            // Handle spread operator (future feature for object rest/spread)
+            if (ReferenceEquals(propertyTag, JsSymbols.Spread))
+            {
+                var spreadValue = EvaluateExpression(propertyCons.Rest.Head, environment, context);
+                if (spreadValue is JsObject spreadObj)
+                {
+                    foreach (var kvp in spreadObj)
+                    {
+                        result.SetProperty(kvp.Key, kvp.Value);
+                    }
+                }
+                continue;
+            }
+
+            // Property name can be a string literal or an expression (for computed properties)
+            var propertyNameOrExpression = propertyCons.Rest.Head;
+            string propertyName;
+            
+            if (propertyNameOrExpression is string str)
+            {
+                propertyName = str;
+            }
+            else
+            {
+                // Computed property name - evaluate the expression
+                var propertyNameValue = EvaluateExpression(propertyNameOrExpression, environment, context);
+                propertyName = ToPropertyName(propertyNameValue)
+                    ?? throw new InvalidOperationException($"Cannot convert '{propertyNameValue}' to property name.");
+            }
 
             if (ReferenceEquals(propertyTag, JsSymbols.Property))
             {
@@ -1147,6 +1338,107 @@ internal static class Evaluator
         var value = EvaluateExpression(valueExpression, environment, context);
         AssignPropertyValue(target, propertyName, value);
         return value;
+    }
+
+    private static object? EvaluateOptionalGetProperty(Cons cons, Environment environment, EvaluationContext context)
+    {
+        var targetExpression = cons.Rest.Head;
+        var propertyName = cons.Rest.Rest.Head as string
+            ?? throw new InvalidOperationException("Property access requires a string name.");
+
+        var target = EvaluateExpression(targetExpression, environment, context);
+        
+        // If target is null or undefined, return undefined
+        if (IsNullish(target))
+        {
+            return JsSymbols.Undefined;
+        }
+
+        if (TryGetPropertyValue(target, propertyName, out var value))
+        {
+            return value;
+        }
+
+        return JsSymbols.Undefined;
+    }
+
+    private static object? EvaluateOptionalGetIndex(Cons cons, Environment environment, EvaluationContext context)
+    {
+        var targetExpression = cons.Rest.Head;
+        var indexExpression = cons.Rest.Rest.Head;
+
+        var target = EvaluateExpression(targetExpression, environment, context);
+        
+        // If target is null or undefined, return undefined
+        if (IsNullish(target))
+        {
+            return JsSymbols.Undefined;
+        }
+
+        var indexValue = EvaluateExpression(indexExpression, environment, context);
+
+        if (target is JsArray jsArray && TryConvertToIndex(indexValue, out var arrayIndex))
+        {
+            return jsArray.GetElement(arrayIndex);
+        }
+
+        var propertyName = ToPropertyName(indexValue);
+        if (propertyName is not null && TryGetPropertyValue(target, propertyName, out var value))
+        {
+            return value;
+        }
+
+        return JsSymbols.Undefined;
+    }
+
+    private static object? EvaluateOptionalCall(Cons cons, Environment environment, EvaluationContext context)
+    {
+        var calleeExpression = cons.Rest.Head;
+        
+        var callee = EvaluateExpression(calleeExpression, environment, context);
+        
+        // If callee is null or undefined, return undefined
+        if (IsNullish(callee))
+        {
+            return JsSymbols.Undefined;
+        }
+
+        // Evaluate arguments
+        var arguments = new List<object?>();
+        foreach (var argumentExpression in cons.Rest.Rest)
+        {
+            if (argumentExpression is Cons { Head: Symbol sym } spreadCons && ReferenceEquals(sym, JsSymbols.Spread))
+            {
+                var spreadValue = EvaluateExpression(spreadCons.Rest.Head, environment, context);
+                if (spreadValue is JsArray array)
+                {
+                    foreach (var element in array.Items)
+                    {
+                        arguments.Add(element);
+                    }
+                }
+                else
+                {
+                    throw new InvalidOperationException("Spread operator can only be applied to arrays.");
+                }
+            }
+            else
+            {
+                arguments.Add(EvaluateExpression(argumentExpression, environment, context));
+            }
+        }
+
+        if (callee is not IJsCallable callable)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        return callable.Invoke(arguments, null);
+    }
+
+    private static bool IsNullish(object? value)
+    {
+        return value is null || (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined));
     }
 
     private static object? EvaluateGetIndex(Cons cons, Environment environment, EvaluationContext context)
@@ -1249,9 +1541,29 @@ internal static class Evaluator
     private static object? EvaluateBinary(Cons cons, Environment environment, Symbol operatorSymbol, EvaluationContext context)
     {
         var leftExpression = cons.Rest.Head;
+        var operatorName = operatorSymbol.Name;
+
+        // Handle unary operators (only have left operand)
+        switch (operatorName)
+        {
+            case "~":
+            {
+                var operand = EvaluateExpression(leftExpression, environment, context);
+                return BitwiseNot(operand);
+            }
+            case "++prefix":
+                return IncrementPrefix(leftExpression, environment, context);
+            case "--prefix":
+                return DecrementPrefix(leftExpression, environment, context);
+            case "++postfix":
+                return IncrementPostfix(leftExpression, environment, context);
+            case "--postfix":
+                return DecrementPostfix(leftExpression, environment, context);
+        }
+
+        // Binary operators have both left and right
         var rightExpression = cons.Rest.Rest.Head;
         var left = EvaluateExpression(leftExpression, environment, context);
-        var operatorName = operatorSymbol.Name;
 
         switch (operatorName)
         {
@@ -1284,6 +1596,13 @@ internal static class Evaluator
             "-" => ToNumber(left) - ToNumber(right),
             "*" => ToNumber(left) * ToNumber(right),
             "/" => ToNumber(right) == 0 ? throw new DivideByZeroException() : ToNumber(left) / ToNumber(right),
+            "%" => ToNumber(left) % ToNumber(right),
+            "&" => BitwiseAnd(left, right),
+            "|" => BitwiseOr(left, right),
+            "^" => BitwiseXor(left, right),
+            "<<" => LeftShift(left, right),
+            ">>" => RightShift(left, right),
+            ">>>" => UnsignedRightShift(left, right),
             "==" => LooseEquals(left, right),
             "!=" => !LooseEquals(left, right),
             ">" => ToNumber(left) > ToNumber(right),
@@ -2265,6 +2584,164 @@ internal static class Evaluator
                     throw new InvalidOperationException("Expected identifier or nested pattern in object pattern property.");
                 }
             }
+        }
+    }
+
+    // Bitwise operations
+    private static double BitwiseAnd(object? left, object? right)
+    {
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right);
+        return leftInt & rightInt;
+    }
+
+    private static double BitwiseOr(object? left, object? right)
+    {
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right);
+        return leftInt | rightInt;
+    }
+
+    private static double BitwiseXor(object? left, object? right)
+    {
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right);
+        return leftInt ^ rightInt;
+    }
+
+    private static double BitwiseNot(object? operand)
+    {
+        var operandInt = ToInt32(operand);
+        return ~operandInt;
+    }
+
+    private static double LeftShift(object? left, object? right)
+    {
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
+        return leftInt << rightInt;
+    }
+
+    private static double RightShift(object? left, object? right)
+    {
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
+        return leftInt >> rightInt;
+    }
+
+    private static double UnsignedRightShift(object? left, object? right)
+    {
+        var leftUInt = ToUInt32(left);
+        var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
+        return leftUInt >> rightInt;
+    }
+
+    private static int ToInt32(object? value)
+    {
+        var num = ToNumber(value);
+        if (double.IsNaN(num) || double.IsInfinity(num))
+        {
+            return 0;
+        }
+        return (int)num;
+    }
+
+    private static uint ToUInt32(object? value)
+    {
+        var num = ToNumber(value);
+        if (double.IsNaN(num) || double.IsInfinity(num))
+        {
+            return 0;
+        }
+        return (uint)(long)num;
+    }
+
+    // Increment/Decrement operations
+    private static double IncrementPrefix(object? operandExpression, Environment environment, EvaluationContext context)
+    {
+        // Get current value
+        var currentValue = EvaluateExpression(operandExpression, environment, context);
+        var newValue = ToNumber(currentValue) + 1;
+
+        // Update the variable
+        UpdateVariable(operandExpression, newValue, environment, context);
+
+        return newValue;
+    }
+
+    private static double DecrementPrefix(object? operandExpression, Environment environment, EvaluationContext context)
+    {
+        // Get current value
+        var currentValue = EvaluateExpression(operandExpression, environment, context);
+        var newValue = ToNumber(currentValue) - 1;
+
+        // Update the variable
+        UpdateVariable(operandExpression, newValue, environment, context);
+
+        return newValue;
+    }
+
+    private static double IncrementPostfix(object? operandExpression, Environment environment, EvaluationContext context)
+    {
+        // Get current value
+        var currentValue = EvaluateExpression(operandExpression, environment, context);
+        var oldValue = ToNumber(currentValue);
+        var newValue = oldValue + 1;
+
+        // Update the variable
+        UpdateVariable(operandExpression, newValue, environment, context);
+
+        return oldValue; // Return the old value
+    }
+
+    private static double DecrementPostfix(object? operandExpression, Environment environment, EvaluationContext context)
+    {
+        // Get current value
+        var currentValue = EvaluateExpression(operandExpression, environment, context);
+        var oldValue = ToNumber(currentValue);
+        var newValue = oldValue - 1;
+
+        // Update the variable
+        UpdateVariable(operandExpression, newValue, environment, context);
+
+        return oldValue; // Return the old value
+    }
+
+    private static void UpdateVariable(object? operandExpression, double newValue, Environment environment, EvaluationContext context)
+    {
+        if (operandExpression is Symbol symbol)
+        {
+            environment.Assign(symbol, newValue);
+        }
+        else if (operandExpression is Cons cons && cons.Head is Symbol head)
+        {
+            if (ReferenceEquals(head, JsSymbols.GetProperty))
+            {
+                var target = EvaluateExpression(cons.Rest.Head, environment, context);
+                var propertyName = cons.Rest.Rest.Head as string 
+                    ?? throw new InvalidOperationException("Property access requires a string name.");
+                AssignPropertyValue(target, propertyName, newValue);
+            }
+            else if (ReferenceEquals(head, JsSymbols.GetIndex))
+            {
+                var target = EvaluateExpression(cons.Rest.Head, environment, context);
+                var index = EvaluateExpression(cons.Rest.Rest.Head, environment, context);
+                
+                if (target is JsArray jsArray && TryConvertToIndex(index, out var arrayIndex))
+                {
+                    jsArray.SetElement(arrayIndex, newValue);
+                }
+                else if (target is JsObject jsObject)
+                {
+                    var propertyName = ToPropertyName(index) 
+                        ?? throw new InvalidOperationException($"Invalid property name: {index}");
+                    jsObject[propertyName] = newValue;
+                }
+            }
+        }
+        else
+        {
+            throw new InvalidOperationException("Invalid operand for increment/decrement operator.");
         }
     }
 }

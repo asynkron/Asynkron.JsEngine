@@ -94,6 +94,19 @@ Detailed comparison between Result Wrapper and State Machine approaches for cont
 
 Guide for integrating CPS transformation into the evaluation pipeline.
 
+### [MISSING_FEATURES.md](MISSING_FEATURES.md)
+**Status: Feature Roadmap**
+
+Comprehensive catalog of JavaScript features not yet implemented in Asynkron.JsEngine, organized by priority and category.
+
+**Key Topics:**
+- High-priority features (ES6 modules, single-quoted strings, object shorthand)
+- Medium-priority features (for...of/in, Symbol type, Map/Set, bitwise operators)
+- Low-priority features (Proxy, BigInt, Typed Arrays)
+- Implementation complexity estimates
+- Recommended implementation phases
+- Quick wins and compatibility priorities
+
 ---
 
 ## Quick Reference: Which Document Should I Read?
@@ -115,8 +128,13 @@ Guide for integrating CPS transformation into the evaluation pipeline.
 → Read [RESULT_WRAPPER_VS_STATE_MACHINE.md](RESULT_WRAPPER_VS_STATE_MACHINE.md) for detailed comparison
 
 ### "I'm implementing a new feature"
+→ Check [MISSING_FEATURES.md](MISSING_FEATURES.md) for prioritized feature list  
 → Check if similar patterns exist in [CPS_TRANSFORMATION_PLAN.md](CPS_TRANSFORMATION_PLAN.md)  
 → Review [CONTROL_FLOW_ALTERNATIVES.md](CONTROL_FLOW_ALTERNATIVES.md) for architectural patterns
+
+### "I want to know what features to implement next"
+→ Read [MISSING_FEATURES.md](MISSING_FEATURES.md) for comprehensive feature list with priorities  
+→ See recommended implementation phases and quick wins
 
 ---
 
@@ -128,6 +146,7 @@ Guide for integrating CPS transformation into the evaluation pipeline.
 - **Educational**: Explains concepts without requiring implementation
 - **Clarification**: Clarifies terminology or concepts
 - **Comparison**: Compares different approaches
+- **Feature Roadmap**: Catalog of missing features with priorities
 
 ---
 

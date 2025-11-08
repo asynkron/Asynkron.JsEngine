@@ -122,6 +122,19 @@ internal sealed class JsObject() : Dictionary<string, object?>(StringComparer.Or
 
         return _prototype.TryGetProperty(name, visited, out value);
     }
+
+    public IEnumerable<string> GetOwnPropertyNames()
+    {
+        foreach (var key in Keys)
+        {
+            // Skip internal keys (proto, getters, setters)
+            if (key == PrototypeKey || key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
+            {
+                continue;
+            }
+            yield return key;
+        }
+    }
 }
 
 internal sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>

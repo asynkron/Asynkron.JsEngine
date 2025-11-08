@@ -1113,6 +1113,12 @@ The engine now has full support for async/await, generators, destructuring, rege
 
 For information about alternative approaches to implementing control flow (return, break, continue), see [docs/CONTROL_FLOW_ALTERNATIVES.md](docs/CONTROL_FLOW_ALTERNATIVES.md).
 
+### Educational Documentation
+
+Learn about alternative evaluation approaches:
+- [Bytecode Compilation](docs/BYTECODE_COMPILATION.md) - How to transform the recursive evaluator to use bytecode and a virtual machine
+- [Iterative Evaluation](docs/ITERATIVE_EVALUATION.md) - How to transform from recursive to iterative evaluation using explicit stacks
+
 Future enhancements may include:
 - ES6 modules (import/export)
 - Additional string methods (localeCompare, normalize, etc.)

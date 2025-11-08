@@ -7,8 +7,8 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.size;
+            let mySet = new Set();
+            mySet.size;
         ");
         Assert.Equal(0.0, result);
     }
@@ -18,9 +18,9 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.add(""value"");
-            set.has(""value"");
+            let mySet = new Set();
+            mySet.add(""value"");
+            mySet.has(""value"");
         ");
         Assert.True((bool)result!);
     }
@@ -30,9 +30,9 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.add(1).add(2).add(3);
-            set.size;
+            let mySet = new Set();
+            mySet.add(1).add(2).add(3);
+            mySet.size;
         ");
         Assert.Equal(3.0, result);
     }
@@ -42,10 +42,10 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.add(""value"");
-            let has1 = set.has(""value"");
-            let has2 = set.has(""missing"");
+            let mySet = new Set();
+            mySet.add(""value"");
+            let has1 = mySet.has(""value"");
+            let has2 = mySet.has(""missing"");
             has1 && !has2;
         ");
         Assert.True((bool)result!);
@@ -56,10 +56,10 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.add(""value"");
-            let deleted = set.delete(""value"");
-            let stillExists = set.has(""value"");
+            let mySet = new Set();
+            mySet.add(""value"");
+            let deleted = mySet.delete(""value"");
+            let stillExists = mySet.has(""value"");
             deleted && !stillExists;
         ");
         Assert.True((bool)result!);
@@ -70,8 +70,8 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.delete(""missing"");
+            let mySet = new Set();
+            mySet.delete(""missing"");
         ");
         Assert.False((bool)result!);
     }
@@ -81,11 +81,11 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.add(1);
-            set.add(2);
-            set.clear();
-            set.size;
+            let mySet = new Set();
+            mySet.add(1);
+            mySet.add(2);
+            mySet.clear();
+            mySet.size;
         ");
         Assert.Equal(0.0, result);
     }
@@ -95,14 +95,14 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            let s1 = set.size;
-            set.add(1);
-            let s2 = set.size;
-            set.add(2);
-            let s3 = set.size;
-            set.delete(1);
-            let s4 = set.size;
+            let mySet = new Set();
+            let s1 = mySet.size;
+            mySet.add(1);
+            let s2 = mySet.size;
+            mySet.add(2);
+            let s3 = mySet.size;
+            mySet.delete(1);
+            let s4 = mySet.size;
             s1 === 0 && s2 === 1 && s3 === 2 && s4 === 1;
         ");
         Assert.True((bool)result!);
@@ -113,11 +113,11 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.add(1);
-            set.add(1);
-            set.add(1);
-            set.size;
+            let mySet = new Set();
+            mySet.add(1);
+            mySet.add(1);
+            mySet.add(1);
+            mySet.size;
         ");
         Assert.Equal(1.0, result);
     }
@@ -127,17 +127,17 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
+            let mySet = new Set();
             let obj = { id: 1 };
-            set.add(obj);
-            set.add(42);
-            set.add(""string"");
-            set.add(true);
+            mySet.add(obj);
+            mySet.add(42);
+            mySet.add(""string"");
+            mySet.add(true);
             
-            let h1 = set.has(obj);
-            let h2 = set.has(42);
-            let h3 = set.has(""string"");
-            let h4 = set.has(true);
+            let h1 = mySet.has(obj);
+            let h2 = mySet.has(42);
+            let h3 = mySet.has(""string"");
+            let h4 = mySet.has(true);
             
             h1 && h2 && h3 && h4;
         ");
@@ -149,13 +149,13 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.add(1);
-            set.add(2);
-            set.add(3);
+            let mySet = new Set();
+            mySet.add(1);
+            mySet.add(2);
+            mySet.add(3);
             
             let sum = 0;
-            set.forEach(function(value1, value2, s) {
+            mySet.forEach(function(value1, value2, s) {
                 sum = sum + value1;
             });
             sum;
@@ -168,12 +168,12 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.add(1);
-            set.add(2);
-            set.add(3);
+            let mySet = new Set();
+            mySet.add(1);
+            mySet.add(2);
+            mySet.add(3);
             
-            let values = set.values();
+            let values = mySet.values();
             values[0] + values[1] + values[2];
         ");
         Assert.Equal(6.0, result);
@@ -184,11 +184,11 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.add(1);
-            set.add(2);
+            let mySet = new Set();
+            mySet.add(1);
+            mySet.add(2);
             
-            let keys = set.keys();
+            let keys = mySet.keys();
             keys[0] + keys[1];
         ");
         Assert.Equal(3.0, result);
@@ -199,11 +199,11 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.add(1);
-            set.add(2);
+            let mySet = new Set();
+            mySet.add(1);
+            mySet.add(2);
             
-            let entries = set.entries();
+            let entries = mySet.entries();
             let first = entries[0];
             first[0] === first[1] && first[0] === 1;
         ");
@@ -215,12 +215,12 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            set.add(""third"");
-            set.add(""first"");
-            set.add(""second"");
+            let mySet = new Set();
+            mySet.add(""third"");
+            mySet.add(""first"");
+            mySet.add(""second"");
             
-            let values = set.values();
+            let values = mySet.values();
             values[0] + "","" + values[1] + "","" + values[2];
         ");
         Assert.Equal("third,first,second", result);
@@ -232,8 +232,8 @@ public class SetTests
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
             let values = [1, 2, 3, 2, 1];
-            let set = new Set(values);
-            set.size;
+            let mySet = new Set(values);
+            mySet.size;
         ");
         Assert.Equal(3.0, result);
     }
@@ -243,10 +243,10 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
+            let mySet = new Set();
             let nan = 0 / 0;
-            set.add(nan);
-            set.has(nan);
+            mySet.add(nan);
+            mySet.has(nan);
         ");
         Assert.True((bool)result!);
     }
@@ -256,12 +256,12 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
+            let mySet = new Set();
             let nan1 = 0 / 0;
             let nan2 = 0 / 0;
-            set.add(nan1);
-            set.add(nan2);
-            set.size;
+            mySet.add(nan1);
+            mySet.add(nan2);
+            mySet.size;
         ");
         Assert.Equal(1.0, result);
     }
@@ -271,8 +271,8 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
-            typeof set;
+            let mySet = new Set();
+            typeof mySet;
         ");
         Assert.Equal("object", result);
     }
@@ -282,14 +282,14 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
+            let mySet = new Set();
             let obj1 = { name: ""Alice"" };
             let obj2 = { name: ""Bob"" };
-            set.add(obj1);
-            set.add(obj2);
-            set.add(obj1); // duplicate, should not increase size
+            mySet.add(obj1);
+            mySet.add(obj2);
+            mySet.add(obj1); // duplicate, should not increase size
             
-            set.size;
+            mySet.size;
         ");
         Assert.Equal(2.0, result);
     }
@@ -299,12 +299,12 @@ public class SetTests
     {
         var engine = new JsEngine();
         var result = engine.Evaluate(@"
-            let set = new Set();
+            let mySet = new Set();
             let obj1 = { x: 1 };
             let obj2 = { x: 1 };
-            set.add(obj1);
-            set.add(obj2);
-            set.size;
+            mySet.add(obj1);
+            mySet.add(obj2);
+            mySet.size;
         ");
         Assert.Equal(2.0, result);
     }

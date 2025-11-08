@@ -10,6 +10,9 @@ public sealed class JsEngine
     private readonly Environment _global = new(isFunctionScope: true);
     private readonly CpsTransformer _cpsTransformer = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
+    private readonly Dictionary<int, CancellationTokenSource> _timers = new();
+    private readonly HashSet<Task> _activeTimerTasks = new();
+    private int _nextTimerId = 1;
 
     /// <summary>
     /// Initializes a new instance of JsEngine with standard library objects.
@@ -34,6 +37,15 @@ public sealed class JsEngine
         
         SetGlobal("Date", dateConstructor);
         SetGlobal("JSON", StandardLibrary.CreateJsonObject());
+        
+        // Register Promise constructor
+        SetGlobal("Promise", StandardLibrary.CreatePromiseConstructor(this));
+        
+        // Register timer functions
+        SetGlobalFunction("setTimeout", args => SetTimeout(args));
+        SetGlobalFunction("setInterval", args => SetInterval(args));
+        SetGlobalFunction("clearTimeout", args => ClearTimer(args));
+        SetGlobalFunction("clearInterval", args => ClearTimer(args));
     }
 
     /// <summary>
@@ -130,5 +142,159 @@ public sealed class JsEngine
         {
             await task();
         }
+
+        // Wait for any active timer tasks to schedule their work
+        // We poll multiple times to handle scenarios where timers schedule other timers
+        for (int i = 0; i < 50 && _activeTimerTasks.Count > 0; i++)
+        {
+            await Task.Delay(20);
+            
+            // Process any newly scheduled events
+            while (_eventQueue.Reader.TryRead(out var task))
+            {
+                await task();
+            }
+            
+            // If there are no more active tasks, we can stop
+            bool hasActiveTasks;
+            lock (_activeTimerTasks)
+            {
+                hasActiveTasks = _activeTimerTasks.Count > 0;
+            }
+            
+            if (!hasActiveTasks)
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Implements setTimeout - schedules a callback to run after a delay.
+    /// </summary>
+    private object? SetTimeout(IReadOnlyList<object?> args)
+    {
+        if (args.Count < 2 || args[0] is not IJsCallable callback)
+            return null;
+
+        var delay = args[1] is double d ? (int)d : 0;
+        var timerId = _nextTimerId++;
+        
+        var cts = new CancellationTokenSource();
+        _timers[timerId] = cts;
+
+        Task? timerTask = null;
+        timerTask = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(delay, cts.Token);
+                
+                if (!cts.Token.IsCancellationRequested)
+                {
+                    ScheduleTask(() =>
+                    {
+                        callback.Invoke(Array.Empty<object?>(), null);
+                        return Task.CompletedTask;
+                    });
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                // Timer was cancelled
+            }
+            finally
+            {
+                _timers.Remove(timerId);
+                if (timerTask != null)
+                {
+                    lock (_activeTimerTasks)
+                    {
+                        _activeTimerTasks.Remove(timerTask);
+                    }
+                }
+            }
+        }, cts.Token);
+
+        lock (_activeTimerTasks)
+        {
+            _activeTimerTasks.Add(timerTask);
+        }
+
+        return (double)timerId;
+    }
+
+    /// <summary>
+    /// Implements setInterval - schedules a callback to run repeatedly at a fixed interval.
+    /// </summary>
+    private object? SetInterval(IReadOnlyList<object?> args)
+    {
+        if (args.Count < 2 || args[0] is not IJsCallable callback)
+            return null;
+
+        var interval = args[1] is double d ? (int)d : 0;
+        var timerId = _nextTimerId++;
+        
+        var cts = new CancellationTokenSource();
+        _timers[timerId] = cts;
+
+        Task? timerTask = null;
+        timerTask = Task.Run(async () =>
+        {
+            try
+            {
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    await Task.Delay(interval, cts.Token);
+                    
+                    if (!cts.Token.IsCancellationRequested)
+                    {
+                        ScheduleTask(() =>
+                        {
+                            callback.Invoke(Array.Empty<object?>(), null);
+                            return Task.CompletedTask;
+                        });
+                    }
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                // Timer was cancelled
+            }
+            finally
+            {
+                _timers.Remove(timerId);
+                if (timerTask != null)
+                {
+                    lock (_activeTimerTasks)
+                    {
+                        _activeTimerTasks.Remove(timerTask);
+                    }
+                }
+            }
+        }, cts.Token);
+
+        lock (_activeTimerTasks)
+        {
+            _activeTimerTasks.Add(timerTask);
+        }
+
+        return (double)timerId;
+    }
+
+    /// <summary>
+    /// Implements clearTimeout/clearInterval - cancels a timer.
+    /// </summary>
+    private object? ClearTimer(IReadOnlyList<object?> args)
+    {
+        if (args.Count == 0 || args[0] is not double timerId)
+            return null;
+
+        var id = (int)timerId;
+        if (_timers.TryGetValue(id, out var cts))
+        {
+            cts.Cancel();
+            _timers.Remove(id);
+        }
+
+        return null;
     }
 }

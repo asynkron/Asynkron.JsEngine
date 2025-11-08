@@ -1365,30 +1365,104 @@ internal static class Evaluator
         null => false,
         Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => false,
         bool b => b,
-        double d => Math.Abs(d) > double.Epsilon,
+        double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
         string s => s.Length > 0,
         _ => true
     };
 
-    private static double ToNumber(object? value) => value switch
+    private static double ToNumber(object? value)
     {
-        null => 0,
-        Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => double.NaN,
-        double d => d,
-        float f => f,
-        decimal m => (double)m,
-        int i => i,
-        uint ui => ui,
-        long l => l,
-        ulong ul => ul,
-        short s => s,
-        ushort us => us,
-        byte b => b,
-        sbyte sb => sb,
-        bool flag => flag ? 1 : 0,
-        string s when double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) => parsed,
-        _ => throw new InvalidOperationException($"Cannot convert value '{value}' to a number.")
-    };
+        return value switch
+        {
+            null => 0,
+            Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => double.NaN,
+            double d => d,
+            float f => f,
+            decimal m => (double)m,
+            int i => i,
+            uint ui => ui,
+            long l => l,
+            ulong ul => ul,
+            short s => s,
+            ushort us => us,
+            byte b => b,
+            sbyte sb => sb,
+            bool flag => flag ? 1 : 0,
+            string str => StringToNumber(str),
+            JsArray arr => ArrayToNumber(arr),
+            JsObject => double.NaN, // Objects convert to NaN
+            _ => throw new InvalidOperationException($"Cannot convert value '{value}' to a number.")
+        };
+    }
+
+    private static double StringToNumber(string str)
+    {
+        // Empty string converts to 0
+        if (string.IsNullOrEmpty(str))
+        {
+            return 0;
+        }
+
+        // Trim whitespace
+        var trimmed = str.Trim();
+
+        // Whitespace-only string converts to 0
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return 0;
+        }
+
+        // Try to parse the trimmed string
+        if (double.TryParse(trimmed, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        // Invalid number format converts to NaN
+        return double.NaN;
+    }
+
+    private static double ArrayToNumber(JsArray arr)
+    {
+        // Empty array converts to 0
+        if (arr.Items.Count == 0)
+        {
+            return 0;
+        }
+
+        // Single element array converts to the number representation of that element
+        if (arr.Items.Count == 1)
+        {
+            return ToNumber(arr.Items[0]);
+        }
+
+        // Multi-element array converts to NaN
+        return double.NaN;
+    }
+
+    private static string ToString(object? value)
+    {
+        return value switch
+        {
+            null => "null",
+            Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => "undefined",
+            bool b => b ? "true" : "false",
+            JsArray arr => ArrayToString(arr),
+            JsObject => "[object Object]",
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+        };
+    }
+
+    private static string ArrayToString(JsArray arr)
+    {
+        // Convert each element to string and join with comma
+        var elements = new List<string>();
+        foreach (var element in arr.Items)
+        {
+            elements.Add(ToString(element));
+        }
+        return string.Join(",", elements);
+    }
 
     private static string GetTypeofString(object? value)
     {
@@ -1416,11 +1490,19 @@ internal static class Evaluator
 
     private static object Add(object? left, object? right)
     {
+        // If either operand is a string, perform string concatenation
         if (left is string || right is string)
         {
-            return ToDisplayString(left) + ToDisplayString(right);
+            return ToString(left) + ToString(right);
         }
 
+        // If either operand is an object or array, convert to string (ToPrimitive preference is string for +)
+        if (left is JsObject || left is JsArray || right is JsObject || right is JsArray)
+        {
+            return ToString(left) + ToString(right);
+        }
+
+        // Otherwise, perform numeric addition
         return ToNumber(left) + ToNumber(right);
     }
 
@@ -1477,19 +1559,72 @@ internal static class Evaluator
             return false;
         }
         
+        // If types are the same, use strict equality
+        if (left?.GetType() == right?.GetType())
+        {
+            return StrictEquals(left, right);
+        }
+        
+        // Type coercion for loose equality
+        // Number == String: convert string to number
+        if (IsNumeric(left) && right is string)
+        {
+            return ToNumber(left).Equals(ToNumber(right));
+        }
+        
+        if (left is string && IsNumeric(right))
+        {
+            return ToNumber(left).Equals(ToNumber(right));
+        }
+        
+        // Boolean == anything: convert boolean to number
+        if (left is bool)
+        {
+            return LooseEquals(ToNumber(left), right);
+        }
+        
+        if (right is bool)
+        {
+            return LooseEquals(left, ToNumber(right));
+        }
+        
+        // Object/Array == Primitive: convert object/array to primitive
+        if ((left is JsObject || left is JsArray) && (IsNumeric(right) || right is string))
+        {
+            // Try converting to primitive (via toString then toNumber if comparing to number)
+            if (IsNumeric(right))
+            {
+                return ToNumber(left).Equals(ToNumber(right));
+            }
+            else
+            {
+                return ToString(left).Equals(right);
+            }
+        }
+        
+        if ((right is JsObject || right is JsArray) && (IsNumeric(left) || left is string))
+        {
+            // Try converting to primitive
+            if (IsNumeric(left))
+            {
+                return ToNumber(left).Equals(ToNumber(right));
+            }
+            else
+            {
+                return left.Equals(ToString(right));
+            }
+        }
+        
         // For other cases, use strict equality
         return StrictEquals(left, right);
     }
 
     private static bool IsNumeric(object? value) => value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
 
-    private static string ToDisplayString(object? value) => value switch
+    private static string ToDisplayString(object? value)
     {
-        null => "null",
-        Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => "undefined",
-        bool b => b ? "true" : "false",
-        _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
-    };
+        return ToString(value);
+    }
 
     private static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
     {

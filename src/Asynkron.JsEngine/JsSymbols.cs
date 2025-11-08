@@ -69,6 +69,14 @@ public static class JsSymbols
     // Suspension/Resumption symbols
     public static readonly Symbol Suspend = Symbol.Intern("suspend");
     public static readonly Symbol Resume = Symbol.Intern("resume");
+    
+    // Destructuring symbols
+    public static readonly Symbol ArrayPattern = Symbol.Intern("array-pattern");
+    public static readonly Symbol ObjectPattern = Symbol.Intern("object-pattern");
+    public static readonly Symbol PatternElement = Symbol.Intern("pattern-element");
+    public static readonly Symbol PatternProperty = Symbol.Intern("pattern-property");
+    public static readonly Symbol PatternRest = Symbol.Intern("pattern-rest");
+    public static readonly Symbol PatternDefault = Symbol.Intern("pattern-default");
 
     public static Symbol Operator(string op) => Symbol.Intern(op);
 }

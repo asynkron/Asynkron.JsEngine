@@ -1,0 +1,199 @@
+using Asynkron.JsEngine;
+
+namespace Asynkron.JsEngine.Tests;
+
+public class ObjectEnhancementsTests
+{
+    // Object property shorthand tests
+    [Fact]
+    public void ObjectPropertyShorthand()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let name = 'Alice';
+            let age = 30;
+            let person = { name, age };
+            person.name;
+        ");
+        Assert.Equal("Alice", result);
+    }
+
+    [Fact]
+    public void ObjectPropertyShorthandAge()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let name = 'Alice';
+            let age = 30;
+            let person = { name, age };
+            person.age;
+        ");
+        Assert.Equal(30d, result);
+    }
+
+    [Fact]
+    public void ObjectPropertyShorthandMixed()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let x = 10;
+            let obj = { x, y: 20, z: 30 };
+            obj.x + obj.y + obj.z;
+        ");
+        Assert.Equal(60d, result);
+    }
+
+    // Object method shorthand tests
+    [Fact]
+    public void ObjectMethodShorthand()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let person = {
+                name: 'Alice',
+                greet() {
+                    return 'Hello, ' + this.name;
+                }
+            };
+            person.greet();
+        ");
+        Assert.Equal("Hello, Alice", result);
+    }
+
+    [Fact]
+    public void ObjectMethodShorthandMultiple()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let calculator = {
+                add(a, b) {
+                    return a + b;
+                },
+                multiply(a, b) {
+                    return a * b;
+                }
+            };
+            calculator.add(5, 3) + calculator.multiply(4, 2);
+        ");
+        Assert.Equal(16d, result);
+    }
+
+    [Fact]
+    public void ObjectMethodShorthandWithThis()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let counter = {
+                count: 0,
+                increment() {
+                    this.count = this.count + 1;
+                    return this.count;
+                },
+                getValue() {
+                    return this.count;
+                }
+            };
+            counter.increment();
+            counter.increment();
+            counter.getValue();
+        ");
+        Assert.Equal(2d, result);
+    }
+
+    // Computed property names tests
+    [Fact]
+    public void ComputedPropertyName()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let propName = 'dynamicKey';
+            let obj = {
+                [propName]: 'value'
+            };
+            obj.dynamicKey;
+        ");
+        Assert.Equal("value", result);
+    }
+
+    [Fact]
+    public void ComputedPropertyNameExpression()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let obj = {
+                ['computed' + 'Key']: 123
+            };
+            obj.computedKey;
+        ");
+        Assert.Equal(123d, result);
+    }
+
+    [Fact]
+    public void ComputedPropertyNameMixed()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let key1 = 'a';
+            let key2 = 'b';
+            let obj = {
+                [key1]: 1,
+                normalKey: 2,
+                [key2]: 3
+            };
+            obj.a + obj.normalKey + obj.b;
+        ");
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public void ComputedPropertyNameWithMethod()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let methodName = 'greet';
+            let person = {
+                name: 'Bob',
+                [methodName]() {
+                    return 'Hi, ' + this.name;
+                }
+            };
+            person.greet();
+        ");
+        Assert.Equal("Hi, Bob", result);
+    }
+
+    [Fact]
+    public void ComputedPropertyNameNumber()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let index = 0;
+            let obj = {
+                [index]: 'zero',
+                [index + 1]: 'one'
+            };
+            obj[0] + ' ' + obj[1];
+        ");
+        Assert.Equal("zero one", result);
+    }
+
+    // Combined features
+    [Fact]
+    public void CombinedShorthandAndComputed()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let name = 'Alice';
+            let key = 'age';
+            let person = {
+                name,
+                [key]: 30,
+                greet() {
+                    return this.name;
+                }
+            };
+            person.greet() + ' is ' + person.age;
+        ");
+        Assert.Equal("Alice is 30", result);
+    }
+}

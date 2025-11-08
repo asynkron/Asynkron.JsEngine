@@ -1071,8 +1071,35 @@ internal static class Evaluator
             var propertyTag = propertyCons.Head as Symbol
                 ?? throw new InvalidOperationException("Object literal entries must start with a symbol.");
 
-            var propertyName = propertyCons.Rest.Head as string
-                ?? throw new InvalidOperationException("Object literal property name must be a string.");
+            // Handle spread operator (future feature for object rest/spread)
+            if (ReferenceEquals(propertyTag, JsSymbols.Spread))
+            {
+                var spreadValue = EvaluateExpression(propertyCons.Rest.Head, environment, context);
+                if (spreadValue is JsObject spreadObj)
+                {
+                    foreach (var kvp in spreadObj)
+                    {
+                        result.SetProperty(kvp.Key, kvp.Value);
+                    }
+                }
+                continue;
+            }
+
+            // Property name can be a string literal or an expression (for computed properties)
+            var propertyNameOrExpression = propertyCons.Rest.Head;
+            string propertyName;
+            
+            if (propertyNameOrExpression is string str)
+            {
+                propertyName = str;
+            }
+            else
+            {
+                // Computed property name - evaluate the expression
+                var propertyNameValue = EvaluateExpression(propertyNameOrExpression, environment, context);
+                propertyName = ToPropertyName(propertyNameValue)
+                    ?? throw new InvalidOperationException($"Cannot convert '{propertyNameValue}' to property name.");
+            }
 
             if (ReferenceEquals(propertyTag, JsSymbols.Property))
             {

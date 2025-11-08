@@ -1332,6 +1332,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         {
             do
             {
+                // Check for spread in object literal (for object rest/spread - future feature)
+                if (Match(TokenType.DotDotDot))
+                {
+                    var expr = ParseExpression();
+                    properties.Add(Cons.FromEnumerable([JsSymbols.Spread, expr]));
+                    continue;
+                }
+
                 // Check for getter/setter
                 if (Match(TokenType.Get))
                 {
@@ -1351,12 +1359,57 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                     var body = ParseBlock();
                     properties.Add(Cons.FromEnumerable([JsSymbols.Setter, name, param, body]));
                 }
+                // Check for computed property name
+                else if (Check(TokenType.LeftBracket))
+                {
+                    Advance(); // consume '['
+                    var keyExpression = ParseExpression();
+                    Consume(TokenType.RightBracket, "Expected ']' after computed property name.");
+                    
+                    // Check if this is a method
+                    if (Check(TokenType.LeftParen))
+                    {
+                        Advance(); // consume '('
+                        var parameters = ParseParameterList();
+                        Consume(TokenType.RightParen, "Expected ')' after parameters.");
+                        var body = ParseBlock();
+                        var lambda = Cons.FromEnumerable([JsSymbols.Lambda, null, parameters, body]);
+                        properties.Add(Cons.FromEnumerable([JsSymbols.Property, keyExpression, lambda]));
+                    }
+                    else
+                    {
+                        Consume(TokenType.Colon, "Expected ':' after computed property name.");
+                        var value = ParseExpression();
+                        properties.Add(Cons.FromEnumerable([JsSymbols.Property, keyExpression, value]));
+                    }
+                }
                 else
                 {
                     var name = ParseObjectPropertyName();
-                    Consume(TokenType.Colon, "Expected ':' after property name.");
-                    var value = ParseExpression();
-                    properties.Add(Cons.FromEnumerable([JsSymbols.Property, name, value]));
+                    
+                    // Check for method shorthand: name() { ... }
+                    if (Check(TokenType.LeftParen))
+                    {
+                        Advance(); // consume '('
+                        var parameters = ParseParameterList();
+                        Consume(TokenType.RightParen, "Expected ')' after parameters.");
+                        var body = ParseBlock();
+                        var lambda = Cons.FromEnumerable([JsSymbols.Lambda, null, parameters, body]);
+                        properties.Add(Cons.FromEnumerable([JsSymbols.Property, name, lambda]));
+                    }
+                    // Check for property shorthand: { name } instead of { name: name }
+                    else if (name is string nameStr && !Check(TokenType.Colon))
+                    {
+                        // Property shorthand: use the identifier as both key and value
+                        var symbol = Symbol.Intern(nameStr);
+                        properties.Add(Cons.FromEnumerable([JsSymbols.Property, name, symbol]));
+                    }
+                    else
+                    {
+                        Consume(TokenType.Colon, "Expected ':' after property name.");
+                        var value = ParseExpression();
+                        properties.Add(Cons.FromEnumerable([JsSymbols.Property, name, value]));
+                    }
                 }
             } while (Match(TokenType.Comma));
         }

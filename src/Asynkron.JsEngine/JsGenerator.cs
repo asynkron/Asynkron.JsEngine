@@ -4,6 +4,10 @@ namespace Asynkron.JsEngine;
 /// Represents a JavaScript generator object that implements the iterator protocol.
 /// Generators are created by calling generator functions (function*) and can be
 /// paused and resumed using yield expressions.
+/// 
+/// This is a simplified implementation that works for sequential yields by re-executing
+/// the generator body and skipping already-yielded values. For full generator support
+/// with complex control flow, the full CPS transformation would be needed.
 /// </summary>
 internal sealed class JsGenerator : IJsCallable
 {
@@ -11,11 +15,10 @@ internal sealed class JsGenerator : IJsCallable
     private readonly Cons _parameters;
     private readonly Environment _closure;
     private readonly IReadOnlyList<object?> _arguments;
-    private object? _currentContinuation;
     private GeneratorState _state;
-    private object? _yieldedValue;
     private bool _done;
     private Environment? _executionEnv;
+    private int _currentYieldIndex;
 
     private enum GeneratorState
     {
@@ -40,6 +43,7 @@ internal sealed class JsGenerator : IJsCallable
         _arguments = arguments ?? Array.Empty<object?>();
         _state = GeneratorState.Start;
         _done = false;
+        _currentYieldIndex = 0;
     }
 
     /// <summary>
@@ -77,45 +81,33 @@ internal sealed class JsGenerator : IJsCallable
         {
             _state = GeneratorState.Executing;
 
-            if (_currentContinuation == null)
+            // Create execution environment if this is the first call
+            if (_executionEnv == null)
             {
-                // First call to next() - start executing the generator
-                // For now, we'll execute the body directly without CPS transformation
-                // This is a simplified implementation
-                var result = ExecuteGeneratorBody(value);
-                
-                if (_yieldedValue != null)
-                {
-                    _state = GeneratorState.Suspended;
-                    var yieldValue = _yieldedValue;
-                    _yieldedValue = null;
-                    return CreateIteratorResult(yieldValue, false);
-                }
-                else
-                {
-                    _state = GeneratorState.Completed;
-                    _done = true;
-                    return CreateIteratorResult(result, true);
-                }
+                _executionEnv = new Environment(_closure);
+                BindParameters(_executionEnv);
             }
-            else
+
+            // Set up yield tracking - this tells yields whether to actually yield or skip
+            var yieldTracker = new YieldTracker(_currentYieldIndex);
+            _executionEnv.Define(Symbol.Intern("__yieldTracker__"), yieldTracker);
+
+            // Execute the body (or re-execute it to get to the next yield)
+            try
             {
-                // Resume from suspension
-                var result = ResumeSuspendedGenerator(value);
+                var result = Evaluator.EvaluateBlock(_body, _executionEnv);
                 
-                if (_yieldedValue != null)
-                {
-                    _state = GeneratorState.Suspended;
-                    var yieldValue = _yieldedValue;
-                    _yieldedValue = null;
-                    return CreateIteratorResult(yieldValue, false);
-                }
-                else
-                {
-                    _state = GeneratorState.Completed;
-                    _done = true;
-                    return CreateIteratorResult(result, true);
-                }
+                // If we get here without a yield, the generator is complete
+                _state = GeneratorState.Completed;
+                _done = true;
+                return CreateIteratorResult(result, true);
+            }
+            catch (YieldSignal yieldSignal)
+            {
+                // A yield was encountered and thrown
+                _state = GeneratorState.Suspended;
+                _currentYieldIndex++;
+                return CreateIteratorResult(yieldSignal.Value, false);
             }
         }
         catch (ReturnSignal returnSignal)
@@ -154,45 +146,26 @@ internal sealed class JsGenerator : IJsCallable
         throw new ThrowSignal(error);
     }
 
-    private object? ExecuteGeneratorBody(object? value)
+    private void BindParameters(Environment env)
     {
-        // Create a new environment for this generator execution (first time only)
-        if (_executionEnv == null)
+        var (regularParams, restParam) = ParseParameterList(_parameters);
+        
+        // Bind regular parameters
+        for (int i = 0; i < regularParams.Count; i++)
         {
-            _executionEnv = new Environment(_closure);
-            
-            // Bind parameters
-            var (regularParams, restParam) = ParseParameterList(_parameters);
-            
-            // Bind regular parameters
-            for (int i = 0; i < regularParams.Count; i++)
-            {
-                var paramValue = i < _arguments.Count ? _arguments[i] : null;
-                _executionEnv.Define(regularParams[i], paramValue);
-            }
-            
-            // Bind rest parameter if present
-            if (restParam != null)
-            {
-                var restArgs = new JsArray();
-                for (int i = regularParams.Count; i < _arguments.Count; i++)
-                {
-                    restArgs.Push(_arguments[i]);
-                }
-                _executionEnv.Define(restParam, restArgs);
-            }
+            var paramValue = i < _arguments.Count ? _arguments[i] : null;
+            env.Define(regularParams[i], paramValue);
         }
         
-        // Execute the body
-        try
+        // Bind rest parameter if present
+        if (restParam != null)
         {
-            return Evaluator.EvaluateBlock(_body, _executionEnv);
-        }
-        catch (YieldSignal yieldSignal)
-        {
-            _yieldedValue = yieldSignal.Value;
-            _currentContinuation = yieldSignal.Continuation;
-            return null;
+            var restArgs = new JsArray();
+            for (int i = regularParams.Count; i < _arguments.Count; i++)
+            {
+                restArgs.Push(_arguments[i]);
+            }
+            env.Define(restParam, restArgs);
         }
     }
 
@@ -232,14 +205,6 @@ internal sealed class JsGenerator : IJsCallable
         return (regularParams, restParam);
     }
 
-    private object? ResumeSuspendedGenerator(object? value)
-    {
-        // Resume execution from the continuation
-        // This is a placeholder - in a full implementation, we'd use the stored continuation
-        _state = GeneratorState.Completed;
-        return null;
-    }
-
     private static JsObject CreateIteratorResult(object? value, bool done)
     {
         var result = new JsObject();
@@ -247,15 +212,29 @@ internal sealed class JsGenerator : IJsCallable
         result.SetProperty("done", done);
         return result;
     }
+}
 
-    /// <summary>
-    /// Internal method to handle yield expressions during evaluation.
-    /// This is called by the evaluator when it encounters a yield expression.
-    /// </summary>
-    internal void Yield(object? value)
+/// <summary>
+/// Tracks which yield has been reached during generator execution.
+/// This is a simplified approach that works for sequential yields by re-executing
+/// the function and skipping yields that have already been processed.
+/// </summary>
+internal sealed class YieldTracker
+{
+    private int _currentIndex;
+    private readonly int _skipCount;
+
+    public YieldTracker(int skipCount)
     {
-        _yieldedValue = value;
-        throw new YieldSignal(value, null);
+        _skipCount = skipCount;
+        _currentIndex = 0;
+    }
+
+    public bool ShouldYield()
+    {
+        var should = _currentIndex >= _skipCount;
+        _currentIndex++;
+        return should;
     }
 }
 
@@ -266,11 +245,9 @@ internal sealed class JsGenerator : IJsCallable
 internal sealed class YieldSignal : Exception
 {
     public object? Value { get; }
-    public object? Continuation { get; }
 
-    public YieldSignal(object? value, object? continuation)
+    public YieldSignal(object? value)
     {
         Value = value;
-        Continuation = continuation;
     }
 }

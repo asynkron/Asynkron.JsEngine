@@ -912,6 +912,11 @@ internal static class Evaluator
             return EvaluateCall(cons, environment, context);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.OptionalCall))
+        {
+            return EvaluateOptionalCall(cons, environment, context);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.ArrayLiteral))
         {
             return EvaluateArrayLiteral(cons, environment, context);
@@ -932,6 +937,11 @@ internal static class Evaluator
             return EvaluateGetIndex(cons, environment, context);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.OptionalGetIndex))
+        {
+            return EvaluateOptionalGetIndex(cons, environment, context);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.SetIndex))
         {
             return EvaluateSetIndex(cons, environment, context);
@@ -940,6 +950,11 @@ internal static class Evaluator
         if (ReferenceEquals(symbol, JsSymbols.GetProperty))
         {
             return EvaluateGetProperty(cons, environment, context);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.OptionalGetProperty))
+        {
+            return EvaluateOptionalGetProperty(cons, environment, context);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.SetProperty))
@@ -1323,6 +1338,107 @@ internal static class Evaluator
         var value = EvaluateExpression(valueExpression, environment, context);
         AssignPropertyValue(target, propertyName, value);
         return value;
+    }
+
+    private static object? EvaluateOptionalGetProperty(Cons cons, Environment environment, EvaluationContext context)
+    {
+        var targetExpression = cons.Rest.Head;
+        var propertyName = cons.Rest.Rest.Head as string
+            ?? throw new InvalidOperationException("Property access requires a string name.");
+
+        var target = EvaluateExpression(targetExpression, environment, context);
+        
+        // If target is null or undefined, return undefined
+        if (IsNullish(target))
+        {
+            return JsSymbols.Undefined;
+        }
+
+        if (TryGetPropertyValue(target, propertyName, out var value))
+        {
+            return value;
+        }
+
+        return JsSymbols.Undefined;
+    }
+
+    private static object? EvaluateOptionalGetIndex(Cons cons, Environment environment, EvaluationContext context)
+    {
+        var targetExpression = cons.Rest.Head;
+        var indexExpression = cons.Rest.Rest.Head;
+
+        var target = EvaluateExpression(targetExpression, environment, context);
+        
+        // If target is null or undefined, return undefined
+        if (IsNullish(target))
+        {
+            return JsSymbols.Undefined;
+        }
+
+        var indexValue = EvaluateExpression(indexExpression, environment, context);
+
+        if (target is JsArray jsArray && TryConvertToIndex(indexValue, out var arrayIndex))
+        {
+            return jsArray.GetElement(arrayIndex);
+        }
+
+        var propertyName = ToPropertyName(indexValue);
+        if (propertyName is not null && TryGetPropertyValue(target, propertyName, out var value))
+        {
+            return value;
+        }
+
+        return JsSymbols.Undefined;
+    }
+
+    private static object? EvaluateOptionalCall(Cons cons, Environment environment, EvaluationContext context)
+    {
+        var calleeExpression = cons.Rest.Head;
+        
+        var callee = EvaluateExpression(calleeExpression, environment, context);
+        
+        // If callee is null or undefined, return undefined
+        if (IsNullish(callee))
+        {
+            return JsSymbols.Undefined;
+        }
+
+        // Evaluate arguments
+        var arguments = new List<object?>();
+        foreach (var argumentExpression in cons.Rest.Rest)
+        {
+            if (argumentExpression is Cons { Head: Symbol sym } spreadCons && ReferenceEquals(sym, JsSymbols.Spread))
+            {
+                var spreadValue = EvaluateExpression(spreadCons.Rest.Head, environment, context);
+                if (spreadValue is JsArray array)
+                {
+                    foreach (var element in array.Items)
+                    {
+                        arguments.Add(element);
+                    }
+                }
+                else
+                {
+                    throw new InvalidOperationException("Spread operator can only be applied to arrays.");
+                }
+            }
+            else
+            {
+                arguments.Add(EvaluateExpression(argumentExpression, environment, context));
+            }
+        }
+
+        if (callee is not IJsCallable callable)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        return callable.Invoke(arguments, null);
+    }
+
+    private static bool IsNullish(object? value)
+    {
+        return value is null || (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined));
     }
 
     private static object? EvaluateGetIndex(Cons cons, Environment environment, EvaluationContext context)

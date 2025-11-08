@@ -31,6 +31,7 @@ public static class JsSymbols
     public static readonly Symbol Continue = Symbol.Intern("continue");
     public static readonly Symbol Assign = Symbol.Intern("assign");
     public static readonly Symbol Call = Symbol.Intern("call");
+    public static readonly Symbol OptionalCall = Symbol.Intern("optional-call");
     public static readonly Symbol Negate = Symbol.Intern("negate");
     public static readonly Symbol Not = Symbol.Intern("not");
     public static readonly Symbol Typeof = Symbol.Intern("typeof");
@@ -43,8 +44,10 @@ public static class JsSymbols
     public static readonly Symbol Getter = Symbol.Intern("getter");
     public static readonly Symbol Setter = Symbol.Intern("setter");
     public static readonly Symbol GetProperty = Symbol.Intern("get-prop");
+    public static readonly Symbol OptionalGetProperty = Symbol.Intern("optional-get-prop");
     public static readonly Symbol SetProperty = Symbol.Intern("set-prop");
     public static readonly Symbol GetIndex = Symbol.Intern("get-index");
+    public static readonly Symbol OptionalGetIndex = Symbol.Intern("optional-get-index");
     public static readonly Symbol SetIndex = Symbol.Intern("set-index");
     public static readonly Symbol This = Symbol.Intern("this");
     public static readonly Symbol Super = Symbol.Intern("super");

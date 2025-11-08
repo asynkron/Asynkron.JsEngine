@@ -180,6 +180,10 @@ internal sealed class Lexer(string source)
                 {
                     AddToken(TokenType.QuestionQuestion);
                 }
+                else if (Match('.'))
+                {
+                    AddToken(TokenType.QuestionDot);
+                }
                 else
                 {
                     AddToken(TokenType.Question);

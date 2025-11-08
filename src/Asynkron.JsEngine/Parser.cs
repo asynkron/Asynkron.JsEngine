@@ -1176,6 +1176,32 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                 continue;
             }
 
+            if (Match(TokenType.QuestionDot))
+            {
+                // Optional chaining: obj?.prop or obj?.method() or obj?.[index]
+                if (Match(TokenType.LeftParen))
+                {
+                    // obj?.()
+                    var arguments = ParseArgumentList();
+                    var items = new List<object?> { JsSymbols.OptionalCall, expr };
+                    items.AddRange(arguments);
+                    expr = Cons.FromEnumerable(items);
+                }
+                else if (Match(TokenType.LeftBracket))
+                {
+                    // obj?.[index]
+                    var indexExpression = ParseExpression();
+                    Consume(TokenType.RightBracket, "Expected ']' after index expression.");
+                    expr = Cons.FromEnumerable([JsSymbols.OptionalGetIndex, expr, indexExpression]);
+                }
+                else
+                {
+                    // obj?.prop
+                    expr = FinishOptionalGet(expr);
+                }
+                continue;
+            }
+
             if (Match(TokenType.LeftBracket))
             {
                 expr = FinishIndex(expr);
@@ -1606,6 +1632,18 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         var nameToken = Advance();
         var propertyName = nameToken.Lexeme;
         return Cons.FromEnumerable([JsSymbols.GetProperty, target, propertyName]);
+    }
+
+    private object FinishOptionalGet(object? target)
+    {
+        // Allow identifiers or keywords as property names
+        if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
+        {
+            throw new ParseException("Expected property name after '?.'.");
+        }
+        var nameToken = Advance();
+        var propertyName = nameToken.Lexeme;
+        return Cons.FromEnumerable([JsSymbols.OptionalGetProperty, target, propertyName]);
     }
 
     private bool IsKeyword(Token token)

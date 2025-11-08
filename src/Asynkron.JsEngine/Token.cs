@@ -26,6 +26,7 @@ internal enum TokenType
     Percent,
     PercentEqual,
     Question,
+    QuestionDot,
     Amp,
     AmpAmp,
     AmpEqual,

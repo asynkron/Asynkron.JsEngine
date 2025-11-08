@@ -598,6 +598,11 @@ internal static class Evaluator
             return EvaluateArrayLiteral(cons, environment);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.TemplateLiteral))
+        {
+            return EvaluateTemplateLiteral(cons, environment);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.ObjectLiteral))
         {
             return EvaluateObjectLiteral(cons, environment);
@@ -767,6 +772,39 @@ internal static class Evaluator
         }
 
         return array;
+    }
+
+    private static object EvaluateTemplateLiteral(Cons cons, Environment environment)
+    {
+        var result = new System.Text.StringBuilder();
+        
+        foreach (var part in cons.Rest)
+        {
+            if (part is string str)
+            {
+                result.Append(str);
+            }
+            else
+            {
+                // Evaluate the expression and convert to string
+                var value = EvaluateExpression(part, environment);
+                result.Append(ConvertToString(value));
+            }
+        }
+        
+        return result.ToString();
+    }
+
+    private static string ConvertToString(object? value)
+    {
+        return value switch
+        {
+            null => "null",
+            string s => s,
+            bool b => b ? "true" : "false",
+            double d => d.ToString(CultureInfo.InvariantCulture),
+            _ => value.ToString() ?? ""
+        };
     }
 
     private static object EvaluateObjectLiteral(Cons cons, Environment environment)

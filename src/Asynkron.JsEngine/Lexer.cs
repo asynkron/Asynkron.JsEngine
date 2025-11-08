@@ -2,6 +2,8 @@ using System.Globalization;
 
 namespace Asynkron.JsEngine;
 
+internal sealed record TemplateExpression(string ExpressionText);
+
 internal sealed class Lexer
 {
     private static readonly Dictionary<string, TokenType> Keywords = new(StringComparer.Ordinal)
@@ -180,6 +182,9 @@ internal sealed class Lexer
             case '"':
                 ReadString();
                 break;
+            case '`':
+                ReadTemplateLiteral();
+                break;
             default:
                 if (IsDigit(c))
                 {
@@ -265,6 +270,88 @@ internal sealed class Lexer
         Advance();
         var value = _source[(_start + 1)..(_current - 1)];
         AddToken(TokenType.String, value);
+    }
+
+    private void ReadTemplateLiteral()
+    {
+        var parts = new List<object>();
+        var currentString = new System.Text.StringBuilder();
+
+        while (!IsAtEnd && Peek() != '`')
+        {
+            if (Peek() == '$' && PeekNext() == '{')
+            {
+                // Save the string part so far
+                if (currentString.Length > 0)
+                {
+                    parts.Add(currentString.ToString());
+                    currentString.Clear();
+                }
+
+                // Skip ${
+                Advance(); // $
+                Advance(); // {
+
+                // Now we need to tokenize the expression inside ${}
+                var expressionStart = _current;
+                var braceCount = 1;
+
+                while (!IsAtEnd && braceCount > 0)
+                {
+                    var c = Peek();
+                    if (c == '{') braceCount++;
+                    else if (c == '}') braceCount--;
+
+                    if (braceCount > 0)
+                    {
+                        if (c == '\n')
+                        {
+                            _line++;
+                            _column = 1;
+                        }
+                        Advance();
+                    }
+                }
+
+                if (IsAtEnd)
+                {
+                    throw new ParseException("Unterminated template literal expression.");
+                }
+
+                // Extract the expression text
+                var expressionText = _source[expressionStart..(_current)];
+                parts.Add(new TemplateExpression(expressionText));
+
+                // Skip the closing }
+                Advance();
+            }
+            else
+            {
+                if (Peek() == '\n')
+                {
+                    _line++;
+                    _column = 1;
+                }
+                currentString.Append(Advance());
+            }
+        }
+
+        if (IsAtEnd)
+        {
+            throw new ParseException("Unterminated template literal.");
+        }
+
+        // Add any remaining string content
+        if (currentString.Length > 0)
+        {
+            parts.Add(currentString.ToString());
+        }
+
+        // Skip closing backtick
+        Advance();
+
+        // Store the parts as the literal value
+        AddToken(TokenType.TemplateLiteral, parts);
     }
 
     private char Advance()

@@ -33,6 +33,7 @@ internal enum TokenType
     Identifier,
     Number,
     String,
+    TemplateLiteral,
     Let,
     Var,
     Const,

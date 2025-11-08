@@ -44,6 +44,7 @@ public static class JsSymbols
     public static readonly Symbol Super = Symbol.Intern("super");
     public static readonly Symbol New = Symbol.Intern("new");
     public static readonly Symbol Ternary = Symbol.Intern("ternary");
+    public static readonly Symbol TemplateLiteral = Symbol.Intern("template");
     public static readonly Symbol Uninitialized = Symbol.Intern("<uninitialized>");
 
     public static Symbol Operator(string op) => Symbol.Intern(op);

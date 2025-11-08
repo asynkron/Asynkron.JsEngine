@@ -666,4 +666,60 @@ absoluteValue(-42);
         var result = engine.Evaluate(source);
         Assert.Equal(42d, result);
     }
+
+    [Fact]
+    public void TemplateLiteralWithSimpleString()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("`hello world`;");
+        Assert.Equal("hello world", result);
+    }
+
+    [Fact]
+    public void TemplateLiteralWithSingleExpression()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("let x = 42; `The answer is ${x}`;");
+        Assert.Equal("The answer is 42", result);
+    }
+
+    [Fact]
+    public void TemplateLiteralWithMultipleExpressions()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("let a = 10; let b = 20; `${a} + ${b} = ${a + b}`;");
+        Assert.Equal("10 + 20 = 30", result);
+    }
+
+    [Fact]
+    public void TemplateLiteralWithStringInterpolation()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let name = ""Alice"";
+let age = 30;
+`Hello, my name is ${name} and I am ${age} years old.`;
+");
+        Assert.Equal("Hello, my name is Alice and I am 30 years old.", result);
+    }
+
+    [Fact]
+    public void TemplateLiteralWithComplexExpressions()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+function greet(name) { return ""Hello, "" + name; }
+let user = ""Bob"";
+`${greet(user)}! You have ${3 * 5} messages.`;
+");
+        Assert.Equal("Hello, Bob! You have 15 messages.", result);
+    }
+
+    [Fact]
+    public void TemplateLiteralWithBooleanAndNull()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("`true: ${true}, false: ${false}, null: ${null}`;");
+        Assert.Equal("true: true, false: false, null: null", result);
+    }
 }

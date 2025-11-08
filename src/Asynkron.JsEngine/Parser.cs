@@ -755,6 +755,11 @@ internal sealed class Parser
             return Previous().Literal as string ?? string.Empty;
         }
 
+        if (Match(TokenType.TemplateLiteral))
+        {
+            return ParseTemplateLiteralExpression();
+        }
+
         if (Match(TokenType.Identifier))
         {
             return Symbol.Intern(Previous().Lexeme);
@@ -869,6 +874,58 @@ internal sealed class Parser
         Consume(TokenType.RightBracket, "Expected ']' after array literal.");
         var items = new List<object?> { JsSymbols.ArrayLiteral };
         items.AddRange(elements);
+        return Cons.FromEnumerable(items);
+    }
+
+    private object ParseTemplateLiteralExpression()
+    {
+        var token = Previous();
+        var parts = token.Literal as List<object> ?? new List<object>();
+        
+        // (template part1 expr1 part2 expr2 ...)
+        var items = new List<object?> { JsSymbols.TemplateLiteral };
+        
+        foreach (var part in parts)
+        {
+            if (part is string str)
+            {
+                items.Add(str);
+            }
+            else if (part is TemplateExpression expr)
+            {
+                // Parse the expression inside ${}
+                // We need to parse just the expression, so we create a small wrapper program
+                var exprText = expr.ExpressionText.Trim();
+                var exprLexer = new Lexer(exprText);
+                var exprTokens = exprLexer.Tokenize();
+                
+                // Create a parser and directly call internal parsing
+                // Since we can't access ParseExpression directly, we'll use a trick:
+                // Parse it as "exprText;" to make it a valid statement
+                var wrappedLexer = new Lexer(exprText + ";");
+                var wrappedTokens = wrappedLexer.Tokenize();
+                var exprParser = new Parser(wrappedTokens);
+                var exprProgram = exprParser.ParseProgram();
+                
+                // Extract the expression (skip the 'program' wrapper)
+                if (exprProgram is Cons programCons && !programCons.IsEmpty)
+                {
+                    var firstStatement = programCons.Rest.Head;
+                    // If it's an expression statement, unwrap it
+                    if (firstStatement is Cons stmtCons && 
+                        stmtCons.Head is Symbol sym && 
+                        ReferenceEquals(sym, JsSymbols.ExpressionStatement))
+                    {
+                        items.Add(stmtCons.Rest.Head);
+                    }
+                    else
+                    {
+                        items.Add(firstStatement);
+                    }
+                }
+            }
+        }
+        
         return Cons.FromEnumerable(items);
     }
 

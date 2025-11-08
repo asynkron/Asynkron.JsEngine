@@ -1249,9 +1249,29 @@ internal static class Evaluator
     private static object? EvaluateBinary(Cons cons, Environment environment, Symbol operatorSymbol, EvaluationContext context)
     {
         var leftExpression = cons.Rest.Head;
+        var operatorName = operatorSymbol.Name;
+
+        // Handle unary operators (only have left operand)
+        switch (operatorName)
+        {
+            case "~":
+            {
+                var operand = EvaluateExpression(leftExpression, environment, context);
+                return BitwiseNot(operand);
+            }
+            case "++prefix":
+                return IncrementPrefix(leftExpression, environment, context);
+            case "--prefix":
+                return DecrementPrefix(leftExpression, environment, context);
+            case "++postfix":
+                return IncrementPostfix(leftExpression, environment, context);
+            case "--postfix":
+                return DecrementPostfix(leftExpression, environment, context);
+        }
+
+        // Binary operators have both left and right
         var rightExpression = cons.Rest.Rest.Head;
         var left = EvaluateExpression(leftExpression, environment, context);
-        var operatorName = operatorSymbol.Name;
 
         switch (operatorName)
         {
@@ -1284,6 +1304,13 @@ internal static class Evaluator
             "-" => ToNumber(left) - ToNumber(right),
             "*" => ToNumber(left) * ToNumber(right),
             "/" => ToNumber(right) == 0 ? throw new DivideByZeroException() : ToNumber(left) / ToNumber(right),
+            "%" => ToNumber(left) % ToNumber(right),
+            "&" => BitwiseAnd(left, right),
+            "|" => BitwiseOr(left, right),
+            "^" => BitwiseXor(left, right),
+            "<<" => LeftShift(left, right),
+            ">>" => RightShift(left, right),
+            ">>>" => UnsignedRightShift(left, right),
             "==" => LooseEquals(left, right),
             "!=" => !LooseEquals(left, right),
             ">" => ToNumber(left) > ToNumber(right),
@@ -2265,6 +2292,164 @@ internal static class Evaluator
                     throw new InvalidOperationException("Expected identifier or nested pattern in object pattern property.");
                 }
             }
+        }
+    }
+
+    // Bitwise operations
+    private static double BitwiseAnd(object? left, object? right)
+    {
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right);
+        return leftInt & rightInt;
+    }
+
+    private static double BitwiseOr(object? left, object? right)
+    {
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right);
+        return leftInt | rightInt;
+    }
+
+    private static double BitwiseXor(object? left, object? right)
+    {
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right);
+        return leftInt ^ rightInt;
+    }
+
+    private static double BitwiseNot(object? operand)
+    {
+        var operandInt = ToInt32(operand);
+        return ~operandInt;
+    }
+
+    private static double LeftShift(object? left, object? right)
+    {
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
+        return leftInt << rightInt;
+    }
+
+    private static double RightShift(object? left, object? right)
+    {
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
+        return leftInt >> rightInt;
+    }
+
+    private static double UnsignedRightShift(object? left, object? right)
+    {
+        var leftUInt = ToUInt32(left);
+        var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
+        return leftUInt >> rightInt;
+    }
+
+    private static int ToInt32(object? value)
+    {
+        var num = ToNumber(value);
+        if (double.IsNaN(num) || double.IsInfinity(num))
+        {
+            return 0;
+        }
+        return (int)num;
+    }
+
+    private static uint ToUInt32(object? value)
+    {
+        var num = ToNumber(value);
+        if (double.IsNaN(num) || double.IsInfinity(num))
+        {
+            return 0;
+        }
+        return (uint)(long)num;
+    }
+
+    // Increment/Decrement operations
+    private static double IncrementPrefix(object? operandExpression, Environment environment, EvaluationContext context)
+    {
+        // Get current value
+        var currentValue = EvaluateExpression(operandExpression, environment, context);
+        var newValue = ToNumber(currentValue) + 1;
+
+        // Update the variable
+        UpdateVariable(operandExpression, newValue, environment, context);
+
+        return newValue;
+    }
+
+    private static double DecrementPrefix(object? operandExpression, Environment environment, EvaluationContext context)
+    {
+        // Get current value
+        var currentValue = EvaluateExpression(operandExpression, environment, context);
+        var newValue = ToNumber(currentValue) - 1;
+
+        // Update the variable
+        UpdateVariable(operandExpression, newValue, environment, context);
+
+        return newValue;
+    }
+
+    private static double IncrementPostfix(object? operandExpression, Environment environment, EvaluationContext context)
+    {
+        // Get current value
+        var currentValue = EvaluateExpression(operandExpression, environment, context);
+        var oldValue = ToNumber(currentValue);
+        var newValue = oldValue + 1;
+
+        // Update the variable
+        UpdateVariable(operandExpression, newValue, environment, context);
+
+        return oldValue; // Return the old value
+    }
+
+    private static double DecrementPostfix(object? operandExpression, Environment environment, EvaluationContext context)
+    {
+        // Get current value
+        var currentValue = EvaluateExpression(operandExpression, environment, context);
+        var oldValue = ToNumber(currentValue);
+        var newValue = oldValue - 1;
+
+        // Update the variable
+        UpdateVariable(operandExpression, newValue, environment, context);
+
+        return oldValue; // Return the old value
+    }
+
+    private static void UpdateVariable(object? operandExpression, double newValue, Environment environment, EvaluationContext context)
+    {
+        if (operandExpression is Symbol symbol)
+        {
+            environment.Assign(symbol, newValue);
+        }
+        else if (operandExpression is Cons cons && cons.Head is Symbol head)
+        {
+            if (ReferenceEquals(head, JsSymbols.GetProperty))
+            {
+                var target = EvaluateExpression(cons.Rest.Head, environment, context);
+                var propertyName = cons.Rest.Rest.Head as string 
+                    ?? throw new InvalidOperationException("Property access requires a string name.");
+                AssignPropertyValue(target, propertyName, newValue);
+            }
+            else if (ReferenceEquals(head, JsSymbols.GetIndex))
+            {
+                var target = EvaluateExpression(cons.Rest.Head, environment, context);
+                var index = EvaluateExpression(cons.Rest.Rest.Head, environment, context);
+                
+                if (target is JsArray jsArray && TryConvertToIndex(index, out var arrayIndex))
+                {
+                    jsArray.SetElement(arrayIndex, newValue);
+                }
+                else if (target is JsObject jsObject)
+                {
+                    var propertyName = ToPropertyName(index) 
+                        ?? throw new InvalidOperationException($"Invalid property name: {index}");
+                    jsObject[propertyName] = newValue;
+                }
+            }
+        }
+        else
+        {
+            throw new InvalidOperationException("Invalid operand for increment/decrement operator.");
         }
     }
 }

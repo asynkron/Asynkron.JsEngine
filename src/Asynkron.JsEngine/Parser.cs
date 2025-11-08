@@ -742,10 +742,35 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
     {
         var expr = ParseTernary();
 
-        if (Match(TokenType.Equal))
+        if (Match(TokenType.Equal, TokenType.PlusEqual, TokenType.MinusEqual, TokenType.StarEqual,
+                  TokenType.SlashEqual, TokenType.PercentEqual, TokenType.AmpEqual, TokenType.PipeEqual,
+                  TokenType.CaretEqual, TokenType.LessLessEqual, TokenType.GreaterGreaterEqual, 
+                  TokenType.GreaterGreaterGreaterEqual))
         {
-            var equals = Previous();
+            var op = Previous();
             var value = ParseAssignment();
+
+            // Handle compound assignments by converting them to: variable = variable op value
+            if (op.Type != TokenType.Equal)
+            {
+                var binaryOp = op.Type switch
+                {
+                    TokenType.PlusEqual => "+",
+                    TokenType.MinusEqual => "-",
+                    TokenType.StarEqual => "*",
+                    TokenType.SlashEqual => "/",
+                    TokenType.PercentEqual => "%",
+                    TokenType.AmpEqual => "&",
+                    TokenType.PipeEqual => "|",
+                    TokenType.CaretEqual => "^",
+                    TokenType.LessLessEqual => "<<",
+                    TokenType.GreaterGreaterEqual => ">>",
+                    TokenType.GreaterGreaterGreaterEqual => ">>>",
+                    _ => throw new InvalidOperationException("Unexpected compound assignment operator.")
+                };
+
+                value = Cons.FromEnumerable([JsSymbols.Operator(binaryOp), expr, value]);
+            }
 
             if (expr is Symbol symbol)
             {
@@ -780,7 +805,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                 return Cons.FromEnumerable([JsSymbols.DestructuringAssignment, pattern, value]);
             }
 
-            throw new ParseException($"Invalid assignment target near line {equals.Line} column {equals.Column}.");
+            throw new ParseException($"Invalid assignment target near line {op.Line} column {op.Column}.");
         }
 
         return expr;
@@ -837,13 +862,64 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object? ParseNullishCoalescing()
     {
-        var expr = ParseEquality();
+        var expr = ParseBitwiseOr();
 
         while (Match(TokenType.QuestionQuestion))
         {
-            var right = ParseEquality();
+            var right = ParseBitwiseOr();
             expr = Cons.FromEnumerable([
                 JsSymbols.Operator("??"),
+                expr,
+                right
+            ]);
+        }
+
+        return expr;
+    }
+
+    private object? ParseBitwiseOr()
+    {
+        var expr = ParseBitwiseXor();
+
+        while (Match(TokenType.Pipe))
+        {
+            var right = ParseBitwiseXor();
+            expr = Cons.FromEnumerable([
+                JsSymbols.Operator("|"),
+                expr,
+                right
+            ]);
+        }
+
+        return expr;
+    }
+
+    private object? ParseBitwiseXor()
+    {
+        var expr = ParseBitwiseAnd();
+
+        while (Match(TokenType.Caret))
+        {
+            var right = ParseBitwiseAnd();
+            expr = Cons.FromEnumerable([
+                JsSymbols.Operator("^"),
+                expr,
+                right
+            ]);
+        }
+
+        return expr;
+    }
+
+    private object? ParseBitwiseAnd()
+    {
+        var expr = ParseEquality();
+
+        while (Match(TokenType.Amp))
+        {
+            var right = ParseEquality();
+            expr = Cons.FromEnumerable([
+                JsSymbols.Operator("&"),
                 expr,
                 right
             ]);
@@ -881,11 +957,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object? ParseComparison()
     {
-        var expr = ParseTerm();
+        var expr = ParseShift();
         while (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual))
         {
             var op = Previous();
-            var right = ParseTerm();
+            var right = ParseShift();
             var symbol = op.Type switch
             {
                 TokenType.Greater => JsSymbols.Operator(">"),
@@ -893,6 +969,27 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                 TokenType.Less => JsSymbols.Operator("<"),
                 TokenType.LessEqual => JsSymbols.Operator("<="),
                 _ => throw new InvalidOperationException("Unexpected comparison operator.")
+            };
+
+            expr = Cons.FromEnumerable([symbol, expr, right]);
+        }
+
+        return expr;
+    }
+
+    private object? ParseShift()
+    {
+        var expr = ParseTerm();
+        while (Match(TokenType.LessLess, TokenType.GreaterGreater, TokenType.GreaterGreaterGreater))
+        {
+            var op = Previous();
+            var right = ParseTerm();
+            var symbol = op.Type switch
+            {
+                TokenType.LessLess => JsSymbols.Operator("<<"),
+                TokenType.GreaterGreater => JsSymbols.Operator(">>"),
+                TokenType.GreaterGreaterGreater => JsSymbols.Operator(">>>"),
+                _ => throw new InvalidOperationException("Unexpected shift operator.")
             };
 
             expr = Cons.FromEnumerable([symbol, expr, right]);
@@ -918,11 +1015,17 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
     private object? ParseFactor()
     {
         var expr = ParseUnary();
-        while (Match(TokenType.Star, TokenType.Slash))
+        while (Match(TokenType.Star, TokenType.Slash, TokenType.Percent))
         {
             var op = Previous();
             var right = ParseUnary();
-            var symbol = JsSymbols.Operator(op.Type == TokenType.Star ? "*" : "/");
+            var symbol = op.Type switch
+            {
+                TokenType.Star => JsSymbols.Operator("*"),
+                TokenType.Slash => JsSymbols.Operator("/"),
+                TokenType.Percent => JsSymbols.Operator("%"),
+                _ => throw new InvalidOperationException("Unexpected factor operator.")
+            };
             expr = Cons.FromEnumerable([symbol, expr, right]);
         }
 
@@ -941,9 +1044,26 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             return Cons.FromEnumerable([JsSymbols.Negate, ParseUnary()]);
         }
 
+        if (Match(TokenType.Tilde))
+        {
+            return Cons.FromEnumerable([JsSymbols.Operator("~"), ParseUnary()]);
+        }
+
         if (Match(TokenType.Typeof))
         {
             return Cons.FromEnumerable([JsSymbols.Typeof, ParseUnary()]);
+        }
+
+        if (Match(TokenType.PlusPlus))
+        {
+            var operand = ParseUnary();
+            return Cons.FromEnumerable([JsSymbols.Operator("++prefix"), operand]);
+        }
+
+        if (Match(TokenType.MinusMinus))
+        {
+            var operand = ParseUnary();
+            return Cons.FromEnumerable([JsSymbols.Operator("--prefix"), operand]);
         }
 
         if (Match(TokenType.Yield))
@@ -961,7 +1081,24 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             return Cons.FromEnumerable([JsSymbols.Await, value]);
         }
 
-        return ParseCall();
+        return ParsePostfix();
+    }
+
+    private object? ParsePostfix()
+    {
+        var expr = ParseCall();
+
+        if (Match(TokenType.PlusPlus))
+        {
+            return Cons.FromEnumerable([JsSymbols.Operator("++postfix"), expr]);
+        }
+
+        if (Match(TokenType.MinusMinus))
+        {
+            return Cons.FromEnumerable([JsSymbols.Operator("--postfix"), expr]);
+        }
+
+        return expr;
     }
 
     private object? ParseCall()

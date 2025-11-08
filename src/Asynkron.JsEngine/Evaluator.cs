@@ -1333,6 +1333,21 @@ internal static class Evaluator
                 return true;
             case IDictionary<string, object?> dictionary when dictionary.TryGetValue(propertyName, out value):
                 return true;
+            case string str:
+                // Handle string properties
+                if (propertyName == "length")
+                {
+                    value = (double)str.Length;
+                    return true;
+                }
+                // For string methods, create a wrapper object with methods
+                var stringWrapper = StandardLibrary.CreateStringWrapper(str);
+                if (stringWrapper.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+                value = null;
+                return false;
         }
 
         value = null;

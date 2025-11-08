@@ -1193,4 +1193,231 @@ internal static class StandardLibrary
             return result.JsObject;
         });
     }
+
+    /// <summary>
+    /// Creates a string wrapper object with string methods attached.
+    /// This allows string primitives to have methods like toLowerCase(), substring(), etc.
+    /// </summary>
+    public static JsObject CreateStringWrapper(string str)
+    {
+        var stringObj = new JsObject();
+        stringObj["__value__"] = str;
+        stringObj["length"] = (double)str.Length;
+        AddStringMethods(stringObj, str);
+        return stringObj;
+    }
+
+    /// <summary>
+    /// Adds string methods to a string wrapper object.
+    /// </summary>
+    private static void AddStringMethods(JsObject stringObj, string str)
+    {
+        // charAt(index)
+        stringObj.SetProperty("charAt", new HostFunction(args =>
+        {
+            var index = args.Count > 0 && args[0] is double d ? (int)d : 0;
+            if (index < 0 || index >= str.Length) return "";
+            return str[index].ToString();
+        }));
+
+        // charCodeAt(index)
+        stringObj.SetProperty("charCodeAt", new HostFunction(args =>
+        {
+            var index = args.Count > 0 && args[0] is double d ? (int)d : 0;
+            if (index < 0 || index >= str.Length) return double.NaN;
+            return (double)str[index];
+        }));
+
+        // indexOf(searchString, position?)
+        stringObj.SetProperty("indexOf", new HostFunction(args =>
+        {
+            if (args.Count == 0) return -1d;
+            var searchStr = args[0]?.ToString() ?? "";
+            var position = args.Count > 1 && args[1] is double d ? Math.Max(0, (int)d) : 0;
+            var result = str.IndexOf(searchStr, position, StringComparison.Ordinal);
+            return (double)result;
+        }));
+
+        // lastIndexOf(searchString, position?)
+        stringObj.SetProperty("lastIndexOf", new HostFunction(args =>
+        {
+            if (args.Count == 0) return -1d;
+            var searchStr = args[0]?.ToString() ?? "";
+            var position = args.Count > 1 && args[1] is double d ? 
+                Math.Min((int)d, str.Length - 1) : str.Length - 1;
+            var result = position >= 0 ? str.LastIndexOf(searchStr, position, StringComparison.Ordinal) : -1;
+            return (double)result;
+        }));
+
+        // substring(start, end?)
+        stringObj.SetProperty("substring", new HostFunction(args =>
+        {
+            if (args.Count == 0) return str;
+            var start = args[0] is double d1 ? Math.Max(0, Math.Min((int)d1, str.Length)) : 0;
+            var end = args.Count > 1 && args[1] is double d2 ? 
+                Math.Max(0, Math.Min((int)d2, str.Length)) : str.Length;
+            
+            // JavaScript substring swaps if start > end
+            if (start > end)
+            {
+                (start, end) = (end, start);
+            }
+            
+            return str.Substring(start, end - start);
+        }));
+
+        // slice(start, end?)
+        stringObj.SetProperty("slice", new HostFunction(args =>
+        {
+            if (args.Count == 0) return str;
+            var start = args[0] is double d1 ? (int)d1 : 0;
+            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : str.Length;
+            
+            // Handle negative indices
+            if (start < 0) start = Math.Max(0, str.Length + start);
+            else start = Math.Min(start, str.Length);
+            
+            if (end < 0) end = Math.Max(0, str.Length + end);
+            else end = Math.Min(end, str.Length);
+            
+            if (start >= end) return "";
+            return str.Substring(start, end - start);
+        }));
+
+        // toLowerCase()
+        stringObj.SetProperty("toLowerCase", new HostFunction(args => str.ToLowerInvariant()));
+
+        // toUpperCase()
+        stringObj.SetProperty("toUpperCase", new HostFunction(args => str.ToUpperInvariant()));
+
+        // trim()
+        stringObj.SetProperty("trim", new HostFunction(args => str.Trim()));
+
+        // trimStart() / trimLeft()
+        stringObj.SetProperty("trimStart", new HostFunction(args => str.TrimStart()));
+        stringObj.SetProperty("trimLeft", new HostFunction(args => str.TrimStart()));
+
+        // trimEnd() / trimRight()
+        stringObj.SetProperty("trimEnd", new HostFunction(args => str.TrimEnd()));
+        stringObj.SetProperty("trimRight", new HostFunction(args => str.TrimEnd()));
+
+        // split(separator, limit?)
+        stringObj.SetProperty("split", new HostFunction(args =>
+        {
+            if (args.Count == 0) return CreateArrayFromStrings(new[] { str });
+            
+            var separator = args[0]?.ToString();
+            var limit = args.Count > 1 && args[1] is double d ? (int)d : int.MaxValue;
+            
+            if (separator == null || separator == "")
+            {
+                // Split into individual characters
+                var chars = str.Select(c => c.ToString()).Take(limit).ToArray();
+                return CreateArrayFromStrings(chars);
+            }
+            
+            var parts = str.Split(new[] { separator }, StringSplitOptions.None);
+            if (limit < parts.Length)
+            {
+                parts = parts.Take(limit).ToArray();
+            }
+            return CreateArrayFromStrings(parts);
+        }));
+
+        // replace(searchValue, replaceValue)
+        stringObj.SetProperty("replace", new HostFunction(args =>
+        {
+            if (args.Count < 2) return str;
+            var searchValue = args[0]?.ToString() ?? "";
+            var replaceValue = args[1]?.ToString() ?? "";
+            
+            // Only replaces first occurrence (regex version would replace all with /g flag)
+            var index = str.IndexOf(searchValue, StringComparison.Ordinal);
+            if (index == -1) return str;
+            
+            return str.Substring(0, index) + replaceValue + str.Substring(index + searchValue.Length);
+        }));
+
+        // startsWith(searchString, position?)
+        stringObj.SetProperty("startsWith", new HostFunction(args =>
+        {
+            if (args.Count == 0) return true;
+            var searchStr = args[0]?.ToString() ?? "";
+            var position = args.Count > 1 && args[1] is double d ? (int)d : 0;
+            if (position < 0 || position >= str.Length) return false;
+            return str.Substring(position).StartsWith(searchStr, StringComparison.Ordinal);
+        }));
+
+        // endsWith(searchString, length?)
+        stringObj.SetProperty("endsWith", new HostFunction(args =>
+        {
+            if (args.Count == 0) return true;
+            var searchStr = args[0]?.ToString() ?? "";
+            var length = args.Count > 1 && args[1] is double d ? (int)d : str.Length;
+            if (length < 0) return false;
+            length = Math.Min(length, str.Length);
+            return str.Substring(0, length).EndsWith(searchStr, StringComparison.Ordinal);
+        }));
+
+        // includes(searchString, position?)
+        stringObj.SetProperty("includes", new HostFunction(args =>
+        {
+            if (args.Count == 0) return true;
+            var searchStr = args[0]?.ToString() ?? "";
+            var position = args.Count > 1 && args[1] is double d ? Math.Max(0, (int)d) : 0;
+            if (position >= str.Length) return searchStr == "";
+            return str.IndexOf(searchStr, position, StringComparison.Ordinal) >= 0;
+        }));
+
+        // repeat(count)
+        stringObj.SetProperty("repeat", new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not double d) return "";
+            var count = (int)d;
+            if (count < 0 || count == int.MaxValue) return ""; // JavaScript throws RangeError, we return empty
+            if (count == 0) return "";
+            return string.Concat(Enumerable.Repeat(str, count));
+        }));
+
+        // padStart(targetLength, padString?)
+        stringObj.SetProperty("padStart", new HostFunction(args =>
+        {
+            if (args.Count == 0) return str;
+            var targetLength = args[0] is double d ? (int)d : 0;
+            if (targetLength <= str.Length) return str;
+            var padString = args.Count > 1 ? (args[1]?.ToString() ?? " ") : " ";
+            if (padString == "") return str;
+            
+            var padLength = targetLength - str.Length;
+            var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
+            var padding = string.Concat(Enumerable.Repeat(padString, padCount));
+            return padding.Substring(0, padLength) + str;
+        }));
+
+        // padEnd(targetLength, padString?)
+        stringObj.SetProperty("padEnd", new HostFunction(args =>
+        {
+            if (args.Count == 0) return str;
+            var targetLength = args[0] is double d ? (int)d : 0;
+            if (targetLength <= str.Length) return str;
+            var padString = args.Count > 1 ? (args[1]?.ToString() ?? " ") : " ";
+            if (padString == "") return str;
+            
+            var padLength = targetLength - str.Length;
+            var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
+            var padding = string.Concat(Enumerable.Repeat(padString, padCount));
+            return str + padding.Substring(0, padLength);
+        }));
+    }
+
+    private static JsArray CreateArrayFromStrings(string[] strings)
+    {
+        var array = new JsArray();
+        foreach (var s in strings)
+        {
+            array.Push(s);
+        }
+        AddArrayMethods(array);
+        return array;
+    }
 }

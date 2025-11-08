@@ -666,4 +666,152 @@ absoluteValue(-42);
         var result = engine.Evaluate(source);
         Assert.Equal(42d, result);
     }
+
+    [Fact]
+    public void TemplateLiteralWithSimpleString()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("`hello world`;");
+        Assert.Equal("hello world", result);
+    }
+
+    [Fact]
+    public void TemplateLiteralWithSingleExpression()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("let x = 42; `The answer is ${x}`;");
+        Assert.Equal("The answer is 42", result);
+    }
+
+    [Fact]
+    public void TemplateLiteralWithMultipleExpressions()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("let a = 10; let b = 20; `${a} + ${b} = ${a + b}`;");
+        Assert.Equal("10 + 20 = 30", result);
+    }
+
+    [Fact]
+    public void TemplateLiteralWithStringInterpolation()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let name = ""Alice"";
+let age = 30;
+`Hello, my name is ${name} and I am ${age} years old.`;
+");
+        Assert.Equal("Hello, my name is Alice and I am 30 years old.", result);
+    }
+
+    [Fact]
+    public void TemplateLiteralWithComplexExpressions()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+function greet(name) { return ""Hello, "" + name; }
+let user = ""Bob"";
+`${greet(user)}! You have ${3 * 5} messages.`;
+");
+        Assert.Equal("Hello, Bob! You have 15 messages.", result);
+    }
+
+    [Fact]
+    public void TemplateLiteralWithBooleanAndNull()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("`true: ${true}, false: ${false}, null: ${null}`;");
+        Assert.Equal("true: true, false: false, null: null", result);
+    }
+
+    [Fact]
+    public void GetterInObjectLiteral()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let obj = {
+    _value: 42,
+    get value() { return this._value; }
+};
+obj.value;
+");
+        Assert.Equal(42d, result);
+    }
+
+    [Fact]
+    public void SetterInObjectLiteral()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let obj = {
+    _value: 0,
+    set value(v) { this._value = v * 2; }
+};
+obj.value = 21;
+obj._value;
+");
+        Assert.Equal(42d, result);
+    }
+
+    [Fact]
+    public void GetterAndSetterTogether()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let obj = {
+    _temp: 0,
+    get celsius() { return this._temp; },
+    set celsius(c) { this._temp = c; },
+    get fahrenheit() { return this._temp * 9 / 5 + 32; },
+    set fahrenheit(f) { this._temp = (f - 32) * 5 / 9; }
+};
+obj.celsius = 100;
+obj.fahrenheit;
+");
+        Assert.Equal(212d, result);
+    }
+
+    [Fact]
+    public void GetterInClass()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+class Rectangle {
+    constructor(width, height) {
+        this.width = width;
+        this.height = height;
+    }
+    get area() {
+        return this.width * this.height;
+    }
+}
+let rect = new Rectangle(5, 10);
+rect.area;
+");
+        Assert.Equal(50d, result);
+    }
+
+    [Fact]
+    public void SetterInClass()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+class Person {
+    constructor(firstName, lastName) {
+        this.firstName = firstName;
+        this.lastName = lastName;
+    }
+    get fullName() {
+        return this.firstName + "" "" + this.lastName;
+    }
+    set fullName(name) {
+        this.firstName = ""Updated"";
+        this.lastName = name;
+    }
+}
+let person = new Person(""John"", ""Doe"");
+person.fullName = ""Smith"";
+person.fullName;
+");
+        Assert.Equal("Updated Smith", result);
+    }
 }

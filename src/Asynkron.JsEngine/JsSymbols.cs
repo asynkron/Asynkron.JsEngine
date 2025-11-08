@@ -36,6 +36,8 @@ public static class JsSymbols
     public static readonly Symbol ArrayLiteral = Symbol.Intern("array");
     public static readonly Symbol Property = Symbol.Intern("prop");
     public static readonly Symbol Method = Symbol.Intern("method");
+    public static readonly Symbol Getter = Symbol.Intern("getter");
+    public static readonly Symbol Setter = Symbol.Intern("setter");
     public static readonly Symbol GetProperty = Symbol.Intern("get-prop");
     public static readonly Symbol SetProperty = Symbol.Intern("set-prop");
     public static readonly Symbol GetIndex = Symbol.Intern("get-index");
@@ -44,6 +46,7 @@ public static class JsSymbols
     public static readonly Symbol Super = Symbol.Intern("super");
     public static readonly Symbol New = Symbol.Intern("new");
     public static readonly Symbol Ternary = Symbol.Intern("ternary");
+    public static readonly Symbol TemplateLiteral = Symbol.Intern("template");
     public static readonly Symbol Uninitialized = Symbol.Intern("<uninitialized>");
 
     public static Symbol Operator(string op) => Symbol.Intern(op);

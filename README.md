@@ -20,16 +20,17 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Comments**: Single-line `//` comments
 - **Type coercion**: Basic truthiness evaluation
 - **Arrays**: Array literals, indexing, dynamic length
+- **Template literals**: Backtick strings with `${}` expression interpolation
+- **Getters/setters**: `get`/`set` property accessors in objects and classes
 
 ### 🚧 Not Yet Implemented
 
 - Async/await, Promises
 - Destructuring
 - Spread/rest operators
-- Template literals
 - Regular expressions
 - Standard library (Array methods, Math, Date, JSON, etc.)
-- Getters/setters
+- Complex type coercion rules (comprehensive toString, toNumber conversions)
 - Modules (import/export)
 
 ## Architecture
@@ -169,6 +170,67 @@ var result = engine.Evaluate(@"
 Console.WriteLine(result); // Output: 6
 ```
 
+### Template Literals
+
+```csharp
+var engine = new JsEngine();
+
+// String interpolation with expressions
+var result = engine.Evaluate(@"
+    let name = ""Alice"";
+    let age = 30;
+    let message = `Hello, my name is ${name} and I am ${age} years old.`;
+    message;
+");
+Console.WriteLine(result); // Output: Hello, my name is Alice and I am 30 years old.
+
+// Template literals with complex expressions
+var calc = engine.Evaluate(@"
+    let a = 10;
+    let b = 20;
+    `The sum of ${a} and ${b} is ${a + b}`;
+");
+Console.WriteLine(calc); // Output: The sum of 10 and 20 is 30
+```
+
+### Getters and Setters
+
+```csharp
+var engine = new JsEngine();
+
+// Getters and setters in object literals
+var tempResult = engine.Evaluate(@"
+    let thermometer = {
+        _celsius: 0,
+        get celsius() { return this._celsius; },
+        set celsius(c) { this._celsius = c; },
+        get fahrenheit() { return this._celsius * 9 / 5 + 32; }
+    };
+    thermometer.celsius = 100;
+    thermometer.fahrenheit;
+");
+Console.WriteLine(tempResult); // Output: 212
+
+// Getters and setters in classes
+var classResult = engine.Evaluate(@"
+    class Rectangle {
+        constructor(width, height) {
+            this.width = width;
+            this.height = height;
+        }
+        get area() {
+            return this.width * this.height;
+        }
+        set area(value) {
+            this.width = value / this.height;
+        }
+    }
+    let rect = new Rectangle(5, 10);
+    rect.area;
+");
+Console.WriteLine(classResult); // Output: 50
+```
+
 ### Ternary Operator
 
 ```csharp
@@ -207,6 +269,8 @@ The demo showcases:
 - Objects and arrays
 - Control flow
 - Ternary operator
+- Template literals
+- Getters/setters
 - Control flow
 - Host function interop
 

@@ -1597,7 +1597,7 @@ internal static class Evaluator
             "+" => Add(left, right),
             "-" => ToNumber(left) - ToNumber(right),
             "*" => ToNumber(left) * ToNumber(right),
-            "/" => ToNumber(right) == 0 ? throw new DivideByZeroException() : ToNumber(left) / ToNumber(right),
+            "/" => ToNumber(left) / ToNumber(right),
             "%" => ToNumber(left) % ToNumber(right),
             "&" => BitwiseAnd(left, right),
             "|" => BitwiseOr(left, right),

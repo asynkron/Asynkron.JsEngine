@@ -206,6 +206,17 @@ internal sealed class Parser
             _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
         };
 
+        // Check for destructuring patterns
+        if (Check(TokenType.LeftBracket))
+        {
+            return ParseArrayDestructuring(kind, keyword);
+        }
+        
+        if (Check(TokenType.LeftBrace))
+        {
+            return ParseObjectDestructuring(kind, keyword);
+        }
+
         var nameToken = Consume(TokenType.Identifier, $"Expected variable name after '{keyword}'.");
         var name = Symbol.Intern(nameToken.Lexeme);
         object? initializer;
@@ -239,6 +250,184 @@ internal sealed class Parser
         };
 
         return Cons.FromEnumerable(new object?[] { tag, name, initializer });
+    }
+
+    private object ParseArrayDestructuring(TokenType kind, string keyword)
+    {
+        Consume(TokenType.LeftBracket, "Expected '[' for array destructuring.");
+        var pattern = ParseArrayDestructuringPattern();
+        
+        if (!Match(TokenType.Equal))
+        {
+            throw new ParseException($"Destructuring declarations require an initializer.");
+        }
+        
+        var initializer = ParseExpression();
+        Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
+        
+        var tag = kind switch
+        {
+            TokenType.Let => JsSymbols.Let,
+            TokenType.Var => JsSymbols.Var,
+            TokenType.Const => JsSymbols.Const,
+            _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
+        };
+        
+        return Cons.FromEnumerable(new object?[] { tag, pattern, initializer });
+    }
+    
+    private object ParseObjectDestructuring(TokenType kind, string keyword)
+    {
+        Consume(TokenType.LeftBrace, "Expected '{' for object destructuring.");
+        var pattern = ParseObjectDestructuringPattern();
+        
+        if (!Match(TokenType.Equal))
+        {
+            throw new ParseException($"Destructuring declarations require an initializer.");
+        }
+        
+        var initializer = ParseExpression();
+        Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
+        
+        var tag = kind switch
+        {
+            TokenType.Let => JsSymbols.Let,
+            TokenType.Var => JsSymbols.Var,
+            TokenType.Const => JsSymbols.Const,
+            _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
+        };
+        
+        return Cons.FromEnumerable(new object?[] { tag, pattern, initializer });
+    }
+    
+    private Cons ParseArrayDestructuringPattern()
+    {
+        var elements = new List<object?> { JsSymbols.ArrayPattern };
+        
+        if (!Check(TokenType.RightBracket))
+        {
+            do
+            {
+                // Check for hole (skipped element)
+                if (Check(TokenType.Comma))
+                {
+                    elements.Add(null); // null represents a hole
+                    continue;
+                }
+                
+                // Check for rest element
+                if (Match(TokenType.DotDotDot))
+                {
+                    var name = Consume(TokenType.Identifier, "Expected identifier after '...'.");
+                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternRest, Symbol.Intern(name.Lexeme) }));
+                    break; // Rest must be last
+                }
+                
+                // Check for nested array pattern
+                if (Check(TokenType.LeftBracket))
+                {
+                    Consume(TokenType.LeftBracket, "Expected '[' for nested array pattern.");
+                    var nestedPattern = ParseArrayDestructuringPattern();
+                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, nestedPattern, null }));
+                }
+                // Check for nested object pattern
+                else if (Check(TokenType.LeftBrace))
+                {
+                    Consume(TokenType.LeftBrace, "Expected '{' for nested object pattern.");
+                    var nestedPattern = ParseObjectDestructuringPattern();
+                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, nestedPattern, null }));
+                }
+                else
+                {
+                    // Simple identifier
+                    var name = Consume(TokenType.Identifier, "Expected identifier in array pattern.");
+                    var identifier = Symbol.Intern(name.Lexeme);
+                    
+                    // Check for default value
+                    object? defaultValue = null;
+                    if (Match(TokenType.Equal))
+                    {
+                        defaultValue = ParseExpression();
+                    }
+                    
+                    elements.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternElement, identifier, defaultValue }));
+                }
+            } while (Match(TokenType.Comma));
+        }
+        
+        Consume(TokenType.RightBracket, "Expected ']' after array pattern.");
+        return Cons.FromEnumerable(elements);
+    }
+    
+    private Cons ParseObjectDestructuringPattern()
+    {
+        var properties = new List<object?> { JsSymbols.ObjectPattern };
+        
+        if (!Check(TokenType.RightBrace))
+        {
+            do
+            {
+                // Check for rest property
+                if (Match(TokenType.DotDotDot))
+                {
+                    var name = Consume(TokenType.Identifier, "Expected identifier after '...'.");
+                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternRest, Symbol.Intern(name.Lexeme) }));
+                    break; // Rest must be last
+                }
+                
+                // Parse property name
+                var propertyName = ParseObjectPropertyName();
+                
+                // Check for shorthand or renaming
+                if (Match(TokenType.Colon))
+                {
+                    // Renaming: {x: newX} or nested pattern
+                    if (Check(TokenType.LeftBracket))
+                    {
+                        Consume(TokenType.LeftBracket, "Expected '[' for nested array pattern.");
+                        var nestedPattern = ParseArrayDestructuringPattern();
+                        properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, propertyName, nestedPattern, null }));
+                    }
+                    else if (Check(TokenType.LeftBrace))
+                    {
+                        Consume(TokenType.LeftBrace, "Expected '{' for nested object pattern.");
+                        var nestedPattern = ParseObjectDestructuringPattern();
+                        properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, propertyName, nestedPattern, null }));
+                    }
+                    else
+                    {
+                        var targetName = Consume(TokenType.Identifier, "Expected identifier after ':'.");
+                        var target = Symbol.Intern(targetName.Lexeme);
+                        
+                        // Check for default value
+                        object? defaultValue = null;
+                        if (Match(TokenType.Equal))
+                        {
+                            defaultValue = ParseExpression();
+                        }
+                        
+                        properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, propertyName, target, defaultValue }));
+                    }
+                }
+                else
+                {
+                    // Shorthand: {x} is same as {x: x}
+                    var identifier = Symbol.Intern(propertyName);
+                    
+                    // Check for default value
+                    object? defaultValue = null;
+                    if (Match(TokenType.Equal))
+                    {
+                        defaultValue = ParseExpression();
+                    }
+                    
+                    properties.Add(Cons.FromEnumerable(new object?[] { JsSymbols.PatternProperty, propertyName, identifier, defaultValue }));
+                }
+            } while (Match(TokenType.Comma));
+        }
+        
+        Consume(TokenType.RightBrace, "Expected '}' after object pattern.");
+        return Cons.FromEnumerable(properties);
     }
 
     private object ParseStatement()

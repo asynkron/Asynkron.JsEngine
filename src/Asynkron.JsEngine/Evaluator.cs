@@ -381,30 +381,69 @@ internal static class Evaluator
 
     private static object? EvaluateLet(Cons cons, Environment environment)
     {
-        var name = ExpectSymbol(cons.Rest.Head, "Expected identifier in let declaration.");
-        var valueExpression = cons.Rest.Rest.Head;
-        var value = EvaluateExpression(valueExpression, environment);
-        environment.Define(name, value);
-        return value;
+        var target = cons.Rest.Head;
+        
+        // Check if this is a destructuring pattern
+        if (target is Cons patternCons && patternCons.Head is Symbol patternSymbol &&
+            (ReferenceEquals(patternSymbol, JsSymbols.ArrayPattern) || ReferenceEquals(patternSymbol, JsSymbols.ObjectPattern)))
+        {
+            var valueExpression = cons.Rest.Rest.Head;
+            var value = EvaluateExpression(valueExpression, environment);
+            DestructureAndDefine(patternCons, value, environment, false);
+            return value;
+        }
+        
+        // Simple identifier case
+        var name = ExpectSymbol(target, "Expected identifier in let declaration.");
+        var initializer = cons.Rest.Rest.Head;
+        var simpleValue = EvaluateExpression(initializer, environment);
+        environment.Define(name, simpleValue);
+        return simpleValue;
     }
 
     private static object? EvaluateVar(Cons cons, Environment environment)
     {
-        var name = ExpectSymbol(cons.Rest.Head, "Expected identifier in var declaration.");
+        var target = cons.Rest.Head;
+        
+        // Check if this is a destructuring pattern
+        if (target is Cons patternCons && patternCons.Head is Symbol patternSymbol &&
+            (ReferenceEquals(patternSymbol, JsSymbols.ArrayPattern) || ReferenceEquals(patternSymbol, JsSymbols.ObjectPattern)))
+        {
+            var valueExpression = cons.Rest.Rest.Head;
+            var value = EvaluateExpression(valueExpression, environment);
+            DestructureAndDefineFunctionScoped(patternCons, value, environment);
+            return value;
+        }
+        
+        // Simple identifier case
+        var name = ExpectSymbol(target, "Expected identifier in var declaration.");
         var initializer = cons.Rest.Rest.Head;
         var hasInitializer = !ReferenceEquals(initializer, JsSymbols.Uninitialized);
-        var value = hasInitializer ? EvaluateExpression(initializer, environment) : null;
-        environment.DefineFunctionScoped(name, value, hasInitializer);
+        var varValue = hasInitializer ? EvaluateExpression(initializer, environment) : null;
+        environment.DefineFunctionScoped(name, varValue, hasInitializer);
         return environment.Get(name);
     }
 
     private static object? EvaluateConst(Cons cons, Environment environment)
     {
-        var name = ExpectSymbol(cons.Rest.Head, "Expected identifier in const declaration.");
-        var valueExpression = cons.Rest.Rest.Head;
-        var value = EvaluateExpression(valueExpression, environment);
-        environment.Define(name, value, isConst: true);
-        return value;
+        var target = cons.Rest.Head;
+        
+        // Check if this is a destructuring pattern
+        if (target is Cons patternCons && patternCons.Head is Symbol patternSymbol &&
+            (ReferenceEquals(patternSymbol, JsSymbols.ArrayPattern) || ReferenceEquals(patternSymbol, JsSymbols.ObjectPattern)))
+        {
+            var valueExpression = cons.Rest.Rest.Head;
+            var value = EvaluateExpression(valueExpression, environment);
+            DestructureAndDefine(patternCons, value, environment, true);
+            return value;
+        }
+        
+        // Simple identifier case
+        var name = ExpectSymbol(target, "Expected identifier in const declaration.");
+        var constValueExpression = cons.Rest.Rest.Head;
+        var constValue = EvaluateExpression(constValueExpression, environment);
+        environment.Define(name, constValue, isConst: true);
+        return constValue;
     }
 
     private static object? EvaluateFunctionDeclaration(Cons cons, Environment environment)
@@ -1426,4 +1465,338 @@ internal static class Evaluator
         double d when !double.IsNaN(d) && !double.IsInfinity(d) => d.ToString(CultureInfo.InvariantCulture),
         _ => Convert.ToString(value, CultureInfo.InvariantCulture)
     };
+
+    private static void DestructureAndDefine(Cons pattern, object? value, Environment environment, bool isConst)
+    {
+        if (pattern.Head is not Symbol patternType)
+        {
+            throw new InvalidOperationException("Pattern must start with a symbol.");
+        }
+
+        if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
+        {
+            DestructureArray(pattern, value, environment, isConst);
+        }
+        else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
+        {
+            DestructureObject(pattern, value, environment, isConst);
+        }
+        else
+        {
+            throw new InvalidOperationException($"Unknown pattern type: {patternType}");
+        }
+    }
+
+    private static void DestructureAndDefineFunctionScoped(Cons pattern, object? value, Environment environment)
+    {
+        if (pattern.Head is not Symbol patternType)
+        {
+            throw new InvalidOperationException("Pattern must start with a symbol.");
+        }
+
+        if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
+        {
+            DestructureArrayFunctionScoped(pattern, value, environment);
+        }
+        else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
+        {
+            DestructureObjectFunctionScoped(pattern, value, environment);
+        }
+        else
+        {
+            throw new InvalidOperationException($"Unknown pattern type: {patternType}");
+        }
+    }
+
+    private static void DestructureArray(Cons pattern, object? value, Environment environment, bool isConst)
+    {
+        if (value is not JsArray array)
+        {
+            throw new InvalidOperationException($"Cannot destructure non-array value in array pattern.");
+        }
+
+        int index = 0;
+        foreach (var element in pattern.Rest)
+        {
+            // Skip holes (null elements)
+            if (element is null)
+            {
+                index++;
+                continue;
+            }
+
+            if (element is not Cons elementCons)
+            {
+                throw new InvalidOperationException("Expected pattern element to be a cons.");
+            }
+
+            if (elementCons.Head is not Symbol elementType)
+            {
+                throw new InvalidOperationException("Pattern element must start with a symbol.");
+            }
+
+            // Handle rest element
+            if (ReferenceEquals(elementType, JsSymbols.PatternRest))
+            {
+                var restName = ExpectSymbol(elementCons.Rest.Head, "Expected identifier for rest element.");
+                var restArray = new JsArray();
+                for (int i = index; i < array.Items.Count; i++)
+                {
+                    restArray.Push(array.Items[i]);
+                }
+                environment.Define(restName, restArray, isConst);
+                break;
+            }
+
+            // Handle pattern element
+            if (ReferenceEquals(elementType, JsSymbols.PatternElement))
+            {
+                var target = elementCons.Rest.Head;
+                var defaultValue = elementCons.Rest.Rest.Head;
+                var elementValue = index < array.Items.Count ? array.Items[index] : null;
+
+                // Apply default value if element is undefined
+                if (elementValue is null && defaultValue is not null)
+                {
+                    elementValue = EvaluateExpression(defaultValue, environment);
+                }
+
+                // Check if target is a nested pattern
+                if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
+                    (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) || ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
+                {
+                    DestructureAndDefine(nestedPattern, elementValue, environment, isConst);
+                }
+                else if (target is Symbol identifier)
+                {
+                    environment.Define(identifier, elementValue, isConst);
+                }
+                else
+                {
+                    throw new InvalidOperationException("Expected identifier or nested pattern in array pattern element.");
+                }
+
+                index++;
+            }
+        }
+    }
+
+    private static void DestructureArrayFunctionScoped(Cons pattern, object? value, Environment environment)
+    {
+        if (value is not JsArray array)
+        {
+            throw new InvalidOperationException($"Cannot destructure non-array value in array pattern.");
+        }
+
+        int index = 0;
+        foreach (var element in pattern.Rest)
+        {
+            // Skip holes (null elements)
+            if (element is null)
+            {
+                index++;
+                continue;
+            }
+
+            if (element is not Cons elementCons)
+            {
+                throw new InvalidOperationException("Expected pattern element to be a cons.");
+            }
+
+            if (elementCons.Head is not Symbol elementType)
+            {
+                throw new InvalidOperationException("Pattern element must start with a symbol.");
+            }
+
+            // Handle rest element
+            if (ReferenceEquals(elementType, JsSymbols.PatternRest))
+            {
+                var restName = ExpectSymbol(elementCons.Rest.Head, "Expected identifier for rest element.");
+                var restArray = new JsArray();
+                for (int i = index; i < array.Items.Count; i++)
+                {
+                    restArray.Push(array.Items[i]);
+                }
+                environment.DefineFunctionScoped(restName, restArray, true);
+                break;
+            }
+
+            // Handle pattern element
+            if (ReferenceEquals(elementType, JsSymbols.PatternElement))
+            {
+                var target = elementCons.Rest.Head;
+                var defaultValue = elementCons.Rest.Rest.Head;
+                var elementValue = index < array.Items.Count ? array.Items[index] : null;
+
+                // Apply default value if element is undefined
+                if (elementValue is null && defaultValue is not null)
+                {
+                    elementValue = EvaluateExpression(defaultValue, environment);
+                }
+
+                // Check if target is a nested pattern
+                if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
+                    (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) || ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
+                {
+                    DestructureAndDefineFunctionScoped(nestedPattern, elementValue, environment);
+                }
+                else if (target is Symbol identifier)
+                {
+                    environment.DefineFunctionScoped(identifier, elementValue, true);
+                }
+                else
+                {
+                    throw new InvalidOperationException("Expected identifier or nested pattern in array pattern element.");
+                }
+
+                index++;
+            }
+        }
+    }
+
+    private static void DestructureObject(Cons pattern, object? value, Environment environment, bool isConst)
+    {
+        if (value is not JsObject obj)
+        {
+            throw new InvalidOperationException($"Cannot destructure non-object value in object pattern.");
+        }
+
+        var usedKeys = new HashSet<string>();
+
+        foreach (var property in pattern.Rest)
+        {
+            if (property is not Cons propertyCons)
+            {
+                throw new InvalidOperationException("Expected pattern property to be a cons.");
+            }
+
+            if (propertyCons.Head is not Symbol propertyType)
+            {
+                throw new InvalidOperationException("Pattern property must start with a symbol.");
+            }
+
+            // Handle rest property
+            if (ReferenceEquals(propertyType, JsSymbols.PatternRest))
+            {
+                var restName = ExpectSymbol(propertyCons.Rest.Head, "Expected identifier for rest property.");
+                var restObject = new JsObject();
+                foreach (var kvp in obj)
+                {
+                    if (!usedKeys.Contains(kvp.Key))
+                    {
+                        restObject[kvp.Key] = kvp.Value;
+                    }
+                }
+                environment.Define(restName, restObject, isConst);
+                break;
+            }
+
+            // Handle pattern property
+            if (ReferenceEquals(propertyType, JsSymbols.PatternProperty))
+            {
+                var sourceName = propertyCons.Rest.Head as string ?? 
+                                throw new InvalidOperationException("Expected property name in object pattern.");
+                var target = propertyCons.Rest.Rest.Head;
+                var defaultValue = propertyCons.Rest.Rest.Rest.Head;
+
+                usedKeys.Add(sourceName);
+
+                var propertyValue = obj.TryGetProperty(sourceName, out var val) ? val : null;
+
+                // Apply default value if property is undefined
+                if (propertyValue is null && defaultValue is not null)
+                {
+                    propertyValue = EvaluateExpression(defaultValue, environment);
+                }
+
+                // Check if target is a nested pattern
+                if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
+                    (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) || ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
+                {
+                    DestructureAndDefine(nestedPattern, propertyValue, environment, isConst);
+                }
+                else if (target is Symbol identifier)
+                {
+                    environment.Define(identifier, propertyValue, isConst);
+                }
+                else
+                {
+                    throw new InvalidOperationException("Expected identifier or nested pattern in object pattern property.");
+                }
+            }
+        }
+    }
+
+    private static void DestructureObjectFunctionScoped(Cons pattern, object? value, Environment environment)
+    {
+        if (value is not JsObject obj)
+        {
+            throw new InvalidOperationException($"Cannot destructure non-object value in object pattern.");
+        }
+
+        var usedKeys = new HashSet<string>();
+
+        foreach (var property in pattern.Rest)
+        {
+            if (property is not Cons propertyCons)
+            {
+                throw new InvalidOperationException("Expected pattern property to be a cons.");
+            }
+
+            if (propertyCons.Head is not Symbol propertyType)
+            {
+                throw new InvalidOperationException("Pattern property must start with a symbol.");
+            }
+
+            // Handle rest property
+            if (ReferenceEquals(propertyType, JsSymbols.PatternRest))
+            {
+                var restName = ExpectSymbol(propertyCons.Rest.Head, "Expected identifier for rest property.");
+                var restObject = new JsObject();
+                foreach (var kvp in obj)
+                {
+                    if (!usedKeys.Contains(kvp.Key))
+                    {
+                        restObject[kvp.Key] = kvp.Value;
+                    }
+                }
+                environment.DefineFunctionScoped(restName, restObject, true);
+                break;
+            }
+
+            // Handle pattern property
+            if (ReferenceEquals(propertyType, JsSymbols.PatternProperty))
+            {
+                var sourceName = propertyCons.Rest.Head as string ?? 
+                                throw new InvalidOperationException("Expected property name in object pattern.");
+                var target = propertyCons.Rest.Rest.Head;
+                var defaultValue = propertyCons.Rest.Rest.Rest.Head;
+
+                usedKeys.Add(sourceName);
+
+                var propertyValue = obj.TryGetProperty(sourceName, out var val) ? val : null;
+
+                // Apply default value if property is undefined
+                if (propertyValue is null && defaultValue is not null)
+                {
+                    propertyValue = EvaluateExpression(defaultValue, environment);
+                }
+
+                // Check if target is a nested pattern
+                if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
+                    (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) || ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
+                {
+                    DestructureAndDefineFunctionScoped(nestedPattern, propertyValue, environment);
+                }
+                else if (target is Symbol identifier)
+                {
+                    environment.DefineFunctionScoped(identifier, propertyValue, true);
+                }
+                else
+                {
+                    throw new InvalidOperationException("Expected identifier or nested pattern in object pattern property.");
+                }
+            }
+        }
+    }
 }

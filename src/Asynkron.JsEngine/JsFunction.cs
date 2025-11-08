@@ -43,7 +43,6 @@ internal sealed class JsFunction : IJsCallable
             }
         }
 
-        var context = new EvaluationContext();
         var environment = new Environment(_closure, isFunctionScope: true);
         
         // Bind regular parameters (could be symbols or destructuring patterns)
@@ -60,7 +59,7 @@ internal sealed class JsFunction : IJsCallable
             else if (parameter is Cons pattern)
             {
                 // Destructuring parameter
-                Evaluator.DestructureParameter(pattern, argument, environment, context);
+                Evaluator.DestructureParameter(pattern, argument, environment);
             }
             else
             {
@@ -97,19 +96,14 @@ internal sealed class JsFunction : IJsCallable
             environment.Define(JsSymbols.Super, binding);
         }
 
-        var result = Evaluator.EvaluateBlock(_body, environment, context);
-        
-        if (context.IsReturn)
+        try
         {
-            return context.FlowValue;
+            return Evaluator.EvaluateBlock(_body, environment);
         }
-        
-        if (context.IsThrow)
+        catch (ReturnSignal signal)
         {
-            throw new ThrowSignal(context.FlowValue);
+            return signal.Value;
         }
-        
-        return result;
     }
 
     public bool TryGetProperty(string name, out object? value) => _properties.TryGetProperty(name, out value);

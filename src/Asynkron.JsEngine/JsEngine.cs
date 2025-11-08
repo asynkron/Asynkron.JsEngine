@@ -21,6 +21,8 @@ public sealed class JsEngine
     {
         // Register standard library objects
         SetGlobal("Math", StandardLibrary.CreateMathObject());
+        SetGlobal("Object", StandardLibrary.CreateObjectConstructor());
+        SetGlobal("Array", StandardLibrary.CreateArrayConstructor());
         
         // Register Date constructor as a callable object with static methods
         var dateConstructor = StandardLibrary.CreateDateConstructor();

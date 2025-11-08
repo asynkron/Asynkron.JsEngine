@@ -1521,4 +1521,163 @@ internal static class StandardLibrary
         AddArrayMethods(array);
         return array;
     }
+
+    /// <summary>
+    /// Creates the Object constructor with static methods.
+    /// </summary>
+    public static JsObject CreateObjectConstructor()
+    {
+        var objectConstructor = new JsObject();
+
+        // Object.keys(obj)
+        objectConstructor["keys"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
+            
+            var keys = new JsArray();
+            foreach (var key in obj.GetOwnPropertyNames())
+            {
+                keys.Push(key);
+            }
+            AddArrayMethods(keys);
+            return keys;
+        });
+
+        // Object.values(obj)
+        objectConstructor["values"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
+            
+            var values = new JsArray();
+            foreach (var key in obj.GetOwnPropertyNames())
+            {
+                if (obj.TryGetValue(key, out var value))
+                {
+                    values.Push(value);
+                }
+            }
+            AddArrayMethods(values);
+            return values;
+        });
+
+        // Object.entries(obj)
+        objectConstructor["entries"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
+            
+            var entries = new JsArray();
+            foreach (var key in obj.GetOwnPropertyNames())
+            {
+                if (obj.TryGetValue(key, out var value))
+                {
+                    var entry = new JsArray([key, value]);
+                    AddArrayMethods(entry);
+                    entries.Push(entry);
+                }
+            }
+            AddArrayMethods(entries);
+            return entries;
+        });
+
+        // Object.assign(target, ...sources)
+        objectConstructor["assign"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsObject target) return null;
+            
+            for (int i = 1; i < args.Count; i++)
+            {
+                if (args[i] is JsObject source)
+                {
+                    foreach (var key in source.GetOwnPropertyNames())
+                    {
+                        if (source.TryGetValue(key, out var value))
+                        {
+                            target[key] = value;
+                        }
+                    }
+                }
+            }
+            
+            return target;
+        });
+
+        return objectConstructor;
+    }
+
+    /// <summary>
+    /// Creates the Array constructor with static methods.
+    /// </summary>
+    public static HostFunction CreateArrayConstructor()
+    {
+        // Array constructor
+        var arrayConstructor = new HostFunction(args =>
+        {
+            // Array(length) or Array(element0, element1, ...)
+            if (args.Count == 1 && args[0] is double length)
+            {
+                var arr = new JsArray();
+                var len = (int)length;
+                for (int i = 0; i < len; i++)
+                {
+                    arr.Push(null);
+                }
+                AddArrayMethods(arr);
+                return arr;
+            }
+            else
+            {
+                var arr = new JsArray(args);
+                AddArrayMethods(arr);
+                return arr;
+            }
+        });
+
+        // Array.isArray(value)
+        arrayConstructor.SetProperty("isArray", new HostFunction(args =>
+        {
+            if (args.Count == 0) return false;
+            return args[0] is JsArray;
+        }));
+
+        // Array.from(arrayLike)
+        arrayConstructor.SetProperty("from", new HostFunction(args =>
+        {
+            if (args.Count == 0) return new JsArray();
+            
+            var items = new List<object?>();
+            
+            if (args[0] is JsArray jsArray)
+            {
+                for (int i = 0; i < jsArray.Items.Count; i++)
+                {
+                    items.Add(jsArray.GetElement(i));
+                }
+            }
+            else if (args[0] is string str)
+            {
+                foreach (char c in str)
+                {
+                    items.Add(c.ToString());
+                }
+            }
+            else
+            {
+                return new JsArray();
+            }
+            
+            var result = new JsArray(items);
+            AddArrayMethods(result);
+            return result;
+        }));
+
+        // Array.of(...elements)
+        arrayConstructor.SetProperty("of", new HostFunction(args =>
+        {
+            var arr = new JsArray(args);
+            AddArrayMethods(arr);
+            return arr;
+        }));
+
+        return arrayConstructor;
+    }
 }

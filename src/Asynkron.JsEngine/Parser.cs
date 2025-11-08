@@ -1598,9 +1598,31 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object FinishGet(object? target)
     {
-        var nameToken = Consume(TokenType.Identifier, "Expected property name after '.'.");
+        // Allow identifiers or keywords as property names (e.g., object.of, object.in, object.for)
+        if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
+        {
+            throw new ParseException("Expected property name after '.'.");
+        }
+        var nameToken = Advance();
         var propertyName = nameToken.Lexeme;
         return Cons.FromEnumerable([JsSymbols.GetProperty, target, propertyName]);
+    }
+
+    private bool IsKeyword(Token token)
+    {
+        return token.Type switch
+        {
+            TokenType.Let or TokenType.Var or TokenType.Const or TokenType.Function or
+            TokenType.Class or TokenType.Extends or TokenType.If or TokenType.Else or
+            TokenType.For or TokenType.In or TokenType.Of or TokenType.While or TokenType.Do or
+            TokenType.Switch or TokenType.Case or TokenType.Default or TokenType.Break or
+            TokenType.Continue or TokenType.Return or TokenType.Try or TokenType.Catch or
+            TokenType.Finally or TokenType.Throw or TokenType.This or TokenType.Super or
+            TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
+            TokenType.Undefined or TokenType.Typeof or TokenType.Get or TokenType.Set or
+            TokenType.Yield or TokenType.Async or TokenType.Await => true,
+            _ => false
+        };
     }
 
     private object FinishIndex(object? target)

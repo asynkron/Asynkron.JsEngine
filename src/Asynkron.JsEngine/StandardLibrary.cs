@@ -1840,4 +1840,242 @@ internal static class StandardLibrary
 
         return arrayConstructor;
     }
+
+    /// <summary>
+    /// Creates the Symbol constructor function with static methods.
+    /// </summary>
+    public static HostFunction CreateSymbolConstructor()
+    {
+        // Symbol cannot be used with 'new' in JavaScript
+        var symbolConstructor = new HostFunction(args =>
+        {
+            var description = args.Count > 0 && args[0] != null && !ReferenceEquals(args[0], JsSymbols.Undefined)
+                ? args[0]!.ToString()
+                : null;
+            return JsSymbol.Create(description);
+        });
+
+        // Symbol.for(key) - creates/retrieves a global symbol
+        symbolConstructor.SetProperty("for", new HostFunction(args =>
+        {
+            if (args.Count == 0) return JsSymbols.Undefined;
+            var key = args[0]?.ToString() ?? "";
+            return JsSymbol.For(key);
+        }));
+
+        // Symbol.keyFor(symbol) - gets the key for a global symbol
+        symbolConstructor.SetProperty("keyFor", new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsSymbol sym)
+            {
+                return JsSymbols.Undefined;
+            }
+            var key = JsSymbol.KeyFor(sym);
+            return key ?? (object)JsSymbols.Undefined;
+        }));
+
+        return symbolConstructor;
+    }
+
+    /// <summary>
+    /// Creates the Map constructor function.
+    /// </summary>
+    public static IJsCallable CreateMapConstructor()
+    {
+        var mapConstructor = new HostFunction(args =>
+        {
+            var map = new JsMap();
+            
+            // If an iterable is provided, populate the map
+            if (args.Count > 0 && args[0] is JsArray entries)
+            {
+                foreach (var entry in entries.Items)
+                {
+                    if (entry is JsArray pair && pair.Items.Count >= 2)
+                    {
+                        map.Set(pair.GetElement(0), pair.GetElement(1));
+                    }
+                }
+            }
+            
+            AddMapMethods(map);
+            return map;
+        });
+
+        return mapConstructor;
+    }
+
+    /// <summary>
+    /// Adds instance methods to a Map object.
+    /// </summary>
+    private static void AddMapMethods(JsMap map)
+    {
+        // Note: size needs special handling as a getter - for now we'll just access it dynamically in the methods
+        
+        // set(key, value)
+        map.SetProperty("set", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsMap m) return JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var value = args.Count > 1 ? args[1] : JsSymbols.Undefined;
+            return m.Set(key, value);
+        }));
+
+        // get(key)
+        map.SetProperty("get", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsMap m) return JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            return m.Get(key);
+        }));
+
+        // has(key)
+        map.SetProperty("has", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsMap m) return false;
+            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            return m.Has(key);
+        }));
+
+        // delete(key)
+        map.SetProperty("delete", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsMap m) return false;
+            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            return m.Delete(key);
+        }));
+
+        // clear()
+        map.SetProperty("clear", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is JsMap m) m.Clear();
+            return JsSymbols.Undefined;
+        }));
+
+        // forEach(callback, thisArg)
+        map.SetProperty("forEach", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsMap m) return JsSymbols.Undefined;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return JsSymbols.Undefined;
+            var thisArg = args.Count > 1 ? args[1] : null;
+            m.ForEach(callback, thisArg);
+            return JsSymbols.Undefined;
+        }));
+
+        // entries()
+        map.SetProperty("entries", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsMap m) return JsSymbols.Undefined;
+            return m.Entries();
+        }));
+
+        // keys()
+        map.SetProperty("keys", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsMap m) return JsSymbols.Undefined;
+            return m.Keys();
+        }));
+
+        // values()
+        map.SetProperty("values", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsMap m) return JsSymbols.Undefined;
+            return m.Values();
+        }));
+    }
+
+    /// <summary>
+    /// Creates the Set constructor function.
+    /// </summary>
+    public static IJsCallable CreateSetConstructor()
+    {
+        var setConstructor = new HostFunction(args =>
+        {
+            var set = new JsSet();
+            
+            // If an iterable is provided, populate the set
+            if (args.Count > 0 && args[0] is JsArray values)
+            {
+                foreach (var value in values.Items)
+                {
+                    set.Add(value);
+                }
+            }
+            
+            AddSetMethods(set);
+            return set;
+        });
+
+        return setConstructor;
+    }
+
+    /// <summary>
+    /// Adds instance methods to a Set object.
+    /// </summary>
+    private static void AddSetMethods(JsSet set)
+    {
+        // Note: size needs special handling as a getter - handled in Evaluator.TryGetPropertyValue
+        
+        // add(value)
+        set.SetProperty("add", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsSet s) return JsSymbols.Undefined;
+            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            return s.Add(value);
+        }));
+
+        // has(value)
+        set.SetProperty("has", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsSet s) return false;
+            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            return s.Has(value);
+        }));
+
+        // delete(value)
+        set.SetProperty("delete", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsSet s) return false;
+            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            return s.Delete(value);
+        }));
+
+        // clear()
+        set.SetProperty("clear", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is JsSet s) s.Clear();
+            return JsSymbols.Undefined;
+        }));
+
+        // forEach(callback, thisArg)
+        set.SetProperty("forEach", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsSet s) return JsSymbols.Undefined;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return JsSymbols.Undefined;
+            var thisArg = args.Count > 1 ? args[1] : null;
+            s.ForEach(callback, thisArg);
+            return JsSymbols.Undefined;
+        }));
+
+        // entries()
+        set.SetProperty("entries", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsSet s) return JsSymbols.Undefined;
+            return s.Entries();
+        }));
+
+        // keys()
+        set.SetProperty("keys", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsSet s) return JsSymbols.Undefined;
+            return s.Keys();
+        }));
+
+        // values()
+        set.SetProperty("values", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsSet s) return JsSymbols.Undefined;
+            return s.Values();
+        }));
+    }
 }

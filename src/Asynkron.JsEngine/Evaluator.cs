@@ -1533,6 +1533,8 @@ internal static class Evaluator
         return result switch
         {
             JsObject jsObject => jsObject,
+            JsMap jsMap => jsMap,
+            JsSet jsSet => jsSet,
             IDictionary<string, object?> dictionary => dictionary,
             _ => instance
         };
@@ -1797,6 +1799,12 @@ internal static class Evaluator
             return "undefined";
         }
         
+        // Check for JavaScript Symbol (primitive type)
+        if (value is JsSymbol)
+        {
+            return "symbol";
+        }
+        
         return value switch
         {
             bool => "boolean",
@@ -1951,6 +1959,30 @@ internal static class Evaluator
         {
             case JsArray jsArray when jsArray.TryGetProperty(propertyName, out value):
                 return true;
+            case JsMap jsMap:
+                // Handle special 'size' property
+                if (propertyName == "size")
+                {
+                    value = (double)jsMap.Size;
+                    return true;
+                }
+                if (jsMap.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+                return false;
+            case JsSet jsSet:
+                // Handle special 'size' property
+                if (propertyName == "size")
+                {
+                    value = (double)jsSet.Size;
+                    return true;
+                }
+                if (jsSet.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+                return false;
             case JsObject jsObject:
                 // Check for getter first
                 var getter = jsObject.GetGetter(propertyName);

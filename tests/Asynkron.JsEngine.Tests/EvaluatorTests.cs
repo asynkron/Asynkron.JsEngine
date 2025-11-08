@@ -814,4 +814,120 @@ person.fullName;
 ");
         Assert.Equal("Updated Smith", result);
     }
+
+    [Fact]
+    public void RestParameterCollectsRemainingArguments()
+    {
+        var engine = new JsEngine();
+        var source = @"
+function sum(first, ...rest) {
+    let total = first;
+    let i = 0;
+    while (i < rest[""length""]) {
+        total = total + rest[i];
+        i = i + 1;
+    }
+    return total;
+}
+sum(1, 2, 3, 4, 5);
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal(15d, result);
+    }
+
+    [Fact]
+    public void RestParameterWithNoExtraArgumentsCreatesEmptyArray()
+    {
+        var engine = new JsEngine();
+        var source = @"
+function test(a, ...rest) {
+    return rest[""length""];
+}
+test(1);
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal(0d, result);
+    }
+
+    [Fact]
+    public void SpreadOperatorInArrayLiteral()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let arr1 = [1, 2, 3];
+let arr2 = [4, 5, 6];
+let combined = [0, ...arr1, ...arr2, 7];
+combined[0] + combined[1] + combined[2] + combined[3] + combined[4] + combined[5] + combined[6] + combined[7];
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal(28d, result); // 0+1+2+3+4+5+6+7
+    }
+
+    [Fact]
+    public void SpreadOperatorInFunctionCall()
+    {
+        var engine = new JsEngine();
+        var source = @"
+function add(a, b, c) {
+    return a + b + c;
+}
+let numbers = [10, 20, 30];
+add(...numbers);
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal(60d, result);
+    }
+
+    [Fact]
+    public void SpreadOperatorWithMixedArguments()
+    {
+        var engine = new JsEngine();
+        var source = @"
+function greet(greeting, name1, name2) {
+    return greeting + "" "" + name1 + "" and "" + name2;
+}
+let names = [""Alice"", ""Bob""];
+greet(""Hello"", ...names);
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal("Hello Alice and Bob", result);
+    }
+
+    [Fact]
+    public void RestParameterWithSpreadInCall()
+    {
+        var engine = new JsEngine();
+        var source = @"
+function joinAll(...items) {
+    let result = """";
+    let i = 0;
+    while (i < items[""length""]) {
+        if (i > 0) {
+            result = result + "","";
+        }
+        result = result + items[i];
+        i = i + 1;
+    }
+    return result;
+}
+let arr = [""b"", ""c""];
+joinAll(""a"", ...arr, ""d"");
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal("a,b,c,d", result);
+    }
+
+    [Fact]
+    public void SpreadInNestedArrays()
+    {
+        var engine = new JsEngine();
+        var source = @"
+let inner = [2, 3];
+let outer = [1, ...inner, 4];
+let final = [0, ...outer, 5];
+final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
+";
+        var result = engine.Evaluate(source);
+        Assert.Equal(15d, result); // 0+1+2+3+4+5
+    }
 }

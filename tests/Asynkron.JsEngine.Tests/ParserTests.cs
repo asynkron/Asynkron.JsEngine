@@ -364,4 +364,73 @@ public class ParserTests
         Assert.Same(JsSymbols.DoWhile, doWhileStatement.Head);
         Assert.Equal(false, doWhileStatement.Rest.Head);
     }
+
+    [Fact]
+    public void ParseRestParameterInFunction()
+    {
+        var engine = new JsEngine();
+        var program = engine.Parse("function test(a, b, ...rest) { return rest; }");
+
+        var functionDecl = Assert.IsType<Cons>(program.Rest.Head);
+        Assert.Same(JsSymbols.Function, functionDecl.Head);
+        Assert.Equal(Symbol.Intern("test"), functionDecl.Rest.Head);
+
+        var parameters = Assert.IsType<Cons>(functionDecl.Rest.Rest.Head);
+        
+        // First two are regular parameters
+        Assert.Equal(Symbol.Intern("a"), parameters.Head);
+        Assert.Equal(Symbol.Intern("b"), parameters.Rest.Head);
+        
+        // Third is rest parameter
+        var restParam = Assert.IsType<Cons>(parameters.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Rest, restParam.Head);
+        Assert.Equal(Symbol.Intern("rest"), restParam.Rest.Head);
+    }
+
+    [Fact]
+    public void ParseSpreadInArrayLiteral()
+    {
+        var engine = new JsEngine();
+        var program = engine.Parse("let arr = [1, ...other, 2];");
+
+        var letStatement = Assert.IsType<Cons>(program.Rest.Head);
+        var arrayLiteral = Assert.IsType<Cons>(letStatement.Rest.Rest.Head);
+        Assert.Same(JsSymbols.ArrayLiteral, arrayLiteral.Head);
+        
+        // First element is literal 1
+        Assert.Equal(1d, arrayLiteral.Rest.Head);
+        
+        // Second element is spread
+        var spreadExpr = Assert.IsType<Cons>(arrayLiteral.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Spread, spreadExpr.Head);
+        Assert.Equal(Symbol.Intern("other"), spreadExpr.Rest.Head);
+        
+        // Third element is literal 2
+        Assert.Equal(2d, arrayLiteral.Rest.Rest.Rest.Head);
+    }
+
+    [Fact]
+    public void ParseSpreadInFunctionCall()
+    {
+        var engine = new JsEngine();
+        var program = engine.Parse("foo(1, ...args, 2);");
+
+        var exprStmt = Assert.IsType<Cons>(program.Rest.Head);
+        var callExpr = Assert.IsType<Cons>(exprStmt.Rest.Head);
+        Assert.Same(JsSymbols.Call, callExpr.Head);
+        
+        // Callee is foo
+        Assert.Equal(Symbol.Intern("foo"), callExpr.Rest.Head);
+        
+        // First argument is literal 1
+        Assert.Equal(1d, callExpr.Rest.Rest.Head);
+        
+        // Second argument is spread
+        var spreadExpr = Assert.IsType<Cons>(callExpr.Rest.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Spread, spreadExpr.Head);
+        Assert.Equal(Symbol.Intern("args"), spreadExpr.Rest.Head);
+        
+        // Third argument is literal 2
+        Assert.Equal(2d, callExpr.Rest.Rest.Rest.Rest.Head);
+    }
 }

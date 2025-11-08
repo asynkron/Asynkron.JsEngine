@@ -407,7 +407,8 @@ internal static class Evaluator
         var name = ExpectSymbol(cons.Rest.Head, "Expected function name.");
         var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected parameter list for function.");
         var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected function body block.");
-        var function = new JsFunction(name, ToSymbolList(parameters), body, environment);
+        var (regularParams, restParam) = ParseParameterList(parameters);
+        var function = new JsFunction(name, regularParams, restParam, body, environment);
         environment.Define(name, function);
         return function;
     }
@@ -481,7 +482,7 @@ internal static class Evaluator
                 var methodName = methodCons.Rest.Head as string
                     ?? throw new InvalidOperationException("Expected getter name.");
                 var body = ExpectCons(methodCons.Rest.Rest.Head, "Expected getter body.");
-                var getter = new JsFunction(null, Array.Empty<Symbol>(), body, environment);
+                var getter = new JsFunction(null, Array.Empty<Symbol>(), null, body, environment);
                 
                 if (superConstructor is not null || superPrototype is not null)
                 {
@@ -498,7 +499,7 @@ internal static class Evaluator
                 var param = ExpectSymbol(methodCons.Rest.Rest.Head, "Expected setter parameter.");
                 var body = ExpectCons(methodCons.Rest.Rest.Rest.Head, "Expected setter body.");
                 var paramList = new[] { param };
-                var setter = new JsFunction(null, paramList, body, environment);
+                var setter = new JsFunction(null, paramList, null, body, environment);
                 
                 if (superConstructor is not null || superPrototype is not null)
                 {
@@ -685,7 +686,8 @@ internal static class Evaluator
             var maybeName = cons.Rest.Head as Symbol;
             var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected lambda parameters list.");
             var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected lambda body block.");
-            return new JsFunction(maybeName, ToSymbolList(parameters), body, environment);
+            var (regularParams, restParam) = ParseParameterList(parameters);
+            return new JsFunction(maybeName, regularParams, restParam, body, environment);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Ternary))
@@ -713,7 +715,27 @@ internal static class Evaluator
         var arguments = new List<object?>();
         foreach (var argumentExpression in cons.Rest.Rest)
         {
-            arguments.Add(EvaluateExpression(argumentExpression, environment));
+            // Check if this is a spread argument
+            if (argumentExpression is Cons { Head: Symbol head } spreadCons && ReferenceEquals(head, JsSymbols.Spread))
+            {
+                var spreadValue = EvaluateExpression(spreadCons.Rest.Head, environment);
+                // Spread arrays
+                if (spreadValue is JsArray array)
+                {
+                    foreach (var element in array.Items)
+                    {
+                        arguments.Add(element);
+                    }
+                }
+                else
+                {
+                    throw new InvalidOperationException("Spread operator can only be applied to arrays.");
+                }
+            }
+            else
+            {
+                arguments.Add(EvaluateExpression(argumentExpression, environment));
+            }
         }
 
         return callable.Invoke(arguments, thisValue);
@@ -803,7 +825,27 @@ internal static class Evaluator
         var array = new JsArray();
         foreach (var elementExpression in cons.Rest)
         {
-            array.Push(EvaluateExpression(elementExpression, environment));
+            // Check if this is a spread element
+            if (elementExpression is Cons { Head: Symbol head } spreadCons && ReferenceEquals(head, JsSymbols.Spread))
+            {
+                var spreadValue = EvaluateExpression(spreadCons.Rest.Head, environment);
+                // Spread arrays
+                if (spreadValue is JsArray spreadArray)
+                {
+                    foreach (var arrayElement in spreadArray.Items)
+                    {
+                        array.Push(arrayElement);
+                    }
+                }
+                else
+                {
+                    throw new InvalidOperationException("Spread operator can only be applied to arrays.");
+                }
+            }
+            else
+            {
+                array.Push(EvaluateExpression(elementExpression, environment));
+            }
         }
 
         return array;
@@ -864,7 +906,7 @@ internal static class Evaluator
             {
                 // (getter "name" (block ...))
                 var body = ExpectCons(propertyCons.Rest.Rest.Head, "Expected getter body.");
-                var getter = new JsFunction(null, Array.Empty<Symbol>(), body, environment);
+                var getter = new JsFunction(null, Array.Empty<Symbol>(), null, body, environment);
                 result.SetGetter(propertyName, getter);
             }
             else if (ReferenceEquals(propertyTag, JsSymbols.Setter))
@@ -873,7 +915,7 @@ internal static class Evaluator
                 var param = ExpectSymbol(propertyCons.Rest.Rest.Head, "Expected setter parameter.");
                 var body = ExpectCons(propertyCons.Rest.Rest.Rest.Head, "Expected setter body.");
                 var paramList = new[] { param };
-                var setter = new JsFunction(null, paramList, body, environment);
+                var setter = new JsFunction(null, paramList, null, body, environment);
                 result.SetSetter(propertyName, setter);
             }
             else
@@ -1080,6 +1122,26 @@ internal static class Evaluator
         }
 
         return result;
+    }
+
+    private static (IReadOnlyList<Symbol> regularParams, Symbol? restParam) ParseParameterList(Cons list)
+    {
+        var regularParams = new List<Symbol>();
+        Symbol? restParam = null;
+
+        foreach (var item in list)
+        {
+            // Check if this is a rest parameter (rest symbol paramName)
+            if (item is Cons { Head: Symbol head } restCons && ReferenceEquals(head, JsSymbols.Rest))
+            {
+                restParam = ExpectSymbol(restCons.Rest.Head, "Expected rest parameter name.");
+                break; // Rest parameter must be last
+            }
+            
+            regularParams.Add(ExpectSymbol(item, "Expected symbol in parameter list."));
+        }
+
+        return (regularParams, restParam);
     }
 
     private static Symbol ExpectSymbol(object? value, string message)

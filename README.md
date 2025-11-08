@@ -22,12 +22,12 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Arrays**: Array literals, indexing, dynamic length
 - **Template literals**: Backtick strings with `${}` expression interpolation
 - **Getters/setters**: `get`/`set` property accessors in objects and classes
+- **Spread/rest operators**: Rest parameters in functions (`...args`), spread in arrays (`[...arr]`), spread in calls (`fn(...args)`)
 
 ### 🚧 Not Yet Implemented
 
 - Async/await, Promises
 - Destructuring
-- Spread/rest operators
 - Regular expressions
 - Standard library (Array methods, Math, Date, JSON, etc.)
 - Complex type coercion rules (comprehensive toString, toNumber conversions)
@@ -231,6 +231,46 @@ var classResult = engine.Evaluate(@"
 Console.WriteLine(classResult); // Output: 50
 ```
 
+### Spread and Rest Operators
+
+```csharp
+var engine = new JsEngine();
+
+// Rest parameters in functions
+var restResult = engine.Evaluate(@"
+    function sum(first, ...rest) {
+        let total = first;
+        let i = 0;
+        while (i < rest.length) {
+            total = total + rest[i];
+            i = i + 1;
+        }
+        return total;
+    }
+    sum(1, 2, 3, 4, 5);
+");
+Console.WriteLine(restResult); // Output: 15
+
+// Spread in array literals
+var spreadArrayResult = engine.Evaluate(@"
+    let arr1 = [1, 2, 3];
+    let arr2 = [4, 5, 6];
+    let combined = [0, ...arr1, ...arr2, 7];
+    combined[3];
+");
+Console.WriteLine(spreadArrayResult); // Output: 3
+
+// Spread in function calls
+var spreadCallResult = engine.Evaluate(@"
+    function add(a, b, c) {
+        return a + b + c;
+    }
+    let numbers = [10, 20, 30];
+    add(...numbers);
+");
+Console.WriteLine(spreadCallResult); // Output: 60
+```
+
 ### Ternary Operator
 
 ```csharp
@@ -271,7 +311,7 @@ The demo showcases:
 - Ternary operator
 - Template literals
 - Getters/setters
-- Control flow
+- Spread/rest operators
 - Host function interop
 
 ## Building and Testing

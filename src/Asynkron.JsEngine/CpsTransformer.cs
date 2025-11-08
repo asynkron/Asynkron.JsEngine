@@ -237,12 +237,21 @@ public sealed class CpsTransformer
             Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, rejectCall })
         });
 
+        // Create the catch clause: (catch catchParam catchBlock)
+        var catchClause = Cons.FromEnumerable(new object?[] 
+        { 
+            JsSymbols.Catch, 
+            catchParam, 
+            catchBlock 
+        });
+
+        // Create try statement with catch and no finally (null)
         var tryStatement = Cons.FromEnumerable(new object?[] 
         { 
             JsSymbols.Try, 
             transformedBody, 
-            catchParam, 
-            catchBlock 
+            catchClause,
+            null  // No finally clause
         });
 
         return Cons.FromEnumerable(new object?[] { JsSymbols.Block, tryStatement });

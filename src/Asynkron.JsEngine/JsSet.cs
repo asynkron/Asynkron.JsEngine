@@ -134,6 +134,12 @@ internal sealed class JsSet
             return true;
         }
 
+        // Handle strings - use value equality
+        if (x is string sx && y is string sy)
+        {
+            return sx == sy;
+        }
+
         // For reference types, use reference equality
         if (!x.GetType().IsValueType || !y.GetType().IsValueType)
         {

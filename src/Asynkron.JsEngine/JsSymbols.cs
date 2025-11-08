@@ -51,5 +51,24 @@ public static class JsSymbols
     public static readonly Symbol Rest = Symbol.Intern("rest");
     public static readonly Symbol Uninitialized = Symbol.Intern("<uninitialized>");
 
+    // CPS-related symbols for continuation-passing style transformation
+    public static readonly Symbol Continuation = Symbol.Intern("continuation");
+    public static readonly Symbol CallK = Symbol.Intern("call-k");
+    public static readonly Symbol LetK = Symbol.Intern("let-k");
+    
+    // Async/Await symbols
+    public static readonly Symbol Async = Symbol.Intern("async");
+    public static readonly Symbol Await = Symbol.Intern("await");
+    public static readonly Symbol Promise = Symbol.Intern("promise");
+    
+    // Generator symbols
+    public static readonly Symbol Generator = Symbol.Intern("generator");
+    public static readonly Symbol Yield = Symbol.Intern("yield");
+    public static readonly Symbol YieldStar = Symbol.Intern("yield*");
+    
+    // Suspension/Resumption symbols
+    public static readonly Symbol Suspend = Symbol.Intern("suspend");
+    public static readonly Symbol Resume = Symbol.Intern("resume");
+
     public static Symbol Operator(string op) => Symbol.Intern(op);
 }

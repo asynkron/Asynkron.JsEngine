@@ -4,6 +4,8 @@ namespace Asynkron.JsEngine;
 
 internal sealed record TemplateExpression(string ExpressionText);
 
+internal sealed record RegexLiteralValue(string Pattern, string Flags);
+
 internal sealed class Lexer(string source)
 {
     private static readonly Dictionary<string, TokenType> Keywords = new(StringComparer.Ordinal)
@@ -148,6 +150,10 @@ internal sealed class Lexer(string source)
                 if (Match('/'))
                 {
                     SkipSingleLineComment();
+                }
+                else if (IsRegexContext())
+                {
+                    ReadRegexLiteral();
                 }
                 else
                 {
@@ -401,5 +407,110 @@ internal sealed class Lexer(string source)
     {
         var text = _source[_start.._current];
         _tokens.Add(new Token(type, text, literal, _line, _column));
+    }
+
+    private bool IsRegexContext()
+    {
+        // A regex literal can appear after tokens that cannot be followed by a division operator
+        // Common contexts: =, (, [, ,, {, :, ;, !, &, |, ?, return, throw, etc.
+        if (_tokens.Count == 0)
+        {
+            return true; // Start of input
+        }
+
+        var lastToken = _tokens[^1].Type;
+        return lastToken is
+            TokenType.Equal or
+            TokenType.LeftParen or
+            TokenType.LeftBracket or
+            TokenType.LeftBrace or
+            TokenType.Comma or
+            TokenType.Colon or
+            TokenType.Semicolon or
+            TokenType.Bang or
+            TokenType.AmpAmp or
+            TokenType.PipePipe or
+            TokenType.Question or
+            TokenType.QuestionQuestion or
+            TokenType.Return or
+            TokenType.Throw or
+            TokenType.New or
+            TokenType.EqualEqual or
+            TokenType.EqualEqualEqual or
+            TokenType.BangEqual or
+            TokenType.BangEqualEqual or
+            TokenType.Greater or
+            TokenType.GreaterEqual or
+            TokenType.Less or
+            TokenType.LessEqual;
+    }
+
+    private void ReadRegexLiteral()
+    {
+        var pattern = new System.Text.StringBuilder();
+
+        // Read pattern until unescaped /
+        while (!IsAtEnd && Peek() != '/')
+        {
+            if (Peek() == '\\')
+            {
+                // Include escape sequences in the pattern
+                pattern.Append(Advance());
+                if (!IsAtEnd)
+                {
+                    pattern.Append(Advance());
+                }
+            }
+            else if (Peek() == '\n')
+            {
+                throw new ParseException("Unterminated regex literal - newline in pattern.");
+            }
+            else if (Peek() == '[')
+            {
+                // Character class - read until ]
+                pattern.Append(Advance());
+                while (!IsAtEnd && Peek() != ']')
+                {
+                    if (Peek() == '\\')
+                    {
+                        pattern.Append(Advance());
+                        if (!IsAtEnd)
+                        {
+                            pattern.Append(Advance());
+                        }
+                    }
+                    else
+                    {
+                        pattern.Append(Advance());
+                    }
+                }
+                if (!IsAtEnd && Peek() == ']')
+                {
+                    pattern.Append(Advance());
+                }
+            }
+            else
+            {
+                pattern.Append(Advance());
+            }
+        }
+
+        if (IsAtEnd)
+        {
+            throw new ParseException("Unterminated regex literal.");
+        }
+
+        // Skip closing /
+        Advance();
+
+        // Read flags (g, i, m, etc.)
+        var flags = new System.Text.StringBuilder();
+        while (!IsAtEnd && IsAlpha(Peek()))
+        {
+            flags.Append(Advance());
+        }
+
+        var regexValue = new RegexLiteralValue(pattern.ToString(), flags.ToString());
+        AddToken(TokenType.RegexLiteral, regexValue);
     }
 }

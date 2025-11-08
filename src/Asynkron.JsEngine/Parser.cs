@@ -1067,6 +1067,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             return ParseTemplateLiteralExpression();
         }
 
+        if (Match(TokenType.RegexLiteral))
+        {
+            return ParseRegexLiteral();
+        }
+
         if (Match(TokenType.Identifier))
         {
             return Symbol.Intern(Previous().Lexeme);
@@ -1298,6 +1303,35 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                     }
                 }
             }
+        }
+        
+        return Cons.FromEnumerable(items);
+    }
+
+    private object ParseRegexLiteral()
+    {
+        var token = Previous();
+        var regexValue = token.Literal as RegexLiteralValue;
+        if (regexValue == null)
+        {
+            throw new ParseException("Invalid regex literal.");
+        }
+
+        // Create a new RegExp(...) expression
+        // (new RegExp pattern flags)
+        var pattern = regexValue.Pattern;
+        var flags = regexValue.Flags;
+        
+        var items = new List<object?> 
+        { 
+            JsSymbols.New, 
+            Symbol.Intern("RegExp"),
+            pattern
+        };
+        
+        if (!string.IsNullOrEmpty(flags))
+        {
+            items.Add(flags);
         }
         
         return Cons.FromEnumerable(items);

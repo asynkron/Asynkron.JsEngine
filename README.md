@@ -15,10 +15,10 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Prototypes**: `__proto__` chain for property lookups
 - **Control flow**: `if`/`else`, `for`, `while`, `do-while`, `switch`/`case`
 - **Error handling**: `try`/`catch`/`finally`, `throw`
-- **Operators**: Arithmetic, logical (`&&`, `||`, `??`), comparison (`===`, `!==`, etc.), ternary (`? :`)
+- **Operators**: Arithmetic, logical (`&&`, `||`, `??`), comparison (`===`, `!==`, `==`, `!=`, etc.), ternary (`? :`), `typeof`
 - **Classes**: `class`, `extends`, `super`, `new`
 - **Comments**: Single-line `//` comments
-- **Type coercion**: Basic truthiness evaluation
+- **Type coercion**: Basic truthiness evaluation, null/undefined coercion (null to 0, undefined to NaN in arithmetic)
 - **Arrays**: Array literals, indexing, dynamic length
 - **Template literals**: Backtick strings with `${}` expression interpolation
 - **Getters/setters**: `get`/`set` property accessors in objects and classes
@@ -29,6 +29,7 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Generators**: Generator functions (`function*`, `yield`) with iterator protocol support
 - **Event Queue**: Asynchronous task scheduling and event loop integration
 - **Regular expressions**: RegExp constructor with `test()`, `exec()` methods, and regex support in string methods (match, search, replace)
+- **JavaScript oddities**: `typeof null === "object"`, `null == undefined`, proper undefined handling
 - **Standard library**: 
   - Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
   - Array methods (map, filter, reduce, forEach, find, findIndex, some, every, join, includes, indexOf, slice, push, pop, shift, unshift, splice, concat, reverse, sort)
@@ -924,6 +925,45 @@ var isValidEmail = engine.Evaluate(@"
     valid;
 ");
 Console.WriteLine(isValidEmail); // Output: True
+```
+
+### Typeof Operator and Undefined
+
+```csharp
+var engine = new JsEngine();
+
+// typeof operator
+var typeofNull = engine.Evaluate("typeof null;");
+Console.WriteLine(typeofNull); // Output: object (JavaScript oddity!)
+
+var typeofUndefined = engine.Evaluate("typeof undefined;");
+Console.WriteLine(typeofUndefined); // Output: undefined
+
+var typeofNumber = engine.Evaluate("typeof 42;");
+Console.WriteLine(typeofNumber); // Output: number
+
+// Undefined handling
+var isUndefined = engine.Evaluate("let x = undefined; typeof x === \"undefined\";");
+Console.WriteLine(isUndefined); // Output: True
+
+// Loose equality oddity: null == undefined
+var looseEqual = engine.Evaluate("null == undefined;");
+Console.WriteLine(looseEqual); // Output: True
+
+// But strict equality: null !== undefined
+var strictEqual = engine.Evaluate("null === undefined;");
+Console.WriteLine(strictEqual); // Output: False
+
+// Nullish coalescing with undefined
+var coalesce = engine.Evaluate("undefined ?? \"default\";");
+Console.WriteLine(coalesce); // Output: default
+
+// Type coercion
+var nullArithmetic = engine.Evaluate("null + 5;");
+Console.WriteLine(nullArithmetic); // Output: 5 (null coerces to 0)
+
+var undefinedArithmetic = engine.Evaluate("undefined + 5;");
+Console.WriteLine(undefinedArithmetic); // Output: NaN (undefined coerces to NaN)
 ```
 
 ## Running the Demo

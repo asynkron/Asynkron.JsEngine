@@ -335,11 +335,14 @@ public class AsyncAwaitTests
     }
 
     [Fact]
-    public void CpsTransformer_DetectsAsyncFunction()
+    public void CpsTransformer_AlreadyTransformedCodeDoesNotNeedTransformation()
     {
         // Arrange
-        var transformer = new CpsTransformer();
         var engine = new JsEngine();
+        var transformer = new CpsTransformer();
+        
+        // engine.Parse() already applies CPS transformation, so the result
+        // should not need transformation again
         var program = engine.Parse(@"
             async function test() {
                 return 42;
@@ -349,16 +352,19 @@ public class AsyncAwaitTests
         // Act
         var needsTransform = transformer.NeedsTransformation(program);
 
-        // Assert
-        Assert.True(needsTransform);
+        // Assert - Already transformed code should not need transformation
+        Assert.False(needsTransform);
     }
 
     [Fact]
-    public void CpsTransformer_DetectsAwaitExpression()
+    public void CpsTransformer_AlreadyTransformedAwaitDoesNotNeedTransformation()
     {
         // Arrange
-        var transformer = new CpsTransformer();
         var engine = new JsEngine();
+        var transformer = new CpsTransformer();
+        
+        // engine.Parse() already applies CPS transformation, so the result
+        // should not need transformation again
         var program = engine.Parse(@"
             async function test() {
                 let value = await Promise.resolve(42);
@@ -369,27 +375,29 @@ public class AsyncAwaitTests
         // Act
         var needsTransform = transformer.NeedsTransformation(program);
 
-        // Assert
-        Assert.True(needsTransform);
+        // Assert - Already transformed code should not need transformation
+        Assert.False(needsTransform);
     }
 
     [Fact]
-    public void CpsTransformer_TransformsAsyncFunction()
+    public void CpsTransformer_TransformIsIdempotent()
     {
         // Arrange
-        var transformer = new CpsTransformer();
         var engine = new JsEngine();
+        var transformer = new CpsTransformer();
+        
+        // engine.Parse() already applies CPS transformation
         var program = engine.Parse(@"
             async function test() {
                 return 42;
             }
         ");
 
-        // Act
+        // Act - Transform already-transformed code
         var transformed = transformer.Transform(program);
 
-        // Assert
+        // Assert - Should return the same program unchanged since it doesn't need transformation
         Assert.NotNull(transformed);
-        Assert.NotEqual(program, transformed); // Should be a different instance
+        Assert.Same(program, transformed); // Should be the same instance
     }
 }

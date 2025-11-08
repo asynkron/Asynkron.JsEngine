@@ -26,6 +26,8 @@ internal sealed class Lexer(string source)
         ["if"] = TokenType.If,
         ["else"] = TokenType.Else,
         ["for"] = TokenType.For,
+        ["in"] = TokenType.In,
+        ["of"] = TokenType.Of,
         ["while"] = TokenType.While,
         ["do"] = TokenType.Do,
         ["break"] = TokenType.Break,
@@ -98,7 +100,18 @@ internal sealed class Lexer(string source)
                 AddToken(TokenType.Semicolon);
                 break;
             case '+':
-                AddToken(TokenType.Plus);
+                if (Match('+'))
+                {
+                    AddToken(TokenType.PlusPlus);
+                }
+                else if (Match('='))
+                {
+                    AddToken(TokenType.PlusEqual);
+                }
+                else
+                {
+                    AddToken(TokenType.Plus);
+                }
                 break;
             case '.':
                 if (Match('.') && Match('.'))
@@ -111,19 +124,41 @@ internal sealed class Lexer(string source)
                 }
                 break;
             case '-':
-                AddToken(TokenType.Minus);
+                if (Match('-'))
+                {
+                    AddToken(TokenType.MinusMinus);
+                }
+                else if (Match('='))
+                {
+                    AddToken(TokenType.MinusEqual);
+                }
+                else
+                {
+                    AddToken(TokenType.Minus);
+                }
                 break;
             case '*':
-                AddToken(TokenType.Star);
+                if (Match('='))
+                {
+                    AddToken(TokenType.StarEqual);
+                }
+                else
+                {
+                    AddToken(TokenType.Star);
+                }
                 break;
             case '&':
                 if (Match('&'))
                 {
                     AddToken(TokenType.AmpAmp);
                 }
+                else if (Match('='))
+                {
+                    AddToken(TokenType.AmpEqual);
+                }
                 else
                 {
-                    throw new ParseException("Unexpected '&' without a matching '&'.");
+                    AddToken(TokenType.Amp);
                 }
                 break;
             case '|':
@@ -131,9 +166,13 @@ internal sealed class Lexer(string source)
                 {
                     AddToken(TokenType.PipePipe);
                 }
+                else if (Match('='))
+                {
+                    AddToken(TokenType.PipeEqual);
+                }
                 else
                 {
-                    throw new ParseException("Unexpected '|' without a matching '|'.");
+                    AddToken(TokenType.Pipe);
                 }
                 break;
             case '?':
@@ -151,9 +190,17 @@ internal sealed class Lexer(string source)
                 {
                     SkipSingleLineComment();
                 }
+                else if (Match('*'))
+                {
+                    SkipMultiLineComment();
+                }
                 else if (IsRegexContext())
                 {
                     ReadRegexLiteral();
+                }
+                else if (Match('='))
+                {
+                    AddToken(TokenType.SlashEqual);
                 }
                 else
                 {
@@ -181,10 +228,57 @@ internal sealed class Lexer(string source)
                 }
                 break;
             case '>':
-                AddToken(Match('=') ? TokenType.GreaterEqual : TokenType.Greater);
+                if (Match('>'))
+                {
+                    if (Match('>'))
+                    {
+                        AddToken(Match('=') ? TokenType.GreaterGreaterGreaterEqual : TokenType.GreaterGreaterGreater);
+                    }
+                    else
+                    {
+                        AddToken(Match('=') ? TokenType.GreaterGreaterEqual : TokenType.GreaterGreater);
+                    }
+                }
+                else
+                {
+                    AddToken(Match('=') ? TokenType.GreaterEqual : TokenType.Greater);
+                }
                 break;
             case '<':
-                AddToken(Match('=') ? TokenType.LessEqual : TokenType.Less);
+                if (Match('<'))
+                {
+                    AddToken(Match('=') ? TokenType.LessLessEqual : TokenType.LessLess);
+                }
+                else
+                {
+                    AddToken(Match('=') ? TokenType.LessEqual : TokenType.Less);
+                }
+                break;
+            case '%':
+                if (Match('='))
+                {
+                    AddToken(TokenType.PercentEqual);
+                }
+                else
+                {
+                    AddToken(TokenType.Percent);
+                }
+                break;
+            case '^':
+                if (Match('='))
+                {
+                    AddToken(TokenType.CaretEqual);
+                }
+                else
+                {
+                    AddToken(TokenType.Caret);
+                }
+                break;
+            case '~':
+                AddToken(TokenType.Tilde);
+                break;
+            case '\'':
+                ReadSingleQuotedString();
                 break;
             case ' ': // ignore insignificant whitespace
             case '\r':
@@ -223,6 +317,26 @@ internal sealed class Lexer(string source)
         {
             Advance();
         }
+    }
+
+    private void SkipMultiLineComment()
+    {
+        while (!IsAtEnd)
+        {
+            if (Peek() == '*' && PeekNext() == '/')
+            {
+                Advance(); // consume '*'
+                Advance(); // consume '/'
+                return;
+            }
+            if (Peek() == '\n')
+            {
+                _line++;
+                _column = 1;
+            }
+            Advance();
+        }
+        throw new ParseException("Unterminated multi-line comment.");
     }
 
     private void ReadIdentifier()
@@ -267,6 +381,29 @@ internal sealed class Lexer(string source)
     private void ReadString()
     {
         while (!IsAtEnd && Peek() != '"')
+        {
+            if (Peek() == '\n')
+            {
+                _line++;
+                _column = 1;
+            }
+
+            Advance();
+        }
+
+        if (IsAtEnd)
+        {
+            throw new ParseException("Unterminated string literal.");
+        }
+
+        Advance();
+        var value = _source[(_start + 1)..(_current - 1)];
+        AddToken(TokenType.String, value);
+    }
+
+    private void ReadSingleQuotedString()
+    {
+        while (!IsAtEnd && Peek() != '\'')
         {
             if (Peek() == '\n')
             {

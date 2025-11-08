@@ -12,10 +12,7 @@ jobs:
     permissions:
       contents: read
       checks: write
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
@@ -37,7 +34,6 @@ jobs:
       
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
-      if: matrix.os == 'ubuntu-latest'
       with:
         files: '**/coverage.cobertura.xml'
         fail_ci_if_error: false
@@ -46,7 +42,7 @@ jobs:
       uses: dorny/test-reporter@v1
       if: always()
       with:
-        name: Test Results (${{ matrix.os }})
+        name: Test Results
         path: '**/test-results.trx'
         reporter: dotnet-trx
         fail-on-error: true

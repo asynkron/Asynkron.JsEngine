@@ -6,6 +6,7 @@ namespace Asynkron.JsEngine;
 public sealed class JsEngine
 {
     private readonly Environment _global = new(isFunctionScope: true);
+    private readonly CpsTransformer _cpsTransformer = new();
 
     /// <summary>
     /// Initializes a new instance of JsEngine with standard library objects.
@@ -34,13 +35,28 @@ public sealed class JsEngine
 
     /// <summary>
     /// Parses JavaScript source code into an S-expression representation.
+    /// Applies CPS (Continuation-Passing Style) transformation if the code contains
+    /// async functions, generators, await expressions, or yield expressions.
     /// </summary>
     public Cons Parse(string source)
     {
+        // Step 1: Tokenize
         var lexer = new Lexer(source);
         var tokens = lexer.Tokenize();
+        
+        // Step 2: Parse to S-expressions
         var parser = new Parser(tokens);
-        return parser.ParseProgram();
+        var program = parser.ParseProgram();
+        
+        // Step 3: Apply CPS transformation if needed
+        // This enables support for generators and async/await by converting
+        // the S-expression tree to continuation-passing style
+        if (_cpsTransformer.NeedsTransformation(program))
+        {
+            return _cpsTransformer.Transform(program);
+        }
+        
+        return program;
     }
 
     /// <summary>

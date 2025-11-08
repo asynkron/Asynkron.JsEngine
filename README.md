@@ -32,7 +32,8 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 
 ### 🚧 Not Yet Implemented
 
-- Async/await, Promises
+- Async/await, Promises (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for implementation roadmap)
+- Generators (`function*`, `yield`) (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for implementation roadmap)
 - Destructuring
 - Regular expressions
 - Complex type coercion rules (comprehensive toString, toNumber conversions)
@@ -619,7 +620,8 @@ dotnet test
 
 ## Limitations
 
-- **No Async**: Promises and async/await are not supported
+- **No Async**: Promises and async/await are not supported (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for roadmap)
+- **No Generators**: Generator functions (`function*`, `yield`) are not supported (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for roadmap)
 - **No Regex**: Regular expressions are not implemented
 - **No Destructuring**: Destructuring assignments are not supported
 - **No Modules**: ES6 import/export is not supported
@@ -627,6 +629,14 @@ dotnet test
 - **Semicolons**: Statement-ending semicolons are required
 - **Number Types**: All numbers are treated as doubles (no BigInt)
 - **Type Coercion**: Only basic type coercion is implemented
+
+## Future Roadmap
+
+See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for a detailed plan on implementing:
+- Continuation-Passing Style (CPS) transformation
+- Generator functions (`function*`, `yield`)
+- Async/await and Promises
+- Implementation timeline and phases
 
 ## Contributing
 

@@ -96,30 +96,28 @@ internal sealed class JsGenerator : IJsCallable
             var context = new EvaluationContext();
             
             // Execute the body (or re-execute it to get to the next yield)
-            try
+            var result = Evaluator.EvaluateBlock(_body, _executionEnv, context);
+            
+            // Check if yield was encountered
+            if (context.IsYield)
             {
-                var result = Evaluator.EvaluateBlock(_body, _executionEnv, context);
-                
-                // Check if return was encountered
-                if (context.IsReturn)
-                {
-                    _state = GeneratorState.Completed;
-                    _done = true;
-                    return CreateIteratorResult(context.FlowValue, true);
-                }
-                
-                // If we get here without a yield, the generator is complete
-                _state = GeneratorState.Completed;
-                _done = true;
-                return CreateIteratorResult(result, true);
-            }
-            catch (YieldSignal yieldSignal)
-            {
-                // A yield was encountered and thrown
                 _state = GeneratorState.Suspended;
                 _currentYieldIndex++;
-                return CreateIteratorResult(yieldSignal.Value, false);
+                return CreateIteratorResult(context.FlowValue, false);
             }
+            
+            // Check if return was encountered
+            if (context.IsReturn)
+            {
+                _state = GeneratorState.Completed;
+                _done = true;
+                return CreateIteratorResult(context.FlowValue, true);
+            }
+            
+            // If we get here without a yield, the generator is complete
+            _state = GeneratorState.Completed;
+            _done = true;
+            return CreateIteratorResult(result, true);
         }
         catch (Exception)
         {

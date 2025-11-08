@@ -24,7 +24,10 @@ internal sealed class EvaluationContext
         Continue,
         
         /// <summary>Throw statement encountered</summary>
-        Throw
+        Throw,
+        
+        /// <summary>Yield expression encountered (in generator context)</summary>
+        Yield
     }
     
     /// <summary>
@@ -74,6 +77,15 @@ internal sealed class EvaluationContext
     }
     
     /// <summary>
+    /// Sets the context to Yield state with the given value.
+    /// </summary>
+    public void SetYield(object? value)
+    {
+        Flow = ControlFlow.Yield;
+        FlowValue = value;
+    }
+    
+    /// <summary>
     /// Clears the Continue state (used when a loop consumes it).
     /// </summary>
     public void ClearContinue()
@@ -101,6 +113,17 @@ internal sealed class EvaluationContext
     public void ClearReturn()
     {
         if (Flow == ControlFlow.Return)
+        {
+            Flow = ControlFlow.None;
+        }
+    }
+    
+    /// <summary>
+    /// Clears the Yield state (used when a generator consumes it).
+    /// </summary>
+    public void ClearYield()
+    {
+        if (Flow == ControlFlow.Yield)
         {
             Flow = ControlFlow.None;
         }
@@ -139,4 +162,9 @@ internal sealed class EvaluationContext
     /// Returns true if the current state is Throw.
     /// </summary>
     public bool IsThrow => Flow == ControlFlow.Throw;
+    
+    /// <summary>
+    /// Returns true if the current state is Yield.
+    /// </summary>
+    public bool IsYield => Flow == ControlFlow.Yield;
 }

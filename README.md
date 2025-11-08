@@ -25,22 +25,25 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Spread/rest operators**: Rest parameters in functions (`...args`), spread in arrays (`[...arr]`), spread in calls (`fn(...args)`)
 - **Timers**: `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval` for scheduling asynchronous work
 - **Promises**: Promise constructor, `then`, `catch`, `finally` methods, and static methods (`Promise.resolve`, `Promise.reject`, `Promise.all`, `Promise.race`)
+- **Async/await**: Full async function support with `async`/`await` syntax, including error handling
+- **Generators**: Generator functions (`function*`, `yield`) with iterator protocol support
 - **Event Queue**: Asynchronous task scheduling and event loop integration
+- **Regular expressions**: RegExp constructor with `test()`, `exec()` methods, and regex support in string methods (match, search, replace)
 - **Standard library**: 
   - Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
   - Array methods (map, filter, reduce, forEach, find, findIndex, some, every, join, includes, indexOf, slice, push, pop, shift, unshift, splice, concat, reverse, sort)
+  - String methods (charAt, charCodeAt, indexOf, lastIndexOf, substring, slice, toLowerCase, toUpperCase, trim, trimStart, trimEnd, split, replace, startsWith, endsWith, includes, repeat, padStart, padEnd, match, search)
   - Date object with constructor and instance methods (getTime, getFullYear, getMonth, getDate, getDay, getHours, getMinutes, getSeconds, getMilliseconds, toISOString)
   - Date static methods (now, parse)
   - JSON object with parse and stringify methods
+  - RegExp constructor with flags (g, i, m) and methods (test, exec)
 
 ### 🚧 Not Yet Implemented
 
-- Async/await (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for implementation roadmap)
-- Generators (`function*`, `yield`) (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for implementation roadmap)
-- Destructuring
-- Regular expressions
+- Destructuring (array and object destructuring)
 - Complex type coercion rules (comprehensive toString, toNumber conversions)
 - Modules (import/export)
+- Regex literals (/pattern/flags syntax) - Use `new RegExp()` constructor instead
 
 ## Architecture
 
@@ -681,6 +684,248 @@ await engine.Run(@"
 ");
 ```
 
+### Async/Await
+
+```csharp
+var engine = new JsEngine();
+
+// Simple async function
+await engine.Run(@"
+    async function fetchData() {
+        return ""Hello from async"";
+    }
+    
+    fetchData().then(function(result) {
+        console.log(result); // Output: Hello from async
+    });
+");
+
+// Async function with await
+await engine.Run(@"
+    async function processData() {
+        let value1 = await Promise.resolve(10);
+        let value2 = await Promise.resolve(20);
+        return value1 + value2;
+    }
+    
+    processData().then(function(result) {
+        console.log(result); // Output: 30
+    });
+");
+
+// Async/await with error handling
+await engine.Run(@"
+    async function riskyOperation() {
+        try {
+            let result = await Promise.reject(""Something went wrong"");
+            return result;
+        } catch (error) {
+            return ""Caught: "" + error;
+        }
+    }
+    
+    riskyOperation().then(function(result) {
+        console.log(result); // Output: Caught: Something went wrong
+    });
+");
+
+// Async with multiple awaits in expressions
+await engine.Run(@"
+    async function calculate() {
+        let sum = (await Promise.resolve(5)) + (await Promise.resolve(10));
+        return sum * 2;
+    }
+    
+    calculate().then(function(result) {
+        console.log(result); // Output: 30
+    });
+");
+```
+
+### Generators
+
+```csharp
+var engine = new JsEngine();
+
+// Simple generator
+var result = engine.Evaluate(@"
+    function* countUpTo(max) {
+        let count = 1;
+        while (count <= max) {
+            yield count;
+            count = count + 1;
+        }
+    }
+    
+    let generator = countUpTo(3);
+    let first = generator.next().value;   // 1
+    let second = generator.next().value;  // 2
+    let third = generator.next().value;   // 3
+    first + second + third;
+");
+Console.WriteLine(result); // Output: 6
+
+// Generator with yield expressions
+engine.Evaluate(@"
+    function* fibonacci() {
+        let a = 0;
+        let b = 1;
+        while (true) {
+            yield a;
+            let temp = a;
+            a = b;
+            b = temp + b;
+        }
+    }
+    
+    let fib = fibonacci();
+    let f1 = fib.next().value;  // 0
+    let f2 = fib.next().value;  // 1
+    let f3 = fib.next().value;  // 1
+    let f4 = fib.next().value;  // 2
+    let f5 = fib.next().value;  // 3
+");
+
+// Generator iteration
+engine.Evaluate(@"
+    function* range(start, end) {
+        let i = start;
+        while (i < end) {
+            yield i;
+            i = i + 1;
+        }
+    }
+    
+    let gen = range(1, 5);
+    let sum = 0;
+    let result = gen.next();
+    while (!result.done) {
+        sum = sum + result.value;
+        result = gen.next();
+    }
+");
+```
+
+### String Methods
+
+```csharp
+var engine = new JsEngine();
+
+// Character access and search
+var result = engine.Evaluate(@"
+    let str = ""Hello World"";
+    let char = str.charAt(6);        // ""W""
+    let code = str.charCodeAt(0);    // 72 (H)
+    let index = str.indexOf(""World""); // 6
+    char;
+");
+Console.WriteLine(result); // Output: W
+
+// String manipulation
+engine.Evaluate(@"
+    let original = ""  JavaScript  "";
+    let trimmed = original.trim();           // ""JavaScript""
+    let upper = trimmed.toUpperCase();       // ""JAVASCRIPT""
+    let lower = upper.toLowerCase();         // ""javascript""
+    let substr = lower.substring(0, 4);      // ""java""
+");
+
+// Split and join
+var words = engine.Evaluate(@"
+    let sentence = ""hello,world,test"";
+    let parts = sentence.split("","");
+    parts[1];
+");
+Console.WriteLine(words); // Output: world
+
+// String searching and testing
+engine.Evaluate(@"
+    let email = ""user@example.com"";
+    let hasAt = email.includes(""@"");        // true
+    let startsWithUser = email.startsWith(""user""); // true
+    let endsWithCom = email.endsWith("".com"");     // true
+");
+
+// Padding and repeating
+var padded = engine.Evaluate(@"
+    let num = ""5"";
+    num.padStart(3, ""0"");  // ""005""
+");
+Console.WriteLine(padded); // Output: 005
+
+var repeated = engine.Evaluate(@"
+    ""ha"".repeat(3);  // ""hahaha""
+");
+Console.WriteLine(repeated); // Output: hahaha
+```
+
+### Regular Expressions
+
+```csharp
+var engine = new JsEngine();
+
+// Basic regex test
+var isValid = engine.Evaluate(@"
+    let pattern = new RegExp(""[0-9]+"");
+    pattern.test(""abc123"");
+");
+Console.WriteLine(isValid); // Output: True
+
+// Case-insensitive matching
+var matches = engine.Evaluate(@"
+    let pattern = new RegExp(""HELLO"", ""i"");
+    pattern.test(""hello world"");
+");
+Console.WriteLine(matches); // Output: True
+
+// Extracting matches with exec
+engine.Evaluate(@"
+    let emailPattern = new RegExp(""([a-z]+)@([a-z]+)\\.([a-z]+)"", ""i"");
+    let match = emailPattern.exec(""user@example.com"");
+    let username = match[1];   // ""user""
+    let domain = match[2];     // ""example""
+    let tld = match[3];        // ""com""
+");
+
+// Global flag for multiple matches
+var allMatches = engine.Evaluate(@"
+    let pattern = new RegExp(""[0-9]+"", ""g"");
+    let str = ""I have 2 cats and 3 dogs"";
+    let matches = str.match(pattern);
+    matches.length;
+");
+Console.WriteLine(allMatches); // Output: 2
+
+// String replace with regex
+var replaced = engine.Evaluate(@"
+    let str = ""hello hello hello"";
+    let pattern = new RegExp(""hello"", ""g"");
+    str.replace(pattern, ""hi"");
+");
+Console.WriteLine(replaced); // Output: hi hi hi
+
+// String search with regex
+var position = engine.Evaluate(@"
+    let str = ""The year is 2024"";
+    let pattern = new RegExp(""[0-9]+"");
+    str.search(pattern);
+");
+Console.WriteLine(position); // Output: 12
+
+// Email validation example
+var isValidEmail = engine.Evaluate(@"
+    function validateEmail(email) {
+        let pattern = new RegExp(""^[a-z0-9]+@[a-z]+\\.[a-z]+$"", ""i"");
+        return pattern.test(email);
+    }
+    
+    let valid = validateEmail(""user@example.com"");   // true
+    let invalid = validateEmail(""invalid.email"");    // false
+    valid;
+");
+Console.WriteLine(isValidEmail); // Output: True
+```
+
 ## Running the Demo
 
 Console application demos are included in the `examples` folder:
@@ -754,11 +999,9 @@ dotnet test
 
 ## Limitations
 
-- **No Async/Await**: While Promises are supported, the `async`/`await` syntax is not yet implemented (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for roadmap)
-- **No Generators**: Generator functions (`function*`, `yield`) are not supported (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for roadmap)
-- **No Regex**: Regular expressions are not implemented
 - **No Destructuring**: Destructuring assignments are not supported
 - **No Modules**: ES6 import/export is not supported
+- **No Regex Literals**: Regex literal syntax (`/pattern/flags`) is not supported - use `new RegExp()` constructor instead
 - **String Literals**: Only double-quoted strings and template literals (backticks) are supported (no single quotes)
 - **Semicolons**: Statement-ending semicolons are required
 - **Number Types**: All numbers are treated as doubles (no BigInt)
@@ -767,11 +1010,14 @@ dotnet test
 
 ## Future Roadmap
 
-See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for a detailed plan on implementing:
-- Continuation-Passing Style (CPS) transformation
-- Generator functions (`function*`, `yield`)
-- Async/await syntax
-- Implementation timeline and phases
+The engine now has full support for async/await and generators through CPS (Continuation-Passing Style) transformation, as well as comprehensive string methods and regular expression support. See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for implementation details.
+
+Future enhancements may include:
+- Destructuring assignments (array and object destructuring)
+- Regex literal syntax (/pattern/flags)
+- ES6 modules (import/export)
+- Additional string methods (localeCompare, normalize, etc.)
+- Enhanced type coercion
 
 ## Contributing
 

@@ -38,6 +38,9 @@ public sealed class JsEngine
         SetGlobal("Date", dateConstructor);
         SetGlobal("JSON", StandardLibrary.CreateJsonObject());
         
+        // Register RegExp constructor
+        SetGlobal("RegExp", StandardLibrary.CreateRegExpConstructor());
+        
         // Register Promise constructor
         SetGlobal("Promise", StandardLibrary.CreatePromiseConstructor(this));
         

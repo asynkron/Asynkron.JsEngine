@@ -23,6 +23,9 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Template literals**: Backtick strings with `${}` expression interpolation
 - **Getters/setters**: `get`/`set` property accessors in objects and classes
 - **Spread/rest operators**: Rest parameters in functions (`...args`), spread in arrays (`[...arr]`), spread in calls (`fn(...args)`)
+- **Timers**: `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval` for scheduling asynchronous work
+- **Promises**: Promise constructor, `then`, `catch`, `finally` methods, and static methods (`Promise.resolve`, `Promise.reject`, `Promise.all`, `Promise.race`)
+- **Event Queue**: Asynchronous task scheduling and event loop integration
 - **Standard library**: 
   - Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
   - Array methods (map, filter, reduce, forEach, find, findIndex, some, every, join, includes, indexOf, slice, push, pop, shift, unshift, splice, concat, reverse, sort)
@@ -32,7 +35,7 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 
 ### 🚧 Not Yet Implemented
 
-- Async/await, Promises (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for implementation roadmap)
+- Async/await (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for implementation roadmap)
 - Generators (`function*`, `yield`) (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for implementation roadmap)
 - Destructuring
 - Regular expressions
@@ -565,16 +568,130 @@ var sorted = engine.Evaluate(@"
 Console.WriteLine(sorted); // Output: 1
 ```
 
+### Timers (setTimeout/setInterval)
+
+```csharp
+var engine = new JsEngine();
+
+// setTimeout - execute code after a delay
+engine.Evaluate(@"
+    setTimeout(function() {
+        console.log(""This runs after 1000ms"");
+    }, 1000);
+");
+
+// setInterval - execute code repeatedly
+engine.Evaluate(@"
+    let count = 0;
+    let intervalId = setInterval(function() {
+        count = count + 1;
+        console.log(""Tick:"", count);
+        if (count >= 5) {
+            clearInterval(intervalId);
+        }
+    }, 100);
+");
+
+// clearTimeout - cancel a scheduled timeout
+engine.Evaluate(@"
+    let timeoutId = setTimeout(function() {
+        console.log(""This will never run"");
+    }, 5000);
+    clearTimeout(timeoutId);
+");
+
+// Note: Use engine.Run() instead of Evaluate() to process the event queue
+await engine.Run(@"
+    setTimeout(function() {
+        console.log(""Async execution complete"");
+    }, 50);
+");
+```
+
+### Promises
+
+```csharp
+var engine = new JsEngine();
+
+// Creating and resolving a promise
+await engine.Run(@"
+    let p = new Promise(function(resolve, reject) {
+        resolve(""Success!"");
+    });
+    
+    p.then(function(value) {
+        console.log(value); // Output: Success!
+    });
+");
+
+// Promise chaining
+await engine.Run(@"
+    Promise.resolve(10)
+        .then(function(x) { return x * 2; })
+        .then(function(x) { return x + 5; })
+        .then(function(x) {
+            console.log(x); // Output: 25
+        });
+");
+
+// Error handling with catch (use bracket notation for reserved keyword)
+await engine.Run(@"
+    Promise.reject(""Error occurred"")
+        [""catch""](function(error) {
+            console.log(""Caught:"", error);
+        });
+");
+
+// Promise.all - wait for multiple promises
+await engine.Run(@"
+    let p1 = Promise.resolve(1);
+    let p2 = Promise.resolve(2);
+    let p3 = Promise.resolve(3);
+    
+    Promise.all([p1, p2, p3]).then(function(values) {
+        console.log(""All resolved:"", values[0], values[1], values[2]);
+    });
+");
+
+// Promise.race - first to settle wins
+await engine.Run(@"
+    let fast = Promise.resolve(""I'm fast!"");
+    let slow = new Promise(function(resolve) {
+        setTimeout(function() {
+            resolve(""I'm slow..."");
+        }, 100);
+    });
+    
+    Promise.race([fast, slow]).then(function(winner) {
+        console.log(winner); // Output: I'm fast!
+    });
+");
+
+// Combining setTimeout and Promises
+await engine.Run(@"
+    let delayedPromise = new Promise(function(resolve) {
+        setTimeout(function() {
+            resolve(""Delayed result"");
+        }, 100);
+    });
+    
+    delayedPromise.then(function(value) {
+        console.log(value); // Output: Delayed result
+    });
+");
+```
+
 ## Running the Demo
 
-A console application demo is included in the `examples/Demo` folder:
+Console application demos are included in the `examples` folder:
 
+### Main Demo
 ```bash
 cd examples/Demo
 dotnet run
 ```
 
-The demo showcases:
+The main demo showcases:
 - Basic arithmetic
 - Variables and functions
 - Closures
@@ -587,6 +704,23 @@ The demo showcases:
 - Array methods (map, filter, reduce, sort, etc.)
 - Math object
 - Date object
+- JSON parsing and stringification
+- Host function interop
+
+### Promise and Timer Demo
+```bash
+cd examples/PromiseDemo
+dotnet run
+```
+
+The Promise demo showcases:
+- setTimeout and setInterval
+- Promise creation and resolution
+- Promise chaining
+- Error handling with catch
+- Promise.all and Promise.race
+- Integration of timers with Promises
+- Event queue processing
 - JSON parsing and stringification
 - Host function interop
 
@@ -620,7 +754,7 @@ dotnet test
 
 ## Limitations
 
-- **No Async**: Promises and async/await are not supported (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for roadmap)
+- **No Async/Await**: While Promises are supported, the `async`/`await` syntax is not yet implemented (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for roadmap)
 - **No Generators**: Generator functions (`function*`, `yield`) are not supported (see [CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md) for roadmap)
 - **No Regex**: Regular expressions are not implemented
 - **No Destructuring**: Destructuring assignments are not supported
@@ -629,13 +763,14 @@ dotnet test
 - **Semicolons**: Statement-ending semicolons are required
 - **Number Types**: All numbers are treated as doubles (no BigInt)
 - **Type Coercion**: Only basic type coercion is implemented
+- **Reserved Keywords as Properties**: When using reserved keywords like `catch` and `finally` as property names, you must use bracket notation (e.g., `promise["catch"](...)` instead of `promise.catch(...)`)
 
 ## Future Roadmap
 
 See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for a detailed plan on implementing:
 - Continuation-Passing Style (CPS) transformation
 - Generator functions (`function*`, `yield`)
-- Async/await and Promises
+- Async/await syntax
 - Implementation timeline and phases
 
 ## Contributing

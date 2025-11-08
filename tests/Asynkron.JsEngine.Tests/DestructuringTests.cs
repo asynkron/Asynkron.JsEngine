@@ -301,4 +301,74 @@ public class DestructuringTests
         ");
         Assert.Equal(3d, result);
     }
+
+    // Additional edge cases
+    [Fact]
+    public void MultipleArrayDestructuringStatements()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let [a, b] = [1, 2];
+            let [c, d] = [3, 4];
+            a + b + c + d;
+        ");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public void MultipleObjectDestructuringStatements()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let {x} = {x: 1};
+            let {y} = {y: 2};
+            x + y;
+        ");
+        Assert.Equal(3d, result);
+    }
+
+    [Fact]
+    public void ArrayDestructuringWithExpressions()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let [a, b] = [1 + 1, 2 + 2];
+            a + b;
+        ");
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public void ObjectDestructuringWithExpressionDefaults()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let {x = 5 + 5, y = 10 + 10} = {};
+            x + y;
+        ");
+        Assert.Equal(30d, result);
+    }
+
+    [Fact]
+    public void ArrayDestructuringWithComputedValues()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function getArray() { return [10, 20, 30]; }
+            let [x, y, z] = getArray();
+            x + y + z;
+        ");
+        Assert.Equal(60d, result);
+    }
+
+    [Fact]
+    public void RestElementCapturesEmpty()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let [a, b, ...rest] = [1, 2];
+            rest.length;
+        ");
+        Assert.Equal(0d, result);
+    }
 }

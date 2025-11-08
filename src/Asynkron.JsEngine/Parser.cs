@@ -188,8 +188,25 @@ internal sealed class Parser
                     break;
                 }
                 
-                var identifier = Consume(TokenType.Identifier, "Expected parameter name.");
-                parameters.Add(Symbol.Intern(identifier.Lexeme));
+                // Check for array destructuring parameter
+                if (Check(TokenType.LeftBracket))
+                {
+                    Consume(TokenType.LeftBracket, "Expected '[' for array destructuring parameter.");
+                    var pattern = ParseArrayDestructuringPattern();
+                    parameters.Add(pattern);
+                }
+                // Check for object destructuring parameter
+                else if (Check(TokenType.LeftBrace))
+                {
+                    Consume(TokenType.LeftBrace, "Expected '{' for object destructuring parameter.");
+                    var pattern = ParseObjectDestructuringPattern();
+                    parameters.Add(pattern);
+                }
+                else
+                {
+                    var identifier = Consume(TokenType.Identifier, "Expected parameter name.");
+                    parameters.Add(Symbol.Intern(identifier.Lexeme));
+                }
             } while (Match(TokenType.Comma));
         }
 

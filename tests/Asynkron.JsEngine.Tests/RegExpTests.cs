@@ -233,4 +233,236 @@ public class RegExpTests
         ");
         Assert.True((bool)result!);
     }
+
+    // Regex Literal Tests
+    [Fact]
+    public void RegexLiteral_Basic()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let regex = /hello/;
+            regex.source;
+        ");
+        Assert.Equal("hello", result);
+    }
+
+    [Fact]
+    public void RegexLiteral_WithFlags()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let regex = /hello/i;
+            regex.ignoreCase;
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_MultipleFlags()
+    {
+        var engine = new JsEngine();
+        engine.Evaluate(@"
+            let regex = /hello/gi;
+        ");
+        var ignoreCase = engine.Evaluate("regex.ignoreCase;");
+        var global = engine.Evaluate("regex.global;");
+        Assert.True((bool)ignoreCase!);
+        Assert.True((bool)global!);
+    }
+
+    [Fact]
+    public void RegexLiteral_Test()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let regex = /world/;
+            regex.test(""hello world"");
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_TestCaseInsensitive()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let regex = /HELLO/i;
+            regex.test(""hello world"");
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_Exec()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let regex = /world/;
+            let match = regex.exec(""hello world"");
+            match[0];
+        ");
+        Assert.Equal("world", result);
+    }
+
+    [Fact]
+    public void RegexLiteral_WithEscapes()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let regex = /\d+/;
+            regex.test(""abc123"");
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_WithCharacterClass()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let regex = /[0-9]+/;
+            regex.test(""abc123"");
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_InAssignment()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let pattern = /test/i;
+            pattern.test(""Testing"");
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_InFunctionCall()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function testPattern(regex) {
+                return regex.test(""hello"");
+            }
+            testPattern(/hello/);
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_InArray()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let patterns = [/hello/, /world/];
+            patterns[0].test(""hello"");
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_InObject()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let obj = { pattern: /test/ };
+            obj.pattern.test(""test"");
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_StringMatch()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let str = ""I have 2 cats and 3 dogs"";
+            let matches = str.match(/[0-9]+/g);
+            matches.length;
+        ");
+        Assert.Equal(2d, result);
+    }
+
+    [Fact]
+    public void RegexLiteral_StringReplace()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let str = ""hello hello hello"";
+            str.replace(/hello/g, ""hi"");
+        ");
+        Assert.Equal("hi hi hi", result);
+    }
+
+    [Fact]
+    public void RegexLiteral_StringSearch()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let str = ""The year is 2024"";
+            str.search(/[0-9]+/);
+        ");
+        Assert.Equal(12d, result);
+    }
+
+    [Fact]
+    public void RegexLiteral_ComplexPattern()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let emailPattern = /([a-z]+)@([a-z]+)\.([a-z]+)/i;
+            let match = emailPattern.exec(""user@example.com"");
+            match[1];
+        ");
+        Assert.Equal("user", result);
+    }
+
+    [Fact]
+    public void RegexLiteral_AfterReturn()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function getPattern() {
+                return /test/;
+            }
+            getPattern().test(""test"");
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_AfterComma()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function check(a, b) {
+                return b.test(""hello"");
+            }
+            check(1, /hello/);
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_EscapedSlash()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let regex = /\//;
+            regex.test(""a/b"");
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void RegexLiteral_ComplexCharacterClass()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let regex = /[a-zA-Z0-9_]/;
+            regex.test(""test_123"");
+        ");
+        Assert.True((bool)result!);
+    }
 }

@@ -69,6 +69,7 @@ internal enum TokenType
     Null,
     Undefined,
     Typeof,
+    RegexLiteral,
     Eof
 }
 

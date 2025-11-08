@@ -23,12 +23,13 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Template literals**: Backtick strings with `${}` expression interpolation
 - **Getters/setters**: `get`/`set` property accessors in objects and classes
 - **Spread/rest operators**: Rest parameters in functions (`...args`), spread in arrays (`[...arr]`), spread in calls (`fn(...args)`)
+- **Destructuring**: Array and object destructuring in variable declarations, assignments, and function parameters
 - **Timers**: `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval` for scheduling asynchronous work
 - **Promises**: Promise constructor, `then`, `catch`, `finally` methods, and static methods (`Promise.resolve`, `Promise.reject`, `Promise.all`, `Promise.race`)
 - **Async/await**: Full async function support with `async`/`await` syntax, including error handling
 - **Generators**: Generator functions (`function*`, `yield`) with iterator protocol support
 - **Event Queue**: Asynchronous task scheduling and event loop integration
-- **Regular expressions**: RegExp constructor with `test()`, `exec()` methods, and regex support in string methods (match, search, replace)
+- **Regular expressions**: RegExp constructor with `test()`, `exec()` methods, regex literals (`/pattern/flags`), and regex support in string methods (match, search, replace)
 - **JavaScript oddities**: `typeof null === "object"`, `null == undefined`, proper undefined handling
 - **Standard library**: 
   - Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
@@ -41,10 +42,8 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 
 ### 🚧 Not Yet Implemented
 
-- Destructuring (array and object destructuring)
 - Complex type coercion rules (comprehensive toString, toNumber conversions)
 - Modules (import/export)
-- Regex literals (/pattern/flags syntax) - Use `new RegExp()` constructor instead
 
 ## Architecture
 
@@ -865,23 +864,30 @@ Console.WriteLine(repeated); // Output: hahaha
 ```csharp
 var engine = new JsEngine();
 
-// Basic regex test
+// Basic regex test with constructor
 var isValid = engine.Evaluate(@"
     let pattern = new RegExp(""[0-9]+"");
     pattern.test(""abc123"");
 ");
 Console.WriteLine(isValid); // Output: True
 
-// Case-insensitive matching
+// Regex literal syntax (shorter and more idiomatic)
+var literalTest = engine.Evaluate(@"
+    let pattern = /[0-9]+/;
+    pattern.test(""abc123"");
+");
+Console.WriteLine(literalTest); // Output: True
+
+// Case-insensitive matching with literal
 var matches = engine.Evaluate(@"
-    let pattern = new RegExp(""HELLO"", ""i"");
+    let pattern = /HELLO/i;
     pattern.test(""hello world"");
 ");
 Console.WriteLine(matches); // Output: True
 
 // Extracting matches with exec
 engine.Evaluate(@"
-    let emailPattern = new RegExp(""([a-z]+)@([a-z]+)\\.([a-z]+)"", ""i"");
+    let emailPattern = /([a-z]+)@([a-z]+)\.([a-z]+)/i;
     let match = emailPattern.exec(""user@example.com"");
     let username = match[1];   // ""user""
     let domain = match[2];     // ""example""
@@ -890,34 +896,30 @@ engine.Evaluate(@"
 
 // Global flag for multiple matches
 var allMatches = engine.Evaluate(@"
-    let pattern = new RegExp(""[0-9]+"", ""g"");
     let str = ""I have 2 cats and 3 dogs"";
-    let matches = str.match(pattern);
+    let matches = str.match(/[0-9]+/g);
     matches.length;
 ");
 Console.WriteLine(allMatches); // Output: 2
 
-// String replace with regex
+// String replace with regex literal
 var replaced = engine.Evaluate(@"
     let str = ""hello hello hello"";
-    let pattern = new RegExp(""hello"", ""g"");
-    str.replace(pattern, ""hi"");
+    str.replace(/hello/g, ""hi"");
 ");
 Console.WriteLine(replaced); // Output: hi hi hi
 
 // String search with regex
 var position = engine.Evaluate(@"
     let str = ""The year is 2024"";
-    let pattern = new RegExp(""[0-9]+"");
-    str.search(pattern);
+    str.search(/[0-9]+/);
 ");
 Console.WriteLine(position); // Output: 12
 
-// Email validation example
+// Email validation example with regex literal
 var isValidEmail = engine.Evaluate(@"
     function validateEmail(email) {
-        let pattern = new RegExp(""^[a-z0-9]+@[a-z]+\\.[a-z]+$"", ""i"");
-        return pattern.test(email);
+        return /^[a-z0-9]+@[a-z]+\.[a-z]+$/i.test(email);
     }
     
     let valid = validateEmail(""user@example.com"");   // true
@@ -925,6 +927,23 @@ var isValidEmail = engine.Evaluate(@"
     valid;
 ");
 Console.WriteLine(isValidEmail); // Output: True
+
+// Character classes and escapes
+var complexPattern = engine.Evaluate(@"
+    let pattern = /\d+\.\d+/;  // Match decimal numbers
+    pattern.test(""Price: 19.99"");
+");
+Console.WriteLine(complexPattern); // Output: True
+
+// Using regex in array methods
+var filtered = engine.Evaluate(@"
+    let emails = [""user@test.com"", ""invalid"", ""admin@site.org""];
+    let valid = emails.filter(function(email) {
+        return /@/.test(email);
+    });
+    valid.length;
+");
+Console.WriteLine(filtered); // Output: 2
 ```
 
 ### Typeof Operator and Undefined
@@ -1039,9 +1058,7 @@ dotnet test
 
 ## Limitations
 
-- **No Destructuring**: Destructuring assignments are not supported
 - **No Modules**: ES6 import/export is not supported
-- **No Regex Literals**: Regex literal syntax (`/pattern/flags`) is not supported - use `new RegExp()` constructor instead
 - **String Literals**: Only double-quoted strings and template literals (backticks) are supported (no single quotes)
 - **Semicolons**: Statement-ending semicolons are required
 - **Number Types**: All numbers are treated as doubles (no BigInt)
@@ -1050,13 +1067,13 @@ dotnet test
 
 ## Future Roadmap
 
-The engine now has full support for async/await and generators through CPS (Continuation-Passing Style) transformation, as well as comprehensive string methods and regular expression support. See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for implementation details.
+The engine now has full support for async/await, generators, destructuring, and regex literals. It provides comprehensive string methods and regular expression support. See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for async/await implementation details and [docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md](docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md) for destructuring details.
 
 For information about alternative approaches to implementing control flow (return, break, continue), see [docs/CONTROL_FLOW_ALTERNATIVES.md](docs/CONTROL_FLOW_ALTERNATIVES.md).
 
 Future enhancements may include:
-- Destructuring assignments (array and object destructuring)
-- Regex literal syntax (/pattern/flags)
+
+Future enhancements may include:
 - ES6 modules (import/export)
 - Additional string methods (localeCompare, normalize, etc.)
 - Enhanced type coercion

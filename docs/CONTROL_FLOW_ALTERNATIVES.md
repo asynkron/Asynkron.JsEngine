@@ -4,6 +4,13 @@
 
 This document explores alternative approaches to implementing control flow statements (return, break, continue) in expression-first JavaScript interpreters. Currently, Asynkron.JsEngine uses exceptions (`ReturnSignal`, `BreakSignal`, `ContinueSignal`) as a mechanism to "teleport" out of deeply nested execution contexts back to the appropriate call-site. While this approach works, it has performance implications and architectural considerations that warrant exploring alternatives.
 
+> **Important Clarification:** This document presents six different approaches. They fall into three categories:
+> 1. **Transform S-expressions** (CPS) - Changes the AST structure
+> 2. **Change return values** (Result Wrapper) - Changes what evaluator methods return
+> 3. **Pass context** (State Machine, Trampoline) - Adds parameters to track state at runtime
+>
+> The "State Machine" approach is somewhat misnamed - it's really about passing a mutable context object to track execution state, NOT transforming code into state machines. See [detailed clarification](CONTROL_FLOW_STATE_MACHINE_CLARIFICATION.md).
+
 ## Table of Contents
 
 1. [Current Implementation](#current-implementation)
@@ -398,9 +405,13 @@ But probably overkill for simple return/break/continue.
 
 ### 4. State Machine with Control Flags
 
+> **Note:** The term "State Machine" here refers to runtime state tracking, NOT transforming S-expressions into state machines. A better name would be "Control Flow Context Pattern" or "Mutable Evaluation Context Pattern". See [CONTROL_FLOW_STATE_MACHINE_CLARIFICATION.md](CONTROL_FLOW_STATE_MACHINE_CLARIFICATION.md) for detailed explanation.
+
 #### Concept
 
-Instead of using exceptions or result types, use control flags that the evaluator checks between statements.
+Instead of using exceptions or result types, use a **context object** that tracks the current execution state (normal, return, break, continue, throw). The evaluator checks this context between statements and propagates control flow by checking/setting flags.
+
+**Key idea:** Pass a mutable context object through all evaluator methods. When control flow is encountered, set a flag in the context. Each evaluator method checks the flag and stops processing if needed. Loops and functions "consume" the appropriate flags.
 
 #### Implementation
 

@@ -371,4 +371,163 @@ public class DestructuringTests
         ");
         Assert.Equal(0d, result);
     }
+
+    // Function Parameter Destructuring Tests
+    [Fact]
+    public void FunctionParameterArrayDestructuring()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function test([x, y]) {
+                return x + y;
+            }
+            test([1, 2]);
+        ");
+        Assert.Equal(3d, result);
+    }
+
+    [Fact]
+    public void FunctionParameterObjectDestructuring()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function test({x, y}) {
+                return x + y;
+            }
+            test({x: 1, y: 2});
+        ");
+        Assert.Equal(3d, result);
+    }
+
+    [Fact]
+    public void FunctionParameterArrayDestructuringWithDefaults()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function test([x = 10, y = 20]) {
+                return x + y;
+            }
+            test([5]);
+        ");
+        Assert.Equal(25d, result);
+    }
+
+    [Fact]
+    public void FunctionParameterObjectDestructuringWithDefaults()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function test({x = 10, y = 20}) {
+                return x + y;
+            }
+            test({x: 5});
+        ");
+        Assert.Equal(25d, result);
+    }
+
+    [Fact]
+    public void FunctionParameterNestedDestructuring()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function test({a, b: [c, d]}) {
+                return a + c + d;
+            }
+            test({a: 1, b: [2, 3]});
+        ");
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public void FunctionParameterArrayRest()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function test([a, ...rest]) {
+                return a + rest.length;
+            }
+            test([1, 2, 3, 4]);
+        ");
+        Assert.Equal(4d, result);
+    }
+
+    [Fact]
+    public void FunctionParameterObjectRest()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function test({x, ...rest}) {
+                return x + rest.y + rest.z;
+            }
+            test({x: 1, y: 2, z: 3});
+        ");
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public void FunctionParameterMixedDestructuringAndRegular()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function test(a, [b, c], {d}) {
+                return a + b + c + d;
+            }
+            test(1, [2, 3], {d: 4});
+        ");
+        Assert.Equal(10d, result);
+    }
+
+    // Assignment Destructuring Tests (without declaration)
+    [Fact]
+    public void AssignmentArrayDestructuring()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            var a = 0;
+            var b = 0;
+            [a, b] = [10, 20];
+            a + b;
+        ");
+        Assert.Equal(30d, result);
+    }
+
+    [Fact]
+    public void VariableSwapping()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            var x = 1;
+            var y = 2;
+            [x, y] = [y, x];
+            x * 10 + y;
+        ");
+        Assert.Equal(21d, result);
+    }
+
+    [Fact]
+    public void AssignmentNestedDestructuring()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            var a = 0;
+            var b = 0;
+            var c = 0;
+            [a, [b, c]] = [1, [2, 3]];
+            a + b + c;
+        ");
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public void AssignmentWithRest()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            var a = 0;
+            var rest = [];
+            [a, ...rest] = [1, 2, 3, 4];
+            a + rest.length;
+        ");
+        Assert.Equal(4d, result);
+    }
 }

@@ -77,6 +77,7 @@ public static class JsSymbols
     public static readonly Symbol PatternProperty = Symbol.Intern("pattern-property");
     public static readonly Symbol PatternRest = Symbol.Intern("pattern-rest");
     public static readonly Symbol PatternDefault = Symbol.Intern("pattern-default");
+    public static readonly Symbol DestructuringAssignment = Symbol.Intern("destructuring-assignment");
 
     public static Symbol Operator(string op) => Symbol.Intern(op);
 }

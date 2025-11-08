@@ -23,6 +23,19 @@ internal sealed class Parser
 
     private object ParseDeclaration()
     {
+        // Check for async function
+        if (Match(TokenType.Async))
+        {
+            if (Match(TokenType.Function))
+            {
+                return ParseAsyncFunctionDeclaration();
+            }
+            else
+            {
+                throw new ParseException("Expected 'function' after 'async'.");
+            }
+        }
+
         if (Match(TokenType.Function))
         {
             return ParseFunctionDeclaration();
@@ -65,6 +78,18 @@ internal sealed class Parser
 
         var functionType = isGenerator ? JsSymbols.Generator : JsSymbols.Function;
         return Cons.FromEnumerable(new object?[] { functionType, name, parameters, body });
+    }
+
+    private object ParseAsyncFunctionDeclaration()
+    {
+        var nameToken = Consume(TokenType.Identifier, "Expected function name.");
+        var name = Symbol.Intern(nameToken.Lexeme);
+        Consume(TokenType.LeftParen, "Expected '(' after function name.");
+        var parameters = ParseParameterList();
+        Consume(TokenType.RightParen, "Expected ')' after function parameters.");
+        var body = ParseBlock();
+
+        return Cons.FromEnumerable(new object?[] { JsSymbols.Async, name, parameters, body });
     }
 
     private object ParseClassDeclaration()
@@ -714,6 +739,13 @@ internal sealed class Parser
             return Cons.FromEnumerable(new object?[] { JsSymbols.Yield, value });
         }
 
+        if (Match(TokenType.Await))
+        {
+            // await must be followed by an expression
+            var value = ParseUnary();
+            return Cons.FromEnumerable(new object?[] { JsSymbols.Await, value });
+        }
+
         return ParseCall();
     }
 
@@ -830,6 +862,18 @@ internal sealed class Parser
             return JsSymbols.Super;
         }
 
+        if (Match(TokenType.Async))
+        {
+            if (Match(TokenType.Function))
+            {
+                return ParseAsyncFunctionExpression();
+            }
+            else
+            {
+                throw new ParseException("Expected 'function' after 'async' in expression context.");
+            }
+        }
+
         if (Match(TokenType.Function))
         {
             return ParseFunctionExpression();
@@ -901,6 +945,22 @@ internal sealed class Parser
         // we'll use Generator symbol for generator function expressions
         var functionType = isGenerator ? JsSymbols.Generator : JsSymbols.Lambda;
         return Cons.FromEnumerable(new object?[] { functionType, name, parameters, body });
+    }
+
+    private object ParseAsyncFunctionExpression()
+    {
+        Symbol? name = null;
+        if (Check(TokenType.Identifier))
+        {
+            name = Symbol.Intern(Advance().Lexeme);
+        }
+
+        Consume(TokenType.LeftParen, "Expected '(' after function keyword.");
+        var parameters = ParseParameterList();
+        Consume(TokenType.RightParen, "Expected ')' after lambda parameters.");
+        var body = ParseBlock();
+        
+        return Cons.FromEnumerable(new object?[] { JsSymbols.Async, name, parameters, body });
     }
 
     private object ParseObjectLiteral()

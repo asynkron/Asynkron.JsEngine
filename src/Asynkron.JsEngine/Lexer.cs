@@ -35,6 +35,8 @@ internal sealed class Lexer
         ["get"] = TokenType.Get,
         ["set"] = TokenType.Set,
         ["yield"] = TokenType.Yield,
+        ["async"] = TokenType.Async,
+        ["await"] = TokenType.Await,
         ["true"] = TokenType.True,
         ["false"] = TokenType.False,
         ["null"] = TokenType.Null

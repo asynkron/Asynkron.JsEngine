@@ -19,6 +19,8 @@ public static class JsSymbols
     public static readonly Symbol While = Symbol.Intern("while");
     public static readonly Symbol DoWhile = Symbol.Intern("do-while");
     public static readonly Symbol For = Symbol.Intern("for");
+    public static readonly Symbol ForIn = Symbol.Intern("for-in");
+    public static readonly Symbol ForOf = Symbol.Intern("for-of");
     public static readonly Symbol Switch = Symbol.Intern("switch");
     public static readonly Symbol Case = Symbol.Intern("case");
     public static readonly Symbol Default = Symbol.Intern("default");

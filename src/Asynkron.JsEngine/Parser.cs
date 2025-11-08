@@ -647,6 +647,64 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
     {
         Consume(TokenType.LeftParen, "Expected '(' after 'for'.");
 
+        // Check for for...in or for...of loops
+        // We need to look ahead to detect if this is a for...in/of loop
+        var checkpointPosition = _current;
+        
+        // Try to parse variable declaration or identifier
+        object? loopVariable = null;
+        TokenType? varKind = null;
+        
+        if (Match(TokenType.Let))
+        {
+            varKind = TokenType.Let;
+            var identifier = Consume(TokenType.Identifier, "Expected identifier in for loop.");
+            loopVariable = Symbol.Intern(identifier.Lexeme);
+        }
+        else if (Match(TokenType.Var))
+        {
+            varKind = TokenType.Var;
+            var identifier = Consume(TokenType.Identifier, "Expected identifier in for loop.");
+            loopVariable = Symbol.Intern(identifier.Lexeme);
+        }
+        else if (Match(TokenType.Const))
+        {
+            varKind = TokenType.Const;
+            var identifier = Consume(TokenType.Identifier, "Expected identifier in for loop.");
+            loopVariable = Symbol.Intern(identifier.Lexeme);
+        }
+        
+        // Check if this is for...in or for...of
+        if (loopVariable != null && (Match(TokenType.In) || Match(TokenType.Of)))
+        {
+            var isForOf = Previous().Type == TokenType.Of;
+            var iterableExpression = ParseExpression();
+            Consume(TokenType.RightParen, "Expected ')' after for...in/of clauses.");
+            var body = ParseStatement();
+            
+            var keyword = varKind switch
+            {
+                TokenType.Let => "let",
+                TokenType.Var => "var",
+                TokenType.Const => "const",
+                _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
+            };
+            
+            var varDecl = Cons.FromEnumerable([Symbol.Intern(keyword), loopVariable, null]);
+            
+            if (isForOf)
+            {
+                return Cons.FromEnumerable([JsSymbols.ForOf, varDecl, iterableExpression, body]);
+            }
+            else
+            {
+                return Cons.FromEnumerable([JsSymbols.ForIn, varDecl, iterableExpression, body]);
+            }
+        }
+        
+        // Not a for...in/of loop, reset and parse as regular for loop
+        _current = checkpointPosition;
+        
         object? initializer = null;
         if (Match(TokenType.Semicolon))
         {
@@ -684,9 +742,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         }
 
         Consume(TokenType.RightParen, "Expected ')' after for clauses.");
-        var body = ParseStatement();
+        var body2 = ParseStatement();
 
-        return Cons.FromEnumerable([JsSymbols.For, initializer, condition, increment, body]);
+        return Cons.FromEnumerable([JsSymbols.For, initializer, condition, increment, body2]);
     }
 
     private object ParseReturnStatement()

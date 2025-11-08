@@ -109,6 +109,16 @@ internal static class Evaluator
             return EvaluateFor(cons, environment, context);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.ForIn))
+        {
+            return EvaluateForIn(cons, environment, context);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.ForOf))
+        {
+            return EvaluateForOf(cons, environment, context);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.Switch))
         {
             return EvaluateSwitch(cons, environment, context);
@@ -299,6 +309,145 @@ internal static class Evaluator
             if (incrementExpression is not null)
             {
                 EvaluateExpression(incrementExpression, loopEnvironment, context);
+            }
+        }
+
+        return lastResult;
+    }
+
+    private static object? EvaluateForIn(Cons cons, Environment environment, EvaluationContext context)
+    {
+        // (for-in (let/var/const variable) iterable body)
+        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for...in loop.");
+        var iterableExpression = cons.Rest.Rest.Head;
+        var body = cons.Rest.Rest.Rest.Head;
+
+        // Extract variable name from declaration
+        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...in loop.");
+        
+        // Evaluate the iterable
+        var iterable = EvaluateExpression(iterableExpression, environment, context);
+        
+        var loopEnvironment = new Environment(environment);
+        object? lastResult = null;
+
+        // Get keys to iterate over
+        List<string> keys = new();
+        if (iterable is JsObject jsObject)
+        {
+            foreach (var key in jsObject.GetOwnPropertyNames())
+            {
+                keys.Add(key);
+            }
+        }
+        else if (iterable is JsArray jsArray)
+        {
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                keys.Add(i.ToString());
+            }
+        }
+        else if (iterable is string str)
+        {
+            for (int i = 0; i < str.Length; i++)
+            {
+                keys.Add(i.ToString());
+            }
+        }
+
+        foreach (var key in keys)
+        {
+            if (context.ShouldStopEvaluation)
+                break;
+
+            // Set loop variable
+            loopEnvironment.Define(variableName, key);
+            
+            lastResult = EvaluateStatement(body, loopEnvironment, context);
+            
+            if (context.IsContinue)
+            {
+                context.ClearContinue();
+                continue;
+            }
+            
+            if (context.IsBreak)
+            {
+                context.ClearBreak();
+                break;
+            }
+            
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;  // Propagate return/throw
+            }
+        }
+
+        return lastResult;
+    }
+
+    private static object? EvaluateForOf(Cons cons, Environment environment, EvaluationContext context)
+    {
+        // (for-of (let/var/const variable) iterable body)
+        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for...of loop.");
+        var iterableExpression = cons.Rest.Rest.Head;
+        var body = cons.Rest.Rest.Rest.Head;
+
+        // Extract variable name from declaration
+        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...of loop.");
+        
+        // Evaluate the iterable
+        var iterable = EvaluateExpression(iterableExpression, environment, context);
+        
+        var loopEnvironment = new Environment(environment);
+        object? lastResult = null;
+
+        // Get values to iterate over
+        List<object?> values = new();
+        if (iterable is JsArray jsArray)
+        {
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                values.Add(jsArray.GetElement(i));
+            }
+        }
+        else if (iterable is string str)
+        {
+            foreach (char c in str)
+            {
+                values.Add(c.ToString());
+            }
+        }
+        else
+        {
+            throw new InvalidOperationException($"Cannot iterate over non-iterable value '{iterable}'.");
+        }
+
+        foreach (var value in values)
+        {
+            if (context.ShouldStopEvaluation)
+                break;
+
+            // Set loop variable
+            loopEnvironment.Define(variableName, value);
+            
+            lastResult = EvaluateStatement(body, loopEnvironment, context);
+            
+            if (context.IsContinue)
+            {
+                context.ClearContinue();
+                continue;
+            }
+            
+            if (context.IsBreak)
+            {
+                context.ClearBreak();
+                break;
+            }
+            
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;  // Propagate return/throw
             }
         }
 

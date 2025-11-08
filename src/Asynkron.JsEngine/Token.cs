@@ -62,6 +62,8 @@ internal enum TokenType
     Get,
     Set,
     Yield,
+    Async,
+    Await,
     True,
     False,
     Null,

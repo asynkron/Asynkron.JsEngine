@@ -1290,4 +1290,179 @@ numbers[""length""];
 ");
         Assert.Equal(5d, result);
     }
+
+    [Fact]
+    public void ArrayPopRemovesLastElement()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [1, 2, 3, 4];
+let last = numbers.pop();
+last;
+");
+        Assert.Equal(4d, result);
+    }
+
+    [Fact]
+    public void ArrayShiftRemovesFirstElement()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [10, 20, 30];
+let first = numbers.shift();
+first;
+");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public void ArrayUnshiftAddsToBeginning()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [3, 4];
+numbers.unshift(1, 2);
+numbers[0];
+");
+        Assert.Equal(1d, result);
+    }
+
+    [Fact]
+    public void ArraySpliceRemovesAndInserts()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [1, 2, 3, 4, 5];
+let removed = numbers.splice(2, 2, 99);
+numbers[2];
+");
+        Assert.Equal(99d, result);
+    }
+
+    [Fact]
+    public void ArrayConcatCombinesArrays()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let arr1 = [1, 2];
+let arr2 = [3, 4];
+let combined = arr1.concat(arr2);
+combined[3];
+");
+        Assert.Equal(4d, result);
+    }
+
+    [Fact]
+    public void ArrayReverseReversesInPlace()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [1, 2, 3, 4];
+numbers.reverse();
+numbers[0];
+");
+        Assert.Equal(4d, result);
+    }
+
+    [Fact]
+    public void ArraySortSortsElements()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let numbers = [3, 1, 4, 1, 5, 9, 2, 6];
+numbers.sort(function(a, b) { return a - b; });
+numbers[0];
+");
+        Assert.Equal(1d, result);
+    }
+
+    [Fact]
+    public void DateNowReturnsMilliseconds()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("Date.now();");
+        Assert.IsType<double>(result);
+        Assert.True((double)result > 0);
+    }
+
+    [Fact]
+    public void DateConstructorCreatesInstance()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let d = new Date(2024, 0, 15);
+d.getFullYear();
+");
+        Assert.Equal(2024d, result);
+    }
+
+    [Fact]
+    public void DateGetMonthReturnsZeroIndexed()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let d = new Date(2024, 5, 15);
+d.getMonth();
+");
+        Assert.Equal(5d, result);
+    }
+
+    [Fact]
+    public void DateToISOStringReturnsFormattedString()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let d = new Date(2024, 0, 1);
+d.toISOString();
+");
+        Assert.IsType<string>(result);
+        Assert.Contains("2024", (string)result);
+    }
+
+    [Fact]
+    public void JsonParseHandlesObject()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let jsonStr = `{""name"":""Alice"",""age"":30}`;
+let obj = JSON.parse(jsonStr);
+obj.name;
+");
+        Assert.Equal("Alice", result);
+    }
+
+    [Fact]
+    public void JsonParseHandlesArray()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let jsonStr = `[1,2,3,4]`;
+let arr = JSON.parse(jsonStr);
+arr[2];
+");
+        Assert.Equal(3d, result);
+    }
+
+    [Fact]
+    public void JsonStringifyHandlesObject()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let obj = { name: ""Bob"", age: 25 };
+JSON.stringify(obj);
+");
+        Assert.IsType<string>(result);
+        Assert.Contains("Bob", (string)result);
+    }
+
+    [Fact]
+    public void JsonStringifyHandlesArray()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+let arr = [1, 2, 3];
+JSON.stringify(arr);
+");
+        Assert.Equal("[1,2,3]", result);
+    }
 }

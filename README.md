@@ -25,15 +25,16 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Spread/rest operators**: Rest parameters in functions (`...args`), spread in arrays (`[...arr]`), spread in calls (`fn(...args)`)
 - **Standard library**: 
   - Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
-  - Array methods (map, filter, reduce, forEach, find, findIndex, some, every, join, includes, indexOf, slice, push)
+  - Array methods (map, filter, reduce, forEach, find, findIndex, some, every, join, includes, indexOf, slice, push, pop, shift, unshift, splice, concat, reverse, sort)
+  - Date object with constructor and instance methods (getTime, getFullYear, getMonth, getDate, getDay, getHours, getMinutes, getSeconds, getMilliseconds, toISOString)
+  - Date static methods (now, parse)
+  - JSON object with parse and stringify methods
 
 ### 🚧 Not Yet Implemented
 
 - Async/await, Promises
 - Destructuring
 - Regular expressions
-- More Array methods (shift, unshift, pop, splice, concat, reverse, sort, etc.)
-- Standard library Date and JSON objects
 - Complex type coercion rules (comprehensive toString, toNumber conversions)
 - Modules (import/export)
 
@@ -411,6 +412,158 @@ Console.WriteLine(chained); // Output: 30
 Console.WriteLine(hypotenuse); // Output: 5
 ```
 
+### Date Object
+
+```csharp
+var engine = new JsEngine();
+
+// Current time
+var now = engine.Evaluate("Date.now();");
+Console.WriteLine(now); // Output: milliseconds since epoch
+
+// Create a specific date
+var birthday = engine.Evaluate(@"
+    let d = new Date(2024, 0, 15);  // January 15, 2024 (months are 0-indexed)
+    d.getFullYear();
+");
+Console.WriteLine(birthday); // Output: 2024
+
+// Get date components
+var dateInfo = engine.Evaluate(@"
+    let d = new Date(2024, 5, 15, 14, 30, 45);
+    let info = {
+        year: d.getFullYear(),
+        month: d.getMonth(),      // 0-indexed
+        date: d.getDate(),
+        hours: d.getHours(),
+        minutes: d.getMinutes()
+    };
+    info.year;
+");
+Console.WriteLine(dateInfo); // Output: 2024
+
+// ISO string format
+var isoString = engine.Evaluate(@"
+    let d = new Date(2024, 0, 1);
+    d.toISOString();
+");
+Console.WriteLine(isoString); // Output: 2024-01-01T00:00:00.000Z
+
+// Parse date string
+var parsed = engine.Evaluate(@"
+    Date.parse(""2024-06-15"");
+");
+Console.WriteLine(parsed); // Output: milliseconds since epoch
+```
+
+### JSON Object
+
+```csharp
+var engine = new JsEngine();
+
+// Parse JSON string to object
+var parsed = engine.Evaluate(@"
+    let jsonStr = `{""name"":""Alice"",""age"":30,""city"":""NYC""}`;
+    let person = JSON.parse(jsonStr);
+    person.name;
+");
+Console.WriteLine(parsed); // Output: Alice
+
+// Parse JSON array
+var arrayParsed = engine.Evaluate(@"
+    let jsonStr = `[1,2,3,4,5]`;
+    let numbers = JSON.parse(jsonStr);
+    numbers[2];
+");
+Console.WriteLine(arrayParsed); // Output: 3
+
+// Stringify object to JSON
+var stringified = engine.Evaluate(@"
+    let person = { name: ""Bob"", age: 25, active: true };
+    JSON.stringify(person);
+");
+Console.WriteLine(stringified); // Output: {""name"":""Bob"",""age"":25,""active"":true}
+
+// Stringify array to JSON
+var arrayStringified = engine.Evaluate(@"
+    let numbers = [1, 2, 3, 4, 5];
+    JSON.stringify(numbers);
+");
+Console.WriteLine(arrayStringified); // Output: [1,2,3,4,5]
+
+// Round-trip conversion
+var roundTrip = engine.Evaluate(@"
+    let original = { x: 10, y: 20 };
+    let json = JSON.stringify(original);
+    let restored = JSON.parse(json);
+    restored.x + restored.y;
+");
+Console.WriteLine(roundTrip); // Output: 30
+```
+
+### Additional Array Methods
+
+```csharp
+var engine = new JsEngine();
+
+// pop - remove last element
+var popped = engine.Evaluate(@"
+    let numbers = [1, 2, 3, 4];
+    let last = numbers.pop();
+    last;
+");
+Console.WriteLine(popped); // Output: 4
+
+// shift - remove first element
+var shifted = engine.Evaluate(@"
+    let numbers = [10, 20, 30];
+    let first = numbers.shift();
+    first;
+");
+Console.WriteLine(shifted); // Output: 10
+
+// unshift - add to beginning
+var unshifted = engine.Evaluate(@"
+    let numbers = [3, 4];
+    numbers.unshift(1, 2);
+    numbers[0];
+");
+Console.WriteLine(unshifted); // Output: 1
+
+// splice - remove and insert
+var spliced = engine.Evaluate(@"
+    let numbers = [1, 2, 3, 4, 5];
+    numbers.splice(2, 2, 99, 100);  // Remove 2 elements at index 2, insert 99, 100
+    numbers[2];
+");
+Console.WriteLine(spliced); // Output: 99
+
+// concat - combine arrays
+var concatenated = engine.Evaluate(@"
+    let arr1 = [1, 2];
+    let arr2 = [3, 4];
+    let combined = arr1.concat(arr2, [5, 6]);
+    combined[4];
+");
+Console.WriteLine(concatenated); // Output: 5
+
+// reverse - reverse in place
+var reversed = engine.Evaluate(@"
+    let numbers = [1, 2, 3, 4];
+    numbers.reverse();
+    numbers[0];
+");
+Console.WriteLine(reversed); // Output: 4
+
+// sort - sort with compare function
+var sorted = engine.Evaluate(@"
+    let numbers = [3, 1, 4, 1, 5, 9, 2, 6];
+    numbers.sort(function(a, b) { return a - b; });
+    numbers[0];
+");
+Console.WriteLine(sorted); // Output: 1
+```
+
 ## Running the Demo
 
 A console application demo is included in the `examples/Demo` folder:
@@ -430,6 +583,10 @@ The demo showcases:
 - Template literals
 - Getters/setters
 - Spread/rest operators
+- Array methods (map, filter, reduce, sort, etc.)
+- Math object
+- Date object
+- JSON parsing and stringification
 - Host function interop
 
 ## Building and Testing
@@ -462,11 +619,14 @@ dotnet test
 
 ## Limitations
 
-- **No Standard Library**: Array methods like `map`, `filter`, `reduce` are not available
 - **No Async**: Promises and async/await are not supported
-- **String Literals**: Only double-quoted strings are supported (no single quotes or template literals)
+- **No Regex**: Regular expressions are not implemented
+- **No Destructuring**: Destructuring assignments are not supported
+- **No Modules**: ES6 import/export is not supported
+- **String Literals**: Only double-quoted strings and template literals (backticks) are supported (no single quotes)
 - **Semicolons**: Statement-ending semicolons are required
 - **Number Types**: All numbers are treated as doubles (no BigInt)
+- **Type Coercion**: Only basic type coercion is implemented
 
 ## Contributing
 

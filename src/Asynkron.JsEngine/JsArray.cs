@@ -63,6 +63,77 @@ internal sealed class JsArray
         UpdateLength();
     }
 
+    public object? Pop()
+    {
+        if (_items.Count == 0)
+        {
+            return null;
+        }
+
+        var lastIndex = _items.Count - 1;
+        var value = _items[lastIndex];
+        _items.RemoveAt(lastIndex);
+        UpdateLength();
+        return value;
+    }
+
+    public object? Shift()
+    {
+        if (_items.Count == 0)
+        {
+            return null;
+        }
+
+        var value = _items[0];
+        _items.RemoveAt(0);
+        UpdateLength();
+        return value;
+    }
+
+    public void Unshift(params object?[] values)
+    {
+        _items.InsertRange(0, values);
+        UpdateLength();
+    }
+
+    public JsArray Splice(int start, int deleteCount, params object?[] itemsToInsert)
+    {
+        // Normalize start index
+        if (start < 0)
+        {
+            start = Math.Max(0, _items.Count + start);
+        }
+        else
+        {
+            start = Math.Min(start, _items.Count);
+        }
+
+        // Normalize delete count
+        deleteCount = Math.Max(0, Math.Min(deleteCount, _items.Count - start));
+
+        // Create array of deleted items
+        var deleted = new JsArray();
+        for (int i = 0; i < deleteCount; i++)
+        {
+            deleted.Push(_items[start]);
+            _items.RemoveAt(start);
+        }
+
+        // Insert new items
+        if (itemsToInsert.Length > 0)
+        {
+            _items.InsertRange(start, itemsToInsert);
+        }
+
+        UpdateLength();
+        return deleted;
+    }
+
+    public void Reverse()
+    {
+        _items.Reverse();
+    }
+
     private void UpdateLength()
     {
         _properties.SetProperty("length", (double)_items.Count);

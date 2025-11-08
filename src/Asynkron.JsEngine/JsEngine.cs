@@ -14,6 +14,22 @@ public sealed class JsEngine
     {
         // Register standard library objects
         SetGlobal("Math", StandardLibrary.CreateMathObject());
+        
+        // Register Date constructor as a callable object with static methods
+        var dateConstructor = StandardLibrary.CreateDateConstructor();
+        var dateObj = StandardLibrary.CreateDateObject();
+        
+        // Add static methods to constructor
+        if (dateConstructor is HostFunction hf)
+        {
+            foreach (var prop in dateObj)
+            {
+                hf.SetProperty(prop.Key, prop.Value);
+            }
+        }
+        
+        SetGlobal("Date", dateConstructor);
+        SetGlobal("JSON", StandardLibrary.CreateJsonObject());
     }
 
     /// <summary>

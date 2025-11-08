@@ -151,12 +151,12 @@ public sealed class CpsTransformer
         var parameters = parts[2];   // parameter list
         var body = parts[3];        // function body
 
-        // Transform the body
-        var transformedBody = TransformExpression(body);
-
+        // DON'T transform the body here - it will be transformed inside CreateAsyncPromiseWrapper
+        // which understands the async context (return => resolve, await => .then())
+        
         // Wrap the body in a Promise constructor
         // The async function will return a new Promise that resolves with the function's result
-        var promiseBody = CreateAsyncPromiseWrapper(transformedBody);
+        var promiseBody = CreateAsyncPromiseWrapper(body);
 
         // Return a regular function that returns a promise
         return Cons.FromEnumerable(new object?[] 
@@ -215,15 +215,14 @@ public sealed class CpsTransformer
 
     /// <summary>
     /// Creates the body of the Promise executor for an async function.
+    /// This transforms the body to handle await expressions by chaining promises.
     /// </summary>
     private object? CreateAsyncExecutorBody(object? body, Symbol resolveParam, Symbol rejectParam)
     {
-        // Wrap the body in a try-catch that calls resolve/reject
-        // (block
-        //   (try
-        //     body
-        //     (catch e (call reject e))))
+        // Transform the body to handle await expressions
+        var transformedBody = TransformAsyncBody(body, resolveParam, rejectParam);
         
+        // Wrap in a try-catch that calls resolve/reject
         var catchParam = Symbol.Intern("__error");
         var rejectCall = Cons.FromEnumerable(new object?[] 
         { 
@@ -241,12 +240,295 @@ public sealed class CpsTransformer
         var tryStatement = Cons.FromEnumerable(new object?[] 
         { 
             JsSymbols.Try, 
-            body, 
+            transformedBody, 
             catchParam, 
             catchBlock 
         });
 
         return Cons.FromEnumerable(new object?[] { JsSymbols.Block, tryStatement });
+    }
+
+    /// <summary>
+    /// Transforms the body of an async function to chain await expressions.
+    /// Converts: let x = await p; return x;
+    /// Into: p.then(function(x) { return x; }).then(resolve);
+    /// </summary>
+    private object? TransformAsyncBody(object? body, Symbol resolveParam, Symbol rejectParam)
+    {
+        if (body is not Cons cons || cons.IsEmpty)
+        {
+            // No await, just call resolve with the result
+            return CreateResolveCall(body, resolveParam);
+        }
+
+        // Check if this is a block
+        if (cons.Head is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Block))
+        {
+            // Transform block statements, chaining awaits
+            return TransformBlockWithAwaits(cons, resolveParam, rejectParam);
+        }
+
+        // For other expressions, just resolve with the result
+        return CreateResolveCall(body, resolveParam);
+    }
+
+    /// <summary>
+    /// Transforms a block containing await expressions into a chain of .then() calls.
+    /// </summary>
+    private object? TransformBlockWithAwaits(Cons blockCons, Symbol resolveParam, Symbol rejectParam)
+    {
+        var statements = new List<object?>();
+        var current = blockCons.Rest; // Skip 'block' symbol
+        
+        while (current is Cons c && !c.IsEmpty)
+        {
+            statements.Add(c.Head);
+            current = c.Rest;
+        }
+
+        if (statements.Count == 0)
+        {
+            // Empty block, just resolve with null
+            return CreateResolveCall(null, resolveParam);
+        }
+
+        // Build the chain of statements, handling await specially
+        return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam);
+    }
+
+    /// <summary>
+    /// Recursively chains statements, handling await expressions by creating promise chains.
+    /// </summary>
+    private object? ChainStatementsWithAwaits(List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    {
+        if (index >= statements.Count)
+        {
+            // No more statements, resolve with null
+            return CreateResolveCall(null, resolveParam);
+        }
+
+        var statement = statements[index];
+        
+        // Check if this is a return statement
+        if (statement is Cons cons && !cons.IsEmpty && 
+            cons.Head is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Return))
+        {
+            // Always transform return statements to call resolve
+            return TransformReturnStatement(cons, resolveParam, statements, index);
+        }
+        
+        // Check if this statement contains await
+        if (ContainsAwait(statement))
+        {
+            // Transform this statement with await into a promise chain
+            return TransformStatementWithAwait(statement, statements, index, resolveParam, rejectParam);
+        }
+
+        // No await and not a return, just include it and continue
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
+        
+        return Cons.FromEnumerable(new object?[] 
+        { 
+            JsSymbols.Block, 
+            statement, 
+            rest 
+        });
+    }
+
+    /// <summary>
+    /// Transforms a return statement to call resolve with the return value.
+    /// </summary>
+    private object? TransformReturnStatement(Cons returnCons, Symbol resolveParam, List<object?> statements, int index)
+    {
+        var parts = ConsList(returnCons);
+        var returnValue = parts.Count >= 2 ? parts[1] : null;
+        
+        // Check if return value is an await expression
+        if (returnValue is Cons valueCons && !valueCons.IsEmpty &&
+            valueCons.Head is Symbol awaitSym && ReferenceEquals(awaitSym, JsSymbols.Await))
+        {
+            // Extract the promise expression
+            var promiseExpr = valueCons.Rest.Head;
+            
+            // Create: promiseExpr.then(resolve)
+            var thenCall = Cons.FromEnumerable(new object?[] 
+            { 
+                JsSymbols.Call, 
+                Cons.FromEnumerable(new object?[] 
+                { 
+                    JsSymbols.GetProperty, 
+                    promiseExpr, 
+                    "then" 
+                }), 
+                resolveParam 
+            });
+            
+            return Cons.FromEnumerable(new object?[] 
+            { 
+                JsSymbols.Block, 
+                Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, thenCall })
+            });
+        }
+        
+        // Regular return, call resolve with the value
+        return CreateResolveCall(returnValue, resolveParam);
+    }
+
+    /// <summary>
+    /// Checks if an expression contains an await.
+    /// </summary>
+    private bool ContainsAwait(object? expr)
+    {
+        if (expr == null)
+        {
+            return false;
+        }
+
+        if (expr is Cons cons && !cons.IsEmpty)
+        {
+            if (cons.Head is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Await))
+            {
+                return true;
+            }
+
+            if (ContainsAwait(cons.Head) || ContainsAwait(cons.Rest))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Transforms a statement containing await into a promise chain.
+    /// Example: let x = await p; [rest]
+    /// Becomes: p.then(function(x) { [rest] })
+    /// </summary>
+    private object? TransformStatementWithAwait(object? statement, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    {
+        // Handle different statement types
+        if (statement is Cons cons && !cons.IsEmpty && cons.Head is Symbol symbol)
+        {
+            // Handle: let/var/const x = await expr;
+            if (ReferenceEquals(symbol, JsSymbols.Let) || 
+                ReferenceEquals(symbol, JsSymbols.Var) || 
+                ReferenceEquals(symbol, JsSymbols.Const))
+            {
+                var parts = ConsList(cons);
+                if (parts.Count >= 3)
+                {
+                    var varName = parts[1]; // variable name
+                    var value = parts[2];   // value expression
+                    
+                    if (value is Cons valueCons && !valueCons.IsEmpty && 
+                        valueCons.Head is Symbol awaitSym && ReferenceEquals(awaitSym, JsSymbols.Await))
+                    {
+                        // Extract the promise expression from (await promise-expr)
+                        var promiseExpr = valueCons.Rest.Head;
+                        
+                        // Create continuation for remaining statements
+                        var restStatements = statements.Skip(index + 1).ToList();
+                        var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam);
+                        
+                        // Create the .then() callback: function(varName) { [continuation] }
+                        var thenCallback = Cons.FromEnumerable(new object?[] 
+                        { 
+                            JsSymbols.Lambda, 
+                            null, 
+                            Cons.FromEnumerable(new object?[] { varName }), 
+                            continuation 
+                        });
+                        
+                        // Create the .then() call: promiseExpr.then(thenCallback)
+                        var thenCall = Cons.FromEnumerable(new object?[] 
+                        { 
+                            JsSymbols.Call, 
+                            Cons.FromEnumerable(new object?[] 
+                            { 
+                                JsSymbols.GetProperty, 
+                                promiseExpr, 
+                                "then" 
+                            }), 
+                            thenCallback 
+                        });
+                        
+                        // Wrap in expression statement and block
+                        return Cons.FromEnumerable(new object?[] 
+                        { 
+                            JsSymbols.Block, 
+                            Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, thenCall })
+                        });
+                    }
+                }
+            }
+            
+            // Handle: return await expr;
+            if (ReferenceEquals(symbol, JsSymbols.Return))
+            {
+                var parts = ConsList(cons);
+                if (parts.Count >= 2 && parts[1] is Cons retValueCons && !retValueCons.IsEmpty)
+                {
+                    if (retValueCons.Head is Symbol awaitSym && ReferenceEquals(awaitSym, JsSymbols.Await))
+                    {
+                        // Extract the promise expression
+                        var promiseExpr = retValueCons.Rest.Head;
+                        
+                        // Create: promiseExpr.then(resolve)
+                        var thenCall = Cons.FromEnumerable(new object?[] 
+                        { 
+                            JsSymbols.Call, 
+                            Cons.FromEnumerable(new object?[] 
+                            { 
+                                JsSymbols.GetProperty, 
+                                promiseExpr, 
+                                "then" 
+                            }), 
+                            resolveParam 
+                        });
+                        
+                        return Cons.FromEnumerable(new object?[] 
+                        { 
+                            JsSymbols.Block, 
+                            Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, thenCall })
+                        });
+                    }
+                }
+                
+                // Regular return without await, just call resolve
+                var returnValue = parts.Count >= 2 ? parts[1] : null;
+                return CreateResolveCall(returnValue, resolveParam);
+            }
+        }
+
+        // Default: include the statement as-is and continue
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
+        return Cons.FromEnumerable(new object?[] 
+        { 
+            JsSymbols.Block, 
+            statement, 
+            rest 
+        });
+    }
+
+    /// <summary>
+    /// Creates a call to resolve with the given value.
+    /// </summary>
+    private object? CreateResolveCall(object? value, Symbol resolveParam)
+    {
+        // Create: (call resolve value)
+        var args = new List<object?> { JsSymbols.Call, resolveParam };
+        if (value != null)
+        {
+            args.Add(value);
+        }
+        var resolveCall = Cons.FromEnumerable(args);
+
+        return Cons.FromEnumerable(new object?[] 
+        { 
+            JsSymbols.Block, 
+            Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, resolveCall })
+        });
     }
 
     /// <summary>

@@ -490,4 +490,219 @@ public class AsyncAwaitTests
         // Assert
         Assert.True(wasCalled);
     }
+
+    [Fact]
+    public async Task AsyncFunction_WithSetTimeoutDelay_ReturnsValue()
+    {
+        // Arrange
+        var engine = new JsEngine();
+        var result = "";
+
+        engine.SetGlobalFunction("captureResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+            return null;
+        });
+
+        // Act
+        await engine.Run(@"
+            async function test() {
+                let p = new Promise(function(resolve) {
+                    setTimeout(function() {
+                        resolve(42);
+                    }, 100);
+                });
+                let value = await p;
+                return value;
+            }
+            
+            test().then(function(value) {
+                captureResult(value);
+            });
+        ");
+
+        // Assert
+        Assert.Equal("42", result);
+    }
+
+    [Fact]
+    public async Task AsyncFunction_WithMultipleSetTimeoutDelays()
+    {
+        // Arrange
+        var engine = new JsEngine();
+        var result = "";
+
+        engine.SetGlobalFunction("captureResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+            return null;
+        });
+
+        // Act
+        await engine.Run(@"
+            async function test() {
+                let p1 = new Promise(function(resolve) {
+                    setTimeout(function() {
+                        resolve(10);
+                    }, 50);
+                });
+                
+                let p2 = new Promise(function(resolve) {
+                    setTimeout(function() {
+                        resolve(20);
+                    }, 50);
+                });
+                
+                let a = await p1;
+                let b = await p2;
+                return a + b;
+            }
+            
+            test().then(function(value) {
+                captureResult(value);
+            });
+        ");
+
+        // Assert
+        Assert.Equal("30", result);
+    }
+
+    [Fact]
+    public async Task AsyncFunction_WithDelayAndComputation()
+    {
+        // Arrange
+        var engine = new JsEngine();
+        var result = "";
+
+        engine.SetGlobalFunction("captureResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+            return null;
+        });
+
+        // Act
+        await engine.Run(@"
+            function delayedValue(value, delay) {
+                return new Promise(function(resolve) {
+                    setTimeout(function() {
+                        resolve(value);
+                    }, delay);
+                });
+            }
+            
+            async function test() {
+                let a = await delayedValue(5, 30);
+                let b = await delayedValue(3, 30);
+                let c = await delayedValue(2, 30);
+                return (a + b) * c;
+            }
+            
+            test().then(function(value) {
+                captureResult(value);
+            });
+        ");
+
+        // Assert
+        Assert.Equal("16", result);
+    }
+
+    [Fact]
+    public async Task AsyncFunction_WithParallelDelays()
+    {
+        // Arrange
+        var engine = new JsEngine();
+        var results = new List<string>();
+
+        engine.SetGlobalFunction("addResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                results.Add(args[0]?.ToString() ?? "");
+            }
+            return null;
+        });
+
+        // Act
+        await engine.Run(@"
+            function delayedValue(value, delay) {
+                return new Promise(function(resolve) {
+                    setTimeout(function() {
+                        resolve(value);
+                    }, delay);
+                });
+            }
+            
+            async function test() {
+                let p1 = delayedValue(""first"", 30);
+                let p2 = delayedValue(""second"", 30);
+                let p3 = delayedValue(""third"", 30);
+                
+                let values = await Promise.all([p1, p2, p3]);
+                addResult(values[0]);
+                addResult(values[1]);
+                addResult(values[2]);
+            }
+            
+            test();
+        ");
+
+        // Assert
+        Assert.Equal(new[] { "first", "second", "third" }, results);
+    }
+
+    [Fact]
+    public async Task AsyncFunction_WithNestedDelays()
+    {
+        // Arrange
+        var engine = new JsEngine();
+        var result = "";
+
+        engine.SetGlobalFunction("captureResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+            return null;
+        });
+
+        // Act
+        await engine.Run(@"
+            function delay(value, ms) {
+                return new Promise(function(resolve) {
+                    setTimeout(function() {
+                        resolve(value);
+                    }, ms);
+                });
+            }
+            
+            async function inner() {
+                let x = await delay(5, 20);
+                let y = await delay(10, 20);
+                return x + y;
+            }
+            
+            async function outer() {
+                let result = await inner();
+                let bonus = await delay(3, 20);
+                return result + bonus;
+            }
+            
+            outer().then(function(value) {
+                captureResult(value);
+            });
+        ");
+
+        // Assert
+        Assert.Equal("18", result);
+    }
 }

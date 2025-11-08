@@ -942,6 +942,110 @@ internal static class StandardLibrary
             
             return jsArray;
         }));
+
+        // at(index)
+        array.SetProperty("at", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count == 0 || args[0] is not double d) return null;
+            var index = (int)d;
+            // Handle negative indices
+            if (index < 0) index = jsArray.Items.Count + index;
+            if (index < 0 || index >= jsArray.Items.Count) return null;
+            return jsArray.GetElement(index);
+        }));
+
+        // flat(depth = 1)
+        array.SetProperty("flat", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            var depth = args.Count > 0 && args[0] is double d ? (int)d : 1;
+            
+            var result = new JsArray();
+            FlattenArray(jsArray, result, depth);
+            AddArrayMethods(result);
+            return result;
+        }));
+
+        // flatMap(callback)
+        array.SetProperty("flatMap", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
+
+            var result = new JsArray();
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                var element = jsArray.Items[i];
+                var mapped = callback.Invoke([element, (double)i, jsArray], null);
+                
+                // Flatten one level
+                if (mapped is JsArray mappedArray)
+                {
+                    for (int j = 0; j < mappedArray.Items.Count; j++)
+                    {
+                        result.Push(mappedArray.GetElement(j));
+                    }
+                }
+                else
+                {
+                    result.Push(mapped);
+                }
+            }
+            AddArrayMethods(result);
+            return result;
+        }));
+
+        // findLast(callback)
+        array.SetProperty("findLast", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
+
+            for (int i = jsArray.Items.Count - 1; i >= 0; i--)
+            {
+                var element = jsArray.Items[i];
+                var matches = callback.Invoke([element, (double)i, jsArray], null);
+                if (IsTruthy(matches))
+                {
+                    return element;
+                }
+            }
+            return null;
+        }));
+
+        // findLastIndex(callback)
+        array.SetProperty("findLastIndex", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return -1d;
+            if (args.Count == 0 || args[0] is not IJsCallable callback) return -1d;
+
+            for (int i = jsArray.Items.Count - 1; i >= 0; i--)
+            {
+                var element = jsArray.Items[i];
+                var matches = callback.Invoke([element, (double)i, jsArray], null);
+                if (IsTruthy(matches))
+                {
+                    return (double)i;
+                }
+            }
+            return -1d;
+        }));
+    }
+
+    private static void FlattenArray(JsArray source, JsArray target, int depth)
+    {
+        foreach (var item in source.Items)
+        {
+            if (depth > 0 && item is JsArray nestedArray)
+            {
+                FlattenArray(nestedArray, target, depth - 1);
+            }
+            else
+            {
+                target.Push(item);
+            }
+        }
     }
 
     private static bool IsTruthy(object? value)
@@ -1509,6 +1613,35 @@ internal static class StandardLibrary
             var padding = string.Concat(Enumerable.Repeat(padString, padCount));
             return str + padding.Substring(0, padLength);
         }));
+
+        // replaceAll(searchValue, replaceValue)
+        stringObj.SetProperty("replaceAll", new HostFunction(args =>
+        {
+            if (args.Count < 2) return str;
+            var searchValue = args[0]?.ToString() ?? "";
+            var replaceValue = args[1]?.ToString() ?? "";
+            return str.Replace(searchValue, replaceValue);
+        }));
+
+        // at(index)
+        stringObj.SetProperty("at", new HostFunction(args =>
+        {
+            if (args.Count == 0) return null;
+            if (args[0] is not double d) return null;
+            var index = (int)d;
+            // Handle negative indices
+            if (index < 0) index = str.Length + index;
+            if (index < 0 || index >= str.Length) return null;
+            return str[index].ToString();
+        }));
+
+        // trimStart() / trimLeft()
+        stringObj.SetProperty("trimStart", new HostFunction(args => str.TrimStart()));
+        stringObj.SetProperty("trimLeft", new HostFunction(args => str.TrimStart()));
+
+        // trimEnd() / trimRight()
+        stringObj.SetProperty("trimEnd", new HostFunction(args => str.TrimEnd()));
+        stringObj.SetProperty("trimRight", new HostFunction(args => str.TrimEnd()));
     }
 
     private static JsArray CreateArrayFromStrings(string[] strings)
@@ -1599,6 +1732,33 @@ internal static class StandardLibrary
             }
             
             return target;
+        });
+
+        // Object.fromEntries(entries)
+        objectConstructor["fromEntries"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsArray entries) return new JsObject();
+            
+            var result = new JsObject();
+            foreach (var entry in entries.Items)
+            {
+                if (entry is JsArray entryArray && entryArray.Items.Count >= 2)
+                {
+                    var key = entryArray.GetElement(0)?.ToString() ?? "";
+                    var value = entryArray.GetElement(1);
+                    result[key] = value;
+                }
+            }
+            
+            return result;
+        });
+
+        // Object.hasOwn(obj, prop)
+        objectConstructor["hasOwn"] = new HostFunction(args =>
+        {
+            if (args.Count < 2 || args[0] is not JsObject obj) return false;
+            var propName = args[1]?.ToString() ?? "";
+            return obj.ContainsKey(propName);
         });
 
         return objectConstructor;

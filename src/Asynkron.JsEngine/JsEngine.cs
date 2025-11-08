@@ -78,6 +78,51 @@ public sealed class JsEngine
     }
 
     /// <summary>
+    /// Parses JavaScript source code into an S-expression representation WITHOUT applying CPS transformation.
+    /// This is useful for debugging and understanding the initial parse tree before transformation.
+    /// </summary>
+    public Cons ParseWithoutTransformation(string source)
+    {
+        // Step 1: Tokenize
+        var lexer = new Lexer(source);
+        var tokens = lexer.Tokenize();
+        
+        // Step 2: Parse to S-expressions (without transformation)
+        var parser = new Parser(tokens);
+        return parser.ParseProgram();
+    }
+
+    /// <summary>
+    /// Parses JavaScript source code and returns both the pre-transformation and post-transformation
+    /// S-expression representations. This is useful for understanding how CPS transformation affects the code.
+    /// </summary>
+    /// <param name="source">JavaScript source code</param>
+    /// <returns>A tuple containing (original, transformed) S-expressions. If no transformation is needed, both will be the same.</returns>
+    public (Cons original, Cons transformed) ParseWithTransformationSteps(string source)
+    {
+        // Step 1: Tokenize
+        var lexer = new Lexer(source);
+        var tokens = lexer.Tokenize();
+        
+        // Step 2: Parse to S-expressions
+        var parser = new Parser(tokens);
+        var original = parser.ParseProgram();
+        
+        // Step 3: Apply CPS transformation if needed
+        Cons transformed;
+        if (_cpsTransformer.NeedsTransformation(original))
+        {
+            transformed = _cpsTransformer.Transform(original);
+        }
+        else
+        {
+            transformed = original;
+        }
+        
+        return (original, transformed);
+    }
+
+    /// <summary>
     /// Parses and immediately evaluates the provided source.
     /// </summary>
     public object? Evaluate(string source)

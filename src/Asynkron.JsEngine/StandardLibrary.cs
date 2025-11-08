@@ -198,6 +198,332 @@ internal static class StandardLibrary
     }
 
     /// <summary>
+    /// Creates a Date object with JavaScript-like date handling.
+    /// </summary>
+    public static JsObject CreateDateObject()
+    {
+        var date = new JsObject();
+
+        // Date.now() - returns milliseconds since epoch
+        date["now"] = new HostFunction(args =>
+        {
+            return (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        });
+
+        // Date.parse() - parses a date string
+        date["parse"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not string dateStr) return double.NaN;
+            
+            if (DateTimeOffset.TryParse(dateStr, out var parsed))
+            {
+                return (double)parsed.ToUnixTimeMilliseconds();
+            }
+            
+            return double.NaN;
+        });
+
+        return date;
+    }
+
+    /// <summary>
+    /// Creates a Date instance constructor.
+    /// </summary>
+    public static IJsCallable CreateDateConstructor()
+    {
+        return new HostFunction((thisValue, args) =>
+        {
+            var dateInstance = new JsObject();
+            
+            DateTimeOffset dateTime;
+            
+            if (args.Count == 0)
+            {
+                // No arguments: current date/time
+                dateTime = DateTimeOffset.UtcNow;
+            }
+            else if (args.Count == 1)
+            {
+                // Single argument: milliseconds since epoch or date string
+                if (args[0] is double ms)
+                {
+                    dateTime = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                }
+                else if (args[0] is string dateStr && DateTimeOffset.TryParse(dateStr, out var parsed))
+                {
+                    dateTime = parsed;
+                }
+                else
+                {
+                    dateTime = DateTimeOffset.UtcNow;
+                }
+            }
+            else
+            {
+                // Multiple arguments: year, month, day, hour, minute, second, millisecond
+                int year = args[0] is double y ? (int)y : 1970;
+                int month = args.Count > 1 && args[1] is double m ? (int)m + 1 : 1; // JS months are 0-indexed
+                int day = args.Count > 2 && args[2] is double d ? (int)d : 1;
+                int hour = args.Count > 3 && args[3] is double h ? (int)h : 0;
+                int minute = args.Count > 4 && args[4] is double min ? (int)min : 0;
+                int second = args.Count > 5 && args[5] is double s ? (int)s : 0;
+                int millisecond = args.Count > 6 && args[6] is double ms ? (int)ms : 0;
+                
+                try
+                {
+                    dateTime = new DateTimeOffset(year, month, day, hour, minute, second, millisecond, TimeSpan.Zero);
+                }
+                catch
+                {
+                    dateTime = DateTimeOffset.UtcNow;
+                }
+            }
+            
+            // Store the internal date value
+            dateInstance["_internalDate"] = (double)dateTime.ToUnixTimeMilliseconds();
+            
+            // Add instance methods
+            dateInstance["getTime"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    return ms;
+                }
+                return double.NaN;
+            });
+            
+            dateInstance["getFullYear"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    return (double)dt.Year;
+                }
+                return double.NaN;
+            });
+            
+            dateInstance["getMonth"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    return (double)(dt.Month - 1); // JS months are 0-indexed
+                }
+                return double.NaN;
+            });
+            
+            dateInstance["getDate"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    return (double)dt.Day;
+                }
+                return double.NaN;
+            });
+            
+            dateInstance["getDay"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    return (double)dt.DayOfWeek;
+                }
+                return double.NaN;
+            });
+            
+            dateInstance["getHours"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    return (double)dt.Hour;
+                }
+                return double.NaN;
+            });
+            
+            dateInstance["getMinutes"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    return (double)dt.Minute;
+                }
+                return double.NaN;
+            });
+            
+            dateInstance["getSeconds"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    return (double)dt.Second;
+                }
+                return double.NaN;
+            });
+            
+            dateInstance["getMilliseconds"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    return (double)dt.Millisecond;
+                }
+                return double.NaN;
+            });
+            
+            dateInstance["toISOString"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    return dt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+                }
+                return "";
+            });
+            
+            dateInstance["toString"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    return dt.ToString();
+                }
+                return "Invalid Date";
+            });
+            
+            return dateInstance;
+        });
+    }
+
+    /// <summary>
+    /// Creates a JSON object with parse and stringify methods.
+    /// </summary>
+    public static JsObject CreateJsonObject()
+    {
+        var json = new JsObject();
+
+        // JSON.parse()
+        json["parse"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not string jsonStr) return null;
+            
+            try
+            {
+                return ParseJsonValue(System.Text.Json.JsonDocument.Parse(jsonStr).RootElement);
+            }
+            catch
+            {
+                // In real JavaScript, this would throw a SyntaxError
+                return null;
+            }
+        });
+
+        // JSON.stringify()
+        json["stringify"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return "undefined";
+            
+            var value = args[0];
+            
+            // Handle replacer function and space arguments if needed
+            // For now, implement basic stringify
+            return StringifyValue(value);
+        });
+
+        return json;
+    }
+
+    private static object? ParseJsonValue(System.Text.Json.JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case System.Text.Json.JsonValueKind.Object:
+                var obj = new JsObject();
+                foreach (var prop in element.EnumerateObject())
+                {
+                    obj[prop.Name] = ParseJsonValue(prop.Value);
+                }
+                return obj;
+            
+            case System.Text.Json.JsonValueKind.Array:
+                var arr = new JsArray();
+                foreach (var item in element.EnumerateArray())
+                {
+                    arr.Push(ParseJsonValue(item));
+                }
+                AddArrayMethods(arr);
+                return arr;
+            
+            case System.Text.Json.JsonValueKind.String:
+                return element.GetString();
+            
+            case System.Text.Json.JsonValueKind.Number:
+                return element.GetDouble();
+            
+            case System.Text.Json.JsonValueKind.True:
+                return true;
+            
+            case System.Text.Json.JsonValueKind.False:
+                return false;
+            
+            case System.Text.Json.JsonValueKind.Null:
+            default:
+                return null;
+        }
+    }
+
+    private static string StringifyValue(object? value, int depth = 0)
+    {
+        if (depth > 100) return "null"; // Prevent stack overflow
+        
+        switch (value)
+        {
+            case null:
+                return "null";
+            
+            case bool b:
+                return b ? "true" : "false";
+            
+            case double d:
+                if (double.IsNaN(d) || double.IsInfinity(d))
+                    return "null";
+                return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            
+            case string s:
+                return System.Text.Json.JsonSerializer.Serialize(s);
+            
+            case JsArray arr:
+                var arrItems = new List<string>();
+                foreach (var item in arr.Items)
+                {
+                    arrItems.Add(StringifyValue(item, depth + 1));
+                }
+                return "[" + string.Join(",", arrItems) + "]";
+            
+            case JsObject obj:
+                var objProps = new List<string>();
+                foreach (var kvp in obj)
+                {
+                    // Skip functions and internal properties
+                    if (kvp.Value is IJsCallable || kvp.Key.StartsWith("_"))
+                        continue;
+                    
+                    var key = System.Text.Json.JsonSerializer.Serialize(kvp.Key);
+                    var val = StringifyValue(kvp.Value, depth + 1);
+                    objProps.Add($"{key}:{val}");
+                }
+                return "{" + string.Join(",", objProps) + "}";
+            
+            case IJsCallable:
+                return "undefined";
+            
+            default:
+                return System.Text.Json.JsonSerializer.Serialize(value?.ToString() ?? "");
+        }
+    }
+
+    /// <summary>
     /// Adds standard array methods to a JsArray instance.
     /// </summary>
     public static void AddArrayMethods(JsArray array)
@@ -217,11 +543,7 @@ internal static class StandardLibrary
         array.SetProperty("pop", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not JsArray jsArray) return null;
-            if (jsArray.Items.Count == 0) return null;
-            var last = jsArray.GetElement(jsArray.Items.Count - 1);
-            // We need to remove the last element - this requires exposing the internal list
-            // For now, we'll return the value but note this is a limitation
-            return last;
+            return jsArray.Pop();
         }));
 
         // map
@@ -463,6 +785,116 @@ internal static class StandardLibrary
             }
             AddArrayMethods(result);
             return result;
+        }));
+
+        // shift
+        array.SetProperty("shift", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            return jsArray.Shift();
+        }));
+
+        // unshift
+        array.SetProperty("unshift", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return 0;
+            jsArray.Unshift(args.ToArray());
+            return jsArray.Items.Count;
+        }));
+
+        // splice
+        array.SetProperty("splice", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            
+            int start = args.Count > 0 && args[0] is double startD ? (int)startD : 0;
+            int deleteCount = args.Count > 1 && args[1] is double deleteD ? (int)deleteD : jsArray.Items.Count - start;
+            
+            object?[] itemsToInsert = args.Count > 2 ? args.Skip(2).ToArray() : Array.Empty<object?>();
+            
+            var deleted = jsArray.Splice(start, deleteCount, itemsToInsert);
+            AddArrayMethods(deleted);
+            return deleted;
+        }));
+
+        // concat
+        array.SetProperty("concat", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            
+            var result = new JsArray();
+            // Add current array items
+            foreach (var item in jsArray.Items)
+            {
+                result.Push(item);
+            }
+            
+            // Add items from arguments
+            foreach (var arg in args)
+            {
+                if (arg is JsArray argArray)
+                {
+                    foreach (var item in argArray.Items)
+                    {
+                        result.Push(item);
+                    }
+                }
+                else
+                {
+                    result.Push(arg);
+                }
+            }
+            
+            AddArrayMethods(result);
+            return result;
+        }));
+
+        // reverse
+        array.SetProperty("reverse", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            jsArray.Reverse();
+            return jsArray;
+        }));
+
+        // sort
+        array.SetProperty("sort", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            
+            var items = jsArray.Items.ToList();
+            
+            if (args.Count > 0 && args[0] is IJsCallable compareFn)
+            {
+                // Sort with custom compare function
+                items.Sort((a, b) =>
+                {
+                    var result = compareFn.Invoke(new object?[] { a, b }, null);
+                    if (result is double d)
+                    {
+                        return d > 0 ? 1 : d < 0 ? -1 : 0;
+                    }
+                    return 0;
+                });
+            }
+            else
+            {
+                // Default sort: convert to strings and sort lexicographically
+                items.Sort((a, b) =>
+                {
+                    var aStr = a?.ToString() ?? "";
+                    var bStr = b?.ToString() ?? "";
+                    return string.Compare(aStr, bStr, StringComparison.Ordinal);
+                });
+            }
+            
+            // Replace array items with sorted items
+            for (int i = 0; i < items.Count; i++)
+            {
+                jsArray.SetElement(i, items[i]);
+            }
+            
+            return jsArray;
         }));
     }
 

@@ -656,6 +656,11 @@ internal static class Evaluator
             case double d:
                 return d;
             case Symbol symbol:
+                // Special case: undefined is a reserved symbol that evaluates to itself
+                if (ReferenceEquals(symbol, JsSymbols.Undefined))
+                {
+                    return symbol;
+                }
                 return environment.Get(symbol);
             case Cons cons:
                 return EvaluateCompositeExpression(cons, environment);
@@ -744,6 +749,12 @@ internal static class Evaluator
         {
             var operand = EvaluateExpression(cons.Rest.Head, environment);
             return !IsTruthy(operand);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.Typeof))
+        {
+            var operand = EvaluateExpression(cons.Rest.Head, environment);
+            return GetTypeofString(operand);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Lambda))
@@ -1184,7 +1195,10 @@ internal static class Evaluator
             case "||":
                 return IsTruthy(left) ? left : EvaluateExpression(rightExpression, environment);
             case "??":
-                return left is null ? EvaluateExpression(rightExpression, environment) : left;
+            {
+                var leftIsNullish = left is null || (left is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined));
+                return leftIsNullish ? EvaluateExpression(rightExpression, environment) : left;
+            }
             case "===":
             {
                 var rightStrict = EvaluateExpression(rightExpression, environment);
@@ -1205,8 +1219,8 @@ internal static class Evaluator
             "-" => ToNumber(left) - ToNumber(right),
             "*" => ToNumber(left) * ToNumber(right),
             "/" => ToNumber(right) == 0 ? throw new DivideByZeroException() : ToNumber(left) / ToNumber(right),
-            "==" => Equals(left, right),
-            "!=" => !Equals(left, right),
+            "==" => LooseEquals(left, right),
+            "!=" => !LooseEquals(left, right),
             ">" => ToNumber(left) > ToNumber(right),
             ">=" => ToNumber(left) >= ToNumber(right),
             "<" => ToNumber(left) < ToNumber(right),
@@ -1284,6 +1298,7 @@ internal static class Evaluator
     private static bool IsTruthy(object? value) => value switch
     {
         null => false,
+        Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => false,
         bool b => b,
         double d => Math.Abs(d) > double.Epsilon,
         string s => s.Length > 0,
@@ -1293,6 +1308,7 @@ internal static class Evaluator
     private static double ToNumber(object? value) => value switch
     {
         null => 0,
+        Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => double.NaN,
         double d => d,
         float f => f,
         decimal m => (double)m,
@@ -1308,6 +1324,30 @@ internal static class Evaluator
         string s when double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) => parsed,
         _ => throw new InvalidOperationException($"Cannot convert value '{value}' to a number.")
     };
+
+    private static string GetTypeofString(object? value)
+    {
+        // JavaScript oddity: typeof null === "object" (historical bug)
+        if (value is null)
+        {
+            return "object";
+        }
+        
+        // Check for undefined symbol
+        if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined))
+        {
+            return "undefined";
+        }
+        
+        return value switch
+        {
+            bool => "boolean",
+            double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
+            string => "string",
+            JsFunction or HostFunction => "function",
+            _ => "object"
+        };
+    }
 
     private static object Add(object? left, object? right)
     {
@@ -1356,11 +1396,32 @@ internal static class Evaluator
         return Equals(left, right);
     }
 
+    private static bool LooseEquals(object? left, object? right)
+    {
+        // JavaScript oddity: null == undefined (but null !== undefined)
+        var leftIsNullish = left is null || (left is Symbol symL && ReferenceEquals(symL, JsSymbols.Undefined));
+        var rightIsNullish = right is null || (right is Symbol symR && ReferenceEquals(symR, JsSymbols.Undefined));
+        
+        if (leftIsNullish && rightIsNullish)
+        {
+            return true;
+        }
+        
+        if (leftIsNullish || rightIsNullish)
+        {
+            return false;
+        }
+        
+        // For other cases, use strict equality
+        return StrictEquals(left, right);
+    }
+
     private static bool IsNumeric(object? value) => value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
 
     private static string ToDisplayString(object? value) => value switch
     {
         null => "null",
+        Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => "undefined",
         bool b => b ? "true" : "false",
         _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
     };

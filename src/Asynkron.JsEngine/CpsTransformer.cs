@@ -333,12 +333,30 @@ public sealed class CpsTransformer
             return TransformTryInAsyncContext(tryCons, statements, index, resolveParam, rejectParam);
         }
         
+        // Check if this is a for-of statement - needs transformation if body contains await
+        if (statement is Cons forOfCons && !forOfCons.IsEmpty && 
+            forOfCons.Head is Symbol forOfSymbol && ReferenceEquals(forOfSymbol, JsSymbols.ForOf))
+        {
+            // Check if body contains await
+            var parts = ConsList(forOfCons);
+            if (parts.Count >= 4 && ContainsAwait(parts[3]))
+            {
+                // Transform for-of with await in body
+                return TransformForOfWithAwaitInBody(forOfCons, statements, index, resolveParam, rejectParam);
+            }
+        }
+
         // Check if this is a for-await-of statement - needs transformation in async context
         if (statement is Cons forAwaitCons && !forAwaitCons.IsEmpty && 
             forAwaitCons.Head is Symbol forAwaitSymbol && ReferenceEquals(forAwaitSymbol, JsSymbols.ForAwaitOf))
         {
-            // Transform for-await-of into a promise-based loop
-            return TransformForAwaitOfInAsyncContext(forAwaitCons, statements, index, resolveParam, rejectParam);
+            // Check if body contains await
+            var parts = ConsList(forAwaitCons);
+            if (parts.Count >= 4 && ContainsAwait(parts[3]))
+            {
+                // Transform for-await-of with await in body
+                return TransformForOfWithAwaitInBody(forAwaitCons, statements, index, resolveParam, rejectParam);
+            }
         }
         
         // Check if this statement contains await
@@ -1068,51 +1086,185 @@ public sealed class CpsTransformer
     }
 
     /// <summary>
-    /// Transforms a for-await-of statement within an async function context.
-    /// Converts the loop into a promise-based recursive iteration that properly handles
-    /// both sync and async iterators, as well as await expressions in the loop body.
-    /// 
-    /// The transformation converts:
-    ///   for await (let x of iterable) { body }
-    /// Into a recursive promise chain that calls next(), checks done, executes body, and recurses.
+    /// Transforms a for-of or for-await-of loop that contains await expressions in the body.
+    /// The key insight: for-of with await in body is the same as manual iteration with await.
+    /// We transform: for (let x of iterable) { await ...; }
+    /// Into: manual iteration with iterator protocol, allowing body transformation to handle await.
     /// </summary>
-    private object? TransformForAwaitOfInAsyncContext(Cons forAwaitCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    private object? TransformForOfWithAwaitInBody(Cons forOfCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
     {
-        // For now, use a simpler approach: just pass through the for-await-of
-        // and let the evaluator handle it, but we'll need to handle the case where
-        // the body contains await expressions
-        
-        // Parse: (for-await-of (let/var/const variable) iterable body)
-        var parts = ConsList(forAwaitCons);
+        // Parse: (for-of/for-await-of (let/var/const variable) iterable body)
+        var parts = ConsList(forOfCons);
         if (parts.Count < 4)
         {
-            // Malformed, return as-is
-            return forAwaitCons;
-        }
-
-        var forAwaitSymbol = parts[0];
-        var variableDecl = parts[1];
-        var iterableExpr = parts[2];
-        var loopBody = parts[3];
-
-        // Check if the body contains await
-        if (!ContainsAwait(loopBody))
-        {
-            // No await in body, just pass through and chain continuation
+            // Malformed, continue with rest
             var restStatements = statements.Skip(index + 1).ToList();
             var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam);
-
-            return Cons.FromEnumerable([
-                JsSymbols.Block,
-                forAwaitCons,
-                continuation
-            ]);
+            return Cons.FromEnumerable([JsSymbols.Block, forOfCons, continuation]);
         }
 
-        // Body contains await - we need full transformation
-        // For now, throw an error to indicate this needs implementation
-        // TODO: Implement full CPS transformation for for-await-of with await in body
-        return forAwaitCons;
+        var loopType = parts[0];        // for-of or for-await-of
+        var variableDecl = parts[1];    // (let/var/const variable)
+        var iterableExpr = parts[2];    // iterable expression  
+        var loopBody = parts[3];        // loop body
+
+        // Extract variable info
+        Symbol? variableName = null;
+        Symbol? varKeyword = null;
+        if (variableDecl is Cons varDeclCons && !varDeclCons.IsEmpty)
+        {
+            var varDeclParts = ConsList(varDeclCons);
+            if (varDeclParts.Count >= 2)
+            {
+                varKeyword = varDeclParts[0] as Symbol;
+                variableName = varDeclParts[1] as Symbol;
+            }
+        }
+
+        if (variableName == null || varKeyword == null)
+        {
+            // Can't transform, pass through
+            var restStatements = statements.Skip(index + 1).ToList();
+            var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam);
+            return Cons.FromEnumerable([JsSymbols.Block, forOfCons, continuation]);
+        }
+
+        // Transform into manual iteration:
+        // let __iterator = iterable[Symbol.iterator]();
+        // let __result;
+        // while (true) {
+        //   __result = __iterator.next();
+        //   if (__result.done) break;
+        //   let variable = __result.value;
+        //   [body]
+        // }
+        // [continuation]
+
+        var iteratorVar = Symbol.Intern("__iterator" + Guid.NewGuid().ToString("N").Substring(0, 8));
+        var resultVar = Symbol.Intern("__result");
+
+        // Get iterator: let __iterator = iterable[Symbol.iterator]();
+        var getIteratorStmt = BuildGetIteratorForTransform(iterableExpr, iteratorVar);
+
+        // let __result;
+        var resultDecl = Cons.FromEnumerable([
+            JsSymbols.Let,
+            resultVar,
+            null
+        ]);
+
+        // __result = __iterator.next();
+        var assignNext = Cons.FromEnumerable([
+            JsSymbols.Assign,
+            resultVar,
+            Cons.FromEnumerable([
+                JsSymbols.Call,
+                Cons.FromEnumerable([
+                    JsSymbols.GetProperty,
+                    iteratorVar,
+                    "next"
+                ])
+            ])
+        ]);
+
+        // if (__result.done) break;
+        var checkDone = Cons.FromEnumerable([
+            JsSymbols.If,
+            Cons.FromEnumerable([
+                JsSymbols.GetProperty,
+                resultVar,
+                "done"
+            ]),
+            Cons.FromEnumerable([
+                JsSymbols.Block,
+                Cons.FromEnumerable([JsSymbols.Break])
+            ])
+        ]);
+
+        // let variable = __result.value;
+        var extractValue = Cons.FromEnumerable([
+            varKeyword,
+            variableName,
+            Cons.FromEnumerable([
+                JsSymbols.GetProperty,
+                resultVar,
+                "value"
+            ])
+        ]);
+
+        // Build while body: [assignNext, checkDone, extractValue, ...loopBody]
+        var whileBodyStmts = new List<object?> { assignNext, checkDone, extractValue };
+        
+        // Add original loop body statements
+        if (loopBody is Cons bodyCons && !bodyCons.IsEmpty)
+        {
+            if (bodyCons.Head is Symbol sym && ReferenceEquals(sym, JsSymbols.Block))
+            {
+                var current = bodyCons.Rest;
+                while (current is Cons c && !c.IsEmpty)
+                {
+                    whileBodyStmts.Add(c.Head);
+                    current = c.Rest;
+                }
+            }
+            else
+            {
+                whileBodyStmts.Add(loopBody);
+            }
+        }
+
+        var whileBody = Cons.FromEnumerable([JsSymbols.Block, .. whileBodyStmts]);
+
+        // while (true) { ... }
+        var whileLoop = Cons.FromEnumerable([
+            JsSymbols.While,
+            true,  // condition: true
+            whileBody
+        ]);
+
+        // Combine: getIterator, resultDecl, whileLoop, then chain continuation
+        var transformedStatements = new List<object?> { getIteratorStmt, resultDecl, whileLoop };
+        transformedStatements.AddRange(statements.Skip(index + 1));
+
+        // Now chain these statements with await handling
+        return ChainStatementsWithAwaits(transformedStatements, 0, resolveParam, rejectParam);
+    }
+
+    /// <summary>
+    /// Builds code to get an iterator from an iterable.
+    /// Returns: let __iterator = iterable[Symbol.iterator]();
+    /// </summary>
+    private object? BuildGetIteratorForTransform(object? iterableExpr, Symbol iteratorVar)
+    {
+        // Symbol.iterator
+        var iteratorSymbol = Cons.FromEnumerable([
+            JsSymbols.GetProperty,
+            Cons.FromEnumerable([
+                JsSymbols.GetProperty,
+                Symbol.Intern("Symbol"),
+                "iterator"
+            ])
+        ]);
+
+        // iterable[Symbol.iterator]
+        var getIteratorMethod = Cons.FromEnumerable([
+            JsSymbols.GetIndex,
+            iterableExpr,
+            iteratorSymbol
+        ]);
+
+        // iterable[Symbol.iterator]()
+        var callIteratorMethod = Cons.FromEnumerable([
+            JsSymbols.Call,
+            getIteratorMethod
+        ]);
+
+        // let __iterator = iterable[Symbol.iterator]();
+        return Cons.FromEnumerable([
+            JsSymbols.Let,
+            iteratorVar,
+            callIteratorMethod
+        ]);
     }
 
     /// <summary>

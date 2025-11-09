@@ -87,6 +87,9 @@ internal sealed class JsWeakMap
     {
         if (value == null) return false;
         
+        // Check for undefined symbol
+        if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined)) return false;
+        
         // Check if it's a reference type that can be used as a WeakMap key
         // Strings are reference types in .NET but are treated as primitives in JavaScript
         if (value is string) return false;

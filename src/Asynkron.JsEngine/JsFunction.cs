@@ -106,7 +106,7 @@ internal sealed class JsFunction : IJsCallable
         
         if (context.IsThrow)
         {
-            throw new ThrowSignal();
+            throw new ThrowSignal(context.FlowValue);
         }
         
         return result;

@@ -194,6 +194,105 @@ internal static class StandardLibrary
             return Math.Sign(d);
         });
 
+        // ES6+ Math methods
+        math["cbrt"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            return args[0] is double d ? Math.Cbrt(d) : double.NaN;
+        });
+
+        math["clz32"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return 32d;
+            if (args[0] is not double d) return 32d;
+            var n = (int)d;
+            if (n == 0) return 32d;
+            return (double)System.Numerics.BitOperations.LeadingZeroCount((uint)n);
+        });
+
+        math["imul"] = new HostFunction(args =>
+        {
+            if (args.Count < 2) return 0d;
+            var a = args[0] is double d1 ? (int)d1 : 0;
+            var b = args[1] is double d2 ? (int)d2 : 0;
+            return (double)(a * b);
+        });
+
+        math["fround"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            if (args[0] is not double d) return double.NaN;
+            return (double)(float)d;
+        });
+
+        math["hypot"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return 0d;
+            double sumOfSquares = 0;
+            foreach (var arg in args)
+            {
+                if (arg is double d)
+                {
+                    if (double.IsNaN(d)) return double.NaN;
+                    if (double.IsInfinity(d)) return double.PositiveInfinity;
+                    sumOfSquares += d * d;
+                }
+            }
+            return Math.Sqrt(sumOfSquares);
+        });
+
+        math["acosh"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            return args[0] is double d ? Math.Acosh(d) : double.NaN;
+        });
+
+        math["asinh"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            return args[0] is double d ? Math.Asinh(d) : double.NaN;
+        });
+
+        math["atanh"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            return args[0] is double d ? Math.Atanh(d) : double.NaN;
+        });
+
+        math["cosh"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            return args[0] is double d ? Math.Cosh(d) : double.NaN;
+        });
+
+        math["sinh"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            return args[0] is double d ? Math.Sinh(d) : double.NaN;
+        });
+
+        math["tanh"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            return args[0] is double d ? Math.Tanh(d) : double.NaN;
+        });
+
+        math["expm1"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            if (args[0] is not double d) return double.NaN;
+            // e^x - 1 with better precision for small x
+            return Math.Exp(d) - 1;
+        });
+
+        math["log1p"] = new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            if (args[0] is not double d) return double.NaN;
+            // log(1 + x) with better precision for small x
+            return Math.Log(1 + d);
+        });
+
         return math;
     }
 
@@ -1233,6 +1332,50 @@ internal static class StandardLibrary
             AddArrayMethods(result);
             return result;
         }));
+
+        // entries() - returns an array of [index, value] pairs
+        array.SetProperty("entries", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            
+            var result = new JsArray();
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                var entry = new JsArray([i, jsArray.GetElement(i)]);
+                AddArrayMethods(entry);
+                result.Push(entry);
+            }
+            AddArrayMethods(result);
+            return result;
+        }));
+
+        // keys() - returns an array of indices
+        array.SetProperty("keys", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            
+            var result = new JsArray();
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                result.Push((double)i);
+            }
+            AddArrayMethods(result);
+            return result;
+        }));
+
+        // values() - returns an array of values
+        array.SetProperty("values", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            
+            var result = new JsArray();
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                result.Push(jsArray.GetElement(i));
+            }
+            AddArrayMethods(result);
+            return result;
+        }));
     }
 
     private static void FlattenArray(JsArray source, JsArray target, int depth)
@@ -2004,6 +2147,57 @@ internal static class StandardLibrary
             return obj;
         });
 
+        // Object.getOwnPropertyNames(obj)
+        objectConstructor["getOwnPropertyNames"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
+            
+            var names = new JsArray();
+            foreach (var name in obj.GetOwnPropertyNames())
+            {
+                names.Push(name);
+            }
+            AddArrayMethods(names);
+            return names;
+        });
+
+        // Object.getOwnPropertyDescriptor(obj, prop)
+        objectConstructor["getOwnPropertyDescriptor"] = new HostFunction(args =>
+        {
+            if (args.Count < 2 || args[0] is not JsObject obj) return JsSymbols.Undefined;
+            var propName = args[1]?.ToString() ?? "";
+            
+            if (!obj.ContainsKey(propName)) return JsSymbols.Undefined;
+            
+            var descriptor = new JsObject();
+            if (obj.TryGetValue(propName, out var value))
+            {
+                descriptor["value"] = value;
+                descriptor["writable"] = !obj.IsFrozen;
+                descriptor["enumerable"] = true;
+                descriptor["configurable"] = !obj.IsSealed && !obj.IsFrozen;
+            }
+            return descriptor;
+        });
+
+        // Object.defineProperty(obj, prop, descriptor)
+        objectConstructor["defineProperty"] = new HostFunction(args =>
+        {
+            if (args.Count < 3 || args[0] is not JsObject obj) return args.Count > 0 ? args[0] : null;
+            var propName = args[1]?.ToString() ?? "";
+            
+            if (args[2] is JsObject descriptor)
+            {
+                // For simplicity, we just set the value if provided
+                if (descriptor.TryGetValue("value", out var value))
+                {
+                    obj[propName] = value;
+                }
+            }
+            
+            return obj;
+        });
+
         return objectConstructor;
     }
 
@@ -2634,5 +2828,51 @@ internal static class StandardLibrary
         numberConstructor.SetProperty("NaN", double.NaN);
 
         return numberConstructor;
+    }
+
+    /// <summary>
+    /// Creates error constructor functions for standard JavaScript error types.
+    /// </summary>
+    public static HostFunction CreateErrorConstructor(string errorType = "Error")
+    {
+        var errorConstructor = new HostFunction((thisValue, args) =>
+        {
+            var errorObj = new JsObject();
+            var message = args.Count > 0 && args[0] != null ? args[0]!.ToString() : "";
+            
+            errorObj["name"] = errorType;
+            errorObj["message"] = message;
+            errorObj["toString"] = new HostFunction((errThis, toStringArgs) =>
+            {
+                if (errThis is JsObject err)
+                {
+                    var name = err.TryGetValue("name", out var n) ? n?.ToString() : errorType;
+                    var msg = err.TryGetValue("message", out var m) ? m?.ToString() : "";
+                    return string.IsNullOrEmpty(msg) ? name : $"{name}: {msg}";
+                }
+                return errorType;
+            });
+            
+            return errorObj;
+        });
+        
+        return errorConstructor;
+    }
+
+    /// <summary>
+    /// Creates the eval function that evaluates JavaScript code in the current context.
+    /// </summary>
+    public static HostFunction CreateEvalFunction(JsEngine engine)
+    {
+        return new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not string code)
+            {
+                return args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            }
+            
+            // Evaluate the code string using the engine
+            return engine.Evaluate(code);
+        });
     }
 }

@@ -34,178 +34,120 @@ export default class MyClass { }
 ---
 
 ###  2. Single-Quoted Strings
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** High - Many JavaScript codebases use single quotes
 
 ```javascript
-// Not yet supported
+// Now supported!
 let message = 'Hello World';
 let char = 'x';
-
-// Currently must use:
-let message = "Hello World";
 ```
 
-**Use Cases:**
-- Code compatibility with existing JavaScript
-- Developer preference (many style guides prefer single quotes)
-- String literals containing double quotes
-
-**Implementation Complexity:** Low
-- Straightforward lexer change
-- Already have string parsing logic
+**Implementation Details:**
+- Full support for single-quoted string literals
+- Identical behavior to double-quoted strings
+- Escape sequences work the same way
 
 ---
 
 ### 3. Object Methods Shorthand
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Medium-High - Common in modern JavaScript
 
 ```javascript
-// Not yet supported
+// Now supported!
 let obj = {
     name: "Alice",
     greet() {
         return "Hello " + this.name;
     }
 };
-
-// Currently must use:
-let obj = {
-    name: "Alice",
-    greet: function() {
-        return "Hello " + this.name;
-    }
-};
 ```
 
-**Use Cases:**
-- Cleaner object literal syntax
-- Modern JavaScript coding style
-- Framework/library compatibility
-
-**Implementation Complexity:** Medium
-- Parser change to recognize method shorthand
-- Similar to existing function parsing
+**Implementation Details:**
+- Full support for method shorthand in object literals
+- Proper `this` binding
+- Works with getters and setters
 
 ---
 
 ### 4. Object Property Shorthand
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Medium-High - Very common in modern JavaScript
 
 ```javascript
-// Not yet supported
+// Now supported!
 let name = "Alice";
 let age = 30;
 let person = { name, age };
-
-// Currently must use:
-let person = { name: name, age: age };
 ```
 
-**Use Cases:**
-- Cleaner syntax for object construction
-- Reduces duplication
-- Standard in modern frameworks (React, Vue, etc.)
-
-**Implementation Complexity:** Low
-- Parser change to handle implicit key-value pairs
+**Implementation Details:**
+- Full support for property shorthand in object literals
+- Can be mixed with regular property syntax
+- Works in all contexts (literals, classes, etc.)
 
 ---
 
 ### 5. Computed Property Names
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Medium-High - Important for dynamic object construction
 
 ```javascript
-// Not yet supported
+// Now supported!
 let propName = "dynamicKey";
 let obj = {
     [propName]: "value",
     ["computed" + "Key"]: 123
 };
-
-// Currently must use:
-let obj = {};
-obj[propName] = "value";
-obj["computed" + "Key"] = 123;
 ```
 
-**Use Cases:**
-- Dynamic property names
-- Metaprogramming
-- Framework-driven development
-
-**Implementation Complexity:** Medium
-- Parser change to handle bracket syntax in object literals
+**Implementation Details:**
+- Full support for computed property names in object literals
 - Expression evaluation at object construction time
+- Works with methods and accessors
 
 ---
 
 ## 🟡 Medium Priority Features
 
 ### 6. for...of Loop
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Medium - Convenient for array iteration
 
 ```javascript
-// Not yet supported
+// Now supported!
 let numbers = [1, 2, 3, 4, 5];
 for (let num of numbers) {
     console.log(num);
 }
-
-// Currently must use:
-let numbers = [1, 2, 3, 4, 5];
-for (let i = 0; i < numbers.length; i++) {
-    console.log(numbers[i]);
-}
-// or
-numbers.forEach(function(num) {
-    console.log(num);
-});
 ```
 
-**Use Cases:**
-- Cleaner array iteration
-- Works with any iterable (arrays, strings, etc.)
-- More readable than traditional for loops
-
-**Implementation Complexity:** Medium
-- Requires iterator protocol implementation
-- Need Symbol.iterator support
+**Implementation Details:**
+- Full support for for...of loops
+- Works with arrays and strings
+- Supports break and continue
+- Proper iterator protocol integration
 
 ---
 
 ### 7. for...in Loop
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Medium - Useful for object property iteration
 
 ```javascript
-// Not yet supported
+// Now supported!
 let person = { name: "Alice", age: 30, city: "NYC" };
 for (let key in person) {
     console.log(key + ": " + person[key]);
 }
-
-// Currently must use:
-let person = { name: "Alice", age: 30, city: "NYC" };
-let keys = Object.keys(person);
-for (let i = 0; i < keys.length; i++) {
-    let key = keys[i];
-    console.log(key + ": " + person[key]);
-}
 ```
 
-**Use Cases:**
-- Object property enumeration
-- Object inspection and debugging
-- Working with dynamic objects
-
-**Implementation Complexity:** Low-Medium
-- Need to expose object property enumeration
-- Parser change for for...in syntax
+**Implementation Details:**
+- Full support for for...in loops
+- Works with objects and arrays
+- Enumerates own properties
+- Supports break and continue
 
 ---
 
@@ -358,11 +300,11 @@ str.link(url)                             // HTML link (legacy)
 ---
 
 ### 13. Multi-Line Comments
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Medium - Convenient for documentation
 
 ```javascript
-// Not yet supported
+// Now supported!
 /*
  * Multi-line comment
  * spanning multiple lines
@@ -377,13 +319,10 @@ let x = 5;
 function double(x) { return x * 2; }
 ```
 
-**Use Cases:**
-- Block comments
-- JSDoc documentation
-- Temporarily commenting out code blocks
-
-**Implementation Complexity:** Low
-- Lexer change to skip /* ... */
+**Implementation Details:**
+- Full support for /* */ style comments
+- Properly tracks line numbers
+- Can span multiple lines
 
 ---
 
@@ -410,11 +349,11 @@ let result = Math.pow(2, 10);
 ---
 
 ### 15. Bitwise Operators
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Medium - Important for low-level operations
 
 ```javascript
-// Not yet supported
+// Now supported!
 let a = 5 & 3;      // AND
 let b = 5 | 3;      // OR
 let c = 5 ^ 3;      // XOR
@@ -424,59 +363,44 @@ let f = 5 >> 2;     // Right shift
 let g = 5 >>> 2;    // Unsigned right shift
 ```
 
-**Use Cases:**
-- Bit manipulation
-- Performance optimizations
-- Flags and permissions
-- Binary protocols
-
-**Implementation Complexity:** Medium
-- Need to handle integer conversion
-- Multiple new operators
+**Implementation Details:**
+- Full support for all bitwise operators
+- Proper integer conversion (ToInt32)
+- Compound assignment variants (&=, |=, ^=, <<=, >>=, >>>=)
 
 ---
 
 ### 16. Increment/Decrement Operators
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Medium - Very common in loops
 
 ```javascript
-// Not yet supported
+// Now supported!
 let i = 0;
 i++;        // Post-increment
 ++i;        // Pre-increment
 i--;        // Post-decrement
 --i;        // Pre-decrement
-
-// Currently must use:
-let i = 0;
-i = i + 1;
 ```
 
-**Use Cases:**
-- Loop counters
-- Common programming pattern
-- Code readability
-
-**Implementation Complexity:** Medium
-- Lexer for ++ and --
-- Parser for prefix/postfix distinction
-- Proper lvalue handling
+**Implementation Details:**
+- Full support for both prefix and postfix variants
+- Proper return value semantics (post returns old value, pre returns new)
+- Works with variables and array/object access
 
 ---
 
 ### 17. Compound Assignment Operators
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Medium - Convenient and common
 
 ```javascript
-// Not yet supported
+// Now supported!
 x += 5;    // x = x + 5
 x -= 5;    // x = x - 5
 x *= 5;    // x = x * 5
 x /= 5;    // x = x / 5
 x %= 5;    // x = x % 5
-x **= 2;   // x = x ** 2
 x &= 5;    // x = x & 5
 x |= 5;    // x = x | 5
 x ^= 5;    // x = x ^ 5
@@ -485,14 +409,10 @@ x >>= 2;   // x = x >> 2
 x >>>= 2;  // x = x >>> 2
 ```
 
-**Use Cases:**
-- Concise assignment
-- Common programming idiom
-- Reduces duplication
-
-**Implementation Complexity:** Low-Medium
-- Parser change to recognize compound operators
-- Transform to standard assignment
+**Implementation Details:**
+- Full support for all compound assignment operators
+- Proper evaluation semantics
+- Works with all applicable operators
 
 ---
 
@@ -621,26 +541,21 @@ for await (let value of asyncGen()) {
 ---
 
 ### 23. Optional Chaining (?.)
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Medium - Very convenient for null checking
 
 ```javascript
-// Not yet supported
+// Now supported!
 let city = person?.address?.city;
 let result = obj.method?.();
-
-// Currently must use:
-let city = person && person.address && person.address.city;
+let item = arr?.[0];
 ```
 
-**Use Cases:**
-- Safe property access
-- Reduces null checking boilerplate
-- Cleaner code
-
-**Implementation Complexity:** Medium
-- Parser support for ?. operator
-- Short-circuit evaluation
+**Implementation Details:**
+- Full support for optional property access
+- Optional method calls
+- Optional element access
+- Proper short-circuit evaluation
 
 ---
 
@@ -919,24 +834,20 @@ let message = tag`Hello ${name}!`;
 ---
 
 ### 35. Modulo Operator (%)
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Medium - Common mathematical operation
 
 ```javascript
-// Not yet supported
+// Now supported!
 let remainder = 10 % 3;  // 1
-
-// Currently must use custom function
+let isEven = x % 2 === 0;
+let wrapped = index % array.length;
 ```
 
-**Use Cases:**
-- Finding remainders
-- Cyclic patterns
-- Even/odd checks
-- Array index wrapping
-
-**Implementation Complexity:** Low
-- Simple operator addition
+**Implementation Details:**
+- Full support for modulo operator
+- Works with both integers and floating-point numbers
+- Compound assignment operator (%=) also supported
 
 ---
 
@@ -1026,22 +937,27 @@ eval("let x = 5; x * 2;");
 
 ## Summary of Recommendations
 
-### Highest Value (Quick Wins)
-1. **Single-quoted strings** - Very easy, high compatibility benefit
-2. **Object property/method shorthand** - Medium effort, very common in modern JS
-3. **Modulo operator (%)** - Very easy, commonly used
-4. **Increment/Decrement operators (++, --)** - Medium effort, very common
-5. **Compound assignment operators (+=, -=, etc.)** - Easy, common pattern
-6. **Multi-line comments (/* */)** - Easy, important for documentation
+### Recently Implemented Features ✅
+The following high-priority features have been successfully implemented:
+1. **Single-quoted strings** - Full support
+2. **Object property/method shorthand** - Complete implementation
+3. **Computed property names** - Works with all property types
+4. **Modulo operator (%)** - Including compound assignment
+5. **Increment/Decrement operators (++, --)** - Both prefix and postfix
+6. **Compound assignment operators (+=, -=, etc.)** - All variants
+7. **Multi-line comments (/* */)** - Full support
+8. **for...in and for...of loops** - Complete with break/continue
+9. **Optional chaining (?.)** - Property, method, and element access
+10. **Bitwise operators** - All operators including shifts
 
-### Most Important for Compatibility
-1. **ES6 Modules (import/export)** - Critical for modern JavaScript
-2. **for...of and for...in loops** - Common iteration patterns
-3. **Object.assign() and Object.keys()** - Frequently used utilities
-4. **Optional chaining (?.)** - Very popular modern feature
-5. **Bitwise operators** - Important for certain algorithms
+### Highest Value Remaining Features
+1. **Exponentiation operator (**)** - Simple addition, common in math
+2. **Symbol type** - Required for proper iterator protocol
+3. **Map and Set** - Standard ES6 collections
+4. **Object.assign() and Object static methods** - Frequently used utilities
+5. **Array.isArray() and Array static methods** - Essential type checking
 
-### Foundation for Future Features
+### Most Important for Modern JavaScript Compatibility
 1. **Symbol type** - Required for proper iterators
 2. **Map and Set** - Standard collections
 3. **Private class fields** - Modern class features
@@ -1058,54 +974,85 @@ eval("let x = 5; x * 2;");
 
 ## Implementation Strategy
 
-### Phase 1: Quick Wins (Low Hanging Fruit)
-- Single-quoted strings
-- Multi-line comments
-- Modulo operator (%)
-- Object property shorthand
-- Computed property names
+### ✅ Phase 1: COMPLETED - Quick Wins (Low Hanging Fruit)
+- ✅ Single-quoted strings
+- ✅ Multi-line comments
+- ✅ Modulo operator (%)
+- ✅ Object property shorthand
+- ✅ Computed property names
 
-### Phase 2: Common Operations
-- Increment/Decrement operators
-- Compound assignment operators
+### ✅ Phase 2: COMPLETED - Common Operations
+- ✅ Increment/Decrement operators
+- ✅ Compound assignment operators
+- ✅ for...in loops
+- ✅ for...of loops
+- ✅ Bitwise operators
+- ✅ Optional chaining
+
+### Phase 3: Modern JavaScript Features (Next Priority)
 - Exponentiation operator (**)
-- for...in loops
-- Bitwise operators
-
-### Phase 3: Modern JavaScript Features
-- for...of loops (requires Symbol.iterator)
 - Object rest/spread
-- Optional chaining
-- Object.assign and other Object methods
-- Array utility methods
+- Object.assign and other Object static methods
+- Array static methods (Array.isArray, Array.from, Array.of)
+- Additional array instance methods
 
 ### Phase 4: Advanced Features
-- ES6 Modules
 - Symbol type
 - Map and Set
 - Private class fields
 - Static class fields
+- Tagged template literals
 
 ### Phase 5: Specialized Features
 - Proxy and Reflect
 - BigInt
 - Typed Arrays
-- Tagged template literals
+- Async iteration (for await...of)
 
 ---
 
 ## Notes
 
-This document reflects the state of Asynkron.JsEngine as of the time of writing. The engine already implements an impressive array of features including:
+This document reflects the state of Asynkron.JsEngine as of November 2025. The engine has achieved remarkable JavaScript compatibility and already implements an impressive array of features including:
+
+### Core Language Features
 - Comprehensive async/await and Promise support
 - Generators with yield
-- Destructuring
-- Spread/rest operators (arrays and function calls)
+- Destructuring (arrays and objects)
+- Spread/rest operators (arrays, objects, and function calls)
 - Regular expressions with literals
-- Template literals
-- Classes with inheritance
-- Comprehensive standard library (Array, String, Math, Date, JSON, RegExp)
-- Proper type coercion
-- Event queue and timers
+- Template literals with expression interpolation
+- Classes with inheritance, getters/setters
+- ES6 modules (import/export)
+- Single-quoted strings
+- Multi-line comments
 
-The missing features listed here represent opportunities for further development to achieve greater ECMAScript compatibility and developer convenience.
+### Modern Syntax
+- Object property shorthand ({ x, y })
+- Object method shorthand ({ method() {} })
+- Computed property names ({ [expr]: value })
+- for...in and for...of loops
+- Optional chaining (?.)
+- Increment/decrement operators (++, --)
+- All compound assignment operators (+=, -=, etc.)
+- Modulo operator (%)
+- All bitwise operators (&, |, ^, ~, <<, >>, >>>)
+
+### Standard Library
+- Comprehensive Array methods (map, filter, reduce, forEach, find, etc.)
+- String methods (slice, split, replace, match, search, etc.)
+- Math object with constants and methods
+- Date object with instance and static methods
+- JSON object (parse, stringify)
+- RegExp with flags and methods
+- Proper type coercion
+- Event queue and timers (setTimeout, setInterval)
+
+### Current State
+**The engine is now very close to production-ready for many use cases!** The remaining missing features are primarily:
+- Some specialized operators (** exponentiation)
+- Advanced standard library methods (Object.assign, Array.from, etc.)
+- Advanced types (Symbol, Map, Set, BigInt)
+- Advanced metaprogramming (Proxy, Reflect)
+
+The missing features listed in this document represent opportunities for further development to achieve even greater ECMAScript compatibility and cover more specialized use cases.

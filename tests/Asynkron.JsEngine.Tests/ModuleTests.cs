@@ -430,4 +430,159 @@ public class ModuleTests
         
         Assert.Equal(72.0, result);
     }
+    
+    [Fact]
+    public async Task DynamicImport_LoadsModuleAsynchronously()
+    {
+        var engine = new JsEngine();
+        
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (modulePath == "dynamic.js")
+            {
+                return @"
+                    export function greet(name) {
+                        return ""Hello, "" + name;
+                    }
+                ";
+            }
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+        
+        await engine.Run(@"
+            let result = """";
+            import(""dynamic.js"").then(function(module) {
+                result = module.greet(""World"");
+            });
+        ");
+        
+        var result = engine.Evaluate("result;");
+        Assert.Equal("Hello, World", result);
+    }
+    
+    [Fact]
+    public async Task DynamicImport_WithAsyncAwait()
+    {
+        var engine = new JsEngine();
+        
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (modulePath == "calculator.js")
+            {
+                return @"
+                    export function multiply(a, b) {
+                        return a * b;
+                    }
+                    export function divide(a, b) {
+                        return a / b;
+                    }
+                ";
+            }
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+        
+        await engine.Run(@"
+            async function calculate() {
+                let calc = await import(""calculator.js"");
+                return calc.multiply(10, 5) + calc.divide(100, 2);
+            }
+            
+            let finalResult = 0;
+            calculate().then(function(result) {
+                finalResult = result;
+            });
+        ");
+        
+        var result = engine.Evaluate("finalResult;");
+        Assert.Equal(100.0, result);
+    }
+    
+    [Fact]
+    public async Task DynamicImport_DefaultExport()
+    {
+        var engine = new JsEngine();
+        
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (modulePath == "counter.js")
+            {
+                return @"
+                    export default function count() {
+                        return 42;
+                    }
+                ";
+            }
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+        
+        await engine.Run(@"
+            let value = 0;
+            import(""counter.js"").then(function(module) {
+                value = module.default();
+            });
+        ");
+        
+        var result = engine.Evaluate("value;");
+        Assert.Equal(42.0, result);
+    }
+    
+    [Fact]
+    public async Task DynamicImport_ModuleIsCached()
+    {
+        var engine = new JsEngine();
+        
+        var loadCount = 0;
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (modulePath == "cached.js")
+            {
+                loadCount++;
+                return @"
+                    export let counter = " + loadCount + @";
+                ";
+            }
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+        
+        await engine.Run(@"
+            let first = 0;
+            let second = 0;
+            
+            import(""cached.js"").then(function(module) {
+                first = module.counter;
+            }).then(function() {
+                return import(""cached.js"");
+            }).then(function(module) {
+                second = module.counter;
+            });
+        ");
+        
+        var first = engine.Evaluate("first;");
+        var second = engine.Evaluate("second;");
+        
+        // Both should be 1 because the module is cached
+        Assert.Equal(1.0, first);
+        Assert.Equal(1.0, second);
+    }
+    
+    [Fact]
+    public async Task DynamicImport_ErrorHandling()
+    {
+        var engine = new JsEngine();
+        
+        engine.SetModuleLoader(modulePath =>
+        {
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+        
+        await engine.Run(@"
+            let errorCaught = false;
+            import(""nonexistent.js"")[""catch""](function(error) {
+                errorCaught = true;
+            });
+        ");
+        
+        var result = engine.Evaluate("errorCaught;");
+        Assert.True((bool)result!);
+    }
 }

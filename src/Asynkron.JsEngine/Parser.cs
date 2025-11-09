@@ -18,10 +18,22 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object ParseDeclaration()
     {
-        // Check for import statement
-        if (Match(TokenType.Import))
+        // Check for import statement vs import() expression
+        if (Check(TokenType.Import))
         {
-            return ParseImportDeclaration();
+            // Peek ahead to see if this is import() (dynamic) or import ... from (static)
+            var nextToken = PeekNext();
+            if (nextToken.Type == TokenType.LeftParen)
+            {
+                // This is import() expression, treat as statement
+                return ParseExpressionStatement();
+            }
+            else
+            {
+                // This is static import statement
+                Match(TokenType.Import);
+                return ParseImportDeclaration();
+            }
         }
 
         // Check for export statement
@@ -1420,6 +1432,21 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             return ParseRegexLiteral();
         }
 
+        if (Match(TokenType.Import))
+        {
+            // Dynamic import: import(specifier)
+            // This is different from the static import statement
+            if (Check(TokenType.LeftParen))
+            {
+                // Return a symbol that will be handled as a callable
+                return Symbol.Intern("import");
+            }
+            else
+            {
+                throw new ParseException("'import' can only be used as dynamic import with parentheses: import(specifier)");
+            }
+        }
+
         if (Match(TokenType.Identifier))
         {
             return Symbol.Intern(Previous().Lexeme);
@@ -1917,6 +1944,8 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
     private bool IsAtEnd => Peek().Type == TokenType.Eof;
 
     private Token Peek() => _tokens[_current];
+    
+    private Token PeekNext() => _current + 1 < _tokens.Count ? _tokens[_current + 1] : _tokens[_current];
 
     private Token Previous() => _tokens[_current - 1];
 

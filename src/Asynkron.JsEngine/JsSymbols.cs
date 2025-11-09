@@ -94,6 +94,7 @@ public static class JsSymbols
     
     // Module symbols
     public static readonly Symbol Import = Symbol.Intern("import");
+    public static readonly Symbol DynamicImport = Symbol.Intern("dynamic-import");
     public static readonly Symbol ImportDefault = Symbol.Intern("import-default");
     public static readonly Symbol ImportNamed = Symbol.Intern("import-named");
     public static readonly Symbol ImportNamespace = Symbol.Intern("import-namespace");

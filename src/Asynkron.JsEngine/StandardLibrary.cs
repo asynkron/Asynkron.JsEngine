@@ -1650,7 +1650,7 @@ internal static class StandardLibrary
     /// <summary>
     /// Helper method to add instance methods to a promise.
     /// </summary>
-    private static void AddPromiseInstanceMethods(JsObject promiseObj, JsPromise promise, JsEngine engine)
+    internal static void AddPromiseInstanceMethods(JsObject promiseObj, JsPromise promise, JsEngine engine)
     {
         promiseObj["then"] = new HostFunction((promiseThis, thenArgs) =>
         {

@@ -113,17 +113,158 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
         Consume(TokenType.LeftBrace, "Expected '{' after class name or extends clause.");
 
-        // Use the shared ParseClassBody method
-        var (constructor, methods, privateFields) = ParseClassBody();
+        Cons? constructor = null;
+        var methods = new List<object?>();
+        var privateFields = new List<object?>();
+        var staticFields = new List<object?>();
 
-        // If no constructor was defined, create a default one
+        while (!Check(TokenType.RightBrace))
+        {
+            // Check for static keyword
+            bool isStatic = false;
+            if (Match(TokenType.Static))
+            {
+                isStatic = true;
+            }
+            
+            // Check for private field declaration
+            if (Check(TokenType.PrivateIdentifier))
+            {
+                var fieldToken = Advance();
+                var fieldName = fieldToken.Lexeme; // Includes the '#'
+                
+                object? initializer = null;
+                if (Match(TokenType.Equal))
+                {
+                    initializer = ParseExpression();
+                }
+                
+                Match(TokenType.Semicolon); // optional semicolon
+                
+                if (isStatic)
+                {
+                    staticFields.Add(Cons.FromEnumerable([JsSymbols.StaticField, fieldName, initializer]));
+                }
+                else
+                {
+                    privateFields.Add(Cons.FromEnumerable([JsSymbols.PrivateField, fieldName, initializer]));
+                }
+            }
+            // Check for getter/setter in class
+            else if (Check(TokenType.Get) || Check(TokenType.Set))
+            {
+                bool isGetter = Match(TokenType.Get);
+                if (!isGetter) Match(TokenType.Set);
+                
+                var methodNameToken = Consume(TokenType.Identifier, isGetter ? "Expected getter name in class body." : "Expected setter name in class body.");
+                var methodName = methodNameToken.Lexeme;
+                
+                if (isGetter)
+                {
+                    Consume(TokenType.LeftParen, "Expected '(' after getter name.");
+                    Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
+                    var body = ParseBlock();
+                    
+                    if (isStatic)
+                    {
+                        methods.Add(Cons.FromEnumerable([JsSymbols.StaticGetter, methodName, body]));
+                    }
+                    else
+                    {
+                        methods.Add(Cons.FromEnumerable([JsSymbols.Getter, methodName, body]));
+                    }
+                }
+                else
+                {
+                    Consume(TokenType.LeftParen, "Expected '(' after setter name.");
+                    var paramToken = Consume(TokenType.Identifier, "Expected parameter name in setter.");
+                    var param = Symbol.Intern(paramToken.Lexeme);
+                    Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
+                    var body = ParseBlock();
+                    
+                    if (isStatic)
+                    {
+                        methods.Add(Cons.FromEnumerable([JsSymbols.StaticSetter, methodName, param, body]));
+                    }
+                    else
+                    {
+                        methods.Add(Cons.FromEnumerable([JsSymbols.Setter, methodName, param, body]));
+                    }
+                }
+            }
+            else if (Check(TokenType.Identifier))
+            {
+                var methodNameToken = Consume(TokenType.Identifier, "Expected method name in class body.");
+                var methodName = methodNameToken.Lexeme;
+                
+                // Check if this is a field declaration
+                if (Match(TokenType.Equal))
+                {
+                    var initializer = ParseExpression();
+                    Match(TokenType.Semicolon); // optional semicolon
+                    
+                    if (isStatic)
+                    {
+                        staticFields.Add(Cons.FromEnumerable([JsSymbols.StaticField, methodName, initializer]));
+                    }
+                    // else: public instance fields not yet supported
+                    continue;
+                }
+                
+                // Check for constructor
+                if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
+                {
+                    if (isStatic)
+                    {
+                        throw new ParseException("Constructor cannot be static.");
+                    }
+                    if (constructor is not null)
+                    {
+                        throw new ParseException("Class cannot declare multiple constructors.");
+                    }
+                    
+                    Consume(TokenType.LeftParen, "Expected '(' after constructor name.");
+                    var parameters = ParseParameterList();
+                    Consume(TokenType.RightParen, "Expected ')' after constructor parameters.");
+                    var body = ParseBlock();
+                    constructor = Cons.FromEnumerable([JsSymbols.Lambda, name, parameters, body]);
+                }
+                else
+                {
+                    // Regular method
+                    Consume(TokenType.LeftParen, "Expected '(' after method name.");
+                    var parameters = ParseParameterList();
+                    Consume(TokenType.RightParen, "Expected ')' after method parameters.");
+                    var body = ParseBlock();
+                    
+                    var lambda = Cons.FromEnumerable([JsSymbols.Lambda, null, parameters, body]);
+                    if (isStatic)
+                    {
+                        methods.Add(Cons.FromEnumerable([JsSymbols.StaticMethod, methodName, lambda]));
+                    }
+                    else
+                    {
+                        methods.Add(Cons.FromEnumerable([JsSymbols.Method, methodName, lambda]));
+                    }
+                }
+            }
+            else
+            {
+                throw new ParseException("Expected method, field, getter, or setter in class body.");
+            }
+        }
+
+        Consume(TokenType.RightBrace, "Expected '}' after class body.");
+        Match(TokenType.Semicolon); // allow optional semicolon terminator
+
         constructor ??= CreateDefaultConstructor(name);
         var methodList = Cons.FromEnumerable(methods);
+        
+        // Merge static fields into private fields list
+        privateFields.AddRange(staticFields);
         var privateFieldList = Cons.FromEnumerable(privateFields);
 
-        var classNode = Cons.FromEnumerable([JsSymbols.Class, name, extendsClause, constructor, methodList, privateFieldList]);
-
-        return Cons.FromEnumerable([JsSymbols.Let, name, classNode]);
+        return Cons.FromEnumerable([JsSymbols.Class, name, extendsClause, constructor, methodList, privateFieldList]);
     }
 
     private Cons ParseParameterList()

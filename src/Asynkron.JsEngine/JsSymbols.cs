@@ -85,6 +85,18 @@ public static class JsSymbols
     public static readonly Symbol PatternRest = Symbol.Intern("pattern-rest");
     public static readonly Symbol PatternDefault = Symbol.Intern("pattern-default");
     public static readonly Symbol DestructuringAssignment = Symbol.Intern("destructuring-assignment");
+    
+    // Module symbols
+    public static readonly Symbol Import = Symbol.Intern("import");
+    public static readonly Symbol ImportDefault = Symbol.Intern("import-default");
+    public static readonly Symbol ImportNamed = Symbol.Intern("import-named");
+    public static readonly Symbol ImportNamespace = Symbol.Intern("import-namespace");
+    public static readonly Symbol Export = Symbol.Intern("export");
+    public static readonly Symbol ExportDefault = Symbol.Intern("export-default");
+    public static readonly Symbol ExportNamed = Symbol.Intern("export-named");
+    public static readonly Symbol ExportDeclaration = Symbol.Intern("export-declaration");
+    public static readonly Symbol From = Symbol.Intern("from");
+    public static readonly Symbol As = Symbol.Intern("as");
 
     public static Symbol Operator(string op) => Symbol.Intern(op);
 }

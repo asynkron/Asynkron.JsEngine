@@ -18,6 +18,18 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object ParseDeclaration()
     {
+        // Check for import statement
+        if (Match(TokenType.Import))
+        {
+            return ParseImportDeclaration();
+        }
+
+        // Check for export statement
+        if (Match(TokenType.Export))
+        {
+            return ParseExportDeclaration();
+        }
+
         // Check for async function
         if (Match(TokenType.Async))
         {
@@ -1846,5 +1858,328 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         }
         
         return Cons.FromEnumerable(properties);
+    }
+
+    private object ParseImportDeclaration()
+    {
+        // import defaultExport from "module-name";
+        // import * as name from "module-name";
+        // import { export1 } from "module-name";
+        // import { export1 as alias1 } from "module-name";
+        // import { export1, export2 } from "module-name";
+        // import defaultExport, { export1 } from "module-name";
+        // import defaultExport, * as name from "module-name";
+        // import "module-name"; // side-effects only
+        
+        if (Check(TokenType.String))
+        {
+            // Side-effect import: import "module-name";
+            var moduleToken = Consume(TokenType.String, "Expected module path.");
+            var modulePath = (string)moduleToken.Literal!;
+            Consume(TokenType.Semicolon, "Expected ';' after import statement.");
+            return Cons.FromEnumerable([JsSymbols.Import, modulePath]);
+        }
+        
+        object? defaultImport = null;
+        Cons? namedImports = null;
+        object? namespaceImport = null;
+        
+        // Check for default import
+        if (Check(TokenType.Identifier) && !CheckAhead(TokenType.Comma) && !CheckContextualKeyword("from"))
+        {
+            // Could be: import name from "module" OR import * as name from "module" 
+            if (Peek().Lexeme == "*")
+            {
+                // This shouldn't happen as * is not an identifier
+            }
+            else
+            {
+                var nameToken = Consume(TokenType.Identifier, "Expected identifier.");
+                defaultImport = Symbol.Intern(nameToken.Lexeme);
+            }
+        }
+        else if (Match(TokenType.Star))
+        {
+            // Namespace import: import * as name from "module"
+            ConsumeContextualKeyword("as", "Expected 'as' after '*'.");
+            var nameToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
+            namespaceImport = Symbol.Intern(nameToken.Lexeme);
+        }
+        else if (Match(TokenType.LeftBrace))
+        {
+            // Named imports: import { x, y as z } from "module"
+            namedImports = ParseNamedImports();
+            Consume(TokenType.RightBrace, "Expected '}' after named imports.");
+        }
+        
+        // Check for comma (default + named/namespace)
+        if (defaultImport is not null && Match(TokenType.Comma))
+        {
+            if (Match(TokenType.Star))
+            {
+                // import defaultExport, * as name from "module"
+                ConsumeContextualKeyword("as", "Expected 'as' after '*'.");
+                var nameToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
+                namespaceImport = Symbol.Intern(nameToken.Lexeme);
+            }
+            else if (Match(TokenType.LeftBrace))
+            {
+                // import defaultExport, { export1 } from "module"
+                namedImports = ParseNamedImports();
+                Consume(TokenType.RightBrace, "Expected '}' after named imports.");
+            }
+        }
+        
+        ConsumeContextualKeyword("from", "Expected 'from' in import statement.");
+        var modulePathToken = Consume(TokenType.String, "Expected module path.");
+        var path = (string)modulePathToken.Literal!;
+        Consume(TokenType.Semicolon, "Expected ';' after import statement.");
+        
+        // Build import S-expression
+        // (import module-path default-import namespace-import named-imports)
+        return Cons.FromEnumerable([JsSymbols.Import, path, defaultImport, namespaceImport, namedImports]);
+    }
+    
+    private Cons ParseNamedImports()
+    {
+        var imports = new List<object?>();
+        
+        do
+        {
+            var importedToken = Consume(TokenType.Identifier, "Expected identifier in import list.");
+            var imported = Symbol.Intern(importedToken.Lexeme);
+            Symbol local;
+            
+            if (MatchContextualKeyword("as"))
+            {
+                var localToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
+                local = Symbol.Intern(localToken.Lexeme);
+            }
+            else
+            {
+                local = imported;
+            }
+            
+            // (import-named imported local)
+            imports.Add(Cons.FromEnumerable([JsSymbols.ImportNamed, imported, local]));
+        } while (Match(TokenType.Comma) && !Check(TokenType.RightBrace));
+        
+        return Cons.FromEnumerable(imports);
+    }
+    
+    private object ParseExportDeclaration()
+    {
+        // export { name1, name2 };
+        // export { name1 as exportedName1, name2 };
+        // export let name1, name2;
+        // export function functionName() { }
+        // export class ClassName { }
+        // export default expression;
+        // export default function() { }
+        // export default class { }
+        
+        if (Match(TokenType.Default))
+        {
+            // export default ...
+            object expression;
+            
+            if (Match(TokenType.Function))
+            {
+                // export default function name() {} or export default function() {}
+                var isGenerator = Match(TokenType.Star);
+                Symbol? name = null;
+                
+                if (Check(TokenType.Identifier))
+                {
+                    var nameToken = Consume(TokenType.Identifier, "Expected function name.");
+                    name = Symbol.Intern(nameToken.Lexeme);
+                }
+                
+                Consume(TokenType.LeftParen, "Expected '(' after function.");
+                var parameters = ParseParameterList();
+                Consume(TokenType.RightParen, "Expected ')' after function parameters.");
+                var body = ParseBlock();
+                
+                var functionType = isGenerator ? JsSymbols.Generator : JsSymbols.Lambda;
+                expression = Cons.FromEnumerable([functionType, name, parameters, body]);
+            }
+            else if (Match(TokenType.Class))
+            {
+                // export default class Name {} or export default class {}
+                Symbol? name = null;
+                
+                if (Check(TokenType.Identifier))
+                {
+                    var nameToken = Consume(TokenType.Identifier, "Expected class name.");
+                    name = Symbol.Intern(nameToken.Lexeme);
+                }
+                
+                Cons? extendsClause = null;
+                if (Match(TokenType.Extends))
+                {
+                    var baseExpression = ParseExpression();
+                    extendsClause = Cons.FromEnumerable([JsSymbols.Extends, baseExpression]);
+                }
+                
+                Consume(TokenType.LeftBrace, "Expected '{' after class name or extends clause.");
+                
+                var (constructor, methods) = ParseClassBody();
+                
+                var classParts = new List<object?> { JsSymbols.Class, name, extendsClause, constructor };
+                classParts.AddRange(methods);
+                expression = Cons.FromEnumerable(classParts);
+            }
+            else
+            {
+                // export default expression;
+                expression = ParseExpression();
+                Consume(TokenType.Semicolon, "Expected ';' after export default expression.");
+            }
+            
+            return Cons.FromEnumerable([JsSymbols.ExportDefault, expression]);
+        }
+        
+        if (Match(TokenType.LeftBrace))
+        {
+            // export { name1, name2 as exported };
+            var exports = ParseNamedExports();
+            Consume(TokenType.RightBrace, "Expected '}' after export list.");
+            
+            // Optional: export { ... } from "module";
+            string? fromModule = null;
+            if (MatchContextualKeyword("from"))
+            {
+                var moduleToken = Consume(TokenType.String, "Expected module path.");
+                fromModule = (string)moduleToken.Literal!;
+            }
+            
+            Consume(TokenType.Semicolon, "Expected ';' after export statement.");
+            return Cons.FromEnumerable([JsSymbols.ExportNamed, exports, fromModule]);
+        }
+        
+        // Export declaration: export let/const/var/function/class
+        if (Check(TokenType.Let) || Check(TokenType.Const) || Check(TokenType.Var) ||
+            Check(TokenType.Function) || Check(TokenType.Class) || Check(TokenType.Async))
+        {
+            var declaration = ParseDeclaration();
+            return Cons.FromEnumerable([JsSymbols.ExportDeclaration, declaration]);
+        }
+        
+        throw new ParseException("Invalid export statement.");
+    }
+    
+    private Cons ParseNamedExports()
+    {
+        var exports = new List<object?>();
+        
+        do
+        {
+            var localToken = Consume(TokenType.Identifier, "Expected identifier in export list.");
+            var local = Symbol.Intern(localToken.Lexeme);
+            Symbol exported;
+            
+            if (MatchContextualKeyword("as"))
+            {
+                var exportedToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
+                exported = Symbol.Intern(exportedToken.Lexeme);
+            }
+            else
+            {
+                exported = local;
+            }
+            
+            // (export-named local exported)
+            exports.Add(Cons.FromEnumerable([JsSymbols.ExportNamed, local, exported]));
+        } while (Match(TokenType.Comma) && !Check(TokenType.RightBrace));
+        
+        return Cons.FromEnumerable(exports);
+    }
+    
+    private (Cons? constructor, List<object?> methods) ParseClassBody()
+    {
+        Cons? constructor = null;
+        var methods = new List<object?>();
+        
+        while (!Check(TokenType.RightBrace))
+        {
+            // Check for getter/setter in class
+            if (Match(TokenType.Get))
+            {
+                var methodNameToken = Consume(TokenType.Identifier, "Expected getter name in class body.");
+                var methodName = methodNameToken.Lexeme;
+                Consume(TokenType.LeftParen, "Expected '(' after getter name.");
+                Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
+                var body = ParseBlock();
+                methods.Add(Cons.FromEnumerable([JsSymbols.Getter, methodName, body]));
+            }
+            else if (Match(TokenType.Set))
+            {
+                var methodNameToken = Consume(TokenType.Identifier, "Expected setter name in class body.");
+                var methodName = methodNameToken.Lexeme;
+                Consume(TokenType.LeftParen, "Expected '(' after setter name.");
+                var paramToken = Consume(TokenType.Identifier, "Expected parameter name in setter.");
+                var param = Symbol.Intern(paramToken.Lexeme);
+                Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
+                var body = ParseBlock();
+                methods.Add(Cons.FromEnumerable([JsSymbols.Setter, methodName, param, body]));
+            }
+            else
+            {
+                var methodNameToken = Consume(TokenType.Identifier, "Expected method name in class body.");
+                var methodName = methodNameToken.Lexeme;
+                Consume(TokenType.LeftParen, "Expected '(' after method name.");
+                var parameters = ParseParameterList();
+                Consume(TokenType.RightParen, "Expected ')' after method parameters.");
+                var body = ParseBlock();
+
+                if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
+                {
+                    if (constructor is not null)
+                    {
+                        throw new ParseException("Class cannot declare multiple constructors.");
+                    }
+                    constructor = Cons.FromEnumerable([JsSymbols.Lambda, null, parameters, body]);
+                }
+                else
+                {
+                    var lambda = Cons.FromEnumerable([JsSymbols.Lambda, null, parameters, body]);
+                    methods.Add(Cons.FromEnumerable([JsSymbols.Method, methodName, lambda]));
+                }
+            }
+        }
+        
+        Consume(TokenType.RightBrace, "Expected '}' after class body.");
+        return (constructor, methods);
+    }
+    
+    private bool CheckAhead(TokenType type)
+    {
+        if (_current + 1 >= _tokens.Count) return false;
+        return _tokens[_current + 1].Type == type;
+    }
+    
+    // Helper methods for contextual keywords
+    private bool CheckContextualKeyword(string keyword)
+    {
+        return Check(TokenType.Identifier) && Peek().Lexeme == keyword;
+    }
+    
+    private bool MatchContextualKeyword(string keyword)
+    {
+        if (CheckContextualKeyword(keyword))
+        {
+            Advance();
+            return true;
+        }
+        return false;
+    }
+    
+    private Token ConsumeContextualKeyword(string keyword, string errorMessage)
+    {
+        if (!CheckContextualKeyword(keyword))
+        {
+            throw new ParseException(errorMessage);
+        }
+        return Advance();
     }
 }

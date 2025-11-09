@@ -146,4 +146,156 @@ public class ErrorTypesTests
         ");
         Assert.Equal("TypeError", result);
     }
+
+    [Fact]
+    public void TypeError_CanBeThrown()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let caught = null;
+            try {
+                throw new TypeError('invalid type');
+            } catch (e) {
+                caught = e;
+            }
+            caught.name + ': ' + caught.message;
+        ");
+        Assert.Equal("TypeError: invalid type", result);
+    }
+
+    [Fact]
+    public void RangeError_CanBeThrown()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let caught = null;
+            try {
+                throw new RangeError('value out of range');
+            } catch (e) {
+                caught = e;
+            }
+            caught.name + ': ' + caught.message;
+        ");
+        Assert.Equal("RangeError: value out of range", result);
+    }
+
+    [Fact]
+    public void ReferenceError_CanBeThrown()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let caught = null;
+            try {
+                throw new ReferenceError('undefined reference');
+            } catch (e) {
+                caught = e;
+            }
+            caught.name + ': ' + caught.message;
+        ");
+        Assert.Equal("ReferenceError: undefined reference", result);
+    }
+
+    [Fact]
+    public void SyntaxError_CanBeThrown()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let caught = null;
+            try {
+                throw new SyntaxError('bad syntax');
+            } catch (e) {
+                caught = e;
+            }
+            caught.name + ': ' + caught.message;
+        ");
+        Assert.Equal("SyntaxError: bad syntax", result);
+    }
+
+    [Fact]
+    public void Error_PreservesPropertiesWhenCaught()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let caught = null;
+            try {
+                let err = new TypeError('test error');
+                err.customProp = 'custom value';
+                throw err;
+            } catch (e) {
+                caught = e;
+            }
+            caught.customProp;
+        ");
+        Assert.Equal("custom value", result);
+    }
+
+    [Fact]
+    public void MultipleErrorTypes_CanBeDistinguished()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let results = [];
+            
+            try {
+                throw new TypeError('type');
+            } catch (e) {
+                results.push(e.name);
+            }
+            
+            try {
+                throw new RangeError('range');
+            } catch (e) {
+                results.push(e.name);
+            }
+            
+            try {
+                throw new ReferenceError('reference');
+            } catch (e) {
+                results.push(e.name);
+            }
+            
+            results.join(',');
+        ");
+        Assert.Equal("TypeError,RangeError,ReferenceError", result);
+    }
+
+    [Fact]
+    public void Error_CanBeRethrown()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let caught = null;
+            try {
+                try {
+                    throw new TypeError('original');
+                } catch (e) {
+                    throw e;
+                }
+            } catch (e) {
+                caught = e;
+            }
+            caught.name + ': ' + caught.message;
+        ");
+        Assert.Equal("TypeError: original", result);
+    }
+
+    [Fact]
+    public void Error_InFunctionCall()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            function throwsError() {
+                throw new RangeError('function error');
+            }
+            
+            let caught = null;
+            try {
+                throwsError();
+            } catch (e) {
+                caught = e;
+            }
+            caught.name + ': ' + caught.message;
+        ");
+        Assert.Equal("RangeError: function error", result);
+    }
 }

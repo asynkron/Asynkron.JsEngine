@@ -1391,7 +1391,16 @@ internal static class Evaluator
             }
         }
 
-        return callable.Invoke(arguments, thisValue);
+        try
+        {
+            return callable.Invoke(arguments, thisValue);
+        }
+        catch (ThrowSignal signal)
+        {
+            // Propagate the throw to the calling context
+            context.SetThrow(signal.ThrownValue);
+            return signal.ThrownValue;
+        }
     }
 
     private static (object? Callee, object? ThisValue) ResolveCallee(object? calleeExpression, Environment environment, EvaluationContext context)
@@ -1598,7 +1607,15 @@ internal static class Evaluator
         }
         
         // Call the tag function with the template object and substitutions
-        return callable.Invoke(substitutions, null);
+        try
+        {
+            return callable.Invoke(substitutions, null);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return signal.ThrownValue;
+        }
     }
 
     private static object EvaluateObjectLiteral(Cons cons, Environment environment, EvaluationContext context)
@@ -1808,7 +1825,15 @@ internal static class Evaluator
             return JsSymbols.Undefined;
         }
 
-        return callable.Invoke(arguments, null);
+        try
+        {
+            return callable.Invoke(arguments, null);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return signal.ThrownValue;
+        }
     }
 
     private static bool IsNullish(object? value)
@@ -1907,17 +1932,25 @@ internal static class Evaluator
             arguments.Add(EvaluateExpression(argumentExpression, environment, context));
         }
 
-        var result = callable.Invoke(arguments, instance);
-        return result switch
+        try
         {
-            JsObject jsObject => jsObject,
-            JsMap jsMap => jsMap,
-            JsSet jsSet => jsSet,
-            JsWeakMap jsWeakMap => jsWeakMap,
-            JsWeakSet jsWeakSet => jsWeakSet,
-            IDictionary<string, object?> dictionary => dictionary,
-            _ => instance
-        };
+            var result = callable.Invoke(arguments, instance);
+            return result switch
+            {
+                JsObject jsObject => jsObject,
+                JsMap jsMap => jsMap,
+                JsSet jsSet => jsSet,
+                JsWeakMap jsWeakMap => jsWeakMap,
+                JsWeakSet jsWeakSet => jsWeakSet,
+                IDictionary<string, object?> dictionary => dictionary,
+                _ => instance
+            };
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return signal.ThrownValue;
+        }
     }
     
     private static void InitializePrivateFields(object? constructor, JsObject instance, Environment environment, EvaluationContext context)

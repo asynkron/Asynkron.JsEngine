@@ -55,6 +55,10 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
   - Re-exports: `export { x } from './other.js'`
   - Side-effect imports: `import './module.js'`
   - Module caching (modules are loaded once and cached)
+- **Strict mode**: Support for "use strict" directive to enable strict mode behavior
+  - Directive detection in programs, functions, and blocks
+  - Enhanced error checking (ReferenceError for undefined variables)
+  - Scope-based strict mode propagation
 - **JavaScript oddities**: `typeof null === "object"`, `null == undefined`, proper undefined handling
 - **Standard library**: 
   - Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
@@ -1170,6 +1174,69 @@ Console.WriteLine(looseEquality3); // Output: True
 // String concatenation with type coercion
 var arrayPlusNumber = engine.Evaluate("[1, 2] + 3;");
 Console.WriteLine(arrayPlusNumber); // Output: 1,23
+```
+
+### Strict Mode
+
+```csharp
+var engine = new JsEngine();
+
+// Enable strict mode at program level
+var result = engine.Evaluate(@"
+    ""use strict"";
+    let x = 10;
+    const y = 20;
+    x + y;
+");
+Console.WriteLine(result); // Output: 30
+
+// Strict mode in function body
+engine.Evaluate(@"
+    function strictFunction() {
+        ""use strict"";
+        let value = 42;
+        return value;
+    }
+    strictFunction();
+");
+
+// Assignment to undefined variable throws error
+try
+{
+    engine.Evaluate(@"
+        ""use strict"";
+        undeclaredVariable = 10;
+    ");
+}
+catch (InvalidOperationException ex)
+{
+    Console.WriteLine(ex.Message); // Output: ReferenceError: undeclaredVariable is not defined
+}
+
+// Strict mode in nested scopes
+var nestedResult = engine.Evaluate(@"
+    ""use strict"";
+    function outer() {
+        let x = 5;
+        function inner() {
+            let y = 10;
+            return x + y;
+        }
+        return inner();
+    }
+    outer();
+");
+Console.WriteLine(nestedResult); // Output: 15
+
+// Block-level strict mode
+var blockResult = engine.Evaluate(@"
+    {
+        ""use strict"";
+        let blockVar = 100;
+        blockVar * 2;
+    }
+");
+Console.WriteLine(blockResult); // Output: 200
 ```
 
 ### Symbol Type

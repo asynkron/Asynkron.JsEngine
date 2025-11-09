@@ -924,27 +924,49 @@ with (obj) {
 ---
 
 ### 39. Strict Mode
-**Status:** Not Implemented  
+**Status:** ✅ Implemented (Basic Support)  
 **Impact:** Low-Medium - Better error checking
 
 ```javascript
-// Not yet supported
+// Now supported!
 "use strict";
+
+// Proper variable declarations required
+let x = 10;
+const y = 20;
+
+// Functions with strict mode
+function strictFunction() {
+    "use strict";
+    // Function body runs in strict mode
+}
 ```
 
-**Use Cases:**
-- Catch common mistakes
-- Prevent certain actions
-- Disable deprecated features
+**Implementation Details:**
+- Parser detects "use strict" directive at the beginning of programs and function bodies
+- Environment tracks strict mode state through the scope chain
+- Assignment to undefined variables always throws ReferenceError (engine default behavior)
+- Const variables cannot be reassigned (already enforced)
 
-**Implementation Complexity:** Medium-High
-- Many behavior changes required
-- Parser and evaluator changes
+**Implemented Features:**
+- ✅ "use strict" directive detection
+- ✅ Strict mode propagation through scopes
+- ✅ ReferenceError for undefined variables
+- ✅ Support in program and function bodies
+- ✅ Support in block scopes
+
+**Not Yet Implemented:**
+- Duplicate parameter names check
+- Duplicate property names check
+- Octal literal restrictions
+- `with` statement prohibition
+- Special `this` binding rules
+- `arguments` and `eval` restrictions
 
 ---
 
 ### 40. eval() Function
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Low - Security risk, rarely needed
 
 ```javascript

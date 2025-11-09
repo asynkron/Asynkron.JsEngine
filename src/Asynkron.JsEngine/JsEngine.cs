@@ -31,6 +31,11 @@ public sealed class JsEngine
         SetGlobal("Object", StandardLibrary.CreateObjectConstructor());
         SetGlobal("Array", StandardLibrary.CreateArrayConstructor());
         
+        // Register global constants
+        SetGlobal("Infinity", double.PositiveInfinity);
+        SetGlobal("NaN", double.NaN);
+        SetGlobal("undefined", JsSymbols.Undefined);
+        
         // Register Date constructor as a callable object with static methods
         var dateConstructor = StandardLibrary.CreateDateConstructor();
         var dateObj = StandardLibrary.CreateDateObject();
@@ -67,6 +72,16 @@ public sealed class JsEngine
         
         // Register WeakSet constructor
         SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
+        
+        // Register Error constructors
+        SetGlobal("Error", StandardLibrary.CreateErrorConstructor("Error"));
+        SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor("TypeError"));
+        SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor("RangeError"));
+        SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor("ReferenceError"));
+        SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor("SyntaxError"));
+        
+        // Register eval function
+        SetGlobal("eval", StandardLibrary.CreateEvalFunction(this));
         
         // Register timer functions
         SetGlobalFunction("setTimeout", args => SetTimeout(args));

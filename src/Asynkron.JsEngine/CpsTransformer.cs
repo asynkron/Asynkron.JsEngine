@@ -1170,9 +1170,10 @@ public sealed class CpsTransformer
             loopCheckFuncBody
         ]);
 
-        // Initial call: __loopCheck()
+        // Initial call: __loopCheck() as expression statement
+        // Not a return - just call it to start the loop
         var initialCall = Cons.FromEnumerable([
-            JsSymbols.Return,
+            JsSymbols.ExpressionStatement,
             Cons.FromEnumerable([
                 JsSymbols.Call,
                 loopCheckFunc
@@ -1254,19 +1255,41 @@ public sealed class CpsTransformer
             }
         }
 
-        // The continuation of the body is to call loopCheckFunc again
-        // This is the key CPS insight: last fragment returns loop head as continuation
-        bodyStatements.Add(Cons.FromEnumerable([
-            JsSymbols.Return,
-            Cons.FromEnumerable([
-                JsSymbols.Call,
-                loopCheckFunc
-            ])
-        ]));
-
+        // Instead of adding the loop check call to body statements, we'll create a special
+        // "loop resolve" function that calls the loop check instead of resolving
+        // This way, ChainStatementsWithAwaits will call this function at the end instead of __resolve
+        var loopResolve = Symbol.Intern("__loopResolve" + Guid.NewGuid().ToString("N").Substring(0, 8));
+        
         // Chain the body statements with await handling
-        // The recursive call will be part of the promise chain
-        var transformedBody = ChainStatementsWithAwaits(bodyStatements, 0, resolveParam, rejectParam);
+        // Use loopResolve instead of resolveParam so the body calls loopCheck at the end
+        var transformedBody = ChainStatementsWithAwaits(bodyStatements, 0, loopResolve, rejectParam);
+        
+        // Now wrap the transformed body with the loop resolve function definition
+        // function __loopResolve() { __loopCheck(); }
+        var loopResolveFuncBody = Cons.FromEnumerable([
+            JsSymbols.Block,
+            Cons.FromEnumerable([
+                JsSymbols.ExpressionStatement,
+                Cons.FromEnumerable([
+                    JsSymbols.Call,
+                    loopCheckFunc
+                ])
+            ])
+        ]);
+        
+        var loopResolveFuncDecl = Cons.FromEnumerable([
+            JsSymbols.Function,
+            loopResolve,
+            Cons.FromEnumerable([]),  // no params
+            loopResolveFuncBody
+        ]);
+        
+        // The transformed body with the loop resolve function prepended
+        transformedBody = Cons.FromEnumerable([
+            JsSymbols.Block,
+            loopResolveFuncDecl,
+            transformedBody
+        ]);
 
         // if (__result.done) { afterLoop } else { transformedBody }
         var ifStatement = Cons.FromEnumerable([

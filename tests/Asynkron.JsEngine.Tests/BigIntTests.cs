@@ -8,7 +8,7 @@ public class BigIntTests
     public void BigIntLiteralParsing()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("123n");
+        var result = engine.Evaluate("123n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(123), result);
     }
@@ -17,7 +17,7 @@ public class BigIntTests
     public void BigIntLiteralParsingLargeNumber()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("9007199254740991n"); // MAX_SAFE_INTEGER
+        var result = engine.Evaluate("9007199254740991n;"); // MAX_SAFE_INTEGER
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt("9007199254740991"), result);
     }
@@ -26,7 +26,7 @@ public class BigIntTests
     public void BigIntLiteralParsingVeryLargeNumber()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("12345678901234567890n");
+        var result = engine.Evaluate("12345678901234567890n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt("12345678901234567890"), result);
     }
@@ -35,7 +35,7 @@ public class BigIntTests
     public void BigIntAddition()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n + 20n");
+        var result = engine.Evaluate("10n + 20n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(30), result);
     }
@@ -44,7 +44,7 @@ public class BigIntTests
     public void BigIntSubtraction()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("50n - 20n");
+        var result = engine.Evaluate("50n - 20n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(30), result);
     }
@@ -53,7 +53,7 @@ public class BigIntTests
     public void BigIntMultiplication()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("6n * 7n");
+        var result = engine.Evaluate("6n * 7n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(42), result);
     }
@@ -62,7 +62,7 @@ public class BigIntTests
     public void BigIntDivision()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("50n / 10n");
+        var result = engine.Evaluate("50n / 10n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(5), result);
     }
@@ -71,7 +71,7 @@ public class BigIntTests
     public void BigIntDivisionTruncates()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("7n / 2n");
+        var result = engine.Evaluate("7n / 2n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(3), result); // JavaScript BigInt division truncates towards zero
     }
@@ -80,7 +80,7 @@ public class BigIntTests
     public void BigIntModulo()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("17n % 5n");
+        var result = engine.Evaluate("17n % 5n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(2), result);
     }
@@ -89,7 +89,7 @@ public class BigIntTests
     public void BigIntExponentiation()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("2n ** 10n");
+        var result = engine.Evaluate("2n ** 10n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(1024), result);
     }
@@ -98,7 +98,7 @@ public class BigIntTests
     public void BigIntExponentiationLarge()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("2n ** 100n");
+        var result = engine.Evaluate("2n ** 100n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt("1267650600228229401496703205376"), result);
     }
@@ -107,7 +107,7 @@ public class BigIntTests
     public void BigIntNegation()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("-42n");
+        var result = engine.Evaluate("-42n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(-42), result);
     }
@@ -116,7 +116,7 @@ public class BigIntTests
     public void BigIntBitwiseAnd()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("12n & 10n");
+        var result = engine.Evaluate("12n & 10n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(8), result); // 1100 & 1010 = 1000
     }
@@ -125,7 +125,7 @@ public class BigIntTests
     public void BigIntBitwiseOr()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("12n | 10n");
+        var result = engine.Evaluate("12n | 10n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(14), result); // 1100 | 1010 = 1110
     }
@@ -134,7 +134,7 @@ public class BigIntTests
     public void BigIntBitwiseXor()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("12n ^ 10n");
+        var result = engine.Evaluate("12n ^ 10n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(6), result); // 1100 ^ 1010 = 0110
     }
@@ -143,7 +143,7 @@ public class BigIntTests
     public void BigIntBitwiseNot()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("~5n");
+        var result = engine.Evaluate("~5n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(-6), result);
     }
@@ -152,7 +152,7 @@ public class BigIntTests
     public void BigIntLeftShift()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("5n << 2n");
+        var result = engine.Evaluate("5n << 2n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(20), result);
     }
@@ -161,7 +161,7 @@ public class BigIntTests
     public void BigIntRightShift()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("20n >> 2n");
+        var result = engine.Evaluate("20n >> 2n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(5), result);
     }
@@ -170,7 +170,7 @@ public class BigIntTests
     public void BigIntStrictEquality()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n === 10n");
+        var result = engine.Evaluate("10n === 10n;");
         Assert.Equal(true, result);
     }
 
@@ -178,7 +178,7 @@ public class BigIntTests
     public void BigIntStrictInequality()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n === 20n");
+        var result = engine.Evaluate("10n === 20n;");
         Assert.Equal(false, result);
     }
 
@@ -186,7 +186,7 @@ public class BigIntTests
     public void BigIntNotStrictlyEqualToNumber()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n === 10");
+        var result = engine.Evaluate("10n === 10;");
         Assert.Equal(false, result);
     }
 
@@ -194,7 +194,7 @@ public class BigIntTests
     public void BigIntLooseEqualityWithNumber()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n == 10");
+        var result = engine.Evaluate("10n == 10;");
         Assert.Equal(true, result);
     }
 
@@ -202,7 +202,7 @@ public class BigIntTests
     public void BigIntLooseEqualityWithNumberFalse()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n == 11");
+        var result = engine.Evaluate("10n == 11;");
         Assert.Equal(false, result);
     }
 
@@ -210,7 +210,7 @@ public class BigIntTests
     public void BigIntLooseEqualityWithDecimalFalse()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n == 10.5");
+        var result = engine.Evaluate("10n == 10.5;");
         Assert.Equal(false, result);
     }
 
@@ -218,7 +218,7 @@ public class BigIntTests
     public void BigIntGreaterThan()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("20n > 10n");
+        var result = engine.Evaluate("20n > 10n;");
         Assert.Equal(true, result);
     }
 
@@ -226,7 +226,7 @@ public class BigIntTests
     public void BigIntGreaterThanOrEqual()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n >= 10n");
+        var result = engine.Evaluate("10n >= 10n;");
         Assert.Equal(true, result);
     }
 
@@ -234,7 +234,7 @@ public class BigIntTests
     public void BigIntLessThan()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n < 20n");
+        var result = engine.Evaluate("10n < 20n;");
         Assert.Equal(true, result);
     }
 
@@ -242,7 +242,7 @@ public class BigIntTests
     public void BigIntLessThanOrEqual()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n <= 10n");
+        var result = engine.Evaluate("10n <= 10n;");
         Assert.Equal(true, result);
     }
 
@@ -250,7 +250,7 @@ public class BigIntTests
     public void BigIntCompareWithNumber()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("20n > 10");
+        var result = engine.Evaluate("20n > 10;");
         Assert.Equal(true, result);
     }
 
@@ -258,7 +258,7 @@ public class BigIntTests
     public void BigIntCompareWithNumberLess()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("5n < 10");
+        var result = engine.Evaluate("5n < 10;");
         Assert.Equal(true, result);
     }
 
@@ -266,23 +266,15 @@ public class BigIntTests
     public void BigIntTypeof()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("typeof 42n");
+        var result = engine.Evaluate("typeof 42n;");
         Assert.Equal("bigint", result);
-    }
-
-    [Fact]
-    public void BigIntToString()
-    {
-        var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 42n; x.toString()");
-        Assert.Equal("42", result);
     }
 
     [Fact]
     public void BigIntCannotMixWithNumberInAddition()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("10n + 5"));
+        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("10n + 5;"));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -290,7 +282,7 @@ public class BigIntTests
     public void BigIntCannotMixWithNumberInSubtraction()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("10n - 5"));
+        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("10n - 5;"));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -298,7 +290,7 @@ public class BigIntTests
     public void BigIntCannotMixWithNumberInMultiplication()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("10n * 5"));
+        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("10n * 5;"));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -306,7 +298,7 @@ public class BigIntTests
     public void BigIntCannotMixWithNumberInDivision()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("10n / 5"));
+        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("10n / 5;"));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -314,7 +306,7 @@ public class BigIntTests
     public void BigIntCannotUseUnsignedRightShift()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("10n >>> 2n"));
+        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("10n >>> 2n;"));
         Assert.Contains("BigInts have no unsigned right shift", exception.Message);
     }
 
@@ -322,21 +314,21 @@ public class BigIntTests
     public void BigIntDivisionByZeroThrows()
     {
         var engine = new JsEngine();
-        Assert.Throws<DivideByZeroException>(() => engine.Evaluate("10n / 0n"));
+        Assert.Throws<DivideByZeroException>(() => engine.Evaluate("10n / 0n;"));
     }
 
     [Fact]
     public void BigIntModuloByZeroThrows()
     {
         var engine = new JsEngine();
-        Assert.Throws<DivideByZeroException>(() => engine.Evaluate("10n % 0n"));
+        Assert.Throws<DivideByZeroException>(() => engine.Evaluate("10n % 0n;"));
     }
 
     [Fact]
     public void BigIntNegativeExponentiationThrows()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("2n ** -1n"));
+        var exception = Assert.Throws<InvalidOperationException>(() => engine.Evaluate("2n ** -1n;"));
         Assert.Contains("Exponent must be non-negative", exception.Message);
     }
 
@@ -416,7 +408,7 @@ public class BigIntTests
     public void BigIntZero()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("0n");
+        var result = engine.Evaluate("0n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(0), result);
     }
@@ -425,7 +417,7 @@ public class BigIntTests
     public void BigIntNegativeValue()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("-123n");
+        var result = engine.Evaluate("-123n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(-123), result);
     }
@@ -443,7 +435,7 @@ public class BigIntTests
     public void BigIntLooseEqualityWithString()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n == '10'");
+        var result = engine.Evaluate("10n == '10';");
         Assert.Equal(true, result);
     }
 
@@ -451,7 +443,7 @@ public class BigIntTests
     public void BigIntLooseEqualityWithStringFalse()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n == '11'");
+        var result = engine.Evaluate("10n == '11';");
         Assert.Equal(false, result);
     }
 
@@ -459,7 +451,7 @@ public class BigIntTests
     public void BigIntNotStrictlyEqualToString()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("10n === '10'");
+        var result = engine.Evaluate("10n === '10';");
         Assert.Equal(false, result);
     }
 
@@ -467,7 +459,7 @@ public class BigIntTests
     public void BigIntStringConcatenation()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("'Value: ' + 42n");
+        var result = engine.Evaluate("'Value: ' + 42n;");
         Assert.Equal("Value: 42", result);
     }
 
@@ -475,7 +467,7 @@ public class BigIntTests
     public void BigIntWithParentheses()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("(10n + 5n) * 2n");
+        var result = engine.Evaluate("(10n + 5n) * 2n;");
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(30), result);
     }

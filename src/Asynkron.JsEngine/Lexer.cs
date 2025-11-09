@@ -407,20 +407,27 @@ internal sealed class Lexer(string source)
             }
         }
 
-        // Check for BigInt suffix 'n' (must not be followed by alphanumeric)
-        if (!hasDecimal && Peek() == 'n' && !IsAlphaNumeric(PeekNext()))
+        // Check for BigInt suffix 'n'
+        if (!hasDecimal && Peek() == 'n')
         {
-            Advance(); // consume 'n'
-            var text = _source[_start..(_current - 1)]; // exclude the 'n'
-            var value = new JsBigInt(text);
-            AddToken(TokenType.BigInt, value);
+            // Check that 'n' is not part of a larger identifier
+            var next = PeekNext();
+            var isEndOrNonAlphaNum = next == '\0' || (!IsAlpha(next) && !IsDigit(next));
+            
+            if (isEndOrNonAlphaNum)
+            {
+                Advance(); // consume 'n'
+                var text = _source[_start..(_current - 1)]; // exclude the 'n'
+                var value = new JsBigInt(text);
+                AddToken(TokenType.BigInt, value);
+                return;
+            }
         }
-        else
-        {
-            var text = _source[_start.._current];
-            var value = double.Parse(text, CultureInfo.InvariantCulture);
-            AddToken(TokenType.Number, value);
-        }
+        
+        // Regular number
+        var text2 = _source[_start.._current];
+        var value2 = double.Parse(text2, CultureInfo.InvariantCulture);
+        AddToken(TokenType.Number, value2);
     }
 
     private void ReadString()

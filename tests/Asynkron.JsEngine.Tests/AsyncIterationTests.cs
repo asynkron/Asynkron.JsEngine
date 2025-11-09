@@ -154,4 +154,189 @@ public class AsyncIterationTests
         
         Assert.Equal("symbol", result);
     }
+    
+    [Fact]
+    public async Task ForAwaitOf_WithPromiseArray()
+    {
+        var engine = new JsEngine();
+        
+        await engine.Run(@"
+            let result = """";
+            
+            // Array of promises
+            let promises = [
+                Promise.resolve(""a""),
+                Promise.resolve(""b""),
+                Promise.resolve(""c"")
+            ];
+            
+            async function test() {
+                for await (let item of promises) {
+                    result = result + item;
+                }
+            }
+            
+            test();
+        ");
+        
+        var result = engine.Evaluate("result;");
+        Assert.Equal("abc", result);
+    }
+    
+    [Fact]
+    public async Task ForAwaitOf_WithCustomAsyncIterator()
+    {
+        var engine = new JsEngine();
+        
+        await engine.Run(@"
+            let result = """";
+            
+            // Custom object with async iterator
+            let asyncIterable = {
+                [Symbol.asyncIterator]() {
+                    let count = 0;
+                    return {
+                        next() {
+                            count = count + 1;
+                            if (count <= 3) {
+                                return Promise.resolve({ value: count, done: false });
+                            } else {
+                                return Promise.resolve({ done: true });
+                            }
+                        }
+                    };
+                }
+            };
+            
+            async function test() {
+                for await (let num of asyncIterable) {
+                    result = result + num;
+                }
+            }
+            
+            test();
+        ");
+        
+        var result = engine.Evaluate("result;");
+        Assert.Equal("123", result);
+    }
+    
+    [Fact]
+    public async Task ForAwaitOf_ErrorPropagation()
+    {
+        var engine = new JsEngine();
+        var errorCaught = false;
+        
+        engine.SetGlobalFunction("markError", args =>
+        {
+            errorCaught = true;
+            return null;
+        });
+        
+        await engine.Run(@"
+            let asyncIterable = {
+                [Symbol.asyncIterator]() {
+                    let count = 0;
+                    return {
+                        next() {
+                            count = count + 1;
+                            if (count === 2) {
+                                return Promise.reject(""test error"");
+                            }
+                            if (count <= 3) {
+                                return Promise.resolve({ value: count, done: false });
+                            }
+                            return Promise.resolve({ done: true });
+                        }
+                    };
+                }
+            };
+            
+            async function test() {
+                try {
+                    for await (let num of asyncIterable) {
+                        // Should throw on second iteration
+                    }
+                } catch (e) {
+                    markError();
+                }
+            }
+            
+            test();
+        ");
+        
+        Assert.True(errorCaught);
+    }
+    
+    [Fact]
+    public async Task ForAwaitOf_FallbackToSyncIterator()
+    {
+        var engine = new JsEngine();
+        
+        await engine.Run(@"
+            let result = """";
+            
+            // Object with only sync iterator (Symbol.iterator)
+            let syncIterable = {
+                [Symbol.iterator]() {
+                    let values = [""x"", ""y"", ""z""];
+                    let index = 0;
+                    return {
+                        next() {
+                            if (index < values.length) {
+                                return { value: values[index++], done: false };
+                            }
+                            return { done: true };
+                        }
+                    };
+                }
+            };
+            
+            async function test() {
+                for await (let item of syncIterable) {
+                    result = result + item;
+                }
+            }
+            
+            test();
+        ");
+        
+        var result = engine.Evaluate("result;");
+        Assert.Equal("xyz", result);
+    }
+    
+    [Fact]
+    public void ForAwaitOf_WithSyncIteratorNoAsync()
+    {
+        var engine = new JsEngine();
+        
+        // Test without async function to isolate the issue
+        var result = engine.Evaluate(@"
+            let result = """";
+            
+            // Object with only sync iterator (Symbol.iterator)
+            let syncIterable = {
+                [Symbol.iterator]() {
+                    let values = [""x"", ""y"", ""z""];
+                    let index = 0;
+                    return {
+                        next() {
+                            if (index < values.length) {
+                                return { value: values[index++], done: false };
+                            }
+                            return { done: true };
+                        }
+                    };
+                }
+            };
+            
+            for await (let item of syncIterable) {
+                result = result + item;
+            }
+            
+            result;
+        ");
+        
+        Assert.Equal("xyz", result);
+    }
 }

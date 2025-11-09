@@ -1014,6 +1014,11 @@ internal static class Evaluator
             return EvaluateTemplateLiteral(cons, environment, context);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.TaggedTemplate))
+        {
+            return EvaluateTaggedTemplate(cons, environment, context);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.ObjectLiteral))
         {
             return EvaluateObjectLiteral(cons, environment, context);
@@ -1311,6 +1316,67 @@ internal static class Evaluator
             double d => d.ToString(CultureInfo.InvariantCulture),
             _ => value.ToString() ?? ""
         };
+    }
+
+    private static object EvaluateTaggedTemplate(Cons cons, Environment environment, EvaluationContext context)
+    {
+        // Format: (taggedTemplate tag stringsArray rawStringsArray expr1 expr2 ...)
+        var rest = cons.Rest;
+        
+        // Get the tag function
+        var tagExpr = rest.Head;
+        var tagFunction = EvaluateExpression(tagExpr, environment, context);
+        
+        if (tagFunction is not IJsCallable callable)
+        {
+            throw new InvalidOperationException("Tag in tagged template must be a function");
+        }
+        
+        rest = rest.Rest;
+        
+        // Get the strings array expression
+        var stringsArrayExpr = rest.Head;
+        var stringsArray = EvaluateExpression(stringsArrayExpr, environment, context) as JsArray;
+        if (stringsArray == null)
+        {
+            throw new InvalidOperationException("Tagged template strings array is invalid");
+        }
+        
+        rest = rest.Rest;
+        
+        // Get the raw strings array expression
+        var rawStringsArrayExpr = rest.Head;
+        var rawStringsArray = EvaluateExpression(rawStringsArrayExpr, environment, context) as JsArray;
+        if (rawStringsArray == null)
+        {
+            throw new InvalidOperationException("Tagged template raw strings array is invalid");
+        }
+        
+        rest = rest.Rest;
+        
+        // Create a template object with a 'raw' property
+        var templateObj = new JsObject();
+        
+        // Copy strings array properties
+        for (int i = 0; i < stringsArray.Items.Count; i++)
+        {
+            templateObj[i.ToString()] = stringsArray.Items[i];
+        }
+        templateObj["length"] = (double)stringsArray.Items.Count;
+        
+        // Add raw property
+        templateObj["raw"] = rawStringsArray;
+        
+        // Evaluate the substitution expressions
+        var substitutions = new List<object?> { templateObj };
+        foreach (var exprNode in rest)
+        {
+            var value = EvaluateExpression(exprNode, environment, context);
+            substitutions.Add(value);
+        }
+        
+        // Call the tag function with the template object and substitutions
+        return callable.Invoke(substitutions, null);
     }
 
     private static object EvaluateObjectLiteral(Cons cons, Environment environment, EvaluationContext context)

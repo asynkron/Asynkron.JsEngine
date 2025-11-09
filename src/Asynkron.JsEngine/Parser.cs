@@ -1327,6 +1327,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                 continue;
             }
 
+            // Tagged template literals
+            if (Check(TokenType.TemplateLiteral))
+            {
+                Advance(); // Consume the template literal token
+                expr = FinishTaggedTemplate(expr);
+                continue;
+            }
+
             break;
         }
 
@@ -1697,6 +1705,75 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                 }
             }
         }
+        
+        return Cons.FromEnumerable(items);
+    }
+
+    private object FinishTaggedTemplate(object? tag)
+    {
+        // Parse the template literal that was already consumed
+        var token = Previous();
+        var parts = token.Literal as List<object> ?? [];
+        
+        // Build the template object with strings and raw strings
+        var strings = new List<object?>();
+        var rawStrings = new List<object?>();
+        var expressions = new List<object?>();
+        
+        foreach (var part in parts)
+        {
+            if (part is string str)
+            {
+                strings.Add(str);
+                rawStrings.Add(str); // For now, raw and cooked are the same
+            }
+            else if (part is TemplateExpression expr)
+            {
+                // Parse the expression
+                var exprText = expr.ExpressionText.Trim();
+                var wrappedLexer = new Lexer(exprText + ";");
+                var wrappedTokens = wrappedLexer.Tokenize();
+                var exprParser = new Parser(wrappedTokens);
+                var exprProgram = exprParser.ParseProgram();
+                
+                if (exprProgram is Cons programCons && !programCons.IsEmpty)
+                {
+                    var firstStatement = programCons.Rest.Head;
+                    if (firstStatement is Cons stmtCons && 
+                        stmtCons.Head is Symbol sym && 
+                        ReferenceEquals(sym, JsSymbols.ExpressionStatement))
+                    {
+                        expressions.Add(stmtCons.Rest.Head);
+                    }
+                    else
+                    {
+                        expressions.Add(firstStatement);
+                    }
+                }
+            }
+        }
+        
+        // Make sure we have one more string than expressions
+        // (template literals always start and end with a string part, even if empty)
+        while (strings.Count <= expressions.Count)
+        {
+            strings.Add("");
+            rawStrings.Add("");
+        }
+        
+        // Create a tagged template call: (taggedTemplate tag strings rawStrings expr1 expr2 ...)
+        var items = new List<object?> { JsSymbols.TaggedTemplate, tag };
+        
+        // Add strings array
+        var stringsArray = Cons.FromEnumerable(strings.Prepend(JsSymbols.ArrayLiteral));
+        items.Add(stringsArray);
+        
+        // Add raw strings array
+        var rawStringsArray = Cons.FromEnumerable(rawStrings.Prepend(JsSymbols.ArrayLiteral));
+        items.Add(rawStringsArray);
+        
+        // Add expressions
+        items.AddRange(expressions);
         
         return Cons.FromEnumerable(items);
     }

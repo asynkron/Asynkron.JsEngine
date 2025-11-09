@@ -1774,6 +1774,11 @@ internal static class Evaluator
             return jsArray.GetElement(arrayIndex);
         }
 
+        if (target is TypedArrayBase typedArray && TryConvertToIndex(indexValue, out var typedIndex))
+        {
+            return typedArray.GetElement(typedIndex);
+        }
+
         var propertyName = ToPropertyName(indexValue);
         if (propertyName is not null && TryGetPropertyValue(target, propertyName, out var value))
         {
@@ -1869,6 +1874,11 @@ internal static class Evaluator
             return jsArray.GetElement(arrayIndex);
         }
 
+        if (target is TypedArrayBase typedArray && TryConvertToIndex(indexValue, out var typedIndex))
+        {
+            return typedArray.GetElement(typedIndex);
+        }
+
         var propertyName = ToPropertyName(indexValue)
             ?? throw new InvalidOperationException($"Unsupported index value '{indexValue}'.");
 
@@ -1898,6 +1908,18 @@ internal static class Evaluator
         if (target is JsArray jsArray && TryConvertToIndex(indexValue, out var arrayIndex))
         {
             jsArray.SetElement(arrayIndex, value);
+            return value;
+        }
+
+        if (target is TypedArrayBase typedArray && TryConvertToIndex(indexValue, out var typedIndex))
+        {
+            var numValue = value switch
+            {
+                double d => d,
+                int i => (double)i,
+                _ => 0.0
+            };
+            typedArray.SetElement(typedIndex, numValue);
             return value;
         }
 
@@ -1942,6 +1964,9 @@ internal static class Evaluator
                 JsSet jsSet => jsSet,
                 JsWeakMap jsWeakMap => jsWeakMap,
                 JsWeakSet jsWeakSet => jsWeakSet,
+                JsArrayBuffer buffer => buffer,
+                JsDataView dataView => dataView,
+                TypedArrayBase typedArray => typedArray,
                 IDictionary<string, object?> dictionary => dictionary,
                 _ => instance
             };
@@ -2410,6 +2435,232 @@ internal static class Evaluator
         {
             case JsArray jsArray when jsArray.TryGetProperty(propertyName, out value):
                 return true;
+            case TypedArrayBase typedArray:
+                // Handle typed array properties
+                switch (propertyName)
+                {
+                    case "length":
+                        value = (double)typedArray.Length;
+                        return true;
+                    case "byteLength":
+                        value = (double)typedArray.ByteLength;
+                        return true;
+                    case "byteOffset":
+                        value = (double)typedArray.ByteOffset;
+                        return true;
+                    case "buffer":
+                        value = typedArray.Buffer;
+                        return true;
+                    case "BYTES_PER_ELEMENT":
+                        value = (double)typedArray.BytesPerElement;
+                        return true;
+                    case "subarray":
+                        value = new HostFunction(args =>
+                        {
+                            var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+                            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : typedArray.Length;
+                            return typedArray.Subarray(begin, end);
+                        });
+                        return true;
+                    case "set":
+                        value = new HostFunction(args =>
+                        {
+                            if (args.Count == 0) return JsSymbols.Undefined;
+                            var offset = args.Count > 1 && args[1] is double d ? (int)d : 0;
+                            
+                            if (args[0] is TypedArrayBase sourceTypedArray)
+                            {
+                                typedArray.Set(sourceTypedArray, offset);
+                            }
+                            else if (args[0] is JsArray sourceArray)
+                            {
+                                typedArray.Set(sourceArray, offset);
+                            }
+                            
+                            return JsSymbols.Undefined;
+                        });
+                        return true;
+                    case "slice":
+                        value = CreateTypedArraySliceMethod(typedArray);
+                        return true;
+                }
+                value = null;
+                return false;
+            case JsArrayBuffer buffer:
+                // Handle ArrayBuffer properties
+                if (propertyName == "byteLength")
+                {
+                    value = (double)buffer.ByteLength;
+                    return true;
+                }
+                if (propertyName == "slice")
+                {
+                    value = new HostFunction(args =>
+                    {
+                        var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+                        var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : buffer.ByteLength;
+                        return buffer.Slice(begin, end);
+                    });
+                    return true;
+                }
+                value = null;
+                return false;
+            case JsDataView dataView:
+                // Handle DataView properties
+                switch (propertyName)
+                {
+                    case "buffer":
+                        value = dataView.Buffer;
+                        return true;
+                    case "byteLength":
+                        value = (double)dataView.ByteLength;
+                        return true;
+                    case "byteOffset":
+                        value = (double)dataView.ByteOffset;
+                        return true;
+                    case "getInt8":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
+                            return (double)dataView.GetInt8(offset);
+                        });
+                        return true;
+                    case "setInt8":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+                            var val = args.Count > 1 && args[1] is double d2 ? (sbyte)(int)d2 : (sbyte)0;
+                            dataView.SetInt8(offset, val);
+                            return JsSymbols.Undefined;
+                        });
+                        return true;
+                    case "getUint8":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
+                            return (double)dataView.GetUint8(offset);
+                        });
+                        return true;
+                    case "setUint8":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+                            var val = args.Count > 1 && args[1] is double d2 ? (byte)(int)d2 : (byte)0;
+                            dataView.SetUint8(offset, val);
+                            return JsSymbols.Undefined;
+                        });
+                        return true;
+                    case "getInt16":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
+                            var littleEndian = args.Count > 1 && args[1] is bool b && b;
+                            return (double)dataView.GetInt16(offset, littleEndian);
+                        });
+                        return true;
+                    case "setInt16":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+                            var val = args.Count > 1 && args[1] is double d2 ? (short)(int)d2 : (short)0;
+                            var littleEndian = args.Count > 2 && args[2] is bool b && b;
+                            dataView.SetInt16(offset, val, littleEndian);
+                            return JsSymbols.Undefined;
+                        });
+                        return true;
+                    case "getUint16":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
+                            var littleEndian = args.Count > 1 && args[1] is bool b && b;
+                            return (double)dataView.GetUint16(offset, littleEndian);
+                        });
+                        return true;
+                    case "setUint16":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+                            var val = args.Count > 1 && args[1] is double d2 ? (ushort)(int)d2 : (ushort)0;
+                            var littleEndian = args.Count > 2 && args[2] is bool b && b;
+                            dataView.SetUint16(offset, val, littleEndian);
+                            return JsSymbols.Undefined;
+                        });
+                        return true;
+                    case "getInt32":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
+                            var littleEndian = args.Count > 1 && args[1] is bool b && b;
+                            return (double)dataView.GetInt32(offset, littleEndian);
+                        });
+                        return true;
+                    case "setInt32":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+                            var val = args.Count > 1 && args[1] is double d2 ? (int)d2 : 0;
+                            var littleEndian = args.Count > 2 && args[2] is bool b && b;
+                            dataView.SetInt32(offset, val, littleEndian);
+                            return JsSymbols.Undefined;
+                        });
+                        return true;
+                    case "getUint32":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
+                            var littleEndian = args.Count > 1 && args[1] is bool b && b;
+                            return (double)dataView.GetUint32(offset, littleEndian);
+                        });
+                        return true;
+                    case "setUint32":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+                            var val = args.Count > 1 && args[1] is double d2 ? (uint)d2 : 0;
+                            var littleEndian = args.Count > 2 && args[2] is bool b && b;
+                            dataView.SetUint32(offset, val, littleEndian);
+                            return JsSymbols.Undefined;
+                        });
+                        return true;
+                    case "getFloat32":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
+                            var littleEndian = args.Count > 1 && args[1] is bool b && b;
+                            return (double)dataView.GetFloat32(offset, littleEndian);
+                        });
+                        return true;
+                    case "setFloat32":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+                            var val = args.Count > 1 && args[1] is double d2 ? (float)d2 : 0f;
+                            var littleEndian = args.Count > 2 && args[2] is bool b && b;
+                            dataView.SetFloat32(offset, val, littleEndian);
+                            return JsSymbols.Undefined;
+                        });
+                        return true;
+                    case "getFloat64":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
+                            var littleEndian = args.Count > 1 && args[1] is bool b && b;
+                            return dataView.GetFloat64(offset, littleEndian);
+                        });
+                        return true;
+                    case "setFloat64":
+                        value = new HostFunction(args =>
+                        {
+                            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+                            var val = args.Count > 1 && args[1] is double d2 ? d2 : 0.0;
+                            var littleEndian = args.Count > 2 && args[2] is bool b && b;
+                            dataView.SetFloat64(offset, val, littleEndian);
+                            return JsSymbols.Undefined;
+                        });
+                        return true;
+                }
+                value = null;
+                return false;
             case JsMap jsMap:
                 // Handle special 'size' property
                 if (propertyName == "size")
@@ -3227,6 +3478,10 @@ internal static class Evaluator
                 {
                     jsArray.SetElement(arrayIndex, newValue);
                 }
+                else if (target is TypedArrayBase typedArray && TryConvertToIndex(index, out var typedIndex))
+                {
+                    typedArray.SetElement(typedIndex, newValue);
+                }
                 else if (target is JsObject jsObject)
                 {
                     var propertyName = ToPropertyName(index) 
@@ -3239,5 +3494,28 @@ internal static class Evaluator
         {
             throw new InvalidOperationException("Invalid operand for increment/decrement operator.");
         }
+    }
+
+    private static HostFunction CreateTypedArraySliceMethod(TypedArrayBase typedArray)
+    {
+        return new HostFunction(args =>
+        {
+            var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : typedArray.Length;
+
+            return typedArray switch
+            {
+                JsInt8Array arr => arr.Slice(begin, end),
+                JsUint8Array arr => arr.Slice(begin, end),
+                JsUint8ClampedArray arr => arr.Slice(begin, end),
+                JsInt16Array arr => arr.Slice(begin, end),
+                JsUint16Array arr => arr.Slice(begin, end),
+                JsInt32Array arr => arr.Slice(begin, end),
+                JsUint32Array arr => arr.Slice(begin, end),
+                JsFloat32Array arr => arr.Slice(begin, end),
+                JsFloat64Array arr => arr.Slice(begin, end),
+                _ => throw new InvalidOperationException($"Unknown typed array type: {typedArray.GetType()}")
+            };
+        });
     }
 }

@@ -45,7 +45,9 @@ internal sealed class Lexer(string source)
         ["false"] = TokenType.False,
         ["null"] = TokenType.Null,
         ["undefined"] = TokenType.Undefined,
-        ["typeof"] = TokenType.Typeof
+        ["typeof"] = TokenType.Typeof,
+        ["import"] = TokenType.Import,
+        ["export"] = TokenType.Export
     };
 
     private readonly string _source = source ?? string.Empty;

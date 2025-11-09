@@ -35,6 +35,14 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Generators**: Generator functions (`function*`, `yield`) with iterator protocol support
 - **Event Queue**: Asynchronous task scheduling and event loop integration
 - **Regular expressions**: RegExp constructor with `test()`, `exec()` methods, regex literals (`/pattern/flags`), and regex support in string methods (match, search, replace)
+- **Modules**: ES6 module system with `import`/`export` syntax, including:
+  - Named imports and exports: `import { x, y } from './module.js'`, `export { x, y }`
+  - Default imports and exports: `import x from './module.js'`, `export default x`
+  - Namespace imports: `import * as name from './module.js'`
+  - Export declarations: `export const x = 1`, `export function foo() {}`
+  - Re-exports: `export { x } from './other.js'`
+  - Side-effect imports: `import './module.js'`
+  - Module caching (modules are loaded once and cached)
 - **JavaScript oddities**: `typeof null === "object"`, `null == undefined`, proper undefined handling
 - **Standard library**: 
   - Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
@@ -47,7 +55,7 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 
 ### 🚧 Not Yet Implemented
 
-- Modules (import/export)
+See [docs/MISSING_FEATURES.md](docs/MISSING_FEATURES.md) for a comprehensive list of JavaScript features not yet implemented.
 
 ## Architecture
 
@@ -808,6 +816,127 @@ engine.Evaluate(@"
         result = gen.next();
     }
 ");
+```
+
+### Modules
+
+ES6 modules with import/export are fully supported. Modules have their own scope and are cached after first load.
+
+```csharp
+var engine = new JsEngine();
+
+// Set up a module loader (can load from files, database, network, etc.)
+engine.SetModuleLoader(modulePath =>
+{
+    // For this example, we'll create modules dynamically
+    if (modulePath == "math.js")
+    {
+        return @"
+            export function add(a, b) {
+                return a + b;
+            }
+            
+            export function subtract(a, b) {
+                return a - b;
+            }
+            
+            export const PI = 3.14159;
+        ";
+    }
+    
+    if (modulePath == "utils.js")
+    {
+        return @"
+            export default function greet(name) {
+                return ""Hello, "" + name + ""!"";
+            }
+            
+            export function uppercase(str) {
+                return str.toUpperCase();
+            }
+        ";
+    }
+    
+    // In a real application, you might load from the file system:
+    // return File.ReadAllText(modulePath);
+    
+    throw new FileNotFoundException($"Module not found: {modulePath}");
+});
+
+// Named imports
+var result = engine.Evaluate(@"
+    import { add, PI } from ""math.js"";
+    add(10, 5) + PI;
+");
+Console.WriteLine(result); // Output: 18.14159
+
+// Default import
+engine.Evaluate(@"
+    import greet from ""utils.js"";
+    greet(""World"");
+");
+
+// Mixed imports (default + named)
+engine.Evaluate(@"
+    import greet, { uppercase } from ""utils.js"";
+    uppercase(greet(""alice""));
+");
+
+// Namespace import
+engine.Evaluate(@"
+    import * as math from ""math.js"";
+    math.add(5, 3) * math.PI;
+");
+
+// Import with aliases
+engine.Evaluate(@"
+    import { add as sum, subtract as diff } from ""math.js"";
+    sum(10, 5) - diff(10, 5);
+");
+```
+
+You can also use modules to export classes:
+
+```csharp
+engine.SetModuleLoader(modulePath =>
+{
+    if (modulePath == "shapes.js")
+    {
+        return @"
+            export class Rectangle {
+                constructor(width, height) {
+                    this.width = width;
+                    this.height = height;
+                }
+                
+                area() {
+                    return this.width * this.height;
+                }
+            }
+            
+            export class Circle {
+                constructor(radius) {
+                    this.radius = radius;
+                }
+                
+                area() {
+                    return Math.PI * this.radius * this.radius;
+                }
+            }
+        ";
+    }
+    throw new FileNotFoundException($"Module not found: {modulePath}");
+});
+
+var area = engine.Evaluate(@"
+    import { Rectangle, Circle } from ""shapes.js"";
+    
+    let rect = new Rectangle(5, 10);
+    let circle = new Circle(5);
+    
+    rect.area() + circle.area();
+");
+Console.WriteLine(area);
 ```
 
 ### String Methods

@@ -93,6 +93,8 @@ internal enum TokenType
     Null,
     Undefined,
     Typeof,
+    Import,
+    Export,
     RegexLiteral,
     Eof
 }

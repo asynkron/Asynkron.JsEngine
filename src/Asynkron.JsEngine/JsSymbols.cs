@@ -59,6 +59,7 @@ public static class JsSymbols
     public static readonly Symbol New = Symbol.Intern("new");
     public static readonly Symbol Ternary = Symbol.Intern("ternary");
     public static readonly Symbol TemplateLiteral = Symbol.Intern("template");
+    public static readonly Symbol TaggedTemplate = Symbol.Intern("tagged-template");
     public static readonly Symbol Spread = Symbol.Intern("spread");
     public static readonly Symbol Rest = Symbol.Intern("rest");
     public static readonly Symbol Uninitialized = Symbol.Intern("<uninitialized>");

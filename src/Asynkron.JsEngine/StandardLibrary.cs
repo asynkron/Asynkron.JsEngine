@@ -1987,6 +1987,96 @@ internal static class StandardLibrary
         // trimEnd() / trimRight()
         stringObj.SetProperty("trimEnd", new HostFunction(args => str.TrimEnd()));
         stringObj.SetProperty("trimRight", new HostFunction(args => str.TrimEnd()));
+
+        // codePointAt(index)
+        stringObj.SetProperty("codePointAt", new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not double d) return null;
+            var index = (int)d;
+            if (index < 0 || index >= str.Length) return null;
+            
+            // Get the code point at the given position
+            // Handle surrogate pairs for characters outside the BMP (Basic Multilingual Plane)
+            var c = str[index];
+            if (char.IsHighSurrogate(c) && index + 1 < str.Length)
+            {
+                var low = str[index + 1];
+                if (char.IsLowSurrogate(low))
+                {
+                    // Calculate the code point from the surrogate pair
+                    var high = (int)c;
+                    var lowInt = (int)low;
+                    var codePoint = ((high - 0xD800) << 10) + (lowInt - 0xDC00) + 0x10000;
+                    return (double)codePoint;
+                }
+            }
+            return (double)c;
+        }));
+
+        // localeCompare(compareString)
+        stringObj.SetProperty("localeCompare", new HostFunction(args =>
+        {
+            if (args.Count == 0) return 0d;
+            var compareString = args[0]?.ToString() ?? "";
+            var result = string.Compare(str, compareString, StringComparison.CurrentCulture);
+            return (double)result;
+        }));
+
+        // normalize(form) - Unicode normalization
+        stringObj.SetProperty("normalize", new HostFunction(args =>
+        {
+            var form = args.Count > 0 && args[0] != null ? args[0]!.ToString() : "NFC";
+            
+            try
+            {
+                return form switch
+                {
+                    "NFC" => str.Normalize(System.Text.NormalizationForm.FormC),
+                    "NFD" => str.Normalize(System.Text.NormalizationForm.FormD),
+                    "NFKC" => str.Normalize(System.Text.NormalizationForm.FormKC),
+                    "NFKD" => str.Normalize(System.Text.NormalizationForm.FormKD),
+                    _ => throw new Exception("RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.")
+                };
+            }
+            catch
+            {
+                return str;
+            }
+        }));
+
+        // matchAll(regexp) - returns an array of all matches
+        stringObj.SetProperty("matchAll", new HostFunction(args =>
+        {
+            if (args.Count == 0) return null;
+            
+            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) && regexValue is JsRegExp regex)
+            {
+                return regex.MatchAll(str);
+            }
+            
+            // If not a RegExp, convert to one
+            var pattern = args[0]?.ToString() ?? "";
+            var tempRegex = new JsRegExp(pattern, "g");
+            return tempRegex.MatchAll(str);
+        }));
+
+        // anchor(name) - deprecated HTML wrapper method
+        stringObj.SetProperty("anchor", new HostFunction(args =>
+        {
+            var name = args.Count > 0 ? (args[0]?.ToString() ?? "") : "";
+            // Escape quotes in name
+            name = name.Replace("\"", "&quot;");
+            return $"<a name=\"{name}\">{str}</a>";
+        }));
+
+        // link(url) - deprecated HTML wrapper method
+        stringObj.SetProperty("link", new HostFunction(args =>
+        {
+            var url = args.Count > 0 ? (args[0]?.ToString() ?? "") : "";
+            // Escape quotes in url
+            url = url.Replace("\"", "&quot;");
+            return $"<a href=\"{url}\">{str}</a>";
+        }));
     }
 
     private static JsArray CreateArrayFromStrings(string[] strings)
@@ -2828,6 +2918,122 @@ internal static class StandardLibrary
         numberConstructor.SetProperty("NaN", double.NaN);
 
         return numberConstructor;
+    }
+
+    /// <summary>
+    /// Creates the String constructor with static methods.
+    /// </summary>
+    public static HostFunction CreateStringConstructor()
+    {
+        // String constructor
+        var stringConstructor = new HostFunction(args =>
+        {
+            if (args.Count == 0) return "";
+            
+            var value = args[0];
+            // Convert to string
+            if (value is string s) return s;
+            if (value is double d) return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (value is bool b) return b ? "true" : "false";
+            if (value == null) return "null";
+            if (ReferenceEquals(value, JsSymbols.Undefined)) return "undefined";
+            
+            return value.ToString() ?? "";
+        });
+
+        // String.fromCodePoint(...codePoints)
+        stringConstructor.SetProperty("fromCodePoint", new HostFunction(args =>
+        {
+            if (args.Count == 0) return "";
+            
+            var result = new System.Text.StringBuilder();
+            foreach (var arg in args)
+            {
+                if (arg is double d)
+                {
+                    var codePoint = (int)d;
+                    // Validate code point range
+                    if (codePoint < 0 || codePoint > 0x10FFFF)
+                    {
+                        throw new Exception("RangeError: Invalid code point " + codePoint);
+                    }
+                    
+                    // Handle surrogate pairs for code points > 0xFFFF
+                    if (codePoint <= 0xFFFF)
+                    {
+                        result.Append((char)codePoint);
+                    }
+                    else
+                    {
+                        // Convert to surrogate pair
+                        codePoint -= 0x10000;
+                        result.Append((char)(0xD800 + (codePoint >> 10)));
+                        result.Append((char)(0xDC00 + (codePoint & 0x3FF)));
+                    }
+                }
+            }
+            return result.ToString();
+        }));
+
+        // String.fromCharCode(...charCodes) - for compatibility
+        stringConstructor.SetProperty("fromCharCode", new HostFunction(args =>
+        {
+            if (args.Count == 0) return "";
+            
+            var result = new System.Text.StringBuilder();
+            foreach (var arg in args)
+            {
+                if (arg is double d)
+                {
+                    var charCode = (int)d & 0xFFFF; // Limit to 16-bit range
+                    result.Append((char)charCode);
+                }
+            }
+            return result.ToString();
+        }));
+
+        // String.raw(template, ...substitutions)
+        // This is a special method used with tagged templates
+        stringConstructor.SetProperty("raw", new HostFunction(args =>
+        {
+            if (args.Count == 0) return "";
+            
+            // First argument should be a template object with 'raw' property
+            if (args[0] is not JsObject template)
+            {
+                return "";
+            }
+            
+            // Get the raw strings array
+            if (!template.TryGetProperty("raw", out var rawValue) || rawValue is not JsArray rawStrings)
+            {
+                return "";
+            }
+            
+            var result = new System.Text.StringBuilder();
+            var rawCount = rawStrings.Items.Count;
+            
+            for (int i = 0; i < rawCount; i++)
+            {
+                // Append the raw string part
+                var rawPart = rawStrings.GetElement(i)?.ToString() ?? "";
+                result.Append(rawPart);
+                
+                // Append the substitution if there is one
+                if (i < args.Count - 1)
+                {
+                    var substitution = args[i + 1];
+                    if (substitution != null)
+                    {
+                        result.Append(substitution.ToString());
+                    }
+                }
+            }
+            
+            return result.ToString();
+        }));
+
+        return stringConstructor;
     }
 
     /// <summary>

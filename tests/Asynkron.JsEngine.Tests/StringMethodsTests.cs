@@ -392,4 +392,134 @@ public class StringMethodsTests
         ");
         Assert.Equal("APPLE,BANANA,CHERRY", result);
     }
+
+    [Fact]
+    public void String_CodePointAt()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let str = ""hello"";
+            str.codePointAt(0);
+        ");
+        Assert.Equal(104d, result); // 'h' = 104
+    }
+
+    [Fact]
+    public void String_CodePointAt_WithSurrogatePair()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let str = ""𝟘𝟙𝟚""; // Mathematical bold digits
+            str.codePointAt(0);
+        ");
+        Assert.Equal(120792d, result); // U+1D7D8
+    }
+
+    [Fact]
+    public void String_LocaleCompare()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let a = ""apple"";
+            let b = ""banana"";
+            a.localeCompare(b) < 0;
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
+    public void String_Normalize()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let str = ""café"";
+            str.normalize(""NFC"").length;
+        ");
+        Assert.Equal(4d, result);
+    }
+
+    [Fact]
+    public void String_MatchAll()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let str = ""test1test2test3"";
+            let regex = /test\d/g;
+            let matches = str.matchAll(regex);
+            matches.length;
+        ");
+        Assert.Equal(3d, result);
+    }
+
+    [Fact]
+    public void String_Anchor()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let str = ""hello"";
+            str.anchor(""greeting"");
+        ");
+        Assert.Equal("<a name=\"greeting\">hello</a>", result);
+    }
+
+    [Fact]
+    public void String_Link()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let str = ""click here"";
+            str.link(""https://example.com"");
+        ");
+        Assert.Equal("<a href=\"https://example.com\">click here</a>", result);
+    }
+
+    [Fact]
+    public void String_FromCodePoint()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            String.fromCodePoint(65, 66, 67);
+        ");
+        Assert.Equal("ABC", result);
+    }
+
+    [Fact]
+    public void String_FromCodePoint_WithSurrogatePairs()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            String.fromCodePoint(128512); // Grinning face emoji (0x1F600)
+        ");
+        Assert.Equal("😀", result);
+    }
+
+    [Fact]
+    public void String_FromCharCode()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            String.fromCharCode(72, 101, 108, 108, 111);
+        ");
+        Assert.Equal("Hello", result);
+    }
+
+    [Fact]
+    public void String_Constructor()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            String(123);
+        ");
+        Assert.Equal("123", result);
+    }
+
+    [Fact]
+    public void String_Constructor_WithBoolean()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            String(true);
+        ");
+        Assert.Equal("true", result);
+    }
 }

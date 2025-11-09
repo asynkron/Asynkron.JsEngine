@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using JetBrains.Annotations;
 
 namespace Asynkron.JsEngine;
 
@@ -99,7 +100,7 @@ public sealed class JsEngine
     /// Applies CPS (Continuation-Passing Style) transformation if the code contains
     /// async functions, generators, await expressions, or yield expressions.
     /// </summary>
-    public Cons Parse(string source)
+    public Cons Parse([LanguageInjection("javascript")]string source)
     {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
@@ -124,7 +125,7 @@ public sealed class JsEngine
     /// Parses JavaScript source code into an S-expression representation WITHOUT applying CPS transformation.
     /// This is useful for debugging and understanding the initial parse tree before transformation.
     /// </summary>
-    public Cons ParseWithoutTransformation(string source)
+    public Cons ParseWithoutTransformation([LanguageInjection("javascript")]string source)
     {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
@@ -141,7 +142,7 @@ public sealed class JsEngine
     /// </summary>
     /// <param name="source">JavaScript source code</param>
     /// <returns>A tuple containing (original, transformed) S-expressions. If no transformation is needed, both will be the same.</returns>
-    public (Cons original, Cons transformed) ParseWithTransformationSteps(string source)
+    public (Cons original, Cons transformed) ParseWithTransformationSteps([LanguageInjection("javascript")]string source)
     {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
@@ -168,7 +169,7 @@ public sealed class JsEngine
     /// <summary>
     /// Parses and immediately evaluates the provided source.
     /// </summary>
-    public object? Evaluate(string source)
+    public object? Evaluate([LanguageInjection("javascript")]string source)
         => Evaluate(Parse(source));
 
     /// <summary>
@@ -239,7 +240,7 @@ public sealed class JsEngine
     /// </summary>
     /// <param name="source">The JavaScript source code to execute</param>
     /// <returns>A task that completes when all scheduled events have been processed</returns>
-    public async Task<object?> Run(string source)
+    public async Task<object?> Run([LanguageInjection("javascript")]string source)
     {
         // Parse and evaluate the source code
         var result = Evaluate(source);

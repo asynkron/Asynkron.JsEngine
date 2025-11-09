@@ -44,6 +44,10 @@ public static class JsSymbols
     public static readonly Symbol Getter = Symbol.Intern("getter");
     public static readonly Symbol Setter = Symbol.Intern("setter");
     public static readonly Symbol PrivateField = Symbol.Intern("private-field");
+    public static readonly Symbol StaticMethod = Symbol.Intern("static-method");
+    public static readonly Symbol StaticGetter = Symbol.Intern("static-getter");
+    public static readonly Symbol StaticSetter = Symbol.Intern("static-setter");
+    public static readonly Symbol StaticField = Symbol.Intern("static-field");
     public static readonly Symbol GetProperty = Symbol.Intern("get-prop");
     public static readonly Symbol OptionalGetProperty = Symbol.Intern("optional-get-prop");
     public static readonly Symbol SetProperty = Symbol.Intern("set-prop");

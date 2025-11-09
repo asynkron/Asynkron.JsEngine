@@ -16,10 +16,9 @@ Console.WriteLine("-------------------------------------");
 var leftPadScript = @"
     function leftPad(str, len, ch) {
         str = str + '';
-        let i = -1;
         if (!ch && ch !== 0) ch = ' ';
         len = len - str.length;
-        while (++i < len) {
+        for (let i = 0; i < len; i = i + 1) {
             str = ch + str;
         }
         return str;
@@ -56,14 +55,12 @@ var parityScript = @"
     let odds = [];
     let evens = [];
     
-    let i = 0;
-    while (i < numbers.length) {
+    for (let i = 0; i < numbers.length; i = i + 1) {
         if (isOdd(numbers[i])) {
             odds.push(numbers[i]);
         } else {
             evens.push(numbers[i]);
         }
-        i = i + 1;
     }
     
     'Odds: ' + odds.join(', ') + ' | Evens: ' + evens.join(', ');
@@ -87,10 +84,8 @@ var clampScript = @"
     let values = [-10, 0, 5, 15, 25];
     let clamped = [];
     
-    let i = 0;
-    while (i < values.length) {
+    for (let i = 0; i < values.length; i = i + 1) {
         clamped.push(clamp(values[i], 0, 10));
-        i = i + 1;
     }
     
     'Values: [' + values.join(', ') + '] => Clamped [0-10]: [' + clamped.join(', ') + ']';
@@ -110,9 +105,8 @@ var camelCaseScript = @"
     function camelCase(str) {
         let result = '';
         let capitalizeNext = false;
-        let i = 0;
         
-        while (i < str.length) {
+        for (let i = 0; i < str.length; i = i + 1) {
             let char = str.charAt(i);
             
             if (char === '-' || char === '_' || char === ' ') {
@@ -125,8 +119,6 @@ var camelCaseScript = @"
                     result = result + char.toLowerCase();
                 }
             }
-            
-            i = i + 1;
         }
         
         return result;
@@ -135,10 +127,8 @@ var camelCaseScript = @"
     let strings = ['hello-world', 'foo_bar_baz', 'test case string'];
     let converted = [];
     
-    let i = 0;
-    while (i < strings.length) {
+    for (let i = 0; i < strings.length; i = i + 1) {
         converted.push(camelCase(strings[i]));
-        i = i + 1;
     }
     
     converted.join(', ');
@@ -160,23 +150,19 @@ var fibonacciScript = @"
         
         let a = 0;
         let b = 1;
-        let i = 2;
         
-        while (i <= n) {
+        for (let i = 2; i <= n; i = i + 1) {
             let temp = a + b;
             a = b;
             b = temp;
-            i = i + 1;
         }
         
         return b;
     }
     
     let sequence = [];
-    let i = 0;
-    while (i < 15) {
+    for (let i = 0; i < 15; i = i + 1) {
         sequence.push(fibonacci(i));
-        i = i + 1;
     }
     
     'First 15 Fibonacci numbers: ' + sequence.join(', ');
@@ -197,9 +183,8 @@ var luhnScript = @"
         let str = cardNumber + '';
         let sum = 0;
         let isEven = false;
-        let i = str.length - 1;
         
-        while (i >= 0) {
+        for (let i = str.length - 1; i >= 0; i = i - 1) {
             let digit = str.charCodeAt(i) - 48;
             
             if (isEven) {
@@ -211,7 +196,6 @@ var luhnScript = @"
             
             sum = sum + digit;
             isEven = !isEven;
-            i = i - 1;
         }
         
         return sum % 10 === 0;
@@ -225,13 +209,11 @@ var luhnScript = @"
     ];
     
     let results = [];
-    let i = 0;
-    while (i < cards.length) {
+    for (let i = 0; i < cards.length; i = i + 1) {
         let card = cards[i];
         let valid = luhn(card);
         let masked = card.substring(0, 4) + '********' + card.substring(12);
         results.push(masked + ': ' + (valid ? 'VALID' : 'INVALID'));
-        i = i + 1;
     }
     
     results.join(' | ');
@@ -250,19 +232,15 @@ Console.WriteLine("--------------------------");
 var chunkScript = @"
     function chunk(arr, size) {
         let result = [];
-        let i = 0;
         
-        while (i < arr.length) {
+        for (let i = 0; i < arr.length; i = i + size) {
             let chunk = [];
-            let j = 0;
             
-            while (j < size && i + j < arr.length) {
+            for (let j = 0; j < size && i + j < arr.length; j = j + 1) {
                 chunk.push(arr[i + j]);
-                j = j + 1;
             }
             
             result.push(chunk);
-            i = i + size;
         }
         
         return result;
@@ -272,10 +250,8 @@ var chunkScript = @"
     let chunks = chunk(data, 3);
     
     let formatted = [];
-    let i = 0;
-    while (i < chunks.length) {
+    for (let i = 0; i < chunks.length; i = i + 1) {
         formatted.push('[' + chunks[i].join(', ') + ']');
-        i = i + 1;
     }
     
     'Data: [' + data.join(', ') + '] => Chunks of 3: ' + formatted.join(', ');
@@ -294,24 +270,19 @@ Console.WriteLine("------------------------------");
 var uniqueScript = @"
     function unique(arr) {
         let result = [];
-        let i = 0;
         
-        while (i < arr.length) {
+        for (let i = 0; i < arr.length; i = i + 1) {
             let found = false;
-            let j = 0;
             
-            while (j < result.length) {
+            for (let j = 0; j < result.length; j = j + 1) {
                 if (result[j] === arr[i]) {
                     found = true;
                 }
-                j = j + 1;
             }
             
             if (!found) {
                 result.push(arr[i]);
             }
-            
-            i = i + 1;
         }
         
         return result;
@@ -349,11 +320,9 @@ var deepEqualScript = @"
         
         if (keysA.length !== keysB.length) return false;
         
-        let i = 0;
-        while (i < keysA.length) {
+        for (let i = 0; i < keysA.length; i = i + 1) {
             let key = keysA[i];
             if (!deepEqual(a[key], b[key])) return false;
-            i = i + 1;
         }
         
         return true;

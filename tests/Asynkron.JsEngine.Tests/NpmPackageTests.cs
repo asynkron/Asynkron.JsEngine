@@ -324,10 +324,8 @@ public class NpmPackageTests
             }
             
             let result = [];
-            let i = 0;
-            while (i < 10) {
+            for (let i = 0; i < 10; i = i + 1) {
                 result.push(fibonacci(i));
-                i = i + 1;
             }
             
             result.join(',');
@@ -348,13 +346,11 @@ public class NpmPackageTests
                 
                 let a = 0;
                 let b = 1;
-                let i = 2;
                 
-                while (i <= n) {
+                for (let i = 2; i <= n; i = i + 1) {
                     let temp = a + b;
                     a = b;
                     b = temp;
-                    i = i + 1;
                 }
                 
                 return b;
@@ -381,9 +377,8 @@ public class NpmPackageTests
                 let str = cardNumber + '';
                 let sum = 0;
                 let isEven = false;
-                let i = str.length - 1;
                 
-                while (i >= 0) {
+                for (let i = str.length - 1; i >= 0; i = i - 1) {
                     let digit = str.charCodeAt(i) - 48;
                     
                     if (isEven) {
@@ -395,7 +390,6 @@ public class NpmPackageTests
                     
                     sum = sum + digit;
                     isEven = !isEven;
-                    i = i - 1;
                 }
                 
                 return sum % 10 === 0;
@@ -418,9 +412,8 @@ public class NpmPackageTests
                 let str = cardNumber + '';
                 let sum = 0;
                 let isEven = false;
-                let i = str.length - 1;
                 
-                while (i >= 0) {
+                for (let i = str.length - 1; i >= 0; i = i - 1) {
                     let digit = str.charCodeAt(i) - 48;
                     
                     if (isEven) {
@@ -432,7 +425,6 @@ public class NpmPackageTests
                     
                     sum = sum + digit;
                     isEven = !isEven;
-                    i = i - 1;
                 }
                 
                 return sum % 10 === 0;
@@ -510,11 +502,9 @@ public class NpmPackageTests
                 
                 if (keysA.length !== keysB.length) return false;
                 
-                let i = 0;
-                while (i < keysA.length) {
+                for (let i = 0; i < keysA.length; i = i + 1) {
                     let key = keysA[i];
                     if (!deepEqual(a[key], b[key])) return false;
-                    i = i + 1;
                 }
                 
                 return true;
@@ -551,11 +541,9 @@ public class NpmPackageTests
                 
                 if (keysA.length !== keysB.length) return false;
                 
-                let i = 0;
-                while (i < keysA.length) {
+                for (let i = 0; i < keysA.length; i = i + 1) {
                     let key = keysA[i];
                     if (!deepEqual(a[key], b[key])) return false;
-                    i = i + 1;
                 }
                 
                 return true;
@@ -584,9 +572,8 @@ public class NpmPackageTests
             function camelCase(str) {
                 let result = '';
                 let capitalizeNext = false;
-                let i = 0;
                 
-                while (i < str.length) {
+                for (let i = 0; i < str.length; i = i + 1) {
                     let char = str.charAt(i);
                     
                     if (char === '-' || char === '_' || char === ' ') {
@@ -599,8 +586,6 @@ public class NpmPackageTests
                             result = result + char.toLowerCase();
                         }
                     }
-                    
-                    i = i + 1;
                 }
                 
                 return result;
@@ -622,9 +607,8 @@ public class NpmPackageTests
             function camelCase(str) {
                 let result = '';
                 let capitalizeNext = false;
-                let i = 0;
                 
-                while (i < str.length) {
+                for (let i = 0; i < str.length; i = i + 1) {
                     let char = str.charAt(i);
                     
                     if (char === '-' || char === '_' || char === ' ') {
@@ -637,8 +621,6 @@ public class NpmPackageTests
                             result = result + char.toLowerCase();
                         }
                     }
-                    
-                    i = i + 1;
                 }
                 
                 return result;
@@ -663,9 +645,8 @@ public class NpmPackageTests
         var script = @"
             function kebabCase(str) {
                 let result = '';
-                let i = 0;
                 
-                while (i < str.length) {
+                for (let i = 0; i < str.length; i = i + 1) {
                     let char = str.charAt(i);
                     let code = str.charCodeAt(i);
                     
@@ -679,8 +660,6 @@ public class NpmPackageTests
                     } else {
                         result = result + char;
                     }
-                    
-                    i = i + 1;
                 }
                 
                 return result;
@@ -745,20 +724,16 @@ public class NpmPackageTests
         var script = @"
             function flatten(arr) {
                 let result = [];
-                let i = 0;
                 
-                while (i < arr.length) {
+                for (let i = 0; i < arr.length; i = i + 1) {
                     let item = arr[i];
                     if (typeof item === 'object' && item.length !== undefined) {
-                        let j = 0;
-                        while (j < item.length) {
+                        for (let j = 0; j < item.length; j = j + 1) {
                             result.push(item[j]);
-                            j = j + 1;
                         }
                     } else {
                         result.push(item);
                     }
-                    i = i + 1;
                 }
                 
                 return result;
@@ -785,10 +760,8 @@ public class NpmPackageTests
         var script = @"
             function sum(arr) {
                 let total = 0;
-                let i = 0;
-                while (i < arr.length) {
+                for (let i = 0; i < arr.length; i = i + 1) {
                     total = total + arr[i];
-                    i = i + 1;
                 }
                 return total;
             }
@@ -808,10 +781,8 @@ public class NpmPackageTests
         var script = @"
             function sum(arr) {
                 let total = 0;
-                let i = 0;
-                while (i < arr.length) {
+                for (let i = 0; i < arr.length; i = i + 1) {
                     total = total + arr[i];
-                    i = i + 1;
                 }
                 return total;
             }
@@ -835,24 +806,19 @@ public class NpmPackageTests
         var script = @"
             function unique(arr) {
                 let result = [];
-                let i = 0;
                 
-                while (i < arr.length) {
+                for (let i = 0; i < arr.length; i = i + 1) {
                     let found = false;
-                    let j = 0;
                     
-                    while (j < result.length) {
+                    for (let j = 0; j < result.length; j = j + 1) {
                         if (result[j] === arr[i]) {
                             found = true;
                         }
-                        j = j + 1;
                     }
                     
                     if (!found) {
                         result.push(arr[i]);
                     }
-                    
-                    i = i + 1;
                 }
                 
                 return result;
@@ -879,19 +845,15 @@ public class NpmPackageTests
         var script = @"
             function chunk(arr, size) {
                 let result = [];
-                let i = 0;
                 
-                while (i < arr.length) {
+                for (let i = 0; i < arr.length; i = i + size) {
                     let chunk = [];
-                    let j = 0;
                     
-                    while (j < size && i + j < arr.length) {
+                    for (let j = 0; j < size && i + j < arr.length; j = j + 1) {
                         chunk.push(arr[i + j]);
-                        j = j + 1;
                     }
                     
                     result.push(chunk);
-                    i = i + size;
                 }
                 
                 return result;
@@ -914,19 +876,15 @@ public class NpmPackageTests
         var script = @"
             function chunk(arr, size) {
                 let result = [];
-                let i = 0;
                 
-                while (i < arr.length) {
+                for (let i = 0; i < arr.length; i = i + size) {
                     let chunk = [];
-                    let j = 0;
                     
-                    while (j < size && i + j < arr.length) {
+                    for (let j = 0; j < size && i + j < arr.length; j = j + 1) {
                         chunk.push(arr[i + j]);
-                        j = j + 1;
                     }
                     
                     result.push(chunk);
-                    i = i + size;
                 }
                 
                 return result;

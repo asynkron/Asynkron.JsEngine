@@ -1102,42 +1102,6 @@ public sealed class CpsTransformer
     }
 
     /// <summary>
-    /// Checks if an expression is a simple resolve call with null.
-    /// </summary>
-    private bool IsSimpleResolveCall(object? expr)
-    {
-        if (expr is not Cons cons || cons.IsEmpty)
-            return false;
-
-        if (cons.Head is not Symbol blockSym || !ReferenceEquals(blockSym, JsSymbols.Block))
-            return false;
-
-        var blockContents = cons.Rest;
-        if (blockContents is not Cons blockCons || blockCons.IsEmpty)
-            return false;
-
-        var firstStmt = blockCons.Head;
-        if (firstStmt is not Cons stmtCons || stmtCons.IsEmpty)
-            return false;
-
-        // Check if it's an expression statement with a call to resolve with no args or null
-        if (stmtCons.Head is Symbol exprSym && ReferenceEquals(exprSym, JsSymbols.ExpressionStatement))
-        {
-            var exprContent = stmtCons.Rest;
-            if (exprContent is Cons exprCons && !exprCons.IsEmpty &&
-                exprCons.Head is Cons callCons && !callCons.IsEmpty &&
-                callCons.Head is Symbol callSym && ReferenceEquals(callSym, JsSymbols.Call))
-            {
-                // It's a call - check if it's calling resolve with null or no args
-                var callArgs = ConsList(callCons);
-                return callArgs.Count <= 2; // call resolve [null]
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
     /// Converts a Cons to a List for easier manipulation.
     /// </summary>
     private List<object?> ConsList(Cons cons)

@@ -56,6 +56,7 @@ internal enum TokenType
     Less,
     LessEqual,
     Identifier,
+    PrivateIdentifier,
     Number,
     String,
     TemplateLiteral,

@@ -685,6 +685,7 @@ internal static class Evaluator
         var extendsEntry = cons.Rest.Rest.Head;
         var constructorExpression = cons.Rest.Rest.Rest.Head;
         var methodsList = ExpectCons(cons.Rest.Rest.Rest.Rest.Head, "Expected class body list.");
+        var privateFieldsList = cons.Rest.Rest.Rest.Rest.Rest?.Head as Cons;
 
         var (superConstructor, superPrototype) = ResolveSuperclass(extendsEntry, environment, context);
 
@@ -692,6 +693,12 @@ internal static class Evaluator
         if (constructorValue is not JsFunction constructor)
         {
             throw new InvalidOperationException("Class constructor must be a function.");
+        }
+        
+        // Store private field definitions on the constructor for later initialization
+        if (privateFieldsList is not null)
+        {
+            constructor.SetProperty("__privateFields__", privateFieldsList);
         }
 
         environment.Define(name, constructor);
@@ -1522,6 +1529,9 @@ internal static class Evaluator
         {
             instance.SetPrototype(prototypeObject);
         }
+        
+        // Initialize private fields from this class and all parent classes
+        InitializePrivateFields(constructor, instance, environment, context);
 
         var arguments = new List<object?>();
         foreach (var argumentExpression in cons.Rest.Rest)
@@ -1538,6 +1548,43 @@ internal static class Evaluator
             IDictionary<string, object?> dictionary => dictionary,
             _ => instance
         };
+    }
+    
+    private static void InitializePrivateFields(object? constructor, JsObject instance, Environment environment, EvaluationContext context)
+    {
+        // First, initialize parent class private fields (if any)
+        if (constructor is JsFunction jsFunc && TryGetPropertyValue(constructor, "__proto__", out var parent) && parent is not null)
+        {
+            InitializePrivateFields(parent, instance, environment, context);
+        }
+        
+        // Then initialize this class's private fields
+        if (TryGetPropertyValue(constructor, "__privateFields__", out var privateFieldsValue) && privateFieldsValue is Cons privateFieldsList)
+        {
+            foreach (var fieldExpression in privateFieldsList)
+            {
+                var fieldCons = ExpectCons(fieldExpression, "Expected private field definition.");
+                var tag = ExpectSymbol(fieldCons.Head, "Expected private field tag.");
+                
+                if (ReferenceEquals(tag, JsSymbols.PrivateField))
+                {
+                    var fieldName = fieldCons.Rest.Head as string
+                        ?? throw new InvalidOperationException("Expected private field name.");
+                    var initializer = fieldCons.Rest.Rest.Head;
+                    
+                    object? initialValue = null;
+                    if (initializer is not null)
+                    {
+                        // Create a temporary environment with 'this' bound to the instance
+                        var initEnv = new Environment(environment);
+                        initEnv.Define(JsSymbols.This, instance);
+                        initialValue = EvaluateExpression(initializer, initEnv, context);
+                    }
+                    
+                    instance.SetProperty(fieldName, initialValue);
+                }
+            }
+        }
     }
 
     private static object? EvaluateBinary(Cons cons, Environment environment, Symbol operatorSymbol, EvaluationContext context)

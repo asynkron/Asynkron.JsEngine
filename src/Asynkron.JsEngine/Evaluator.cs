@@ -119,6 +119,11 @@ internal static class Evaluator
             return EvaluateForOf(cons, environment, context);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.ForAwaitOf))
+        {
+            return EvaluateForAwaitOf(cons, environment, context);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.Switch))
         {
             return EvaluateSwitch(cons, environment, context);
@@ -429,6 +434,102 @@ internal static class Evaluator
                 break;
 
             // Set loop variable
+            loopEnvironment.Define(variableName, value);
+            
+            lastResult = EvaluateStatement(body, loopEnvironment, context);
+            
+            if (context.IsContinue)
+            {
+                context.ClearContinue();
+                continue;
+            }
+            
+            if (context.IsBreak)
+            {
+                context.ClearBreak();
+                break;
+            }
+            
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;  // Propagate return/throw
+            }
+        }
+
+        return lastResult;
+    }
+
+    private static object? EvaluateForAwaitOf(Cons cons, Environment environment, EvaluationContext context)
+    {
+        // (for-await-of (let/var/const variable) iterable body)
+        // This is similar to for-of but awaits each value from an async iterable
+        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for await...of loop.");
+        var iterableExpression = cons.Rest.Rest.Head;
+        var body = cons.Rest.Rest.Rest.Head;
+
+        // Extract variable name from declaration
+        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for await...of loop.");
+        
+        // Evaluate the iterable
+        var iterable = EvaluateExpression(iterableExpression, environment, context);
+        
+        var loopEnvironment = new Environment(environment);
+        object? lastResult = null;
+
+        // Get values to iterate over
+        // For now, we support arrays and async generators
+        List<object?> values = new();
+        if (iterable is JsArray jsArray)
+        {
+            // Regular array - just iterate synchronously for now
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                values.Add(jsArray.GetElement(i));
+            }
+        }
+        else if (iterable is JsGenerator generator)
+        {
+            // Generator - iterate through its values
+            while (true)
+            {
+                var nextResult = generator.Next(null);
+                if (nextResult is JsObject resultObj)
+                {
+                    var done = resultObj.TryGetProperty("done", out var doneValue) && doneValue is bool b && b;
+                    if (done) break;
+                    
+                    if (resultObj.TryGetProperty("value", out var value))
+                    {
+                        values.Add(value);
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+        else if (iterable is string str)
+        {
+            foreach (char c in str)
+            {
+                values.Add(c.ToString());
+            }
+        }
+        else
+        {
+            throw new InvalidOperationException($"Cannot iterate over non-iterable value '{iterable}'.");
+        }
+
+        // Note: In a full implementation, for await...of should work with async iterators
+        // that return promises. For now, this basic implementation handles synchronous iterables.
+        foreach (var value in values)
+        {
+            if (context.ShouldStopEvaluation)
+                break;
+
+            // In a proper implementation, we would await the value here if it's a promise
+            // For now, we just use the value directly
             loopEnvironment.Define(variableName, value);
             
             lastResult = EvaluateStatement(body, loopEnvironment, context);

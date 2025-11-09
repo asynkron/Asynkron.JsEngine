@@ -578,7 +578,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
         if (Match(TokenType.For))
         {
-            return ParseForStatement();
+            // Check if this is 'for await...of'
+            var isForAwait = Match(TokenType.Await);
+            return ParseForStatement(isForAwait);
         }
 
         if (Match(TokenType.While))
@@ -756,7 +758,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         return Cons.FromEnumerable([JsSymbols.DoWhile, condition, body]);
     }
 
-    private object ParseForStatement()
+    private object ParseForStatement(bool isForAwait = false)
     {
         Consume(TokenType.LeftParen, "Expected '(' after 'for'.");
 
@@ -791,6 +793,13 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         if (loopVariable != null && (Match(TokenType.In) || Match(TokenType.Of)))
         {
             var isForOf = Previous().Type == TokenType.Of;
+            
+            // for await requires for...of
+            if (isForAwait && !isForOf)
+            {
+                throw new ParseException("'for await' can only be used with 'of', not 'in'");
+            }
+            
             var iterableExpression = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after for...in/of clauses.");
             var body = ParseStatement();
@@ -805,7 +814,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             
             var varDecl = Cons.FromEnumerable([Symbol.Intern(keyword), loopVariable, null]);
             
-            if (isForOf)
+            if (isForAwait)
+            {
+                return Cons.FromEnumerable([JsSymbols.ForAwaitOf, varDecl, iterableExpression, body]);
+            }
+            else if (isForOf)
             {
                 return Cons.FromEnumerable([JsSymbols.ForOf, varDecl, iterableExpression, body]);
             }
@@ -813,6 +826,12 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             {
                 return Cons.FromEnumerable([JsSymbols.ForIn, varDecl, iterableExpression, body]);
             }
+        }
+        
+        // for await without of is an error
+        if (isForAwait)
+        {
+            throw new ParseException("'for await' can only be used with 'for await...of' syntax");
         }
         
         // Not a for...in/of loop, reset and parse as regular for loop

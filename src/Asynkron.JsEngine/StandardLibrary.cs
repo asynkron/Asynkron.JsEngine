@@ -2401,6 +2401,10 @@ internal static class StandardLibrary
             return key ?? (object)JsSymbols.Undefined;
         }));
 
+        // Well-known symbols
+        symbolConstructor.SetProperty("iterator", JsSymbol.For("Symbol.iterator"));
+        symbolConstructor.SetProperty("asyncIterator", JsSymbol.For("Symbol.asyncIterator"));
+
         return symbolConstructor;
     }
 

@@ -1884,18 +1884,28 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         Cons? namedImports = null;
         object? namespaceImport = null;
         
-        // Check for default import
-        if (Check(TokenType.Identifier) && !CheckAhead(TokenType.Comma) && !CheckContextualKeyword("from"))
+        // Check for default import or star import
+        if (Check(TokenType.Identifier) && !CheckContextualKeyword("from"))
         {
-            // Could be: import name from "module" OR import * as name from "module" 
-            if (Peek().Lexeme == "*")
+            var nameToken = Consume(TokenType.Identifier, "Expected identifier.");
+            defaultImport = Symbol.Intern(nameToken.Lexeme);
+            
+            // Check if there's a comma after the default import
+            if (Match(TokenType.Comma))
             {
-                // This shouldn't happen as * is not an identifier
-            }
-            else
-            {
-                var nameToken = Consume(TokenType.Identifier, "Expected identifier.");
-                defaultImport = Symbol.Intern(nameToken.Lexeme);
+                if (Match(TokenType.Star))
+                {
+                    // import defaultExport, * as name from "module"
+                    ConsumeContextualKeyword("as", "Expected 'as' after '*'.");
+                    var nsNameToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
+                    namespaceImport = Symbol.Intern(nsNameToken.Lexeme);
+                }
+                else if (Match(TokenType.LeftBrace))
+                {
+                    // import defaultExport, { export1 } from "module"
+                    namedImports = ParseNamedImports();
+                    Consume(TokenType.RightBrace, "Expected '}' after named imports.");
+                }
             }
         }
         else if (Match(TokenType.Star))
@@ -1910,24 +1920,6 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             // Named imports: import { x, y as z } from "module"
             namedImports = ParseNamedImports();
             Consume(TokenType.RightBrace, "Expected '}' after named imports.");
-        }
-        
-        // Check for comma (default + named/namespace)
-        if (defaultImport is not null && Match(TokenType.Comma))
-        {
-            if (Match(TokenType.Star))
-            {
-                // import defaultExport, * as name from "module"
-                ConsumeContextualKeyword("as", "Expected 'as' after '*'.");
-                var nameToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
-                namespaceImport = Symbol.Intern(nameToken.Lexeme);
-            }
-            else if (Match(TokenType.LeftBrace))
-            {
-                // import defaultExport, { export1 } from "module"
-                namedImports = ParseNamedImports();
-                Consume(TokenType.RightBrace, "Expected '}' after named imports.");
-            }
         }
         
         ConsumeContextualKeyword("from", "Expected 'from' in import statement.");
@@ -2025,9 +2017,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                 
                 var (constructor, methods) = ParseClassBody();
                 
-                var classParts = new List<object?> { JsSymbols.Class, name, extendsClause, constructor };
-                classParts.AddRange(methods);
-                expression = Cons.FromEnumerable(classParts);
+                // If no constructor was defined, create a default one
+                constructor ??= CreateDefaultConstructor(name);
+                var methodList = Cons.FromEnumerable(methods);
+                
+                expression = Cons.FromEnumerable([JsSymbols.Class, name, extendsClause, constructor, methodList]);
             }
             else
             {

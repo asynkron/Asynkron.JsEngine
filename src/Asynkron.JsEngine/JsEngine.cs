@@ -149,7 +149,45 @@ public sealed class JsEngine
     /// Evaluates an S-expression program.
     /// </summary>
     public object? Evaluate(Cons program)
-        => Evaluator.EvaluateProgram(program, _global);
+    {
+        // Check if the program contains any import/export statements
+        if (HasModuleStatements(program))
+        {
+            // Treat as a module
+            var exports = new JsObject();
+            return EvaluateModule(program, _global, exports);
+        }
+        
+        return Evaluator.EvaluateProgram(program, _global);
+    }
+    
+    /// <summary>
+    /// Checks if a program contains any import or export statements.
+    /// </summary>
+    private bool HasModuleStatements(Cons program)
+    {
+        if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
+        {
+            return false;
+        }
+        
+        foreach (var stmt in program.Rest)
+        {
+            if (stmt is Cons { Head: Symbol stmtHead })
+            {
+                if (ReferenceEquals(stmtHead, JsSymbols.Import) ||
+                    ReferenceEquals(stmtHead, JsSymbols.Export) ||
+                    ReferenceEquals(stmtHead, JsSymbols.ExportDefault) ||
+                    ReferenceEquals(stmtHead, JsSymbols.ExportNamed) ||
+                    ReferenceEquals(stmtHead, JsSymbols.ExportDeclaration))
+                {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
 
     /// <summary>
     /// Registers a value in the global scope.
@@ -417,14 +455,16 @@ public sealed class JsEngine
     
     /// <summary>
     /// Evaluates a module program and populates the exports object.
+    /// Returns the last evaluated value.
     /// </summary>
-    private void EvaluateModule(Cons program, Environment moduleEnv, JsObject exports)
+    private object? EvaluateModule(Cons program, Environment moduleEnv, JsObject exports)
     {
         if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
         {
             throw new InvalidOperationException("Expected program node");
         }
         
+        object? lastValue = null;
         var statements = program.Rest;
         while (statements is not null && !statements.IsEmpty)
         {
@@ -441,10 +481,50 @@ public sealed class JsEngine
                 {
                     // export default expression
                     var expression = stmtCons.Rest.Head;
-                    // Create a simple program to evaluate the expression
-                    var exprProgram = Cons.FromEnumerable([JsSymbols.Program, 
-                        Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])]);
-                    var value = Evaluator.EvaluateProgram(exprProgram, moduleEnv);
+                    
+                    // Evaluate the expression and export it as default
+                    // For function/class declarations with names, this will define them and return them
+                    // For expressions, this will just evaluate them
+                    object? value;
+                    
+                    if (expression is Cons { Head: Symbol exprHead } exprCons)
+                    {
+                        if (ReferenceEquals(exprHead, JsSymbols.Function) || 
+                            ReferenceEquals(exprHead, JsSymbols.Class))
+                        {
+                            // It's a named function or class declaration
+                            // Evaluate it to define it in the environment
+                            var declProgram = Cons.FromEnumerable([JsSymbols.Program, expression]);
+                            Evaluator.EvaluateProgram(declProgram, moduleEnv);
+                            
+                            // Get the defined value from the environment
+                            var name = exprCons.Rest.Head as Symbol;
+                            if (name != null)
+                            {
+                                value = moduleEnv.Get(name);
+                            }
+                            else
+                            {
+                                // Shouldn't happen, but handle it
+                                value = null;
+                            }
+                        }
+                        else
+                        {
+                            // It's some other construct - evaluate it as an expression
+                            var exprProgram = Cons.FromEnumerable([JsSymbols.Program, 
+                                Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])]);
+                            value = Evaluator.EvaluateProgram(exprProgram, moduleEnv);
+                        }
+                    }
+                    else
+                    {
+                        // It's a symbol or literal - evaluate it as an expression
+                        var exprProgram = Cons.FromEnumerable([JsSymbols.Program, 
+                            Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])]);
+                        value = Evaluator.EvaluateProgram(exprProgram, moduleEnv);
+                    }
+                    
                     exports["default"] = value;
                 }
                 else if (ReferenceEquals(stmtHead, JsSymbols.ExportNamed))
@@ -556,18 +636,20 @@ public sealed class JsEngine
                 {
                     // Regular statement - just evaluate it
                     var stmtProgram = Cons.FromEnumerable([JsSymbols.Program, stmt]);
-                    Evaluator.EvaluateProgram(stmtProgram, moduleEnv);
+                    lastValue = Evaluator.EvaluateProgram(stmtProgram, moduleEnv);
                 }
             }
             else
             {
                 // Regular statement - just evaluate it
                 var stmtProgram = Cons.FromEnumerable([JsSymbols.Program, stmt]);
-                Evaluator.EvaluateProgram(stmtProgram, moduleEnv);
+                lastValue = Evaluator.EvaluateProgram(stmtProgram, moduleEnv);
             }
             
             statements = statements.Rest;
         }
+        
+        return lastValue;
     }
     
     /// <summary>
@@ -575,19 +657,29 @@ public sealed class JsEngine
     /// </summary>
     private void EvaluateImport(Cons importCons, Environment moduleEnv)
     {
-        // (import module-path default-import namespace-import named-imports)
+        // (import module-path) for side-effect imports
+        // (import module-path default-import namespace-import named-imports) for regular imports
         var modulePath = importCons.Rest.Head as string;
-        var defaultImport = importCons.Rest.Rest.Head as Symbol;
-        var namespaceImport = importCons.Rest.Rest.Rest.Head as Symbol;
-        var namedImports = importCons.Rest.Rest.Rest.Rest.Head as Cons;
         
         if (modulePath == null)
+        {
+            return; // Invalid import
+        }
+        
+        // Load the module (for side effects)
+        var exports = LoadModule(modulePath);
+        
+        // Check if there are any imports to handle
+        if (importCons.Rest.Rest.IsEmpty)
         {
             return; // Side-effect only import
         }
         
-        // Load the module
-        var exports = LoadModule(modulePath);
+        var defaultImport = importCons.Rest.Rest.Head as Symbol;
+        var namespaceImport = !importCons.Rest.Rest.Rest.IsEmpty ? importCons.Rest.Rest.Rest.Head as Symbol : null;
+        var namedImports = !importCons.Rest.Rest.Rest.IsEmpty && !importCons.Rest.Rest.Rest.Rest.IsEmpty 
+            ? importCons.Rest.Rest.Rest.Rest.Head as Cons 
+            : null;
         
         // Handle default import
         if (defaultImport != null && exports.TryGetValue("default", out var defaultValue))

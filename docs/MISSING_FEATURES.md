@@ -12,31 +12,28 @@ This document catalogs significant JavaScript features not yet implemented in As
 ## 🔴 High Priority Features
 
 ### 1. ES6 Modules (import/export)
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Critical for modern JavaScript development
 
 ```javascript
-// Not yet supported
+// Now supported!
 import { func } from './module.js';
 export function myFunc() { }
 export default class MyClass { }
 ```
 
-**Use Cases:**
-- Code organization and modularity
-- Dependency management
-- Third-party library integration
-- Standard in modern JavaScript development
-
-**Implementation Complexity:** High
-- Requires module resolution system
-- Need to handle circular dependencies
-- Must support static and dynamic imports
-- Needs export binding tracking
+**Implementation Details:**
+- Module resolution via custom module loader
+- Module caching (modules loaded once)
+- Named, default, and namespace imports
+- Re-exports from other modules
+- Side-effect only imports
+- Note: Dynamic imports (`import()`) not yet supported
+- Note: Circular dependencies not yet fully tested
 
 ---
 
-### 2. Single-Quoted Strings
+###  2. Single-Quoted Strings
 **Status:** Not Implemented  
 **Impact:** High - Many JavaScript codebases use single quotes
 

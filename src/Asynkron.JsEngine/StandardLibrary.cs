@@ -1031,6 +1031,208 @@ internal static class StandardLibrary
             }
             return -1d;
         }));
+
+        // fill(value, start = 0, end = length)
+        array.SetProperty("fill", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count == 0) return jsArray;
+            
+            var value = args[0];
+            var start = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
+            var end = args.Count > 2 && args[2] is double d2 ? (int)d2 : jsArray.Items.Count;
+            
+            // Handle negative indices
+            if (start < 0) start = Math.Max(0, jsArray.Items.Count + start);
+            if (end < 0) end = Math.Max(0, jsArray.Items.Count + end);
+            
+            // Clamp to array bounds
+            start = Math.Max(0, Math.Min(start, jsArray.Items.Count));
+            end = Math.Max(start, Math.Min(end, jsArray.Items.Count));
+            
+            for (int i = start; i < end; i++)
+            {
+                jsArray.SetElement(i, value);
+            }
+            
+            return jsArray;
+        }));
+
+        // copyWithin(target, start = 0, end = length)
+        array.SetProperty("copyWithin", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count == 0) return jsArray;
+            
+            var target = args[0] is double dt ? (int)dt : 0;
+            var start = args.Count > 1 && args[1] is double ds ? (int)ds : 0;
+            var end = args.Count > 2 && args[2] is double de ? (int)de : jsArray.Items.Count;
+            
+            var len = jsArray.Items.Count;
+            
+            // Handle negative indices
+            if (target < 0) target = Math.Max(0, len + target);
+            else target = Math.Min(target, len);
+            
+            if (start < 0) start = Math.Max(0, len + start);
+            else start = Math.Min(start, len);
+            
+            if (end < 0) end = Math.Max(0, len + end);
+            else end = Math.Min(end, len);
+            
+            var count = Math.Min(end - start, len - target);
+            if (count <= 0) return jsArray;
+            
+            // Copy to temporary array to handle overlapping ranges
+            var temp = new object?[count];
+            for (int i = 0; i < count; i++)
+            {
+                temp[i] = jsArray.GetElement(start + i);
+            }
+            
+            for (int i = 0; i < count; i++)
+            {
+                jsArray.SetElement(target + i, temp[i]);
+            }
+            
+            return jsArray;
+        }));
+
+        // toSorted(compareFn) - non-mutating sort
+        array.SetProperty("toSorted", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            
+            var result = new JsArray();
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                result.Push(jsArray.GetElement(i));
+            }
+            AddArrayMethods(result);
+            
+            var items = result.Items.ToList();
+            
+            if (args.Count > 0 && args[0] is IJsCallable compareFn)
+            {
+                // Sort with custom compare function
+                items.Sort((a, b) =>
+                {
+                    var cmp = compareFn.Invoke([a, b], null);
+                    if (cmp is double d)
+                    {
+                        return d > 0 ? 1 : d < 0 ? -1 : 0;
+                    }
+                    return 0;
+                });
+            }
+            else
+            {
+                // Default sort: convert to strings and sort lexicographically
+                items.Sort((a, b) =>
+                {
+                    var aStr = a?.ToString() ?? "";
+                    var bStr = b?.ToString() ?? "";
+                    return string.Compare(aStr, bStr, StringComparison.Ordinal);
+                });
+            }
+            
+            for (int i = 0; i < items.Count; i++)
+            {
+                result.SetElement(i, items[i]);
+            }
+            
+            return result;
+        }));
+
+        // toReversed() - non-mutating reverse
+        array.SetProperty("toReversed", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            
+            var result = new JsArray();
+            for (int i = jsArray.Items.Count - 1; i >= 0; i--)
+            {
+                result.Push(jsArray.GetElement(i));
+            }
+            AddArrayMethods(result);
+            return result;
+        }));
+
+        // toSpliced(start, deleteCount, ...items) - non-mutating splice
+        array.SetProperty("toSpliced", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            
+            var result = new JsArray();
+            var len = jsArray.Items.Count;
+            
+            if (args.Count == 0)
+            {
+                // No arguments, return copy
+                for (int i = 0; i < len; i++)
+                {
+                    result.Push(jsArray.GetElement(i));
+                }
+            }
+            else
+            {
+                var start = args[0] is double ds ? (int)ds : 0;
+                var deleteCount = args.Count > 1 && args[1] is double dc ? (int)dc : len - start;
+                
+                // Handle negative start
+                if (start < 0) start = Math.Max(0, len + start);
+                else start = Math.Min(start, len);
+                
+                // Clamp deleteCount
+                deleteCount = Math.Max(0, Math.Min(deleteCount, len - start));
+                
+                // Copy elements before start
+                for (int i = 0; i < start; i++)
+                {
+                    result.Push(jsArray.GetElement(i));
+                }
+                
+                // Insert new items
+                for (int i = 2; i < args.Count; i++)
+                {
+                    result.Push(args[i]);
+                }
+                
+                // Copy elements after deleted section
+                for (int i = start + deleteCount; i < len; i++)
+                {
+                    result.Push(jsArray.GetElement(i));
+                }
+            }
+            
+            AddArrayMethods(result);
+            return result;
+        }));
+
+        // with(index, value) - non-mutating element replacement
+        array.SetProperty("with", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsArray jsArray) return null;
+            if (args.Count < 2) return null;
+            if (args[0] is not double d) return null;
+            
+            var index = (int)d;
+            var value = args[1];
+            
+            // Handle negative indices
+            if (index < 0) index = jsArray.Items.Count + index;
+            
+            // Index out of bounds throws RangeError in JavaScript
+            if (index < 0 || index >= jsArray.Items.Count) return null;
+            
+            var result = new JsArray();
+            for (int i = 0; i < jsArray.Items.Count; i++)
+            {
+                result.Push(i == index ? value : jsArray.GetElement(i));
+            }
+            AddArrayMethods(result);
+            return result;
+        }));
     }
 
     private static void FlattenArray(JsArray source, JsArray target, int depth)

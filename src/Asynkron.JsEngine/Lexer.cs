@@ -156,7 +156,7 @@ internal sealed class Lexer(string source)
             case '&':
                 if (Match('&'))
                 {
-                    AddToken(TokenType.AmpAmp);
+                    AddToken(Match('=') ? TokenType.AmpAmpEqual : TokenType.AmpAmp);
                 }
                 else if (Match('='))
                 {
@@ -170,7 +170,7 @@ internal sealed class Lexer(string source)
             case '|':
                 if (Match('|'))
                 {
-                    AddToken(TokenType.PipePipe);
+                    AddToken(Match('=') ? TokenType.PipePipeEqual : TokenType.PipePipe);
                 }
                 else if (Match('='))
                 {
@@ -184,7 +184,7 @@ internal sealed class Lexer(string source)
             case '?':
                 if (Match('?'))
                 {
-                    AddToken(TokenType.QuestionQuestion);
+                    AddToken(Match('=') ? TokenType.QuestionQuestionEqual : TokenType.QuestionQuestion);
                 }
                 else if (Match('.'))
                 {

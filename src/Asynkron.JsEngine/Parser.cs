@@ -844,7 +844,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         if (Match(TokenType.Equal, TokenType.PlusEqual, TokenType.MinusEqual, TokenType.StarEqual,
                   TokenType.StarStarEqual, TokenType.SlashEqual, TokenType.PercentEqual, TokenType.AmpEqual, TokenType.PipeEqual,
                   TokenType.CaretEqual, TokenType.LessLessEqual, TokenType.GreaterGreaterEqual, 
-                  TokenType.GreaterGreaterGreaterEqual))
+                  TokenType.GreaterGreaterGreaterEqual, TokenType.AmpAmpEqual, TokenType.PipePipeEqual, TokenType.QuestionQuestionEqual))
         {
             var op = Previous();
             var value = ParseAssignment();
@@ -866,6 +866,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                     TokenType.LessLessEqual => "<<",
                     TokenType.GreaterGreaterEqual => ">>",
                     TokenType.GreaterGreaterGreaterEqual => ">>>",
+                    TokenType.AmpAmpEqual => "&&",
+                    TokenType.PipePipeEqual => "||",
+                    TokenType.QuestionQuestionEqual => "??",
                     _ => throw new InvalidOperationException("Unexpected compound assignment operator.")
                 };
 

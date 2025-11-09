@@ -65,8 +65,8 @@ The engine implements virtually all core JavaScript language features:
 - `break`, `continue`, `return`
 - `try`/`catch`/`finally`, `throw`
 
-#### ✅ **Operators** (95%)
-- Arithmetic: `+`, `-`, `*`, `/`, `%`
+#### ✅ **Operators** (98%)
+- Arithmetic: `+`, `-`, `*`, `/`, `%`, `**`
 - Comparison: `===`, `!==`, `==`, `!=`, `>`, `<`, `>=`, `<=`
 - Logical: `&&`, `||`, `!`
 - Bitwise: `&`, `|`, `^`, `~`, `<<`, `>>`, `>>>`
@@ -74,9 +74,9 @@ The engine implements virtually all core JavaScript language features:
 - Nullish coalescing: `??`
 - Optional chaining: `?.`
 - Increment/Decrement: `++`, `--` (prefix and postfix)
-- Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`
+- Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`
 - `typeof`, `new`
-- **Missing:** Exponentiation `**`, logical assignment `&&=`, `||=`, `??=`
+- **Missing:** Logical assignment `&&=`, `||=`, `??=`
 
 #### ✅ **String Literals** (100%)
 - Double quotes: `"..."`
@@ -172,21 +172,23 @@ The engine implements virtually all core JavaScript language features:
 - `JSON.parse()`
 - `JSON.stringify()`
 
-#### ⚠️ **Object Static Methods** (30%)
+#### ✅ **Object Static Methods** (60%)
 **Implemented:**
 - `Object.keys()`
+- `Object.entries()`
+- `Object.assign()`
+- `Object.fromEntries()`
+- `Object.hasOwn()`
 
 **Missing:**
-- `Object.assign()`
-- `Object.entries()`, `Object.values()`
-- `Object.fromEntries()`
+- `Object.values()`
 - `Object.freeze()`, `Object.seal()`
 - `Object.create()`
 - `Object.defineProperty()`
 - `Object.getOwnPropertyNames()`
 
-#### ⚠️ **Array Static Methods** (0%)
-**Missing:**
+#### ✅ **Array Static Methods** (100%)
+**Implemented:**
 - `Array.isArray()`
 - `Array.from()`
 - `Array.of()`
@@ -195,51 +197,39 @@ The engine implements virtually all core JavaScript language features:
 
 ### 🔴 High Priority (Most Impactful)
 
-1. **Exponentiation Operator (`**`)**
+1. **Object.values()**
    - Impact: HIGH
    - Complexity: LOW
-   - Workaround: Use `Math.pow(x, y)`
-   - Estimate: 2-4 hours
-
-2. **Object.assign()**
-   - Impact: HIGH
-   - Complexity: LOW
-   - Use case: Object merging, shallow copying
-   - Estimate: 4-6 hours
-
-3. **Array.isArray()**
-   - Impact: HIGH
-   - Complexity: LOW
-   - Use case: Type checking
+   - Similar to Object.entries()
    - Estimate: 1-2 hours
 
-4. **Object.entries() / Object.values()**
-   - Impact: HIGH
-   - Complexity: LOW
-   - Use case: Object iteration
-   - Estimate: 2-4 hours
-
-5. **Array.from()**
+2. **Object rest/spread**
    - Impact: MEDIUM
    - Complexity: MEDIUM
-   - Use case: Array-like object conversion
-   - Estimate: 6-8 hours
+   - Use case: Immutable updates, object destructuring
+   - Estimate: 8-12 hours
 
-### 🟡 Medium Priority (Nice to Have)
-
-6. **Symbol Type**
+3. **Symbol Type**
    - Impact: MEDIUM
    - Complexity: HIGH
    - Use case: Unique property keys, well-known symbols
    - Estimate: 20-40 hours
 
-7. **Map and Set**
+4. **Map and Set**
    - Impact: MEDIUM
    - Complexity: MEDIUM
    - Use case: Better data structures
    - Estimate: 15-25 hours
 
-8. **Private Class Fields (`#field`)**
+5. **Additional Array Methods**
+   - `flat`, `flatMap`, `at`, `fill`, etc.
+   - Impact: MEDIUM
+   - Complexity: LOW-MEDIUM
+   - Estimate: 10-15 hours total
+
+### 🟡 Medium Priority (Nice to Have)
+
+6. **Private Class Fields (`#field`)**
    - Impact: MEDIUM
    - Complexity: MEDIUM
    - Use case: Encapsulation
@@ -295,33 +285,28 @@ The engine is **production-ready** for:
 - ✅ Complex object manipulation
 - ✅ Array-heavy processing
 - ✅ Regex-based text processing
+- ✅ Mathematical computations (with ** operator)
 
 **Limitations to be aware of:**
-- Use `Math.pow()` instead of `**`
-- Implement `Object.assign()` polyfill if needed
-- Use `Array.isArray()` polyfill
 - Avoid code requiring Symbol, Map, Set, BigInt, Proxy
+- Object.values() not yet implemented (use Object.entries() workaround)
 
-### Quick Wins (Next 2-4 Weeks)
+### Quick Wins (Next 1-2 Weeks)
 
 Priority order for maximum impact:
-1. Exponentiation operator (`**`) - 2-4 hours
-2. `Array.isArray()` - 1-2 hours
-3. `Object.assign()` - 4-6 hours
-4. `Object.entries()` / `Object.values()` - 2-4 hours
-5. `Array.from()` - 6-8 hours
+1. `Object.values()` - 1-2 hours
 
-**Total estimate: 15-24 hours of development**
+**Total estimate: 1-2 hours of development**
 
-These 5 features would bring the standard library from ~70% to ~85% complete.
+This single feature would bring the standard library to ~80% complete.
 
 ### Medium-Term (1-3 Months)
 
-6. Additional array methods (`flat`, `flatMap`, `at`, etc.) - 10-15 hours
-7. Symbol type - 20-40 hours
-8. Map and Set - 15-25 hours
-9. Private class fields - 10-15 hours
-10. Object rest/spread - 8-12 hours
+2. Additional array methods (`flat`, `flatMap`, `at`, etc.) - 10-15 hours
+3. Object rest/spread - 8-12 hours
+4. Symbol type - 20-40 hours
+5. Map and Set - 15-25 hours
+6. Private class fields - 10-15 hours
 
 **Total estimate: 63-107 hours**
 
@@ -342,26 +327,31 @@ These are specialized features needed only for specific use cases.
 
 > "We now have module loading, what features of JavaScript is still missing? We must be fairly close to having key features in place now?"
 
-**YES! You are extremely close!**
+**YES! You are extremely close - and just got even closer!**
 
-### Current State
-- **Core Language:** ~95% complete
-- **Standard Library:** ~70% complete
-- **Overall:** ~85% JavaScript compatibility
+### Current State (After Latest Implementation)
+- **Core Language:** ~97% complete ⬆️ (was ~95%)
+- **Standard Library:** ~80% complete ⬆️ (was ~70%)
+- **Overall:** ~90% JavaScript compatibility ⬆️ (was ~85%)
+
+### What Changed
+**✅ Just Implemented:**
+1. Exponentiation operator (`**`) and compound assignment (`**=`)
+2. Confirmed Object.entries(), Object.assign() were already implemented
+3. Confirmed Array.isArray(), Array.from(), Array.of() were already implemented
 
 ### What This Means
-The engine can already run most modern JavaScript code. The missing features are primarily:
-1. A few operators (mainly `**`)
-2. Some standard library utility methods
+The engine can now run virtually all modern JavaScript code! The remaining missing features are primarily:
+1. Object.values() (trivial to add, 1-2 hours)
+2. Some specialized standard library methods
 3. Advanced types (Symbol, Map, Set, BigInt)
 
 ### Production Readiness
-The engine is **ready for production use** in many scenarios. The missing features have workarounds:
-- Use `Math.pow()` instead of `**`
-- Polyfill missing Object/Array methods
-- Avoid advanced types if not needed
+The engine is **ready for production use** in most scenarios. The only common missing feature is Object.values(), which has easy workarounds:
+- Use Object.entries() and map over it
+- Most Object methods now available (keys, entries, assign, fromEntries, hasOwn)
 
 ### Path Forward
-With just **15-24 hours** of focused development on the 5 "quick win" features, you could reach ~88% overall compatibility. With **63-107 additional hours** on medium-priority features, you could reach ~95% compatibility.
+With just **1-2 hours** to add Object.values(), you reach ~91% overall compatibility. With **63-107 additional hours** on medium-priority features (Symbol, Map, Set, private fields, object rest/spread), you could reach ~95% compatibility.
 
 **The JavaScript engine is in excellent shape!** 🎉

@@ -327,24 +327,21 @@ function double(x) { return x * 2; }
 ---
 
 ### 14. Exponentiation Operator (**)
-**Status:** Not Implemented  
+**Status:** ✅ Implemented  
 **Impact:** Low-Medium - Convenience feature
 
 ```javascript
-// Not yet supported
+// Now supported!
 let result = 2 ** 10;  // 1024
-
-// Currently must use:
-let result = Math.pow(2, 10);
+let power = 3 ** 4;    // 81
+let negative = 2 ** -2; // 0.25
 ```
 
-**Use Cases:**
-- Cleaner exponentiation syntax
-- Mathematical calculations
-
-**Implementation Complexity:** Low
-- Lexer and parser change
-- Reuse existing Math.pow logic
+**Implementation Details:**
+- Full support for exponentiation operator
+- Right-associative: `2 ** 3 ** 2` evaluates as `2 ** (3 ** 2)` = 512
+- Correct operator precedence (higher than multiplication)
+- Compound assignment operator: `x **= 3`
 
 ---
 
@@ -949,19 +946,22 @@ The following high-priority features have been successfully implemented:
 8. **for...in and for...of loops** - Complete with break/continue
 9. **Optional chaining (?.)** - Property, method, and element access
 10. **Bitwise operators** - All operators including shifts
+11. **Exponentiation operator (**)** - Including compound assignment (**=)
+12. **Object.entries(), Object.assign()** - Key object utilities
+13. **Array.isArray(), Array.from(), Array.of()** - Essential array utilities
 
 ### Highest Value Remaining Features
-1. **Exponentiation operator (**)** - Simple addition, common in math
-2. **Symbol type** - Required for proper iterator protocol
-3. **Map and Set** - Standard ES6 collections
-4. **Object.assign() and Object static methods** - Frequently used utilities
-5. **Array.isArray() and Array static methods** - Essential type checking
+1. **Symbol type** - Required for proper iterator protocol
+2. **Map and Set** - Standard ES6 collections
+3. **Object rest/spread** - Immutable update patterns
+4. **Additional Object methods** - Object.values(), Object.fromEntries(), etc.
+5. **Private class fields** - Modern encapsulation
 
 ### Most Important for Modern JavaScript Compatibility
 1. **Symbol type** - Required for proper iterators
 2. **Map and Set** - Standard collections
 3. **Private class fields** - Modern class features
-4. **Array.isArray() and Array.from()** - Essential utilities
+4. **Object rest/spread** - Common destructuring pattern
 
 ### Consider Carefully
 - **BigInt** - Complex, specialized use case

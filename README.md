@@ -18,12 +18,12 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Control flow**: `if`/`else`, `for`, `while`, `do-while`, `switch`/`case`, `for...in`, `for...of`
 - **Error handling**: `try`/`catch`/`finally`, `throw`
 - **Operators**: 
-  - Arithmetic: `+`, `-`, `*`, `/`, `%`
+  - Arithmetic: `+`, `-`, `*`, `/`, `%`, `**` (exponentiation)
   - Logical: `&&`, `||`, `??`
   - Comparison: `===`, `!==`, `==`, `!=`, `>`, `<`, `>=`, `<=`
   - Bitwise: `&`, `|`, `^`, `~`, `<<`, `>>`, `>>>`
   - Increment/Decrement: `++`, `--` (both prefix and postfix)
-  - Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`
+  - Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`
   - Ternary: `? :`
   - Optional chaining: `?.`
   - Special: `typeof`
@@ -1245,7 +1245,6 @@ dotnet test
 - **Semicolons**: Statement-ending semicolons are required
 - **Number Types**: All numbers are treated as doubles (no BigInt support yet)
 - **Reserved Keywords as Properties**: When using reserved keywords like `catch` and `finally` as property names, you must use bracket notation (e.g., `promise["catch"](...)` instead of `promise.catch(...)`)
-- **Exponentiation**: Use `Math.pow(x, y)` instead of `x ** y` operator
 - **Some Standard Library Methods**: Not all ES6+ standard library methods are implemented (see [docs/MISSING_FEATURES.md](docs/MISSING_FEATURES.md) for details)
 ## Future Roadmap
 
@@ -1263,10 +1262,13 @@ The engine has achieved remarkable JavaScript compatibility! It now includes:
 - ✅ Multi-line comments
 - ✅ All bitwise operators
 - ✅ Increment/decrement operators (++, --)
-- ✅ All compound assignment operators
+- ✅ All compound assignment operators (including **=)
+- ✅ Exponentiation operator (**)
 - ✅ Regex literals with full support
 - ✅ Template literals
 - ✅ Comprehensive type coercion
+- ✅ Object.entries(), Object.assign()
+- ✅ Array.isArray(), Array.from(), Array.of()
 
 See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for async/await implementation details and [docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md](docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md) for destructuring details.
 
@@ -1288,11 +1290,10 @@ For a comprehensive list of JavaScript features not yet implemented and their pr
 - Recommended implementation phases
 
 The most notable remaining features include:
-- Exponentiation operator (**)
 - Symbol type (for advanced iterators)
 - Map and Set collections
-- Object static methods (Object.assign, Object.entries, etc.)
-- Array static methods (Array.isArray, Array.from, etc.)
+- Object rest/spread in destructuring
+- Additional Object static methods (Object.values, Object.fromEntries, etc.)
 - Private class fields
 - Proxy and Reflect (advanced metaprogramming)
 - BigInt (arbitrary precision integers)

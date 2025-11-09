@@ -1597,6 +1597,7 @@ internal static class Evaluator
             "+" => Add(left, right),
             "-" => ToNumber(left) - ToNumber(right),
             "*" => ToNumber(left) * ToNumber(right),
+            "**" => Math.Pow(ToNumber(left), ToNumber(right)),
             "/" => ToNumber(left) / ToNumber(right),
             "%" => ToNumber(left) % ToNumber(right),
             "&" => BitwiseAnd(left, right),

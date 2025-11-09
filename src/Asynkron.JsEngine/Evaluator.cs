@@ -2815,7 +2815,7 @@ internal static class Evaluator
                 {
                     var propertyName = ToPropertyName(index) 
                         ?? throw new InvalidOperationException($"Invalid property name: {index}");
-                    jsObject[propertyName] = newValue;
+                    jsObject.SetProperty(propertyName, newValue);
                 }
             }
         }

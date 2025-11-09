@@ -12,8 +12,13 @@ internal sealed class JsObject() : Dictionary<string, object?>(StringComparer.Or
     private const string SetterPrefix = "__setter__";
 
     private JsObject? _prototype;
+    private bool _isFrozen;
+    private bool _isSealed;
 
     public JsObject? Prototype => _prototype;
+    
+    public bool IsFrozen => _isFrozen;
+    public bool IsSealed => _isSealed;
 
     public void SetPrototype(object? candidate)
     {
@@ -90,12 +95,35 @@ internal sealed class JsObject() : Dictionary<string, object?>(StringComparer.Or
 
     public void SetProperty(string name, object? value)
     {
+        // Frozen objects cannot have properties modified
+        if (_isFrozen)
+        {
+            return; // Silently ignore in non-strict mode
+        }
+        
+        // Sealed objects cannot have new properties added
+        if (_isSealed && !ContainsKey(name))
+        {
+            return; // Silently ignore in non-strict mode
+        }
+        
         if (string.Equals(name, PrototypeKey, StringComparison.Ordinal))
         {
             SetPrototype(value);
         }
 
         this[name] = value;
+    }
+    
+    public void Freeze()
+    {
+        _isFrozen = true;
+        _isSealed = true; // Frozen implies sealed
+    }
+    
+    public void Seal()
+    {
+        _isSealed = true;
     }
 
     public bool TryGetProperty(string name, out object? value)

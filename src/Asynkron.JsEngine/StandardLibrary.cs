@@ -1963,6 +1963,47 @@ internal static class StandardLibrary
             return obj.ContainsKey(propName);
         });
 
+        // Object.freeze(obj)
+        objectConstructor["freeze"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsObject obj) return args.Count > 0 ? args[0] : null;
+            obj.Freeze();
+            return obj;
+        });
+
+        // Object.seal(obj)
+        objectConstructor["seal"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsObject obj) return args.Count > 0 ? args[0] : null;
+            obj.Seal();
+            return obj;
+        });
+
+        // Object.isFrozen(obj)
+        objectConstructor["isFrozen"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsObject obj) return true; // Non-objects are considered frozen
+            return obj.IsFrozen;
+        });
+
+        // Object.isSealed(obj)
+        objectConstructor["isSealed"] = new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsObject obj) return true; // Non-objects are considered sealed
+            return obj.IsSealed;
+        });
+
+        // Object.create(proto)
+        objectConstructor["create"] = new HostFunction(args =>
+        {
+            var obj = new JsObject();
+            if (args.Count > 0 && args[0] != null)
+            {
+                obj.SetPrototype(args[0]);
+            }
+            return obj;
+        });
+
         return objectConstructor;
     }
 

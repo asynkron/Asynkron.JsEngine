@@ -3383,7 +3383,7 @@ internal static class Evaluator
 
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right);
-        return leftInt & rightInt;
+        return (double)(leftInt & rightInt);
     }
 
     private static object BitwiseOr(object? left, object? right)
@@ -3402,7 +3402,7 @@ internal static class Evaluator
 
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right);
-        return leftInt | rightInt;
+        return (double)(leftInt | rightInt);
     }
 
     private static object BitwiseXor(object? left, object? right)
@@ -3421,7 +3421,7 @@ internal static class Evaluator
 
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right);
-        return leftInt ^ rightInt;
+        return (double)(leftInt ^ rightInt);
     }
 
     private static object BitwiseNot(object? operand)
@@ -3433,7 +3433,7 @@ internal static class Evaluator
         }
 
         var operandInt = ToInt32(operand);
-        return ~operandInt;
+        return (double)(~operandInt);
     }
 
     private static object LeftShift(object? left, object? right)
@@ -3457,7 +3457,7 @@ internal static class Evaluator
 
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
-        return leftInt << rightInt;
+        return (double)(leftInt << rightInt);
     }
 
     private static object RightShift(object? left, object? right)
@@ -3481,7 +3481,7 @@ internal static class Evaluator
 
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
-        return leftInt >> rightInt;
+        return (double)(leftInt >> rightInt);
     }
 
     private static object UnsignedRightShift(object? left, object? right)
@@ -3494,7 +3494,7 @@ internal static class Evaluator
 
         var leftUInt = ToUInt32(left);
         var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
-        return leftUInt >> rightInt;
+        return (double)(leftUInt >> rightInt);
     }
 
     private static int ToInt32(object? value)

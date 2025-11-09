@@ -2280,4 +2280,167 @@ internal static class StandardLibrary
             return s.Values();
         }));
     }
+
+    /// <summary>
+    /// Creates the Number constructor with static methods.
+    /// </summary>
+    public static HostFunction CreateNumberConstructor()
+    {
+        // Number constructor
+        var numberConstructor = new HostFunction(args =>
+        {
+            if (args.Count == 0) return 0d;
+            
+            var value = args[0];
+            // Convert to number
+            if (value is double d) return d;
+            if (value is string s)
+            {
+                if (string.IsNullOrWhiteSpace(s)) return 0d;
+                if (double.TryParse(s, out var parsed)) return parsed;
+                return double.NaN;
+            }
+            if (value is bool b) return b ? 1d : 0d;
+            if (value == null) return 0d;
+            if (ReferenceEquals(value, JsSymbols.Undefined)) return double.NaN;
+            
+            return double.NaN;
+        });
+
+        // Number.isInteger(value)
+        numberConstructor.SetProperty("isInteger", new HostFunction(args =>
+        {
+            if (args.Count == 0) return false;
+            if (args[0] is not double d) return false;
+            if (double.IsNaN(d) || double.IsInfinity(d)) return false;
+            return Math.Abs(d % 1) < double.Epsilon;
+        }));
+
+        // Number.isFinite(value)
+        numberConstructor.SetProperty("isFinite", new HostFunction(args =>
+        {
+            if (args.Count == 0) return false;
+            if (args[0] is not double d) return false;
+            return !double.IsNaN(d) && !double.IsInfinity(d);
+        }));
+
+        // Number.isNaN(value)
+        numberConstructor.SetProperty("isNaN", new HostFunction(args =>
+        {
+            if (args.Count == 0) return false;
+            if (args[0] is not double d) return false;
+            return double.IsNaN(d);
+        }));
+
+        // Number.isSafeInteger(value)
+        numberConstructor.SetProperty("isSafeInteger", new HostFunction(args =>
+        {
+            if (args.Count == 0) return false;
+            if (args[0] is not double d) return false;
+            if (double.IsNaN(d) || double.IsInfinity(d)) return false;
+            if (Math.Abs(d % 1) >= double.Epsilon) return false; // Not an integer
+            return Math.Abs(d) <= 9007199254740991; // MAX_SAFE_INTEGER
+        }));
+
+        // Number.parseFloat(string)
+        numberConstructor.SetProperty("parseFloat", new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            var str = args[0]?.ToString() ?? "";
+            str = str.Trim();
+            if (str == "") return double.NaN;
+            
+            // Try to parse, taking as much as possible from the start
+            var match = System.Text.RegularExpressions.Regex.Match(str, @"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?");
+            if (match.Success)
+            {
+                if (double.TryParse(match.Value, out var result))
+                    return result;
+            }
+            
+            if (str.StartsWith("Infinity")) return double.PositiveInfinity;
+            if (str.StartsWith("+Infinity")) return double.PositiveInfinity;
+            if (str.StartsWith("-Infinity")) return double.NegativeInfinity;
+            
+            return double.NaN;
+        }));
+
+        // Number.parseInt(string, radix)
+        numberConstructor.SetProperty("parseInt", new HostFunction(args =>
+        {
+            if (args.Count == 0) return double.NaN;
+            var str = args[0]?.ToString() ?? "";
+            str = str.Trim();
+            if (str == "") return double.NaN;
+            
+            var radix = args.Count > 1 && args[1] is double r ? (int)r : 10;
+            if (radix < 2 || radix > 36) return double.NaN;
+            
+            // Handle sign
+            var sign = 1;
+            if (str.StartsWith("-"))
+            {
+                sign = -1;
+                str = str.Substring(1).TrimStart();
+            }
+            else if (str.StartsWith("+"))
+            {
+                str = str.Substring(1).TrimStart();
+            }
+            
+            // Parse until we hit invalid character
+            double result = 0;
+            var hasDigits = false;
+            foreach (var c in str)
+            {
+                int digit;
+                if (char.IsDigit(c))
+                {
+                    digit = c - '0';
+                }
+                else if (char.IsLetter(c))
+                {
+                    var upper = char.ToUpperInvariant(c);
+                    digit = upper - 'A' + 10;
+                }
+                else
+                {
+                    break; // Stop at first invalid character
+                }
+                
+                if (digit >= radix) break;
+                
+                result = result * radix + digit;
+                hasDigits = true;
+            }
+            
+            return hasDigits ? result * sign : double.NaN;
+        }));
+
+        // Number.EPSILON
+        numberConstructor.SetProperty("EPSILON", double.Epsilon);
+        
+        // Number.MAX_SAFE_INTEGER
+        numberConstructor.SetProperty("MAX_SAFE_INTEGER", 9007199254740991d);
+        
+        // Number.MIN_SAFE_INTEGER
+        numberConstructor.SetProperty("MIN_SAFE_INTEGER", -9007199254740991d);
+        
+        // Number.MAX_VALUE
+        numberConstructor.SetProperty("MAX_VALUE", double.MaxValue);
+        
+        // Number.MIN_VALUE
+        numberConstructor.SetProperty("MIN_VALUE", double.MinValue);
+        
+        // Number.POSITIVE_INFINITY
+        numberConstructor.SetProperty("POSITIVE_INFINITY", double.PositiveInfinity);
+        
+        // Number.NEGATIVE_INFINITY
+        numberConstructor.SetProperty("NEGATIVE_INFINITY", double.NegativeInfinity);
+        
+        // Number.NaN
+        numberConstructor.SetProperty("NaN", double.NaN);
+
+        return numberConstructor;
+    }
 }

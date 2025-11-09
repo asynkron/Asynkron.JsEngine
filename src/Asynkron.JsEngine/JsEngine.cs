@@ -62,6 +62,12 @@ public sealed class JsEngine
         // Register Set constructor
         SetGlobal("Set", StandardLibrary.CreateSetConstructor());
         
+        // Register WeakMap constructor
+        SetGlobal("WeakMap", StandardLibrary.CreateWeakMapConstructor());
+        
+        // Register WeakSet constructor
+        SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
+        
         // Register timer functions
         SetGlobalFunction("setTimeout", args => SetTimeout(args));
         SetGlobalFunction("setInterval", args => SetInterval(args));

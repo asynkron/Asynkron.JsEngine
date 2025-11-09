@@ -1625,6 +1625,8 @@ internal static class Evaluator
             JsObject jsObject => jsObject,
             JsMap jsMap => jsMap,
             JsSet jsSet => jsSet,
+            JsWeakMap jsWeakMap => jsWeakMap,
+            JsWeakSet jsWeakSet => jsWeakSet,
             IDictionary<string, object?> dictionary => dictionary,
             _ => instance
         };
@@ -2107,6 +2109,18 @@ internal static class Evaluator
                     return true;
                 }
                 if (jsSet.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+                return false;
+            case JsWeakMap jsWeakMap:
+                if (jsWeakMap.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+                return false;
+            case JsWeakSet jsWeakSet:
+                if (jsWeakSet.TryGetProperty(propertyName, out value))
                 {
                     return true;
                 }

@@ -2323,6 +2323,157 @@ internal static class StandardLibrary
     }
 
     /// <summary>
+    /// Creates the WeakMap constructor function.
+    /// </summary>
+    public static IJsCallable CreateWeakMapConstructor()
+    {
+        var weakMapConstructor = new HostFunction(args =>
+        {
+            var weakMap = new JsWeakMap();
+            
+            // Note: WeakMap constructor can accept an iterable, but we'll start with basic support
+            // If an iterable is provided, populate the weak map
+            if (args.Count > 0 && args[0] is JsArray entries)
+            {
+                foreach (var entry in entries.Items)
+                {
+                    if (entry is JsArray pair && pair.Items.Count >= 2)
+                    {
+                        try
+                        {
+                            weakMap.Set(pair.GetElement(0), pair.GetElement(1));
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception(ex.Message);
+                        }
+                    }
+                }
+            }
+            
+            AddWeakMapMethods(weakMap);
+            return weakMap;
+        });
+
+        return weakMapConstructor;
+    }
+
+    /// <summary>
+    /// Adds instance methods to a WeakMap object.
+    /// </summary>
+    private static void AddWeakMapMethods(JsWeakMap weakMap)
+    {
+        // set(key, value)
+        weakMap.SetProperty("set", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsWeakMap wm) return JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var value = args.Count > 1 ? args[1] : JsSymbols.Undefined;
+            try
+            {
+                return wm.Set(key, value);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
+        }));
+
+        // get(key)
+        weakMap.SetProperty("get", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsWeakMap wm) return JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            return wm.Get(key);
+        }));
+
+        // has(key)
+        weakMap.SetProperty("has", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsWeakMap wm) return false;
+            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            return wm.Has(key);
+        }));
+
+        // delete(key)
+        weakMap.SetProperty("delete", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsWeakMap wm) return false;
+            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            return wm.Delete(key);
+        }));
+    }
+
+    /// <summary>
+    /// Creates the WeakSet constructor function.
+    /// </summary>
+    public static IJsCallable CreateWeakSetConstructor()
+    {
+        var weakSetConstructor = new HostFunction(args =>
+        {
+            var weakSet = new JsWeakSet();
+            
+            // If an iterable is provided, populate the weak set
+            if (args.Count > 0 && args[0] is JsArray values)
+            {
+                foreach (var value in values.Items)
+                {
+                    try
+                    {
+                        weakSet.Add(value);
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new Exception(ex.Message);
+                    }
+                }
+            }
+            
+            AddWeakSetMethods(weakSet);
+            return weakSet;
+        });
+
+        return weakSetConstructor;
+    }
+
+    /// <summary>
+    /// Adds instance methods to a WeakSet object.
+    /// </summary>
+    private static void AddWeakSetMethods(JsWeakSet weakSet)
+    {
+        // add(value)
+        weakSet.SetProperty("add", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsWeakSet ws) return JsSymbols.Undefined;
+            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            try
+            {
+                return ws.Add(value);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
+        }));
+
+        // has(value)
+        weakSet.SetProperty("has", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsWeakSet ws) return false;
+            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            return ws.Has(value);
+        }));
+
+        // delete(value)
+        weakSet.SetProperty("delete", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not JsWeakSet ws) return false;
+            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            return ws.Delete(value);
+        }));
+    }
+
+    /// <summary>
     /// Creates the Number constructor with static methods.
     /// </summary>
     public static HostFunction CreateNumberConstructor()

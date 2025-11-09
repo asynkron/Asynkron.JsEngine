@@ -136,6 +136,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         Cons? constructor = null;
         var methods = new List<object?>();
         var privateFields = new List<object?>();
+        var publicFields = new List<object?>();
         var staticFields = new List<object?>();
 
         while (!Check(TokenType.RightBrace))
@@ -227,7 +228,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                     {
                         staticFields.Add(Cons.FromEnumerable([JsSymbols.StaticField, methodName, initializer]));
                     }
-                    // else: public instance fields not yet supported
+                    else
+                    {
+                        // Public instance field
+                        publicFields.Add(Cons.FromEnumerable([JsSymbols.PublicField, methodName, initializer]));
+                    }
                     continue;
                 }
                 
@@ -280,11 +285,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         constructor ??= CreateDefaultConstructor(name);
         var methodList = Cons.FromEnumerable(methods);
         
-        // Merge static fields into private fields list
-        privateFields.AddRange(staticFields);
-        var privateFieldList = Cons.FromEnumerable(privateFields);
+        // Merge all fields into a single list (private, public, and static)
+        var allFields = new List<object?>();
+        allFields.AddRange(privateFields);
+        allFields.AddRange(publicFields);
+        allFields.AddRange(staticFields);
+        var fieldList = Cons.FromEnumerable(allFields);
 
-        return Cons.FromEnumerable([JsSymbols.Class, name, extendsClause, constructor, methodList, privateFieldList]);
+        return Cons.FromEnumerable([JsSymbols.Class, name, extendsClause, constructor, methodList, fieldList]);
     }
 
     private Cons ParseParameterList()
@@ -2351,6 +2359,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         Cons? constructor = null;
         var methods = new List<object?>();
         var privateFields = new List<object?>();
+        var publicFields = new List<object?>();
         var staticFields = new List<object?>(); // Track static fields separately
         
         while (!Check(TokenType.RightBrace))
@@ -2444,7 +2453,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                         // Static public field
                         staticFields.Add(Cons.FromEnumerable([JsSymbols.StaticField, methodName, initializer]));
                     }
-                    // else: public instance fields not yet supported, skip
+                    else
+                    {
+                        // Public instance field
+                        publicFields.Add(Cons.FromEnumerable([JsSymbols.PublicField, methodName, initializer]));
+                    }
                     continue;
                 }
                 
@@ -2493,7 +2506,8 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         
         Consume(TokenType.RightBrace, "Expected '}' after class body.");
         
-        // Merge static fields into private fields list for now (will handle separately in evaluator)
+        // Merge all fields into private fields list (will handle separately in evaluator)
+        privateFields.AddRange(publicFields);
         privateFields.AddRange(staticFields);
         
         return (constructor, methods, privateFields);

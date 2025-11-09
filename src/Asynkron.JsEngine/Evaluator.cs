@@ -1284,6 +1284,11 @@ internal static class Evaluator
         if (ReferenceEquals(symbol, JsSymbols.Negate))
         {
             var operand = EvaluateExpression(cons.Rest.Head, environment, context);
+            // Handle BigInt negation
+            if (operand is JsBigInt bigInt)
+            {
+                return -bigInt;
+            }
             return -ToNumber(operand);
         }
 
@@ -2045,11 +2050,11 @@ internal static class Evaluator
         return operatorName switch
         {
             "+" => Add(left, right),
-            "-" => ToNumber(left) - ToNumber(right),
-            "*" => ToNumber(left) * ToNumber(right),
-            "**" => Math.Pow(ToNumber(left), ToNumber(right)),
-            "/" => ToNumber(left) / ToNumber(right),
-            "%" => ToNumber(left) % ToNumber(right),
+            "-" => Subtract(left, right),
+            "*" => Multiply(left, right),
+            "**" => Power(left, right),
+            "/" => Divide(left, right),
+            "%" => Modulo(left, right),
             "&" => BitwiseAnd(left, right),
             "|" => BitwiseOr(left, right),
             "^" => BitwiseXor(left, right),
@@ -2058,10 +2063,10 @@ internal static class Evaluator
             ">>>" => UnsignedRightShift(left, right),
             "==" => LooseEquals(left, right),
             "!=" => !LooseEquals(left, right),
-            ">" => ToNumber(left) > ToNumber(right),
-            ">=" => ToNumber(left) >= ToNumber(right),
-            "<" => ToNumber(left) < ToNumber(right),
-            "<=" => ToNumber(left) <= ToNumber(right),
+            ">" => GreaterThan(left, right),
+            ">=" => GreaterThanOrEqual(left, right),
+            "<" => LessThan(left, right),
+            "<=" => LessThanOrEqual(left, right),
             _ => throw new InvalidOperationException($"Unsupported operator '{operatorName}'.")
         };
     }
@@ -2219,6 +2224,7 @@ internal static class Evaluator
             null => "null",
             Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => "undefined",
             bool b => b ? "true" : "false",
+            JsBigInt bigInt => bigInt.ToString(),
             JsArray arr => ArrayToString(arr),
             JsObject => "[object Object]",
             _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
@@ -2256,6 +2262,12 @@ internal static class Evaluator
             return "symbol";
         }
         
+        // Check for BigInt
+        if (value is JsBigInt)
+        {
+            return "bigint";
+        }
+        
         return value switch
         {
             bool => "boolean",
@@ -2280,8 +2292,209 @@ internal static class Evaluator
             return ToString(left) + ToString(right);
         }
 
+        // Handle BigInt + BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt + rightBigInt;
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
         // Otherwise, perform numeric addition
         return ToNumber(left) + ToNumber(right);
+    }
+
+    private static object Subtract(object? left, object? right)
+    {
+        // Handle BigInt - BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt - rightBigInt;
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
+        return ToNumber(left) - ToNumber(right);
+    }
+
+    private static object Multiply(object? left, object? right)
+    {
+        // Handle BigInt * BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt * rightBigInt;
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
+        return ToNumber(left) * ToNumber(right);
+    }
+
+    private static object Power(object? left, object? right)
+    {
+        // Handle BigInt ** BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return JsBigInt.Pow(leftBigInt, rightBigInt);
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
+        return Math.Pow(ToNumber(left), ToNumber(right));
+    }
+
+    private static object Divide(object? left, object? right)
+    {
+        // Handle BigInt / BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt / rightBigInt;
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
+        return ToNumber(left) / ToNumber(right);
+    }
+
+    private static object Modulo(object? left, object? right)
+    {
+        // Handle BigInt % BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt % rightBigInt;
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
+        return ToNumber(left) % ToNumber(right);
+    }
+
+    private static bool GreaterThan(object? left, object? right)
+    {
+        // Handle BigInt comparisons
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt > rightBigInt;
+        }
+
+        // BigInt can be compared with Number in relational operators
+        if (left is JsBigInt lbi)
+        {
+            var rightNum = ToNumber(right);
+            if (double.IsNaN(rightNum)) return false;
+            return lbi.Value > new System.Numerics.BigInteger(rightNum);
+        }
+
+        if (right is JsBigInt rbi)
+        {
+            var leftNum = ToNumber(left);
+            if (double.IsNaN(leftNum)) return false;
+            return new System.Numerics.BigInteger(leftNum) > rbi.Value;
+        }
+
+        return ToNumber(left) > ToNumber(right);
+    }
+
+    private static bool GreaterThanOrEqual(object? left, object? right)
+    {
+        // Handle BigInt comparisons
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt >= rightBigInt;
+        }
+
+        // BigInt can be compared with Number in relational operators
+        if (left is JsBigInt lbi)
+        {
+            var rightNum = ToNumber(right);
+            if (double.IsNaN(rightNum)) return false;
+            return lbi.Value >= new System.Numerics.BigInteger(rightNum);
+        }
+
+        if (right is JsBigInt rbi)
+        {
+            var leftNum = ToNumber(left);
+            if (double.IsNaN(leftNum)) return false;
+            return new System.Numerics.BigInteger(leftNum) >= rbi.Value;
+        }
+
+        return ToNumber(left) >= ToNumber(right);
+    }
+
+    private static bool LessThan(object? left, object? right)
+    {
+        // Handle BigInt comparisons
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt < rightBigInt;
+        }
+
+        // BigInt can be compared with Number in relational operators
+        if (left is JsBigInt lbi)
+        {
+            var rightNum = ToNumber(right);
+            if (double.IsNaN(rightNum)) return false;
+            return lbi.Value < new System.Numerics.BigInteger(rightNum);
+        }
+
+        if (right is JsBigInt rbi)
+        {
+            var leftNum = ToNumber(left);
+            if (double.IsNaN(leftNum)) return false;
+            return new System.Numerics.BigInteger(leftNum) < rbi.Value;
+        }
+
+        return ToNumber(left) < ToNumber(right);
+    }
+
+    private static bool LessThanOrEqual(object? left, object? right)
+    {
+        // Handle BigInt comparisons
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt <= rightBigInt;
+        }
+
+        // BigInt can be compared with Number in relational operators
+        if (left is JsBigInt lbi)
+        {
+            var rightNum = ToNumber(right);
+            if (double.IsNaN(rightNum)) return false;
+            return lbi.Value <= new System.Numerics.BigInteger(rightNum);
+        }
+
+        if (right is JsBigInt rbi)
+        {
+            var leftNum = ToNumber(left);
+            if (double.IsNaN(leftNum)) return false;
+            return new System.Numerics.BigInteger(leftNum) <= rbi.Value;
+        }
+
+        return ToNumber(left) <= ToNumber(right);
     }
 
     private static bool StrictEquals(object? left, object? right)
@@ -2297,6 +2510,18 @@ internal static class Evaluator
         }
 
         if (left is null || right is null)
+        {
+            return false;
+        }
+
+        // BigInt strict equality
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt == rightBigInt;
+        }
+
+        // BigInt and Number are never strictly equal
+        if ((left is JsBigInt && IsNumeric(right)) || (IsNumeric(left) && right is JsBigInt))
         {
             return false;
         }
@@ -2341,6 +2566,64 @@ internal static class Evaluator
         if (left?.GetType() == right?.GetType())
         {
             return StrictEquals(left, right);
+        }
+        
+        // BigInt == Number: compare numerically (allowed in loose equality)
+        if (left is JsBigInt leftBigInt && IsNumeric(right))
+        {
+            var rightNum = ToNumber(right);
+            if (double.IsNaN(rightNum) || double.IsInfinity(rightNum))
+            {
+                return false;
+            }
+            // Check if right is an integer and compare
+            if (rightNum == Math.Floor(rightNum))
+            {
+                return leftBigInt.Value == new System.Numerics.BigInteger(rightNum);
+            }
+            return false;
+        }
+        
+        if (IsNumeric(left) && right is JsBigInt rightBigInt)
+        {
+            var leftNum = ToNumber(left);
+            if (double.IsNaN(leftNum) || double.IsInfinity(leftNum))
+            {
+                return false;
+            }
+            // Check if left is an integer and compare
+            if (leftNum == Math.Floor(leftNum))
+            {
+                return new System.Numerics.BigInteger(leftNum) == rightBigInt.Value;
+            }
+            return false;
+        }
+        
+        // BigInt == String: convert string to BigInt if possible
+        if (left is JsBigInt lbi && right is string str)
+        {
+            try
+            {
+                var rightBigInt2 = new JsBigInt(str.Trim());
+                return lbi == rightBigInt2;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        
+        if (left is string str2 && right is JsBigInt rbi)
+        {
+            try
+            {
+                var leftBigInt2 = new JsBigInt(str2.Trim());
+                return leftBigInt2 == rbi;
+            }
+            catch
+            {
+                return false;
+            }
         }
         
         // Type coercion for loose equality
@@ -3084,49 +3367,131 @@ internal static class Evaluator
     }
 
     // Bitwise operations
-    private static double BitwiseAnd(object? left, object? right)
+    private static object BitwiseAnd(object? left, object? right)
     {
+        // Handle BigInt & BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt & rightBigInt;
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right);
         return leftInt & rightInt;
     }
 
-    private static double BitwiseOr(object? left, object? right)
+    private static object BitwiseOr(object? left, object? right)
     {
+        // Handle BigInt | BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt | rightBigInt;
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right);
         return leftInt | rightInt;
     }
 
-    private static double BitwiseXor(object? left, object? right)
+    private static object BitwiseXor(object? left, object? right)
     {
+        // Handle BigInt ^ BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt ^ rightBigInt;
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right);
         return leftInt ^ rightInt;
     }
 
-    private static double BitwiseNot(object? operand)
+    private static object BitwiseNot(object? operand)
     {
+        // Handle ~BigInt
+        if (operand is JsBigInt bigInt)
+        {
+            return ~bigInt;
+        }
+
         var operandInt = ToInt32(operand);
         return ~operandInt;
     }
 
-    private static double LeftShift(object? left, object? right)
+    private static object LeftShift(object? left, object? right)
     {
+        // Handle BigInt << BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            // BigInt shift requires int, so check range
+            if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
+            {
+                throw new InvalidOperationException("BigInt shift amount is too large");
+            }
+            return leftBigInt << (int)rightBigInt.Value;
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
         return leftInt << rightInt;
     }
 
-    private static double RightShift(object? left, object? right)
+    private static object RightShift(object? left, object? right)
     {
+        // Handle BigInt >> BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            // BigInt shift requires int, so check range
+            if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
+            {
+                throw new InvalidOperationException("BigInt shift amount is too large");
+            }
+            return leftBigInt >> (int)rightBigInt.Value;
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
         return leftInt >> rightInt;
     }
 
-    private static double UnsignedRightShift(object? left, object? right)
+    private static object UnsignedRightShift(object? left, object? right)
     {
+        // BigInt does not support >>> operator (unsigned right shift)
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("BigInts have no unsigned right shift, use >> instead");
+        }
+
         var leftUInt = ToUInt32(left);
         var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
         return leftUInt >> rightInt;
@@ -3153,57 +3518,81 @@ internal static class Evaluator
     }
 
     // Increment/Decrement operations
-    private static double IncrementPrefix(object? operandExpression, Environment environment, EvaluationContext context)
+    private static object IncrementPrefix(object? operandExpression, Environment environment, EvaluationContext context)
     {
         // Get current value
         var currentValue = EvaluateExpression(operandExpression, environment, context);
-        var newValue = ToNumber(currentValue) + 1;
-
-        // Update the variable
-        UpdateVariable(operandExpression, newValue, environment, context);
-
-        return newValue;
+        
+        // Handle BigInt increment
+        if (currentValue is JsBigInt bigInt)
+        {
+            var newValue = bigInt + JsBigInt.One;
+            UpdateVariable(operandExpression, newValue, environment, context);
+            return newValue;
+        }
+        
+        var numValue = ToNumber(currentValue) + 1;
+        UpdateVariable(operandExpression, numValue, environment, context);
+        return numValue;
     }
 
-    private static double DecrementPrefix(object? operandExpression, Environment environment, EvaluationContext context)
+    private static object DecrementPrefix(object? operandExpression, Environment environment, EvaluationContext context)
     {
         // Get current value
         var currentValue = EvaluateExpression(operandExpression, environment, context);
-        var newValue = ToNumber(currentValue) - 1;
-
-        // Update the variable
-        UpdateVariable(operandExpression, newValue, environment, context);
-
-        return newValue;
+        
+        // Handle BigInt decrement
+        if (currentValue is JsBigInt bigInt)
+        {
+            var newValue = bigInt - JsBigInt.One;
+            UpdateVariable(operandExpression, newValue, environment, context);
+            return newValue;
+        }
+        
+        var numValue = ToNumber(currentValue) - 1;
+        UpdateVariable(operandExpression, numValue, environment, context);
+        return numValue;
     }
 
-    private static double IncrementPostfix(object? operandExpression, Environment environment, EvaluationContext context)
+    private static object IncrementPostfix(object? operandExpression, Environment environment, EvaluationContext context)
     {
         // Get current value
         var currentValue = EvaluateExpression(operandExpression, environment, context);
+        
+        // Handle BigInt increment
+        if (currentValue is JsBigInt bigInt)
+        {
+            var newValue = bigInt + JsBigInt.One;
+            UpdateVariable(operandExpression, newValue, environment, context);
+            return bigInt; // Return the old value
+        }
+        
         var oldValue = ToNumber(currentValue);
-        var newValue = oldValue + 1;
-
-        // Update the variable
-        UpdateVariable(operandExpression, newValue, environment, context);
-
+        var newValue2 = oldValue + 1;
+        UpdateVariable(operandExpression, newValue2, environment, context);
         return oldValue; // Return the old value
     }
 
-    private static double DecrementPostfix(object? operandExpression, Environment environment, EvaluationContext context)
+    private static object DecrementPostfix(object? operandExpression, Environment environment, EvaluationContext context)
     {
         // Get current value
         var currentValue = EvaluateExpression(operandExpression, environment, context);
+        
+        // Handle BigInt decrement
+        if (currentValue is JsBigInt bigInt)
+        {
+            var newValue = bigInt - JsBigInt.One;
+            UpdateVariable(operandExpression, newValue, environment, context);
+            return bigInt; // Return the old value
+        }
+        
         var oldValue = ToNumber(currentValue);
-        var newValue = oldValue - 1;
-
-        // Update the variable
-        UpdateVariable(operandExpression, newValue, environment, context);
-
+        var newValue2 = oldValue - 1;
+        UpdateVariable(operandExpression, newValue2, environment, context);
         return oldValue; // Return the old value
     }
 
-    private static void UpdateVariable(object? operandExpression, double newValue, Environment environment, EvaluationContext context)
+    private static void UpdateVariable(object? operandExpression, object? newValue, Environment environment, EvaluationContext context)
     {
         if (operandExpression is Symbol symbol)
         {

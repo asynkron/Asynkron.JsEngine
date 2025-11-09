@@ -140,7 +140,7 @@ public class PrivateFieldsTests
         Assert.Equal("Bob", result);
     }
 
-    [Fact(Skip = "Public class fields not yet implemented")]
+    [Fact]
     public void PrivateFieldWithPublicField()
     {
         var engine = new JsEngine();
@@ -213,7 +213,7 @@ public class PrivateFieldsTests
         Assert.Equal(3d, result);
     }
 
-    [Fact(Skip = "Public class fields not yet implemented")]
+    [Fact]
     public void PrivateFieldWithSameNameAsPublic()
     {
         var engine = new JsEngine();

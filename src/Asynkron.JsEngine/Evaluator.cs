@@ -1825,24 +1825,24 @@ internal static class Evaluator
     
     private static void InitializePrivateFields(object? constructor, JsObject instance, Environment environment, EvaluationContext context)
     {
-        // First, initialize parent class private fields (if any)
+        // First, initialize parent class private and public fields (if any)
         if (constructor is JsFunction jsFunc && TryGetPropertyValue(constructor, "__proto__", out var parent) && parent is not null)
         {
             InitializePrivateFields(parent, instance, environment, context);
         }
         
-        // Then initialize this class's private fields
+        // Then initialize this class's private and public fields
         if (TryGetPropertyValue(constructor, "__privateFields__", out var privateFieldsValue) && privateFieldsValue is Cons privateFieldsList)
         {
             foreach (var fieldExpression in privateFieldsList)
             {
-                var fieldCons = ExpectCons(fieldExpression, "Expected private field definition.");
-                var tag = ExpectSymbol(fieldCons.Head, "Expected private field tag.");
+                var fieldCons = ExpectCons(fieldExpression, "Expected field definition.");
+                var tag = ExpectSymbol(fieldCons.Head, "Expected field tag.");
                 
-                if (ReferenceEquals(tag, JsSymbols.PrivateField))
+                if (ReferenceEquals(tag, JsSymbols.PrivateField) || ReferenceEquals(tag, JsSymbols.PublicField))
                 {
                     var fieldName = fieldCons.Rest.Head as string
-                        ?? throw new InvalidOperationException("Expected private field name.");
+                        ?? throw new InvalidOperationException("Expected field name.");
                     var initializer = fieldCons.Rest.Rest.Head;
                     
                     object? initialValue = null;
@@ -2422,6 +2422,7 @@ internal static class Evaluator
         null => "null",
         string s => s,
         Symbol symbol => symbol.Name,
+        JsSymbol jsSymbol => $"@@symbol:{jsSymbol.GetHashCode()}",  // Special prefix for Symbol keys
         bool b => b ? "true" : "false",
         int i => i.ToString(CultureInfo.InvariantCulture),
         long l => l.ToString(CultureInfo.InvariantCulture),

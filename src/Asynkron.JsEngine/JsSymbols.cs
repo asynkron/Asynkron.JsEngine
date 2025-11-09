@@ -105,6 +105,9 @@ public static class JsSymbols
     public static readonly Symbol ExportDeclaration = Symbol.Intern("export-declaration");
     public static readonly Symbol From = Symbol.Intern("from");
     public static readonly Symbol As = Symbol.Intern("as");
+    
+    // Strict mode
+    public static readonly Symbol UseStrict = Symbol.Intern("use-strict");
 
     public static Symbol Operator(string op) => Symbol.Intern(op);
 }

@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine;
 
-internal sealed class Environment(Environment? enclosing = null, bool isFunctionScope = false)
+internal sealed class Environment(Environment? enclosing = null, bool isFunctionScope = false, bool isStrict = false)
 {
     private sealed class Binding(object? value, bool isConst)
     {
@@ -12,6 +12,12 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     private readonly Dictionary<Symbol, Binding> _values = new();
     private readonly Environment? _enclosing = enclosing;
     private readonly bool _isFunctionScope = isFunctionScope;
+    private readonly bool _isStrict = isStrict;
+
+    /// <summary>
+    /// Returns true if this environment or any enclosing environment is in strict mode.
+    /// </summary>
+    public bool IsStrict => _isStrict || (_enclosing?.IsStrict ?? false);
 
     public void Define(Symbol name, object? value, bool isConst = false)
     {
@@ -69,7 +75,9 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
             return;
         }
 
-        throw new InvalidOperationException($"Undefined symbol '{name.Name}'.");
+        // In strict mode, assignment to undefined variable is an error
+        // Use ReferenceError message format
+        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
     }
 
     private Environment GetFunctionScope()

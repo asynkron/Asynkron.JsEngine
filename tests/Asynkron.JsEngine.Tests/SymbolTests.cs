@@ -95,10 +95,8 @@ public class SymbolTests
         Assert.Equal(42.0, result);
     }
 
-    // Note: Full Symbol property enumeration support requires more complex implementation
-    // This test is skipped as it requires Symbol properties to not be enumerable
-    // which is not yet fully implemented
-    [Fact(Skip = "Symbol property enumeration not fully implemented")]
+    // Symbol properties should not be enumerable in for...in loops
+    [Fact]
     public void Symbol_Properties_Are_Not_Enumerable()
     {
         var engine = new JsEngine();
@@ -113,8 +111,6 @@ public class SymbolTests
             }
             keys.length;
         ");
-        // Symbol properties should not show up in for...in loops
-        // For now, we might not have full support for this
         Assert.Equal(1.0, result);
     }
 

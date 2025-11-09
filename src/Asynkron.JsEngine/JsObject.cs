@@ -155,8 +155,11 @@ internal sealed class JsObject() : Dictionary<string, object?>(StringComparer.Or
     {
         foreach (var key in Keys)
         {
-            // Skip internal keys (proto, getters, setters)
-            if (key == PrototypeKey || key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
+            // Skip internal keys (proto, getters, setters, and Symbol-keyed properties)
+            if (key == PrototypeKey || 
+                key.StartsWith(GetterPrefix) || 
+                key.StartsWith(SetterPrefix) ||
+                key.StartsWith("@@symbol:"))  // Symbol-keyed properties are not enumerable
             {
                 continue;
             }

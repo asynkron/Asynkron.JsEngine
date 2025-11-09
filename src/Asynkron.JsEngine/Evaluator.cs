@@ -2422,6 +2422,7 @@ internal static class Evaluator
         null => "null",
         string s => s,
         Symbol symbol => symbol.Name,
+        JsSymbol jsSymbol => $"@@symbol:{jsSymbol.GetHashCode()}",  // Special prefix for Symbol keys
         bool b => b ? "true" : "false",
         int i => i.ToString(CultureInfo.InvariantCulture),
         long l => l.ToString(CultureInfo.InvariantCulture),

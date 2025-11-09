@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace Asynkron.JsEngine;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace Asynkron.JsEngine;
 /// </summary>
 internal sealed class JsSymbol
 {
-    private static readonly Dictionary<string, JsSymbol> GlobalRegistry = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, JsSymbol> GlobalRegistry = new(StringComparer.Ordinal);
     private static int _nextId = 0;
     
     private readonly int _id;
@@ -30,7 +32,7 @@ internal sealed class JsSymbol
     /// </summary>
     public static JsSymbol Create(string? description = null)
     {
-        return new JsSymbol(description, null, _nextId++);
+        return new JsSymbol(description, null, Interlocked.Increment(ref _nextId));
     }
 
     /// <summary>
@@ -39,14 +41,7 @@ internal sealed class JsSymbol
     /// </summary>
     public static JsSymbol For(string key)
     {
-        if (GlobalRegistry.TryGetValue(key, out var existing))
-        {
-            return existing;
-        }
-
-        var symbol = new JsSymbol(key, key, _nextId++);
-        GlobalRegistry[key] = symbol;
-        return symbol;
+        return GlobalRegistry.GetOrAdd(key, k => new JsSymbol(k, k, Interlocked.Increment(ref _nextId)));
     }
 
     /// <summary>

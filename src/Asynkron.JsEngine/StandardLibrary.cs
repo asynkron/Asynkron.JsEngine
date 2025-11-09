@@ -2103,7 +2103,7 @@ internal static class StandardLibrary
             if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
             
             var keys = new JsArray();
-            foreach (var key in obj.GetOwnPropertyNames())
+            foreach (var key in obj.GetEnumerablePropertyNames())
             {
                 keys.Push(key);
             }
@@ -2117,7 +2117,7 @@ internal static class StandardLibrary
             if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
             
             var values = new JsArray();
-            foreach (var key in obj.GetOwnPropertyNames())
+            foreach (var key in obj.GetEnumerablePropertyNames())
             {
                 if (obj.TryGetValue(key, out var value))
                 {
@@ -2134,7 +2134,7 @@ internal static class StandardLibrary
             if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
             
             var entries = new JsArray();
-            foreach (var key in obj.GetOwnPropertyNames())
+            foreach (var key in obj.GetEnumerablePropertyNames())
             {
                 if (obj.TryGetValue(key, out var value))
                 {
@@ -2226,7 +2226,7 @@ internal static class StandardLibrary
             return obj.IsSealed;
         });
 
-        // Object.create(proto)
+        // Object.create(proto, propertiesObject)
         objectConstructor["create"] = new HostFunction(args =>
         {
             var obj = new JsObject();
@@ -2234,6 +2234,70 @@ internal static class StandardLibrary
             {
                 obj.SetPrototype(args[0]);
             }
+            
+            // Handle second parameter: property descriptors
+            if (args.Count > 1 && args[1] is JsObject propsObj)
+            {
+                foreach (var propName in propsObj.GetOwnPropertyNames())
+                {
+                    if (propsObj.TryGetValue(propName, out var descriptorObj) && descriptorObj is JsObject descObj)
+                    {
+                        var descriptor = new PropertyDescriptor();
+                        
+                        // Check if this is an accessor descriptor
+                        var hasGet = descObj.TryGetValue("get", out var getVal);
+                        var hasSet = descObj.TryGetValue("set", out var setVal);
+                        
+                        if (hasGet || hasSet)
+                        {
+                            // Accessor descriptor
+                            if (hasGet && getVal is IJsCallable getter)
+                            {
+                                descriptor.Get = getter;
+                            }
+                            if (hasSet && setVal is IJsCallable setter)
+                            {
+                                descriptor.Set = setter;
+                            }
+                        }
+                        else
+                        {
+                            // Data descriptor
+                            if (descObj.TryGetValue("value", out var value))
+                            {
+                                descriptor.Value = value;
+                            }
+                            
+                            if (descObj.TryGetValue("writable", out var writableVal))
+                            {
+                                descriptor.Writable = writableVal is bool b ? b : ToBoolean(writableVal);
+                            }
+                        }
+                        
+                        // Common properties
+                        if (descObj.TryGetValue("enumerable", out var enumerableVal))
+                        {
+                            descriptor.Enumerable = enumerableVal is bool b ? b : ToBoolean(enumerableVal);
+                        }
+                        else
+                        {
+                            descriptor.Enumerable = false; // Default is false for Object.create
+                        }
+                        
+                        if (descObj.TryGetValue("configurable", out var configurableVal))
+                        {
+                            descriptor.Configurable = configurableVal is bool b ? b : ToBoolean(configurableVal);
+                        }
+                        else
+                        {
+                            descriptor.Configurable = false; // Default is false for Object.create
+                        }
+                        
+                        obj.DefineProperty(propName, descriptor);
+                    }
+                }
+            }
+            
             return obj;
         });
 
@@ -2257,17 +2321,31 @@ internal static class StandardLibrary
             if (args.Count < 2 || args[0] is not JsObject obj) return JsSymbols.Undefined;
             var propName = args[1]?.ToString() ?? "";
             
-            if (!obj.ContainsKey(propName)) return JsSymbols.Undefined;
+            var desc = obj.GetOwnPropertyDescriptor(propName);
+            if (desc == null) return JsSymbols.Undefined;
             
-            var descriptor = new JsObject();
-            if (obj.TryGetValue(propName, out var value))
+            var resultDesc = new JsObject();
+            if (desc.IsAccessorDescriptor)
             {
-                descriptor["value"] = value;
-                descriptor["writable"] = !obj.IsFrozen;
-                descriptor["enumerable"] = true;
-                descriptor["configurable"] = !obj.IsSealed && !obj.IsFrozen;
+                if (desc.Get != null)
+                {
+                    resultDesc["get"] = desc.Get;
+                }
+                if (desc.Set != null)
+                {
+                    resultDesc["set"] = desc.Set;
+                }
             }
-            return descriptor;
+            else
+            {
+                resultDesc["value"] = desc.Value;
+                resultDesc["writable"] = desc.Writable;
+            }
+            
+            resultDesc["enumerable"] = desc.Enumerable;
+            resultDesc["configurable"] = desc.Configurable;
+            
+            return resultDesc;
         });
 
         // Object.defineProperty(obj, prop, descriptor)
@@ -2276,13 +2354,52 @@ internal static class StandardLibrary
             if (args.Count < 3 || args[0] is not JsObject obj) return args.Count > 0 ? args[0] : null;
             var propName = args[1]?.ToString() ?? "";
             
-            if (args[2] is JsObject descriptor)
+            if (args[2] is JsObject descriptorObj)
             {
-                // For simplicity, we just set the value if provided
-                if (descriptor.TryGetValue("value", out var value))
+                var descriptor = new PropertyDescriptor();
+                
+                // Check if this is an accessor descriptor
+                var hasGet = descriptorObj.TryGetValue("get", out var getVal);
+                var hasSet = descriptorObj.TryGetValue("set", out var setVal);
+                
+                if (hasGet || hasSet)
                 {
-                    obj[propName] = value;
+                    // Accessor descriptor
+                    if (hasGet && getVal is IJsCallable getter)
+                    {
+                        descriptor.Get = getter;
+                    }
+                    if (hasSet && setVal is IJsCallable setter)
+                    {
+                        descriptor.Set = setter;
+                    }
                 }
+                else
+                {
+                    // Data descriptor
+                    if (descriptorObj.TryGetValue("value", out var value))
+                    {
+                        descriptor.Value = value;
+                    }
+                    
+                    if (descriptorObj.TryGetValue("writable", out var writableVal))
+                    {
+                        descriptor.Writable = writableVal is bool b ? b : ToBoolean(writableVal);
+                    }
+                }
+                
+                // Common properties
+                if (descriptorObj.TryGetValue("enumerable", out var enumerableVal))
+                {
+                    descriptor.Enumerable = enumerableVal is bool b ? b : ToBoolean(enumerableVal);
+                }
+                
+                if (descriptorObj.TryGetValue("configurable", out var configurableVal))
+                {
+                    descriptor.Configurable = configurableVal is bool b ? b : ToBoolean(configurableVal);
+                }
+                
+                obj.DefineProperty(propName, descriptor);
             }
             
             return obj;
@@ -3085,4 +3202,17 @@ internal static class StandardLibrary
             return engine.Evaluate(code);
         });
     }
+    
+    /// <summary>
+    /// Converts a value to a boolean following JavaScript truthiness rules.
+    /// </summary>
+    private static bool ToBoolean(object? value) => value switch
+    {
+        null => false,
+        Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => false,
+        bool b => b,
+        double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
+        string s => s.Length > 0,
+        _ => true
+    };
 }

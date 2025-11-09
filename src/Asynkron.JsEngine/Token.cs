@@ -61,6 +61,7 @@ internal enum TokenType
     Identifier,
     PrivateIdentifier,
     Number,
+    BigInt,
     String,
     TemplateLiteral,
     Let,

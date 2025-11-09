@@ -1460,6 +1460,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             return Previous().Literal is double number ? number : 0d;
         }
 
+        if (Match(TokenType.BigInt))
+        {
+            return Previous().Literal;
+        }
+
         if (Match(TokenType.String))
         {
             return Previous().Literal as string ?? string.Empty;

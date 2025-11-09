@@ -395,8 +395,11 @@ internal sealed class Lexer(string source)
             Advance();
         }
 
+        // Check for decimal point (makes it a regular number, not BigInt)
+        var hasDecimal = false;
         if (Peek() == '.' && IsDigit(PeekNext()))
         {
+            hasDecimal = true;
             Advance();
             while (IsDigit(Peek()))
             {
@@ -404,9 +407,27 @@ internal sealed class Lexer(string source)
             }
         }
 
-        var text = _source[_start.._current];
-        var value = double.Parse(text, CultureInfo.InvariantCulture);
-        AddToken(TokenType.Number, value);
+        // Check for BigInt suffix 'n'
+        if (!hasDecimal && Peek() == 'n')
+        {
+            // Check that 'n' is not part of a larger identifier
+            var next = PeekNext();
+            var isEndOrNonAlphaNum = next == '\0' || (!IsAlpha(next) && !IsDigit(next));
+            
+            if (isEndOrNonAlphaNum)
+            {
+                Advance(); // consume 'n'
+                var text = _source[_start..(_current - 1)]; // exclude the 'n'
+                var value = new JsBigInt(text);
+                AddToken(TokenType.BigInt, value);
+                return;
+            }
+        }
+        
+        // Regular number
+        var text2 = _source[_start.._current];
+        var value2 = double.Parse(text2, CultureInfo.InvariantCulture);
+        AddToken(TokenType.Number, value2);
     }
 
     private void ReadString()

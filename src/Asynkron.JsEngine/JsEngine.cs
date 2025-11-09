@@ -75,6 +75,19 @@ public sealed class JsEngine
         // Register WeakSet constructor
         SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
         
+        // Register ArrayBuffer and TypedArray constructors
+        SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor());
+        SetGlobal("DataView", StandardLibrary.CreateDataViewConstructor());
+        SetGlobal("Int8Array", StandardLibrary.CreateInt8ArrayConstructor());
+        SetGlobal("Uint8Array", StandardLibrary.CreateUint8ArrayConstructor());
+        SetGlobal("Uint8ClampedArray", StandardLibrary.CreateUint8ClampedArrayConstructor());
+        SetGlobal("Int16Array", StandardLibrary.CreateInt16ArrayConstructor());
+        SetGlobal("Uint16Array", StandardLibrary.CreateUint16ArrayConstructor());
+        SetGlobal("Int32Array", StandardLibrary.CreateInt32ArrayConstructor());
+        SetGlobal("Uint32Array", StandardLibrary.CreateUint32ArrayConstructor());
+        SetGlobal("Float32Array", StandardLibrary.CreateFloat32ArrayConstructor());
+        SetGlobal("Float64Array", StandardLibrary.CreateFloat64ArrayConstructor());
+        
         // Register Error constructors
         SetGlobal("Error", StandardLibrary.CreateErrorConstructor("Error"));
         SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor("TypeError"));

@@ -3215,4 +3215,175 @@ internal static class StandardLibrary
         string s => s.Length > 0,
         _ => true
     };
+
+    /// <summary>
+    /// Creates the ArrayBuffer constructor.
+    /// </summary>
+    public static HostFunction CreateArrayBufferConstructor()
+    {
+        var constructor = new HostFunction((thisValue, args) =>
+        {
+            if (args.Count == 0)
+            {
+                return new JsArrayBuffer(0);
+            }
+            
+            var length = args[0] switch
+            {
+                double d => (int)d,
+                int i => i,
+                _ => 0
+            };
+            
+            return new JsArrayBuffer(length);
+        });
+        
+        constructor.SetProperty("isView", new HostFunction(args =>
+        {
+            if (args.Count == 0) return false;
+            return args[0] is TypedArrayBase || args[0] is JsDataView;
+        }));
+        
+        return constructor;
+    }
+
+    /// <summary>
+    /// Creates the DataView constructor.
+    /// </summary>
+    public static HostFunction CreateDataViewConstructor()
+    {
+        return new HostFunction((thisValue, args) =>
+        {
+            if (args.Count == 0 || args[0] is not JsArrayBuffer buffer)
+            {
+                throw new InvalidOperationException("DataView requires an ArrayBuffer");
+            }
+            
+            var byteOffset = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
+            int? byteLength = args.Count > 2 && args[2] is double d2 ? (int)d2 : null;
+            
+            return new JsDataView(buffer, byteOffset, byteLength);
+        });
+    }
+
+    /// <summary>
+    /// Creates a typed array constructor.
+    /// </summary>
+    private static HostFunction CreateTypedArrayConstructor<T>(
+        Func<int, T> fromLength,
+        Func<JsArray, T> fromArray,
+        Func<JsArrayBuffer, int, int, T> fromBuffer,
+        int bytesPerElement) where T : TypedArrayBase
+    {
+        var constructor = new HostFunction((thisValue, args) =>
+        {
+            if (args.Count == 0)
+            {
+                return fromLength(0);
+            }
+            
+            var firstArg = args[0];
+            
+            // TypedArray(length)
+            if (firstArg is double d)
+            {
+                return fromLength((int)d);
+            }
+            
+            // TypedArray(array)
+            if (firstArg is JsArray array)
+            {
+                return fromArray(array);
+            }
+            
+            // TypedArray(buffer, byteOffset, length)
+            if (firstArg is JsArrayBuffer buffer)
+            {
+                var byteOffset = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
+                
+                int length;
+                if (args.Count > 2 && args[2] is double d2)
+                {
+                    length = (int)d2;
+                }
+                else
+                {
+                    // Calculate length from remaining buffer
+                    var remainingBytes = buffer.ByteLength - byteOffset;
+                    length = remainingBytes / bytesPerElement;
+                }
+                
+                return fromBuffer(buffer, byteOffset, length);
+            }
+            
+            return fromLength(0);
+        });
+        
+        constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
+        
+        return constructor;
+    }
+
+    public static HostFunction CreateInt8ArrayConstructor() =>
+        CreateTypedArrayConstructor(
+            JsInt8Array.FromLength,
+            JsInt8Array.FromArray,
+            (buffer, offset, length) => new JsInt8Array(buffer, offset, length),
+            JsInt8Array.BYTES_PER_ELEMENT);
+
+    public static HostFunction CreateUint8ArrayConstructor() =>
+        CreateTypedArrayConstructor(
+            JsUint8Array.FromLength,
+            JsUint8Array.FromArray,
+            (buffer, offset, length) => new JsUint8Array(buffer, offset, length),
+            JsUint8Array.BYTES_PER_ELEMENT);
+
+    public static HostFunction CreateUint8ClampedArrayConstructor() =>
+        CreateTypedArrayConstructor(
+            JsUint8ClampedArray.FromLength,
+            JsUint8ClampedArray.FromArray,
+            (buffer, offset, length) => new JsUint8ClampedArray(buffer, offset, length),
+            JsUint8ClampedArray.BYTES_PER_ELEMENT);
+
+    public static HostFunction CreateInt16ArrayConstructor() =>
+        CreateTypedArrayConstructor(
+            JsInt16Array.FromLength,
+            JsInt16Array.FromArray,
+            (buffer, offset, length) => new JsInt16Array(buffer, offset, length),
+            JsInt16Array.BYTES_PER_ELEMENT);
+
+    public static HostFunction CreateUint16ArrayConstructor() =>
+        CreateTypedArrayConstructor(
+            JsUint16Array.FromLength,
+            JsUint16Array.FromArray,
+            (buffer, offset, length) => new JsUint16Array(buffer, offset, length),
+            JsUint16Array.BYTES_PER_ELEMENT);
+
+    public static HostFunction CreateInt32ArrayConstructor() =>
+        CreateTypedArrayConstructor(
+            JsInt32Array.FromLength,
+            JsInt32Array.FromArray,
+            (buffer, offset, length) => new JsInt32Array(buffer, offset, length),
+            JsInt32Array.BYTES_PER_ELEMENT);
+
+    public static HostFunction CreateUint32ArrayConstructor() =>
+        CreateTypedArrayConstructor(
+            JsUint32Array.FromLength,
+            JsUint32Array.FromArray,
+            (buffer, offset, length) => new JsUint32Array(buffer, offset, length),
+            JsUint32Array.BYTES_PER_ELEMENT);
+
+    public static HostFunction CreateFloat32ArrayConstructor() =>
+        CreateTypedArrayConstructor(
+            JsFloat32Array.FromLength,
+            JsFloat32Array.FromArray,
+            (buffer, offset, length) => new JsFloat32Array(buffer, offset, length),
+            JsFloat32Array.BYTES_PER_ELEMENT);
+
+    public static HostFunction CreateFloat64ArrayConstructor() =>
+        CreateTypedArrayConstructor(
+            JsFloat64Array.FromLength,
+            JsFloat64Array.FromArray,
+            (buffer, offset, length) => new JsFloat64Array(buffer, offset, length),
+            JsFloat64Array.BYTES_PER_ELEMENT);
 }

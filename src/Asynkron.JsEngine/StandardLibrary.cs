@@ -2773,7 +2773,7 @@ internal static class StandardLibrary
             if (value is string s)
             {
                 if (string.IsNullOrWhiteSpace(s)) return 0d;
-                if (double.TryParse(s, out var parsed)) return parsed;
+                if (double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsed)) return parsed;
                 return double.NaN;
             }
             if (value is bool b) return b ? 1d : 0d;
@@ -2830,7 +2830,7 @@ internal static class StandardLibrary
             var match = System.Text.RegularExpressions.Regex.Match(str, @"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?");
             if (match.Success)
             {
-                if (double.TryParse(match.Value, out var result))
+                if (double.TryParse(match.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var result))
                     return result;
             }
             

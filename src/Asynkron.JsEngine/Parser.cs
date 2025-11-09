@@ -813,7 +813,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         var expr = ParseTernary();
 
         if (Match(TokenType.Equal, TokenType.PlusEqual, TokenType.MinusEqual, TokenType.StarEqual,
-                  TokenType.SlashEqual, TokenType.PercentEqual, TokenType.AmpEqual, TokenType.PipeEqual,
+                  TokenType.StarStarEqual, TokenType.SlashEqual, TokenType.PercentEqual, TokenType.AmpEqual, TokenType.PipeEqual,
                   TokenType.CaretEqual, TokenType.LessLessEqual, TokenType.GreaterGreaterEqual, 
                   TokenType.GreaterGreaterGreaterEqual))
         {
@@ -828,6 +828,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                     TokenType.PlusEqual => "+",
                     TokenType.MinusEqual => "-",
                     TokenType.StarEqual => "*",
+                    TokenType.StarStarEqual => "**",
                     TokenType.SlashEqual => "/",
                     TokenType.PercentEqual => "%",
                     TokenType.AmpEqual => "&",
@@ -1084,11 +1085,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object? ParseFactor()
     {
-        var expr = ParseUnary();
+        var expr = ParseExponentiation();
         while (Match(TokenType.Star, TokenType.Slash, TokenType.Percent))
         {
             var op = Previous();
-            var right = ParseUnary();
+            var right = ParseExponentiation();
             var symbol = op.Type switch
             {
                 TokenType.Star => JsSymbols.Operator("*"),
@@ -1097,6 +1098,20 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                 _ => throw new InvalidOperationException("Unexpected factor operator.")
             };
             expr = Cons.FromEnumerable([symbol, expr, right]);
+        }
+
+        return expr;
+    }
+
+    private object? ParseExponentiation()
+    {
+        var expr = ParseUnary();
+        
+        // Exponentiation is right-associative in JavaScript
+        if (Match(TokenType.StarStar))
+        {
+            var right = ParseExponentiation(); // Right-associative recursion
+            expr = Cons.FromEnumerable([JsSymbols.Operator("**"), expr, right]);
         }
 
         return expr;

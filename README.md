@@ -11,13 +11,25 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
 - **Variables**: `let`, `var`, `const` declarations
 - **Functions**: Function declarations, function expressions, arrow functions, closures, nested functions
 - **Objects**: Object literals, property access (dot & bracket notation), method calls
+  - **Object shorthand**: Property shorthand (`{ x, y }`), method shorthand (`{ method() {} }`)
+  - **Computed property names**: Dynamic keys (`{ [expr]: value }`)
 - **this binding**: Proper context handling in methods
 - **Prototypes**: `__proto__` chain for property lookups
-- **Control flow**: `if`/`else`, `for`, `while`, `do-while`, `switch`/`case`
+- **Control flow**: `if`/`else`, `for`, `while`, `do-while`, `switch`/`case`, `for...in`, `for...of`
 - **Error handling**: `try`/`catch`/`finally`, `throw`
-- **Operators**: Arithmetic, logical (`&&`, `||`, `??`), comparison (`===`, `!==`, `==`, `!=`, etc.), ternary (`? :`), `typeof`
+- **Operators**: 
+  - Arithmetic: `+`, `-`, `*`, `/`, `%`, `**` (exponentiation)
+  - Logical: `&&`, `||`, `??`
+  - Comparison: `===`, `!==`, `==`, `!=`, `>`, `<`, `>=`, `<=`
+  - Bitwise: `&`, `|`, `^`, `~`, `<<`, `>>`, `>>>`
+  - Increment/Decrement: `++`, `--` (both prefix and postfix)
+  - Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`
+  - Ternary: `? :`
+  - Optional chaining: `?.`
+  - Special: `typeof`
 - **Classes**: `class`, `extends`, `super`, `new`
-- **Comments**: Single-line `//` comments
+- **Comments**: Single-line (`//`) and multi-line (`/* */`) comments
+- **Strings**: Both double-quoted (`"..."`) and single-quoted (`'...'`) string literals
 - **Type coercion**: Comprehensive type coercion including:
   - Truthiness evaluation (falsy values: false, 0, "", null, undefined, NaN)
   - ToString conversions (arrays join with comma, objects to "[object Object]")
@@ -1230,15 +1242,35 @@ dotnet test
 
 ## Limitations
 
-- **No Modules**: ES6 import/export is not supported
-- **String Literals**: Only double-quoted strings and template literals (backticks) are supported (no single quotes)
 - **Semicolons**: Statement-ending semicolons are required
-- **Number Types**: All numbers are treated as doubles (no BigInt)
+- **Number Types**: All numbers are treated as doubles (no BigInt support yet)
 - **Reserved Keywords as Properties**: When using reserved keywords like `catch` and `finally` as property names, you must use bracket notation (e.g., `promise["catch"](...)` instead of `promise.catch(...)`)
-
+- **Some Standard Library Methods**: Not all ES6+ standard library methods are implemented (see [docs/MISSING_FEATURES.md](docs/MISSING_FEATURES.md) for details)
 ## Future Roadmap
 
-The engine now has full support for async/await, generators, destructuring, regex literals, and comprehensive type coercion. It provides comprehensive string methods and regular expression support. See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for async/await implementation details and [docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md](docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md) for destructuring details.
+The engine has achieved remarkable JavaScript compatibility! It now includes:
+- ✅ Full ES6 module system (import/export)
+- ✅ Async/await and Promises
+- ✅ Generators with yield
+- ✅ Destructuring (arrays and objects)
+- ✅ Spread/rest operators
+- ✅ for...of and for...in loops
+- ✅ Object property/method shorthand
+- ✅ Computed property names
+- ✅ Optional chaining (?.)
+- ✅ Single-quoted strings
+- ✅ Multi-line comments
+- ✅ All bitwise operators
+- ✅ Increment/decrement operators (++, --)
+- ✅ All compound assignment operators (including **=)
+- ✅ Exponentiation operator (**)
+- ✅ Regex literals with full support
+- ✅ Template literals
+- ✅ Comprehensive type coercion
+- ✅ Object.entries(), Object.assign()
+- ✅ Array.isArray(), Array.from(), Array.of()
+
+See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for async/await implementation details and [docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md](docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md) for destructuring details.
 
 For information about alternative approaches to implementing control flow (return, break, continue), see [docs/CONTROL_FLOW_ALTERNATIVES.md](docs/CONTROL_FLOW_ALTERNATIVES.md).
 
@@ -1248,7 +1280,7 @@ Learn about alternative evaluation approaches:
 - [Bytecode Compilation](docs/BYTECODE_COMPILATION.md) - How to transform the recursive evaluator to use bytecode and a virtual machine
 - [Iterative Evaluation](docs/ITERATIVE_EVALUATION.md) - How to transform from recursive to iterative evaluation using explicit stacks
 
-### Missing Features
+### What's Still Missing?
 
 For a comprehensive list of JavaScript features not yet implemented and their priority, see [docs/MISSING_FEATURES.md](docs/MISSING_FEATURES.md). This document provides:
 - Categorized list of missing features with code examples
@@ -1257,16 +1289,15 @@ For a comprehensive list of JavaScript features not yet implemented and their pr
 - Use cases for each feature
 - Recommended implementation phases
 
-Some notable missing features include:
-- ES6 modules (import/export)
-- Single-quoted strings
-- for...of and for...in loops
-- Object property/method shorthand
-- Symbol type
+The most notable remaining features include:
+- Symbol type (for advanced iterators)
 - Map and Set collections
-- Bitwise operators
-- Increment/decrement operators (++, --)
-- Additional standard library methods
+- Object rest/spread in destructuring
+- Additional Object static methods (Object.values, Object.fromEntries, etc.)
+- Private class fields
+- Proxy and Reflect (advanced metaprogramming)
+- BigInt (arbitrary precision integers)
+- Typed Arrays (for binary data)
 
 ## Contributing
 

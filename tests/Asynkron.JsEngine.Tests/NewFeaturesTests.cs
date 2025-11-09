@@ -249,4 +249,71 @@ public class NewFeaturesTests
         var result = engine.Evaluate("let x = -5; x >>>= 1; x;");
         Assert.Equal(2147483645d, result);
     }
+
+    // Exponentiation operator tests
+    [Fact]
+    public void ExponentiationOperator()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("2 ** 3;");
+        Assert.Equal(8d, result);
+    }
+
+    [Fact]
+    public void ExponentiationWithNegativeExponent()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("2 ** -2;");
+        Assert.Equal(0.25d, result);
+    }
+
+    [Fact]
+    public void ExponentiationWithDecimal()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("1.5 ** 2;");
+        Assert.Equal(2.25d, result);
+    }
+
+    [Fact]
+    public void ExponentiationRightAssociative()
+    {
+        var engine = new JsEngine();
+        // 2 ** 3 ** 2 should be 2 ** (3 ** 2) = 2 ** 9 = 512
+        var result = engine.Evaluate("2 ** 3 ** 2;");
+        Assert.Equal(512d, result);
+    }
+
+    [Fact]
+    public void ExponentiationPrecedence()
+    {
+        var engine = new JsEngine();
+        // 10 + 2 ** 3 * 5 should be 10 + (2 ** 3) * 5 = 10 + 8 * 5 = 10 + 40 = 50
+        var result = engine.Evaluate("10 + 2 ** 3 * 5;");
+        Assert.Equal(50d, result);
+    }
+
+    [Fact]
+    public void ExponentiationCompoundAssignment()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("let x = 2; x **= 3; x;");
+        Assert.Equal(8d, result);
+    }
+
+    [Fact]
+    public void ExponentiationInExpression()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("let base = 3; let exp = 4; base ** exp;");
+        Assert.Equal(81d, result);
+    }
+
+    [Fact]
+    public void ExponentiationZeroPower()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate("5 ** 0;");
+        Assert.Equal(1d, result);
+    }
 }

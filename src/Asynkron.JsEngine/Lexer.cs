@@ -140,7 +140,11 @@ internal sealed class Lexer(string source)
                 }
                 break;
             case '*':
-                if (Match('='))
+                if (Match('*'))
+                {
+                    AddToken(Match('=') ? TokenType.StarStarEqual : TokenType.StarStar);
+                }
+                else if (Match('='))
                 {
                     AddToken(TokenType.StarEqual);
                 }

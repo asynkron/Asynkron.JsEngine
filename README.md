@@ -1506,6 +1506,25 @@ The Promise demo showcases:
 - JSON parsing and stringification
 - Host function interop
 
+### NPM Package Compatibility Demo
+```bash
+cd examples/NpmPackageDemo
+dotnet run
+```
+
+The NPM Package demo showcases:
+- left-pad: String padding utility
+- is-odd/is-even: Number parity checking
+- clamp: Number range constraint
+- camelCase: String formatting
+- fibonacci: Sequence generation
+- luhn: Credit card validation
+- chunk: Array chunking
+- unique: Duplicate removal
+- deepEqual: Object comparison
+
+This demo demonstrates that the engine can run pure JavaScript npm packages without Node.js or browser dependencies. See [docs/NPM_PACKAGE_COMPATIBILITY.md](docs/NPM_PACKAGE_COMPATIBILITY.md) for more information about what types of packages work.
+
 ## Building and Testing
 
 Build the solution:

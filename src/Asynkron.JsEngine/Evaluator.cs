@@ -16,10 +16,24 @@ internal static class Evaluator
             throw new InvalidOperationException("Program S-expression must start with the 'program' symbol.");
         }
 
-        object? result = null;
-        foreach (var statement in program.Rest)
+        // Check if program has "use strict" directive
+        bool hasUseStrict = false;
+        var statements = program.Rest;
+        if (!statements.IsEmpty && statements.Head is Cons { Head: Symbol useStrictSymbol } && 
+            ReferenceEquals(useStrictSymbol, JsSymbols.UseStrict))
         {
-            result = EvaluateStatement(statement, environment, context);
+            hasUseStrict = true;
+            statements = statements.Rest; // Skip the use strict directive
+        }
+
+        // For global programs with strict mode, we need a wrapper environment
+        // to enable strict mode checking without modifying the global environment
+        var evalEnv = hasUseStrict ? new Environment(environment, isFunctionScope: true, isStrict: true) : environment;
+        
+        object? result = null;
+        foreach (var statement in statements)
+        {
+            result = EvaluateStatement(statement, evalEnv, context);
             if (context.ShouldStopEvaluation)
                 break;
         }
@@ -45,9 +59,19 @@ internal static class Evaluator
             throw new InvalidOperationException("Block S-expression must start with the 'block' symbol.");
         }
 
-        var scope = new Environment(environment);
+        // Check if block has "use strict" directive
+        bool isStrict = false;
+        var statements = block.Rest;
+        if (!statements.IsEmpty && statements.Head is Cons { Head: Symbol useStrictSymbol } && 
+            ReferenceEquals(useStrictSymbol, JsSymbols.UseStrict))
+        {
+            isStrict = true;
+            statements = statements.Rest; // Skip the use strict directive
+        }
+
+        var scope = new Environment(environment, isFunctionScope: false, isStrict: isStrict);
         object? result = null;
-        foreach (var statement in block.Rest)
+        foreach (var statement in statements)
         {
             result = EvaluateStatement(statement, scope, context);
             if (context.ShouldStopEvaluation)

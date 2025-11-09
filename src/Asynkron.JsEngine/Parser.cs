@@ -8,6 +8,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
     public Cons ParseProgram()
     {
         var statements = new List<object?> { JsSymbols.Program };
+        
+        // Check for "use strict" directive at the beginning
+        bool hasUseStrict = CheckForUseStrictDirective();
+        if (hasUseStrict)
+        {
+            statements.Add(Cons.FromEnumerable([JsSymbols.UseStrict]));
+        }
+        
         while (!Check(TokenType.Eof))
         {
             statements.Add(ParseDeclaration());
@@ -917,6 +925,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         }
 
         var statements = new List<object?> { JsSymbols.Block };
+        
+        // Check for "use strict" directive at the beginning of the block
+        bool hasUseStrict = CheckForUseStrictDirective();
+        if (hasUseStrict)
+        {
+            statements.Add(Cons.FromEnumerable([JsSymbols.UseStrict]));
+        }
+        
         while (!Check(TokenType.RightBrace) && !Check(TokenType.Eof))
         {
             statements.Add(ParseDeclaration());
@@ -2512,5 +2528,36 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             throw new ParseException(errorMessage);
         }
         return Advance();
+    }
+    
+    /// <summary>
+    /// Checks if the next statement is a "use strict" directive and consumes it if found.
+    /// A directive is a string literal expression statement that appears at the beginning of a program or function body.
+    /// </summary>
+    private bool CheckForUseStrictDirective()
+    {
+        // Save current position in case we need to backtrack
+        int savedPosition = _current;
+        
+        // Check if next token is a string literal
+        if (!Check(TokenType.String))
+        {
+            return false;
+        }
+        
+        var stringToken = Advance();
+        
+        // Check if the string is "use strict"
+        if (stringToken.Literal as string != "use strict")
+        {
+            // Not a "use strict" directive, backtrack
+            _current = savedPosition;
+            return false;
+        }
+        
+        // Check if followed by a semicolon (optional in JavaScript)
+        Match(TokenType.Semicolon);
+        
+        return true;
     }
 }

@@ -38,6 +38,7 @@ internal sealed class Lexer(string source)
         ["new"] = TokenType.New,
         ["get"] = TokenType.Get,
         ["set"] = TokenType.Set,
+        ["static"] = TokenType.Static,
         ["yield"] = TokenType.Yield,
         ["async"] = TokenType.Async,
         ["await"] = TokenType.Await,

@@ -749,6 +749,21 @@ internal static class Evaluator
 
                 prototype.SetProperty(methodName, methodValue);
             }
+            else if (ReferenceEquals(tag, JsSymbols.StaticMethod))
+            {
+                // Static method - add to constructor, not prototype
+                var methodName = methodCons.Rest.Head as string
+                    ?? throw new InvalidOperationException("Expected static method name.");
+                var functionExpression = methodCons.Rest.Rest.Head;
+                var methodValue = EvaluateExpression(functionExpression, environment, context);
+
+                if (methodValue is not IJsCallable)
+                {
+                    throw new InvalidOperationException($"Static method '{methodName}' must be callable.");
+                }
+
+                constructor.SetProperty(methodName, methodValue);
+            }
             else if (ReferenceEquals(tag, JsSymbols.Getter))
             {
                 // (getter "name" (block ...))
@@ -763,6 +778,24 @@ internal static class Evaluator
                 }
                 
                 prototype.SetGetter(methodName, getter);
+            }
+            else if (ReferenceEquals(tag, JsSymbols.StaticGetter))
+            {
+                // Static getter - add to constructor's properties
+                var methodName = methodCons.Rest.Head as string
+                    ?? throw new InvalidOperationException("Expected static getter name.");
+                var body = ExpectCons(methodCons.Rest.Rest.Head, "Expected static getter body.");
+                var getter = new JsFunction(null, [], null, body, environment);
+                
+                if (constructor.TryGetProperty("__properties__", out var propsValue) && propsValue is JsObject props)
+                {
+                    props.SetGetter(methodName, getter);
+                }
+                else
+                {
+                    // Fall back to setting as a regular property
+                    constructor.SetProperty(methodName, getter);
+                }
             }
             else if (ReferenceEquals(tag, JsSymbols.Setter))
             {
@@ -781,9 +814,56 @@ internal static class Evaluator
                 
                 prototype.SetSetter(methodName, setter);
             }
+            else if (ReferenceEquals(tag, JsSymbols.StaticSetter))
+            {
+                // Static setter - add to constructor's properties
+                var methodName = methodCons.Rest.Head as string
+                    ?? throw new InvalidOperationException("Expected static setter name.");
+                var param = ExpectSymbol(methodCons.Rest.Rest.Head, "Expected static setter parameter.");
+                var body = ExpectCons(methodCons.Rest.Rest.Rest.Head, "Expected static setter body.");
+                var paramList = new[] { param };
+                var setter = new JsFunction(null, paramList, null, body, environment);
+                
+                if (constructor.TryGetProperty("__properties__", out var propsValue) && propsValue is JsObject props)
+                {
+                    props.SetSetter(methodName, setter);
+                }
+                else
+                {
+                    // Fall back to setting as a regular property
+                    constructor.SetProperty(methodName, setter);
+                }
+            }
             else
             {
                 throw new InvalidOperationException("Invalid entry in class body.");
+            }
+        }
+        
+        // Handle static fields from private fields list
+        if (privateFieldsList is not null)
+        {
+            foreach (var fieldExpression in privateFieldsList)
+            {
+                var fieldCons = fieldExpression as Cons;
+                if (fieldCons is null) continue;
+                
+                var fieldTag = fieldCons.Head as Symbol;
+                if (fieldTag is null) continue;
+                
+                if (ReferenceEquals(fieldTag, JsSymbols.StaticField))
+                {
+                    // (static-field "name" initializer)
+                    var fieldName = fieldCons.Rest.Head as string
+                        ?? throw new InvalidOperationException("Expected static field name.");
+                    var initializer = fieldCons.Rest.Rest.Head;
+                    
+                    var initialValue = initializer is not null 
+                        ? EvaluateExpression(initializer, environment, context) 
+                        : null;
+                    
+                    constructor.SetProperty(fieldName, initialValue);
+                }
             }
         }
 
@@ -2815,7 +2895,7 @@ internal static class Evaluator
                 {
                     var propertyName = ToPropertyName(index) 
                         ?? throw new InvalidOperationException($"Invalid property name: {index}");
-                    jsObject[propertyName] = newValue;
+                    jsObject.SetProperty(propertyName, newValue);
                 }
             }
         }

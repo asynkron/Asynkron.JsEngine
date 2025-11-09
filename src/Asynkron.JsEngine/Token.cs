@@ -91,6 +91,7 @@ internal enum TokenType
     New,
     Get,
     Set,
+    Static,
     Yield,
     Async,
     Await,

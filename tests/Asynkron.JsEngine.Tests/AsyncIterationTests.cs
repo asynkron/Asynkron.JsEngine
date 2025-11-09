@@ -26,7 +26,7 @@ public class AsyncIterationTests
         Assert.Equal("abc", result);
     }
     
-    [Fact(Skip = "fails")]
+    [Fact(Skip = "Async iteration with generators requires CPS transformation support - see docs/LARGE_FEATURES_NOT_IMPLEMENTED.md")]
     public async Task ForAwaitOf_WithGenerator()
     {
         var engine = new JsEngine();

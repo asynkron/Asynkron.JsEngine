@@ -333,6 +333,32 @@ public sealed class CpsTransformer
             return TransformTryInAsyncContext(tryCons, statements, index, resolveParam, rejectParam);
         }
         
+        // Check if this is a for-of statement - needs transformation if body contains await
+        if (statement is Cons forOfCons && !forOfCons.IsEmpty && 
+            forOfCons.Head is Symbol forOfSymbol && ReferenceEquals(forOfSymbol, JsSymbols.ForOf))
+        {
+            // Check if body contains await
+            var parts = ConsList(forOfCons);
+            if (parts.Count >= 4 && ContainsAwait(parts[3]))
+            {
+                // Transform for-of with await in body
+                return TransformForOfWithAwaitInBody(forOfCons, statements, index, resolveParam, rejectParam);
+            }
+        }
+
+        // Check if this is a for-await-of statement - needs transformation in async context
+        if (statement is Cons forAwaitCons && !forAwaitCons.IsEmpty && 
+            forAwaitCons.Head is Symbol forAwaitSymbol && ReferenceEquals(forAwaitSymbol, JsSymbols.ForAwaitOf))
+        {
+            // Check if body contains await
+            var parts = ConsList(forAwaitCons);
+            if (parts.Count >= 4 && ContainsAwait(parts[3]))
+            {
+                // Transform for-await-of with await in body
+                return TransformForOfWithAwaitInBody(forAwaitCons, statements, index, resolveParam, rejectParam);
+            }
+        }
+        
         // Check if this statement contains await
         if (ContainsAwait(statement))
         {
@@ -1057,6 +1083,242 @@ public sealed class CpsTransformer
         }
 
         return Cons.FromEnumerable(items);
+    }
+
+    /// <summary>
+    /// Transforms a for-of or for-await-of loop that contains await expressions in the body.
+    /// Following @rogeralsing's CPS insight: the body's last fragment returns the loop head
+    /// as continuation, creating a natural loop via the event queue.
+    /// </summary>
+    private object? TransformForOfWithAwaitInBody(Cons forOfCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    {
+        // Parse: (for-of/for-await-of (let/var/const variable) iterable body)
+        var parts = ConsList(forOfCons);
+        if (parts.Count < 4)
+        {
+            // Malformed, continue with rest
+            var restStatements = statements.Skip(index + 1).ToList();
+            var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam);
+            return Cons.FromEnumerable([JsSymbols.Block, forOfCons, continuation]);
+        }
+
+        var loopType = parts[0];        // for-of or for-await-of
+        var variableDecl = parts[1];    // (let/var/const variable)
+        var iterableExpr = parts[2];    // iterable expression  
+        var loopBody = parts[3];        // loop body
+
+        // Extract variable info
+        Symbol? variableName = null;
+        Symbol? varKeyword = null;
+        if (variableDecl is Cons varDeclCons && !varDeclCons.IsEmpty)
+        {
+            var varDeclParts = ConsList(varDeclCons);
+            if (varDeclParts.Count >= 2)
+            {
+                varKeyword = varDeclParts[0] as Symbol;
+                variableName = varDeclParts[1] as Symbol;
+            }
+        }
+
+        if (variableName == null || varKeyword == null)
+        {
+            // Can't transform, pass through
+            var restStatements = statements.Skip(index + 1).ToList();
+            var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam);
+            return Cons.FromEnumerable([JsSymbols.Block, forOfCons, continuation]);
+        }
+
+        // Transform using CPS approach:
+        // 1. Get iterator once
+        // 2. Create loop check that gets next value
+        // 3. If done, continue after loop
+        // 4. If not done, extract value, execute body, and body's continuation is back to step 2
+        
+        var iteratorVar = Symbol.Intern("__iterator" + Guid.NewGuid().ToString("N").Substring(0, 8));
+        var resultVar = Symbol.Intern("__result");
+        var loopCheckFunc = Symbol.Intern("__loopCheck" + Guid.NewGuid().ToString("N").Substring(0, 8));
+        
+        // Get continuation after loop completes
+        var afterLoopStatements = statements.Skip(index + 1).ToList();
+        var afterLoopContinuation = ChainStatementsWithAwaits(afterLoopStatements, 0, resolveParam, rejectParam);
+
+        // Get iterator: let __iterator = iterable[Symbol.iterator]();
+        var getIteratorStmt = BuildGetIteratorForTransform(iterableExpr, iteratorVar);
+
+        // Build the loop check function that:
+        // - Gets next value
+        // - Checks if done
+        // - If done: calls after-loop continuation
+        // - If not done: executes body with continuation back to loop check
+        var loopCheckFuncBody = BuildCpsLoopCheck(
+            loopCheckFunc,
+            iteratorVar,
+            resultVar,
+            variableName,
+            varKeyword,
+            loopBody,
+            afterLoopContinuation,
+            resolveParam,
+            rejectParam
+        );
+
+        // function __loopCheck() { ... }
+        var loopCheckFuncDecl = Cons.FromEnumerable([
+            JsSymbols.Function,
+            loopCheckFunc,
+            Cons.FromEnumerable([]),  // no params
+            loopCheckFuncBody
+        ]);
+
+        // Initial call: __loopCheck()
+        var initialCall = Cons.FromEnumerable([
+            JsSymbols.Return,
+            Cons.FromEnumerable([
+                JsSymbols.Call,
+                loopCheckFunc
+            ])
+        ]);
+
+        // Combine: get iterator, define function, call it
+        return Cons.FromEnumerable([
+            JsSymbols.Block,
+            getIteratorStmt,
+            loopCheckFuncDecl,
+            initialCall
+        ]);
+    }
+
+    /// <summary>
+    /// Builds the CPS loop check function.
+    /// Key insight: body's continuation calls loopCheckFunc again, creating natural loop.
+    /// </summary>
+    private object? BuildCpsLoopCheck(
+        Symbol loopCheckFunc,
+        Symbol iteratorVar,
+        Symbol resultVar,
+        Symbol variableName,
+        Symbol varKeyword,
+        object? loopBody,
+        object? afterLoopContinuation,
+        Symbol resolveParam,
+        Symbol rejectParam)
+    {
+        // let __result = __iterator.next();
+        var getNext = Cons.FromEnumerable([
+            JsSymbols.Let,
+            resultVar,
+            Cons.FromEnumerable([
+                JsSymbols.Call,
+                Cons.FromEnumerable([
+                    JsSymbols.GetProperty,
+                    iteratorVar,
+                    "next"
+                ])
+            ])
+        ]);
+
+        // if (__result.done) { afterLoopContinuation } else { body + call loopCheckFunc }
+        var doneCheck = Cons.FromEnumerable([
+            JsSymbols.GetProperty,
+            resultVar,
+            "done"
+        ]);
+
+        // Extract value: let variable = __result.value;
+        var extractValue = Cons.FromEnumerable([
+            varKeyword,
+            variableName,
+            Cons.FromEnumerable([
+                JsSymbols.GetProperty,
+                resultVar,
+                "value"
+            ])
+        ]);
+
+        // Extract body statements and add call to loopCheckFunc at end
+        var bodyStatements = new List<object?> { extractValue };
+        if (loopBody is Cons bodyCons && !bodyCons.IsEmpty)
+        {
+            if (bodyCons.Head is Symbol sym && ReferenceEquals(sym, JsSymbols.Block))
+            {
+                var current = bodyCons.Rest;
+                while (current is Cons c && !c.IsEmpty)
+                {
+                    bodyStatements.Add(c.Head);
+                    current = c.Rest;
+                }
+            }
+            else
+            {
+                bodyStatements.Add(loopBody);
+            }
+        }
+
+        // The continuation of the body is to call loopCheckFunc again
+        // This is the key CPS insight: last fragment returns loop head as continuation
+        bodyStatements.Add(Cons.FromEnumerable([
+            JsSymbols.Return,
+            Cons.FromEnumerable([
+                JsSymbols.Call,
+                loopCheckFunc
+            ])
+        ]));
+
+        // Chain the body statements with await handling
+        // The recursive call will be part of the promise chain
+        var transformedBody = ChainStatementsWithAwaits(bodyStatements, 0, resolveParam, rejectParam);
+
+        // if (__result.done) { afterLoop } else { transformedBody }
+        var ifStatement = Cons.FromEnumerable([
+            JsSymbols.If,
+            doneCheck,
+            afterLoopContinuation,
+            transformedBody
+        ]);
+
+        // Function body
+        return Cons.FromEnumerable([
+            JsSymbols.Block,
+            getNext,
+            ifStatement
+        ]);
+    }
+
+    /// <summary>
+    /// Builds code to get an iterator from an iterable.
+    /// Returns: let __iterator = iterable[Symbol.iterator]();
+    /// </summary>
+    private object? BuildGetIteratorForTransform(object? iterableExpr, Symbol iteratorVar)
+    {
+        // Symbol.iterator
+        var iteratorSymbol = Cons.FromEnumerable([
+            JsSymbols.GetProperty,
+            Cons.FromEnumerable([
+                JsSymbols.GetProperty,
+                Symbol.Intern("Symbol"),
+                "iterator"
+            ])
+        ]);
+
+        // iterable[Symbol.iterator]
+        var getIteratorMethod = Cons.FromEnumerable([
+            JsSymbols.GetIndex,
+            iterableExpr,
+            iteratorSymbol
+        ]);
+
+        // iterable[Symbol.iterator]()
+        var callIteratorMethod = Cons.FromEnumerable([
+            JsSymbols.Call,
+            getIteratorMethod
+        ]);
+
+        // let __iterator = iterable[Symbol.iterator]();
+        return Cons.FromEnumerable([
+            JsSymbols.Let,
+            iteratorVar,
+            callIteratorMethod
+        ]);
     }
 
     /// <summary>

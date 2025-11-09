@@ -5,6 +5,34 @@ namespace Asynkron.JsEngine.Tests;
 public class AsyncIterationTests
 {
     [Fact]
+    public async Task RegularForOf_WithAwaitInBody()
+    {
+        // Test that regular for-of with await in body works
+        var engine = new JsEngine();
+        
+        await engine.Run(@"
+            let result = """";
+            let promises = [
+                Promise.resolve(""a""),
+                Promise.resolve(""b""),
+                Promise.resolve(""c"")
+            ];
+            
+            async function test() {
+                for (let promise of promises) {
+                    let item = await promise;
+                    result = result + item;
+                }
+            }
+            
+            test();
+        ");
+        
+        var result = engine.Evaluate("result;");
+        Assert.Equal("abc", result);
+    }
+
+    [Fact]
     public async Task ForAwaitOf_WithArray()
     {
         var engine = new JsEngine();
@@ -155,7 +183,7 @@ public class AsyncIterationTests
         Assert.Equal("symbol", result);
     }
     
-    [Fact(Skip = "for-await-of with await inside async functions requires CPS transformation integration")]
+    [Fact]
     public async Task ForAwaitOf_WithPromiseArray()
     {
         // NOTE: This test demonstrates a limitation - for-await-of with promises

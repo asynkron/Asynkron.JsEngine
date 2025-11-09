@@ -155,7 +155,7 @@ public class AsyncIterationTests
         Assert.Equal("symbol", result);
     }
     
-    [Fact(Skip = "for-await-of with await inside async functions requires CPS transformation integration")]
+    [Fact]
     public async Task ForAwaitOf_WithPromiseArray()
     {
         // NOTE: This test demonstrates a limitation - for-await-of with promises

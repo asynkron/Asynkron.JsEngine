@@ -93,6 +93,9 @@ public sealed class JsEngine
         
         // Register dynamic import function
         SetGlobalFunction("import", args => DynamicImport(args));
+        
+        // Register async iterator helper for CPS-transformed for-await-of loops
+        SetGlobalFunction("__getAsyncIterator", args => GetAsyncIterator(args));
     }
 
     /// <summary>
@@ -469,6 +472,48 @@ public sealed class JsEngine
         });
 
         return promiseObj;
+    }
+    
+    /// <summary>
+    /// Helper function for CPS-transformed for-await-of loops.
+    /// Gets an async iterator from an iterable, trying Symbol.asyncIterator first,
+    /// then falling back to Symbol.iterator.
+    /// </summary>
+    private object? GetAsyncIterator(IReadOnlyList<object?> args)
+    {
+        if (args.Count == 0)
+        {
+            throw new InvalidOperationException("__getAsyncIterator requires an iterable argument");
+        }
+
+        var iterable = args[0];
+        
+        if (iterable is not JsObject jsObj)
+        {
+            throw new InvalidOperationException($"Cannot get iterator from non-object value: {iterable}");
+        }
+
+        // Try Symbol.asyncIterator first
+        var asyncIteratorSymbol = JsSymbol.For("Symbol.asyncIterator");
+        var asyncIteratorKey = $"@@symbol:{asyncIteratorSymbol.GetHashCode()}";
+        
+        if (jsObj.TryGetProperty(asyncIteratorKey, out var asyncIteratorMethod) && 
+            asyncIteratorMethod is IJsCallable asyncIteratorCallable)
+        {
+            return asyncIteratorCallable.Invoke([], jsObj);
+        }
+
+        // Fall back to Symbol.iterator
+        var iteratorSymbol = JsSymbol.For("Symbol.iterator");
+        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+        
+        if (jsObj.TryGetProperty(iteratorKey, out var iteratorMethod) && 
+            iteratorMethod is IJsCallable iteratorCallable)
+        {
+            return iteratorCallable.Invoke([], jsObj);
+        }
+
+        throw new InvalidOperationException($"Object is not iterable (no Symbol.asyncIterator or Symbol.iterator)");
     }
     
     /// <summary>

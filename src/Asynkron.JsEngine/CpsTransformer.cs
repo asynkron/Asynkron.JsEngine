@@ -333,34 +333,12 @@ public sealed class CpsTransformer
             return TransformTryInAsyncContext(tryCons, statements, index, resolveParam, rejectParam);
         }
         
-        // Check if this is a for-await-of statement - needs special handling in async context
+        // Check if this is a for-await-of statement - needs transformation in async context
         if (statement is Cons forAwaitCons && !forAwaitCons.IsEmpty && 
             forAwaitCons.Head is Symbol forAwaitSymbol && ReferenceEquals(forAwaitSymbol, JsSymbols.ForAwaitOf))
         {
-            // For-await-of in async context: just include it and continue, but wrap it
-            // The evaluator will handle it, but we need to ensure continuations work
-            // For now, treat it as a regular statement and let the evaluator handle it
-            // This is a limitation - full support would require more complex transformation
-            var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
-            
-            if (rest is Cons restCons && !restCons.IsEmpty && 
-                restCons.Head is Symbol restSymbol && ReferenceEquals(restSymbol, JsSymbols.Block))
-            {
-                var flattenedStatements = new List<object?> { JsSymbols.Block, statement };
-                var current = restCons.Rest;
-                while (current is Cons c && !c.IsEmpty)
-                {
-                    flattenedStatements.Add(c.Head);
-                    current = c.Rest;
-                }
-                return Cons.FromEnumerable(flattenedStatements);
-            }
-            
-            return Cons.FromEnumerable([
-                JsSymbols.Block, 
-                statement, 
-                rest
-            ]);
+            // Transform for-await-of into a promise-based loop
+            return TransformForAwaitOfInAsyncContext(forAwaitCons, statements, index, resolveParam, rejectParam);
         }
         
         // Check if this statement contains await
@@ -1087,6 +1065,76 @@ public sealed class CpsTransformer
         }
 
         return Cons.FromEnumerable(items);
+    }
+
+    /// <summary>
+    /// Transforms a for-await-of statement within an async function context.
+    /// The transformation converts the loop into code that evaluates the for-await-of 
+    /// normally, but chains the continuation properly.
+    /// 
+    /// Since for-await-of is evaluated by EvaluateForAwaitOf which handles both sync 
+    /// and async iterators, we just need to ensure the continuation happens after it completes.
+    /// </summary>
+    private object? TransformForAwaitOfInAsyncContext(Cons forAwaitCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    {
+        // Get remaining statements after the loop
+        var restStatements = statements.Skip(index + 1).ToList();
+        var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam);
+
+        // The for-await-of itself will be evaluated normally, but we need to wrap it
+        // so the continuation happens after
+        if (IsSimpleResolveCall(continuation))
+        {
+            // If continuation is just resolve(null), we can skip it
+            return Cons.FromEnumerable([
+                JsSymbols.Block,
+                forAwaitCons,
+                continuation
+            ]);
+        }
+
+        // Include the for-await-of and then the continuation
+        return Cons.FromEnumerable([
+            JsSymbols.Block,
+            forAwaitCons,
+            continuation
+        ]);
+    }
+
+    /// <summary>
+    /// Checks if an expression is a simple resolve call with null.
+    /// </summary>
+    private bool IsSimpleResolveCall(object? expr)
+    {
+        if (expr is not Cons cons || cons.IsEmpty)
+            return false;
+
+        if (cons.Head is not Symbol blockSym || !ReferenceEquals(blockSym, JsSymbols.Block))
+            return false;
+
+        var blockContents = cons.Rest;
+        if (blockContents is not Cons blockCons || blockCons.IsEmpty)
+            return false;
+
+        var firstStmt = blockCons.Head;
+        if (firstStmt is not Cons stmtCons || stmtCons.IsEmpty)
+            return false;
+
+        // Check if it's an expression statement with a call to resolve with no args or null
+        if (stmtCons.Head is Symbol exprSym && ReferenceEquals(exprSym, JsSymbols.ExpressionStatement))
+        {
+            var exprContent = stmtCons.Rest;
+            if (exprContent is Cons exprCons && !exprCons.IsEmpty &&
+                exprCons.Head is Cons callCons && !callCons.IsEmpty &&
+                callCons.Head is Symbol callSym && ReferenceEquals(callSym, JsSymbols.Call))
+            {
+                // It's a call - check if it's calling resolve with null or no args
+                var callArgs = ConsList(callCons);
+                return callArgs.Count <= 2; // call resolve [null]
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

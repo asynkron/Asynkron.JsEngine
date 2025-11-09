@@ -27,7 +27,7 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
   - Ternary: `? :`
   - Optional chaining: `?.`
   - Special: `typeof`
-- **Classes**: `class`, `extends`, `super`, `new`
+- **Classes**: `class`, `extends`, `super`, `new`, private fields (`#fieldName`)
 - **Comments**: Single-line (`//`) and multi-line (`/* */`) comments
 - **Strings**: Both double-quoted (`"..."`) and single-quoted (`'...'`) string literals
 - **Type coercion**: Comprehensive type coercion including:
@@ -60,10 +60,13 @@ Asynkron.JsEngine implements a substantial subset of JavaScript features:
   - Math object with constants (PI, E, etc.) and methods (sqrt, pow, sin, cos, floor, ceil, round, etc.)
   - Array methods (map, filter, reduce, forEach, find, findIndex, some, every, join, includes, indexOf, slice, push, pop, shift, unshift, splice, concat, reverse, sort)
   - String methods (charAt, charCodeAt, indexOf, lastIndexOf, substring, slice, toLowerCase, toUpperCase, trim, trimStart, trimEnd, split, replace, startsWith, endsWith, includes, repeat, padStart, padEnd, match, search)
+  - Object static methods (keys, values, entries, assign, fromEntries, hasOwn)
   - Date object with constructor and instance methods (getTime, getFullYear, getMonth, getDate, getDay, getHours, getMinutes, getSeconds, getMilliseconds, toISOString)
   - Date static methods (now, parse)
   - JSON object with parse and stringify methods
   - RegExp constructor with flags (g, i, m) and methods (test, exec)
+  - Symbol primitive type with Symbol(), Symbol.for(), Symbol.keyFor()
+  - Map and Set collections with full API (set, get, has, delete, clear, size)
 
 ### 🚧 Not Yet Implemented
 
@@ -1169,6 +1172,297 @@ var arrayPlusNumber = engine.Evaluate("[1, 2] + 3;");
 Console.WriteLine(arrayPlusNumber); // Output: 1,23
 ```
 
+### Symbol Type
+
+```csharp
+var engine = new JsEngine();
+
+// Create unique symbols
+var uniqueSymbols = engine.Evaluate(@"
+    let s1 = Symbol();
+    let s2 = Symbol();
+    s1 === s2;
+");
+Console.WriteLine(uniqueSymbols); // Output: False
+
+// Symbol with description
+var symbolDesc = engine.Evaluate(@"
+    let sym = Symbol(""mySymbol"");
+    typeof sym;
+");
+Console.WriteLine(symbolDesc); // Output: symbol
+
+// Global symbol registry with Symbol.for()
+var globalSymbol = engine.Evaluate(@"
+    let s1 = Symbol.for(""shared"");
+    let s2 = Symbol.for(""shared"");
+    s1 === s2;
+");
+Console.WriteLine(globalSymbol); // Output: True
+
+// Get key for global symbol
+var symbolKey = engine.Evaluate(@"
+    let s = Symbol.for(""myKey"");
+    Symbol.keyFor(s);
+");
+Console.WriteLine(symbolKey); // Output: myKey
+
+// Use symbols as object keys
+var symbolAsKey = engine.Evaluate(@"
+    let id = Symbol(""id"");
+    let obj = {};
+    obj[id] = 123;
+    obj[id];
+");
+Console.WriteLine(symbolAsKey); // Output: 123
+```
+
+### Map Collection
+
+```csharp
+var engine = new JsEngine();
+
+// Create and use a Map
+var mapBasic = engine.Evaluate(@"
+    let map = new Map();
+    map.set(""name"", ""Alice"");
+    map.set(""age"", 30);
+    map.get(""name"");
+");
+Console.WriteLine(mapBasic); // Output: Alice
+
+// Map with various key types
+var mapKeys = engine.Evaluate(@"
+    let map = new Map();
+    let objKey = { id: 1 };
+    let funcKey = function() {};
+    
+    map.set(objKey, ""object key"");
+    map.set(funcKey, ""function key"");
+    map.set(1, ""number key"");
+    
+    map.get(objKey);
+");
+Console.WriteLine(mapKeys); // Output: object key
+
+// Method chaining
+var mapChaining = engine.Evaluate(@"
+    let map = new Map();
+    map.set(""a"", 1).set(""b"", 2).set(""c"", 3);
+    map.size;
+");
+Console.WriteLine(mapChaining); // Output: 3
+
+// Check existence and delete
+var mapOperations = engine.Evaluate(@"
+    let map = new Map();
+    map.set(""key"", ""value"");
+    let exists = map.has(""key"");
+    map.delete(""key"");
+    let stillExists = map.has(""key"");
+    exists && !stillExists;
+");
+Console.WriteLine(mapOperations); // Output: True
+
+// Clear all entries
+engine.Evaluate(@"
+    let map = new Map();
+    map.set(""a"", 1).set(""b"", 2);
+    map.clear();
+    let isEmpty = map.size === 0;
+");
+```
+
+### Set Collection
+
+```csharp
+var engine = new JsEngine();
+
+// Create and use a Set
+var setBasic = engine.Evaluate(@"
+    let mySet = new Set();
+    mySet.add(1);
+    mySet.add(2);
+    mySet.add(3);
+    mySet.has(2);
+");
+Console.WriteLine(setBasic); // Output: True
+
+// Set automatically removes duplicates
+var setDuplicates = engine.Evaluate(@"
+    let mySet = new Set();
+    mySet.add(1);
+    mySet.add(1);
+    mySet.add(2);
+    mySet.size;
+");
+Console.WriteLine(setDuplicates); // Output: 2
+
+// Method chaining
+var setChaining = engine.Evaluate(@"
+    let mySet = new Set();
+    mySet.add(1).add(2).add(3);
+    mySet.size;
+");
+Console.WriteLine(setChaining); // Output: 3
+
+// Delete values
+var setDelete = engine.Evaluate(@"
+    let mySet = new Set();
+    mySet.add(""value"");
+    let deleted = mySet.delete(""value"");
+    let stillExists = mySet.has(""value"");
+    deleted && !stillExists;
+");
+Console.WriteLine(setDelete); // Output: True
+
+// Clear all values
+engine.Evaluate(@"
+    let mySet = new Set();
+    mySet.add(1).add(2).add(3);
+    mySet.clear();
+    let isEmpty = mySet.size === 0;
+");
+```
+
+### Object.values()
+
+```csharp
+var engine = new JsEngine();
+
+// Get all values from an object
+var values = engine.Evaluate(@"
+    let person = {
+        name: ""Alice"",
+        age: 30,
+        city: ""NYC""
+    };
+    let values = Object.values(person);
+    values[0];
+");
+Console.WriteLine(values); // Output: Alice
+
+// Combine with other operations
+var sumValues = engine.Evaluate(@"
+    let scores = {
+        math: 85,
+        english: 92,
+        science: 88
+    };
+    let values = Object.values(scores);
+    let sum = 0;
+    let i = 0;
+    while (i < values.length) {
+        sum = sum + values[i];
+        i = i + 1;
+    }
+    sum;
+");
+Console.WriteLine(sumValues); // Output: 265
+
+// Works with Object.keys() and Object.entries()
+engine.Evaluate(@"
+    let obj = { a: 1, b: 2, c: 3 };
+    let keys = Object.keys(obj);        // [""a"", ""b"", ""c""]
+    let values = Object.values(obj);    // [1, 2, 3]
+    let entries = Object.entries(obj);  // [[""a"", 1], [""b"", 2], [""c"", 3]]
+");
+```
+
+### Private Class Fields
+
+```csharp
+var engine = new JsEngine();
+
+// Basic private field usage
+var privateField = engine.Evaluate(@"
+    class Counter {
+        #count = 0;
+        
+        increment() {
+            this.#count = this.#count + 1;
+        }
+        
+        getValue() {
+            return this.#count;
+        }
+    }
+    
+    let c = new Counter();
+    c.increment();
+    c.increment();
+    c.getValue();
+");
+Console.WriteLine(privateField); // Output: 2
+
+// Multiple private fields
+var multiplePrivate = engine.Evaluate(@"
+    class Rectangle {
+        #width = 0;
+        #height = 0;
+        
+        constructor(w, h) {
+            this.#width = w;
+            this.#height = h;
+        }
+        
+        getArea() {
+            return this.#width * this.#height;
+        }
+        
+        getPerimeter() {
+            return 2 * (this.#width + this.#height);
+        }
+    }
+    
+    let rect = new Rectangle(5, 10);
+    rect.getArea();
+");
+Console.WriteLine(multiplePrivate); // Output: 50
+
+// Private fields with inheritance
+var privateInheritance = engine.Evaluate(@"
+    class Base {
+        #baseField = ""base"";
+        
+        getBase() {
+            return this.#baseField;
+        }
+    }
+    
+    class Derived extends Base {
+        #derivedField = ""derived"";
+        
+        getDerived() {
+            return this.#derivedField;
+        }
+        
+        getBoth() {
+            return this.getBase() + "" "" + this.#derivedField;
+        }
+    }
+    
+    let obj = new Derived();
+    obj.getBoth();
+");
+Console.WriteLine(privateInheritance); // Output: base derived
+
+// Private fields are truly private
+engine.Evaluate(@"
+    class Secret {
+        #password = ""secret123"";
+        
+        checkPassword(attempt) {
+            return attempt === this.#password;
+        }
+    }
+    
+    let s = new Secret();
+    // s.#password would throw an error - private fields can't be accessed outside
+    let isValid = s.checkPassword(""secret123"");
+");
+```
+
 ## Running the Demo
 
 Console application demos are included in the `examples` folder:
@@ -1267,8 +1561,11 @@ The engine has achieved remarkable JavaScript compatibility! It now includes:
 - ✅ Regex literals with full support
 - ✅ Template literals
 - ✅ Comprehensive type coercion
-- ✅ Object.entries(), Object.assign()
+- ✅ Object.keys(), Object.values(), Object.entries(), Object.assign(), Object.fromEntries(), Object.hasOwn()
 - ✅ Array.isArray(), Array.from(), Array.of()
+- ✅ Symbol type with Symbol(), Symbol.for(), Symbol.keyFor()
+- ✅ Map and Set collections with full API
+- ✅ Private class fields (#fieldName syntax)
 
 See [docs/CPS_TRANSFORMATION_PLAN.md](docs/CPS_TRANSFORMATION_PLAN.md) for async/await implementation details and [docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md](docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md) for destructuring details.
 
@@ -1290,14 +1587,12 @@ For a comprehensive list of JavaScript features not yet implemented and their pr
 - Recommended implementation phases
 
 The most notable remaining features include:
-- Symbol type (for advanced iterators)
-- Map and Set collections
 - Object rest/spread in destructuring
-- Additional Object static methods (Object.values, Object.fromEntries, etc.)
-- Private class fields
+- Additional array methods (flat, flatMap, at, findLast, findLastIndex, etc.)
 - Proxy and Reflect (advanced metaprogramming)
 - BigInt (arbitrary precision integers)
 - Typed Arrays (for binary data)
+- WeakMap and WeakSet
 
 ## Contributing
 

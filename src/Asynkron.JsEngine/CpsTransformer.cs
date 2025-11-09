@@ -1087,9 +1087,8 @@ public sealed class CpsTransformer
 
     /// <summary>
     /// Transforms a for-of or for-await-of loop that contains await expressions in the body.
-    /// The key insight: for-of with await in body is the same as manual iteration with await.
-    /// We transform: for (let x of iterable) { await ...; }
-    /// Into: manual iteration with iterator protocol, allowing body transformation to handle await.
+    /// Key insight from @rogeralsing: for-of with await in body is the same as for-await-of.
+    /// Transform into a self-calling function that processes one item at a time via promises.
     /// </summary>
     private object? TransformForOfWithAwaitInBody(Cons forOfCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
     {
@@ -1129,33 +1128,87 @@ public sealed class CpsTransformer
             return Cons.FromEnumerable([JsSymbols.Block, forOfCons, continuation]);
         }
 
-        // Transform into manual iteration:
-        // let __iterator = iterable[Symbol.iterator]();
-        // let __result;
-        // while (true) {
-        //   __result = __iterator.next();
-        //   if (__result.done) break;
-        //   let variable = __result.value;
-        //   [body]
-        // }
-        // [continuation]
-
+        // Create unique variable names
         var iteratorVar = Symbol.Intern("__iterator" + Guid.NewGuid().ToString("N").Substring(0, 8));
+        var loopFuncName = Symbol.Intern("__loopFunc" + Guid.NewGuid().ToString("N").Substring(0, 8));
         var resultVar = Symbol.Intern("__result");
 
-        // Get iterator: let __iterator = iterable[Symbol.iterator]();
+        // Get continuation after loop
+        var restStatements2 = statements.Skip(index + 1).ToList();
+        
+        // Build the transformation:
+        // let __iterator = iterable[Symbol.iterator]();
+        // function __loopFunc() {
+        //   let __result = __iterator.next();
+        //   if (__result.done) {
+        //     [continuation]
+        //   } else {
+        //     let variable = __result.value;
+        //     [body statements]
+        //     return __loopFunc();
+        //   }
+        // }
+        // return __loopFunc();
+
+        // Get iterator
         var getIteratorStmt = BuildGetIteratorForTransform(iterableExpr, iteratorVar);
 
-        // let __result;
-        var resultDecl = Cons.FromEnumerable([
-            JsSymbols.Let,
+        // Build loop function body
+        var loopFunctionBody = BuildLoopFunctionBody(
+            loopFuncName,
+            iteratorVar,
             resultVar,
-            null
+            variableName,
+            varKeyword,
+            loopBody,
+            restStatements2,
+            resolveParam,
+            rejectParam
+        );
+
+        // function __loopFunc() { ... }
+        var loopFunctionDecl = Cons.FromEnumerable([
+            JsSymbols.Function,
+            loopFuncName,
+            Cons.FromEnumerable([]),  // no params
+            loopFunctionBody
         ]);
 
-        // __result = __iterator.next();
-        var assignNext = Cons.FromEnumerable([
-            JsSymbols.Assign,
+        // return __loopFunc();
+        var callLoopFunc = Cons.FromEnumerable([
+            JsSymbols.Return,
+            Cons.FromEnumerable([
+                JsSymbols.Call,
+                loopFuncName
+            ])
+        ]);
+
+        // Combine: getIterator, function decl, call
+        return Cons.FromEnumerable([
+            JsSymbols.Block,
+            getIteratorStmt,
+            loopFunctionDecl,
+            callLoopFunc
+        ]);
+    }
+
+    /// <summary>
+    /// Builds the loop function body that processes one iteration at a time.
+    /// </summary>
+    private object? BuildLoopFunctionBody(
+        Symbol loopFuncName,
+        Symbol iteratorVar,
+        Symbol resultVar,
+        Symbol variableName,
+        Symbol varKeyword,
+        object? loopBody,
+        List<object?> continuationStatements,
+        Symbol resolveParam,
+        Symbol rejectParam)
+    {
+        // let __result = __iterator.next();
+        var getNext = Cons.FromEnumerable([
+            JsSymbols.Let,
             resultVar,
             Cons.FromEnumerable([
                 JsSymbols.Call,
@@ -1167,19 +1220,15 @@ public sealed class CpsTransformer
             ])
         ]);
 
-        // if (__result.done) break;
-        var checkDone = Cons.FromEnumerable([
-            JsSymbols.If,
-            Cons.FromEnumerable([
-                JsSymbols.GetProperty,
-                resultVar,
-                "done"
-            ]),
-            Cons.FromEnumerable([
-                JsSymbols.Block,
-                Cons.FromEnumerable([JsSymbols.Break])
-            ])
+        // __result.done
+        var doneCheck = Cons.FromEnumerable([
+            JsSymbols.GetProperty,
+            resultVar,
+            "done"
         ]);
+
+        // Continuation when done
+        var whenDone = ChainStatementsWithAwaits(continuationStatements, 0, resolveParam, rejectParam);
 
         // let variable = __result.value;
         var extractValue = Cons.FromEnumerable([
@@ -1192,10 +1241,8 @@ public sealed class CpsTransformer
             ])
         ]);
 
-        // Build while body: [assignNext, checkDone, extractValue, ...loopBody]
-        var whileBodyStmts = new List<object?> { assignNext, checkDone, extractValue };
-        
-        // Add original loop body statements
+        // Extract body statements
+        var bodyStatements = new List<object?> { extractValue };
         if (loopBody is Cons bodyCons && !bodyCons.IsEmpty)
         {
             if (bodyCons.Head is Symbol sym && ReferenceEquals(sym, JsSymbols.Block))
@@ -1203,31 +1250,42 @@ public sealed class CpsTransformer
                 var current = bodyCons.Rest;
                 while (current is Cons c && !c.IsEmpty)
                 {
-                    whileBodyStmts.Add(c.Head);
+                    bodyStatements.Add(c.Head);
                     current = c.Rest;
                 }
             }
             else
             {
-                whileBodyStmts.Add(loopBody);
+                bodyStatements.Add(loopBody);
             }
         }
 
-        var whileBody = Cons.FromEnumerable([JsSymbols.Block, .. whileBodyStmts]);
+        // return __loopFunc();
+        bodyStatements.Add(Cons.FromEnumerable([
+            JsSymbols.Return,
+            Cons.FromEnumerable([
+                JsSymbols.Call,
+                loopFuncName
+            ])
+        ]));
 
-        // while (true) { ... }
-        var whileLoop = Cons.FromEnumerable([
-            JsSymbols.While,
-            true,  // condition: true
-            whileBody
+        // Transform body statements with awaits - this will create promise chains
+        var transformedElseBody = ChainStatementsWithAwaits(bodyStatements, 0, resolveParam, rejectParam);
+
+        // if (__result.done) { whenDone } else { transformedElseBody }
+        var ifStatement = Cons.FromEnumerable([
+            JsSymbols.If,
+            doneCheck,
+            whenDone,
+            transformedElseBody
         ]);
 
-        // Combine: getIterator, resultDecl, whileLoop, then chain continuation
-        var transformedStatements = new List<object?> { getIteratorStmt, resultDecl, whileLoop };
-        transformedStatements.AddRange(statements.Skip(index + 1));
-
-        // Now chain these statements with await handling
-        return ChainStatementsWithAwaits(transformedStatements, 0, resolveParam, rejectParam);
+        // Function body: let __result = ...; if (...)
+        return Cons.FromEnumerable([
+            JsSymbols.Block,
+            getNext,
+            ifStatement
+        ]);
     }
 
     /// <summary>

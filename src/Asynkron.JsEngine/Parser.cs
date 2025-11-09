@@ -18,10 +18,22 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object ParseDeclaration()
     {
-        // Check for import statement
-        if (Match(TokenType.Import))
+        // Check for import statement vs import() expression
+        if (Check(TokenType.Import))
         {
-            return ParseImportDeclaration();
+            // Peek ahead to see if this is import() (dynamic) or import ... from (static)
+            var nextToken = PeekNext();
+            if (nextToken.Type == TokenType.LeftParen)
+            {
+                // This is import() expression, treat as statement
+                return ParseExpressionStatement();
+            }
+            else
+            {
+                // This is static import statement
+                Match(TokenType.Import);
+                return ParseImportDeclaration();
+            }
         }
 
         // Check for export statement
@@ -566,7 +578,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
         if (Match(TokenType.For))
         {
-            return ParseForStatement();
+            // Check if this is 'for await...of'
+            var isForAwait = Match(TokenType.Await);
+            return ParseForStatement(isForAwait);
         }
 
         if (Match(TokenType.While))
@@ -744,7 +758,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         return Cons.FromEnumerable([JsSymbols.DoWhile, condition, body]);
     }
 
-    private object ParseForStatement()
+    private object ParseForStatement(bool isForAwait = false)
     {
         Consume(TokenType.LeftParen, "Expected '(' after 'for'.");
 
@@ -779,6 +793,13 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         if (loopVariable != null && (Match(TokenType.In) || Match(TokenType.Of)))
         {
             var isForOf = Previous().Type == TokenType.Of;
+            
+            // for await requires for...of
+            if (isForAwait && !isForOf)
+            {
+                throw new ParseException("'for await' can only be used with 'of', not 'in'");
+            }
+            
             var iterableExpression = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after for...in/of clauses.");
             var body = ParseStatement();
@@ -793,7 +814,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             
             var varDecl = Cons.FromEnumerable([Symbol.Intern(keyword), loopVariable, null]);
             
-            if (isForOf)
+            if (isForAwait)
+            {
+                return Cons.FromEnumerable([JsSymbols.ForAwaitOf, varDecl, iterableExpression, body]);
+            }
+            else if (isForOf)
             {
                 return Cons.FromEnumerable([JsSymbols.ForOf, varDecl, iterableExpression, body]);
             }
@@ -801,6 +826,12 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             {
                 return Cons.FromEnumerable([JsSymbols.ForIn, varDecl, iterableExpression, body]);
             }
+        }
+        
+        // for await without of is an error
+        if (isForAwait)
+        {
+            throw new ParseException("'for await' can only be used with 'for await...of' syntax");
         }
         
         // Not a for...in/of loop, reset and parse as regular for loop
@@ -1420,6 +1451,21 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             return ParseRegexLiteral();
         }
 
+        if (Match(TokenType.Import))
+        {
+            // Dynamic import: import(specifier)
+            // This is different from the static import statement
+            if (Check(TokenType.LeftParen))
+            {
+                // Return a symbol that will be handled as a callable
+                return Symbol.Intern("import");
+            }
+            else
+            {
+                throw new ParseException("'import' can only be used as dynamic import with parentheses: import(specifier)");
+            }
+        }
+
         if (Match(TokenType.Identifier))
         {
             return Symbol.Intern(Previous().Lexeme);
@@ -1917,6 +1963,8 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
     private bool IsAtEnd => Peek().Type == TokenType.Eof;
 
     private Token Peek() => _tokens[_current];
+    
+    private Token PeekNext() => _current + 1 < _tokens.Count ? _tokens[_current + 1] : _tokens[_current];
 
     private Token Previous() => _tokens[_current - 1];
 

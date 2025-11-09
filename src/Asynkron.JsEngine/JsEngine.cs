@@ -89,6 +89,9 @@ public sealed class JsEngine
         SetGlobalFunction("setInterval", args => SetInterval(args));
         SetGlobalFunction("clearTimeout", args => ClearTimer(args));
         SetGlobalFunction("clearInterval", args => ClearTimer(args));
+        
+        // Register dynamic import function
+        SetGlobalFunction("import", args => DynamicImport(args));
     }
 
     /// <summary>
@@ -422,6 +425,49 @@ public sealed class JsEngine
         }
 
         return null;
+    }
+    
+    /// <summary>
+    /// Implements dynamic import() - loads a module and returns a Promise that resolves to the module's exports.
+    /// </summary>
+    private object? DynamicImport(IReadOnlyList<object?> args)
+    {
+        if (args.Count == 0)
+        {
+            throw new Exception("import() requires a module specifier");
+        }
+
+        var modulePath = args[0]?.ToString();
+        if (string.IsNullOrEmpty(modulePath))
+        {
+            throw new Exception("import() requires a valid module specifier");
+        }
+
+        // Create a promise that will resolve with the module exports
+        var promise = new JsPromise(this);
+        var promiseObj = promise.JsObject;
+        
+        // Add promise instance methods (then, catch, finally)
+        StandardLibrary.AddPromiseInstanceMethods(promiseObj, promise, this);
+        
+        // Schedule loading the module asynchronously
+        _eventQueue.Writer.TryWrite(async () =>
+        {
+            try
+            {
+                // Load the module synchronously (it's cached if already loaded)
+                var exports = LoadModule(modulePath);
+                promise.Resolve(exports);
+            }
+            catch (Exception ex)
+            {
+                promise.Reject(ex.Message);
+            }
+            
+            await Task.CompletedTask;
+        });
+
+        return promiseObj;
     }
     
     /// <summary>

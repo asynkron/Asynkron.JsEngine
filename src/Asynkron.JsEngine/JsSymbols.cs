@@ -21,6 +21,7 @@ public static class JsSymbols
     public static readonly Symbol For = Symbol.Intern("for");
     public static readonly Symbol ForIn = Symbol.Intern("for-in");
     public static readonly Symbol ForOf = Symbol.Intern("for-of");
+    public static readonly Symbol ForAwaitOf = Symbol.Intern("for-await-of");
     public static readonly Symbol Switch = Symbol.Intern("switch");
     public static readonly Symbol Case = Symbol.Intern("case");
     public static readonly Symbol Default = Symbol.Intern("default");
@@ -94,6 +95,7 @@ public static class JsSymbols
     
     // Module symbols
     public static readonly Symbol Import = Symbol.Intern("import");
+    public static readonly Symbol DynamicImport = Symbol.Intern("dynamic-import");
     public static readonly Symbol ImportDefault = Symbol.Intern("import-default");
     public static readonly Symbol ImportNamed = Symbol.Intern("import-named");
     public static readonly Symbol ImportNamespace = Symbol.Intern("import-namespace");

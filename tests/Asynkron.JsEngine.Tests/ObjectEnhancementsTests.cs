@@ -196,4 +196,43 @@ public class ObjectEnhancementsTests
         ");
         Assert.Equal("Alice is 30", result);
     }
+
+    // Object spread in object literals
+    [Fact]
+    public void ObjectSpreadInLiteral()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let obj1 = { a: 1, b: 2 };
+            let obj2 = { c: 3, d: 4 };
+            let merged = { ...obj1, ...obj2, e: 5 };
+            merged.a + merged.b + merged.c + merged.d + merged.e;
+        ");
+        Assert.Equal(15d, result);
+    }
+
+    [Fact]
+    public void ObjectSpreadOverwrites()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let obj1 = { a: 1, b: 2 };
+            let obj2 = { b: 20, c: 3 };
+            let merged = { ...obj1, ...obj2 };
+            merged.a + merged.b + merged.c;
+        ");
+        Assert.Equal(24d, result);
+    }
+
+    [Fact]
+    public void ObjectSpreadWithRegularProperties()
+    {
+        var engine = new JsEngine();
+        var result = engine.Evaluate(@"
+            let base = { x: 1, y: 2 };
+            let extended = { ...base, z: 3, w: 4 };
+            extended.x + extended.y + extended.z + extended.w;
+        ");
+        Assert.Equal(10d, result);
+    }
 }

@@ -115,11 +115,27 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
         Cons? constructor = null;
         var methods = new List<object?>();
+        var privateFields = new List<object?>();
 
         while (!Check(TokenType.RightBrace))
         {
+            // Check for private field declaration
+            if (Check(TokenType.PrivateIdentifier))
+            {
+                var fieldToken = Advance();
+                var fieldName = fieldToken.Lexeme; // Includes the '#'
+                
+                object? initializer = null;
+                if (Match(TokenType.Equal))
+                {
+                    initializer = ParseExpression();
+                }
+                
+                Match(TokenType.Semicolon); // optional semicolon
+                privateFields.Add(Cons.FromEnumerable([JsSymbols.PrivateField, fieldName, initializer]));
+            }
             // Check for getter/setter in class
-            if (Match(TokenType.Get))
+            else if (Match(TokenType.Get))
             {
                 var methodNameToken = Consume(TokenType.Identifier, "Expected getter name in class body.");
                 var methodName = methodNameToken.Lexeme;
@@ -143,6 +159,18 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             {
                 var methodNameToken = Consume(TokenType.Identifier, "Expected method name in class body.");
                 var methodName = methodNameToken.Lexeme;
+                
+                // Check if this is a public field declaration (e.g., public = 20;)
+                if (Match(TokenType.Equal))
+                {
+                    var initializer = ParseExpression();
+                    Match(TokenType.Semicolon); // optional semicolon
+                    // For now, treat public fields similar to private fields but without the # prefix
+                    // We could add them to a separate list, but for simplicity, we'll just skip them
+                    // as they can be initialized in the constructor
+                    continue; // Skip adding this to methods list
+                }
+                
                 Consume(TokenType.LeftParen, "Expected '(' after method name.");
                 var parameters = ParseParameterList();
                 Consume(TokenType.RightParen, "Expected ')' after method parameters.");
@@ -174,8 +202,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
         constructor ??= CreateDefaultConstructor(name);
         var methodList = Cons.FromEnumerable(methods);
+        var privateFieldList = Cons.FromEnumerable(privateFields);
 
-        return Cons.FromEnumerable([JsSymbols.Class, name, extendsClause, constructor, methodList]);
+        return Cons.FromEnumerable([JsSymbols.Class, name, extendsClause, constructor, methodList, privateFieldList]);
     }
 
     private Cons ParseParameterList()
@@ -1651,6 +1680,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object FinishGet(object? target)
     {
+        // Check for private field access
+        if (Check(TokenType.PrivateIdentifier))
+        {
+            var privateToken = Advance();
+            var fieldName = privateToken.Lexeme; // Includes the '#'
+            return Cons.FromEnumerable([JsSymbols.GetProperty, target, fieldName]);
+        }
+        
         // Allow identifiers or keywords as property names (e.g., object.of, object.in, object.for)
         if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
         {
@@ -2030,13 +2067,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                 
                 Consume(TokenType.LeftBrace, "Expected '{' after class name or extends clause.");
                 
-                var (constructor, methods) = ParseClassBody();
+                var (constructor, methods, privateFields) = ParseClassBody();
                 
                 // If no constructor was defined, create a default one
                 constructor ??= CreateDefaultConstructor(name);
                 var methodList = Cons.FromEnumerable(methods);
+                var privateFieldList = Cons.FromEnumerable(privateFields);
                 
-                expression = Cons.FromEnumerable([JsSymbols.Class, name, extendsClause, constructor, methodList]);
+                expression = Cons.FromEnumerable([JsSymbols.Class, name, extendsClause, constructor, methodList, privateFieldList]);
             }
             else
             {
@@ -2104,15 +2142,31 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         return Cons.FromEnumerable(exports);
     }
     
-    private (Cons? constructor, List<object?> methods) ParseClassBody()
+    private (Cons? constructor, List<object?> methods, List<object?> privateFields) ParseClassBody()
     {
         Cons? constructor = null;
         var methods = new List<object?>();
+        var privateFields = new List<object?>();
         
         while (!Check(TokenType.RightBrace))
         {
+            // Check for private field declaration
+            if (Check(TokenType.PrivateIdentifier))
+            {
+                var fieldToken = Advance();
+                var fieldName = fieldToken.Lexeme; // Includes the '#'
+                
+                object? initializer = null;
+                if (Match(TokenType.Equal))
+                {
+                    initializer = ParseExpression();
+                }
+                
+                Match(TokenType.Semicolon); // optional semicolon
+                privateFields.Add(Cons.FromEnumerable([JsSymbols.PrivateField, fieldName, initializer]));
+            }
             // Check for getter/setter in class
-            if (Match(TokenType.Get))
+            else if (Match(TokenType.Get))
             {
                 var methodNameToken = Consume(TokenType.Identifier, "Expected getter name in class body.");
                 var methodName = methodNameToken.Lexeme;
@@ -2136,6 +2190,15 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             {
                 var methodNameToken = Consume(TokenType.Identifier, "Expected method name in class body.");
                 var methodName = methodNameToken.Lexeme;
+                
+                // Check if this is a public field declaration
+                if (Match(TokenType.Equal))
+                {
+                    var initializer = ParseExpression();
+                    Match(TokenType.Semicolon); // optional semicolon
+                    continue; // Skip adding this to methods list for now
+                }
+                
                 Consume(TokenType.LeftParen, "Expected '(' after method name.");
                 var parameters = ParseParameterList();
                 Consume(TokenType.RightParen, "Expected ')' after method parameters.");
@@ -2158,7 +2221,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         }
         
         Consume(TokenType.RightBrace, "Expected '}' after class body.");
-        return (constructor, methods);
+        return (constructor, methods, privateFields);
     }
     
     private bool CheckAhead(TokenType type)

@@ -304,6 +304,9 @@ internal sealed class Lexer(string source)
             case '`':
                 ReadTemplateLiteral();
                 break;
+            case '#':
+                ReadPrivateIdentifier();
+                break;
             default:
                 if (IsDigit(c))
                 {
@@ -365,6 +368,23 @@ internal sealed class Lexer(string source)
         {
             AddToken(TokenType.Identifier);
         }
+    }
+
+    private void ReadPrivateIdentifier()
+    {
+        // '#' has already been consumed
+        if (!IsAlpha(Peek()))
+        {
+            throw new ParseException($"Expected identifier after '#' on line {_line} column {_column}.");
+        }
+        
+        while (IsAlphaNumeric(Peek()))
+        {
+            Advance();
+        }
+
+        var text = _source[_start.._current]; // Includes the '#'
+        AddToken(TokenType.PrivateIdentifier, text);
     }
 
     private void ReadNumber()

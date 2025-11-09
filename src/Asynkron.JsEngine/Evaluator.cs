@@ -3869,7 +3869,7 @@ internal static class Evaluator
                 }
                 else if (target is TypedArrayBase typedArray && TryConvertToIndex(index, out var typedIndex))
                 {
-                    typedArray.SetElement(typedIndex, newValue);
+                    typedArray.SetElement(typedIndex, (double) newValue);
                 }
                 else if (target is JsObject jsObject)
                 {

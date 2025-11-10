@@ -15,6 +15,7 @@ public sealed class JsEngine
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly HashSet<Task> _activeTimerTasks = [];
     private int _nextTimerId = 1;
+    private int _pendingTaskCount = 0; // Track pending tasks in the event queue
     
     // Module registry: maps module paths to their exported values
     private readonly Dictionary<string, JsObject> _moduleRegistry = new();
@@ -339,7 +340,7 @@ public sealed class JsEngine
         var result = await evaluateTask;
         
         // Wait for all pending work to complete:
-        // - Event queue to drain  
+        // - Event queue to drain (no pending tasks)
         // - Timer tasks to complete and schedule their callbacks
         // We loop with a timeout to avoid hanging forever
         var startTime = DateTime.UtcNow;
@@ -354,13 +355,16 @@ public sealed class JsEngine
                 hasActiveTasks = _activeTimerTasks.Count > 0;
             }
             
-            if (!hasActiveTasks)
+            // Check if we have any pending tasks in the event queue
+            var hasPendingTasks = Interlocked.CompareExchange(ref _pendingTaskCount, 0, 0) > 0;
+            
+            if (!hasActiveTasks && !hasPendingTasks)
             {
-                // No active tasks, we're done
+                // No active tasks and no pending tasks, we're done
                 break;
             }
             
-            // Wait a bit for timer tasks to complete their cleanup
+            // Wait a bit for timer tasks and event queue to process
             await Task.Delay(20);
         }
         
@@ -374,6 +378,7 @@ public sealed class JsEngine
     /// <param name="task">The task to schedule</param>
     public void ScheduleTask(Func<Task> task)
     {
+        Interlocked.Increment(ref _pendingTaskCount);
         _eventQueue.Writer.TryWrite(task);
     }
 
@@ -381,12 +386,27 @@ public sealed class JsEngine
     /// Processes all events in the event queue until it's empty.
     /// Each event is executed and any new events scheduled during execution
     /// will also be processed.
+    /// Exceptions from individual tasks are caught and logged to prevent the event loop from stopping.
     /// </summary>
     private async Task ProcessEventQueue()
     {
         await foreach(var x in _eventQueue.Reader.ReadAllAsync())
         {
-            await x();
+            try
+            {
+                await x();
+            }
+            catch (Exception ex)
+            {
+                // Log the exception but don't let it kill the event loop
+                // Individual task failures should not stop the event queue processing
+                Console.Error.WriteLine($"Unhandled exception in event queue task: {ex}");
+            }
+            finally
+            {
+                // Decrement the pending task count after processing
+                Interlocked.Decrement(ref _pendingTaskCount);
+            }
         }
     }
 

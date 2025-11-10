@@ -3221,26 +3221,6 @@ internal static class StandardLibrary
     }
 
     /// <summary>
-    /// Creates the eval function that evaluates JavaScript code in the current context.
-    /// </summary>
-    public static HostFunction CreateEvalFunction(JsEngine engine)
-    {
-        return new HostFunction(args =>
-        {
-            if (args.Count == 0 || args[0] is not string code)
-            {
-                return args.Count > 0 ? args[0] : JsSymbols.Undefined;
-            }
-            
-            // Evaluate the code string using the engine
-            // TODO: this hangs, the event loop is now blocking itself.
-            // can we do async host functions? can we run this on the event loop and still return a result?
-            var res = engine.Evaluate(code).Result;
-            return res;
-        });
-    }
-    
-    /// <summary>
     /// Converts a value to a boolean following JavaScript truthiness rules.
     /// </summary>
     private static bool ToBoolean(object? value) => value switch

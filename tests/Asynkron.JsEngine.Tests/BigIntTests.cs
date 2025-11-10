@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class BigIntTests
 {
     [Fact]
-    public void BigIntLiteralParsing()
+    public async Task BigIntLiteralParsing()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("123n;");
@@ -14,7 +14,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntLiteralParsingLargeNumber()
+    public async Task BigIntLiteralParsingLargeNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("9007199254740991n;"); // MAX_SAFE_INTEGER
@@ -23,7 +23,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntLiteralParsingVeryLargeNumber()
+    public async Task BigIntLiteralParsingVeryLargeNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("12345678901234567890n;");
@@ -32,7 +32,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntAddition()
+    public async Task BigIntAddition()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n + 20n;");
@@ -41,7 +41,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntSubtraction()
+    public async Task BigIntSubtraction()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("50n - 20n;");
@@ -50,7 +50,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntMultiplication()
+    public async Task BigIntMultiplication()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("6n * 7n;");
@@ -59,7 +59,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntDivision()
+    public async Task BigIntDivision()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("50n / 10n;");
@@ -68,7 +68,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntDivisionTruncates()
+    public async Task BigIntDivisionTruncates()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("7n / 2n;");
@@ -77,7 +77,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntModulo()
+    public async Task BigIntModulo()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("17n % 5n;");
@@ -86,7 +86,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntExponentiation()
+    public async Task BigIntExponentiation()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("2n ** 10n;");
@@ -95,7 +95,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntExponentiationLarge()
+    public async Task BigIntExponentiationLarge()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("2n ** 100n;");
@@ -104,7 +104,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntNegation()
+    public async Task BigIntNegation()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("-42n;");
@@ -113,7 +113,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntBitwiseAnd()
+    public async Task BigIntBitwiseAnd()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("12n & 10n;");
@@ -122,7 +122,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntBitwiseOr()
+    public async Task BigIntBitwiseOr()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("12n | 10n;");
@@ -131,7 +131,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntBitwiseXor()
+    public async Task BigIntBitwiseXor()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("12n ^ 10n;");
@@ -140,7 +140,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntBitwiseNot()
+    public async Task BigIntBitwiseNot()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("~5n;");
@@ -149,7 +149,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntLeftShift()
+    public async Task BigIntLeftShift()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("5n << 2n;");
@@ -158,7 +158,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntRightShift()
+    public async Task BigIntRightShift()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("20n >> 2n;");
@@ -167,7 +167,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntStrictEquality()
+    public async Task BigIntStrictEquality()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n === 10n;");
@@ -175,7 +175,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntStrictInequality()
+    public async Task BigIntStrictInequality()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n === 20n;");
@@ -183,7 +183,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntNotStrictlyEqualToNumber()
+    public async Task BigIntNotStrictlyEqualToNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n === 10;");
@@ -191,7 +191,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntLooseEqualityWithNumber()
+    public async Task BigIntLooseEqualityWithNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n == 10;");
@@ -199,7 +199,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntLooseEqualityWithNumberFalse()
+    public async Task BigIntLooseEqualityWithNumberFalse()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n == 11;");
@@ -207,7 +207,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntLooseEqualityWithDecimalFalse()
+    public async Task BigIntLooseEqualityWithDecimalFalse()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n == 10.5;");
@@ -215,7 +215,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntGreaterThan()
+    public async Task BigIntGreaterThan()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("20n > 10n;");
@@ -223,7 +223,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntGreaterThanOrEqual()
+    public async Task BigIntGreaterThanOrEqual()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n >= 10n;");
@@ -231,7 +231,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntLessThan()
+    public async Task BigIntLessThan()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n < 20n;");
@@ -239,7 +239,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntLessThanOrEqual()
+    public async Task BigIntLessThanOrEqual()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n <= 10n;");
@@ -247,7 +247,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntCompareWithNumber()
+    public async Task BigIntCompareWithNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("20n > 10;");
@@ -255,7 +255,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntCompareWithNumberLess()
+    public async Task BigIntCompareWithNumberLess()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("5n < 10;");
@@ -263,7 +263,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntTypeof()
+    public async Task BigIntTypeof()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("typeof 42n;");
@@ -271,69 +271,69 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntCannotMixWithNumberInAddition()
+    public async Task BigIntCannotMixWithNumberInAddition()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.EvaluateSync("10n + 5;"));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("10n + 5;")));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
     [Fact]
-    public void BigIntCannotMixWithNumberInSubtraction()
+    public async Task BigIntCannotMixWithNumberInSubtraction()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.EvaluateSync("10n - 5;"));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("10n - 5;")));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
     [Fact]
-    public void BigIntCannotMixWithNumberInMultiplication()
+    public async Task BigIntCannotMixWithNumberInMultiplication()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.EvaluateSync("10n * 5;"));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("10n * 5;")));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
     [Fact]
-    public void BigIntCannotMixWithNumberInDivision()
+    public async Task BigIntCannotMixWithNumberInDivision()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.EvaluateSync("10n / 5;"));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("10n / 5;")));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
     [Fact]
-    public void BigIntCannotUseUnsignedRightShift()
+    public async Task BigIntCannotUseUnsignedRightShift()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.EvaluateSync("10n >>> 2n;"));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("10n >>> 2n;")));
         Assert.Contains("BigInts have no unsigned right shift", exception.Message);
     }
 
     [Fact]
-    public void BigIntDivisionByZeroThrows()
+    public async Task BigIntDivisionByZeroThrows()
     {
         var engine = new JsEngine();
-        Assert.Throws<DivideByZeroException>(() => engine.EvaluateSync("10n / 0n;"));
+        await Assert.ThrowsAsync<DivideByZeroException>(() => Task.Run(() => engine.EvaluateSync("10n / 0n;")));
     }
 
     [Fact]
-    public void BigIntModuloByZeroThrows()
+    public async Task BigIntModuloByZeroThrows()
     {
         var engine = new JsEngine();
-        Assert.Throws<DivideByZeroException>(() => engine.EvaluateSync("10n % 0n;"));
+        await Assert.ThrowsAsync<DivideByZeroException>(() => Task.Run(() => engine.EvaluateSync("10n % 0n;")));
     }
 
     [Fact]
-    public void BigIntNegativeExponentiationThrows()
+    public async Task BigIntNegativeExponentiationThrows()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<InvalidOperationException>(() => engine.EvaluateSync("2n ** -1n;"));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("2n ** -1n;")));
         Assert.Contains("Exponent must be non-negative", exception.Message);
     }
 
     [Fact]
-    public void BigIntVariableAssignment()
+    public async Task BigIntVariableAssignment()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 123n; x;");
@@ -342,7 +342,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntArithmeticExpression()
+    public async Task BigIntArithmeticExpression()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 10n; let y = 20n; x + y * 2n;");
@@ -351,7 +351,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntIncrement()
+    public async Task BigIntIncrement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 10n; ++x;");
@@ -360,7 +360,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntDecrement()
+    public async Task BigIntDecrement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 10n; --x;");
@@ -369,7 +369,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntPostfixIncrement()
+    public async Task BigIntPostfixIncrement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 10n; let y = x++; y;");
@@ -378,7 +378,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntPostfixIncrementValue()
+    public async Task BigIntPostfixIncrementValue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 10n; x++; x;");
@@ -387,7 +387,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntPostfixDecrement()
+    public async Task BigIntPostfixDecrement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 10n; let y = x--; y;");
@@ -396,7 +396,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntPostfixDecrementValue()
+    public async Task BigIntPostfixDecrementValue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 10n; x--; x;");
@@ -405,7 +405,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntZero()
+    public async Task BigIntZero()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("0n;");
@@ -414,7 +414,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntNegativeValue()
+    public async Task BigIntNegativeValue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("-123n;");
@@ -423,7 +423,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntConditionalExpression()
+    public async Task BigIntConditionalExpression()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 10n > 5n ? 100n : 200n; x;");
@@ -432,7 +432,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntLooseEqualityWithString()
+    public async Task BigIntLooseEqualityWithString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n == '10';");
@@ -440,7 +440,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntLooseEqualityWithStringFalse()
+    public async Task BigIntLooseEqualityWithStringFalse()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n == '11';");
@@ -448,7 +448,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntNotStrictlyEqualToString()
+    public async Task BigIntNotStrictlyEqualToString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("10n === '10';");
@@ -456,7 +456,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntStringConcatenation()
+    public async Task BigIntStringConcatenation()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("'Value: ' + 42n;");
@@ -464,7 +464,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntWithParentheses()
+    public async Task BigIntWithParentheses()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("(10n + 5n) * 2n;");
@@ -473,7 +473,7 @@ public class BigIntTests
     }
 
     [Fact]
-    public void BigIntComplexExpression()
+    public async Task BigIntComplexExpression()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let a = 5n; let b = 3n; (a + b) * (a - b);");

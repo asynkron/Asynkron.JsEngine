@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 public class CpsTransformerTests
 {
     [Fact]
-    public void NeedsTransformation_WithRegularCode_ReturnsFalse()
+    public async Task NeedsTransformation_WithRegularCode_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
@@ -23,7 +23,7 @@ public class CpsTransformerTests
     }
 
     [Fact]
-    public void NeedsTransformation_WithNullProgram_ReturnsFalse()
+    public async Task NeedsTransformation_WithNullProgram_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
@@ -36,7 +36,7 @@ public class CpsTransformerTests
     }
 
     [Fact]
-    public void NeedsTransformation_WithEmptyProgram_ReturnsFalse()
+    public async Task NeedsTransformation_WithEmptyProgram_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
@@ -50,7 +50,7 @@ public class CpsTransformerTests
     }
 
     [Fact]
-    public void Transform_ReturnsInputUnchanged()
+    public async Task Transform_ReturnsInputUnchanged()
     {
         // Arrange
         var transformer = new CpsTransformer();
@@ -66,7 +66,7 @@ public class CpsTransformerTests
     }
 
     [Fact]
-    public void TransformerCanBeInstantiated()
+    public async Task TransformerCanBeInstantiated()
     {
         // Arrange & Act
         var transformer = new CpsTransformer();
@@ -76,7 +76,7 @@ public class CpsTransformerTests
     }
 
     [Fact]
-    public void NeedsTransformation_WithFunctionDeclaration_ReturnsFalse()
+    public async Task NeedsTransformation_WithFunctionDeclaration_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
@@ -92,7 +92,7 @@ public class CpsTransformerTests
     }
 
     [Fact]
-    public void NeedsTransformation_WithComplexCode_ReturnsFalse()
+    public async Task NeedsTransformation_WithComplexCode_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();

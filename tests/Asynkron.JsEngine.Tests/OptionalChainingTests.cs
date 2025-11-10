@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class OptionalChainingTests
 {
     [Fact]
-    public void OptionalPropertyAccessNull()
+    public async Task OptionalPropertyAccessNull()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -16,7 +16,7 @@ public class OptionalChainingTests
     }
 
     [Fact]
-    public void OptionalPropertyAccessDefined()
+    public async Task OptionalPropertyAccessDefined()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -27,7 +27,7 @@ public class OptionalChainingTests
     }
 
     [Fact]
-    public void OptionalPropertyChain()
+    public async Task OptionalPropertyChain()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -38,7 +38,7 @@ public class OptionalChainingTests
     }
 
     [Fact]
-    public void OptionalPropertyChainNull()
+    public async Task OptionalPropertyChainNull()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -49,7 +49,7 @@ public class OptionalChainingTests
     }
 
     [Fact]
-    public void OptionalMethodCallNull()
+    public async Task OptionalMethodCallNull()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -60,7 +60,7 @@ public class OptionalChainingTests
     }
 
     [Fact]
-    public void OptionalMethodCallDefined()
+    public async Task OptionalMethodCallDefined()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -71,7 +71,7 @@ public class OptionalChainingTests
     }
 
     [Fact]
-    public void OptionalIndexAccessNull()
+    public async Task OptionalIndexAccessNull()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -82,7 +82,7 @@ public class OptionalChainingTests
     }
 
     [Fact]
-    public void OptionalIndexAccessDefined()
+    public async Task OptionalIndexAccessDefined()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -93,7 +93,7 @@ public class OptionalChainingTests
     }
 
     [Fact]
-    public void OptionalChainingShortCircuit()
+    public async Task OptionalChainingShortCircuit()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -107,7 +107,7 @@ public class OptionalChainingTests
     }
 
     [Fact]
-    public void OptionalChainingWithUndefined()
+    public async Task OptionalChainingWithUndefined()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

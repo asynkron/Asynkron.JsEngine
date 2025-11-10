@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 public class TaggedTemplateTests
 {
     [Fact]
-    public void TaggedTemplate_BasicFunction()
+    public async Task TaggedTemplate_BasicFunction()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -22,7 +22,7 @@ public class TaggedTemplateTests
     }
 
     [Fact]
-    public void TaggedTemplate_MultipleSubstitutions()
+    public async Task TaggedTemplate_MultipleSubstitutions()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -44,7 +44,7 @@ public class TaggedTemplateTests
     }
 
     [Fact]
-    public void TaggedTemplate_StringsArray()
+    public async Task TaggedTemplate_StringsArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -57,7 +57,7 @@ public class TaggedTemplateTests
     }
 
     [Fact]
-    public void TaggedTemplate_NoSubstitutions()
+    public async Task TaggedTemplate_NoSubstitutions()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -70,7 +70,7 @@ public class TaggedTemplateTests
     }
 
     [Fact]
-    public void TaggedTemplate_WithExpressions()
+    public async Task TaggedTemplate_WithExpressions()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -83,7 +83,7 @@ public class TaggedTemplateTests
     }
 
     [Fact]
-    public void String_Raw_Basic()
+    public async Task String_Raw_Basic()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -93,7 +93,7 @@ public class TaggedTemplateTests
     }
 
     [Fact]
-    public void String_Raw_WithSubstitutions()
+    public async Task String_Raw_WithSubstitutions()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -104,7 +104,7 @@ public class TaggedTemplateTests
     }
 
     [Fact]
-    public void String_Raw_MultipleLines()
+    public async Task String_Raw_MultipleLines()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -114,7 +114,7 @@ public class TaggedTemplateTests
     }
 
     [Fact]
-    public void TaggedTemplate_RawProperty()
+    public async Task TaggedTemplate_RawProperty()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -127,7 +127,7 @@ public class TaggedTemplateTests
     }
 
     [Fact]
-    public void TaggedTemplate_CompareRawAndCooked()
+    public async Task TaggedTemplate_CompareRawAndCooked()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -140,7 +140,7 @@ public class TaggedTemplateTests
     }
 
     [Fact]
-    public void TaggedTemplate_AsMethodCall()
+    public async Task TaggedTemplate_AsMethodCall()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -155,7 +155,7 @@ public class TaggedTemplateTests
     }
 
     [Fact]
-    public void TaggedTemplate_ChainedAccess()
+    public async Task TaggedTemplate_ChainedAccess()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

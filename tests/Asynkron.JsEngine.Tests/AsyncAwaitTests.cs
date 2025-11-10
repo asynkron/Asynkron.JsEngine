@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 public class AsyncAwaitTests
 {
     [Fact]
-    public void AsyncFunction_CanBeParsed()
+    public async Task AsyncFunction_CanBeParsed()
     {
         // Arrange
         var engine = new JsEngine();
@@ -25,7 +25,7 @@ public class AsyncAwaitTests
     }
 
     [Fact]
-    public void AsyncFunction_CanBeDeclared()
+    public async Task AsyncFunction_CanBeDeclared()
     {
         // Arrange
         var engine = new JsEngine();
@@ -39,7 +39,7 @@ public class AsyncAwaitTests
     }
 
     [Fact]
-    public void AsyncFunctionExpression_CanBeParsed()
+    public async Task AsyncFunctionExpression_CanBeParsed()
     {
         // Arrange
         var engine = new JsEngine();
@@ -55,7 +55,7 @@ public class AsyncAwaitTests
     }
 
     [Fact]
-    public void AwaitExpression_CanBeParsed()
+    public async Task AwaitExpression_CanBeParsed()
     {
         // Arrange
         var engine = new JsEngine();
@@ -336,7 +336,7 @@ public class AsyncAwaitTests
     }
 
     [Fact]
-    public void CpsTransformer_AlreadyTransformedCodeDoesNotNeedTransformation()
+    public async Task CpsTransformer_AlreadyTransformedCodeDoesNotNeedTransformation()
     {
         // Arrange
         var engine = new JsEngine();
@@ -358,7 +358,7 @@ public class AsyncAwaitTests
     }
 
     [Fact]
-    public void CpsTransformer_AlreadyTransformedAwaitDoesNotNeedTransformation()
+    public async Task CpsTransformer_AlreadyTransformedAwaitDoesNotNeedTransformation()
     {
         // Arrange
         var engine = new JsEngine();
@@ -381,7 +381,7 @@ public class AsyncAwaitTests
     }
 
     [Fact]
-    public void CpsTransformer_TransformIsIdempotent()
+    public async Task CpsTransformer_TransformIsIdempotent()
     {
         // Arrange
         var engine = new JsEngine();

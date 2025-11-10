@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class ModuleTests
 {
     [Fact]
-    public void ExportDefaultFunction()
+    public async Task ExportDefaultFunction()
     {
         var engine = new JsEngine();
         
@@ -32,7 +32,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void ExportDefaultValue()
+    public async Task ExportDefaultValue()
     {
         var engine = new JsEngine();
         
@@ -57,7 +57,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void ExportNamedValues()
+    public async Task ExportNamedValues()
     {
         var engine = new JsEngine();
         
@@ -82,7 +82,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void ExportNamedFunctions()
+    public async Task ExportNamedFunctions()
     {
         var engine = new JsEngine();
         
@@ -112,7 +112,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void ImportWithAlias()
+    public async Task ImportWithAlias()
     {
         var engine = new JsEngine();
         
@@ -138,7 +138,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void ImportNamespace()
+    public async Task ImportNamespace()
     {
         var engine = new JsEngine();
         
@@ -168,7 +168,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void ExportList()
+    public async Task ExportList()
     {
         var engine = new JsEngine();
         
@@ -195,7 +195,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void ExportWithAlias()
+    public async Task ExportWithAlias()
     {
         var engine = new JsEngine();
         
@@ -220,7 +220,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void ModuleCaching()
+    public async Task ModuleCaching()
     {
         var engine = new JsEngine();
         var loadCount = 0;
@@ -256,7 +256,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void ExportConst()
+    public async Task ExportConst()
     {
         var engine = new JsEngine();
         
@@ -281,7 +281,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void ExportClass()
+    public async Task ExportClass()
     {
         var engine = new JsEngine();
         
@@ -315,7 +315,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void DefaultAndNamedImports()
+    public async Task DefaultAndNamedImports()
     {
         var engine = new JsEngine();
         
@@ -345,7 +345,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void SideEffectImport()
+    public async Task SideEffectImport()
     {
         var engine = new JsEngine();
         
@@ -371,7 +371,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void ExportDefaultClass()
+    public async Task ExportDefaultClass()
     {
         var engine = new JsEngine();
         
@@ -405,7 +405,7 @@ public class ModuleTests
     }
     
     [Fact]
-    public void MultipleImportsFromSameModule()
+    public async Task MultipleImportsFromSameModule()
     {
         var engine = new JsEngine();
         

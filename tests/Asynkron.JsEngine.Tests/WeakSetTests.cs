@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine.Tests;
 public class WeakSetTests
 {
     [Fact]
-    public void WeakSet_Constructor_Creates_Empty_WeakSet()
+    public async Task WeakSet_Constructor_Creates_Empty_WeakSet()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -14,7 +14,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Add_Adds_Object()
+    public async Task WeakSet_Add_Adds_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -27,7 +27,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Add_Returns_WeakSet_For_Chaining()
+    public async Task WeakSet_Add_Returns_WeakSet_For_Chaining()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -41,7 +41,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Has_Checks_Value_Existence()
+    public async Task WeakSet_Has_Checks_Value_Existence()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -57,7 +57,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Delete_Removes_Value()
+    public async Task WeakSet_Delete_Removes_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -72,7 +72,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Delete_Returns_False_For_Nonexistent_Value()
+    public async Task WeakSet_Delete_Returns_False_For_Nonexistent_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -84,63 +84,63 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Rejects_String_As_Value()
+    public async Task WeakSet_Rejects_String_As_Value()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
             let ws = new WeakSet();
             ws.add(""string"");
-        "));
+        ")));
         Assert.Contains("Invalid value used in weak set", exception.Message);
     }
 
     [Fact]
-    public void WeakSet_Rejects_Number_As_Value()
+    public async Task WeakSet_Rejects_Number_As_Value()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
             let ws = new WeakSet();
             ws.add(42);
-        "));
+        ")));
         Assert.Contains("Invalid value used in weak set", exception.Message);
     }
 
     [Fact]
-    public void WeakSet_Rejects_Boolean_As_Value()
+    public async Task WeakSet_Rejects_Boolean_As_Value()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
             let ws = new WeakSet();
             ws.add(true);
-        "));
+        ")));
         Assert.Contains("Invalid value used in weak set", exception.Message);
     }
 
     [Fact]
-    public void WeakSet_Rejects_Null_As_Value()
+    public async Task WeakSet_Rejects_Null_As_Value()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
             let ws = new WeakSet();
             ws.add(null);
-        "));
+        ")));
         Assert.Contains("Invalid value used in weak set", exception.Message);
     }
 
     [Fact]
-    public void WeakSet_Rejects_Undefined_As_Value()
+    public async Task WeakSet_Rejects_Undefined_As_Value()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
             let ws = new WeakSet();
             let x = undefined;
             ws.add(x);
-        "));
+        ")));
         Assert.Contains("Invalid value used in weak set", exception.Message);
     }
 
     [Fact]
-    public void WeakSet_Accepts_Array_As_Value()
+    public async Task WeakSet_Accepts_Array_As_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -153,7 +153,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Accepts_Function_As_Value()
+    public async Task WeakSet_Accepts_Function_As_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -166,7 +166,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Different_Objects_Are_Different_Values()
+    public async Task WeakSet_Different_Objects_Are_Different_Values()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -182,7 +182,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Does_Not_Add_Duplicate_Objects()
+    public async Task WeakSet_Does_Not_Add_Duplicate_Objects()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -197,7 +197,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Has_Returns_False_For_Primitive()
+    public async Task WeakSet_Has_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -208,7 +208,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Delete_Returns_False_For_Primitive()
+    public async Task WeakSet_Delete_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -219,7 +219,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Constructor_Accepts_Array_Of_Values()
+    public async Task WeakSet_Constructor_Accepts_Array_Of_Values()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -235,7 +235,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Typeof_Returns_Object()
+    public async Task WeakSet_Typeof_Returns_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -246,7 +246,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Can_Store_Same_Object_In_Different_WeakSets()
+    public async Task WeakSet_Can_Store_Same_Object_In_Different_WeakSets()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -263,7 +263,7 @@ public class WeakSetTests
     }
 
     [Fact]
-    public void WeakSet_Delete_Does_Not_Affect_Other_WeakSets()
+    public async Task WeakSet_Delete_Does_Not_Affect_Other_WeakSets()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

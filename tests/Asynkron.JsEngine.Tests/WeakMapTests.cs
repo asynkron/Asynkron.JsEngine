@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine.Tests;
 public class WeakMapTests
 {
     [Fact]
-    public void WeakMap_Constructor_Creates_Empty_WeakMap()
+    public async Task WeakMap_Constructor_Creates_Empty_WeakMap()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -14,7 +14,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Set_And_Get_With_Object_Key()
+    public async Task WeakMap_Set_And_Get_With_Object_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -27,7 +27,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Set_Returns_WeakMap_For_Chaining()
+    public async Task WeakMap_Set_Returns_WeakMap_For_Chaining()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -41,7 +41,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Has_Checks_Key_Existence()
+    public async Task WeakMap_Has_Checks_Key_Existence()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -57,7 +57,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Delete_Removes_Entry()
+    public async Task WeakMap_Delete_Removes_Entry()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -72,7 +72,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Delete_Returns_False_For_Nonexistent_Key()
+    public async Task WeakMap_Delete_Returns_False_For_Nonexistent_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -84,7 +84,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Get_Returns_Undefined_For_Missing_Key()
+    public async Task WeakMap_Get_Returns_Undefined_For_Missing_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -97,63 +97,63 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Rejects_String_As_Key()
+    public async Task WeakMap_Rejects_String_As_Key()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
             let wm = new WeakMap();
             wm.set(""string"", ""value"");
-        "));
+        ")));
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
     [Fact]
-    public void WeakMap_Rejects_Number_As_Key()
+    public async Task WeakMap_Rejects_Number_As_Key()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
             let wm = new WeakMap();
             wm.set(42, ""value"");
-        "));
+        ")));
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
     [Fact]
-    public void WeakMap_Rejects_Boolean_As_Key()
+    public async Task WeakMap_Rejects_Boolean_As_Key()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
             let wm = new WeakMap();
             wm.set(true, ""value"");
-        "));
+        ")));
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
     [Fact]
-    public void WeakMap_Rejects_Null_As_Key()
+    public async Task WeakMap_Rejects_Null_As_Key()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
             let wm = new WeakMap();
             wm.set(null, ""value"");
-        "));
+        ")));
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
     [Fact]
-    public void WeakMap_Rejects_Undefined_As_Key()
+    public async Task WeakMap_Rejects_Undefined_As_Key()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
             let wm = new WeakMap();
             let x = undefined;
             wm.set(x, ""value"");
-        "));
+        ")));
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
     [Fact]
-    public void WeakMap_Accepts_Array_As_Key()
+    public async Task WeakMap_Accepts_Array_As_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -166,7 +166,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Accepts_Function_As_Key()
+    public async Task WeakMap_Accepts_Function_As_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -179,7 +179,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Different_Objects_Are_Different_Keys()
+    public async Task WeakMap_Different_Objects_Are_Different_Keys()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -196,7 +196,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Updates_Existing_Key()
+    public async Task WeakMap_Updates_Existing_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -210,7 +210,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Can_Store_Undefined_As_Value()
+    public async Task WeakMap_Can_Store_Undefined_As_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -224,7 +224,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Can_Store_Null_As_Value()
+    public async Task WeakMap_Can_Store_Null_As_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -237,7 +237,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Has_Returns_False_For_Primitive()
+    public async Task WeakMap_Has_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -248,7 +248,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Get_Returns_Undefined_For_Primitive()
+    public async Task WeakMap_Get_Returns_Undefined_For_Primitive()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -260,7 +260,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Delete_Returns_False_For_Primitive()
+    public async Task WeakMap_Delete_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -271,7 +271,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Constructor_Accepts_Array_Of_Entries()
+    public async Task WeakMap_Constructor_Accepts_Array_Of_Entries()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -287,7 +287,7 @@ public class WeakMapTests
     }
 
     [Fact]
-    public void WeakMap_Typeof_Returns_Object()
+    public async Task WeakMap_Typeof_Returns_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

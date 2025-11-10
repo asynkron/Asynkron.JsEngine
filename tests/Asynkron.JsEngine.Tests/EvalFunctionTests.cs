@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class EvalFunctionTests
 {
     [Fact]
-    public void Eval_EvaluatesSimpleExpression()
+    public async Task Eval_EvaluatesSimpleExpression()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -15,7 +15,7 @@ public class EvalFunctionTests
     }
 
     [Fact]
-    public void Eval_AccessesVariablesInScope()
+    public async Task Eval_AccessesVariablesInScope()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -26,7 +26,7 @@ public class EvalFunctionTests
     }
 
     [Fact]
-    public void Eval_CreatesVariables()
+    public async Task Eval_CreatesVariables()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -37,7 +37,7 @@ public class EvalFunctionTests
     }
 
     [Fact]
-    public void Eval_WithString()
+    public async Task Eval_WithString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -47,7 +47,7 @@ public class EvalFunctionTests
     }
 
     [Fact]
-    public void Eval_WithFunction()
+    public async Task Eval_WithFunction()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -58,7 +58,7 @@ public class EvalFunctionTests
     }
 
     [Fact]
-    public void Eval_WithNonStringReturnsValue()
+    public async Task Eval_WithNonStringReturnsValue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -68,7 +68,7 @@ public class EvalFunctionTests
     }
 
     [Fact]
-    public void Eval_WithNoArgumentsReturnsUndefined()
+    public async Task Eval_WithNoArgumentsReturnsUndefined()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -78,7 +78,7 @@ public class EvalFunctionTests
     }
 
     [Fact]
-    public void Eval_WithComplexExpression()
+    public async Task Eval_WithComplexExpression()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -90,7 +90,7 @@ public class EvalFunctionTests
     }
 
     [Fact]
-    public void Eval_WithArrayExpression()
+    public async Task Eval_WithArrayExpression()
     {
         var engine = new JsEngine();
         // Array literals need to be properly parenthesized when used with eval
@@ -102,7 +102,7 @@ public class EvalFunctionTests
     }
 
     [Fact]
-    public void Eval_WithObjectExpression()
+    public async Task Eval_WithObjectExpression()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class NumberStaticMethodsTests
 {
     [Fact]
-    public void Number_IsInteger_ReturnsTrueForIntegers()
+    public async Task Number_IsInteger_ReturnsTrueForIntegers()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.isInteger(5);");
@@ -13,7 +13,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_IsInteger_ReturnsFalseForDecimals()
+    public async Task Number_IsInteger_ReturnsFalseForDecimals()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.isInteger(5.5);");
@@ -21,7 +21,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_IsInteger_ReturnsFalseForNaN()
+    public async Task Number_IsInteger_ReturnsFalseForNaN()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.isInteger(0 / 0);");
@@ -29,7 +29,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_IsFinite_ReturnsTrueForFiniteNumbers()
+    public async Task Number_IsFinite_ReturnsTrueForFiniteNumbers()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.isFinite(100);");
@@ -37,7 +37,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_IsFinite_ReturnsFalseForInfinity()
+    public async Task Number_IsFinite_ReturnsFalseForInfinity()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.isFinite(1 / 0);");
@@ -45,7 +45,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_IsNaN_ReturnsTrueForNaN()
+    public async Task Number_IsNaN_ReturnsTrueForNaN()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.isNaN(0 / 0);");
@@ -53,7 +53,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_IsNaN_ReturnsFalseForNumbers()
+    public async Task Number_IsNaN_ReturnsFalseForNumbers()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.isNaN(5);");
@@ -61,7 +61,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_IsSafeInteger_ReturnsTrueForSafeIntegers()
+    public async Task Number_IsSafeInteger_ReturnsTrueForSafeIntegers()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.isSafeInteger(100);");
@@ -69,7 +69,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_IsSafeInteger_ReturnsFalseForLargeNumbers()
+    public async Task Number_IsSafeInteger_ReturnsFalseForLargeNumbers()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.isSafeInteger(9007199254740992);"); // MAX_SAFE_INTEGER + 1
@@ -77,7 +77,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_ParseFloat_ParsesDecimalNumbers()
+    public async Task Number_ParseFloat_ParsesDecimalNumbers()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.parseFloat('3.14');");
@@ -85,7 +85,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_ParseFloat_HandlesLeadingWhitespace()
+    public async Task Number_ParseFloat_HandlesLeadingWhitespace()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.parseFloat('  42.5');");
@@ -93,7 +93,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_ParseFloat_StopsAtNonNumeric()
+    public async Task Number_ParseFloat_StopsAtNonNumeric()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.parseFloat('3.14abc');");
@@ -101,7 +101,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_ParseInt_ParsesIntegers()
+    public async Task Number_ParseInt_ParsesIntegers()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.parseInt('42');");
@@ -109,7 +109,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_ParseInt_WithRadix()
+    public async Task Number_ParseInt_WithRadix()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.parseInt('1010', 2);");
@@ -117,7 +117,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_ParseInt_WithHexRadix()
+    public async Task Number_ParseInt_WithHexRadix()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Number.parseInt('FF', 16);");
@@ -125,7 +125,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_Constants_AreAvailable()
+    public async Task Number_Constants_AreAvailable()
     {
         var engine = new JsEngine();
         
@@ -151,7 +151,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_ParseFloat_IsCultureInvariant()
+    public async Task Number_ParseFloat_IsCultureInvariant()
     {
         // Save current culture
         var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
@@ -175,7 +175,7 @@ public class NumberStaticMethodsTests
     }
 
     [Fact]
-    public void Number_Constructor_IsCultureInvariant()
+    public async Task Number_Constructor_IsCultureInvariant()
     {
         // Save current culture
         var originalCulture = System.Globalization.CultureInfo.CurrentCulture;

@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 public class RegExpTests
 {
     [Fact]
-    public void RegExp_Constructor_Basic()
+    public async Task RegExp_Constructor_Basic()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -19,7 +19,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_Constructor_WithFlags()
+    public async Task RegExp_Constructor_WithFlags()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -30,7 +30,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_Test_Matches()
+    public async Task RegExp_Test_Matches()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -41,7 +41,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_Test_NoMatch()
+    public async Task RegExp_Test_NoMatch()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -52,7 +52,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_Test_CaseInsensitive()
+    public async Task RegExp_Test_CaseInsensitive()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -63,7 +63,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_Exec_ReturnsMatchArray()
+    public async Task RegExp_Exec_ReturnsMatchArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -75,7 +75,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_Exec_ReturnsIndex()
+    public async Task RegExp_Exec_ReturnsIndex()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -87,7 +87,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_Exec_WithCaptureGroups()
+    public async Task RegExp_Exec_WithCaptureGroups()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -99,7 +99,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_Exec_NoMatch_ReturnsNull()
+    public async Task RegExp_Exec_NoMatch_ReturnsNull()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -110,7 +110,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void String_Match_WithRegExp()
+    public async Task String_Match_WithRegExp()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -123,7 +123,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void String_Match_GlobalFlag()
+    public async Task String_Match_GlobalFlag()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -136,7 +136,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void String_Search_ReturnsIndex()
+    public async Task String_Search_ReturnsIndex()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -148,7 +148,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void String_Search_NoMatch()
+    public async Task String_Search_NoMatch()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -160,7 +160,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void String_Replace_WithRegExp()
+    public async Task String_Replace_WithRegExp()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -172,7 +172,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void String_Replace_GlobalFlag()
+    public async Task String_Replace_GlobalFlag()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -184,7 +184,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_GlobalFlag_Test_UpdatesLastIndex()
+    public async Task RegExp_GlobalFlag_Test_UpdatesLastIndex()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -202,7 +202,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_Pattern_WithDigits()
+    public async Task RegExp_Pattern_WithDigits()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -213,7 +213,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_Pattern_EmailLike()
+    public async Task RegExp_Pattern_EmailLike()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -224,7 +224,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegExp_Multiline_Flag()
+    public async Task RegExp_Multiline_Flag()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -236,7 +236,7 @@ public class RegExpTests
 
     // Regex Literal Tests
     [Fact]
-    public void RegexLiteral_Basic()
+    public async Task RegexLiteral_Basic()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -247,7 +247,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_WithFlags()
+    public async Task RegexLiteral_WithFlags()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -258,7 +258,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_MultipleFlags()
+    public async Task RegexLiteral_MultipleFlags()
     {
         var engine = new JsEngine();
         engine.EvaluateSync(@"
@@ -271,7 +271,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_Test()
+    public async Task RegexLiteral_Test()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -282,7 +282,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_TestCaseInsensitive()
+    public async Task RegexLiteral_TestCaseInsensitive()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -293,7 +293,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_Exec()
+    public async Task RegexLiteral_Exec()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -305,7 +305,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_WithEscapes()
+    public async Task RegexLiteral_WithEscapes()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -316,7 +316,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_WithCharacterClass()
+    public async Task RegexLiteral_WithCharacterClass()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -327,7 +327,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_InAssignment()
+    public async Task RegexLiteral_InAssignment()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -338,7 +338,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_InFunctionCall()
+    public async Task RegexLiteral_InFunctionCall()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -351,7 +351,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_InArray()
+    public async Task RegexLiteral_InArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -362,7 +362,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_InObject()
+    public async Task RegexLiteral_InObject()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -373,7 +373,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_StringMatch()
+    public async Task RegexLiteral_StringMatch()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -385,7 +385,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_StringReplace()
+    public async Task RegexLiteral_StringReplace()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -396,7 +396,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_StringSearch()
+    public async Task RegexLiteral_StringSearch()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -407,7 +407,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_ComplexPattern()
+    public async Task RegexLiteral_ComplexPattern()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -419,7 +419,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_AfterReturn()
+    public async Task RegexLiteral_AfterReturn()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -432,7 +432,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_AfterComma()
+    public async Task RegexLiteral_AfterComma()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -445,7 +445,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_EscapedSlash()
+    public async Task RegexLiteral_EscapedSlash()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -456,7 +456,7 @@ public class RegExpTests
     }
 
     [Fact]
-    public void RegexLiteral_ComplexCharacterClass()
+    public async Task RegexLiteral_ComplexCharacterClass()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

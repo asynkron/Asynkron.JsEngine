@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class MathMethodsTests
 {
     [Fact]
-    public void Math_Cbrt_CalculatesCubeRoot()
+    public async Task Math_Cbrt_CalculatesCubeRoot()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.cbrt(8);");
@@ -13,7 +13,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Cbrt_NegativeValue()
+    public async Task Math_Cbrt_NegativeValue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.cbrt(-27);");
@@ -21,7 +21,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Clz32_CountsLeadingZeros()
+    public async Task Math_Clz32_CountsLeadingZeros()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.clz32(1);");
@@ -29,7 +29,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Clz32_WithZero()
+    public async Task Math_Clz32_WithZero()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.clz32(0);");
@@ -37,7 +37,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Imul_MultipliesIntegers()
+    public async Task Math_Imul_MultipliesIntegers()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.imul(5, 4);");
@@ -45,7 +45,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Imul_WithLargeNumbers()
+    public async Task Math_Imul_WithLargeNumbers()
     {
         var engine = new JsEngine();
         // Test integer multiplication behavior with large number
@@ -54,7 +54,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Fround_ConvertsToFloat32()
+    public async Task Math_Fround_ConvertsToFloat32()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.fround(1.5);");
@@ -62,7 +62,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Fround_WithHighPrecision()
+    public async Task Math_Fround_WithHighPrecision()
     {
         var engine = new JsEngine();
         // Float32 loses precision compared to Float64
@@ -72,7 +72,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Hypot_CalculatesHypotenuse()
+    public async Task Math_Hypot_CalculatesHypotenuse()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.hypot(3, 4);");
@@ -80,7 +80,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Hypot_WithMultipleArguments()
+    public async Task Math_Hypot_WithMultipleArguments()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.hypot(1, 2, 2);");
@@ -88,7 +88,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Hypot_WithNoArguments()
+    public async Task Math_Hypot_WithNoArguments()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.hypot();");
@@ -96,7 +96,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Acosh_CalculatesInverseHyperbolicCosine()
+    public async Task Math_Acosh_CalculatesInverseHyperbolicCosine()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.acosh(1);");
@@ -104,7 +104,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Asinh_CalculatesInverseHyperbolicSine()
+    public async Task Math_Asinh_CalculatesInverseHyperbolicSine()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.asinh(0);");
@@ -112,7 +112,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Atanh_CalculatesInverseHyperbolicTangent()
+    public async Task Math_Atanh_CalculatesInverseHyperbolicTangent()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.atanh(0);");
@@ -120,7 +120,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Cosh_CalculatesHyperbolicCosine()
+    public async Task Math_Cosh_CalculatesHyperbolicCosine()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.cosh(0);");
@@ -128,7 +128,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Sinh_CalculatesHyperbolicSine()
+    public async Task Math_Sinh_CalculatesHyperbolicSine()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.sinh(0);");
@@ -136,7 +136,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Tanh_CalculatesHyperbolicTangent()
+    public async Task Math_Tanh_CalculatesHyperbolicTangent()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.tanh(0);");
@@ -144,7 +144,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Tanh_WithPositiveInfinity()
+    public async Task Math_Tanh_WithPositiveInfinity()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.tanh(Infinity);");
@@ -152,7 +152,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Expm1_CalculatesExpMinusOne()
+    public async Task Math_Expm1_CalculatesExpMinusOne()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.expm1(0);");
@@ -160,7 +160,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Expm1_WithPositiveValue()
+    public async Task Math_Expm1_WithPositiveValue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.expm1(1);");
@@ -168,7 +168,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Log1p_CalculatesLogOnePlusX()
+    public async Task Math_Log1p_CalculatesLogOnePlusX()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.log1p(0);");
@@ -176,7 +176,7 @@ public class MathMethodsTests
     }
 
     [Fact]
-    public void Math_Log1p_WithPositiveValue()
+    public async Task Math_Log1p_WithPositiveValue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.log1p(Math.E - 1);");

@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class EvaluatorTests
 {
     [Fact]
-    public void EvaluateArithmeticAndVariableLookup()
+    public async Task EvaluateArithmeticAndVariableLookup()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let answer = 1 + 2 * 3; answer;");
@@ -13,7 +13,7 @@ public class EvaluatorTests
     }
 
     [Fact]
-    public void EvaluateFunctionDeclarationAndInvocation()
+    public async Task EvaluateFunctionDeclarationAndInvocation()
     {
         var engine = new JsEngine();
         var source = "function add(a, b) { return a + b; } let result = add(2, 3); result;";
@@ -22,7 +22,7 @@ public class EvaluatorTests
     }
 
     [Fact]
-    public void EvaluateClosureCapturesOuterVariable()
+    public async Task EvaluateClosureCapturesOuterVariable()
     {
         var engine = new JsEngine();
         var source = "function makeAdder(x) { function inner(y) { return x + y; } return inner; } let plusTen = makeAdder(10); let fifteen = plusTen(5); fifteen;";
@@ -31,7 +31,7 @@ public class EvaluatorTests
     }
 
     [Fact]
-    public void EvaluateFunctionExpression()
+    public async Task EvaluateFunctionExpression()
     {
         var engine = new JsEngine();
         var source = "let add = function(a, b) { return a + b; }; add(4, 5);";
@@ -40,7 +40,7 @@ public class EvaluatorTests
     }
 
     [Fact]
-    public void HostFunctionInterop()
+    public async Task HostFunctionInterop()
     {
         var captured = new List<object?>();
         var engine = new JsEngine();
@@ -60,7 +60,7 @@ public class EvaluatorTests
     }
 
     [Fact]
-    public void EvaluateObjectLiteralAndPropertyUsage()
+    public async Task EvaluateObjectLiteralAndPropertyUsage()
     {
         var engine = new JsEngine();
         var source = "let obj = { a: 10, x: function () { return 5; } }; let total = obj.a + obj.x(); total;";
@@ -71,7 +71,7 @@ public class EvaluatorTests
     }
 
     [Fact]
-    public void EvaluateArrayLiteralSupportsIndexing()
+    public async Task EvaluateArrayLiteralSupportsIndexing()
     {
         var engine = new JsEngine();
         var source = @"
@@ -89,7 +89,7 @@ alias + missing + values[2];
     }
 
     [Fact]
-    public void LogicalOperatorsShortCircuitAndReturnOperands()
+    public async Task LogicalOperatorsShortCircuitAndReturnOperands()
     {
         var engine = new JsEngine();
         var source = @"
@@ -115,7 +115,7 @@ let coalesceNonNull = 0 ?? record(4);
     }
 
     [Fact]
-    public void StrictEqualityRequiresMatchingTypes()
+    public async Task StrictEqualityRequiresMatchingTypes()
     {
         var engine = new JsEngine();
         engine.SetGlobalFunction("getInt", _ => 1);
@@ -141,7 +141,7 @@ outcomes;
     }
 
     [Fact]
-    public void VarDeclarationHoistsToFunctionScope()
+    public async Task VarDeclarationHoistsToFunctionScope()
     {
         var engine = new JsEngine();
         var source = @"
@@ -161,15 +161,15 @@ sample();
     }
 
     [Fact]
-    public void ConstAssignmentThrows()
+    public async Task ConstAssignmentThrows()
     {
         var engine = new JsEngine();
 
-        Assert.Throws<InvalidOperationException>(() => engine.EvaluateSync("const fixed = 1; fixed = 2;"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("const fixed = 1; fixed = 2;")));
     }
 
     [Fact]
-    public void TryCatchFinallyBindsThrownValueAndRunsCleanup()
+    public async Task TryCatchFinallyBindsThrownValueAndRunsCleanup()
     {
         var engine = new JsEngine();
         var source = @"
@@ -190,7 +190,7 @@ captured;
     }
 
     [Fact]
-    public void FinallyRunsForUnhandledThrow()
+    public async Task FinallyRunsForUnhandledThrow()
     {
         var engine = new JsEngine();
         var source = @"
@@ -202,14 +202,14 @@ try {
 }
 ";
 
-        Assert.ThrowsAny<Exception>(() => engine.EvaluateSync(source));
+        await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(source)));
 
         var cleanupValue = engine.EvaluateSync("cleanup;");
         Assert.Equal(1d, cleanupValue); // finally executed even though the throw escaped
     }
 
     [Fact]
-    public void FinallyReturnOverridesTryReturn()
+    public async Task FinallyReturnOverridesTryReturn()
     {
         var engine = new JsEngine();
         var source = @"
@@ -229,7 +229,7 @@ sample();
     }
 
     [Fact]
-    public void MethodInvocationBindsThis()
+    public async Task MethodInvocationBindsThis()
     {
         var engine = new JsEngine();
         var source = "let obj = { x: 10, f: function () { return this.x; } }; obj.f();";
@@ -240,7 +240,7 @@ sample();
     }
 
     [Fact]
-    public void IndexedMethodInvocationBindsThis()
+    public async Task IndexedMethodInvocationBindsThis()
     {
         var engine = new JsEngine();
         var source = @"
@@ -254,7 +254,7 @@ obj[""getter""]();
     }
 
     [Fact]
-    public void HostFunctionReceivesThisBinding()
+    public async Task HostFunctionReceivesThisBinding()
     {
         var engine = new JsEngine();
         engine.SetGlobalFunction("reflectThis", (self, _) => self);
@@ -266,7 +266,7 @@ obj[""getter""]();
     }
 
     [Fact]
-    public void PrototypeLookupResolvesInheritedMethods()
+    public async Task PrototypeLookupResolvesInheritedMethods()
     {
         var engine = new JsEngine();
         var source = @"
@@ -284,7 +284,7 @@ derived.calculate(derived.value);
     }
 
     [Fact]
-    public void PrototypeAssignmentLinksObjectsAfterCreation()
+    public async Task PrototypeAssignmentLinksObjectsAfterCreation()
     {
         var engine = new JsEngine();
         var source = @"
@@ -300,7 +300,7 @@ user.greet();
     }
 
     [Fact]
-    public void NewCreatesInstancesWithConstructorPrototypes()
+    public async Task NewCreatesInstancesWithConstructorPrototypes()
     {
         var engine = new JsEngine();
         var source = @"
@@ -318,7 +318,7 @@ person.describe();
     }
 
     [Fact]
-    public void MethodClosuresCanReachThisViaCapturedReference()
+    public async Task MethodClosuresCanReachThisViaCapturedReference()
     {
         var engine = new JsEngine();
         var source = @"
@@ -341,7 +341,7 @@ inc(3);
     }
 
     [Fact]
-    public void DistinctMethodCallsProvideIndependentThisBindings()
+    public async Task DistinctMethodCallsProvideIndependentThisBindings()
     {
         var engine = new JsEngine();
         var source = @"
@@ -364,7 +364,7 @@ first.read() + second.read();
     }
 
     [Fact]
-    public void ClassDeclarationSupportsConstructorsAndMethods()
+    public async Task ClassDeclarationSupportsConstructorsAndMethods()
     {
         var engine = new JsEngine();
         var source = @"
@@ -388,7 +388,7 @@ instance.increment();
     }
 
     [Fact]
-    public void ClassWithoutExplicitConstructorFallsBackToDefault()
+    public async Task ClassWithoutExplicitConstructorFallsBackToDefault()
     {
         var engine = new JsEngine();
         var source = @"
@@ -405,7 +405,7 @@ Widget.prototype.constructor == Widget;
     }
 
     [Fact]
-    public void ClassInheritanceSupportsSuperConstructorAndMethodCalls()
+    public async Task ClassInheritanceSupportsSuperConstructorAndMethodCalls()
     {
         var engine = new JsEngine();
         var source = @"
@@ -440,7 +440,7 @@ instance.read();
     }
 
     [Fact]
-    public void EvaluateIfElseAndBlockScopes()
+    public async Task EvaluateIfElseAndBlockScopes()
     {
         var engine = new JsEngine();
         var source = @"
@@ -458,7 +458,7 @@ value;
     }
 
     [Fact]
-    public void EvaluateWhileLoopUpdatesValues()
+    public async Task EvaluateWhileLoopUpdatesValues()
     {
         var engine = new JsEngine();
         var source = @"
@@ -476,7 +476,7 @@ total;
     }
 
     [Fact]
-    public void EvaluateForLoopHonoursBreakAndContinue()
+    public async Task EvaluateForLoopHonoursBreakAndContinue()
     {
         var engine = new JsEngine();
         var source = @"
@@ -500,7 +500,7 @@ sum;
     }
 
     [Fact]
-    public void SwitchStatementSupportsFallthrough()
+    public async Task SwitchStatementSupportsFallthrough()
     {
         var engine = new JsEngine();
         var source = @"
@@ -524,7 +524,7 @@ describe(3);
     }
 
     [Fact]
-    public void SwitchBreakRemainsInsideLoop()
+    public async Task SwitchBreakRemainsInsideLoop()
     {
         var engine = new JsEngine();
         var source = @"
@@ -548,7 +548,7 @@ total;
     }
 
     [Fact]
-    public void EvaluateDoWhileRunsBodyAtLeastOnce()
+    public async Task EvaluateDoWhileRunsBodyAtLeastOnce()
     {
         var engine = new JsEngine();
         var source = @"
@@ -564,7 +564,7 @@ attempts;
     }
 
     [Fact]
-    public void TernaryOperatorReturnsThenBranchWhenConditionIsTrue()
+    public async Task TernaryOperatorReturnsThenBranchWhenConditionIsTrue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("true ? 10 : 20;");
@@ -572,7 +572,7 @@ attempts;
     }
 
     [Fact]
-    public void TernaryOperatorReturnsElseBranchWhenConditionIsFalse()
+    public async Task TernaryOperatorReturnsElseBranchWhenConditionIsFalse()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("false ? 10 : 20;");
@@ -580,7 +580,7 @@ attempts;
     }
 
     [Fact]
-    public void TernaryOperatorEvaluatesConditionForTruthiness()
+    public async Task TernaryOperatorEvaluatesConditionForTruthiness()
     {
         var engine = new JsEngine();
         var source = @"
@@ -593,7 +593,7 @@ result;
     }
 
     [Fact]
-    public void TernaryOperatorWithZeroAsFalsyCondition()
+    public async Task TernaryOperatorWithZeroAsFalsyCondition()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"0 ? ""yes"" : ""no"";");
@@ -601,7 +601,7 @@ result;
     }
 
     [Fact]
-    public void TernaryOperatorWithNullAsFalsyCondition()
+    public async Task TernaryOperatorWithNullAsFalsyCondition()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("null ? 1 : 2;");
@@ -609,7 +609,7 @@ result;
     }
 
     [Fact]
-    public void TernaryOperatorCanBeNested()
+    public async Task TernaryOperatorCanBeNested()
     {
         var engine = new JsEngine();
         var source = @"
@@ -622,7 +622,7 @@ grade;
     }
 
     [Fact]
-    public void TernaryOperatorOnlyEvaluatesSelectedBranch()
+    public async Task TernaryOperatorOnlyEvaluatesSelectedBranch()
     {
         var engine = new JsEngine();
         var source = @"
@@ -639,7 +639,7 @@ sideEffect;
     }
 
     [Fact]
-    public void TernaryOperatorWorksInComplexExpressions()
+    public async Task TernaryOperatorWorksInComplexExpressions()
     {
         var engine = new JsEngine();
         var source = @"
@@ -654,7 +654,7 @@ doubled;
     }
 
     [Fact]
-    public void TernaryOperatorInFunctionReturn()
+    public async Task TernaryOperatorInFunctionReturn()
     {
         var engine = new JsEngine();
         var source = @"
@@ -668,7 +668,7 @@ absoluteValue(-42);
     }
 
     [Fact]
-    public void TemplateLiteralWithSimpleString()
+    public async Task TemplateLiteralWithSimpleString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("`hello world`;");
@@ -676,7 +676,7 @@ absoluteValue(-42);
     }
 
     [Fact]
-    public void TemplateLiteralWithSingleExpression()
+    public async Task TemplateLiteralWithSingleExpression()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 42; `The answer is ${x}`;");
@@ -684,7 +684,7 @@ absoluteValue(-42);
     }
 
     [Fact]
-    public void TemplateLiteralWithMultipleExpressions()
+    public async Task TemplateLiteralWithMultipleExpressions()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let a = 10; let b = 20; `${a} + ${b} = ${a + b}`;");
@@ -692,7 +692,7 @@ absoluteValue(-42);
     }
 
     [Fact]
-    public void TemplateLiteralWithStringInterpolation()
+    public async Task TemplateLiteralWithStringInterpolation()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -704,7 +704,7 @@ let age = 30;
     }
 
     [Fact]
-    public void TemplateLiteralWithComplexExpressions()
+    public async Task TemplateLiteralWithComplexExpressions()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -716,7 +716,7 @@ let user = ""Bob"";
     }
 
     [Fact]
-    public void TemplateLiteralWithBooleanAndNull()
+    public async Task TemplateLiteralWithBooleanAndNull()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("`true: ${true}, false: ${false}, null: ${null}`;");
@@ -724,7 +724,7 @@ let user = ""Bob"";
     }
 
     [Fact]
-    public void GetterInObjectLiteral()
+    public async Task GetterInObjectLiteral()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -738,7 +738,7 @@ obj.value;
     }
 
     [Fact]
-    public void SetterInObjectLiteral()
+    public async Task SetterInObjectLiteral()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -753,7 +753,7 @@ obj._value;
     }
 
     [Fact]
-    public void GetterAndSetterTogether()
+    public async Task GetterAndSetterTogether()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -771,7 +771,7 @@ obj.fahrenheit;
     }
 
     [Fact]
-    public void GetterInClass()
+    public async Task GetterInClass()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -791,7 +791,7 @@ rect.area;
     }
 
     [Fact]
-    public void SetterInClass()
+    public async Task SetterInClass()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -816,7 +816,7 @@ person.fullName;
     }
 
     [Fact]
-    public void RestParameterCollectsRemainingArguments()
+    public async Task RestParameterCollectsRemainingArguments()
     {
         var engine = new JsEngine();
         var source = @"
@@ -836,7 +836,7 @@ sum(1, 2, 3, 4, 5);
     }
 
     [Fact]
-    public void RestParameterWithNoExtraArgumentsCreatesEmptyArray()
+    public async Task RestParameterWithNoExtraArgumentsCreatesEmptyArray()
     {
         var engine = new JsEngine();
         var source = @"
@@ -850,7 +850,7 @@ test(1);
     }
 
     [Fact]
-    public void SpreadOperatorInArrayLiteral()
+    public async Task SpreadOperatorInArrayLiteral()
     {
         var engine = new JsEngine();
         var source = @"
@@ -864,7 +864,7 @@ combined[0] + combined[1] + combined[2] + combined[3] + combined[4] + combined[5
     }
 
     [Fact]
-    public void SpreadOperatorInFunctionCall()
+    public async Task SpreadOperatorInFunctionCall()
     {
         var engine = new JsEngine();
         var source = @"
@@ -879,7 +879,7 @@ add(...numbers);
     }
 
     [Fact]
-    public void SpreadOperatorWithMixedArguments()
+    public async Task SpreadOperatorWithMixedArguments()
     {
         var engine = new JsEngine();
         var source = @"
@@ -894,7 +894,7 @@ greet(""Hello"", ...names);
     }
 
     [Fact]
-    public void RestParameterWithSpreadInCall()
+    public async Task RestParameterWithSpreadInCall()
     {
         var engine = new JsEngine();
         var source = @"
@@ -918,7 +918,7 @@ joinAll(""a"", ...arr, ""d"");
     }
 
     [Fact]
-    public void SpreadInNestedArrays()
+    public async Task SpreadInNestedArrays()
     {
         var engine = new JsEngine();
         var source = @"
@@ -932,7 +932,7 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
     }
 
     [Fact]
-    public void MathObjectProvidesConstants()
+    public async Task MathObjectProvidesConstants()
     {
         var engine = new JsEngine();
         
@@ -947,7 +947,7 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
     }
 
     [Fact]
-    public void MathSqrtCalculatesSquareRoot()
+    public async Task MathSqrtCalculatesSquareRoot()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.sqrt(16);");
@@ -955,7 +955,7 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
     }
 
     [Fact]
-    public void MathPowCalculatesPower()
+    public async Task MathPowCalculatesPower()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.pow(2, 3);");
@@ -963,7 +963,7 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
     }
 
     [Fact]
-    public void MathAbsReturnsAbsoluteValue()
+    public async Task MathAbsReturnsAbsoluteValue()
     {
         var engine = new JsEngine();
         
@@ -975,7 +975,7 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
     }
 
     [Fact]
-    public void MathFloorCeilRound()
+    public async Task MathFloorCeilRound()
     {
         var engine = new JsEngine();
         
@@ -990,7 +990,7 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
     }
 
     [Fact]
-    public void MathMaxMinFunctions()
+    public async Task MathMaxMinFunctions()
     {
         var engine = new JsEngine();
         
@@ -1002,7 +1002,7 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
     }
 
     [Fact]
-    public void MathRandomReturnsBetweenZeroAndOne()
+    public async Task MathRandomReturnsBetweenZeroAndOne()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Math.random();");
@@ -1013,7 +1013,7 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
     }
 
     [Fact]
-    public void MathTrigonometricFunctions()
+    public async Task MathTrigonometricFunctions()
     {
         var engine = new JsEngine();
         
@@ -1031,7 +1031,7 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
     }
 
     [Fact]
-    public void MathLogarithmicFunctions()
+    public async Task MathLogarithmicFunctions()
     {
         var engine = new JsEngine();
         
@@ -1046,7 +1046,7 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
     }
 
     [Fact]
-    public void MathCanBeUsedInComplexExpressions()
+    public async Task MathCanBeUsedInComplexExpressions()
     {
         var engine = new JsEngine();
         
@@ -1061,7 +1061,7 @@ c;
     }
 
     [Fact]
-    public void MathSignReturnsSignOfNumber()
+    public async Task MathSignReturnsSignOfNumber()
     {
         var engine = new JsEngine();
         
@@ -1076,7 +1076,7 @@ c;
     }
 
     [Fact]
-    public void MathTruncRemovesDecimalPart()
+    public async Task MathTruncRemovesDecimalPart()
     {
         var engine = new JsEngine();
         
@@ -1088,7 +1088,7 @@ c;
     }
 
     [Fact]
-    public void ArrayMapTransformsElements()
+    public async Task ArrayMapTransformsElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1100,7 +1100,7 @@ doubled[0] + doubled[1] + doubled[2] + doubled[3];
     }
 
     [Fact]
-    public void ArrayFilterSelectsElements()
+    public async Task ArrayFilterSelectsElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1112,7 +1112,7 @@ greaterThanThree[""length""];
     }
 
     [Fact]
-    public void ArrayReduceAccumulatesValues()
+    public async Task ArrayReduceAccumulatesValues()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1124,7 +1124,7 @@ sum;
     }
 
     [Fact]
-    public void ArrayForEachIteratesElements()
+    public async Task ArrayForEachIteratesElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1137,7 +1137,7 @@ sum;
     }
 
     [Fact]
-    public void ArrayFindReturnsFirstMatch()
+    public async Task ArrayFindReturnsFirstMatch()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1149,7 +1149,7 @@ found;
     }
 
     [Fact]
-    public void ArrayFindIndexReturnsIndexOfFirstMatch()
+    public async Task ArrayFindIndexReturnsIndexOfFirstMatch()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1161,7 +1161,7 @@ index;
     }
 
     [Fact]
-    public void ArraySomeReturnsTrueIfAnyMatch()
+    public async Task ArraySomeReturnsTrueIfAnyMatch()
     {
         var engine = new JsEngine();
         
@@ -1179,7 +1179,7 @@ numbers.some(function(x, i, arr) { return x < 0; });
     }
 
     [Fact]
-    public void ArrayEveryReturnsTrueIfAllMatch()
+    public async Task ArrayEveryReturnsTrueIfAllMatch()
     {
         var engine = new JsEngine();
         
@@ -1197,7 +1197,7 @@ numbers.every(function(x, i, arr) { return x > 3; });
     }
 
     [Fact]
-    public void ArrayJoinConcatenatesElements()
+    public async Task ArrayJoinConcatenatesElements()
     {
         var engine = new JsEngine();
         
@@ -1215,7 +1215,7 @@ items.join(""-"");
     }
 
     [Fact]
-    public void ArrayIncludesChecksForElement()
+    public async Task ArrayIncludesChecksForElement()
     {
         var engine = new JsEngine();
         
@@ -1233,7 +1233,7 @@ numbers.includes(5);
     }
 
     [Fact]
-    public void ArrayIndexOfFindsElementPosition()
+    public async Task ArrayIndexOfFindsElementPosition()
     {
         var engine = new JsEngine();
         
@@ -1251,7 +1251,7 @@ items.indexOf(""d"");
     }
 
     [Fact]
-    public void ArraySliceExtractsSubarray()
+    public async Task ArraySliceExtractsSubarray()
     {
         var engine = new JsEngine();
         
@@ -1264,7 +1264,7 @@ slice[0] + slice[1];
     }
 
     [Fact]
-    public void ArrayMethodsCanBeChained()
+    public async Task ArrayMethodsCanBeChained()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1279,7 +1279,7 @@ result;
     }
 
     [Fact]
-    public void ArrayPushAddsElements()
+    public async Task ArrayPushAddsElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1292,7 +1292,7 @@ numbers[""length""];
     }
 
     [Fact]
-    public void ArrayPopRemovesLastElement()
+    public async Task ArrayPopRemovesLastElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1304,7 +1304,7 @@ last;
     }
 
     [Fact]
-    public void ArrayShiftRemovesFirstElement()
+    public async Task ArrayShiftRemovesFirstElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1316,7 +1316,7 @@ first;
     }
 
     [Fact]
-    public void ArrayUnshiftAddsToBeginning()
+    public async Task ArrayUnshiftAddsToBeginning()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1328,7 +1328,7 @@ numbers[0];
     }
 
     [Fact]
-    public void ArraySpliceRemovesAndInserts()
+    public async Task ArraySpliceRemovesAndInserts()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1340,7 +1340,7 @@ numbers[2];
     }
 
     [Fact]
-    public void ArrayConcatCombinesArrays()
+    public async Task ArrayConcatCombinesArrays()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1353,7 +1353,7 @@ combined[3];
     }
 
     [Fact]
-    public void ArrayReverseReversesInPlace()
+    public async Task ArrayReverseReversesInPlace()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1365,7 +1365,7 @@ numbers[0];
     }
 
     [Fact]
-    public void ArraySortSortsElements()
+    public async Task ArraySortSortsElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1377,7 +1377,7 @@ numbers[0];
     }
 
     [Fact]
-    public void DateNowReturnsMilliseconds()
+    public async Task DateNowReturnsMilliseconds()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("Date.now();");
@@ -1386,7 +1386,7 @@ numbers[0];
     }
 
     [Fact]
-    public void DateConstructorCreatesInstance()
+    public async Task DateConstructorCreatesInstance()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1397,7 +1397,7 @@ d.getFullYear();
     }
 
     [Fact]
-    public void DateGetMonthReturnsZeroIndexed()
+    public async Task DateGetMonthReturnsZeroIndexed()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1408,7 +1408,7 @@ d.getMonth();
     }
 
     [Fact]
-    public void DateToISOStringReturnsFormattedString()
+    public async Task DateToISOStringReturnsFormattedString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1420,7 +1420,7 @@ d.toISOString();
     }
 
     [Fact]
-    public void JsonParseHandlesObject()
+    public async Task JsonParseHandlesObject()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1432,7 +1432,7 @@ obj.name;
     }
 
     [Fact]
-    public void JsonParseHandlesArray()
+    public async Task JsonParseHandlesArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1444,7 +1444,7 @@ arr[2];
     }
 
     [Fact]
-    public void JsonStringifyHandlesObject()
+    public async Task JsonStringifyHandlesObject()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -1456,7 +1456,7 @@ JSON.stringify(obj);
     }
 
     [Fact]
-    public void JsonStringifyHandlesArray()
+    public async Task JsonStringifyHandlesArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

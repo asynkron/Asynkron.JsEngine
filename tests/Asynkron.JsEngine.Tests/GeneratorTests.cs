@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 public class GeneratorTests
 {
     [Fact]
-    public void GeneratorFunction_CanBeDeclared()
+    public async Task GeneratorFunction_CanBeDeclared()
     {
         // Arrange
         var engine = new JsEngine();
@@ -22,7 +22,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void GeneratorFunction_ReturnsIteratorObject()
+    public async Task GeneratorFunction_ReturnsIteratorObject()
     {
         // Arrange
         var engine = new JsEngine();
@@ -41,7 +41,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_HasNextMethod()
+    public async Task Generator_HasNextMethod()
     {
         // Arrange
         var engine = new JsEngine();
@@ -60,7 +60,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_YieldsSingleValue()
+    public async Task Generator_YieldsSingleValue()
     {
         // Arrange
         var engine = new JsEngine();
@@ -82,7 +82,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_YieldsMultipleValues()
+    public async Task Generator_YieldsMultipleValues()
     {
         // Arrange
         var engine = new JsEngine();
@@ -108,7 +108,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ReturnsIteratorResult()
+    public async Task Generator_ReturnsIteratorResult()
     {
         // Arrange
         var engine = new JsEngine();
@@ -128,7 +128,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_IteratorResultHasValueAndDone()
+    public async Task Generator_IteratorResultHasValueAndDone()
     {
         // Arrange
         var engine = new JsEngine();
@@ -152,7 +152,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_CompletesWithDoneTrue()
+    public async Task Generator_CompletesWithDoneTrue()
     {
         // Arrange
         var engine = new JsEngine();
@@ -176,7 +176,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_YieldsExpressions()
+    public async Task Generator_YieldsExpressions()
     {
         // Arrange
         var engine = new JsEngine();
@@ -199,7 +199,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_YieldsVariables()
+    public async Task Generator_YieldsVariables()
     {
         // Arrange
         var engine = new JsEngine();
@@ -224,7 +224,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_WithParameters()
+    public async Task Generator_WithParameters()
     {
         // Arrange
         var engine = new JsEngine();
@@ -247,7 +247,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_CanBeCalledMultipleTimes()
+    public async Task Generator_CanBeCalledMultipleTimes()
     {
         // Arrange
         var engine = new JsEngine();
@@ -275,7 +275,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_EmptyGenerator()
+    public async Task Generator_EmptyGenerator()
     {
         // Arrange
         var engine = new JsEngine();
@@ -295,7 +295,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_WithReturn()
+    public async Task Generator_WithReturn()
     {
         // Arrange
         var engine = new JsEngine();
@@ -324,7 +324,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void GeneratorExpression_CanBeAssigned()
+    public async Task GeneratorExpression_CanBeAssigned()
     {
         // Arrange
         var engine = new JsEngine();
@@ -345,7 +345,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_HasReturnMethod()
+    public async Task Generator_HasReturnMethod()
     {
         // Arrange
         var engine = new JsEngine();
@@ -365,7 +365,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ReturnMethodCompletesGenerator()
+    public async Task Generator_ReturnMethodCompletesGenerator()
     {
         // Arrange
         var engine = new JsEngine();
@@ -393,7 +393,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void Generator_HasThrowMethod()
+    public async Task Generator_HasThrowMethod()
     {
         // Arrange
         var engine = new JsEngine();
@@ -412,7 +412,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void ParseGeneratorSyntax_FunctionStar()
+    public async Task ParseGeneratorSyntax_FunctionStar()
     {
         // Arrange
         var engine = new JsEngine();
@@ -428,7 +428,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void ParseYieldExpression()
+    public async Task ParseYieldExpression()
     {
         // Arrange
         var engine = new JsEngine();

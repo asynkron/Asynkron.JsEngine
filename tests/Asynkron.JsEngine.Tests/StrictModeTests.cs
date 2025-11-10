@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine.Tests;
 public class StrictModeTests
 {
     [Fact]
-    public void StrictMode_DetectedAndParsed()
+    public async Task StrictMode_DetectedAndParsed()
     {
         // Verify that "use strict" directive is detected and added to the AST
         var engine = new JsEngine();
@@ -25,25 +25,22 @@ public class StrictModeTests
     }
 
     [Fact]
-    public void StrictMode_ErrorMessageFormat()
+    public async Task StrictMode_ErrorMessageFormat()
     {
         // In strict mode, assigning to an undefined variable should throw a ReferenceError
         var engine = new JsEngine();
         
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-        {
-            engine.EvaluateSync(@"
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync(@"
                 ""use strict"";
                 undeclaredVariable = 10;
-            ");
-        });
+            ")));
         
         Assert.Contains("ReferenceError", ex.Message);
         Assert.Contains("is not defined", ex.Message);
     }
 
     [Fact]
-    public void StrictMode_ProperDeclarationsWork()
+    public async Task StrictMode_ProperDeclarationsWork()
     {
         var engine = new JsEngine();
         
@@ -59,26 +56,23 @@ public class StrictModeTests
     }
 
     [Fact]
-    public void StrictMode_DetectedInFunctionBody()
+    public async Task StrictMode_DetectedInFunctionBody()
     {
         var engine = new JsEngine();
         
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-        {
-            engine.EvaluateSync(@"
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync(@"
                 function testFunction() {
                     ""use strict"";
                     undeclaredVar = 5;
                 }
                 testFunction();
-            ");
-        });
+            ")));
         
         Assert.Contains("is not defined", ex.Message);
     }
 
     [Fact]
-    public void StrictMode_NestedFunctions()
+    public async Task StrictMode_NestedFunctions()
     {
         var engine = new JsEngine();
         
@@ -99,7 +93,7 @@ public class StrictModeTests
     }
 
     [Fact]
-    public void StrictMode_WithClasses()
+    public async Task StrictMode_WithClasses()
     {
         var engine = new JsEngine();
         
@@ -121,24 +115,21 @@ public class StrictModeTests
     }
 
     [Fact]
-    public void StrictMode_AssignmentToConstFails()
+    public async Task StrictMode_AssignmentToConstFails()
     {
         var engine = new JsEngine();
         
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-        {
-            engine.EvaluateSync(@"
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync(@"
                 ""use strict"";
                 const x = 10;
                 x = 20;
-            ");
-        });
+            ")));
         
         Assert.Contains("constant", ex.Message);
     }
 
     [Fact]
-    public void StrictMode_LetDeclarationsWork()
+    public async Task StrictMode_LetDeclarationsWork()
     {
         var engine = new JsEngine();
         
@@ -155,7 +146,7 @@ public class StrictModeTests
     }
 
     [Fact]
-    public void StrictMode_InBlockScope()
+    public async Task StrictMode_InBlockScope()
     {
         var engine = new JsEngine();
         
@@ -171,7 +162,7 @@ public class StrictModeTests
     }
 
     [Fact]
-    public void StrictMode_MultipleStatements()
+    public async Task StrictMode_MultipleStatements()
     {
         var engine = new JsEngine();
         
@@ -190,7 +181,7 @@ public class StrictModeTests
     }
 
     [Fact]
-    public void StrictMode_WithForLoops()
+    public async Task StrictMode_WithForLoops()
     {
         var engine = new JsEngine();
         
@@ -207,7 +198,7 @@ public class StrictModeTests
     }
 
     [Fact]
-    public void StrictMode_WithObjectLiterals()
+    public async Task StrictMode_WithObjectLiterals()
     {
         var engine = new JsEngine();
         
@@ -227,7 +218,7 @@ public class StrictModeTests
     }
 
     [Fact]
-    public void StrictMode_WithArrays()
+    public async Task StrictMode_WithArrays()
     {
         var engine = new JsEngine();
         

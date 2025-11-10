@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class ErrorTypesTests
 {
     [Fact]
-    public void Error_CanBeCreated()
+    public async Task Error_CanBeCreated()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -16,7 +16,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void Error_HasName()
+    public async Task Error_HasName()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -27,7 +27,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void Error_ToString_WithMessage()
+    public async Task Error_ToString_WithMessage()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -38,7 +38,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void TypeError_CanBeCreated()
+    public async Task TypeError_CanBeCreated()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -49,7 +49,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void TypeError_HasCorrectName()
+    public async Task TypeError_HasCorrectName()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -60,7 +60,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void RangeError_CanBeCreated()
+    public async Task RangeError_CanBeCreated()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -71,7 +71,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void RangeError_HasCorrectName()
+    public async Task RangeError_HasCorrectName()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -82,7 +82,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void ReferenceError_CanBeCreated()
+    public async Task ReferenceError_CanBeCreated()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -93,7 +93,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void ReferenceError_HasCorrectName()
+    public async Task ReferenceError_HasCorrectName()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -104,7 +104,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void SyntaxError_CanBeCreated()
+    public async Task SyntaxError_CanBeCreated()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -115,7 +115,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void SyntaxError_HasCorrectName()
+    public async Task SyntaxError_HasCorrectName()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -126,7 +126,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void Error_WithNoMessage()
+    public async Task Error_WithNoMessage()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -137,7 +137,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void Error_ToString_WithNoMessage()
+    public async Task Error_ToString_WithNoMessage()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -148,7 +148,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void TypeError_CanBeThrown()
+    public async Task TypeError_CanBeThrown()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -164,7 +164,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void RangeError_CanBeThrown()
+    public async Task RangeError_CanBeThrown()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -180,7 +180,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void ReferenceError_CanBeThrown()
+    public async Task ReferenceError_CanBeThrown()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -196,7 +196,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void SyntaxError_CanBeThrown()
+    public async Task SyntaxError_CanBeThrown()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -212,7 +212,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void Error_PreservesPropertiesWhenCaught()
+    public async Task Error_PreservesPropertiesWhenCaught()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -230,7 +230,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void MultipleErrorTypes_CanBeDistinguished()
+    public async Task MultipleErrorTypes_CanBeDistinguished()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -260,7 +260,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void Error_CanBeRethrown()
+    public async Task Error_CanBeRethrown()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -280,7 +280,7 @@ public class ErrorTypesTests
     }
 
     [Fact]
-    public void Error_InFunctionCall()
+    public async Task Error_InFunctionCall()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

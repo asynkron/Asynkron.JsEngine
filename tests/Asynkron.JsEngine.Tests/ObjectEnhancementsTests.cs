@@ -6,7 +6,7 @@ public class ObjectEnhancementsTests
 {
     // Object property shorthand tests
     [Fact]
-    public void ObjectPropertyShorthand()
+    public async Task ObjectPropertyShorthand()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -19,7 +19,7 @@ public class ObjectEnhancementsTests
     }
 
     [Fact]
-    public void ObjectPropertyShorthandAge()
+    public async Task ObjectPropertyShorthandAge()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -32,7 +32,7 @@ public class ObjectEnhancementsTests
     }
 
     [Fact]
-    public void ObjectPropertyShorthandMixed()
+    public async Task ObjectPropertyShorthandMixed()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -45,7 +45,7 @@ public class ObjectEnhancementsTests
 
     // Object method shorthand tests
     [Fact]
-    public void ObjectMethodShorthand()
+    public async Task ObjectMethodShorthand()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -61,7 +61,7 @@ public class ObjectEnhancementsTests
     }
 
     [Fact]
-    public void ObjectMethodShorthandMultiple()
+    public async Task ObjectMethodShorthandMultiple()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -79,7 +79,7 @@ public class ObjectEnhancementsTests
     }
 
     [Fact]
-    public void ObjectMethodShorthandWithThis()
+    public async Task ObjectMethodShorthandWithThis()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -102,7 +102,7 @@ public class ObjectEnhancementsTests
 
     // Computed property names tests
     [Fact]
-    public void ComputedPropertyName()
+    public async Task ComputedPropertyName()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -116,7 +116,7 @@ public class ObjectEnhancementsTests
     }
 
     [Fact]
-    public void ComputedPropertyNameExpression()
+    public async Task ComputedPropertyNameExpression()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -129,7 +129,7 @@ public class ObjectEnhancementsTests
     }
 
     [Fact]
-    public void ComputedPropertyNameMixed()
+    public async Task ComputedPropertyNameMixed()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -146,7 +146,7 @@ public class ObjectEnhancementsTests
     }
 
     [Fact]
-    public void ComputedPropertyNameWithMethod()
+    public async Task ComputedPropertyNameWithMethod()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -163,7 +163,7 @@ public class ObjectEnhancementsTests
     }
 
     [Fact]
-    public void ComputedPropertyNameNumber()
+    public async Task ComputedPropertyNameNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -179,7 +179,7 @@ public class ObjectEnhancementsTests
 
     // Combined features
     [Fact]
-    public void CombinedShorthandAndComputed()
+    public async Task CombinedShorthandAndComputed()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -199,7 +199,7 @@ public class ObjectEnhancementsTests
 
     // Object spread in object literals
     [Fact]
-    public void ObjectSpreadInLiteral()
+    public async Task ObjectSpreadInLiteral()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -212,7 +212,7 @@ public class ObjectEnhancementsTests
     }
 
     [Fact]
-    public void ObjectSpreadOverwrites()
+    public async Task ObjectSpreadOverwrites()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -225,7 +225,7 @@ public class ObjectEnhancementsTests
     }
 
     [Fact]
-    public void ObjectSpreadWithRegularProperties()
+    public async Task ObjectSpreadWithRegularProperties()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 public class SourceReferenceTests
 {
     [Fact]
-    public void SourceReference_ForLoop_CapturesSourceRange()
+    public async Task SourceReference_ForLoop_CapturesSourceRange()
     {
         var source = @"
 for (var x = 0; x < 10; x++) {
@@ -32,7 +32,7 @@ for (var x = 0; x < 10; x++) {
     }
 
     [Fact]
-    public void SourceReference_MultipleStatements_EachHasOwnReference()
+    public async Task SourceReference_MultipleStatements_EachHasOwnReference()
     {
         var source = @"
 for (var i = 0; i < 5; i++) { }
@@ -61,7 +61,7 @@ for (var j = 0; j < 3; j++) { }";
     }
 
     [Fact]
-    public void SourceReference_GetText_ReturnsCorrectSourceText()
+    public async Task SourceReference_GetText_ReturnsCorrectSourceText()
     {
         var source = @"for (let i = 0; i < 5; i++) { }";
 
@@ -83,7 +83,7 @@ for (var j = 0; j < 3; j++) { }";
     }
 
     [Fact]
-    public void SourceReference_LineAndColumn_TrackCorrectly()
+    public async Task SourceReference_LineAndColumn_TrackCorrectly()
     {
         var source = @"let x = 1;
 for (let i = 0; i < 5; i++) {

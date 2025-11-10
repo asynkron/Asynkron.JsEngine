@@ -144,7 +144,7 @@ public class AsyncIterableDebugTests
     }
 
     [Fact]
-    public void ForAwaitOf_WithString_NoAsync()
+    public async Task ForAwaitOf_WithString_NoAsync()
     {
         // Test without async function wrapper - as shown in ForAwaitOf_RequiresAsyncFunction
         var engine = new JsEngine();
@@ -211,7 +211,7 @@ public class AsyncIterableDebugTests
     }
 
     [Fact]
-    public void Test_OR_Expression_Parsing()
+    public async Task Test_OR_Expression_Parsing()
     {
         // Test to see the parsed S-expression for the OR expression
         var engine = new JsEngine();

@@ -6,7 +6,7 @@ public class DestructuringTests
 {
     // Basic Array Destructuring Tests
     [Fact]
-    public void BasicArrayDestructuring()
+    public async Task BasicArrayDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a, b] = [1, 2]; a + b;");
@@ -14,7 +14,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringWithMoreElements()
+    public async Task ArrayDestructuringWithMoreElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a, b] = [1, 2, 3, 4]; a * b;");
@@ -22,7 +22,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringWithFewerElements()
+    public async Task ArrayDestructuringWithFewerElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a, b, c] = [1, 2]; c;");
@@ -30,7 +30,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringWithSkippedElements()
+    public async Task ArrayDestructuringWithSkippedElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a, , c] = [1, 2, 3]; a + c;");
@@ -38,7 +38,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringWithDefaults()
+    public async Task ArrayDestructuringWithDefaults()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a = 10, b = 20] = [5]; a + b;");
@@ -46,7 +46,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringWithAllDefaults()
+    public async Task ArrayDestructuringWithAllDefaults()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a = 1, b = 2, c = 3] = []; a + b + c;");
@@ -54,7 +54,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringWithRestElement()
+    public async Task ArrayDestructuringWithRestElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a, ...rest] = [1, 2, 3, 4]; rest.length;");
@@ -62,7 +62,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringRestElementValues()
+    public async Task ArrayDestructuringRestElementValues()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a, ...rest] = [1, 2, 3, 4]; rest[0] + rest[1] + rest[2];");
@@ -70,7 +70,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringWithOnlyRestElement()
+    public async Task ArrayDestructuringWithOnlyRestElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [...all] = [1, 2, 3]; all.length;");
@@ -78,7 +78,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void NestedArrayDestructuring()
+    public async Task NestedArrayDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a, [b, c]] = [1, [2, 3]]; a + b + c;");
@@ -86,7 +86,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void DeepNestedArrayDestructuring()
+    public async Task DeepNestedArrayDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a, [b, [c, d]]] = [1, [2, [3, 4]]]; a + b + c + d;");
@@ -95,7 +95,7 @@ public class DestructuringTests
 
     // Basic Object Destructuring Tests
     [Fact]
-    public void BasicObjectDestructuring()
+    public async Task BasicObjectDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let {x, y} = {x: 1, y: 2}; x + y;");
@@ -103,7 +103,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ObjectDestructuringWithRenaming()
+    public async Task ObjectDestructuringWithRenaming()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let {x: a, y: b} = {x: 1, y: 2}; a + b;");
@@ -111,7 +111,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ObjectDestructuringWithDefaults()
+    public async Task ObjectDestructuringWithDefaults()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let {x = 10, y = 20} = {x: 5}; x + y;");
@@ -119,7 +119,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ObjectDestructuringWithRenamingAndDefaults()
+    public async Task ObjectDestructuringWithRenamingAndDefaults()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let {x: a = 10, y: b = 20} = {x: 5}; a + b;");
@@ -127,7 +127,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ObjectDestructuringWithRestProperties()
+    public async Task ObjectDestructuringWithRestProperties()
     {
         var engine = new JsEngine();
         engine.EvaluateSync("let {x, ...rest} = {x: 1, y: 2, z: 3};");
@@ -136,7 +136,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ObjectDestructuringMissingProperties()
+    public async Task ObjectDestructuringMissingProperties()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let {x, y, z} = {x: 1, y: 2}; z;");
@@ -144,7 +144,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void NestedObjectDestructuring()
+    public async Task NestedObjectDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let {a, b: {c}} = {a: 1, b: {c: 2}}; a + c;");
@@ -152,7 +152,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void DeepNestedObjectDestructuring()
+    public async Task DeepNestedObjectDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let {a, b: {c, d: {e}}} = {a: 1, b: {c: 2, d: {e: 3}}}; a + c + e;");
@@ -161,7 +161,7 @@ public class DestructuringTests
 
     // Mixed Array and Object Destructuring
     [Fact]
-    public void ArrayDestructuringWithNestedObject()
+    public async Task ArrayDestructuringWithNestedObject()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a, {b, c}] = [1, {b: 2, c: 3}]; a + b + c;");
@@ -169,7 +169,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ObjectDestructuringWithNestedArray()
+    public async Task ObjectDestructuringWithNestedArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let {a, b: [c, d]} = {a: 1, b: [2, 3]}; a + c + d;");
@@ -177,7 +177,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ComplexMixedDestructuring()
+    public async Task ComplexMixedDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -189,7 +189,7 @@ public class DestructuringTests
 
     // Const and Var Destructuring
     [Fact]
-    public void ConstArrayDestructuring()
+    public async Task ConstArrayDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("const [a, b] = [1, 2]; a + b;");
@@ -197,7 +197,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ConstObjectDestructuring()
+    public async Task ConstObjectDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("const {x, y} = {x: 1, y: 2}; x + y;");
@@ -205,7 +205,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void VarArrayDestructuring()
+    public async Task VarArrayDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("var [a, b] = [1, 2]; a + b;");
@@ -213,7 +213,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void VarObjectDestructuring()
+    public async Task VarObjectDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("var {x, y} = {x: 1, y: 2}; x + y;");
@@ -222,7 +222,7 @@ public class DestructuringTests
 
     // Edge Cases
     [Fact]
-    public void ArrayDestructuringEmptyArray()
+    public async Task ArrayDestructuringEmptyArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a, b] = []; a;");
@@ -230,7 +230,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ObjectDestructuringEmptyObject()
+    public async Task ObjectDestructuringEmptyObject()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let {x, y} = {}; x;");
@@ -238,7 +238,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringWithDefaultAndValue()
+    public async Task ArrayDestructuringWithDefaultAndValue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a = 10, b = 20] = [5, 15]; a + b;");
@@ -246,7 +246,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ObjectDestructuringMultiplePropertiesWithSomeDefaults()
+    public async Task ObjectDestructuringMultiplePropertiesWithSomeDefaults()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let {a = 1, b, c = 3} = {b: 2}; a + b + c;");
@@ -254,7 +254,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringWithRestAndDefaults()
+    public async Task ArrayDestructuringWithRestAndDefaults()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let [a = 1, b = 2, ...rest] = [10]; a + b + rest.length;");
@@ -263,7 +263,7 @@ public class DestructuringTests
 
     // Real-world patterns
     [Fact]
-    public void FunctionReturnDestructuring()
+    public async Task FunctionReturnDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -277,7 +277,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ObjectReturnDestructuring()
+    public async Task ObjectReturnDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -291,7 +291,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringInExpression()
+    public async Task ArrayDestructuringInExpression()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -304,7 +304,7 @@ public class DestructuringTests
 
     // Additional edge cases
     [Fact]
-    public void MultipleArrayDestructuringStatements()
+    public async Task MultipleArrayDestructuringStatements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -316,7 +316,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void MultipleObjectDestructuringStatements()
+    public async Task MultipleObjectDestructuringStatements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -328,7 +328,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringWithExpressions()
+    public async Task ArrayDestructuringWithExpressions()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -339,7 +339,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ObjectDestructuringWithExpressionDefaults()
+    public async Task ObjectDestructuringWithExpressionDefaults()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -350,7 +350,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void ArrayDestructuringWithComputedValues()
+    public async Task ArrayDestructuringWithComputedValues()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -362,7 +362,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void RestElementCapturesEmpty()
+    public async Task RestElementCapturesEmpty()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -374,7 +374,7 @@ public class DestructuringTests
 
     // Function Parameter Destructuring Tests
     [Fact]
-    public void FunctionParameterArrayDestructuring()
+    public async Task FunctionParameterArrayDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -387,7 +387,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void FunctionParameterObjectDestructuring()
+    public async Task FunctionParameterObjectDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -400,7 +400,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void FunctionParameterArrayDestructuringWithDefaults()
+    public async Task FunctionParameterArrayDestructuringWithDefaults()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -413,7 +413,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void FunctionParameterObjectDestructuringWithDefaults()
+    public async Task FunctionParameterObjectDestructuringWithDefaults()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -426,7 +426,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void FunctionParameterNestedDestructuring()
+    public async Task FunctionParameterNestedDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -439,7 +439,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void FunctionParameterArrayRest()
+    public async Task FunctionParameterArrayRest()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -452,7 +452,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void FunctionParameterObjectRest()
+    public async Task FunctionParameterObjectRest()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -465,7 +465,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void FunctionParameterMixedDestructuringAndRegular()
+    public async Task FunctionParameterMixedDestructuringAndRegular()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -479,7 +479,7 @@ public class DestructuringTests
 
     // Assignment Destructuring Tests (without declaration)
     [Fact]
-    public void AssignmentArrayDestructuring()
+    public async Task AssignmentArrayDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -492,7 +492,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void VariableSwapping()
+    public async Task VariableSwapping()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -505,7 +505,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void AssignmentNestedDestructuring()
+    public async Task AssignmentNestedDestructuring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -519,7 +519,7 @@ public class DestructuringTests
     }
 
     [Fact]
-    public void AssignmentWithRest()
+    public async Task AssignmentWithRest()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

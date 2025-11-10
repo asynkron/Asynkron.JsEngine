@@ -7,7 +7,7 @@ public class ObjectDescriptorTests
     // Tests for Object.defineProperty with writable descriptor
     
     [Fact]
-    public void DefineProperty_Writable_False_Prevents_Modification()
+    public async Task DefineProperty_Writable_False_Prevents_Modification()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -23,7 +23,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void DefineProperty_Writable_True_Allows_Modification()
+    public async Task DefineProperty_Writable_True_Allows_Modification()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -39,7 +39,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void DefineProperty_Default_Writable_Is_True()
+    public async Task DefineProperty_Default_Writable_Is_True()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -54,7 +54,7 @@ public class ObjectDescriptorTests
     // Tests for Object.defineProperty with enumerable descriptor
     
     [Fact]
-    public void DefineProperty_Enumerable_False_Hides_From_Keys()
+    public async Task DefineProperty_Enumerable_False_Hides_From_Keys()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -67,7 +67,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void DefineProperty_Enumerable_False_Visible_In_GetOwnPropertyNames()
+    public async Task DefineProperty_Enumerable_False_Visible_In_GetOwnPropertyNames()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -79,7 +79,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void DefineProperty_Enumerable_True_Shows_In_Keys()
+    public async Task DefineProperty_Enumerable_True_Shows_In_Keys()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -91,7 +91,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void DefineProperty_Multiple_Properties_Different_Enumerable()
+    public async Task DefineProperty_Multiple_Properties_Different_Enumerable()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -107,7 +107,7 @@ public class ObjectDescriptorTests
     // Tests for Object.defineProperty with configurable descriptor
     
     [Fact]
-    public void DefineProperty_Configurable_False_Prevents_Redefinition()
+    public async Task DefineProperty_Configurable_False_Prevents_Redefinition()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -125,7 +125,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void DefineProperty_Configurable_True_Allows_Redefinition()
+    public async Task DefineProperty_Configurable_True_Allows_Redefinition()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -145,7 +145,7 @@ public class ObjectDescriptorTests
     // Tests for Object.defineProperty with getter/setter
     
     [Fact]
-    public void DefineProperty_Getter_Works()
+    public async Task DefineProperty_Getter_Works()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -159,7 +159,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void DefineProperty_Setter_Works()
+    public async Task DefineProperty_Setter_Works()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -174,7 +174,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void DefineProperty_Getter_And_Setter_Work_Together()
+    public async Task DefineProperty_Getter_And_Setter_Work_Together()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -190,7 +190,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void DefineProperty_Getter_Only_Property_Cannot_Be_Set()
+    public async Task DefineProperty_Getter_Only_Property_Cannot_Be_Set()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -207,7 +207,7 @@ public class ObjectDescriptorTests
     // Tests for Object.getOwnPropertyDescriptor
     
     [Fact]
-    public void GetOwnPropertyDescriptor_Returns_Value()
+    public async Task GetOwnPropertyDescriptor_Returns_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -219,7 +219,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void GetOwnPropertyDescriptor_Returns_Writable_True_For_Normal_Property()
+    public async Task GetOwnPropertyDescriptor_Returns_Writable_True_For_Normal_Property()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -231,7 +231,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void GetOwnPropertyDescriptor_Returns_Writable_False_For_Readonly()
+    public async Task GetOwnPropertyDescriptor_Returns_Writable_False_For_Readonly()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -247,7 +247,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void GetOwnPropertyDescriptor_Returns_Enumerable()
+    public async Task GetOwnPropertyDescriptor_Returns_Enumerable()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -263,7 +263,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void GetOwnPropertyDescriptor_Returns_Configurable()
+    public async Task GetOwnPropertyDescriptor_Returns_Configurable()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -279,7 +279,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void GetOwnPropertyDescriptor_Returns_Undefined_For_Nonexistent()
+    public async Task GetOwnPropertyDescriptor_Returns_Undefined_For_Nonexistent()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -290,7 +290,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void GetOwnPropertyDescriptor_Returns_Getter()
+    public async Task GetOwnPropertyDescriptor_Returns_Getter()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -305,7 +305,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void GetOwnPropertyDescriptor_Returns_Setter()
+    public async Task GetOwnPropertyDescriptor_Returns_Setter()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -320,7 +320,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void GetOwnPropertyDescriptor_Accessor_Has_No_Value_Or_Writable()
+    public async Task GetOwnPropertyDescriptor_Accessor_Has_No_Value_Or_Writable()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -337,7 +337,7 @@ public class ObjectDescriptorTests
     // Tests for Object.getOwnPropertyNames
     
     [Fact]
-    public void GetOwnPropertyNames_Returns_All_Properties()
+    public async Task GetOwnPropertyNames_Returns_All_Properties()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -350,7 +350,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void GetOwnPropertyNames_Includes_Non_Enumerable()
+    public async Task GetOwnPropertyNames_Includes_Non_Enumerable()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -364,7 +364,7 @@ public class ObjectDescriptorTests
     // Tests for Object.create with property descriptors
     
     [Fact]
-    public void Object_Create_With_Property_Descriptors()
+    public async Task Object_Create_With_Property_Descriptors()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -377,7 +377,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void Object_Create_Property_Descriptors_Default_Enumerable_False()
+    public async Task Object_Create_Property_Descriptors_Default_Enumerable_False()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -390,7 +390,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void Object_Create_Property_Descriptors_Can_Be_Enumerable()
+    public async Task Object_Create_Property_Descriptors_Can_Be_Enumerable()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -403,7 +403,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void Object_Create_Multiple_Properties()
+    public async Task Object_Create_Multiple_Properties()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -417,7 +417,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void Object_Create_With_Accessor_Descriptor()
+    public async Task Object_Create_With_Accessor_Descriptor()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -435,7 +435,7 @@ public class ObjectDescriptorTests
     // Tests for interaction with freeze/seal
     
     [Fact]
-    public void Frozen_Object_Properties_Become_Non_Writable()
+    public async Task Frozen_Object_Properties_Become_Non_Writable()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -448,7 +448,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void Frozen_Object_Properties_Become_Non_Configurable()
+    public async Task Frozen_Object_Properties_Become_Non_Configurable()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -461,7 +461,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void Sealed_Object_Properties_Become_Non_Configurable()
+    public async Task Sealed_Object_Properties_Become_Non_Configurable()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -474,7 +474,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void Sealed_Object_Properties_Remain_Writable()
+    public async Task Sealed_Object_Properties_Remain_Writable()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -489,7 +489,7 @@ public class ObjectDescriptorTests
     // Edge cases and error handling
     
     [Fact]
-    public void DefineProperty_Returns_The_Object()
+    public async Task DefineProperty_Returns_The_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -501,7 +501,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void DefineProperty_On_Frozen_Object_Is_Ignored()
+    public async Task DefineProperty_On_Frozen_Object_Is_Ignored()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -514,7 +514,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void DefineProperty_Modify_Frozen_Property_Is_Ignored()
+    public async Task DefineProperty_Modify_Frozen_Property_Is_Ignored()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -527,7 +527,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void Object_Keys_Respects_Enumerable_Flag()
+    public async Task Object_Keys_Respects_Enumerable_Flag()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -542,7 +542,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void Object_Values_Respects_Enumerable_Flag()
+    public async Task Object_Values_Respects_Enumerable_Flag()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -557,7 +557,7 @@ public class ObjectDescriptorTests
     }
     
     [Fact]
-    public void Object_Entries_Respects_Enumerable_Flag()
+    public async Task Object_Entries_Respects_Enumerable_Flag()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

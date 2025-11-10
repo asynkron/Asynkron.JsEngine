@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine.Tests;
 public class SetTests
 {
     [Fact]
-    public void Set_Constructor_Creates_Empty_Set()
+    public async Task Set_Constructor_Creates_Empty_Set()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -14,7 +14,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Add_Adds_Value()
+    public async Task Set_Add_Adds_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -26,7 +26,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Add_Returns_Set_For_Chaining()
+    public async Task Set_Add_Returns_Set_For_Chaining()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -38,7 +38,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Has_Checks_Value_Existence()
+    public async Task Set_Has_Checks_Value_Existence()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -52,7 +52,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Delete_Removes_Value()
+    public async Task Set_Delete_Removes_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -66,7 +66,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Delete_Returns_False_For_Nonexistent_Value()
+    public async Task Set_Delete_Returns_False_For_Nonexistent_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -77,7 +77,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Clear_Removes_All_Values()
+    public async Task Set_Clear_Removes_All_Values()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -91,7 +91,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Size_Tracks_Value_Count()
+    public async Task Set_Size_Tracks_Value_Count()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -109,7 +109,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Only_Stores_Unique_Values()
+    public async Task Set_Only_Stores_Unique_Values()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -123,7 +123,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Accepts_Any_Type_As_Value()
+    public async Task Set_Accepts_Any_Type_As_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -145,7 +145,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_ForEach_Iterates_All_Values()
+    public async Task Set_ForEach_Iterates_All_Values()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -164,7 +164,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Values_Returns_Array_Of_Values()
+    public async Task Set_Values_Returns_Array_Of_Values()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -180,7 +180,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Keys_Returns_Array_Of_Values()
+    public async Task Set_Keys_Returns_Array_Of_Values()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -195,7 +195,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Entries_Returns_Array_Of_Value_Value_Pairs()
+    public async Task Set_Entries_Returns_Array_Of_Value_Value_Pairs()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -211,7 +211,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Maintains_Insertion_Order()
+    public async Task Set_Maintains_Insertion_Order()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -227,7 +227,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Constructor_Accepts_Array_Of_Values()
+    public async Task Set_Constructor_Accepts_Array_Of_Values()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -239,7 +239,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Handles_NaN_As_Value()
+    public async Task Set_Handles_NaN_As_Value()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -252,7 +252,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Multiple_NaN_Values_Are_Considered_Same()
+    public async Task Set_Multiple_NaN_Values_Are_Considered_Same()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -267,7 +267,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Typeof_Returns_Object()
+    public async Task Set_Typeof_Returns_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -278,7 +278,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Can_Store_Objects()
+    public async Task Set_Can_Store_Objects()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -295,7 +295,7 @@ public class SetTests
     }
 
     [Fact]
-    public void Set_Different_Objects_With_Same_Content_Are_Different()
+    public async Task Set_Different_Objects_With_Same_Content_Are_Different()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

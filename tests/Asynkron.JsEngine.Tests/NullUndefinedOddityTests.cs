@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 public class NullUndefinedOddityTests
 {
     [Fact]
-    public void TypeofNull_ReturnsObject()
+    public async Task TypeofNull_ReturnsObject()
     {
         // JavaScript oddity: typeof null === "object" (historical bug)
         var engine = new JsEngine();
@@ -18,7 +18,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void TypeofUndefined_ReturnsUndefined()
+    public async Task TypeofUndefined_ReturnsUndefined()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("typeof undefined;");
@@ -26,7 +26,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void TypeofNumber_ReturnsNumber()
+    public async Task TypeofNumber_ReturnsNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("typeof 42;");
@@ -34,7 +34,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void TypeofString_ReturnsString()
+    public async Task TypeofString_ReturnsString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("typeof \"hello\";");
@@ -42,7 +42,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void TypeofBoolean_ReturnsBoolean()
+    public async Task TypeofBoolean_ReturnsBoolean()
     {
         var engine = new JsEngine();
         var trueResult = engine.EvaluateSync("typeof true;");
@@ -52,7 +52,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void TypeofFunction_ReturnsFunction()
+    public async Task TypeofFunction_ReturnsFunction()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("typeof function() { return 1; };");
@@ -60,7 +60,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void TypeofObject_ReturnsObject()
+    public async Task TypeofObject_ReturnsObject()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("typeof { a: 1 };");
@@ -68,7 +68,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void TypeofArray_ReturnsObject()
+    public async Task TypeofArray_ReturnsObject()
     {
         // Arrays are objects in JavaScript
         var engine = new JsEngine();
@@ -77,7 +77,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void LooseEquality_NullEqualsUndefined()
+    public async Task LooseEquality_NullEqualsUndefined()
     {
         // JavaScript oddity: null == undefined (with loose equality)
         var engine = new JsEngine();
@@ -86,7 +86,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void StrictEquality_NullNotEqualsUndefined()
+    public async Task StrictEquality_NullNotEqualsUndefined()
     {
         // But null !== undefined (with strict equality)
         var engine = new JsEngine();
@@ -95,7 +95,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void LooseInequality_NullNotNotEqualUndefined()
+    public async Task LooseInequality_NullNotNotEqualUndefined()
     {
         // null != undefined should be false
         var engine = new JsEngine();
@@ -104,7 +104,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void StrictInequality_NullNotEqualUndefined()
+    public async Task StrictInequality_NullNotEqualUndefined()
     {
         // null !== undefined should be true
         var engine = new JsEngine();
@@ -113,7 +113,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void Null_IsFalsy()
+    public async Task Null_IsFalsy()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("null ? \"yes\" : \"no\";");
@@ -121,7 +121,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void Undefined_IsFalsy()
+    public async Task Undefined_IsFalsy()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("undefined ? \"yes\" : \"no\";");
@@ -129,7 +129,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void NotNull_IsTrue()
+    public async Task NotNull_IsTrue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("!null;");
@@ -137,7 +137,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void NotUndefined_IsTrue()
+    public async Task NotUndefined_IsTrue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("!undefined;");
@@ -145,7 +145,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void NullishCoalescing_NullReturnsDefault()
+    public async Task NullishCoalescing_NullReturnsDefault()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("null ?? \"default\";");
@@ -153,7 +153,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void NullishCoalescing_UndefinedReturnsDefault()
+    public async Task NullishCoalescing_UndefinedReturnsDefault()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("undefined ?? \"default\";");
@@ -161,7 +161,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void LogicalOr_NullReturnsRightOperand()
+    public async Task LogicalOr_NullReturnsRightOperand()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("null || \"default\";");
@@ -169,7 +169,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void LogicalOr_UndefinedReturnsRightOperand()
+    public async Task LogicalOr_UndefinedReturnsRightOperand()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("undefined || \"default\";");
@@ -177,7 +177,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void NullPlusNumber_ReturnsNumber()
+    public async Task NullPlusNumber_ReturnsNumber()
     {
         // null coerces to 0 in arithmetic
         var engine = new JsEngine();
@@ -186,7 +186,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void UndefinedPlusNumber_ReturnsNaN()
+    public async Task UndefinedPlusNumber_ReturnsNaN()
     {
         // undefined coerces to NaN in arithmetic
         var engine = new JsEngine();
@@ -195,7 +195,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void NullMultipliedByNumber_ReturnsZero()
+    public async Task NullMultipliedByNumber_ReturnsZero()
     {
         // null coerces to 0
         var engine = new JsEngine();
@@ -204,7 +204,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void UndefinedMultipliedByNumber_ReturnsNaN()
+    public async Task UndefinedMultipliedByNumber_ReturnsNaN()
     {
         // undefined coerces to NaN
         var engine = new JsEngine();
@@ -213,7 +213,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void StringConcatenation_NullToString()
+    public async Task StringConcatenation_NullToString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"value: \" + null;");
@@ -221,7 +221,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void StringConcatenation_UndefinedToString()
+    public async Task StringConcatenation_UndefinedToString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"value: \" + undefined;");
@@ -229,7 +229,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void TemplateLiteral_NullToString()
+    public async Task TemplateLiteral_NullToString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("`value: ${null}`;");
@@ -237,7 +237,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void TemplateLiteral_UndefinedToString()
+    public async Task TemplateLiteral_UndefinedToString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("`value: ${undefined}`;");
@@ -245,7 +245,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void NullComparison_WithZero()
+    public async Task NullComparison_WithZero()
     {
         // JavaScript oddity: null >= 0 is true, but null > 0 and null == 0 are false
         var engine = new JsEngine();
@@ -261,7 +261,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void UndefinedComparison_WithZero()
+    public async Task UndefinedComparison_WithZero()
     {
         // undefined compared with numbers returns false (except for !=)
         var engine = new JsEngine();
@@ -277,7 +277,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void NullNotEqualToZero()
+    public async Task NullNotEqualToZero()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("null != 0;");
@@ -285,7 +285,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void UndefinedNotEqualToZero()
+    public async Task UndefinedNotEqualToZero()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("undefined != 0;");
@@ -293,7 +293,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void StrictEquality_NullWithNull()
+    public async Task StrictEquality_NullWithNull()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("null === null;");
@@ -301,7 +301,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void StrictEquality_UndefinedWithUndefined()
+    public async Task StrictEquality_UndefinedWithUndefined()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("undefined === undefined;");
@@ -309,7 +309,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void LooseEquality_NullNotEqualToNumber()
+    public async Task LooseEquality_NullNotEqualToNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("null == 0;");
@@ -317,7 +317,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void LooseEquality_UndefinedNotEqualToNumber()
+    public async Task LooseEquality_UndefinedNotEqualToNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("undefined == 0;");
@@ -325,7 +325,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void LooseEquality_NullNotEqualToFalse()
+    public async Task LooseEquality_NullNotEqualToFalse()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("null == false;");
@@ -333,7 +333,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void LooseEquality_UndefinedNotEqualToFalse()
+    public async Task LooseEquality_UndefinedNotEqualToFalse()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("undefined == false;");
@@ -341,7 +341,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void LooseEquality_NullNotEqualToEmptyString()
+    public async Task LooseEquality_NullNotEqualToEmptyString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("null == \"\";");
@@ -349,7 +349,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void LooseEquality_UndefinedNotEqualToEmptyString()
+    public async Task LooseEquality_UndefinedNotEqualToEmptyString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("undefined == \"\";");
@@ -357,7 +357,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void TypeofInExpression()
+    public async Task TypeofInExpression()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("typeof undefined === \"undefined\" ? \"correct\" : \"wrong\";");
@@ -365,7 +365,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void UndefinedAsVariableValue()
+    public async Task UndefinedAsVariableValue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -376,7 +376,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void NullAsVariableValue()
+    public async Task NullAsVariableValue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -387,7 +387,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void TypeofInFunction()
+    public async Task TypeofInFunction()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -400,7 +400,7 @@ public class NullUndefinedOddityTests
     }
 
     [Fact]
-    public void MultipleTypeofChecks()
+    public async Task MultipleTypeofChecks()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

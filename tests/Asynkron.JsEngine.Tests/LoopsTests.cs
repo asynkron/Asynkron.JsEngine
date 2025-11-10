@@ -6,7 +6,7 @@ public class LoopsTests
 {
     // for...in loop tests
     [Fact]
-    public void ForInLoopBasic()
+    public async Task ForInLoopBasic()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -21,7 +21,7 @@ public class LoopsTests
     }
 
     [Fact]
-    public void ForInLoopWithValues()
+    public async Task ForInLoopWithValues()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -36,7 +36,7 @@ public class LoopsTests
     }
 
     [Fact]
-    public void ForInLoopArray()
+    public async Task ForInLoopArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -51,7 +51,7 @@ public class LoopsTests
     }
 
     [Fact]
-    public void ForInLoopWithBreak()
+    public async Task ForInLoopWithBreak()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -69,7 +69,7 @@ public class LoopsTests
     }
 
     [Fact]
-    public void ForInLoopWithContinue()
+    public async Task ForInLoopWithContinue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -88,7 +88,7 @@ public class LoopsTests
 
     // for...of loop tests
     [Fact]
-    public void ForOfLoopArray()
+    public async Task ForOfLoopArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -103,7 +103,7 @@ public class LoopsTests
     }
 
     [Fact]
-    public void ForOfLoopString()
+    public async Task ForOfLoopString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -118,7 +118,7 @@ public class LoopsTests
     }
 
     [Fact]
-    public void ForOfLoopWithBreak()
+    public async Task ForOfLoopWithBreak()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -136,7 +136,7 @@ public class LoopsTests
     }
 
     [Fact]
-    public void ForOfLoopWithContinue()
+    public async Task ForOfLoopWithContinue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -154,7 +154,7 @@ public class LoopsTests
     }
 
     [Fact]
-    public void ForOfLoopNested()
+    public async Task ForOfLoopNested()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

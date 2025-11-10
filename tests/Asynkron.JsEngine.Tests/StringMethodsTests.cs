@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 public class StringMethodsTests
 {
     [Fact]
-    public void String_Length_Property()
+    public async Task String_Length_Property()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -19,7 +19,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_CharAt()
+    public async Task String_CharAt()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -30,7 +30,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_CharAt_OutOfBounds()
+    public async Task String_CharAt_OutOfBounds()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -41,7 +41,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_CharCodeAt()
+    public async Task String_CharCodeAt()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -52,7 +52,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_IndexOf()
+    public async Task String_IndexOf()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -63,7 +63,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_IndexOf_NotFound()
+    public async Task String_IndexOf_NotFound()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -74,7 +74,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_IndexOf_WithPosition()
+    public async Task String_IndexOf_WithPosition()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -85,7 +85,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_LastIndexOf()
+    public async Task String_LastIndexOf()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -96,7 +96,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Substring()
+    public async Task String_Substring()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -107,7 +107,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Substring_OneArg()
+    public async Task String_Substring_OneArg()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -118,7 +118,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Substring_SwapsIfStartGreaterThanEnd()
+    public async Task String_Substring_SwapsIfStartGreaterThanEnd()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -129,7 +129,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Slice()
+    public async Task String_Slice()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -140,7 +140,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Slice_NegativeIndices()
+    public async Task String_Slice_NegativeIndices()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -151,7 +151,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_ToLowerCase()
+    public async Task String_ToLowerCase()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -162,7 +162,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_ToUpperCase()
+    public async Task String_ToUpperCase()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -173,7 +173,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Trim()
+    public async Task String_Trim()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -184,7 +184,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_TrimStart()
+    public async Task String_TrimStart()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -195,7 +195,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_TrimEnd()
+    public async Task String_TrimEnd()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -206,7 +206,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Split()
+    public async Task String_Split()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -218,7 +218,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Split_WithLimit()
+    public async Task String_Split_WithLimit()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -230,7 +230,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Split_EmptySeparator()
+    public async Task String_Split_EmptySeparator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -242,7 +242,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Replace()
+    public async Task String_Replace()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -253,7 +253,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Replace_OnlyFirstOccurrence()
+    public async Task String_Replace_OnlyFirstOccurrence()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -264,7 +264,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_StartsWith()
+    public async Task String_StartsWith()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -275,7 +275,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_StartsWith_WithPosition()
+    public async Task String_StartsWith_WithPosition()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -286,7 +286,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_EndsWith()
+    public async Task String_EndsWith()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -297,7 +297,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_EndsWith_WithLength()
+    public async Task String_EndsWith_WithLength()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -308,7 +308,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Includes()
+    public async Task String_Includes()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -319,7 +319,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Includes_NotFound()
+    public async Task String_Includes_NotFound()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -330,7 +330,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Repeat()
+    public async Task String_Repeat()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -341,7 +341,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_PadStart()
+    public async Task String_PadStart()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -352,7 +352,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_PadEnd()
+    public async Task String_PadEnd()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -363,7 +363,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Chaining()
+    public async Task String_Chaining()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -374,7 +374,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Methods_InLoop()
+    public async Task String_Methods_InLoop()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -394,7 +394,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_CodePointAt()
+    public async Task String_CodePointAt()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -405,7 +405,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_CodePointAt_WithSurrogatePair()
+    public async Task String_CodePointAt_WithSurrogatePair()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -416,7 +416,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_LocaleCompare()
+    public async Task String_LocaleCompare()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -428,7 +428,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Normalize()
+    public async Task String_Normalize()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -439,7 +439,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_MatchAll()
+    public async Task String_MatchAll()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -452,7 +452,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Anchor()
+    public async Task String_Anchor()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -463,7 +463,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Link()
+    public async Task String_Link()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -474,7 +474,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_FromCodePoint()
+    public async Task String_FromCodePoint()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -484,7 +484,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_FromCodePoint_WithSurrogatePairs()
+    public async Task String_FromCodePoint_WithSurrogatePairs()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -494,7 +494,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_FromCharCode()
+    public async Task String_FromCharCode()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -504,7 +504,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Constructor()
+    public async Task String_Constructor()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -514,7 +514,7 @@ public class StringMethodsTests
     }
 
     [Fact]
-    public void String_Constructor_WithBoolean()
+    public async Task String_Constructor_WithBoolean()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

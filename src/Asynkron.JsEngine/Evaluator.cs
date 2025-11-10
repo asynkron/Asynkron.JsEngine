@@ -796,14 +796,13 @@ internal static class Evaluator
         // Execute finally block regardless
         if (finallyClause is Cons finallyCons)
         {
-            // Save current flow state in case finally changes it
-            var savedFlow = context.Flow;
-            var savedValue = context.FlowValue;
+            // Save current signal in case finally changes it
+            var savedSignal = context.CurrentSignal;
             
             EvaluateStatement(finallyCons, environment, context);
             
-            // If finally didn't set a new flow, restore the previous one
-            if (context.Flow == EvaluationContext.ControlFlow.None && hasThrow)
+            // If finally didn't set a new signal, restore the previous one
+            if (context.CurrentSignal is null && hasThrow)
             {
                 context.SetThrow(thrownValue);
             }

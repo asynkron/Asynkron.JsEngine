@@ -129,8 +129,17 @@ public sealed class JsEngine
         // Get all variables from the current environment and parent scopes
         var variables = environment.GetAllVariables();
 
-        // Get the control flow state
-        var controlFlowState = context.Flow.ToString();
+        // Get the control flow state from the signal
+        var controlFlowState = context.CurrentSignal switch
+        {
+            null => "None",
+            ReturnSignal => "Return",
+            BreakSignal => "Break",
+            ContinueSignal => "Continue",
+            ThrowFlowSignal => "Throw",
+            YieldSignal => "Yield",
+            _ => "Unknown"
+        };
 
         // Get the call stack by traversing the environment chain
         var callStack = environment.BuildCallStack();

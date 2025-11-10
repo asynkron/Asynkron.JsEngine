@@ -389,7 +389,7 @@ public sealed class CpsTransformer
             return TransformForOfWithAwaitInBody(forAwaitCons, statements, index, resolveParam, rejectParam);
         }
         
-        // Check if this is an if statement - recursively transform branches
+        // Check if this is an if statement - recursively transform branches when in loop context or contains await
         if (statement is Cons ifCons && !ifCons.IsEmpty && 
             ifCons.Head is Symbol ifSymbol && ReferenceEquals(ifSymbol, JsSymbols.If))
         {
@@ -400,30 +400,38 @@ public sealed class CpsTransformer
                 var thenBranch = ifParts[2];
                 var elseBranch = ifParts.Count > 3 ? ifParts[3] : null;
                 
-                // Always transform branches recursively - handles break/continue/await/return
-                var transformedThen = TransformBlockInAsyncContext(thenBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-                var transformedElse = elseBranch != null ? TransformBlockInAsyncContext(elseBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget) : null;
+                // Check if we need to transform branches (in loop context or contains await)
+                bool needsTransform = (loopContinueTarget != null || loopBreakTarget != null) || 
+                                     ContainsAwait(thenBranch) || 
+                                     (elseBranch != null && ContainsAwait(elseBranch));
                 
-                var transformedIf = transformedElse != null
-                    ? Cons.FromEnumerable([JsSymbols.If, condition, transformedThen, transformedElse])
-                    : Cons.FromEnumerable([JsSymbols.If, condition, transformedThen]);
-                
-                var ifRest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-                
-                if (ifRest is Cons ifRestCons && !ifRestCons.IsEmpty && 
-                    ifRestCons.Head is Symbol ifRestSymbol && ReferenceEquals(ifRestSymbol, JsSymbols.Block))
+                if (needsTransform)
                 {
-                    var flattenedStatements = new List<object?> { JsSymbols.Block, transformedIf };
-                    var current = ifRestCons.Rest;
-                    while (current is Cons c && !c.IsEmpty)
+                    // Transform branches recursively - handles break/continue/await/return
+                    var transformedThen = TransformBlockInAsyncContext(thenBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+                    var transformedElse = elseBranch != null ? TransformBlockInAsyncContext(elseBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget) : null;
+                    
+                    var transformedIf = transformedElse != null
+                        ? Cons.FromEnumerable([JsSymbols.If, condition, transformedThen, transformedElse])
+                        : Cons.FromEnumerable([JsSymbols.If, condition, transformedThen]);
+                    
+                    var ifRest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+                    
+                    if (ifRest is Cons ifRestCons && !ifRestCons.IsEmpty && 
+                        ifRestCons.Head is Symbol ifRestSymbol && ReferenceEquals(ifRestSymbol, JsSymbols.Block))
                     {
-                        flattenedStatements.Add(c.Head);
-                        current = c.Rest;
+                        var flattenedStatements = new List<object?> { JsSymbols.Block, transformedIf };
+                        var current = ifRestCons.Rest;
+                        while (current is Cons c && !c.IsEmpty)
+                        {
+                            flattenedStatements.Add(c.Head);
+                            current = c.Rest;
+                        }
+                        return Cons.FromEnumerable(flattenedStatements);
                     }
-                    return Cons.FromEnumerable(flattenedStatements);
+                    
+                    return Cons.FromEnumerable([JsSymbols.Block, transformedIf, ifRest]);
                 }
-                
-                return Cons.FromEnumerable([JsSymbols.Block, transformedIf, ifRest]);
             }
         }
         

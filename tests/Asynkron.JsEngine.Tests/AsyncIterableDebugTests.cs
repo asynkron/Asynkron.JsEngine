@@ -211,6 +211,34 @@ public class AsyncIterableDebugTests
     }
 
     [Fact]
+    public void Test_OR_Expression_Parsing()
+    {
+        // Test to see the parsed S-expression for the OR expression
+        var engine = new JsEngine();
+        
+        // Test simple OR first
+        var simpleOr = @"let result = a || b;";
+        var simpleSexpr = engine.Parse(simpleOr);
+        _output.WriteLine("=== SIMPLE OR ===");
+        _output.WriteLine(simpleSexpr.ToString());
+        _output.WriteLine("");
+        
+        // Test OR with function call on right
+        var orWithCall = @"let result = a || b();";
+        var orWithCallSexpr = engine.Parse(orWithCall);
+        _output.WriteLine("=== OR WITH FUNCTION CALL ===");
+        _output.WriteLine(orWithCallSexpr.ToString());
+        _output.WriteLine("");
+        
+        // Test the actual problematic expression
+        var problematicExpr = @"let iterator = str[Symbol.asyncIterator] || str[Symbol.iterator]();";
+        var problematicSexpr = engine.Parse(problematicExpr);
+        _output.WriteLine("=== PROBLEMATIC OR EXPRESSION ===");
+        _output.WriteLine(problematicSexpr.ToString());
+        _output.WriteLine("");
+    }
+    
+    [Fact]
     public async Task ForAwaitOf_WithString_ManualAsyncIteration()
     {
         // Test manual async iteration over a string

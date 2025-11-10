@@ -102,6 +102,7 @@ public sealed class JsEngine
         // Register internal helpers for async iteration
         SetGlobal("__getAsyncIterator", StandardLibrary.CreateGetAsyncIteratorHelper());
         SetGlobal("__iteratorNext", StandardLibrary.CreateIteratorNextHelper(this));
+        SetGlobal("__awaitHelper", StandardLibrary.CreateAwaitHelper(this));
         
         // Register timer functions
         SetGlobalFunction("setTimeout", args => SetTimeout(args));

@@ -620,23 +620,19 @@ public sealed class CpsTransformer
                 ])
             ]);
             
-            // Wrap promiseExpr in Promise.resolve() to handle both Promises and non-Promise values
-            var promiseResolveCall = Cons.FromEnumerable([
+            // Use __awaitHelper to wrap promiseExpr in Promise if needed
+            var awaitHelperCall = Cons.FromEnumerable([
                 JsSymbols.Call,
-                Cons.FromEnumerable([
-                    JsSymbols.GetProperty,
-                    Symbol.Intern("Promise"),
-                    "resolve"
-                ]),
+                Symbol.Intern("__awaitHelper"),
                 promiseExpr
             ]);
             
-            // Create: Promise.resolve(promiseExpr).then(callback)
+            // Create: __awaitHelper(promiseExpr).then(callback)
             var thenCall = Cons.FromEnumerable([
                 JsSymbols.Call, 
                 Cons.FromEnumerable([
                     JsSymbols.GetProperty, 
-                    promiseResolveCall, 
+                    awaitHelperCall, 
                     "then"
                 ]), 
                 thenCallback
@@ -786,23 +782,20 @@ public sealed class CpsTransformer
                             continuation
                         ]);
                         
-                        // Wrap promiseExpr in Promise.resolve() to handle both Promises and non-Promise values
-                        var promiseResolveCall = Cons.FromEnumerable([
+                        // Use __awaitHelper to wrap promiseExpr in Promise if needed
+                        // This checks if the value is already thenable before wrapping
+                        var awaitHelperCall = Cons.FromEnumerable([
                             JsSymbols.Call,
-                            Cons.FromEnumerable([
-                                JsSymbols.GetProperty,
-                                Symbol.Intern("Promise"),
-                                "resolve"
-                            ]),
+                            Symbol.Intern("__awaitHelper"),
                             promiseExpr
                         ]);
                         
-                        // Create the .then() call: Promise.resolve(promiseExpr).then(thenCallback)
+                        // Create the .then() call: __awaitHelper(promiseExpr).then(thenCallback)
                         var thenCall = Cons.FromEnumerable([
                             JsSymbols.Call, 
                             Cons.FromEnumerable([
                                 JsSymbols.GetProperty, 
-                                promiseResolveCall, 
+                                awaitHelperCall, 
                                 "then"
                             ]), 
                             thenCallback
@@ -834,23 +827,19 @@ public sealed class CpsTransformer
                         // Extract the promise expression
                         var promiseExpr = retValueCons.Rest.Head;
                         
-                        // Wrap promiseExpr in Promise.resolve() to handle both Promises and non-Promise values
-                        var promiseResolveCall = Cons.FromEnumerable([
+                        // Use __awaitHelper to wrap promiseExpr in Promise if needed
+                        var awaitHelperCall = Cons.FromEnumerable([
                             JsSymbols.Call,
-                            Cons.FromEnumerable([
-                                JsSymbols.GetProperty,
-                                Symbol.Intern("Promise"),
-                                "resolve"
-                            ]),
+                            Symbol.Intern("__awaitHelper"),
                             promiseExpr
                         ]);
                         
-                        // Create: Promise.resolve(promiseExpr).then(resolve)
+                        // Create: __awaitHelper(promiseExpr).then(resolve)
                         var thenCall = Cons.FromEnumerable([
                             JsSymbols.Call, 
                             Cons.FromEnumerable([
                                 JsSymbols.GetProperty, 
-                                promiseResolveCall, 
+                                awaitHelperCall, 
                                 "then"
                             ]), 
                             resolveParam

@@ -3560,4 +3560,30 @@ internal static class StandardLibrary
             return promise.JsObject;
         });
     }
+    
+    /// <summary>
+    /// Helper function for await expressions: wraps value in Promise if needed.
+    /// Checks if the value is already a promise (has a "then" method) before wrapping.
+    /// </summary>
+    public static HostFunction CreateAwaitHelper(JsEngine engine)
+    {
+        return new HostFunction(args =>
+        {
+            // args[0] should be the value to await
+            var value = args.Count > 0 ? args[0] : null;
+
+            // Check if value is already a promise (has a "then" method)
+            if (value is JsObject valueObj && valueObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable)
+            {
+                // Already a promise, return as-is
+                return value;
+            }
+
+            // Not a promise, wrap in Promise.resolve()
+            var promise = new JsPromise(engine);
+            AddPromiseInstanceMethods(promise.JsObject, promise, engine);
+            promise.Resolve(value);
+            return promise.JsObject;
+        });
+    }
 }

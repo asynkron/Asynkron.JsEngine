@@ -238,25 +238,23 @@ internal static class Evaluator
             lastResult = EvaluateStatement(body, environment, context);
             
             // Demonstrate pattern matching with typed signals
-            switch (context.CurrentSignal)
+            // Note: This shows the new signal-based approach
+            if (context.CurrentSignal is ContinueSignal)
             {
-                case ContinueSignal:
-                    context.ClearContinue();
-                    continue;
-                
-                case BreakSignal:
-                    context.ClearBreak();
-                    break;
-                
-                case ReturnSignal:
-                case ThrowFlowSignal:
-                    // Propagate return/throw signals up the call stack
-                    break;
+                context.ClearContinue();
+                continue;
+            }
+            
+            if (context.CurrentSignal is BreakSignal)
+            {
+                context.ClearBreak();
+                break;
             }
             
             if (context.CurrentSignal is ReturnSignal or ThrowFlowSignal)
             {
-                break;  // Exit loop when return or throw signals are active
+                // Propagate return/throw signals up the call stack
+                break;
             }
         }
 

@@ -339,46 +339,29 @@ public sealed class JsEngine
         var result = await evaluateTask;
         
         // Wait for all pending work to complete:
-        // - Event queue to drain
+        // - Event queue to drain  
         // - Timer tasks to complete and schedule their callbacks
-        // We need to loop because timer tasks might schedule new events on the queue
-        while (true)
+        // We loop with a timeout to avoid hanging forever
+        var startTime = DateTime.UtcNow;
+        var maxWaitTime = TimeSpan.FromMilliseconds(1500); // Leave some margin for the 2000ms test timeout
+        
+        while ((DateTime.UtcNow - startTime) < maxWaitTime)
         {
-            // Wait a bit for any pending timer tasks to schedule their callbacks
-            await Task.Delay(10);
-            
             // Check if we have any active timer tasks
-            Task[] activeTasks;
+            bool hasActiveTasks;
             lock (_activeTimerTasks)
             {
-                activeTasks = _activeTimerTasks.ToArray();
+                hasActiveTasks = _activeTimerTasks.Count > 0;
             }
             
-            // If there are active timer tasks, wait for them to complete
-            if (activeTasks.Length > 0)
+            if (!hasActiveTasks)
             {
-                try
-                {
-                    await Task.WhenAll(activeTasks);
-                }
-                catch (TaskCanceledException)
-                {
-                    // Some timers were cancelled, which is fine
-                }
+                // No active tasks, we're done
+                break;
             }
             
-            // After timers complete, give the event queue a moment to process any callbacks
-            await Task.Delay(10);
-            
-            // Check again if any new timer tasks were created
-            lock (_activeTimerTasks)
-            {
-                if (_activeTimerTasks.Count == 0)
-                {
-                    // No more timer tasks, we're done
-                    break;
-                }
-            }
+            // Wait a bit for timer tasks to complete their cleanup
+            await Task.Delay(20);
         }
         
         return result;

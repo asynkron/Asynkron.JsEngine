@@ -323,10 +323,88 @@ public sealed class CpsTransformer
         if (statement is Cons breakCons && !breakCons.IsEmpty && 
             breakCons.Head is Symbol breakSymbol && ReferenceEquals(breakSymbol, JsSymbols.Break))
         {
-            // In loop context, break should call the after-loop continuation
+            // In loop context, break should jump to after-loop continuation
             if (loopBreakTarget != null)
             {
-                return loopBreakTarget;
+                // loopBreakTarget can be:
+                // 1. A Symbol (function name to call)
+                // 2. A Cons representing (call __resolve) or similar call
+                // 3. A Cons representing (block (expr-stmt (call __resolve)))
+                // 4. A Cons representing (block (return (call __resolve)))
+                
+                if (loopBreakTarget is Symbol breakFunc)
+                {
+                    // It's a function symbol, call it with return
+                    return Cons.FromEnumerable([
+                        JsSymbols.Return,
+                        Cons.FromEnumerable([
+                            JsSymbols.Call,
+                            breakFunc
+                        ])
+                    ]);
+                }
+                else if (loopBreakTarget is Cons breakCons2 && !breakCons2.IsEmpty)
+                {
+                    var head = breakCons2.Head;
+                    
+                    // Check if it's a block
+                    if (head is Symbol blockSym && ReferenceEquals(blockSym, JsSymbols.Block))
+                    {
+                        // It's a block, check the first statement
+                        if (breakCons2.Rest is Cons blockRest && !blockRest.IsEmpty && 
+                            blockRest.Head is Cons firstStmt && !firstStmt.IsEmpty)
+                        {
+                            var firstStmtHead = firstStmt.Head;
+                            
+                            // If it's already a return statement, use the block as-is
+                            if (firstStmtHead is Symbol returnSym && ReferenceEquals(returnSym, JsSymbols.Return))
+                            {
+                                return breakCons2;
+                            }
+                            // If it's an expression statement, convert to return
+                            else if (firstStmtHead is Symbol exprSym && ReferenceEquals(exprSym, JsSymbols.ExpressionStatement))
+                            {
+                                // Get the expression from (expr-stmt expression)
+                                if (firstStmt.Rest is Cons exprRest && !exprRest.IsEmpty)
+                                {
+                                    var expression = exprRest.Head;
+                                    // Return the expression directly
+                                    return Cons.FromEnumerable([
+                                        JsSymbols.Return,
+                                        expression
+                                    ]);
+                                }
+                            }
+                        }
+                        // Block with other content, wrap in return (though this may not work correctly)
+                        return Cons.FromEnumerable([
+                            JsSymbols.Return,
+                            breakCons2
+                        ]);
+                    }
+                    // Check if it's a call expression (call __resolve)
+                    else if (head is Symbol callSym && ReferenceEquals(callSym, JsSymbols.Call))
+                    {
+                        // It's a call expression, wrap in return
+                        return Cons.FromEnumerable([
+                            JsSymbols.Return,
+                            breakCons2
+                        ]);
+                    }
+                    else
+                    {
+                        // Some other expression, wrap in return
+                        return Cons.FromEnumerable([
+                            JsSymbols.Return,
+                            breakCons2
+                        ]);
+                    }
+                }
+                else
+                {
+                    // Unknown type, return as-is
+                    return loopBreakTarget;
+                }
             }
             // Outside loop context, just include it (will be handled at runtime)
         }

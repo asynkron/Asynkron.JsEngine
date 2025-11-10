@@ -265,4 +265,75 @@ public class AsyncIterableDebugTests
         _output.WriteLine($"Result: '{result}'");
         Assert.Equal("hello", result);
     }
+
+    [Fact]
+    public async Task ForAwaitOf_WithBreak_Debug()
+    {
+        // Debug version of the failing break test
+        var engine = new JsEngine();
+        
+        engine.SetGlobalFunction("log", args =>
+        {
+            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            _output.WriteLine($"LOG: {message}");
+            return null;
+        });
+        
+        await engine.Run(@"
+            let count = 0;
+            let arr = [1, 2, 3, 4, 5];
+            
+            async function test() {
+                log(""Starting loop"");
+                for await (let item of arr) {
+                    log(""Item: "" + item);
+                    count = count + 1;
+                    log(""Count after increment: "" + count);
+                    if (item === 3) {
+                        log(""Breaking at item 3"");
+                        break;
+                    }
+                    log(""Continuing to next item"");
+                }
+                log(""After loop, count: "" + count);
+            }
+            
+            test();
+        ");
+        
+        var result = engine.Evaluate("count;");
+        _output.WriteLine($"Final count: '{result}'");
+        Assert.Equal(3.0, result);
+    }
+
+    [Fact]
+    public async Task ForAwaitOf_WithBreak_ShowTransformation()
+    {
+        // Show the transformation of for-await-of with break
+        var source = @"
+            async function test() {
+                let count = 0;
+                let arr = [1, 2, 3];
+                for await (let item of arr) {
+                    count = count + 1;
+                    if (item === 3) {
+                        break;
+                    }
+                }
+            }
+        ";
+
+        var engine = new JsEngine();
+        
+        // Parse without transformation
+        var originalSexpr = engine.ParseWithoutTransformation(source);
+        _output.WriteLine("=== ORIGINAL S-EXPRESSION ===");
+        _output.WriteLine(originalSexpr.ToString());
+        _output.WriteLine("");
+
+        // Parse with transformation
+        var transformedSexpr = engine.Parse(source);
+        _output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
+        _output.WriteLine(transformedSexpr.ToString());
+    }
 }

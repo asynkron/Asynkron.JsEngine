@@ -127,13 +127,15 @@ public sealed class JsEngine
     {
         var environment = Evaluator.CurrentEnvironment;
         var context = Evaluator.CurrentContext;
+        var callStackFrame = Evaluator.CurrentCallStackFrame;
 
         if (environment is null || context is null)
         {
             // If we can't get the current state, create an empty debug message
             var emptyMessage = new DebugMessage(
                 new Dictionary<string, object?>(),
-                "Unknown"
+                "Unknown",
+                new List<CallStackFrame>()
             );
             _debugChannel.Writer.TryWrite(emptyMessage);
             return null;
@@ -145,8 +147,11 @@ public sealed class JsEngine
         // Get the control flow state
         var controlFlowState = context.Flow.ToString();
 
+        // Get the call stack
+        var callStack = callStackFrame?.ToList() ?? new List<CallStackFrame>();
+
         // Create and write the debug message
-        var debugMessage = new DebugMessage(variables, controlFlowState);
+        var debugMessage = new DebugMessage(variables, controlFlowState, callStack);
         _debugChannel.Writer.TryWrite(debugMessage);
 
         return null;

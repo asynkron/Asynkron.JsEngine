@@ -17,6 +17,13 @@ internal static class Evaluator
     /// </summary>
     [ThreadStatic]
     internal static EvaluationContext? CurrentContext;
+    
+    /// <summary>
+    /// Thread-local storage for the current call stack frame during evaluation.
+    /// Used by debug functions to access the execution call stack.
+    /// </summary>
+    [ThreadStatic]
+    internal static CallStackFrame? CurrentCallStackFrame;
 
     public static object? EvaluateProgram(Cons program, Environment environment)
     {
@@ -243,33 +250,46 @@ internal static class Evaluator
         var conditionExpression = cons.Rest.Head;
         var body = cons.Rest.Rest.Head;
 
-        object? lastResult = null;
-        while (IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
-        {
-            if (context.ShouldStopEvaluation)
-                break;
-            
-            lastResult = EvaluateStatement(body, environment, context);
-            
-            if (context.IsContinue)
-            {
-                context.ClearContinue();
-                continue;
-            }
-            
-            if (context.IsBreak)
-            {
-                context.ClearBreak();
-                break;
-            }
-            
-            if (context.IsReturn || context.IsThrow)
-            {
-                break;  // Propagate return/throw
-            }
-        }
+        // Push a call stack frame for the while loop
+        var whileFrame = new CallStackFrame("while", "while loop", cons, CurrentCallStackFrame);
+        var previousFrame = CurrentCallStackFrame;
+        CurrentCallStackFrame = whileFrame;
 
-        return lastResult;
+        try
+        {
+            object? lastResult = null;
+            while (IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
+            {
+                if (context.ShouldStopEvaluation)
+                    break;
+                
+                lastResult = EvaluateStatement(body, environment, context);
+                
+                if (context.IsContinue)
+                {
+                    context.ClearContinue();
+                    continue;
+                }
+                
+                if (context.IsBreak)
+                {
+                    context.ClearBreak();
+                    break;
+                }
+                
+                if (context.IsReturn || context.IsThrow)
+                {
+                    break;  // Propagate return/throw
+                }
+            }
+
+            return lastResult;
+        }
+        finally
+        {
+            // Pop the call stack frame
+            CurrentCallStackFrame = previousFrame;
+        }
     }
 
     private static object? EvaluateDoWhile(Cons cons, Environment environment, EvaluationContext context)
@@ -320,42 +340,55 @@ internal static class Evaluator
             EvaluateStatement(initializer, loopEnvironment, context);
         }
 
-        object? lastResult = null;
-        while (conditionExpression is null || IsTruthy(EvaluateExpression(conditionExpression, loopEnvironment, context)))
+        // Push a call stack frame for the for loop
+        var forFrame = new CallStackFrame("for", "for loop", cons, CurrentCallStackFrame);
+        var previousFrame = CurrentCallStackFrame;
+        CurrentCallStackFrame = forFrame;
+
+        try
         {
-            if (context.ShouldStopEvaluation)
-                break;
-            
-            lastResult = EvaluateStatement(body, loopEnvironment, context);
-            
-            if (context.IsContinue)
+            object? lastResult = null;
+            while (conditionExpression is null || IsTruthy(EvaluateExpression(conditionExpression, loopEnvironment, context)))
             {
-                context.ClearContinue();
+                if (context.ShouldStopEvaluation)
+                    break;
+                
+                lastResult = EvaluateStatement(body, loopEnvironment, context);
+                
+                if (context.IsContinue)
+                {
+                    context.ClearContinue();
+                    if (incrementExpression is not null)
+                    {
+                        EvaluateExpression(incrementExpression, loopEnvironment, context);
+                    }
+                    continue;
+                }
+                
+                if (context.IsBreak)
+                {
+                    context.ClearBreak();
+                    break;
+                }
+                
+                if (context.IsReturn || context.IsThrow)
+                {
+                    break;  // Propagate return/throw
+                }
+
                 if (incrementExpression is not null)
                 {
                     EvaluateExpression(incrementExpression, loopEnvironment, context);
                 }
-                continue;
-            }
-            
-            if (context.IsBreak)
-            {
-                context.ClearBreak();
-                break;
-            }
-            
-            if (context.IsReturn || context.IsThrow)
-            {
-                break;  // Propagate return/throw
             }
 
-            if (incrementExpression is not null)
-            {
-                EvaluateExpression(incrementExpression, loopEnvironment, context);
-            }
+            return lastResult;
         }
-
-        return lastResult;
+        finally
+        {
+            // Pop the call stack frame
+            CurrentCallStackFrame = previousFrame;
+        }
     }
 
     private static object? EvaluateForIn(Cons cons, Environment environment, EvaluationContext context)
@@ -1412,19 +1445,26 @@ internal static class Evaluator
 
         try
         {
+            // Create a call stack frame for this function call
+            var calleeName = GetCalleeDescription(calleeExpression, environment);
+            var callFrame = new CallStackFrame("call", $"Call to {calleeName}", cons, CurrentCallStackFrame);
+            
             // Set thread-local variables for debug functions to access
             var previousEnvironment = CurrentEnvironment;
             var previousContext = CurrentContext;
+            var previousCallFrame = CurrentCallStackFrame;
             try
             {
                 CurrentEnvironment = environment;
                 CurrentContext = context;
+                CurrentCallStackFrame = callFrame;
                 return callable.Invoke(arguments, thisValue);
             }
             finally
             {
                 CurrentEnvironment = previousEnvironment;
                 CurrentContext = previousContext;
+                CurrentCallStackFrame = previousCallFrame;
             }
         }
         catch (ThrowSignal signal)
@@ -1433,6 +1473,35 @@ internal static class Evaluator
             context.SetThrow(signal.ThrownValue);
             return signal.ThrownValue;
         }
+    }
+
+    /// <summary>
+    /// Gets a human-readable description of the callee for debugging purposes.
+    /// </summary>
+    private static string GetCalleeDescription(object? calleeExpression, Environment environment)
+    {
+        if (calleeExpression is Symbol symbol)
+        {
+            return symbol.Name;
+        }
+        
+        if (calleeExpression is Cons { Head: Symbol head } calleeCons)
+        {
+            if (ReferenceEquals(head, JsSymbols.GetProperty) || ReferenceEquals(head, JsSymbols.OptionalGetProperty))
+            {
+                // For member access like obj.method(), show as "obj.method"
+                var propertyName = calleeCons.Rest.Rest.Head;
+                return $"<member>.{propertyName}";
+            }
+            
+            if (ReferenceEquals(head, JsSymbols.GetIndex) || ReferenceEquals(head, JsSymbols.OptionalGetIndex))
+            {
+                // For computed access like obj[key](), show as "obj[...]"
+                return "<member>[...]";
+            }
+        }
+        
+        return "<anonymous>";
     }
 
     private static (object? Callee, object? ThisValue) ResolveCallee(object? calleeExpression, Environment environment, EvaluationContext context)

@@ -18,13 +18,21 @@ public sealed class DebugMessage
     public string ControlFlowState { get; }
 
     /// <summary>
+    /// Gets the call stack at the time of the debug call.
+    /// The list is ordered from innermost frame (most recent) to outermost frame (oldest).
+    /// </summary>
+    public IReadOnlyList<CallStackFrame> CallStack { get; }
+
+    /// <summary>
     /// Initializes a new instance of the DebugMessage class.
     /// </summary>
     /// <param name="variables">Dictionary of variable names to their values</param>
     /// <param name="controlFlowState">The current control flow state</param>
-    internal DebugMessage(Dictionary<string, object?> variables, string controlFlowState)
+    /// <param name="callStack">The call stack at the time of capture</param>
+    internal DebugMessage(Dictionary<string, object?> variables, string controlFlowState, List<CallStackFrame> callStack)
     {
         Variables = variables;
         ControlFlowState = controlFlowState;
+        CallStack = callStack;
     }
 }

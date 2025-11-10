@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class RegExpTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_Basic()
     {
         var engine = new JsEngine();
@@ -20,7 +20,7 @@ public class RegExpTests
         Assert.Equal("hello", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_WithFlags()
     {
         var engine = new JsEngine();
@@ -33,7 +33,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Test_Matches()
     {
         var engine = new JsEngine();
@@ -46,7 +46,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Test_NoMatch()
     {
         var engine = new JsEngine();
@@ -59,7 +59,7 @@ public class RegExpTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Test_CaseInsensitive()
     {
         var engine = new JsEngine();
@@ -72,7 +72,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Exec_ReturnsMatchArray()
     {
         var engine = new JsEngine();
@@ -86,7 +86,7 @@ public class RegExpTests
         Assert.Equal("world", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Exec_ReturnsIndex()
     {
         var engine = new JsEngine();
@@ -100,7 +100,7 @@ public class RegExpTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Exec_WithCaptureGroups()
     {
         var engine = new JsEngine();
@@ -114,7 +114,7 @@ public class RegExpTests
         Assert.Equal("user", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Exec_NoMatch_ReturnsNull()
     {
         var engine = new JsEngine();
@@ -127,7 +127,7 @@ public class RegExpTests
         Assert.Null(result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task String_Match_WithRegExp()
     {
         var engine = new JsEngine();
@@ -142,7 +142,7 @@ public class RegExpTests
         Assert.Equal("world", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task String_Match_GlobalFlag()
     {
         var engine = new JsEngine();
@@ -157,7 +157,7 @@ public class RegExpTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task String_Search_ReturnsIndex()
     {
         var engine = new JsEngine();
@@ -171,7 +171,7 @@ public class RegExpTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task String_Search_NoMatch()
     {
         var engine = new JsEngine();
@@ -185,7 +185,7 @@ public class RegExpTests
         Assert.Equal(-1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task String_Replace_WithRegExp()
     {
         var engine = new JsEngine();
@@ -199,7 +199,7 @@ public class RegExpTests
         Assert.Equal("hello there", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task String_Replace_GlobalFlag()
     {
         var engine = new JsEngine();
@@ -213,7 +213,7 @@ public class RegExpTests
         Assert.Equal("hi hi hi", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_GlobalFlag_Test_UpdatesLastIndex()
     {
         var engine = new JsEngine();
@@ -233,7 +233,7 @@ public class RegExpTests
         Assert.Equal(13d, result); // 5 + 8
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Pattern_WithDigits()
     {
         var engine = new JsEngine();
@@ -246,7 +246,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Pattern_EmailLike()
     {
         var engine = new JsEngine();
@@ -259,7 +259,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Multiline_Flag()
     {
         var engine = new JsEngine();
@@ -273,7 +273,7 @@ public class RegExpTests
     }
 
     // Regex Literal Tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_Basic()
     {
         var engine = new JsEngine();
@@ -286,7 +286,7 @@ public class RegExpTests
         Assert.Equal("hello", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_WithFlags()
     {
         var engine = new JsEngine();
@@ -299,7 +299,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_MultipleFlags()
     {
         var engine = new JsEngine();
@@ -314,7 +314,7 @@ public class RegExpTests
         Assert.True((bool)global!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_Test()
     {
         var engine = new JsEngine();
@@ -327,7 +327,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_TestCaseInsensitive()
     {
         var engine = new JsEngine();
@@ -340,7 +340,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_Exec()
     {
         var engine = new JsEngine();
@@ -354,7 +354,7 @@ public class RegExpTests
         Assert.Equal("world", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_WithEscapes()
     {
         var engine = new JsEngine();
@@ -367,7 +367,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_WithCharacterClass()
     {
         var engine = new JsEngine();
@@ -380,7 +380,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_InAssignment()
     {
         var engine = new JsEngine();
@@ -393,7 +393,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_InFunctionCall()
     {
         var engine = new JsEngine();
@@ -408,7 +408,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_InArray()
     {
         var engine = new JsEngine();
@@ -421,7 +421,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_InObject()
     {
         var engine = new JsEngine();
@@ -434,7 +434,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_StringMatch()
     {
         var engine = new JsEngine();
@@ -448,7 +448,7 @@ public class RegExpTests
         Assert.Equal(2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_StringReplace()
     {
         var engine = new JsEngine();
@@ -461,7 +461,7 @@ public class RegExpTests
         Assert.Equal("hi hi hi", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_StringSearch()
     {
         var engine = new JsEngine();
@@ -474,7 +474,7 @@ public class RegExpTests
         Assert.Equal(12d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_ComplexPattern()
     {
         var engine = new JsEngine();
@@ -488,7 +488,7 @@ public class RegExpTests
         Assert.Equal("user", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_AfterReturn()
     {
         var engine = new JsEngine();
@@ -503,7 +503,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_AfterComma()
     {
         var engine = new JsEngine();
@@ -518,7 +518,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_EscapedSlash()
     {
         var engine = new JsEngine();
@@ -531,7 +531,7 @@ public class RegExpTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegexLiteral_ComplexCharacterClass()
     {
         var engine = new JsEngine();

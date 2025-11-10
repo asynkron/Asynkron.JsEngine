@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class GeneratorTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task GeneratorFunction_CanBeDeclared()
     {
         // Arrange
@@ -23,7 +23,7 @@ public class GeneratorTests
                                              """);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task GeneratorFunction_ReturnsIteratorObject()
     {
         // Arrange
@@ -44,7 +44,7 @@ public class GeneratorTests
         // The result should be an object (we can't directly check JsObject since it's internal)
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_HasNextMethod()
     {
         // Arrange
@@ -65,7 +65,7 @@ public class GeneratorTests
         Assert.NotNull(hasNext);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_YieldsSingleValue()
     {
         // Arrange
@@ -89,7 +89,7 @@ public class GeneratorTests
         Assert.False((bool)done!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_YieldsMultipleValues()
     {
         // Arrange
@@ -117,7 +117,7 @@ public class GeneratorTests
         Assert.Equal(3.0, r3Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_ReturnsIteratorResult()
     {
         // Arrange
@@ -139,7 +139,7 @@ public class GeneratorTests
         Assert.NotNull(result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_IteratorResultHasValueAndDone()
     {
         // Arrange
@@ -165,7 +165,7 @@ public class GeneratorTests
         Assert.NotNull(done);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_CompletesWithDoneTrue()
     {
         // Arrange
@@ -191,7 +191,7 @@ public class GeneratorTests
         Assert.Null(value);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_YieldsExpressions()
     {
         // Arrange
@@ -216,7 +216,7 @@ public class GeneratorTests
         Assert.Equal(6.0, r2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_YieldsVariables()
     {
         // Arrange
@@ -243,7 +243,7 @@ public class GeneratorTests
         Assert.Equal(20.0, r2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_WithParameters()
     {
         // Arrange
@@ -268,7 +268,7 @@ public class GeneratorTests
         Assert.Equal(101.0, r2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_CanBeCalledMultipleTimes()
     {
         // Arrange
@@ -298,7 +298,7 @@ public class GeneratorTests
         Assert.Equal(2.0, g2_r2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_EmptyGenerator()
     {
         // Arrange
@@ -320,7 +320,7 @@ public class GeneratorTests
         Assert.True((bool)done!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_WithReturn()
     {
         // Arrange
@@ -351,7 +351,7 @@ public class GeneratorTests
         Assert.True((bool)r2Done!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task GeneratorExpression_CanBeAssigned()
     {
         // Arrange
@@ -374,7 +374,7 @@ public class GeneratorTests
         Assert.Equal(42.0, value);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_HasReturnMethod()
     {
         // Arrange
@@ -396,7 +396,7 @@ public class GeneratorTests
         Assert.NotNull(hasReturn);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_ReturnMethodCompletesGenerator()
     {
         // Arrange
@@ -426,7 +426,7 @@ public class GeneratorTests
         Assert.True((bool)nextDone!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_HasThrowMethod()
     {
         // Arrange
@@ -447,7 +447,7 @@ public class GeneratorTests
         Assert.NotNull(hasThrow);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseGeneratorSyntax_FunctionStar()
     {
         // Arrange
@@ -465,7 +465,7 @@ public class GeneratorTests
         Assert.NotNull(program);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseYieldExpression()
     {
         // Arrange

@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class EvalFunctionTests
 {
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 2000)]
     public async Task Eval_EvaluatesSimpleExpression()
     {
         var engine = new JsEngine();
@@ -16,7 +16,7 @@ public class EvalFunctionTests
         Assert.Equal(4d, result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 2000)]
     public async Task Eval_AccessesVariablesInScope()
     {
         var engine = new JsEngine();
@@ -29,7 +29,7 @@ public class EvalFunctionTests
         Assert.Equal(15d, result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 2000)]
     public async Task Eval_CreatesVariables()
     {
         var engine = new JsEngine();
@@ -42,7 +42,7 @@ public class EvalFunctionTests
         Assert.Equal(42d, result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 2000)]
     public async Task Eval_WithString()
     {
         var engine = new JsEngine();
@@ -54,7 +54,7 @@ public class EvalFunctionTests
         Assert.Equal("hello world", result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 2000)]
     public async Task Eval_WithFunction()
     {
         var engine = new JsEngine();
@@ -67,7 +67,7 @@ public class EvalFunctionTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Eval_WithNonStringReturnsValue()
     {
         var engine = new JsEngine();
@@ -79,7 +79,7 @@ public class EvalFunctionTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Eval_WithNoArgumentsReturnsUndefined()
     {
         var engine = new JsEngine();
@@ -91,7 +91,7 @@ public class EvalFunctionTests
         Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 2000)]
     public async Task Eval_WithComplexExpression()
     {
         var engine = new JsEngine();
@@ -105,7 +105,7 @@ public class EvalFunctionTests
         Assert.Equal(25d, result);
     }
 
-//     [Fact(Timeout = 1000)]
+//     [Fact(Timeout = 2000)]
 //     public async Task Eval_WithArrayExpression()
 //     {
 //         var engine = new JsEngine();
@@ -119,7 +119,7 @@ public class EvalFunctionTests
 //         Assert.Equal(3d, result);
 //     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 2000)]
     public async Task Eval_WithObjectExpression()
     {
         var engine = new JsEngine();

@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class NewFeaturesTests
 {
     // Single-quoted strings tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SingleQuotedString()
     {
         var engine = new JsEngine();
@@ -13,7 +13,7 @@ public class NewFeaturesTests
         Assert.Equal("Hello World", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SingleQuotedStringWithDoubleQuotes()
     {
         var engine = new JsEngine();
@@ -22,7 +22,7 @@ public class NewFeaturesTests
     }
 
     // Multi-line comment tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MultiLineComment()
     {
         var engine = new JsEngine();
@@ -37,7 +37,7 @@ public class NewFeaturesTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MultiLineCommentBetweenCode()
     {
         var engine = new JsEngine();
@@ -51,7 +51,7 @@ public class NewFeaturesTests
     }
 
     // Modulo operator tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ModuloOperator()
     {
         var engine = new JsEngine();
@@ -59,7 +59,7 @@ public class NewFeaturesTests
         Assert.Equal(1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ModuloOperatorNegative()
     {
         var engine = new JsEngine();
@@ -68,7 +68,7 @@ public class NewFeaturesTests
     }
 
     // Increment/Decrement operator tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PostIncrementOperator()
     {
         var engine = new JsEngine();
@@ -76,7 +76,7 @@ public class NewFeaturesTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PostIncrementSideEffect()
     {
         var engine = new JsEngine();
@@ -84,7 +84,7 @@ public class NewFeaturesTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PreIncrementOperator()
     {
         var engine = new JsEngine();
@@ -92,7 +92,7 @@ public class NewFeaturesTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PostDecrementOperator()
     {
         var engine = new JsEngine();
@@ -100,7 +100,7 @@ public class NewFeaturesTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PreDecrementOperator()
     {
         var engine = new JsEngine();
@@ -109,7 +109,7 @@ public class NewFeaturesTests
     }
 
     // Compound assignment operator tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PlusEqualOperator()
     {
         var engine = new JsEngine();
@@ -117,7 +117,7 @@ public class NewFeaturesTests
         Assert.Equal(8d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MinusEqualOperator()
     {
         var engine = new JsEngine();
@@ -125,7 +125,7 @@ public class NewFeaturesTests
         Assert.Equal(7d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StarEqualOperator()
     {
         var engine = new JsEngine();
@@ -133,7 +133,7 @@ public class NewFeaturesTests
         Assert.Equal(15d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SlashEqualOperator()
     {
         var engine = new JsEngine();
@@ -141,7 +141,7 @@ public class NewFeaturesTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PercentEqualOperator()
     {
         var engine = new JsEngine();
@@ -150,7 +150,7 @@ public class NewFeaturesTests
     }
 
     // Bitwise operator tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task BitwiseAndOperator()
     {
         var engine = new JsEngine();
@@ -158,7 +158,7 @@ public class NewFeaturesTests
         Assert.Equal(1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task BitwiseOrOperator()
     {
         var engine = new JsEngine();
@@ -166,7 +166,7 @@ public class NewFeaturesTests
         Assert.Equal(7d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task BitwiseXorOperator()
     {
         var engine = new JsEngine();
@@ -174,7 +174,7 @@ public class NewFeaturesTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task BitwiseNotOperator()
     {
         var engine = new JsEngine();
@@ -182,7 +182,7 @@ public class NewFeaturesTests
         Assert.Equal(-6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LeftShiftOperator()
     {
         var engine = new JsEngine();
@@ -190,7 +190,7 @@ public class NewFeaturesTests
         Assert.Equal(20d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RightShiftOperator()
     {
         var engine = new JsEngine();
@@ -198,7 +198,7 @@ public class NewFeaturesTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task UnsignedRightShiftOperator()
     {
         var engine = new JsEngine();
@@ -206,7 +206,7 @@ public class NewFeaturesTests
         Assert.Equal(2147483645d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task BitwiseAndEqualOperator()
     {
         var engine = new JsEngine();
@@ -214,7 +214,7 @@ public class NewFeaturesTests
         Assert.Equal(1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task BitwiseOrEqualOperator()
     {
         var engine = new JsEngine();
@@ -222,7 +222,7 @@ public class NewFeaturesTests
         Assert.Equal(7d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task BitwiseXorEqualOperator()
     {
         var engine = new JsEngine();
@@ -230,7 +230,7 @@ public class NewFeaturesTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LeftShiftEqualOperator()
     {
         var engine = new JsEngine();
@@ -238,7 +238,7 @@ public class NewFeaturesTests
         Assert.Equal(20d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RightShiftEqualOperator()
     {
         var engine = new JsEngine();
@@ -246,7 +246,7 @@ public class NewFeaturesTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task UnsignedRightShiftEqualOperator()
     {
         var engine = new JsEngine();
@@ -255,7 +255,7 @@ public class NewFeaturesTests
     }
 
     // Exponentiation operator tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExponentiationOperator()
     {
         var engine = new JsEngine();
@@ -263,7 +263,7 @@ public class NewFeaturesTests
         Assert.Equal(8d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExponentiationWithNegativeExponent()
     {
         var engine = new JsEngine();
@@ -271,7 +271,7 @@ public class NewFeaturesTests
         Assert.Equal(0.25d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExponentiationWithDecimal()
     {
         var engine = new JsEngine();
@@ -279,7 +279,7 @@ public class NewFeaturesTests
         Assert.Equal(2.25d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExponentiationRightAssociative()
     {
         var engine = new JsEngine();
@@ -288,7 +288,7 @@ public class NewFeaturesTests
         Assert.Equal(512d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExponentiationPrecedence()
     {
         var engine = new JsEngine();
@@ -297,7 +297,7 @@ public class NewFeaturesTests
         Assert.Equal(50d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExponentiationCompoundAssignment()
     {
         var engine = new JsEngine();
@@ -305,7 +305,7 @@ public class NewFeaturesTests
         Assert.Equal(8d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExponentiationInExpression()
     {
         var engine = new JsEngine();
@@ -313,7 +313,7 @@ public class NewFeaturesTests
         Assert.Equal(81d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExponentiationZeroPower()
     {
         var engine = new JsEngine();

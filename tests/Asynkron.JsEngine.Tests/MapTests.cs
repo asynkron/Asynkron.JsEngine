@@ -2,7 +2,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class MapTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Methods_Are_Functions()
     {
         var engine = new JsEngine();
@@ -15,7 +15,7 @@ public class MapTests
         Assert.Equal("function", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Constructor_Creates_Empty_Map()
     {
         var engine = new JsEngine();
@@ -28,7 +28,7 @@ public class MapTests
         Assert.Equal(0.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Set_And_Get()
     {
         var engine = new JsEngine();
@@ -42,7 +42,7 @@ public class MapTests
         Assert.Equal("value1", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Set_Returns_Map_For_Chaining()
     {
         var engine = new JsEngine();
@@ -56,7 +56,7 @@ public class MapTests
         Assert.Equal(3.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Has_Checks_Key_Existence()
     {
         var engine = new JsEngine();
@@ -72,7 +72,7 @@ public class MapTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Delete_Removes_Entry()
     {
         var engine = new JsEngine();
@@ -88,7 +88,7 @@ public class MapTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Delete_Returns_False_For_Nonexistent_Key()
     {
         var engine = new JsEngine();
@@ -101,7 +101,7 @@ public class MapTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Clear_Removes_All_Entries()
     {
         var engine = new JsEngine();
@@ -117,7 +117,7 @@ public class MapTests
         Assert.Equal(0.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Size_Tracks_Entry_Count()
     {
         var engine = new JsEngine();
@@ -137,7 +137,7 @@ public class MapTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Accepts_Any_Type_As_Key()
     {
         var engine = new JsEngine();
@@ -159,7 +159,7 @@ public class MapTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_ForEach_Iterates_All_Entries()
     {
         var engine = new JsEngine();
@@ -180,7 +180,7 @@ public class MapTests
         Assert.Equal(6.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Keys_Returns_Array_Of_Keys()
     {
         var engine = new JsEngine();
@@ -197,7 +197,7 @@ public class MapTests
         Assert.Equal("ab", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Values_Returns_Array_Of_Values()
     {
         var engine = new JsEngine();
@@ -214,7 +214,7 @@ public class MapTests
         Assert.Equal(3.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Entries_Returns_Array_Of_Pairs()
     {
         var engine = new JsEngine();
@@ -232,7 +232,7 @@ public class MapTests
         Assert.Equal("a1", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Maintains_Insertion_Order()
     {
         var engine = new JsEngine();
@@ -250,7 +250,7 @@ public class MapTests
         Assert.Equal("third,first,second", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Overwrites_Existing_Key()
     {
         var engine = new JsEngine();
@@ -269,7 +269,7 @@ public class MapTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Constructor_Accepts_Array_Of_Entries()
     {
         var engine = new JsEngine();
@@ -285,7 +285,7 @@ public class MapTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Get_Returns_Undefined_For_Missing_Key()
     {
         var engine = new JsEngine();
@@ -299,7 +299,7 @@ public class MapTests
         Assert.Equal("undefined", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Handles_NaN_As_Key()
     {
         var engine = new JsEngine();
@@ -314,7 +314,7 @@ public class MapTests
         Assert.Equal("NaN value", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Map_Typeof_Returns_Object()
     {
         var engine = new JsEngine();

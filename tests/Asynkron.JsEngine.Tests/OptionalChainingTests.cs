@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class OptionalChainingTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OptionalPropertyAccessNull()
     {
         var engine = new JsEngine();
@@ -17,7 +17,7 @@ public class OptionalChainingTests
         Assert.True(result is Symbol sym && sym.Name == "undefined");
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OptionalPropertyAccessDefined()
     {
         var engine = new JsEngine();
@@ -30,7 +30,7 @@ public class OptionalChainingTests
         Assert.Equal("Alice", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OptionalPropertyChain()
     {
         var engine = new JsEngine();
@@ -43,7 +43,7 @@ public class OptionalChainingTests
         Assert.Equal("Bob", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OptionalPropertyChainNull()
     {
         var engine = new JsEngine();
@@ -56,7 +56,7 @@ public class OptionalChainingTests
         Assert.True(result is Symbol sym && sym.Name == "undefined");
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OptionalMethodCallNull()
     {
         var engine = new JsEngine();
@@ -69,7 +69,7 @@ public class OptionalChainingTests
         Assert.True(result is Symbol sym && sym.Name == "undefined");
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OptionalMethodCallDefined()
     {
         var engine = new JsEngine();
@@ -82,7 +82,7 @@ public class OptionalChainingTests
         Assert.Equal("Hello", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OptionalIndexAccessNull()
     {
         var engine = new JsEngine();
@@ -95,7 +95,7 @@ public class OptionalChainingTests
         Assert.True(result is Symbol sym && sym.Name == "undefined");
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OptionalIndexAccessDefined()
     {
         var engine = new JsEngine();
@@ -108,7 +108,7 @@ public class OptionalChainingTests
         Assert.Equal(20d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OptionalChainingShortCircuit()
     {
         var engine = new JsEngine();
@@ -124,7 +124,7 @@ public class OptionalChainingTests
         Assert.Equal(1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OptionalChainingWithUndefined()
     {
         var engine = new JsEngine();

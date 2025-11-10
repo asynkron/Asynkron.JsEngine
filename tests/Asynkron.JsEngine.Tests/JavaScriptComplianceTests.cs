@@ -12,7 +12,7 @@ public class JavaScriptComplianceTests
     // Type Coercion Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeCoercion_StringMinusNumber()
     {
         var engine = new JsEngine();
@@ -26,7 +26,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(15d, result2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeCoercion_StringMultiplyNumber()
     {
         var engine = new JsEngine();
@@ -39,7 +39,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(20d, result2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeCoercion_BooleanArithmetic()
     {
         var engine = new JsEngine();
@@ -55,7 +55,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(0d, result3);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeCoercion_StringPlusNumber()
     {
         var engine = new JsEngine();
@@ -73,7 +73,7 @@ public class JavaScriptComplianceTests
     // NaN and Infinity Edge Cases (Math functions)
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NaN_FromMathSqrt()
     {
         var engine = new JsEngine();
@@ -83,7 +83,7 @@ public class JavaScriptComplianceTests
         Assert.True(double.IsNaN((double)result!));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NaN_PropagatesInMathOperations()
     {
         var engine = new JsEngine();
@@ -96,7 +96,7 @@ public class JavaScriptComplianceTests
         Assert.True(double.IsNaN((double)result2!));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_LargeNumberOperations()
     {
         var engine = new JsEngine();
@@ -110,7 +110,7 @@ public class JavaScriptComplianceTests
         Assert.IsType<double>(result2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_VerySmallNumbers()
     {
         var engine = new JsEngine();
@@ -126,7 +126,7 @@ public class JavaScriptComplianceTests
     // Equality Comparison Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Equality_ZeroComparisons()
     {
         var engine = new JsEngine();
@@ -139,7 +139,7 @@ public class JavaScriptComplianceTests
         Assert.True((bool)result2!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Equality_ObjectsNeverEqual()
     {
         var engine = new JsEngine();
@@ -152,7 +152,7 @@ public class JavaScriptComplianceTests
         Assert.False((bool)result2!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Equality_LooseVsStrict()
     {
         var engine = new JsEngine();
@@ -179,7 +179,7 @@ public class JavaScriptComplianceTests
     // Array Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_SparseArrays()
     {
         var engine = new JsEngine();
@@ -195,7 +195,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(11d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_NegativeIndices()
     {
         var engine = new JsEngine();
@@ -221,7 +221,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(3d, result2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_LengthPropertyChanges()
     {
         var engine = new JsEngine();
@@ -241,7 +241,7 @@ public class JavaScriptComplianceTests
     // Scope and Variable Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Scope_LetBlockScoping()
     {
         var engine = new JsEngine();
@@ -259,7 +259,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Scope_VarFunctionScoping()
     {
         var engine = new JsEngine();
@@ -277,7 +277,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Scope_ClosureCapture()
     {
         var engine = new JsEngine();
@@ -296,7 +296,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(9d, result); // 3 + 3 + 3
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Scope_NestedLetScoping()
     {
         var engine = new JsEngine();
@@ -321,7 +321,7 @@ public class JavaScriptComplianceTests
     // Function and This Binding Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ThisBinding_MethodCall()
     {
         var engine = new JsEngine();
@@ -340,7 +340,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ThisBinding_ArrowFunctionLexicalThis()
     {
         var engine = new JsEngine();
@@ -367,7 +367,7 @@ public class JavaScriptComplianceTests
     // String Coercion Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StringCoercion_NumberToString()
     {
         var engine = new JsEngine();
@@ -380,7 +380,7 @@ public class JavaScriptComplianceTests
         Assert.Equal("value: 3.14", result2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StringCoercion_BooleanToString()
     {
         var engine = new JsEngine();
@@ -397,7 +397,7 @@ public class JavaScriptComplianceTests
     // Truthy/Falsy Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Truthiness_FalsyValues()
     {
         var engine = new JsEngine();
@@ -422,7 +422,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(0d, result6);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Truthiness_TruthyValues()
     {
         var engine = new JsEngine();
@@ -446,7 +446,7 @@ public class JavaScriptComplianceTests
     // Operator Precedence Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OperatorPrecedence_LogicalAndOr()
     {
         var engine = new JsEngine();
@@ -459,7 +459,7 @@ public class JavaScriptComplianceTests
         Assert.True((bool)result2!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OperatorPrecedence_ComparisonAndLogical()
     {
         var engine = new JsEngine();
@@ -476,7 +476,7 @@ public class JavaScriptComplianceTests
     // Math Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_MinMaxWithMultipleArgs()
     {
         var engine = new JsEngine();
@@ -490,7 +490,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(2d, result2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_OperationsWithLargeNumbers()
     {
         var engine = new JsEngine();
@@ -503,7 +503,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(1000d, result2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_TrigonometryEdgeCases()
     {
         var engine = new JsEngine();
@@ -520,7 +520,7 @@ public class JavaScriptComplianceTests
     // Object Property Access Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectPropertyAccess_NumericKeys()
     {
         var engine = new JsEngine();
@@ -536,7 +536,7 @@ public class JavaScriptComplianceTests
         Assert.Equal("one", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectPropertyAccess_SpecialProperties()
     {
         var engine = new JsEngine();
@@ -552,7 +552,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectPropertyAccess_DynamicProperties()
     {
         var engine = new JsEngine();
@@ -573,7 +573,7 @@ public class JavaScriptComplianceTests
     // Control Flow Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ControlFlow_SwitchFallthrough()
     {
         var engine = new JsEngine();
@@ -600,7 +600,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(6d, result); // 1 + 2 + 3
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ControlFlow_ForLoopEdgeCases()
     {
         var engine = new JsEngine();
@@ -636,7 +636,7 @@ public class JavaScriptComplianceTests
     // Nested Structures Edge Cases
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NestedStructures_DeepNesting()
     {
         var engine = new JsEngine();
@@ -661,7 +661,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NestedStructures_DeepFunctionNesting()
     {
         var engine = new JsEngine();
@@ -686,7 +686,7 @@ public class JavaScriptComplianceTests
     // Expression Evaluation Order
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExpressionEvaluation_ShortCircuitAnd()
     {
         var engine = new JsEngine();
@@ -706,7 +706,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(0d, result); // increment was not called
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExpressionEvaluation_ShortCircuitOr()
     {
         var engine = new JsEngine();
@@ -726,7 +726,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(0d, result); // increment was not called
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExpressionEvaluation_TernaryLazyEvaluation()
     {
         var engine = new JsEngine();

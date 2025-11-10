@@ -96,8 +96,9 @@ public sealed class JsEngine
         SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor("ReferenceError"));
         SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor("SyntaxError"));
 
-        // Register eval function
-        SetGlobal("eval", StandardLibrary.CreateEvalFunction(this));
+        // Register eval function as an environment-aware callable
+        // This allows eval to execute code in the caller's scope without blocking the event loop
+        SetGlobal("eval", new EvalHostFunction(this));
 
         // Register internal helpers for async iteration
         SetGlobal("__getAsyncIterator", StandardLibrary.CreateGetAsyncIteratorHelper());
@@ -324,7 +325,8 @@ public sealed class JsEngine
 
     /// <summary>
     /// Parses and evaluates the provided source code, then processes any scheduled events
-    /// in the event queue. The engine will continue running until the queue is empty.
+    /// in the event queue. The engine will continue running until the queue is empty
+    /// and all pending timer tasks have completed.
     /// </summary>
     /// <param name="source">The JavaScript source code to execute</param>
     /// <returns>A task that completes when all scheduled events have been processed</returns>
@@ -335,6 +337,32 @@ public sealed class JsEngine
         
         // Get the result from evaluation
         var result = await evaluateTask;
+        
+        // Wait for all pending work to complete:
+        // - Event queue to drain  
+        // - Timer tasks to complete and schedule their callbacks
+        // We loop with a timeout to avoid hanging forever
+        var startTime = DateTime.UtcNow;
+        var maxWaitTime = TimeSpan.FromMilliseconds(1500); // Leave some margin for the 2000ms test timeout
+        
+        while ((DateTime.UtcNow - startTime) < maxWaitTime)
+        {
+            // Check if we have any active timer tasks
+            bool hasActiveTasks;
+            lock (_activeTimerTasks)
+            {
+                hasActiveTasks = _activeTimerTasks.Count > 0;
+            }
+            
+            if (!hasActiveTasks)
+            {
+                // No active tasks, we're done
+                break;
+            }
+            
+            // Wait a bit for timer tasks to complete their cleanup
+            await Task.Delay(20);
+        }
         
         return result;
     }

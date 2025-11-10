@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class ParserTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseLetDeclarationProducesExpectedSExpression()
     {
         var engine = new JsEngine();
@@ -25,7 +25,7 @@ public class ParserTests
         Assert.Equal(Symbol.Intern("answer"), expressionStatement.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseVarDeclarationWithoutInitializerUsesSentinel()
     {
         var engine = new JsEngine();
@@ -37,7 +37,7 @@ public class ParserTests
         Assert.Same(JsSymbols.Uninitialized, varStatement.Rest.Rest.Head); // Evaluator fills this in with null later on.
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseConstDeclarationProducesConstSymbol()
     {
         var engine = new JsEngine();
@@ -49,7 +49,7 @@ public class ParserTests
         Assert.Equal(42d, constStatement.Rest.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseObjectLiteralAndPropertyAccess()
     {
         var engine = new JsEngine();
@@ -91,7 +91,7 @@ public class ParserTests
         Assert.Equal("a", propertyAccess.Rest.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParsePropertyAssignment()
     {
         var engine = new JsEngine();
@@ -107,7 +107,7 @@ public class ParserTests
         Assert.Equal(5d, assignment.Rest.Rest.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseArrayLiteralAndIndexedAssignment()
     {
         var engine = new JsEngine();
@@ -137,7 +137,7 @@ public class ParserTests
         Assert.Equal(0d, valueExpression.Rest.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseLogicalOperatorsRespectPrecedence()
     {
         var engine = new JsEngine();
@@ -156,7 +156,7 @@ public class ParserTests
         Assert.Equal(true, logicalAnd.Rest.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseNullishCoalescingProducesOperatorSymbol()
     {
         var engine = new JsEngine();
@@ -171,7 +171,7 @@ public class ParserTests
         Assert.Equal(42d, coalesce.Rest.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseStrictEqualityOperators()
     {
         var engine = new JsEngine();
@@ -194,7 +194,7 @@ public class ParserTests
         Assert.Equal(3d, inequalityExpression.Rest.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseNewExpression()
     {
         var engine = new JsEngine();
@@ -216,7 +216,7 @@ public class ParserTests
         Assert.Equal(2d, newExpression.Rest.Rest.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseClassDeclarationProducesConstructorAndMethods()
     {
         var engine = new JsEngine();
@@ -248,7 +248,7 @@ public class ParserTests
         Assert.Null(methodLambda.Rest.Head); // class methods stay anonymous like standard method syntax
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseClassDeclarationCapturesExtendsClause()
     {
         var engine = new JsEngine();
@@ -266,7 +266,7 @@ public class ParserTests
         Assert.Equal("Type", baseReference.Rest.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseSwitchStatementKeepsClauseOrder()
     {
         var engine = new JsEngine();
@@ -295,7 +295,7 @@ public class ParserTests
         Assert.Same(JsSymbols.Block, defaultBody.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseTryCatchFinallyStatement()
     {
         var engine = new JsEngine();
@@ -318,7 +318,7 @@ public class ParserTests
         Assert.Same(JsSymbols.Block, finallyBlock.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseTryFinallyWithoutCatchStoresNullCatch()
     {
         var engine = new JsEngine();
@@ -333,7 +333,7 @@ public class ParserTests
         Assert.Same(JsSymbols.Block, finallyBlock.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseIfAndLoopStatements()
     {
         var engine = new JsEngine();
@@ -365,7 +365,7 @@ public class ParserTests
         Assert.Equal(false, doWhileStatement.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseRestParameterInFunction()
     {
         var engine = new JsEngine();
@@ -387,7 +387,7 @@ public class ParserTests
         Assert.Equal(Symbol.Intern("rest"), restParam.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseSpreadInArrayLiteral()
     {
         var engine = new JsEngine();
@@ -409,7 +409,7 @@ public class ParserTests
         Assert.Equal(2d, arrayLiteral.Rest.Rest.Rest.Head);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseSpreadInFunctionCall()
     {
         var engine = new JsEngine();

@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class AdditionalArrayMethodsTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Fill_FillsWithValue()
     {
         var engine = new JsEngine();
@@ -18,7 +18,7 @@ public class AdditionalArrayMethodsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Fill_WithStartAndEnd()
     {
         var engine = new JsEngine();
@@ -32,7 +32,7 @@ public class AdditionalArrayMethodsTests
         Assert.Equal(1d + 0d + 5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Fill_WithNegativeIndices()
     {
         var engine = new JsEngine();
@@ -46,7 +46,7 @@ public class AdditionalArrayMethodsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_CopyWithin_CopiesElements()
     {
         var engine = new JsEngine();
@@ -60,7 +60,7 @@ public class AdditionalArrayMethodsTests
         Assert.Equal(4d + 5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_CopyWithin_WithAllArguments()
     {
         var engine = new JsEngine();
@@ -74,7 +74,7 @@ public class AdditionalArrayMethodsTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_ToSorted_ReturnsSortedCopy()
     {
         var engine = new JsEngine();
@@ -88,7 +88,7 @@ public class AdditionalArrayMethodsTests
         Assert.Equal(3d + 1d, result); // original unchanged, sorted is [1,1,3,4,5]
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_ToReversed_ReturnsReversedCopy()
     {
         var engine = new JsEngine();
@@ -102,7 +102,7 @@ public class AdditionalArrayMethodsTests
         Assert.Equal(1d + 5d, result); // original unchanged
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_ToSpliced_ReturnsModifiedCopy()
     {
         var engine = new JsEngine();
@@ -116,7 +116,7 @@ public class AdditionalArrayMethodsTests
         Assert.Equal(5d + 4d + 99d, result); // original unchanged, spliced is [1,2,99,5]
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_With_ReplacesElement()
     {
         var engine = new JsEngine();
@@ -130,7 +130,7 @@ public class AdditionalArrayMethodsTests
         Assert.Equal(3d + 99d, result); // original unchanged
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_With_HandlesNegativeIndex()
     {
         var engine = new JsEngine();

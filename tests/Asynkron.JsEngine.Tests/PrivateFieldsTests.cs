@@ -2,7 +2,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class PrivateFieldsTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PrivateFieldBasicAccess()
     {
         var engine = new JsEngine();
@@ -29,7 +29,7 @@ public class PrivateFieldsTests
         Assert.Equal(2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PrivateFieldInitializedInConstructor()
     {
         var engine = new JsEngine();
@@ -54,7 +54,7 @@ public class PrivateFieldsTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MultiplePrivateFields()
     {
         var engine = new JsEngine();
@@ -81,7 +81,7 @@ public class PrivateFieldsTests
         Assert.Equal(50d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PrivateFieldNotAccessibleOutsideClass()
     {
         var engine = new JsEngine();
@@ -101,7 +101,7 @@ public class PrivateFieldsTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PrivateFieldInGetter()
     {
         var engine = new JsEngine();
@@ -126,7 +126,7 @@ public class PrivateFieldsTests
         Assert.Equal("Alice", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PrivateFieldInSetter()
     {
         var engine = new JsEngine();
@@ -152,7 +152,7 @@ public class PrivateFieldsTests
         Assert.Equal("Bob", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PrivateFieldWithPublicField()
     {
         var engine = new JsEngine();
@@ -174,7 +174,7 @@ public class PrivateFieldsTests
         Assert.Equal(30d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PrivateFieldInInheritedClass()
     {
         var engine = new JsEngine();
@@ -201,7 +201,7 @@ public class PrivateFieldsTests
         Assert.Equal(100d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PrivateFieldsAreSeparateBetweenInstances()
     {
         var engine = new JsEngine();
@@ -231,7 +231,7 @@ public class PrivateFieldsTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PrivateFieldWithSameNameAsPublic()
     {
         var engine = new JsEngine();

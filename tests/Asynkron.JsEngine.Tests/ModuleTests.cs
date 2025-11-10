@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class ModuleTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExportDefaultFunction()
     {
         var engine = new JsEngine();
@@ -35,7 +35,7 @@ public class ModuleTests
         Assert.Equal(5.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExportDefaultValue()
     {
         var engine = new JsEngine();
@@ -64,7 +64,7 @@ public class ModuleTests
         Assert.Equal("MyApp", result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExportNamedValues()
     {
         var engine = new JsEngine();
@@ -93,7 +93,7 @@ public class ModuleTests
         Assert.Equal(30.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExportNamedFunctions()
     {
         var engine = new JsEngine();
@@ -127,7 +127,7 @@ public class ModuleTests
         Assert.Equal(25.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ImportWithAlias()
     {
         var engine = new JsEngine();
@@ -157,7 +157,7 @@ public class ModuleTests
         Assert.Equal(30.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ImportNamespace()
     {
         var engine = new JsEngine();
@@ -191,7 +191,7 @@ public class ModuleTests
         Assert.Equal(20.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExportList()
     {
         var engine = new JsEngine();
@@ -222,7 +222,7 @@ public class ModuleTests
         Assert.Equal(3.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExportWithAlias()
     {
         var engine = new JsEngine();
@@ -251,7 +251,7 @@ public class ModuleTests
         Assert.Equal(42.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ModuleCaching()
     {
         var engine = new JsEngine();
@@ -293,7 +293,7 @@ public class ModuleTests
         Assert.Equal(1, loadCount);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExportConst()
     {
         var engine = new JsEngine();
@@ -322,7 +322,7 @@ public class ModuleTests
         Assert.Equal(5.85987, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExportClass()
     {
         var engine = new JsEngine();
@@ -360,7 +360,7 @@ public class ModuleTests
         Assert.Equal(5.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DefaultAndNamedImports()
     {
         var engine = new JsEngine();
@@ -394,7 +394,7 @@ public class ModuleTests
         Assert.Equal("main-helper", result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SideEffectImport()
     {
         var engine = new JsEngine();
@@ -424,7 +424,7 @@ public class ModuleTests
         Assert.True(true); // Module loaded successfully without error
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ExportDefaultClass()
     {
         var engine = new JsEngine();
@@ -462,7 +462,7 @@ public class ModuleTests
         Assert.Equal(50.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MultipleImportsFromSameModule()
     {
         var engine = new JsEngine();
@@ -493,7 +493,7 @@ public class ModuleTests
         Assert.Equal(72.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DynamicImport_LoadsModuleAsynchronously()
     {
         var engine = new JsEngine();
@@ -526,7 +526,7 @@ public class ModuleTests
         Assert.Equal("Hello, World", result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DynamicImport_WithAsyncAwait()
     {
         var engine = new JsEngine();
@@ -567,7 +567,7 @@ public class ModuleTests
         Assert.Equal(100.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DynamicImport_DefaultExport()
     {
         var engine = new JsEngine();
@@ -600,7 +600,7 @@ public class ModuleTests
         Assert.Equal(42.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DynamicImport_ModuleIsCached()
     {
         var engine = new JsEngine();
@@ -645,7 +645,7 @@ public class ModuleTests
         Assert.Equal(1.0, second);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DynamicImport_ErrorHandling()
     {
         var engine = new JsEngine();

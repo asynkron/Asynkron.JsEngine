@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class ObjectMethodsTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Freeze_Prevents_Property_Modification()
     {
         var engine = new JsEngine();
@@ -19,7 +19,7 @@ public class ObjectMethodsTests
         Assert.Equal(1.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Freeze_Prevents_Property_Addition()
     {
         var engine = new JsEngine();
@@ -34,7 +34,7 @@ public class ObjectMethodsTests
         Assert.Equal(false, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Freeze_Returns_Same_Object()
     {
         var engine = new JsEngine();
@@ -48,7 +48,7 @@ public class ObjectMethodsTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_IsFrozen_Returns_True_For_Frozen_Object()
     {
         var engine = new JsEngine();
@@ -62,7 +62,7 @@ public class ObjectMethodsTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_IsFrozen_Returns_False_For_Normal_Object()
     {
         var engine = new JsEngine();
@@ -75,7 +75,7 @@ public class ObjectMethodsTests
         Assert.Equal(false, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Seal_Prevents_Property_Addition()
     {
         var engine = new JsEngine();
@@ -90,7 +90,7 @@ public class ObjectMethodsTests
         Assert.Equal(false, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Seal_Allows_Property_Modification()
     {
         var engine = new JsEngine();
@@ -105,7 +105,7 @@ public class ObjectMethodsTests
         Assert.Equal(999.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Seal_Returns_Same_Object()
     {
         var engine = new JsEngine();
@@ -119,7 +119,7 @@ public class ObjectMethodsTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_IsSealed_Returns_True_For_Sealed_Object()
     {
         var engine = new JsEngine();
@@ -133,7 +133,7 @@ public class ObjectMethodsTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_IsSealed_Returns_False_For_Normal_Object()
     {
         var engine = new JsEngine();
@@ -146,7 +146,7 @@ public class ObjectMethodsTests
         Assert.Equal(false, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Frozen_Is_Also_Sealed()
     {
         var engine = new JsEngine();
@@ -160,7 +160,7 @@ public class ObjectMethodsTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Create_Creates_Object_With_Null_Prototype()
     {
         var engine = new JsEngine();
@@ -173,7 +173,7 @@ public class ObjectMethodsTests
         Assert.Equal("object", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Create_Creates_Object_With_Specified_Prototype()
     {
         var engine = new JsEngine();
@@ -187,7 +187,7 @@ public class ObjectMethodsTests
         Assert.Equal(10.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Create_New_Properties_Dont_Affect_Prototype()
     {
         var engine = new JsEngine();
@@ -202,7 +202,7 @@ public class ObjectMethodsTests
         Assert.Equal(false, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Create_Can_Override_Inherited_Properties()
     {
         var engine = new JsEngine();
@@ -217,7 +217,7 @@ public class ObjectMethodsTests
         Assert.Equal(999.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_Create_Prototype_Chain_Works()
     {
         var engine = new JsEngine();

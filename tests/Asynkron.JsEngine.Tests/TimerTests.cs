@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class TimerTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SetTimeout_ExecutesCallbackAfterDelay()
     {
         var engine = new JsEngine();
@@ -25,7 +25,7 @@ public class TimerTests
         Assert.True(executed, "setTimeout callback should have been executed");
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SetTimeout_ReturnsTimerId()
     {
         var engine = new JsEngine();
@@ -41,7 +41,7 @@ public class TimerTests
         Assert.True((double)result! >= 1);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ClearTimeout_PreventsExecution()
     {
         var engine = new JsEngine();
@@ -66,7 +66,7 @@ public class TimerTests
         Assert.False(executed, "setTimeout callback should not have been executed after clearTimeout");
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SetInterval_ExecutesCallbackRepeatedly()
     {
         var engine = new JsEngine();
@@ -94,7 +94,7 @@ public class TimerTests
         Assert.True(count >= 2, $"setInterval should have executed at least 2 times, but executed {count} times");
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ClearInterval_StopsExecution()
     {
         var engine = new JsEngine();
@@ -119,7 +119,7 @@ public class TimerTests
         Assert.Equal(0, count);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SetTimeout_WithZeroDelay_ExecutesAsynchronously()
     {
         var engine = new JsEngine();
@@ -147,7 +147,7 @@ public class TimerTests
         Assert.Equal(new[] { "start", "end", "timeout" }, order);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SetTimeout_CanAccessClosureVariables()
     {
         var engine = new JsEngine();

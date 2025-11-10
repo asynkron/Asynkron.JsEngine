@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class NumberStaticMethodsTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_IsInteger_ReturnsTrueForIntegers()
     {
         var engine = new JsEngine();
@@ -12,7 +12,7 @@ public class NumberStaticMethodsTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_IsInteger_ReturnsFalseForDecimals()
     {
         var engine = new JsEngine();
@@ -20,7 +20,7 @@ public class NumberStaticMethodsTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_IsInteger_ReturnsFalseForNaN()
     {
         var engine = new JsEngine();
@@ -28,7 +28,7 @@ public class NumberStaticMethodsTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_IsFinite_ReturnsTrueForFiniteNumbers()
     {
         var engine = new JsEngine();
@@ -36,7 +36,7 @@ public class NumberStaticMethodsTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_IsFinite_ReturnsFalseForInfinity()
     {
         var engine = new JsEngine();
@@ -44,7 +44,7 @@ public class NumberStaticMethodsTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_IsNaN_ReturnsTrueForNaN()
     {
         var engine = new JsEngine();
@@ -52,7 +52,7 @@ public class NumberStaticMethodsTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_IsNaN_ReturnsFalseForNumbers()
     {
         var engine = new JsEngine();
@@ -60,7 +60,7 @@ public class NumberStaticMethodsTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_IsSafeInteger_ReturnsTrueForSafeIntegers()
     {
         var engine = new JsEngine();
@@ -68,7 +68,7 @@ public class NumberStaticMethodsTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_IsSafeInteger_ReturnsFalseForLargeNumbers()
     {
         var engine = new JsEngine();
@@ -76,7 +76,7 @@ public class NumberStaticMethodsTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_ParseFloat_ParsesDecimalNumbers()
     {
         var engine = new JsEngine();
@@ -84,7 +84,7 @@ public class NumberStaticMethodsTests
         Assert.Equal(3.14d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_ParseFloat_HandlesLeadingWhitespace()
     {
         var engine = new JsEngine();
@@ -92,7 +92,7 @@ public class NumberStaticMethodsTests
         Assert.Equal(42.5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_ParseFloat_StopsAtNonNumeric()
     {
         var engine = new JsEngine();
@@ -100,7 +100,7 @@ public class NumberStaticMethodsTests
         Assert.Equal(3.14d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_ParseInt_ParsesIntegers()
     {
         var engine = new JsEngine();
@@ -108,7 +108,7 @@ public class NumberStaticMethodsTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_ParseInt_WithRadix()
     {
         var engine = new JsEngine();
@@ -116,7 +116,7 @@ public class NumberStaticMethodsTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_ParseInt_WithHexRadix()
     {
         var engine = new JsEngine();
@@ -124,7 +124,7 @@ public class NumberStaticMethodsTests
         Assert.Equal(255d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_Constants_AreAvailable()
     {
         var engine = new JsEngine();
@@ -150,7 +150,7 @@ public class NumberStaticMethodsTests
         Assert.True(double.IsNaN((double)nan!));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_ParseFloat_IsCultureInvariant()
     {
         // Save current culture
@@ -174,7 +174,7 @@ public class NumberStaticMethodsTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Number_Constructor_IsCultureInvariant()
     {
         // Save current culture

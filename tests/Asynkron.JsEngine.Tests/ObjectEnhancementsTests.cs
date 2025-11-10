@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class ObjectEnhancementsTests
 {
     // Object property shorthand tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectPropertyShorthand()
     {
         var engine = new JsEngine();
@@ -20,7 +20,7 @@ public class ObjectEnhancementsTests
         Assert.Equal("Alice", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectPropertyShorthandAge()
     {
         var engine = new JsEngine();
@@ -35,7 +35,7 @@ public class ObjectEnhancementsTests
         Assert.Equal(30d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectPropertyShorthandMixed()
     {
         var engine = new JsEngine();
@@ -50,7 +50,7 @@ public class ObjectEnhancementsTests
     }
 
     // Object method shorthand tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectMethodShorthand()
     {
         var engine = new JsEngine();
@@ -68,7 +68,7 @@ public class ObjectEnhancementsTests
         Assert.Equal("Hello, Alice", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectMethodShorthandMultiple()
     {
         var engine = new JsEngine();
@@ -88,7 +88,7 @@ public class ObjectEnhancementsTests
         Assert.Equal(16d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectMethodShorthandWithThis()
     {
         var engine = new JsEngine();
@@ -113,7 +113,7 @@ public class ObjectEnhancementsTests
     }
 
     // Computed property names tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ComputedPropertyName()
     {
         var engine = new JsEngine();
@@ -129,7 +129,7 @@ public class ObjectEnhancementsTests
         Assert.Equal("value", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ComputedPropertyNameExpression()
     {
         var engine = new JsEngine();
@@ -144,7 +144,7 @@ public class ObjectEnhancementsTests
         Assert.Equal(123d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ComputedPropertyNameMixed()
     {
         var engine = new JsEngine();
@@ -163,7 +163,7 @@ public class ObjectEnhancementsTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ComputedPropertyNameWithMethod()
     {
         var engine = new JsEngine();
@@ -182,7 +182,7 @@ public class ObjectEnhancementsTests
         Assert.Equal("Hi, Bob", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ComputedPropertyNameNumber()
     {
         var engine = new JsEngine();
@@ -200,7 +200,7 @@ public class ObjectEnhancementsTests
     }
 
     // Combined features
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task CombinedShorthandAndComputed()
     {
         var engine = new JsEngine();
@@ -222,7 +222,7 @@ public class ObjectEnhancementsTests
     }
 
     // Object spread in object literals
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectSpreadInLiteral()
     {
         var engine = new JsEngine();
@@ -237,7 +237,7 @@ public class ObjectEnhancementsTests
         Assert.Equal(15d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectSpreadOverwrites()
     {
         var engine = new JsEngine();
@@ -252,7 +252,7 @@ public class ObjectEnhancementsTests
         Assert.Equal(24d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectSpreadWithRegularProperties()
     {
         var engine = new JsEngine();

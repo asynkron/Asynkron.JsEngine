@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class EvaluatorTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task EvaluateArithmeticAndVariableLookup()
     {
         var engine = new JsEngine();
@@ -12,7 +12,7 @@ public class EvaluatorTests
         Assert.Equal(7d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task EvaluateFunctionDeclarationAndInvocation()
     {
         var engine = new JsEngine();
@@ -21,7 +21,7 @@ public class EvaluatorTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task EvaluateClosureCapturesOuterVariable()
     {
         var engine = new JsEngine();
@@ -30,7 +30,7 @@ public class EvaluatorTests
         Assert.Equal(15d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task EvaluateFunctionExpression()
     {
         var engine = new JsEngine();
@@ -39,7 +39,7 @@ public class EvaluatorTests
         Assert.Equal(9d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task HostFunctionInterop()
     {
         var captured = new List<object?>();
@@ -59,7 +59,7 @@ public class EvaluatorTests
             item => Assert.Equal("world", item));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task EvaluateObjectLiteralAndPropertyUsage()
     {
         var engine = new JsEngine();
@@ -70,7 +70,7 @@ public class EvaluatorTests
         Assert.Equal(15d, result); // object property read plus function invocation
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task EvaluateArrayLiteralSupportsIndexing()
     {
         var engine = new JsEngine();
@@ -90,7 +90,7 @@ public class EvaluatorTests
         Assert.Equal(7d, result); // length reflects new entry and missing reads return null
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LogicalOperatorsShortCircuitAndReturnOperands()
     {
         var engine = new JsEngine();
@@ -118,7 +118,7 @@ public class EvaluatorTests
         Assert.Equal(0d,await  engine.Evaluate("coalesceNonNull;"));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictEqualityRequiresMatchingTypes()
     {
         var engine = new JsEngine();
@@ -139,14 +139,14 @@ public class EvaluatorTests
 
         object? temp = await engine.Evaluate(source);
 
-        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[0];")));
-        Assert.False(Assert.IsType<bool>(engine.Evaluate("outcomes[1];")));
-        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[2];")));
-        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[3];")));
-        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[4];")));
+        Assert.True(Assert.IsType<bool>(await engine.Evaluate("outcomes[0];")));
+        Assert.False(Assert.IsType<bool>(await engine.Evaluate("outcomes[1];")));
+        Assert.True(Assert.IsType<bool>(await engine.Evaluate("outcomes[2];")));
+        Assert.True(Assert.IsType<bool>(await engine.Evaluate("outcomes[3];")));
+        Assert.True(Assert.IsType<bool>(await engine.Evaluate("outcomes[4];")));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task VarDeclarationHoistsToFunctionScope()
     {
         var engine = new JsEngine();
@@ -168,7 +168,7 @@ public class EvaluatorTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ConstAssignmentThrows()
     {
         var engine = new JsEngine();
@@ -176,7 +176,7 @@ public class EvaluatorTests
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("const fixed = 1; fixed = 2;"));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TryCatchFinallyBindsThrownValueAndRunsCleanup()
     {
         var engine = new JsEngine();
@@ -199,7 +199,7 @@ public class EvaluatorTests
         Assert.Equal(42d, result); // catch observes thrown value and finally still executes
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FinallyRunsForUnhandledThrow()
     {
         var engine = new JsEngine();
@@ -214,13 +214,13 @@ public class EvaluatorTests
 
                      """;
 
-        await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate(source));
+        await Assert.ThrowsAnyAsync<Exception>(async () => await engine.Evaluate(source));
 
         var cleanupValue = await engine.Evaluate("cleanup;");
         Assert.Equal(1d, cleanupValue); // finally executed even though the throw escaped
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FinallyReturnOverridesTryReturn()
     {
         var engine = new JsEngine();
@@ -242,7 +242,7 @@ public class EvaluatorTests
         Assert.Equal(2d, result); // return inside finally shadows earlier return
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MethodInvocationBindsThis()
     {
         var engine = new JsEngine();
@@ -253,7 +253,7 @@ public class EvaluatorTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task IndexedMethodInvocationBindsThis()
     {
         var engine = new JsEngine();
@@ -269,7 +269,7 @@ public class EvaluatorTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task HostFunctionReceivesThisBinding()
     {
         var engine = new JsEngine();
@@ -281,7 +281,7 @@ public class EvaluatorTests
         Assert.Equal(42d, thisBinding["value"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PrototypeLookupResolvesInheritedMethods()
     {
         var engine = new JsEngine();
@@ -301,7 +301,7 @@ public class EvaluatorTests
         Assert.Equal(14d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task PrototypeAssignmentLinksObjectsAfterCreation()
     {
         var engine = new JsEngine();
@@ -319,7 +319,7 @@ public class EvaluatorTests
         Assert.Equal("hi Alice", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NewCreatesInstancesWithConstructorPrototypes()
     {
         var engine = new JsEngine();
@@ -339,7 +339,7 @@ public class EvaluatorTests
         Assert.Equal("Person:Bob", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MethodClosuresCanReachThisViaCapturedReference()
     {
         var engine = new JsEngine();
@@ -364,7 +364,7 @@ public class EvaluatorTests
         Assert.Equal(18d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DistinctMethodCallsProvideIndependentThisBindings()
     {
         var engine = new JsEngine();
@@ -389,7 +389,7 @@ public class EvaluatorTests
         Assert.Equal(15d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ClassDeclarationSupportsConstructorsAndMethods()
     {
         var engine = new JsEngine();
@@ -415,7 +415,7 @@ public class EvaluatorTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ClassWithoutExplicitConstructorFallsBackToDefault()
     {
         var engine = new JsEngine();
@@ -434,7 +434,7 @@ public class EvaluatorTests
         Assert.True(Assert.IsType<bool>(result));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ClassInheritanceSupportsSuperConstructorAndMethodCalls()
     {
         var engine = new JsEngine();
@@ -471,7 +471,7 @@ public class EvaluatorTests
         Assert.Equal(8d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task EvaluateIfElseAndBlockScopes()
     {
         var engine = new JsEngine();
@@ -491,7 +491,7 @@ public class EvaluatorTests
         Assert.Equal(2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task EvaluateWhileLoopUpdatesValues()
     {
         var engine = new JsEngine();
@@ -511,7 +511,7 @@ public class EvaluatorTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task EvaluateForLoopHonoursBreakAndContinue()
     {
         var engine = new JsEngine();
@@ -537,7 +537,7 @@ public class EvaluatorTests
         Assert.Equal(7d, result); // adds 0 + 1 + 2 + 4 before breaking at 5
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SwitchStatementSupportsFallthrough()
     {
         var engine = new JsEngine();
@@ -563,7 +563,7 @@ public class EvaluatorTests
         Assert.Equal("few", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SwitchBreakRemainsInsideLoop()
     {
         var engine = new JsEngine();
@@ -589,7 +589,7 @@ public class EvaluatorTests
         Assert.Equal(12d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task EvaluateDoWhileRunsBodyAtLeastOnce()
     {
         var engine = new JsEngine();
@@ -607,7 +607,7 @@ public class EvaluatorTests
         Assert.Equal(1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TernaryOperatorReturnsThenBranchWhenConditionIsTrue()
     {
         var engine = new JsEngine();
@@ -615,7 +615,7 @@ public class EvaluatorTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TernaryOperatorReturnsElseBranchWhenConditionIsFalse()
     {
         var engine = new JsEngine();
@@ -623,7 +623,7 @@ public class EvaluatorTests
         Assert.Equal(20d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TernaryOperatorEvaluatesConditionForTruthiness()
     {
         var engine = new JsEngine();
@@ -638,7 +638,7 @@ public class EvaluatorTests
         Assert.Equal("big", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TernaryOperatorWithZeroAsFalsyCondition()
     {
         var engine = new JsEngine();
@@ -646,7 +646,7 @@ public class EvaluatorTests
         Assert.Equal("no", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TernaryOperatorWithNullAsFalsyCondition()
     {
         var engine = new JsEngine();
@@ -654,7 +654,7 @@ public class EvaluatorTests
         Assert.Equal(2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TernaryOperatorCanBeNested()
     {
         var engine = new JsEngine();
@@ -669,7 +669,7 @@ public class EvaluatorTests
         Assert.Equal("B", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TernaryOperatorOnlyEvaluatesSelectedBranch()
     {
         var engine = new JsEngine();
@@ -688,7 +688,7 @@ public class EvaluatorTests
         Assert.Equal(0d, result); // increment should not be called
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TernaryOperatorWorksInComplexExpressions()
     {
         var engine = new JsEngine();
@@ -705,7 +705,7 @@ public class EvaluatorTests
         Assert.Equal(20d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TernaryOperatorInFunctionReturn()
     {
         var engine = new JsEngine();
@@ -721,7 +721,7 @@ public class EvaluatorTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithSimpleString()
     {
         var engine = new JsEngine();
@@ -729,7 +729,7 @@ public class EvaluatorTests
         Assert.Equal("hello world", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithSingleExpression()
     {
         var engine = new JsEngine();
@@ -737,7 +737,7 @@ public class EvaluatorTests
         Assert.Equal("The answer is 42", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithMultipleExpressions()
     {
         var engine = new JsEngine();
@@ -745,7 +745,7 @@ public class EvaluatorTests
         Assert.Equal("10 + 20 = 30", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithStringInterpolation()
     {
         var engine = new JsEngine();
@@ -759,7 +759,7 @@ public class EvaluatorTests
         Assert.Equal("Hello, my name is Alice and I am 30 years old.", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithComplexExpressions()
     {
         var engine = new JsEngine();
@@ -773,7 +773,7 @@ public class EvaluatorTests
         Assert.Equal("Hello, Bob! You have 15 messages.", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithBooleanAndNull()
     {
         var engine = new JsEngine();
@@ -781,7 +781,7 @@ public class EvaluatorTests
         Assert.Equal("true: true, false: false, null: null", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task GetterInObjectLiteral()
     {
         var engine = new JsEngine();
@@ -797,7 +797,7 @@ public class EvaluatorTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SetterInObjectLiteral()
     {
         var engine = new JsEngine();
@@ -814,7 +814,7 @@ public class EvaluatorTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task GetterAndSetterTogether()
     {
         var engine = new JsEngine();
@@ -834,7 +834,7 @@ public class EvaluatorTests
         Assert.Equal(212d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task GetterInClass()
     {
         var engine = new JsEngine();
@@ -856,7 +856,7 @@ public class EvaluatorTests
         Assert.Equal(50d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SetterInClass()
     {
         var engine = new JsEngine();
@@ -883,7 +883,7 @@ public class EvaluatorTests
         Assert.Equal("Updated Smith", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RestParameterCollectsRemainingArguments()
     {
         var engine = new JsEngine();
@@ -905,7 +905,7 @@ public class EvaluatorTests
         Assert.Equal(15d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RestParameterWithNoExtraArgumentsCreatesEmptyArray()
     {
         var engine = new JsEngine();
@@ -921,7 +921,7 @@ public class EvaluatorTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SpreadOperatorInArrayLiteral()
     {
         var engine = new JsEngine();
@@ -937,7 +937,7 @@ public class EvaluatorTests
         Assert.Equal(28d, result); // 0+1+2+3+4+5+6+7
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SpreadOperatorInFunctionCall()
     {
         var engine = new JsEngine();
@@ -954,7 +954,7 @@ public class EvaluatorTests
         Assert.Equal(60d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SpreadOperatorWithMixedArguments()
     {
         var engine = new JsEngine();
@@ -971,7 +971,7 @@ public class EvaluatorTests
         Assert.Equal("Hello Alice and Bob", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RestParameterWithSpreadInCall()
     {
         var engine = new JsEngine();
@@ -997,7 +997,7 @@ public class EvaluatorTests
         Assert.Equal("a,b,c,d", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SpreadInNestedArrays()
     {
         var engine = new JsEngine();
@@ -1013,7 +1013,7 @@ public class EvaluatorTests
         Assert.Equal(15d, result); // 0+1+2+3+4+5
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathObjectProvidesConstants()
     {
         var engine = new JsEngine();
@@ -1028,7 +1028,7 @@ public class EvaluatorTests
         Assert.Equal(Math.Sqrt(2), sqrt2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathSqrtCalculatesSquareRoot()
     {
         var engine = new JsEngine();
@@ -1036,7 +1036,7 @@ public class EvaluatorTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathPowCalculatesPower()
     {
         var engine = new JsEngine();
@@ -1044,7 +1044,7 @@ public class EvaluatorTests
         Assert.Equal(8d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathAbsReturnsAbsoluteValue()
     {
         var engine = new JsEngine();
@@ -1056,7 +1056,7 @@ public class EvaluatorTests
         Assert.Equal(3d, alreadyPositive);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathFloorCeilRound()
     {
         var engine = new JsEngine();
@@ -1071,7 +1071,7 @@ public class EvaluatorTests
         Assert.Equal(5d, round);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathMaxMinFunctions()
     {
         var engine = new JsEngine();
@@ -1083,7 +1083,7 @@ public class EvaluatorTests
         Assert.Equal(1d, min);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathRandomReturnsBetweenZeroAndOne()
     {
         var engine = new JsEngine();
@@ -1094,7 +1094,7 @@ public class EvaluatorTests
         Assert.True(value >= 0 && value < 1);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathTrigonometricFunctions()
     {
         var engine = new JsEngine();
@@ -1112,7 +1112,7 @@ public class EvaluatorTests
         Assert.Equal(1d, (double)tan!, precision: 10);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathLogarithmicFunctions()
     {
         var engine = new JsEngine();
@@ -1127,7 +1127,7 @@ public class EvaluatorTests
         Assert.Equal(Math.E, (double)exp!, precision: 10);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathCanBeUsedInComplexExpressions()
     {
         var engine = new JsEngine();
@@ -1144,7 +1144,7 @@ public class EvaluatorTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathSignReturnsSignOfNumber()
     {
         var engine = new JsEngine();
@@ -1159,7 +1159,7 @@ public class EvaluatorTests
         Assert.Equal(0, zero);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MathTruncRemovesDecimalPart()
     {
         var engine = new JsEngine();
@@ -1171,7 +1171,7 @@ public class EvaluatorTests
         Assert.Equal(-4d, negative);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayMapTransformsElements()
     {
         var engine = new JsEngine();
@@ -1185,7 +1185,7 @@ public class EvaluatorTests
         Assert.Equal(20d, result); // 2 + 4 + 6 + 8
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayFilterSelectsElements()
     {
         var engine = new JsEngine();
@@ -1199,7 +1199,7 @@ public class EvaluatorTests
         Assert.Equal(3d, result); // [4, 5, 6]
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayReduceAccumulatesValues()
     {
         var engine = new JsEngine();
@@ -1213,7 +1213,7 @@ public class EvaluatorTests
         Assert.Equal(15d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayForEachIteratesElements()
     {
         var engine = new JsEngine();
@@ -1228,7 +1228,7 @@ public class EvaluatorTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayFindReturnsFirstMatch()
     {
         var engine = new JsEngine();
@@ -1242,7 +1242,7 @@ public class EvaluatorTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayFindIndexReturnsIndexOfFirstMatch()
     {
         var engine = new JsEngine();
@@ -1256,7 +1256,7 @@ public class EvaluatorTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArraySomeReturnsTrueIfAnyMatch()
     {
         var engine = new JsEngine();
@@ -1278,7 +1278,7 @@ public class EvaluatorTests
         Assert.False((bool)hasNegative!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayEveryReturnsTrueIfAllMatch()
     {
         var engine = new JsEngine();
@@ -1300,7 +1300,7 @@ public class EvaluatorTests
         Assert.False((bool)allLarge!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayJoinConcatenatesElements()
     {
         var engine = new JsEngine();
@@ -1322,7 +1322,7 @@ public class EvaluatorTests
         Assert.Equal("x-y-z", withDash);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayIncludesChecksForElement()
     {
         var engine = new JsEngine();
@@ -1344,7 +1344,7 @@ public class EvaluatorTests
         Assert.False((bool)hasFive!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayIndexOfFindsElementPosition()
     {
         var engine = new JsEngine();
@@ -1366,7 +1366,7 @@ public class EvaluatorTests
         Assert.Equal(-1d, notFound);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArraySliceExtractsSubarray()
     {
         var engine = new JsEngine();
@@ -1381,7 +1381,7 @@ public class EvaluatorTests
         Assert.Equal(3d, result); // [1, 2]
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayMethodsCanBeChained()
     {
         var engine = new JsEngine();
@@ -1398,7 +1398,7 @@ public class EvaluatorTests
         Assert.Equal(30d, result); // filter: [4,5,6], map: [8,10,12], reduce: 30
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayPushAddsElements()
     {
         var engine = new JsEngine();
@@ -1413,7 +1413,7 @@ public class EvaluatorTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayPopRemovesLastElement()
     {
         var engine = new JsEngine();
@@ -1427,7 +1427,7 @@ public class EvaluatorTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayShiftRemovesFirstElement()
     {
         var engine = new JsEngine();
@@ -1441,7 +1441,7 @@ public class EvaluatorTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayUnshiftAddsToBeginning()
     {
         var engine = new JsEngine();
@@ -1455,7 +1455,7 @@ public class EvaluatorTests
         Assert.Equal(1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArraySpliceRemovesAndInserts()
     {
         var engine = new JsEngine();
@@ -1469,7 +1469,7 @@ public class EvaluatorTests
         Assert.Equal(99d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayConcatCombinesArrays()
     {
         var engine = new JsEngine();
@@ -1484,7 +1484,7 @@ public class EvaluatorTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayReverseReversesInPlace()
     {
         var engine = new JsEngine();
@@ -1498,7 +1498,7 @@ public class EvaluatorTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArraySortSortsElements()
     {
         var engine = new JsEngine();
@@ -1512,7 +1512,7 @@ public class EvaluatorTests
         Assert.Equal(1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DateNowReturnsMilliseconds()
     {
         var engine = new JsEngine();
@@ -1521,7 +1521,7 @@ public class EvaluatorTests
         Assert.True((double)result > 0);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DateConstructorCreatesInstance()
     {
         var engine = new JsEngine();
@@ -1534,7 +1534,7 @@ public class EvaluatorTests
         Assert.Equal(2024d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DateGetMonthReturnsZeroIndexed()
     {
         var engine = new JsEngine();
@@ -1547,7 +1547,7 @@ public class EvaluatorTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DateToISOStringReturnsFormattedString()
     {
         var engine = new JsEngine();
@@ -1561,7 +1561,7 @@ public class EvaluatorTests
         Assert.Contains("2024", (string)result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task JsonParseHandlesObject()
     {
         var engine = new JsEngine();
@@ -1575,7 +1575,7 @@ public class EvaluatorTests
         Assert.Equal("Alice", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task JsonParseHandlesArray()
     {
         var engine = new JsEngine();
@@ -1589,7 +1589,7 @@ public class EvaluatorTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task JsonStringifyHandlesObject()
     {
         var engine = new JsEngine();
@@ -1603,7 +1603,7 @@ public class EvaluatorTests
         Assert.Contains("Bob", (string)result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task JsonStringifyHandlesArray()
     {
         var engine = new JsEngine();

@@ -2,7 +2,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class WeakSetTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Constructor_Creates_Empty_WeakSet()
     {
         var engine = new JsEngine();
@@ -15,7 +15,7 @@ public class WeakSetTests
         Assert.Equal("object", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Add_Adds_Object()
     {
         var engine = new JsEngine();
@@ -30,7 +30,7 @@ public class WeakSetTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Add_Returns_WeakSet_For_Chaining()
     {
         var engine = new JsEngine();
@@ -46,7 +46,7 @@ public class WeakSetTests
         Assert.Equal("object", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Has_Checks_Value_Existence()
     {
         var engine = new JsEngine();
@@ -64,7 +64,7 @@ public class WeakSetTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Delete_Removes_Value()
     {
         var engine = new JsEngine();
@@ -81,7 +81,7 @@ public class WeakSetTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Delete_Returns_False_For_Nonexistent_Value()
     {
         var engine = new JsEngine();
@@ -95,7 +95,7 @@ public class WeakSetTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Rejects_String_As_Value()
     {
         var engine = new JsEngine();
@@ -108,7 +108,7 @@ public class WeakSetTests
         Assert.Contains("Invalid value used in weak set", exception.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Rejects_Number_As_Value()
     {
         var engine = new JsEngine();
@@ -121,7 +121,7 @@ public class WeakSetTests
         Assert.Contains("Invalid value used in weak set", exception.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Rejects_Boolean_As_Value()
     {
         var engine = new JsEngine();
@@ -134,7 +134,7 @@ public class WeakSetTests
         Assert.Contains("Invalid value used in weak set", exception.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Rejects_Null_As_Value()
     {
         var engine = new JsEngine();
@@ -147,7 +147,7 @@ public class WeakSetTests
         Assert.Contains("Invalid value used in weak set", exception.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Rejects_Undefined_As_Value()
     {
         var engine = new JsEngine();
@@ -161,7 +161,7 @@ public class WeakSetTests
         Assert.Contains("Invalid value used in weak set", exception.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Accepts_Array_As_Value()
     {
         var engine = new JsEngine();
@@ -176,7 +176,7 @@ public class WeakSetTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Accepts_Function_As_Value()
     {
         var engine = new JsEngine();
@@ -191,7 +191,7 @@ public class WeakSetTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Different_Objects_Are_Different_Values()
     {
         var engine = new JsEngine();
@@ -209,7 +209,7 @@ public class WeakSetTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Does_Not_Add_Duplicate_Objects()
     {
         var engine = new JsEngine();
@@ -226,7 +226,7 @@ public class WeakSetTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Has_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
@@ -239,7 +239,7 @@ public class WeakSetTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Delete_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
@@ -252,7 +252,7 @@ public class WeakSetTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Constructor_Accepts_Array_Of_Values()
     {
         var engine = new JsEngine();
@@ -270,7 +270,7 @@ public class WeakSetTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Typeof_Returns_Object()
     {
         var engine = new JsEngine();
@@ -283,7 +283,7 @@ public class WeakSetTests
         Assert.Equal("object", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Can_Store_Same_Object_In_Different_WeakSets()
     {
         var engine = new JsEngine();
@@ -302,7 +302,7 @@ public class WeakSetTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Delete_Does_Not_Affect_Other_WeakSets()
     {
         var engine = new JsEngine();

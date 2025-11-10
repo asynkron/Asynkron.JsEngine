@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class MathMethodsTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Cbrt_CalculatesCubeRoot()
     {
         var engine = new JsEngine();
@@ -12,7 +12,7 @@ public class MathMethodsTests
         Assert.Equal(2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Cbrt_NegativeValue()
     {
         var engine = new JsEngine();
@@ -20,7 +20,7 @@ public class MathMethodsTests
         Assert.InRange((double)result!, -3.0001, -2.9999);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Clz32_CountsLeadingZeros()
     {
         var engine = new JsEngine();
@@ -28,7 +28,7 @@ public class MathMethodsTests
         Assert.Equal(31d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Clz32_WithZero()
     {
         var engine = new JsEngine();
@@ -36,7 +36,7 @@ public class MathMethodsTests
         Assert.Equal(32d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Imul_MultipliesIntegers()
     {
         var engine = new JsEngine();
@@ -44,7 +44,7 @@ public class MathMethodsTests
         Assert.Equal(20d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Imul_WithLargeNumbers()
     {
         var engine = new JsEngine();
@@ -53,7 +53,7 @@ public class MathMethodsTests
         Assert.Equal(-2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Fround_ConvertsToFloat32()
     {
         var engine = new JsEngine();
@@ -61,7 +61,7 @@ public class MathMethodsTests
         Assert.Equal(1.5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Fround_WithHighPrecision()
     {
         var engine = new JsEngine();
@@ -71,7 +71,7 @@ public class MathMethodsTests
         Assert.InRange((double)result!, 1.336d, 1.338d);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Hypot_CalculatesHypotenuse()
     {
         var engine = new JsEngine();
@@ -79,7 +79,7 @@ public class MathMethodsTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Hypot_WithMultipleArguments()
     {
         var engine = new JsEngine();
@@ -87,7 +87,7 @@ public class MathMethodsTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Hypot_WithNoArguments()
     {
         var engine = new JsEngine();
@@ -95,7 +95,7 @@ public class MathMethodsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Acosh_CalculatesInverseHyperbolicCosine()
     {
         var engine = new JsEngine();
@@ -103,7 +103,7 @@ public class MathMethodsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Asinh_CalculatesInverseHyperbolicSine()
     {
         var engine = new JsEngine();
@@ -111,7 +111,7 @@ public class MathMethodsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Atanh_CalculatesInverseHyperbolicTangent()
     {
         var engine = new JsEngine();
@@ -119,7 +119,7 @@ public class MathMethodsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Cosh_CalculatesHyperbolicCosine()
     {
         var engine = new JsEngine();
@@ -127,7 +127,7 @@ public class MathMethodsTests
         Assert.Equal(1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Sinh_CalculatesHyperbolicSine()
     {
         var engine = new JsEngine();
@@ -135,7 +135,7 @@ public class MathMethodsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Tanh_CalculatesHyperbolicTangent()
     {
         var engine = new JsEngine();
@@ -143,7 +143,7 @@ public class MathMethodsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Tanh_WithPositiveInfinity()
     {
         var engine = new JsEngine();
@@ -151,7 +151,7 @@ public class MathMethodsTests
         Assert.Equal(1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Expm1_CalculatesExpMinusOne()
     {
         var engine = new JsEngine();
@@ -159,7 +159,7 @@ public class MathMethodsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Expm1_WithPositiveValue()
     {
         var engine = new JsEngine();
@@ -167,7 +167,7 @@ public class MathMethodsTests
         Assert.InRange((double)result!, Math.E - 1 - 0.0001, Math.E - 1 + 0.0001);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Log1p_CalculatesLogOnePlusX()
     {
         var engine = new JsEngine();
@@ -175,7 +175,7 @@ public class MathMethodsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Math_Log1p_WithPositiveValue()
     {
         var engine = new JsEngine();

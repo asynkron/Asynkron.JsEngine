@@ -2,7 +2,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class WeakMapTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Constructor_Creates_Empty_WeakMap()
     {
         var engine = new JsEngine();
@@ -15,7 +15,7 @@ public class WeakMapTests
         Assert.Equal("object", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Set_And_Get_With_Object_Key()
     {
         var engine = new JsEngine();
@@ -30,7 +30,7 @@ public class WeakMapTests
         Assert.Equal("value", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Set_Returns_WeakMap_For_Chaining()
     {
         var engine = new JsEngine();
@@ -46,7 +46,7 @@ public class WeakMapTests
         Assert.Equal("object", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Has_Checks_Key_Existence()
     {
         var engine = new JsEngine();
@@ -64,7 +64,7 @@ public class WeakMapTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Delete_Removes_Entry()
     {
         var engine = new JsEngine();
@@ -81,7 +81,7 @@ public class WeakMapTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Delete_Returns_False_For_Nonexistent_Key()
     {
         var engine = new JsEngine();
@@ -95,7 +95,7 @@ public class WeakMapTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Get_Returns_Undefined_For_Missing_Key()
     {
         var engine = new JsEngine();
@@ -110,7 +110,7 @@ public class WeakMapTests
         Assert.Equal("undefined", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Rejects_String_As_Key()
     {
         var engine = new JsEngine();
@@ -123,7 +123,7 @@ public class WeakMapTests
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Rejects_Number_As_Key()
     {
         var engine = new JsEngine();
@@ -136,7 +136,7 @@ public class WeakMapTests
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Rejects_Boolean_As_Key()
     {
         var engine = new JsEngine();
@@ -149,7 +149,7 @@ public class WeakMapTests
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Rejects_Null_As_Key()
     {
         var engine = new JsEngine();
@@ -162,7 +162,7 @@ public class WeakMapTests
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Rejects_Undefined_As_Key()
     {
         var engine = new JsEngine();
@@ -176,7 +176,7 @@ public class WeakMapTests
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Accepts_Array_As_Key()
     {
         var engine = new JsEngine();
@@ -191,7 +191,7 @@ public class WeakMapTests
         Assert.Equal("array value", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Accepts_Function_As_Key()
     {
         var engine = new JsEngine();
@@ -206,7 +206,7 @@ public class WeakMapTests
         Assert.Equal("function value", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Different_Objects_Are_Different_Keys()
     {
         var engine = new JsEngine();
@@ -225,7 +225,7 @@ public class WeakMapTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Updates_Existing_Key()
     {
         var engine = new JsEngine();
@@ -241,7 +241,7 @@ public class WeakMapTests
         Assert.Equal("value2", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Can_Store_Undefined_As_Value()
     {
         var engine = new JsEngine();
@@ -257,7 +257,7 @@ public class WeakMapTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Can_Store_Null_As_Value()
     {
         var engine = new JsEngine();
@@ -272,7 +272,7 @@ public class WeakMapTests
         Assert.Null(result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Has_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
@@ -285,7 +285,7 @@ public class WeakMapTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Get_Returns_Undefined_For_Primitive()
     {
         var engine = new JsEngine();
@@ -299,7 +299,7 @@ public class WeakMapTests
         Assert.Equal("undefined", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Delete_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
@@ -312,7 +312,7 @@ public class WeakMapTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Constructor_Accepts_Array_Of_Entries()
     {
         var engine = new JsEngine();
@@ -330,7 +330,7 @@ public class WeakMapTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WeakMap_Typeof_Returns_Object()
     {
         var engine = new JsEngine();

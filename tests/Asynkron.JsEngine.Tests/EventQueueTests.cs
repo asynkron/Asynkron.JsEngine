@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class EventQueueTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Run_ExecutesCodeAndReturnsResult()
     {
         var engine = new JsEngine();
@@ -12,7 +12,7 @@ public class EventQueueTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Run_ProcessesScheduledTasks()
     {
         var engine = new JsEngine();
@@ -30,7 +30,7 @@ public class EventQueueTests
         Assert.True(executed, "Scheduled task should have been executed");
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Run_ProcessesMultipleScheduledTasks()
     {
         var engine = new JsEngine();
@@ -59,7 +59,7 @@ public class EventQueueTests
         Assert.Equal(new[] { 1, 2, 3 }, executionOrder);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Run_ProcessesTasksScheduledDuringExecution()
     {
         var engine = new JsEngine();
@@ -82,7 +82,7 @@ public class EventQueueTests
         Assert.Equal(new[] { 1, 2 }, executionOrder);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Run_HandlesAsyncTasks()
     {
         var engine = new JsEngine();
@@ -99,7 +99,7 @@ public class EventQueueTests
         Assert.True(executed, "Async task should have been executed");
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Run_CompletesWhenQueueIsEmpty()
     {
         var engine = new JsEngine();
@@ -110,7 +110,7 @@ public class EventQueueTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ScheduleTask_CanBeCalledMultipleTimes()
     {
         var engine = new JsEngine();
@@ -130,7 +130,7 @@ public class EventQueueTests
         Assert.Equal(10, count);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Run_AllowsInteractionWithHostFunctions()
     {
         var engine = new JsEngine();

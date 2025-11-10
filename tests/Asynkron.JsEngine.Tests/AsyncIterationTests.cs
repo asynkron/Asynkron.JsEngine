@@ -12,7 +12,7 @@ public class AsyncIterationTests
     {
         _output = output;
     }
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegularForOf_WithAwaitInBody()
     {
         // Test that regular for-of with await in body works
@@ -42,7 +42,7 @@ public class AsyncIterationTests
         Assert.Equal("abc", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithArray()
     {
         var engine = new JsEngine();
@@ -66,7 +66,7 @@ public class AsyncIterationTests
         Assert.Equal("abc", result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithGenerator()
     {
         var engine = new JsEngine();
@@ -111,7 +111,7 @@ public class AsyncIterationTests
         Assert.Equal(6.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString()
     {
         var engine = new JsEngine();
@@ -134,7 +134,7 @@ public class AsyncIterationTests
         Assert.Equal("hello", result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithBreak()
     {
         var engine = new JsEngine();
@@ -177,7 +177,7 @@ public class AsyncIterationTests
         Assert.Equal(3.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithContinue()
     {
         var engine = new JsEngine();
@@ -218,7 +218,7 @@ public class AsyncIterationTests
         Assert.Equal(12.0, result); // 1 + 2 + 4 + 5 = 12
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_RequiresAsyncFunction()
     {
         var engine = new JsEngine();
@@ -239,7 +239,7 @@ public class AsyncIterationTests
         Assert.Equal("xy", result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SymbolAsyncIterator_Exists()
     {
         var engine = new JsEngine();
@@ -253,7 +253,7 @@ public class AsyncIterationTests
         Assert.Equal("symbol", result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithPromiseArray()
     {
         // NOTE: This test demonstrates a limitation - for-await-of with promises
@@ -289,7 +289,7 @@ public class AsyncIterationTests
         Assert.Equal("abc", result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithCustomAsyncIterator()
     {
         var engine = new JsEngine();
@@ -329,7 +329,7 @@ public class AsyncIterationTests
         Assert.Equal("123", result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithCustomSyncAsyncIterator()
     {
         // This test shows that Symbol.asyncIterator works when it returns synchronous values
@@ -370,7 +370,7 @@ public class AsyncIterationTests
         Assert.Equal("123", result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_ErrorPropagation()
     {
         var engine = new JsEngine();
@@ -438,7 +438,7 @@ public class AsyncIterationTests
         Assert.True(errorCaught);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_SyncErrorPropagation()
     {
         // Test error handling with synchronous iterators
@@ -507,7 +507,7 @@ public class AsyncIterationTests
         Assert.True(errorCaught);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_FallbackToSyncIterator()
     {
         var engine = new JsEngine();
@@ -564,7 +564,7 @@ public class AsyncIterationTests
         Assert.Equal("xyz", result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithSyncIteratorNoAsync()
     {
         var engine = new JsEngine();
@@ -601,7 +601,7 @@ public class AsyncIterationTests
         Assert.Equal("xyz", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RegularForOf_WithAwaitInBodyWithDebug()
     {
         // Test that regular for-of with await in body works, using __debug() to inspect state
@@ -662,7 +662,7 @@ public class AsyncIterationTests
         Assert.Equal("c", debugMessages[5].Variables["item"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithArrayWithDebug()
     {
         // Test for-await-of with __debug() to inspect state during iteration

@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class SignalPatternTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WhileLoop_WithBreak_WorksCorrectly()
     {
         var engine = new JsEngine();
@@ -28,7 +28,7 @@ public class SignalPatternTests
         Assert.Equal(5.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task WhileLoop_WithContinue_WorksCorrectly()
     {
         var engine = new JsEngine();
@@ -51,7 +51,7 @@ public class SignalPatternTests
         Assert.Equal(25.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Function_WithReturn_WorksCorrectly()
     {
         var engine = new JsEngine();
@@ -68,7 +68,7 @@ public class SignalPatternTests
         Assert.Equal(20.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NestedLoops_WithBreakAndContinue_WorkCorrectly()
     {
         var engine = new JsEngine();
@@ -95,7 +95,7 @@ public class SignalPatternTests
         Assert.Equal(19.0, result);
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TryCatchFinally_WithReturn_WorksCorrectly()
     {
         var engine = new JsEngine();

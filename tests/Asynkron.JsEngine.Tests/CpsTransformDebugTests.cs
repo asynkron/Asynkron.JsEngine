@@ -16,7 +16,7 @@ public class CpsTransformDebugTests
         _output = output;
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SimpleForOf_WithAwait_Debug()
     {
         // Simplest possible test case - single iteration
@@ -43,7 +43,7 @@ public class CpsTransformDebugTests
         Assert.Equal("x", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task VerySimpleForOf_NoAwaitInLoop_Debug()
     {
         // Control test - no await in loop body
@@ -69,7 +69,7 @@ public class CpsTransformDebugTests
         Assert.Equal("x", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForOf_WithAwaitOutsideLoop_Debug()
     {
         // Test await before loop - should work
@@ -96,7 +96,7 @@ public class CpsTransformDebugTests
         Assert.Equal(">x", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForOf_WithConsoleLog_Debug()
     {
         // Add logging to see if loop executes at all

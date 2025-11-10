@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class TaggedTemplateTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_BasicFunction()
     {
         var engine = new JsEngine();
@@ -23,7 +23,7 @@ public class TaggedTemplateTests
         Assert.Equal("Hello World!", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_MultipleSubstitutions()
     {
         var engine = new JsEngine();
@@ -47,7 +47,7 @@ public class TaggedTemplateTests
         Assert.Equal("a[1]b[2]c[3]d", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_StringsArray()
     {
         var engine = new JsEngine();
@@ -62,7 +62,7 @@ public class TaggedTemplateTests
         Assert.Equal(3d, result); // ["a", "b", "c"]
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_NoSubstitutions()
     {
         var engine = new JsEngine();
@@ -77,7 +77,7 @@ public class TaggedTemplateTests
         Assert.Equal("Hello, World!", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_WithExpressions()
     {
         var engine = new JsEngine();
@@ -92,7 +92,7 @@ public class TaggedTemplateTests
         Assert.Equal(28d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task String_Raw_Basic()
     {
         var engine = new JsEngine();
@@ -104,7 +104,7 @@ public class TaggedTemplateTests
         Assert.Equal("Hello\\nWorld", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task String_Raw_WithSubstitutions()
     {
         var engine = new JsEngine();
@@ -117,7 +117,7 @@ public class TaggedTemplateTests
         Assert.Equal("Line1\\nAlice\\tLine2", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task String_Raw_MultipleLines()
     {
         var engine = new JsEngine();
@@ -129,7 +129,7 @@ public class TaggedTemplateTests
         Assert.Equal("First\\nSecond\\rThird\\tFourth", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_RawProperty()
     {
         var engine = new JsEngine();
@@ -144,7 +144,7 @@ public class TaggedTemplateTests
         Assert.Equal("Hello\\nWorld", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_CompareRawAndCooked()
     {
         var engine = new JsEngine();
@@ -159,7 +159,7 @@ public class TaggedTemplateTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_AsMethodCall()
     {
         var engine = new JsEngine();
@@ -176,7 +176,7 @@ public class TaggedTemplateTests
         Assert.Equal("Count: 42!", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_ChainedAccess()
     {
         var engine = new JsEngine();

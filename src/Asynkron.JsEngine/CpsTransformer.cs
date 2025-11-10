@@ -167,12 +167,12 @@ public sealed class CpsTransformer
         // Use Lambda for anonymous functions (function expressions), Function for named functions (function declarations)
         var functionType = name == null ? JsSymbols.Lambda : JsSymbols.Function;
         
-        return Cons.FromEnumerable([
+        return MakeTransformedCons([
             functionType, 
             name, 
             parameters, 
             promiseBody
-        ]);
+        ], cons);
     }
 
     /// <summary>
@@ -1511,5 +1511,18 @@ public sealed class CpsTransformer
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Helper method to create a transformed Cons from an enumerable with an origin reference.
+    /// </summary>
+    private static Cons MakeTransformedCons(IEnumerable<object?> items, Cons? origin)
+    {
+        var cons = Cons.FromEnumerable(items);
+        if (origin != null)
+        {
+            cons.WithOrigin(origin);
+        }
+        return cons;
     }
 }

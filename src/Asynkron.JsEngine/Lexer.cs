@@ -57,16 +57,20 @@ internal sealed class Lexer(string source)
     private int _current;
     private int _line = 1;
     private int _column = 1;
+    private int _startLine = 1;
+    private int _startColumn = 1;
 
     public IReadOnlyList<Token> Tokenize()
     {
         while (!IsAtEnd)
         {
             _start = _current;
+            _startLine = _line;
+            _startColumn = _column;
             ScanToken();
         }
 
-        _tokens.Add(new Token(TokenType.Eof, string.Empty, null, _line, _column));
+        _tokens.Add(new Token(TokenType.Eof, string.Empty, null, _line, _column, _current, _current));
         return _tokens;
     }
 
@@ -595,7 +599,7 @@ internal sealed class Lexer(string source)
     private void AddToken(TokenType type, object? literal)
     {
         var text = _source[_start.._current];
-        _tokens.Add(new Token(type, text, literal, _line, _column));
+        _tokens.Add(new Token(type, text, literal, _startLine, _startColumn, _start, _current));
     }
 
     private bool IsRegexContext()

@@ -153,7 +153,7 @@ public sealed class JsEngine
         var tokens = lexer.Tokenize();
         
         // Step 2: Parse to S-expressions
-        var parser = new Parser(tokens);
+        var parser = new Parser(tokens, source);
         var program = parser.ParseProgram();
         
         // Step 3: Apply CPS transformation if needed
@@ -178,7 +178,7 @@ public sealed class JsEngine
         var tokens = lexer.Tokenize();
         
         // Step 2: Parse to S-expressions (without transformation)
-        var parser = new Parser(tokens);
+        var parser = new Parser(tokens, source);
         return parser.ParseProgram();
     }
 
@@ -195,7 +195,7 @@ public sealed class JsEngine
         var tokens = lexer.Tokenize();
         
         // Step 2: Parse to S-expressions
-        var parser = new Parser(tokens);
+        var parser = new Parser(tokens, source);
         var original = parser.ParseProgram();
         
         // Step 3: Apply CPS transformation if needed

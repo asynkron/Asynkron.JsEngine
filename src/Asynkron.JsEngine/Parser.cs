@@ -1,8 +1,9 @@
 namespace Asynkron.JsEngine;
 
-internal sealed class Parser(IReadOnlyList<Token> tokens)
+internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 {
     private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
+    private readonly string _source = source ?? string.Empty;
     private int _current;
 
     public Cons ParseProgram()
@@ -776,6 +777,10 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
 
     private object ParseForStatement(bool isForAwait = false)
     {
+        // Save the position at the start of parsing (after 'for' and optionally 'await')
+        var startTokenIndex = _current > 0 ? _current - 1 : 0;
+        var startToken = _tokens[startTokenIndex];
+        
         Consume(TokenType.LeftParen, "Expected '(' after 'for'.");
 
         // Check for for...in or for...of loops
@@ -832,15 +837,15 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             
             if (isForAwait)
             {
-                return Cons.FromEnumerable([JsSymbols.ForAwaitOf, varDecl, iterableExpression, body]);
+                return MakeCons([JsSymbols.ForAwaitOf, varDecl, iterableExpression, body], startToken);
             }
             else if (isForOf)
             {
-                return Cons.FromEnumerable([JsSymbols.ForOf, varDecl, iterableExpression, body]);
+                return MakeCons([JsSymbols.ForOf, varDecl, iterableExpression, body], startToken);
             }
             else
             {
-                return Cons.FromEnumerable([JsSymbols.ForIn, varDecl, iterableExpression, body]);
+                return MakeCons([JsSymbols.ForIn, varDecl, iterableExpression, body], startToken);
             }
         }
         
@@ -892,7 +897,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         Consume(TokenType.RightParen, "Expected ')' after for clauses.");
         var body2 = ParseStatement();
 
-        return Cons.FromEnumerable([JsSymbols.For, initializer, condition, increment, body2]);
+        return MakeCons([JsSymbols.For, initializer, condition, increment, body2], startToken);
     }
 
     private object ParseReturnStatement()
@@ -1757,9 +1762,10 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
                 // Create a parser and directly call internal parsing
                 // Since we can't access ParseExpression directly, we'll use a trick:
                 // Parse it as "exprText;" to make it a valid statement
-                var wrappedLexer = new Lexer(exprText + ";");
+                var wrappedSource = exprText + ";";
+                var wrappedLexer = new Lexer(wrappedSource);
                 var wrappedTokens = wrappedLexer.Tokenize();
-                var exprParser = new Parser(wrappedTokens);
+                var exprParser = new Parser(wrappedTokens, wrappedSource);
                 var exprProgram = exprParser.ParseProgram();
                 
                 // Extract the expression (skip the 'program' wrapper)
@@ -1806,9 +1812,10 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
             {
                 // Parse the expression
                 var exprText = expr.ExpressionText.Trim();
-                var wrappedLexer = new Lexer(exprText + ";");
+                var wrappedSource = exprText + ";";
+                var wrappedLexer = new Lexer(wrappedSource);
                 var wrappedTokens = wrappedLexer.Tokenize();
-                var exprParser = new Parser(wrappedTokens);
+                var exprParser = new Parser(wrappedTokens, wrappedSource);
                 var exprProgram = exprParser.ParseProgram();
                 
                 if (exprProgram is Cons programCons && !programCons.IsEmpty)
@@ -2578,5 +2585,40 @@ internal sealed class Parser(IReadOnlyList<Token> tokens)
         Match(TokenType.Semicolon);
         
         return true;
+    }
+
+    /// <summary>
+    /// Creates a Cons from an enumerable with a source reference from the given start token to the current position.
+    /// </summary>
+    private Cons MakeCons(IEnumerable<object?> items, Token startToken)
+    {
+        var cons = Cons.FromEnumerable(items);
+        if (_current > 0 && _current <= _tokens.Count)
+        {
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(
+                _source,
+                startToken.StartPosition,
+                endToken.EndPosition,
+                startToken.Line,
+                startToken.Column,
+                endToken.Line,
+                endToken.Column
+            );
+            cons.WithSourceReference(sourceRef);
+        }
+        return cons;
+    }
+
+    /// <summary>
+    /// Creates a Cons from an enumerable with a source reference from the current token to the current position.
+    /// </summary>
+    private Cons MakeCons(IEnumerable<object?> items)
+    {
+        if (_current > 0 && _current <= _tokens.Count)
+        {
+            return MakeCons(items, _tokens[_current - 1]);
+        }
+        return Cons.FromEnumerable(items);
     }
 }

@@ -272,6 +272,7 @@ public sealed class JsEngine
         });
         
         var res = await tcs.Task;
+        
         return res;
     }
 

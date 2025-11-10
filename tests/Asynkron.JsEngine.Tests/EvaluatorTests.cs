@@ -105,13 +105,13 @@ let coalesceResult = null ?? record(3);
 let coalesceNonNull = 0 ?? record(4);
 ";
 
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
 
-        Assert.Equal(1d, engine.Evaluate("hits;").Result); // only the nullish coalescing branch invokes record
-        Assert.False(Assert.IsType<bool>(engine.Evaluate("andResult;").Result));
-        Assert.True(Assert.IsType<bool>(engine.Evaluate("orResult;").Result));
-        Assert.Equal(3d, engine.Evaluate("coalesceResult;").Result);
-        Assert.Equal(0d, engine.Evaluate("coalesceNonNull;").Result);
+        Assert.Equal(1d,await  engine.Evaluate("hits;")); // only the nullish coalescing branch invokes record
+        Assert.False(Assert.IsType<bool>(await engine.Evaluate("andResult;")));
+        Assert.True(Assert.IsType<bool>(await engine.Evaluate("orResult;")));
+        Assert.Equal(3d,await  engine.Evaluate("coalesceResult;"));
+        Assert.Equal(0d,await  engine.Evaluate("coalesceNonNull;"));
     }
 
     [Fact]
@@ -131,13 +131,13 @@ let outcomes = [
 outcomes;
 ";
 
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
 
-        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[0];").Result));
-        Assert.False(Assert.IsType<bool>(engine.Evaluate("outcomes[1];").Result));
-        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[2];").Result));
-        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[3];").Result));
-        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[4];").Result));
+        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[0];")));
+        Assert.False(Assert.IsType<bool>(engine.Evaluate("outcomes[1];")));
+        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[2];")));
+        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[3];")));
+        Assert.True(Assert.IsType<bool>(engine.Evaluate("outcomes[4];")));
     }
 
     [Fact]
@@ -165,7 +165,7 @@ sample();
     {
         var engine = new JsEngine();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.Evaluate("const fixed = 1; fixed = 2;").Result));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("const fixed = 1; fixed = 2;"));
     }
 
     [Fact]
@@ -202,7 +202,7 @@ try {
 }
 ";
 
-        await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.Evaluate(source).Result));
+        await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate(source));
 
         var cleanupValue = await engine.Evaluate("cleanup;");
         Assert.Equal(1d, cleanupValue); // finally executed even though the throw escaped

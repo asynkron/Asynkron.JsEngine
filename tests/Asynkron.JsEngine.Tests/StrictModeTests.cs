@@ -30,10 +30,10 @@ public class StrictModeTests
         // In strict mode, assigning to an undefined variable should throw a ReferenceError
         var engine = new JsEngine();
         
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.Evaluate(@"
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate(@"
                 ""use strict"";
                 undeclaredVariable = 10;
-            ").Result));
+            "));
         
         Assert.Contains("ReferenceError", ex.Message);
         Assert.Contains("is not defined", ex.Message);
@@ -60,13 +60,13 @@ public class StrictModeTests
     {
         var engine = new JsEngine();
         
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.Evaluate(@"
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate(@"
                 function testFunction() {
                     ""use strict"";
                     undeclaredVar = 5;
                 }
                 testFunction();
-            ").Result));
+            "));
         
         Assert.Contains("is not defined", ex.Message);
     }
@@ -119,11 +119,11 @@ public class StrictModeTests
     {
         var engine = new JsEngine();
         
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.Evaluate(@"
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate(@"
                 ""use strict"";
                 const x = 10;
                 x = 20;
-            ").Result));
+            "));
         
         Assert.Contains("constant", ex.Message);
     }

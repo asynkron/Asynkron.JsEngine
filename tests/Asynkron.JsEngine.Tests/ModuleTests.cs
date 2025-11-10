@@ -241,15 +241,15 @@ public class ModuleTests
         });
         
         // Load the module twice
-        object? temp = engine.Evaluate(@"
+        object? temp = await engine.Evaluate(@"
             import { count, increment } from ""counter.js"";
             increment();
-        ").Result;
+        ");
         
-        object? temp1 = engine.Evaluate(@"
+        object? temp1 = await engine.Evaluate(@"
             import { count } from ""counter.js"";
             count;
-        ").Result;
+        ");
         
         // Module should only be loaded once
         Assert.Equal(1, loadCount);
@@ -361,9 +361,9 @@ public class ModuleTests
         });
         
         // Import the module which sets a variable
-        object? temp = engine.Evaluate(@"
+        object? temp = await engine.Evaluate(@"
             import ""side-effect.js"";
-        ").Result;
+        ");
         
         // The side effect should have run, but since it's in a module scope,
         // we can't directly access it. For this test, we'll just verify no error occurred.

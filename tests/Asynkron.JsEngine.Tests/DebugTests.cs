@@ -17,7 +17,7 @@ public class DebugTests
         ";
         
         // Execute and get debug message
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -41,7 +41,7 @@ public class DebugTests
             }
         ";
         
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -61,7 +61,7 @@ public class DebugTests
             }
         ";
         
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
         
         // Should have 3 debug messages
         var msg1 = await engine.DebugMessages().ReadAsync();
@@ -90,7 +90,7 @@ public class DebugTests
             testFunc(123);
         ";
         
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -127,7 +127,7 @@ public class DebugTests
             outerFunc();
         ";
         
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -156,7 +156,7 @@ public class DebugTests
             outer();
         ";
         
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -182,7 +182,7 @@ public class DebugTests
             }
         ";
         
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -215,7 +215,7 @@ public class DebugTests
             level1();
         ";
         
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -245,7 +245,7 @@ public class DebugTests
             __debug();
         ";
         
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -266,7 +266,7 @@ public class DebugTests
             }
         ";
         
-        object? temp = engine.Evaluate(source).Result;
+        object? temp = await engine.Evaluate(source);
         
         // Should have 4 debug messages (2x2)
         var messages = new List<DebugMessage>();

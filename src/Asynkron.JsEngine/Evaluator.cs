@@ -237,21 +237,24 @@ internal static class Evaluator
             
             lastResult = EvaluateStatement(body, environment, context);
             
-            if (context.IsContinue)
+            // Demonstrate pattern matching with typed signals
+            // Note: This shows the new signal-based approach
+            if (context.CurrentSignal is ContinueSignal)
             {
                 context.ClearContinue();
                 continue;
             }
             
-            if (context.IsBreak)
+            if (context.CurrentSignal is BreakSignal)
             {
                 context.ClearBreak();
                 break;
             }
             
-            if (context.IsReturn || context.IsThrow)
+            if (context.CurrentSignal is ReturnSignal or ThrowFlowSignal)
             {
-                break;  // Propagate return/throw
+                // Propagate return/throw signals up the call stack
+                break;
             }
         }
 
@@ -796,14 +799,13 @@ internal static class Evaluator
         // Execute finally block regardless
         if (finallyClause is Cons finallyCons)
         {
-            // Save current flow state in case finally changes it
-            var savedFlow = context.Flow;
-            var savedValue = context.FlowValue;
+            // Save current signal in case finally changes it
+            var savedSignal = context.CurrentSignal;
             
             EvaluateStatement(finallyCons, environment, context);
             
-            // If finally didn't set a new flow, restore the previous one
-            if (context.Flow == EvaluationContext.ControlFlow.None && hasThrow)
+            // If finally didn't set a new signal, restore the previous one
+            if (context.CurrentSignal is null && hasThrow)
             {
                 context.SetThrow(thrownValue);
             }

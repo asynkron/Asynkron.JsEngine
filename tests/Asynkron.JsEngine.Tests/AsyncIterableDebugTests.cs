@@ -58,22 +58,15 @@ public class AsyncIterableDebugTests
         var result = engine.Evaluate("result;");
         _output.WriteLine($"Final result: '{result}'");
         
-        // Collect debug messages
+        // Collect debug messages - don't wait forever, just get what's available
         var debugMessages = new List<DebugMessage>();
-        while (await engine.DebugMessages().WaitToReadAsync())
+        while (engine.DebugMessages().TryRead(out var msg))
         {
-            if (engine.DebugMessages().TryRead(out var msg))
+            debugMessages.Add(msg);
+            _output.WriteLine($"Debug message {debugMessages.Count}: {msg.Variables.Count} variables");
+            foreach (var kvp in msg.Variables)
             {
-                debugMessages.Add(msg);
-                _output.WriteLine($"Debug message {debugMessages.Count}: {msg.Variables.Count} variables");
-                foreach (var kvp in msg.Variables)
-                {
-                    _output.WriteLine($"  {kvp.Key} = {kvp.Value}");
-                }
-            }
-            else
-            {
-                break;
+                _output.WriteLine($"  {kvp.Key} = {kvp.Value}");
             }
         }
         

@@ -33,6 +33,8 @@ public class LoopExecutionDebugTests
             async function test() {
                 await new Promise(function(resolve, reject) {
                     function helper() {
+                        //TODO: is this an environment / scope issue? 
+                        //register a host function that sets a property on a C# object to true. does that work?
                         markCalled();
                         resolve();
                     }

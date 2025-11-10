@@ -1316,11 +1316,8 @@ public sealed class CpsTransformer
         // Symbol.iterator
         var iteratorSymbol = Cons.FromEnumerable([
             JsSymbols.GetProperty,
-            Cons.FromEnumerable([
-                JsSymbols.GetProperty,
-                Symbol.Intern("Symbol"),
-                "iterator"
-            ])
+            Symbol.Intern("Symbol"),
+            "iterator"
         ]);
 
         // iterable[Symbol.iterator]

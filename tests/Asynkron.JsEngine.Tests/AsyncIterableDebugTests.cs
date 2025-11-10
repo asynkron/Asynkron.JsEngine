@@ -17,7 +17,7 @@ public class AsyncIterableDebugTests
         _output = output;
     }
 
-    [Fact]
+    [Fact(Timeout = 1000)]
     public async Task ForAwaitOf_WithString_Debug()
     {
         // Debug version of the failing string test

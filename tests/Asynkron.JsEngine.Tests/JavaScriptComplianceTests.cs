@@ -18,11 +18,11 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // String coerces to number in subtraction
-        var result = engine.Evaluate("\"10\" - 5;");
+        var result = engine.EvaluateSync("\"10\" - 5;");
         Assert.Equal(5d, result);
         
         // Multiple strings in arithmetic
-        var result2 = engine.Evaluate("\"20\" - \"5\";");
+        var result2 = engine.EvaluateSync("\"20\" - \"5\";");
         Assert.Equal(15d, result2);
     }
 
@@ -32,10 +32,10 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // String coerces to number in multiplication
-        var result = engine.Evaluate("\"5\" * 3;");
+        var result = engine.EvaluateSync("\"5\" * 3;");
         Assert.Equal(15d, result);
         
-        var result2 = engine.Evaluate("\"10\" * \"2\";");
+        var result2 = engine.EvaluateSync("\"10\" * \"2\";");
         Assert.Equal(20d, result2);
     }
 
@@ -45,13 +45,13 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // true coerces to 1, false coerces to 0
-        var result1 = engine.Evaluate("true + true;");
+        var result1 = engine.EvaluateSync("true + true;");
         Assert.Equal(2d, result1);
         
-        var result2 = engine.Evaluate("true + false;");
+        var result2 = engine.EvaluateSync("true + false;");
         Assert.Equal(1d, result2);
         
-        var result3 = engine.Evaluate("false + false;");
+        var result3 = engine.EvaluateSync("false + false;");
         Assert.Equal(0d, result3);
     }
 
@@ -61,11 +61,11 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // String concatenation takes precedence
-        var result = engine.Evaluate("\"5\" + 3;");
+        var result = engine.EvaluateSync("\"5\" + 3;");
         Assert.Equal("53", result);
         
         // But subtraction coerces to numbers
-        var result2 = engine.Evaluate("\"5\" - 3;");
+        var result2 = engine.EvaluateSync("\"5\" - 3;");
         Assert.Equal(2d, result2);
     }
 
@@ -79,7 +79,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Sqrt of negative number produces NaN
-        var result = engine.Evaluate("Math.sqrt(-1);");
+        var result = engine.EvaluateSync("Math.sqrt(-1);");
         Assert.True(double.IsNaN((double)result!));
     }
 
@@ -89,10 +89,10 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // NaN propagates through calculations
-        var result1 = engine.Evaluate("Math.sqrt(-1) + 5;");
+        var result1 = engine.EvaluateSync("Math.sqrt(-1) + 5;");
         Assert.True(double.IsNaN((double)result1!));
         
-        var result2 = engine.Evaluate("Math.sqrt(-1) * 10;");
+        var result2 = engine.EvaluateSync("Math.sqrt(-1) * 10;");
         Assert.True(double.IsNaN((double)result2!));
     }
 
@@ -102,11 +102,11 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Very large numbers
-        var result1 = engine.Evaluate("999999999999999 + 1;");
+        var result1 = engine.EvaluateSync("999999999999999 + 1;");
         Assert.Equal(1000000000000000d, result1);
         
         // Precision limits with very large numbers
-        var result2 = engine.Evaluate("9007199254740992 + 1;"); // 2^53 + 1 (precision limit)
+        var result2 = engine.EvaluateSync("9007199254740992 + 1;"); // 2^53 + 1 (precision limit)
         Assert.IsType<double>(result2);
     }
 
@@ -116,7 +116,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Very small decimals
-        var result = engine.Evaluate("0.1 + 0.2;");
+        var result = engine.EvaluateSync("0.1 + 0.2;");
         // Famous floating point precision issue
         Assert.NotEqual(0.3d, result);
         Assert.True(Math.Abs((double)result! - 0.3) < 0.0001);
@@ -132,10 +132,10 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // 0 and -0 are equal
-        var result1 = engine.Evaluate("0 === -0;");
+        var result1 = engine.EvaluateSync("0 === -0;");
         Assert.True((bool)result1!);
         
-        var result2 = engine.Evaluate("0 == -0;");
+        var result2 = engine.EvaluateSync("0 == -0;");
         Assert.True((bool)result2!);
     }
 
@@ -145,10 +145,10 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Object literals create different objects
-        var result = engine.Evaluate("let a = {}; let b = {}; a === b;");
+        var result = engine.EvaluateSync("let a = {}; let b = {}; a === b;");
         Assert.False((bool)result!);
         
-        var result2 = engine.Evaluate("let c = []; let d = []; c === d;");
+        var result2 = engine.EvaluateSync("let c = []; let d = []; c === d;");
         Assert.False((bool)result2!);
     }
 
@@ -158,20 +158,20 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Strict equality does not do type coercion
-        var result1 = engine.Evaluate("0 === false;");
+        var result1 = engine.EvaluateSync("0 === false;");
         Assert.False((bool)result1!);
         
-        var result2 = engine.Evaluate("\"\" === false;");
+        var result2 = engine.EvaluateSync("\"\" === false;");
         Assert.False((bool)result2!);
         
-        var result3 = engine.Evaluate("1 === true;");
+        var result3 = engine.EvaluateSync("1 === true;");
         Assert.False((bool)result3!);
         
         // But same type comparisons work
-        var result4 = engine.Evaluate("5 === 5;");
+        var result4 = engine.EvaluateSync("5 === 5;");
         Assert.True((bool)result4!);
         
-        var result5 = engine.Evaluate("\"hello\" === \"hello\";");
+        var result5 = engine.EvaluateSync("\"hello\" === \"hello\";");
         Assert.True((bool)result5!);
     }
 
@@ -185,7 +185,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Arrays can have holes
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [1, 2, 3];
             arr[10] = 11;
             arr.length;
@@ -199,7 +199,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Negative indices don't work like Python
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [1, 2, 3];
             arr[-1] = 99;
             arr[-1];
@@ -207,7 +207,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(99d, result);
         
         // But length is not affected
-        var result2 = engine.Evaluate(@"
+        var result2 = engine.EvaluateSync(@"
             let arr = [1, 2, 3];
             arr[-1] = 99;
             arr.length;
@@ -221,7 +221,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Length changes when elements are added
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [1, 2, 3];
             arr[5] = 6;
             arr.length;
@@ -239,7 +239,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // let has block scope
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 1;
             if (true) {
                 let x = 2;
@@ -255,7 +255,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // var has function scope (or global if not in function)
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             var x = 1;
             if (true) {
                 var x = 2;
@@ -271,7 +271,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Classic closure problem with var in loop
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let funcs = [];
             for (var i = 0; i < 3; i = i + 1) {
                 funcs[i] = function() { return i; };
@@ -288,7 +288,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Nested let declarations shadow outer ones
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 1;
             let y = 2;
             if (true) {
@@ -311,7 +311,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // 'this' works when method is called normally
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = {
                 value: 42,
                 getValue: function() { return this.value; }
@@ -328,7 +328,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Arrow functions capture 'this' from surrounding scope
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = {
                 value: 42,
                 getArrow: function() {
@@ -353,10 +353,10 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Numbers concatenate as strings
-        var result1 = engine.Evaluate("\"value: \" + 42;");
+        var result1 = engine.EvaluateSync("\"value: \" + 42;");
         Assert.Equal("value: 42", result1);
         
-        var result2 = engine.Evaluate("\"value: \" + 3.14;");
+        var result2 = engine.EvaluateSync("\"value: \" + 3.14;");
         Assert.Equal("value: 3.14", result2);
     }
 
@@ -366,10 +366,10 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Booleans concatenate as strings
-        var result1 = engine.Evaluate("\"result: \" + true;");
+        var result1 = engine.EvaluateSync("\"result: \" + true;");
         Assert.Equal("result: true", result1);
         
-        var result2 = engine.Evaluate("\"result: \" + false;");
+        var result2 = engine.EvaluateSync("\"result: \" + false;");
         Assert.Equal("result: false", result2);
     }
 
@@ -383,22 +383,22 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // All these should be falsy
-        var result1 = engine.Evaluate("false ? 1 : 0;");
+        var result1 = engine.EvaluateSync("false ? 1 : 0;");
         Assert.Equal(0d, result1);
         
-        var result2 = engine.Evaluate("0 ? 1 : 0;");
+        var result2 = engine.EvaluateSync("0 ? 1 : 0;");
         Assert.Equal(0d, result2);
         
-        var result3 = engine.Evaluate("\"\" ? 1 : 0;");
+        var result3 = engine.EvaluateSync("\"\" ? 1 : 0;");
         Assert.Equal(0d, result3);
         
-        var result4 = engine.Evaluate("null ? 1 : 0;");
+        var result4 = engine.EvaluateSync("null ? 1 : 0;");
         Assert.Equal(0d, result4);
         
-        var result5 = engine.Evaluate("undefined ? 1 : 0;");
+        var result5 = engine.EvaluateSync("undefined ? 1 : 0;");
         Assert.Equal(0d, result5);
         
-        var result6 = engine.Evaluate("Math.sqrt(-1) ? 1 : 0;"); // NaN
+        var result6 = engine.EvaluateSync("Math.sqrt(-1) ? 1 : 0;"); // NaN
         Assert.Equal(0d, result6);
     }
 
@@ -408,17 +408,17 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Objects and arrays are truthy (unlike Python)
-        var result1 = engine.Evaluate("let obj = {}; obj ? 1 : 0;");
+        var result1 = engine.EvaluateSync("let obj = {}; obj ? 1 : 0;");
         Assert.Equal(1d, result1);
         
-        var result2 = engine.Evaluate("let arr = []; arr ? 1 : 0;");
+        var result2 = engine.EvaluateSync("let arr = []; arr ? 1 : 0;");
         Assert.Equal(1d, result2);
         
         // Non-empty strings are truthy
-        var result3 = engine.Evaluate("\"0\" ? 1 : 0;");
+        var result3 = engine.EvaluateSync("\"0\" ? 1 : 0;");
         Assert.Equal(1d, result3);
         
-        var result4 = engine.Evaluate("\"false\" ? 1 : 0;");
+        var result4 = engine.EvaluateSync("\"false\" ? 1 : 0;");
         Assert.Equal(1d, result4);
     }
 
@@ -432,10 +432,10 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // && has higher precedence than ||
-        var result = engine.Evaluate("true || false && false;");
+        var result = engine.EvaluateSync("true || false && false;");
         Assert.True((bool)result!);
         
-        var result2 = engine.Evaluate("false && false || true;");
+        var result2 = engine.EvaluateSync("false && false || true;");
         Assert.True((bool)result2!);
     }
 
@@ -445,10 +445,10 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Comparisons before logical operators
-        var result = engine.Evaluate("1 < 2 && 3 > 2;");
+        var result = engine.EvaluateSync("1 < 2 && 3 > 2;");
         Assert.True((bool)result!);
         
-        var result2 = engine.Evaluate("1 > 2 || 3 > 2;");
+        var result2 = engine.EvaluateSync("1 > 2 || 3 > 2;");
         Assert.True((bool)result2!);
     }
 
@@ -462,11 +462,11 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Math.max with negative numbers
-        var result1 = engine.Evaluate("Math.max(-1, -5, -3);");
+        var result1 = engine.EvaluateSync("Math.max(-1, -5, -3);");
         Assert.Equal(-1d, result1);
         
         // Math.min with positive numbers
-        var result2 = engine.Evaluate("Math.min(5, 2, 8, 3);");
+        var result2 = engine.EvaluateSync("Math.min(5, 2, 8, 3);");
         Assert.Equal(2d, result2);
     }
 
@@ -476,10 +476,10 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Math operations with large numbers
-        var result1 = engine.Evaluate("Math.max(1000000, 999999, 1000001);");
+        var result1 = engine.EvaluateSync("Math.max(1000000, 999999, 1000001);");
         Assert.Equal(1000001d, result1);
         
-        var result2 = engine.Evaluate("Math.sqrt(1000000);");
+        var result2 = engine.EvaluateSync("Math.sqrt(1000000);");
         Assert.Equal(1000d, result2);
     }
 
@@ -489,10 +489,10 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Trig functions at special values
-        var result1 = engine.Evaluate("Math.sin(0);");
+        var result1 = engine.EvaluateSync("Math.sin(0);");
         Assert.Equal(0d, result1);
         
-        var result2 = engine.Evaluate("Math.cos(0);");
+        var result2 = engine.EvaluateSync("Math.cos(0);");
         Assert.Equal(1d, result2);
     }
 
@@ -506,7 +506,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Numeric keys are converted to strings
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = {};
             obj[1] = ""one"";
             obj[""1""];
@@ -520,7 +520,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Can access properties with special names
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = {};
             obj[""my-property""] = 42;
             obj[""my-property""];
@@ -534,7 +534,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Can add properties dynamically
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { a: 1 };
             obj.b = 2;
             obj.c = 3;
@@ -553,7 +553,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Switch falls through without break
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 1;
             let result = 0;
             switch (x) {
@@ -578,7 +578,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Empty for loop with break
-        var result1 = engine.Evaluate(@"
+        var result1 = engine.EvaluateSync(@"
             let i = 0;
             for (;;) {
                 i = i + 1;
@@ -589,7 +589,7 @@ public class JavaScriptComplianceTests
         Assert.Equal(3d, result1);
         
         // For loop with complex condition
-        var result2 = engine.Evaluate(@"
+        var result2 = engine.EvaluateSync(@"
             let sum = 0;
             for (let i = 0; i < 5; i = i + 1) {
                 sum = sum + i;
@@ -610,7 +610,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Deeply nested object access
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = {
                 a: {
                     b: {
@@ -633,7 +633,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Deeply nested function calls
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function add(x) {
                 return function(y) {
                     return function(z) {
@@ -656,7 +656,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Second operand should not be evaluated if first is falsy
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 0;
             function increment() {
                 x = x + 1;
@@ -674,7 +674,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Second operand should not be evaluated if first is truthy
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 0;
             function increment() {
                 x = x + 1;
@@ -692,7 +692,7 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Only one branch should be evaluated
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 0;
             let y = 0;
             function incrementX() {

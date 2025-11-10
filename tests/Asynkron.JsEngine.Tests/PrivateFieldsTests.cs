@@ -6,7 +6,7 @@ public class PrivateFieldsTests
     public void PrivateFieldBasicAccess()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             class Counter {
                 #count = 0;
                 
@@ -31,7 +31,7 @@ public class PrivateFieldsTests
     public void PrivateFieldInitializedInConstructor()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             class Counter {
                 #count;
                 
@@ -54,7 +54,7 @@ public class PrivateFieldsTests
     public void MultiplePrivateFields()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             class Rectangle {
                 #width = 0;
                 #height = 0;
@@ -82,7 +82,7 @@ public class PrivateFieldsTests
         // For now, private fields are accessible as they're stored as properties
         // In a future implementation, we could add access control
         // This test documents the current behavior
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             class Counter {
                 #count = 42;
             }
@@ -97,7 +97,7 @@ public class PrivateFieldsTests
     public void PrivateFieldInGetter()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             class Person {
                 #name;
                 
@@ -120,7 +120,7 @@ public class PrivateFieldsTests
     public void PrivateFieldInSetter()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             class Person {
                 #name;
                 
@@ -144,7 +144,7 @@ public class PrivateFieldsTests
     public void PrivateFieldWithPublicField()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             class Mixed {
                 #private = 10;
                 public = 20;
@@ -164,7 +164,7 @@ public class PrivateFieldsTests
     public void PrivateFieldInInheritedClass()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             class Base {
                 #secret = 100;
                 
@@ -189,7 +189,7 @@ public class PrivateFieldsTests
     public void PrivateFieldsAreSeparateBetweenInstances()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             class Counter {
                 #count = 0;
                 
@@ -217,7 +217,7 @@ public class PrivateFieldsTests
     public void PrivateFieldWithSameNameAsPublic()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             class Test {
                 #value = 10;
                 value = 20;

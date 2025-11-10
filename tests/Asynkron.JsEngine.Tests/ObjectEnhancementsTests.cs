@@ -9,7 +9,7 @@ public class ObjectEnhancementsTests
     public void ObjectPropertyShorthand()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let name = 'Alice';
             let age = 30;
             let person = { name, age };
@@ -22,7 +22,7 @@ public class ObjectEnhancementsTests
     public void ObjectPropertyShorthandAge()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let name = 'Alice';
             let age = 30;
             let person = { name, age };
@@ -35,7 +35,7 @@ public class ObjectEnhancementsTests
     public void ObjectPropertyShorthandMixed()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 10;
             let obj = { x, y: 20, z: 30 };
             obj.x + obj.y + obj.z;
@@ -48,7 +48,7 @@ public class ObjectEnhancementsTests
     public void ObjectMethodShorthand()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let person = {
                 name: 'Alice',
                 greet() {
@@ -64,7 +64,7 @@ public class ObjectEnhancementsTests
     public void ObjectMethodShorthandMultiple()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let calculator = {
                 add(a, b) {
                     return a + b;
@@ -82,7 +82,7 @@ public class ObjectEnhancementsTests
     public void ObjectMethodShorthandWithThis()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let counter = {
                 count: 0,
                 increment() {
@@ -105,7 +105,7 @@ public class ObjectEnhancementsTests
     public void ComputedPropertyName()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let propName = 'dynamicKey';
             let obj = {
                 [propName]: 'value'
@@ -119,7 +119,7 @@ public class ObjectEnhancementsTests
     public void ComputedPropertyNameExpression()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = {
                 ['computed' + 'Key']: 123
             };
@@ -132,7 +132,7 @@ public class ObjectEnhancementsTests
     public void ComputedPropertyNameMixed()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let key1 = 'a';
             let key2 = 'b';
             let obj = {
@@ -149,7 +149,7 @@ public class ObjectEnhancementsTests
     public void ComputedPropertyNameWithMethod()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let methodName = 'greet';
             let person = {
                 name: 'Bob',
@@ -166,7 +166,7 @@ public class ObjectEnhancementsTests
     public void ComputedPropertyNameNumber()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let index = 0;
             let obj = {
                 [index]: 'zero',
@@ -182,7 +182,7 @@ public class ObjectEnhancementsTests
     public void CombinedShorthandAndComputed()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let name = 'Alice';
             let key = 'age';
             let person = {
@@ -202,7 +202,7 @@ public class ObjectEnhancementsTests
     public void ObjectSpreadInLiteral()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj1 = { a: 1, b: 2 };
             let obj2 = { c: 3, d: 4 };
             let merged = { ...obj1, ...obj2, e: 5 };
@@ -215,7 +215,7 @@ public class ObjectEnhancementsTests
     public void ObjectSpreadOverwrites()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj1 = { a: 1, b: 2 };
             let obj2 = { b: 20, c: 3 };
             let merged = { ...obj1, ...obj2 };
@@ -228,7 +228,7 @@ public class ObjectEnhancementsTests
     public void ObjectSpreadWithRegularProperties()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let base = { x: 1, y: 2 };
             let extended = { ...base, z: 3, w: 4 };
             extended.x + extended.y + extended.z + extended.w;

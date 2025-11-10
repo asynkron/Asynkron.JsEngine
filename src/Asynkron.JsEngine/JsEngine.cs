@@ -224,25 +224,107 @@ public sealed class JsEngine
     }
 
     /// <summary>
-    /// Parses and immediately evaluates the provided source.
+    /// Parses and schedules evaluation of the provided source on the event queue.
+    /// This ensures all code executes through the event loop, maintaining proper
+    /// single-threaded execution semantics.
     /// </summary>
-    public object? Evaluate([LanguageInjection("javascript")]string source)
+    public Task<object?> Evaluate([LanguageInjection("javascript")]string source)
         => Evaluate(Parse(source));
 
     /// <summary>
-    /// Evaluates an S-expression program.
+    /// Evaluates an S-expression program by scheduling it on the event queue.
+    /// This ensures all code executes through the event loop, maintaining proper
+    /// single-threaded execution semantics.
     /// </summary>
-    public object? Evaluate(Cons program)
+    public Task<object?> Evaluate(Cons program)
     {
-        // Check if the program contains any import/export statements
-        if (HasModuleStatements(program))
-        {
-            // Treat as a module
-            var exports = new JsObject();
-            return EvaluateModule(program, _global, exports);
-        }
+        var tcs = new TaskCompletionSource<object?>();
         
-        return Evaluator.EvaluateProgram(program, _global);
+        // Schedule the evaluation on the event queue
+        // This ensures ALL code runs through the event loop
+        ScheduleTask(async () =>
+        {
+            try
+            {
+                object? result;
+                // Check if the program contains any import/export statements
+                if (HasModuleStatements(program))
+                {
+                    // Treat as a module
+                    var exports = new JsObject();
+                    result = EvaluateModule(program, _global, exports);
+                }
+                else
+                {
+                    result = Evaluator.EvaluateProgram(program, _global);
+                }
+                
+                tcs.SetResult(result);
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+            
+            await Task.CompletedTask;
+        });
+        
+        return tcs.Task;
+    }
+    
+    /// <summary>
+    /// Synchronously evaluates JavaScript source code.
+    /// This is a convenience method that blocks until evaluation completes.
+    /// For proper async semantics, use Evaluate() or Run() instead.
+    /// </summary>
+    [Obsolete("Use async Evaluate() or Run() for proper event loop execution")]
+    public object? EvaluateSync([LanguageInjection("javascript")]string source)
+    {
+        var task = Evaluate(source);
+        ProcessEventQueueSync();
+        try
+        {
+            return task.Result;
+        }
+        catch (AggregateException ex) when (ex.InnerException != null)
+        {
+            // Unwrap the inner exception to maintain compatibility
+            throw ex.InnerException;
+        }
+    }
+    
+    /// <summary>
+    /// Synchronously evaluates an S-expression program.
+    /// This is a convenience method that blocks until evaluation completes.
+    /// For proper async semantics, use Evaluate() or Run() instead.
+    /// </summary>
+    [Obsolete("Use async Evaluate() or Run() for proper event loop execution")]
+    public object? EvaluateSync(Cons program)
+    {
+        var task = Evaluate(program);
+        ProcessEventQueueSync();
+        try
+        {
+            return task.Result;
+        }
+        catch (AggregateException ex) when (ex.InnerException != null)
+        {
+            // Unwrap the inner exception to maintain compatibility
+            throw ex.InnerException;
+        }
+    }
+    
+    /// <summary>
+    /// Processes the event queue synchronously (blocking).
+    /// This is a helper for synchronous evaluation.
+    /// </summary>
+    private void ProcessEventQueueSync()
+    {
+        while (_eventQueue.Reader.TryRead(out var task))
+        {
+            // Block on the task
+            task().GetAwaiter().GetResult();
+        }
     }
     
     /// <summary>
@@ -299,11 +381,14 @@ public sealed class JsEngine
     /// <returns>A task that completes when all scheduled events have been processed</returns>
     public async Task<object?> Run([LanguageInjection("javascript")]string source)
     {
-        // Parse and evaluate the source code
-        var result = Evaluate(source);
+        // Schedule evaluation on the event queue
+        var evaluateTask = Evaluate(source);
         
         // Process the event queue until it's empty
         await ProcessEventQueue();
+        
+        // Get the result from evaluation
+        var result = await evaluateTask;
         
         return result;
     }

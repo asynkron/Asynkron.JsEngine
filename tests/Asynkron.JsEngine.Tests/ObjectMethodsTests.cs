@@ -8,7 +8,7 @@ public class ObjectMethodsTests
     public void Object_Freeze_Prevents_Property_Modification()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1, y: 2 };
             Object.freeze(obj);
             obj.x = 999;  // Should be ignored
@@ -21,7 +21,7 @@ public class ObjectMethodsTests
     public void Object_Freeze_Prevents_Property_Addition()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1 };
             Object.freeze(obj);
             obj.newProp = 999;  // Should be ignored
@@ -34,7 +34,7 @@ public class ObjectMethodsTests
     public void Object_Freeze_Returns_Same_Object()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1 };
             let frozen = Object.freeze(obj);
             frozen === obj;
@@ -46,7 +46,7 @@ public class ObjectMethodsTests
     public void Object_IsFrozen_Returns_True_For_Frozen_Object()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1 };
             Object.freeze(obj);
             Object.isFrozen(obj);
@@ -58,7 +58,7 @@ public class ObjectMethodsTests
     public void Object_IsFrozen_Returns_False_For_Normal_Object()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1 };
             Object.isFrozen(obj);
         ");
@@ -69,7 +69,7 @@ public class ObjectMethodsTests
     public void Object_Seal_Prevents_Property_Addition()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1 };
             Object.seal(obj);
             obj.newProp = 999;  // Should be ignored
@@ -82,7 +82,7 @@ public class ObjectMethodsTests
     public void Object_Seal_Allows_Property_Modification()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1 };
             Object.seal(obj);
             obj.x = 999;  // Should work
@@ -95,7 +95,7 @@ public class ObjectMethodsTests
     public void Object_Seal_Returns_Same_Object()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1 };
             let sealed = Object.seal(obj);
             sealed === obj;
@@ -107,7 +107,7 @@ public class ObjectMethodsTests
     public void Object_IsSealed_Returns_True_For_Sealed_Object()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1 };
             Object.seal(obj);
             Object.isSealed(obj);
@@ -119,7 +119,7 @@ public class ObjectMethodsTests
     public void Object_IsSealed_Returns_False_For_Normal_Object()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1 };
             Object.isSealed(obj);
         ");
@@ -130,7 +130,7 @@ public class ObjectMethodsTests
     public void Object_Frozen_Is_Also_Sealed()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1 };
             Object.freeze(obj);
             Object.isSealed(obj);
@@ -142,7 +142,7 @@ public class ObjectMethodsTests
     public void Object_Create_Creates_Object_With_Null_Prototype()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = Object.create(null);
             typeof obj;
         ");
@@ -153,7 +153,7 @@ public class ObjectMethodsTests
     public void Object_Create_Creates_Object_With_Specified_Prototype()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let proto = { x: 10 };
             let obj = Object.create(proto);
             obj.x;  // Should inherit from prototype
@@ -165,7 +165,7 @@ public class ObjectMethodsTests
     public void Object_Create_New_Properties_Dont_Affect_Prototype()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let proto = { x: 10 };
             let obj = Object.create(proto);
             obj.y = 20;
@@ -178,7 +178,7 @@ public class ObjectMethodsTests
     public void Object_Create_Can_Override_Inherited_Properties()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let proto = { x: 10 };
             let obj = Object.create(proto);
             obj.x = 999;
@@ -191,7 +191,7 @@ public class ObjectMethodsTests
     public void Object_Create_Prototype_Chain_Works()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let grandparent = { a: 1 };
             let parent = Object.create(grandparent);
             parent.b = 2;

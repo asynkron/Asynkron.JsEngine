@@ -31,7 +31,7 @@ public class AsyncAwaitTests
         var engine = new JsEngine();
 
         // Act & Assert - Should not throw
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             async function test() {
                 return 42;
             }

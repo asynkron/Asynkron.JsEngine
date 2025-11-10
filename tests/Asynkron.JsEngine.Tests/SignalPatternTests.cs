@@ -12,7 +12,7 @@ public class SignalPatternTests
     public void WhileLoop_WithBreak_WorksCorrectly()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let count = 0;
             while (true) {
                 count++;
@@ -30,7 +30,7 @@ public class SignalPatternTests
     public void WhileLoop_WithContinue_WorksCorrectly()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let sum = 0;
             let i = 0;
             while (i < 10) {
@@ -51,7 +51,7 @@ public class SignalPatternTests
     public void Function_WithReturn_WorksCorrectly()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function test() {
                 let x = 10;
                 return x * 2;
@@ -66,7 +66,7 @@ public class SignalPatternTests
     public void NestedLoops_WithBreakAndContinue_WorkCorrectly()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let result = 0;
             for (let i = 0; i < 5; i++) {
                 for (let j = 0; j < 5; j++) {
@@ -91,7 +91,7 @@ public class SignalPatternTests
     public void TryCatchFinally_WithReturn_WorksCorrectly()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function test() {
                 try {
                     return 'from try';

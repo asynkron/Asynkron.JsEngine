@@ -9,7 +9,7 @@ public class NewFeaturesTests
     public void SingleQuotedString()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let message = 'Hello World'; message;");
+        var result = engine.EvaluateSync("let message = 'Hello World'; message;");
         Assert.Equal("Hello World", result);
     }
 
@@ -17,7 +17,7 @@ public class NewFeaturesTests
     public void SingleQuotedStringWithDoubleQuotes()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let message = 'He said \"Hello\"'; message;");
+        var result = engine.EvaluateSync("let message = 'He said \"Hello\"'; message;");
         Assert.Equal("He said \"Hello\"", result);
     }
 
@@ -26,7 +26,7 @@ public class NewFeaturesTests
     public void MultiLineComment()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             /* This is a multi-line comment
                spanning multiple lines */
             let x = 5;
@@ -39,7 +39,7 @@ public class NewFeaturesTests
     public void MultiLineCommentBetweenCode()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 5 /* inline comment */ + 3;
             x;
         ");
@@ -51,7 +51,7 @@ public class NewFeaturesTests
     public void ModuloOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 10 % 3; x;");
+        var result = engine.EvaluateSync("let x = 10 % 3; x;");
         Assert.Equal(1d, result);
     }
 
@@ -59,7 +59,7 @@ public class NewFeaturesTests
     public void ModuloOperatorNegative()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = -10 % 3; x;");
+        var result = engine.EvaluateSync("let x = -10 % 3; x;");
         Assert.Equal(-1d, result);
     }
 
@@ -68,7 +68,7 @@ public class NewFeaturesTests
     public void PostIncrementOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5; let y = x++; y;");
+        var result = engine.EvaluateSync("let x = 5; let y = x++; y;");
         Assert.Equal(5d, result);
     }
 
@@ -76,7 +76,7 @@ public class NewFeaturesTests
     public void PostIncrementSideEffect()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5; x++; x;");
+        var result = engine.EvaluateSync("let x = 5; x++; x;");
         Assert.Equal(6d, result);
     }
 
@@ -84,7 +84,7 @@ public class NewFeaturesTests
     public void PreIncrementOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5; let y = ++x; y;");
+        var result = engine.EvaluateSync("let x = 5; let y = ++x; y;");
         Assert.Equal(6d, result);
     }
 
@@ -92,7 +92,7 @@ public class NewFeaturesTests
     public void PostDecrementOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5; let y = x--; y;");
+        var result = engine.EvaluateSync("let x = 5; let y = x--; y;");
         Assert.Equal(5d, result);
     }
 
@@ -100,7 +100,7 @@ public class NewFeaturesTests
     public void PreDecrementOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5; let y = --x; y;");
+        var result = engine.EvaluateSync("let x = 5; let y = --x; y;");
         Assert.Equal(4d, result);
     }
 
@@ -109,7 +109,7 @@ public class NewFeaturesTests
     public void PlusEqualOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5; x += 3; x;");
+        var result = engine.EvaluateSync("let x = 5; x += 3; x;");
         Assert.Equal(8d, result);
     }
 
@@ -117,7 +117,7 @@ public class NewFeaturesTests
     public void MinusEqualOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 10; x -= 3; x;");
+        var result = engine.EvaluateSync("let x = 10; x -= 3; x;");
         Assert.Equal(7d, result);
     }
 
@@ -125,7 +125,7 @@ public class NewFeaturesTests
     public void StarEqualOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5; x *= 3; x;");
+        var result = engine.EvaluateSync("let x = 5; x *= 3; x;");
         Assert.Equal(15d, result);
     }
 
@@ -133,7 +133,7 @@ public class NewFeaturesTests
     public void SlashEqualOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 15; x /= 3; x;");
+        var result = engine.EvaluateSync("let x = 15; x /= 3; x;");
         Assert.Equal(5d, result);
     }
 
@@ -141,7 +141,7 @@ public class NewFeaturesTests
     public void PercentEqualOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 10; x %= 3; x;");
+        var result = engine.EvaluateSync("let x = 10; x %= 3; x;");
         Assert.Equal(1d, result);
     }
 
@@ -150,7 +150,7 @@ public class NewFeaturesTests
     public void BitwiseAndOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5 & 3; x;");
+        var result = engine.EvaluateSync("let x = 5 & 3; x;");
         Assert.Equal(1d, result);
     }
 
@@ -158,7 +158,7 @@ public class NewFeaturesTests
     public void BitwiseOrOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5 | 3; x;");
+        var result = engine.EvaluateSync("let x = 5 | 3; x;");
         Assert.Equal(7d, result);
     }
 
@@ -166,7 +166,7 @@ public class NewFeaturesTests
     public void BitwiseXorOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5 ^ 3; x;");
+        var result = engine.EvaluateSync("let x = 5 ^ 3; x;");
         Assert.Equal(6d, result);
     }
 
@@ -174,7 +174,7 @@ public class NewFeaturesTests
     public void BitwiseNotOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = ~5; x;");
+        var result = engine.EvaluateSync("let x = ~5; x;");
         Assert.Equal(-6d, result);
     }
 
@@ -182,7 +182,7 @@ public class NewFeaturesTests
     public void LeftShiftOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5 << 2; x;");
+        var result = engine.EvaluateSync("let x = 5 << 2; x;");
         Assert.Equal(20d, result);
     }
 
@@ -190,7 +190,7 @@ public class NewFeaturesTests
     public void RightShiftOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 20 >> 2; x;");
+        var result = engine.EvaluateSync("let x = 20 >> 2; x;");
         Assert.Equal(5d, result);
     }
 
@@ -198,7 +198,7 @@ public class NewFeaturesTests
     public void UnsignedRightShiftOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = -5 >>> 1; x;");
+        var result = engine.EvaluateSync("let x = -5 >>> 1; x;");
         Assert.Equal(2147483645d, result);
     }
 
@@ -206,7 +206,7 @@ public class NewFeaturesTests
     public void BitwiseAndEqualOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5; x &= 3; x;");
+        var result = engine.EvaluateSync("let x = 5; x &= 3; x;");
         Assert.Equal(1d, result);
     }
 
@@ -214,7 +214,7 @@ public class NewFeaturesTests
     public void BitwiseOrEqualOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5; x |= 3; x;");
+        var result = engine.EvaluateSync("let x = 5; x |= 3; x;");
         Assert.Equal(7d, result);
     }
 
@@ -222,7 +222,7 @@ public class NewFeaturesTests
     public void BitwiseXorEqualOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5; x ^= 3; x;");
+        var result = engine.EvaluateSync("let x = 5; x ^= 3; x;");
         Assert.Equal(6d, result);
     }
 
@@ -230,7 +230,7 @@ public class NewFeaturesTests
     public void LeftShiftEqualOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 5; x <<= 2; x;");
+        var result = engine.EvaluateSync("let x = 5; x <<= 2; x;");
         Assert.Equal(20d, result);
     }
 
@@ -238,7 +238,7 @@ public class NewFeaturesTests
     public void RightShiftEqualOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 20; x >>= 2; x;");
+        var result = engine.EvaluateSync("let x = 20; x >>= 2; x;");
         Assert.Equal(5d, result);
     }
 
@@ -246,7 +246,7 @@ public class NewFeaturesTests
     public void UnsignedRightShiftEqualOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = -5; x >>>= 1; x;");
+        var result = engine.EvaluateSync("let x = -5; x >>>= 1; x;");
         Assert.Equal(2147483645d, result);
     }
 
@@ -255,7 +255,7 @@ public class NewFeaturesTests
     public void ExponentiationOperator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("2 ** 3;");
+        var result = engine.EvaluateSync("2 ** 3;");
         Assert.Equal(8d, result);
     }
 
@@ -263,7 +263,7 @@ public class NewFeaturesTests
     public void ExponentiationWithNegativeExponent()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("2 ** -2;");
+        var result = engine.EvaluateSync("2 ** -2;");
         Assert.Equal(0.25d, result);
     }
 
@@ -271,7 +271,7 @@ public class NewFeaturesTests
     public void ExponentiationWithDecimal()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("1.5 ** 2;");
+        var result = engine.EvaluateSync("1.5 ** 2;");
         Assert.Equal(2.25d, result);
     }
 
@@ -280,7 +280,7 @@ public class NewFeaturesTests
     {
         var engine = new JsEngine();
         // 2 ** 3 ** 2 should be 2 ** (3 ** 2) = 2 ** 9 = 512
-        var result = engine.Evaluate("2 ** 3 ** 2;");
+        var result = engine.EvaluateSync("2 ** 3 ** 2;");
         Assert.Equal(512d, result);
     }
 
@@ -289,7 +289,7 @@ public class NewFeaturesTests
     {
         var engine = new JsEngine();
         // 10 + 2 ** 3 * 5 should be 10 + (2 ** 3) * 5 = 10 + 8 * 5 = 10 + 40 = 50
-        var result = engine.Evaluate("10 + 2 ** 3 * 5;");
+        var result = engine.EvaluateSync("10 + 2 ** 3 * 5;");
         Assert.Equal(50d, result);
     }
 
@@ -297,7 +297,7 @@ public class NewFeaturesTests
     public void ExponentiationCompoundAssignment()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let x = 2; x **= 3; x;");
+        var result = engine.EvaluateSync("let x = 2; x **= 3; x;");
         Assert.Equal(8d, result);
     }
 
@@ -305,7 +305,7 @@ public class NewFeaturesTests
     public void ExponentiationInExpression()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let base = 3; let exp = 4; base ** exp;");
+        var result = engine.EvaluateSync("let base = 3; let exp = 4; base ** exp;");
         Assert.Equal(81d, result);
     }
 
@@ -313,7 +313,7 @@ public class NewFeaturesTests
     public void ExponentiationZeroPower()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("5 ** 0;");
+        var result = engine.EvaluateSync("5 ** 0;");
         Assert.Equal(1d, result);
     }
 }

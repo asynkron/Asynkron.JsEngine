@@ -6,7 +6,7 @@ public class WeakSetTests
     public void WeakSet_Constructor_Creates_Empty_WeakSet()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             typeof ws;
         ");
@@ -17,7 +17,7 @@ public class WeakSetTests
     public void WeakSet_Add_Adds_Object()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             let obj = { id: 1 };
             ws.add(obj);
@@ -30,7 +30,7 @@ public class WeakSetTests
     public void WeakSet_Add_Returns_WeakSet_For_Chaining()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             let obj1 = { id: 1 };
             let obj2 = { id: 2 };
@@ -44,7 +44,7 @@ public class WeakSetTests
     public void WeakSet_Has_Checks_Value_Existence()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             let obj1 = { id: 1 };
             let obj2 = { id: 2 };
@@ -60,7 +60,7 @@ public class WeakSetTests
     public void WeakSet_Delete_Removes_Value()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             let obj = { id: 1 };
             ws.add(obj);
@@ -75,7 +75,7 @@ public class WeakSetTests
     public void WeakSet_Delete_Returns_False_For_Nonexistent_Value()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             let obj = { id: 1 };
             ws.delete(obj);
@@ -87,7 +87,7 @@ public class WeakSetTests
     public void WeakSet_Rejects_String_As_Value()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.Evaluate(@"
+        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
             let ws = new WeakSet();
             ws.add(""string"");
         "));
@@ -98,7 +98,7 @@ public class WeakSetTests
     public void WeakSet_Rejects_Number_As_Value()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.Evaluate(@"
+        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
             let ws = new WeakSet();
             ws.add(42);
         "));
@@ -109,7 +109,7 @@ public class WeakSetTests
     public void WeakSet_Rejects_Boolean_As_Value()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.Evaluate(@"
+        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
             let ws = new WeakSet();
             ws.add(true);
         "));
@@ -120,7 +120,7 @@ public class WeakSetTests
     public void WeakSet_Rejects_Null_As_Value()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.Evaluate(@"
+        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
             let ws = new WeakSet();
             ws.add(null);
         "));
@@ -131,7 +131,7 @@ public class WeakSetTests
     public void WeakSet_Rejects_Undefined_As_Value()
     {
         var engine = new JsEngine();
-        var exception = Assert.Throws<Exception>(() => engine.Evaluate(@"
+        var exception = Assert.Throws<Exception>(() => engine.EvaluateSync(@"
             let ws = new WeakSet();
             let x = undefined;
             ws.add(x);
@@ -143,7 +143,7 @@ public class WeakSetTests
     public void WeakSet_Accepts_Array_As_Value()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             let arr = [1, 2, 3];
             ws.add(arr);
@@ -156,7 +156,7 @@ public class WeakSetTests
     public void WeakSet_Accepts_Function_As_Value()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             let fn = function() { return 42; };
             ws.add(fn);
@@ -169,7 +169,7 @@ public class WeakSetTests
     public void WeakSet_Different_Objects_Are_Different_Values()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             let obj1 = { x: 1 };
             let obj2 = { x: 1 };
@@ -185,7 +185,7 @@ public class WeakSetTests
     public void WeakSet_Does_Not_Add_Duplicate_Objects()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             let obj = { id: 1 };
             ws.add(obj);
@@ -200,7 +200,7 @@ public class WeakSetTests
     public void WeakSet_Has_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             ws.has(""string"");
         ");
@@ -211,7 +211,7 @@ public class WeakSetTests
     public void WeakSet_Delete_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             ws.delete(""string"");
         ");
@@ -222,7 +222,7 @@ public class WeakSetTests
     public void WeakSet_Constructor_Accepts_Array_Of_Values()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj1 = { id: 1 };
             let obj2 = { id: 2 };
             let values = [obj1, obj2];
@@ -238,7 +238,7 @@ public class WeakSetTests
     public void WeakSet_Typeof_Returns_Object()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws = new WeakSet();
             typeof ws;
         ");
@@ -249,7 +249,7 @@ public class WeakSetTests
     public void WeakSet_Can_Store_Same_Object_In_Different_WeakSets()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws1 = new WeakSet();
             let ws2 = new WeakSet();
             let obj = { id: 1 };
@@ -266,7 +266,7 @@ public class WeakSetTests
     public void WeakSet_Delete_Does_Not_Affect_Other_WeakSets()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let ws1 = new WeakSet();
             let ws2 = new WeakSet();
             let obj = { id: 1 };

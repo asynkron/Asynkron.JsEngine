@@ -36,7 +36,7 @@ public class CpsTransformDebugTests
             test();
         ");
         
-        var result = engine.Evaluate("result;");
+        var result = engine.EvaluateSync("result;");
         _output.WriteLine($"Result: '{result}'");
         Assert.Equal("x", result);
     }
@@ -60,7 +60,7 @@ public class CpsTransformDebugTests
             test();
         ");
         
-        var result = engine.Evaluate("result;");
+        var result = engine.EvaluateSync("result;");
         _output.WriteLine($"Result: '{result}'");
         Assert.Equal("x", result);
     }
@@ -85,7 +85,7 @@ public class CpsTransformDebugTests
             test();
         ");
         
-        var result = engine.Evaluate("result;");
+        var result = engine.EvaluateSync("result;");
         _output.WriteLine($"Result: '{result}'");
         Assert.Equal(">x", result);
     }
@@ -123,7 +123,7 @@ public class CpsTransformDebugTests
             test();
         ");
         
-        var result = engine.Evaluate("result;");
+        var result = engine.EvaluateSync("result;");
         _output.WriteLine($"Result: '{result}'");
         _output.WriteLine($"Log messages: {string.Join(", ", logMessages)}");
         

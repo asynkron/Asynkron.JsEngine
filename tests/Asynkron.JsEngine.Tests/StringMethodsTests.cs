@@ -11,7 +11,7 @@ public class StringMethodsTests
     public void String_Length_Property()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello"";
             str.length;
         ");
@@ -22,7 +22,7 @@ public class StringMethodsTests
     public void String_CharAt()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello"";
             str.charAt(1);
         ");
@@ -33,7 +33,7 @@ public class StringMethodsTests
     public void String_CharAt_OutOfBounds()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello"";
             str.charAt(10);
         ");
@@ -44,7 +44,7 @@ public class StringMethodsTests
     public void String_CharCodeAt()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello"";
             str.charCodeAt(0);
         ");
@@ -55,7 +55,7 @@ public class StringMethodsTests
     public void String_IndexOf()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world"";
             str.indexOf(""world"");
         ");
@@ -66,7 +66,7 @@ public class StringMethodsTests
     public void String_IndexOf_NotFound()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello"";
             str.indexOf(""xyz"");
         ");
@@ -77,7 +77,7 @@ public class StringMethodsTests
     public void String_IndexOf_WithPosition()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello hello"";
             str.indexOf(""hello"", 1);
         ");
@@ -88,7 +88,7 @@ public class StringMethodsTests
     public void String_LastIndexOf()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world hello"";
             str.lastIndexOf(""hello"");
         ");
@@ -99,7 +99,7 @@ public class StringMethodsTests
     public void String_Substring()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world"";
             str.substring(0, 5);
         ");
@@ -110,7 +110,7 @@ public class StringMethodsTests
     public void String_Substring_OneArg()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world"";
             str.substring(6);
         ");
@@ -121,7 +121,7 @@ public class StringMethodsTests
     public void String_Substring_SwapsIfStartGreaterThanEnd()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello"";
             str.substring(3, 1);
         ");
@@ -132,7 +132,7 @@ public class StringMethodsTests
     public void String_Slice()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world"";
             str.slice(0, 5);
         ");
@@ -143,7 +143,7 @@ public class StringMethodsTests
     public void String_Slice_NegativeIndices()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world"";
             str.slice(-5, -1);
         ");
@@ -154,7 +154,7 @@ public class StringMethodsTests
     public void String_ToLowerCase()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""HELLO World"";
             str.toLowerCase();
         ");
@@ -165,7 +165,7 @@ public class StringMethodsTests
     public void String_ToUpperCase()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello World"";
             str.toUpperCase();
         ");
@@ -176,7 +176,7 @@ public class StringMethodsTests
     public void String_Trim()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""  hello world  "";
             str.trim();
         ");
@@ -187,7 +187,7 @@ public class StringMethodsTests
     public void String_TrimStart()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""  hello  "";
             str.trimStart();
         ");
@@ -198,7 +198,7 @@ public class StringMethodsTests
     public void String_TrimEnd()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""  hello  "";
             str.trimEnd();
         ");
@@ -209,7 +209,7 @@ public class StringMethodsTests
     public void String_Split()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""a,b,c"";
             let parts = str.split("","");
             parts[1];
@@ -221,7 +221,7 @@ public class StringMethodsTests
     public void String_Split_WithLimit()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""a,b,c,d"";
             let parts = str.split("","", 2);
             parts.length;
@@ -233,7 +233,7 @@ public class StringMethodsTests
     public void String_Split_EmptySeparator()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""abc"";
             let parts = str.split("""");
             parts.length;
@@ -245,7 +245,7 @@ public class StringMethodsTests
     public void String_Replace()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world"";
             str.replace(""world"", ""there"");
         ");
@@ -256,7 +256,7 @@ public class StringMethodsTests
     public void String_Replace_OnlyFirstOccurrence()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello hello"";
             str.replace(""hello"", ""hi"");
         ");
@@ -267,7 +267,7 @@ public class StringMethodsTests
     public void String_StartsWith()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world"";
             str.startsWith(""hello"");
         ");
@@ -278,7 +278,7 @@ public class StringMethodsTests
     public void String_StartsWith_WithPosition()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world"";
             str.startsWith(""world"", 6);
         ");
@@ -289,7 +289,7 @@ public class StringMethodsTests
     public void String_EndsWith()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world"";
             str.endsWith(""world"");
         ");
@@ -300,7 +300,7 @@ public class StringMethodsTests
     public void String_EndsWith_WithLength()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world"";
             str.endsWith(""hello"", 5);
         ");
@@ -311,7 +311,7 @@ public class StringMethodsTests
     public void String_Includes()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello world"";
             str.includes(""lo wo"");
         ");
@@ -322,7 +322,7 @@ public class StringMethodsTests
     public void String_Includes_NotFound()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello"";
             str.includes(""xyz"");
         ");
@@ -333,7 +333,7 @@ public class StringMethodsTests
     public void String_Repeat()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""abc"";
             str.repeat(3);
         ");
@@ -344,7 +344,7 @@ public class StringMethodsTests
     public void String_PadStart()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""5"";
             str.padStart(3, ""0"");
         ");
@@ -355,7 +355,7 @@ public class StringMethodsTests
     public void String_PadEnd()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""5"";
             str.padEnd(3, ""0"");
         ");
@@ -366,7 +366,7 @@ public class StringMethodsTests
     public void String_Chaining()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""  HELLO WORLD  "";
             str.trim().toLowerCase().replace(""world"", ""there"");
         ");
@@ -377,7 +377,7 @@ public class StringMethodsTests
     public void String_Methods_InLoop()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let words = ""apple,banana,cherry"".split("","");
             let upperWords = """";
             let i = 0;
@@ -397,7 +397,7 @@ public class StringMethodsTests
     public void String_CodePointAt()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello"";
             str.codePointAt(0);
         ");
@@ -408,7 +408,7 @@ public class StringMethodsTests
     public void String_CodePointAt_WithSurrogatePair()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""𝟘𝟙𝟚""; // Mathematical bold digits
             str.codePointAt(0);
         ");
@@ -419,7 +419,7 @@ public class StringMethodsTests
     public void String_LocaleCompare()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let a = ""apple"";
             let b = ""banana"";
             a.localeCompare(b) < 0;
@@ -431,7 +431,7 @@ public class StringMethodsTests
     public void String_Normalize()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""café"";
             str.normalize(""NFC"").length;
         ");
@@ -442,7 +442,7 @@ public class StringMethodsTests
     public void String_MatchAll()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""test1test2test3"";
             let regex = /test\d/g;
             let matches = str.matchAll(regex);
@@ -455,7 +455,7 @@ public class StringMethodsTests
     public void String_Anchor()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""hello"";
             str.anchor(""greeting"");
         ");
@@ -466,7 +466,7 @@ public class StringMethodsTests
     public void String_Link()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = ""click here"";
             str.link(""https://example.com"");
         ");
@@ -477,7 +477,7 @@ public class StringMethodsTests
     public void String_FromCodePoint()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             String.fromCodePoint(65, 66, 67);
         ");
         Assert.Equal("ABC", result);
@@ -487,7 +487,7 @@ public class StringMethodsTests
     public void String_FromCodePoint_WithSurrogatePairs()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             String.fromCodePoint(128512); // Grinning face emoji (0x1F600)
         ");
         Assert.Equal("😀", result);
@@ -497,7 +497,7 @@ public class StringMethodsTests
     public void String_FromCharCode()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             String.fromCharCode(72, 101, 108, 108, 111);
         ");
         Assert.Equal("Hello", result);
@@ -507,7 +507,7 @@ public class StringMethodsTests
     public void String_Constructor()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             String(123);
         ");
         Assert.Equal("123", result);
@@ -517,7 +517,7 @@ public class StringMethodsTests
     public void String_Constructor_WithBoolean()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             String(true);
         ");
         Assert.Equal("true", result);

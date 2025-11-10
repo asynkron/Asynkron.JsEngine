@@ -55,7 +55,7 @@ public class AsyncIterableDebugTests
             log(""After test() call"");
         ");
         
-        var result = engine.Evaluate("result;");
+        var result = engine.EvaluateSync("result;");
         _output.WriteLine($"Final result: '{result}'");
         
         // Collect debug messages - don't wait forever, just get what's available
@@ -138,7 +138,7 @@ public class AsyncIterableDebugTests
             log(""After test() call"");
         ");
         
-        var result = engine.Evaluate("result;");
+        var result = engine.EvaluateSync("result;");
         _output.WriteLine($"Final result: '{result}'");
         Assert.Equal("hello", result);
     }
@@ -156,7 +156,7 @@ public class AsyncIterableDebugTests
             return null;
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let result = """";
             log(""Before for-await"");
             for await (let char of ""hello"") {
@@ -205,7 +205,7 @@ public class AsyncIterableDebugTests
             }
         ");
         
-        var result = engine.Evaluate("result;");
+        var result = engine.EvaluateSync("result;");
         _output.WriteLine($"Result: '{result}'");
         Assert.Equal("hello", result);
     }
@@ -282,7 +282,7 @@ public class AsyncIterableDebugTests
             test();
         ");
         
-        var result = engine.Evaluate("result;");
+        var result = engine.EvaluateSync("result;");
         _output.WriteLine($"Result: '{result}'");
         Assert.Equal("hello", result);
     }
@@ -324,7 +324,7 @@ public class AsyncIterableDebugTests
             test();
         ");
         
-        var result = engine.Evaluate("count;");
+        var result = engine.EvaluateSync("count;");
         _output.WriteLine($"Final count: '{result}'");
         Assert.Equal(3.0, result);
     }
@@ -395,7 +395,7 @@ public class AsyncIterableDebugTests
             test();
         ");
         
-        var result = engine.Evaluate("sum;");
+        var result = engine.EvaluateSync("sum;");
         _output.WriteLine($"Final sum: '{result}'");
         Assert.Equal(12.0, result); // 1 + 2 + 4 + 5 = 12
     }
@@ -439,7 +439,7 @@ public class AsyncIterableDebugTests
             test();
         ");
         
-        var result = engine.Evaluate("sum;");
+        var result = engine.EvaluateSync("sum;");
         _output.WriteLine($"Final sum: '{result}'");
         Assert.Equal(6.0, result);
     }
@@ -474,7 +474,7 @@ public class AsyncIterableDebugTests
             test();
         ");
         
-        var result = engine.Evaluate("count;");
+        var result = engine.EvaluateSync("count;");
         _output.WriteLine($"Final count: '{result}'");
         Assert.Equal(3.0, result);
     }
@@ -512,7 +512,7 @@ public class AsyncIterableDebugTests
             test();
         ");
         
-        var result = engine.Evaluate("count;");
+        var result = engine.EvaluateSync("count;");
         _output.WriteLine($"Final count: '{result}'");
         Assert.Equal(5.0, result);
     }

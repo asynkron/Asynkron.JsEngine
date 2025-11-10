@@ -8,7 +8,7 @@ public class ErrorTypesTests
     public void Error_CanBeCreated()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new Error('test message');
             err.message;
         ");
@@ -19,7 +19,7 @@ public class ErrorTypesTests
     public void Error_HasName()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new Error('test');
             err.name;
         ");
@@ -30,7 +30,7 @@ public class ErrorTypesTests
     public void Error_ToString_WithMessage()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new Error('test message');
             err.toString();
         ");
@@ -41,7 +41,7 @@ public class ErrorTypesTests
     public void TypeError_CanBeCreated()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new TypeError('type error message');
             err.name + ': ' + err.message;
         ");
@@ -52,7 +52,7 @@ public class ErrorTypesTests
     public void TypeError_HasCorrectName()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new TypeError('test');
             err.name;
         ");
@@ -63,7 +63,7 @@ public class ErrorTypesTests
     public void RangeError_CanBeCreated()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new RangeError('out of range');
             err.message;
         ");
@@ -74,7 +74,7 @@ public class ErrorTypesTests
     public void RangeError_HasCorrectName()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new RangeError('test');
             err.name;
         ");
@@ -85,7 +85,7 @@ public class ErrorTypesTests
     public void ReferenceError_CanBeCreated()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new ReferenceError('reference not found');
             err.message;
         ");
@@ -96,7 +96,7 @@ public class ErrorTypesTests
     public void ReferenceError_HasCorrectName()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new ReferenceError('test');
             err.name;
         ");
@@ -107,7 +107,7 @@ public class ErrorTypesTests
     public void SyntaxError_CanBeCreated()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new SyntaxError('syntax issue');
             err.message;
         ");
@@ -118,7 +118,7 @@ public class ErrorTypesTests
     public void SyntaxError_HasCorrectName()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new SyntaxError('test');
             err.name;
         ");
@@ -129,7 +129,7 @@ public class ErrorTypesTests
     public void Error_WithNoMessage()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new Error();
             err.message;
         ");
@@ -140,7 +140,7 @@ public class ErrorTypesTests
     public void Error_ToString_WithNoMessage()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let err = new TypeError();
             err.toString();
         ");
@@ -151,7 +151,7 @@ public class ErrorTypesTests
     public void TypeError_CanBeThrown()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let caught = null;
             try {
                 throw new TypeError('invalid type');
@@ -167,7 +167,7 @@ public class ErrorTypesTests
     public void RangeError_CanBeThrown()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let caught = null;
             try {
                 throw new RangeError('value out of range');
@@ -183,7 +183,7 @@ public class ErrorTypesTests
     public void ReferenceError_CanBeThrown()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let caught = null;
             try {
                 throw new ReferenceError('undefined reference');
@@ -199,7 +199,7 @@ public class ErrorTypesTests
     public void SyntaxError_CanBeThrown()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let caught = null;
             try {
                 throw new SyntaxError('bad syntax');
@@ -215,7 +215,7 @@ public class ErrorTypesTests
     public void Error_PreservesPropertiesWhenCaught()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let caught = null;
             try {
                 let err = new TypeError('test error');
@@ -233,7 +233,7 @@ public class ErrorTypesTests
     public void MultipleErrorTypes_CanBeDistinguished()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let results = [];
             
             try {
@@ -263,7 +263,7 @@ public class ErrorTypesTests
     public void Error_CanBeRethrown()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let caught = null;
             try {
                 try {
@@ -283,7 +283,7 @@ public class ErrorTypesTests
     public void Error_InFunctionCall()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function throwsError() {
                 throw new RangeError('function error');
             }

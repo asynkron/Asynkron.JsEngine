@@ -14,7 +14,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act & Assert - Should not throw
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* simpleGenerator() {
                 yield 1;
             }
@@ -28,7 +28,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function* gen() {
                 yield 1;
             }
@@ -47,13 +47,13 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 1;
             }
             let g = gen();
         ");
-        var hasNext = engine.Evaluate("g.next;");
+        var hasNext = engine.EvaluateSync("g.next;");
 
         // Assert - next should be callable
         Assert.NotNull(hasNext);
@@ -66,15 +66,15 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 42;
             }
             let g = gen();
             let result = g.next();
         ");
-        var value = engine.Evaluate("result.value;");
-        var done = engine.Evaluate("result.done;");
+        var value = engine.EvaluateSync("result.value;");
+        var done = engine.EvaluateSync("result.done;");
 
         // Assert
         Assert.Equal(42.0, value);
@@ -88,7 +88,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 1;
                 yield 2;
@@ -97,9 +97,9 @@ public class GeneratorTests
             let g = gen();
         ");
         
-        var r1Value = engine.Evaluate("g.next().value;");
-        var r2Value = engine.Evaluate("g.next().value;");
-        var r3Value = engine.Evaluate("g.next().value;");
+        var r1Value = engine.EvaluateSync("g.next().value;");
+        var r2Value = engine.EvaluateSync("g.next().value;");
+        var r3Value = engine.EvaluateSync("g.next().value;");
 
         // Assert
         Assert.Equal(1.0, r1Value);
@@ -114,7 +114,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 10;
             }
@@ -123,7 +123,7 @@ public class GeneratorTests
         ");
         
         // Assert - result should be an object with value and done properties
-        var result = engine.Evaluate("result;");
+        var result = engine.EvaluateSync("result;");
         Assert.NotNull(result);
     }
 
@@ -134,7 +134,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 5;
             }
@@ -143,8 +143,8 @@ public class GeneratorTests
         ");
         
         // Check the properties exist by accessing them
-        var value = engine.Evaluate("result.value;");
-        var done = engine.Evaluate("result.done;");
+        var value = engine.EvaluateSync("result.value;");
+        var done = engine.EvaluateSync("result.done;");
         
         // Assert - both properties should exist
         Assert.NotNull(value);
@@ -158,7 +158,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 1;
             }
@@ -167,8 +167,8 @@ public class GeneratorTests
             let finalResult = g.next();  // Generator is done
         ");
         
-        var done = engine.Evaluate("finalResult.done;");
-        var value = engine.Evaluate("finalResult.value;");
+        var done = engine.EvaluateSync("finalResult.done;");
+        var value = engine.EvaluateSync("finalResult.value;");
 
         // Assert
         Assert.True((bool)done!);
@@ -182,7 +182,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 1 + 1;
                 yield 2 * 3;
@@ -190,8 +190,8 @@ public class GeneratorTests
             let g = gen();
         ");
         
-        var r1 = engine.Evaluate("g.next().value;");
-        var r2 = engine.Evaluate("g.next().value;");
+        var r1 = engine.EvaluateSync("g.next().value;");
+        var r2 = engine.EvaluateSync("g.next().value;");
 
         // Assert
         Assert.Equal(2.0, r1);
@@ -205,7 +205,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 let x = 10;
                 yield x;
@@ -215,8 +215,8 @@ public class GeneratorTests
             let g = gen();
         ");
         
-        var r1 = engine.Evaluate("g.next().value;");
-        var r2 = engine.Evaluate("g.next().value;");
+        var r1 = engine.EvaluateSync("g.next().value;");
+        var r2 = engine.EvaluateSync("g.next().value;");
 
         // Assert
         Assert.Equal(10.0, r1);
@@ -230,7 +230,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen(start) {
                 yield start;
                 yield start + 1;
@@ -238,8 +238,8 @@ public class GeneratorTests
             let g = gen(100);
         ");
         
-        var r1 = engine.Evaluate("g.next().value;");
-        var r2 = engine.Evaluate("g.next().value;");
+        var r1 = engine.EvaluateSync("g.next().value;");
+        var r2 = engine.EvaluateSync("g.next().value;");
 
         // Assert
         Assert.Equal(100.0, r1);
@@ -253,7 +253,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 1;
                 yield 2;
@@ -262,10 +262,10 @@ public class GeneratorTests
             let g2 = gen();
         ");
         
-        var g1_r1 = engine.Evaluate("g1.next().value;");
-        var g2_r1 = engine.Evaluate("g2.next().value;");
-        var g1_r2 = engine.Evaluate("g1.next().value;");
-        var g2_r2 = engine.Evaluate("g2.next().value;");
+        var g1_r1 = engine.EvaluateSync("g1.next().value;");
+        var g2_r1 = engine.EvaluateSync("g2.next().value;");
+        var g1_r2 = engine.EvaluateSync("g1.next().value;");
+        var g2_r2 = engine.EvaluateSync("g2.next().value;");
 
         // Assert - Each generator maintains independent state
         Assert.Equal(1.0, g1_r1);
@@ -281,14 +281,14 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
             }
             let g = gen();
             let result = g.next();
         ");
         
-        var done = engine.Evaluate("result.done;");
+        var done = engine.EvaluateSync("result.done;");
 
         // Assert
         Assert.True((bool)done!);
@@ -301,7 +301,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 1;
                 return 99;
@@ -311,10 +311,10 @@ public class GeneratorTests
             let r2 = g.next();
         ");
         
-        var r1Value = engine.Evaluate("r1.value;");
-        var r1Done = engine.Evaluate("r1.done;");
-        var r2Value = engine.Evaluate("r2.value;");
-        var r2Done = engine.Evaluate("r2.done;");
+        var r1Value = engine.EvaluateSync("r1.value;");
+        var r1Done = engine.EvaluateSync("r1.done;");
+        var r2Value = engine.EvaluateSync("r2.value;");
+        var r2Done = engine.EvaluateSync("r2.done;");
 
         // Assert
         Assert.Equal(1.0, r1Value);
@@ -330,7 +330,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             let gen = function*() {
                 yield 42;
             };
@@ -338,7 +338,7 @@ public class GeneratorTests
             let result = g.next();
         ");
         
-        var value = engine.Evaluate("result.value;");
+        var value = engine.EvaluateSync("result.value;");
 
         // Assert
         Assert.Equal(42.0, value);
@@ -351,14 +351,14 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 1;
                 yield 2;
             }
             let g = gen();
         ");
-        var hasReturn = engine.Evaluate("g[\"return\"];");
+        var hasReturn = engine.EvaluateSync("g[\"return\"];");
 
         // Assert - return should be callable
         Assert.NotNull(hasReturn);
@@ -371,7 +371,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 1;
                 yield 2;
@@ -382,9 +382,9 @@ public class GeneratorTests
             let nextResult = g.next();  // Should be done
         ");
         
-        var returnValue = engine.Evaluate("returnResult.value;");
-        var returnDone = engine.Evaluate("returnResult.done;");
-        var nextDone = engine.Evaluate("nextResult.done;");
+        var returnValue = engine.EvaluateSync("returnResult.value;");
+        var returnDone = engine.EvaluateSync("returnResult.done;");
+        var nextDone = engine.EvaluateSync("nextResult.done;");
 
         // Assert
         Assert.Equal(99.0, returnValue);
@@ -399,13 +399,13 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             function* gen() {
                 yield 1;
             }
             let g = gen();
         ");
-        var hasThrow = engine.Evaluate("g[\"throw\"];");
+        var hasThrow = engine.EvaluateSync("g[\"throw\"];");
 
         // Assert - throw should be callable
         Assert.NotNull(hasThrow);

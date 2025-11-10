@@ -9,7 +9,7 @@ public class StaticMethodsTests
     public void ObjectKeys()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { a: 1, b: 2, c: 3 };
             let keys = Object.keys(obj);
             keys[0] + keys[1] + keys[2];
@@ -21,7 +21,7 @@ public class StaticMethodsTests
     public void ObjectValues()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { a: 10, b: 20, c: 30 };
             let values = Object.values(obj);
             values[0] + values[1] + values[2];
@@ -33,7 +33,7 @@ public class StaticMethodsTests
     public void ObjectEntries()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { x: 1, y: 2 };
             let entries = Object.entries(obj);
             entries[0][0] + entries[0][1] + entries[1][0] + entries[1][1];
@@ -45,7 +45,7 @@ public class StaticMethodsTests
     public void ObjectAssign()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let target = { a: 1 };
             let source1 = { b: 2 };
             let source2 = { c: 3 };
@@ -59,7 +59,7 @@ public class StaticMethodsTests
     public void ObjectAssignOverwrites()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let target = { a: 1, b: 2 };
             let source = { b: 20, c: 30 };
             Object.assign(target, source);
@@ -73,7 +73,7 @@ public class StaticMethodsTests
     public void ArrayIsArray()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [1, 2, 3];
             let obj = { a: 1 };
             Array.isArray(arr) && !Array.isArray(obj);
@@ -85,7 +85,7 @@ public class StaticMethodsTests
     public void ArrayIsArrayString()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = 'hello';
             Array.isArray(str);
         ");
@@ -96,7 +96,7 @@ public class StaticMethodsTests
     public void ArrayFrom()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = 'abc';
             let arr = Array.from(str);
             arr[0] + arr[1] + arr[2];
@@ -108,7 +108,7 @@ public class StaticMethodsTests
     public void ArrayFromArray()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let original = [1, 2, 3];
             let copy = Array.from(original);
             copy[0] + copy[1] + copy[2];
@@ -120,7 +120,7 @@ public class StaticMethodsTests
     public void ArrayOf()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = Array.of(1, 2, 3, 4);
             arr[0] + arr[1] + arr[2] + arr[3];
         ");
@@ -131,7 +131,7 @@ public class StaticMethodsTests
     public void ArrayOfSingle()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = Array.of(5);
             arr[0];
         ");

@@ -6,7 +6,7 @@ public class SymbolTests
     public void Symbol_Creates_Unique_Symbols()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let s1 = Symbol();
             let s2 = Symbol();
             s1 === s2;
@@ -18,7 +18,7 @@ public class SymbolTests
     public void Symbol_With_Description()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let sym = Symbol(""test"");
             typeof sym;
         ");
@@ -29,7 +29,7 @@ public class SymbolTests
     public void Symbol_Typeof_Returns_Symbol()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             typeof Symbol();
         ");
         Assert.Equal("symbol", result);
@@ -39,7 +39,7 @@ public class SymbolTests
     public void Symbol_For_Creates_Global_Symbol()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let s1 = Symbol.for(""shared"");
             let s2 = Symbol.for(""shared"");
             s1 === s2;
@@ -51,7 +51,7 @@ public class SymbolTests
     public void Symbol_For_Different_Keys_Creates_Different_Symbols()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let s1 = Symbol.for(""key1"");
             let s2 = Symbol.for(""key2"");
             s1 === s2;
@@ -63,7 +63,7 @@ public class SymbolTests
     public void Symbol_KeyFor_Returns_Key_For_Global_Symbol()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let s = Symbol.for(""myKey"");
             Symbol.keyFor(s);
         ");
@@ -74,7 +74,7 @@ public class SymbolTests
     public void Symbol_KeyFor_Returns_Undefined_For_Non_Global_Symbol()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let s = Symbol();
             let key = Symbol.keyFor(s);
             typeof key;
@@ -86,7 +86,7 @@ public class SymbolTests
     public void Symbol_Can_Be_Used_As_Object_Property_Key()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let sym = Symbol(""id"");
             let obj = {};
             obj[sym] = 42;
@@ -100,7 +100,7 @@ public class SymbolTests
     public void Symbol_Properties_Are_Not_Enumerable()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let sym = Symbol(""secret"");
             let obj = { name: ""test"" };
             obj[sym] = ""hidden"";
@@ -118,7 +118,7 @@ public class SymbolTests
     public void Symbol_Works_With_Undefined()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let s = Symbol(undefined);
             typeof s;
         ");
@@ -129,7 +129,7 @@ public class SymbolTests
     public void Multiple_Global_Symbols_Work_Correctly()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let s1 = Symbol.for(""a"");
             let s2 = Symbol.for(""b"");
             let s3 = Symbol.for(""a"");

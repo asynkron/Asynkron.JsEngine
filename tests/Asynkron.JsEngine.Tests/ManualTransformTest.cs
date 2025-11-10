@@ -28,53 +28,55 @@ public class ManualTransformTest
         });
         
         // This is what the transformation SHOULD create
-        await engine.Run(@"
-            let result = """";
-            let arr = [""x""];
-            
-            function test() {
-                return new Promise(function(__resolve, __reject) {
-                    try {
-                        log(""A: before loop"");
-                        
-                        // Get iterator
-                        let __iterator = arr[Symbol.iterator]();
-                        log(""got iterator"");
-                        
-                        // Define loop check function
-                        function __loopCheck() {
-                            log(""in __loopCheck"");
-                            let __result = __iterator.next();
-                            if (__result.done) {
-                                log(""loop done"");
-                                __resolve();
-                            } else {
-                                log(""loop not done, processing item"");
-                                function __loopResolve() {
-                                    return __loopCheck();
-                                }
-                                
-                                let item = __result.value;
-                                // Body with await
-                                Promise.resolve(item).then(function(value) {
-                                    log(""in then handler, value="" + value);
-                                    result = result + value;
-                                    __loopResolve();
-                                });
-                            }
-                        }
-                        
-                        log(""calling __loopCheck"");
-                        __loopCheck();
-                        log(""after calling __loopCheck"");
-                    } catch (__error) {
-                        __reject(__error);
-                    }
-                });
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     let arr = ["x"];
+                                     
+                                     function test() {
+                                         return new Promise(function(__resolve, __reject) {
+                                             try {
+                                                 log("A: before loop");
+                                                 
+                                                 // Get iterator
+                                                 let __iterator = arr[Symbol.iterator]();
+                                                 log("got iterator");
+                                                 
+                                                 // Define loop check function
+                                                 function __loopCheck() {
+                                                     log("in __loopCheck");
+                                                     let __result = __iterator.next();
+                                                     if (__result.done) {
+                                                         log("loop done");
+                                                         __resolve();
+                                                     } else {
+                                                         log("loop not done, processing item");
+                                                         function __loopResolve() {
+                                                             return __loopCheck();
+                                                         }
+                                                         
+                                                         let item = __result.value;
+                                                         // Body with await
+                                                         Promise.resolve(item).then(function(value) {
+                                                             log("in then handler, value=" + value);
+                                                             result = result + value;
+                                                             __loopResolve();
+                                                         });
+                                                     }
+                                                 }
+                                                 
+                                                 log("calling __loopCheck");
+                                                 __loopCheck();
+                                                 log("after calling __loopCheck");
+                                             } catch (__error) {
+                                                 __reject(__error);
+                                             }
+                                         });
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         _output.WriteLine($"Result: '{result}'");

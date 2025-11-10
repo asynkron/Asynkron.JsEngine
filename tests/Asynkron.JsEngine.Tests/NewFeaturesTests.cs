@@ -26,12 +26,14 @@ public class NewFeaturesTests
     public async Task MultiLineComment()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            /* This is a multi-line comment
-               spanning multiple lines */
-            let x = 5;
-            x;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       /* This is a multi-line comment
+                                                          spanning multiple lines */
+                                                       let x = 5;
+                                                       x;
+                                                   
+                                           """);
         Assert.Equal(5d, result);
     }
 
@@ -39,10 +41,12 @@ public class NewFeaturesTests
     public async Task MultiLineCommentBetweenCode()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            let x = 5 /* inline comment */ + 3;
-            x;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let x = 5 /* inline comment */ + 3;
+                                                       x;
+                                                   
+                                           """);
         Assert.Equal(8d, result);
     }
 

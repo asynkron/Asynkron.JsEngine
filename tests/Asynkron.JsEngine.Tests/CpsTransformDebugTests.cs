@@ -22,19 +22,21 @@ public class CpsTransformDebugTests
         // Simplest possible test case - single iteration
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let result = """";
-            let arr = [""x""];
-            
-            async function test() {
-                for (let item of arr) {
-                    let value = await Promise.resolve(item);
-                    result = result + value;
-                }
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     let arr = ["x"];
+                                     
+                                     async function test() {
+                                         for (let item of arr) {
+                                             let value = await Promise.resolve(item);
+                                             result = result + value;
+                                         }
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         _output.WriteLine($"Result: '{result}'");
@@ -47,18 +49,20 @@ public class CpsTransformDebugTests
         // Control test - no await in loop body
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let result = """";
-            let arr = [""x""];
-            
-            async function test() {
-                for (let item of arr) {
-                    result = result + item;
-                }
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     let arr = ["x"];
+                                     
+                                     async function test() {
+                                         for (let item of arr) {
+                                             result = result + item;
+                                         }
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         _output.WriteLine($"Result: '{result}'");
@@ -71,19 +75,21 @@ public class CpsTransformDebugTests
         // Test await before loop - should work
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let result = """";
-            let arr = [""x""];
-            
-            async function test() {
-                let prefix = await Promise.resolve("">"");
-                for (let item of arr) {
-                    result = result + prefix + item;
-                }
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     let arr = ["x"];
+                                     
+                                     async function test() {
+                                         let prefix = await Promise.resolve(">");
+                                         for (let item of arr) {
+                                             result = result + prefix + item;
+                                         }
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         _output.WriteLine($"Result: '{result}'");
@@ -105,23 +111,25 @@ public class CpsTransformDebugTests
             return null;
         });
         
-        await engine.Run(@"
-            let result = """";
-            let arr = [""a"", ""b""];
-            
-            async function test() {
-                log(""before loop"");
-                for (let item of arr) {
-                    log(""in loop: "" + item);
-                    let value = await Promise.resolve(item);
-                    log(""after await: "" + value);
-                    result = result + value;
-                }
-                log(""after loop"");
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     let arr = ["a", "b"];
+                                     
+                                     async function test() {
+                                         log("before loop");
+                                         for (let item of arr) {
+                                             log("in loop: " + item);
+                                             let value = await Promise.resolve(item);
+                                             log("after await: " + value);
+                                             result = result + value;
+                                         }
+                                         log("after loop");
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         _output.WriteLine($"Result: '{result}'");

@@ -74,14 +74,16 @@ public class EvaluatorTests
     public async Task EvaluateArrayLiteralSupportsIndexing()
     {
         var engine = new JsEngine();
-        var source = @"
-let values = [1, 2];
-values[2] = values[0] + values[1];
-let alias = values[""length""];
-let missing = values[5];
-if (missing == null) { missing = 1; } else { missing = 0; }
-alias + missing + values[2];
-";
+        var source = """
+
+                     let values = [1, 2];
+                     values[2] = values[0] + values[1];
+                     let alias = values["length"];
+                     let missing = values[5];
+                     if (missing == null) { missing = 1; } else { missing = 0; }
+                     alias + missing + values[2];
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -92,18 +94,20 @@ alias + missing + values[2];
     public async Task LogicalOperatorsShortCircuitAndReturnOperands()
     {
         var engine = new JsEngine();
-        var source = @"
-let hits = 0;
-function record(value) {
-    hits = hits + 1;
-    return value; // propagate the input to observe operator return values
-}
+        var source = """
 
-let andResult = false && record(1);
-let orResult = true || record(2);
-let coalesceResult = null ?? record(3);
-let coalesceNonNull = 0 ?? record(4);
-";
+                     let hits = 0;
+                     function record(value) {
+                         hits = hits + 1;
+                         return value; // propagate the input to observe operator return values
+                     }
+
+                     let andResult = false && record(1);
+                     let orResult = true || record(2);
+                     let coalesceResult = null ?? record(3);
+                     let coalesceNonNull = 0 ?? record(4);
+
+                     """;
 
         object? temp = await engine.Evaluate(source);
 
@@ -120,16 +124,18 @@ let coalesceNonNull = 0 ?? record(4);
         var engine = new JsEngine();
         engine.SetGlobalFunction("getInt", _ => 1);
 
-        var source = @"
-let outcomes = [
-    1 === 1,
-    1 === ""1"",
-    1 !== 2,
-    null === null,
-    getInt() === 1
-];
-outcomes;
-";
+        var source = """
+
+                     let outcomes = [
+                         1 === 1,
+                         1 === "1",
+                         1 !== 2,
+                         null === null,
+                         getInt() === 1
+                     ];
+                     outcomes;
+
+                     """;
 
         object? temp = await engine.Evaluate(source);
 
@@ -144,16 +150,18 @@ outcomes;
     public async Task VarDeclarationHoistsToFunctionScope()
     {
         var engine = new JsEngine();
-        var source = @"
-function sample() {
-    if (true) {
-        var hidden = 41;
-    }
+        var source = """
 
-    return hidden + 1;
-}
-sample();
-";
+                     function sample() {
+                         if (true) {
+                             var hidden = 41;
+                         }
+
+                         return hidden + 1;
+                     }
+                     sample();
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -172,17 +180,19 @@ sample();
     public async Task TryCatchFinallyBindsThrownValueAndRunsCleanup()
     {
         var engine = new JsEngine();
-        var source = @"
-let captured = 0;
-try {
-    throw 21;
-} catch (err) {
-    captured = err;
-} finally {
-    captured = captured + 21;
-}
-captured;
-";
+        var source = """
+
+                     let captured = 0;
+                     try {
+                         throw 21;
+                     } catch (err) {
+                         captured = err;
+                     } finally {
+                         captured = captured + 21;
+                     }
+                     captured;
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -193,14 +203,16 @@ captured;
     public async Task FinallyRunsForUnhandledThrow()
     {
         var engine = new JsEngine();
-        var source = @"
-let cleanup = 0;
-try {
-    throw ""boom"";
-} finally {
-    cleanup = cleanup + 1;
-}
-";
+        var source = """
+
+                     let cleanup = 0;
+                     try {
+                         throw "boom";
+                     } finally {
+                         cleanup = cleanup + 1;
+                     }
+
+                     """;
 
         await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate(source));
 
@@ -212,16 +224,18 @@ try {
     public async Task FinallyReturnOverridesTryReturn()
     {
         var engine = new JsEngine();
-        var source = @"
-function sample() {
-    try {
-        return 1;
-    } finally {
-        return 2;
-    }
-}
-sample();
-";
+        var source = """
+
+                     function sample() {
+                         try {
+                             return 1;
+                         } finally {
+                             return 2;
+                         }
+                     }
+                     sample();
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -243,10 +257,12 @@ sample();
     public async Task IndexedMethodInvocationBindsThis()
     {
         var engine = new JsEngine();
-        var source = @"
-let obj = { value: 10, getter: function() { return this.value; } };
-obj[""getter""]();
-";
+        var source = """
+
+                     let obj = { value: 10, getter: function() { return this.value; } };
+                     obj["getter"]();
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -269,14 +285,16 @@ obj[""getter""]();
     public async Task PrototypeLookupResolvesInheritedMethods()
     {
         var engine = new JsEngine();
-        var source = @"
-let base = {
-    multiplier: 2,
-    calculate: function(value) { return value * this.multiplier; }
-};
-let derived = { value: 7, __proto__: base };
-derived.calculate(derived.value);
-";
+        var source = """
+
+                     let base = {
+                         multiplier: 2,
+                         calculate: function(value) { return value * this.multiplier; }
+                     };
+                     let derived = { value: 7, __proto__: base };
+                     derived.calculate(derived.value);
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -287,12 +305,14 @@ derived.calculate(derived.value);
     public async Task PrototypeAssignmentLinksObjectsAfterCreation()
     {
         var engine = new JsEngine();
-        var source = @"
-let base = { greet: function() { return ""hi "" + this.name; } };
-let user = { name: ""Alice"" };
-user.__proto__ = base;
-user.greet();
-";
+        var source = """
+
+                     let base = { greet: function() { return "hi " + this.name; } };
+                     let user = { name: "Alice" };
+                     user.__proto__ = base;
+                     user.greet();
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -303,14 +323,16 @@ user.greet();
     public async Task NewCreatesInstancesWithConstructorPrototypes()
     {
         var engine = new JsEngine();
-        var source = @"
-function Person(name) {
-    this.name = name;
-}
-Person.prototype.describe = function() { return ""Person:"" + this.name; };
-let person = new Person(""Bob"");
-person.describe();
-";
+        var source = """
+
+                     function Person(name) {
+                         this.name = name;
+                     }
+                     Person.prototype.describe = function() { return "Person:" + this.name; };
+                     let person = new Person("Bob");
+                     person.describe();
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -321,19 +343,21 @@ person.describe();
     public async Task MethodClosuresCanReachThisViaCapturedReference()
     {
         var engine = new JsEngine();
-        var source = @"
-let obj = {
-    value: 10,
-    makeIncrementer: function(step) {
-        let receiver = this; // capture the current method receiver for later use
-        return function(extra) {
-            return receiver.value + step + extra;
-        };
-    }
-};
-let inc = obj.makeIncrementer(5);
-inc(3);
-";
+        var source = """
+
+                     let obj = {
+                         value: 10,
+                         makeIncrementer: function(step) {
+                             let receiver = this; // capture the current method receiver for later use
+                             return function(extra) {
+                                 return receiver.value + step + extra;
+                             };
+                         }
+                     };
+                     let inc = obj.makeIncrementer(5);
+                     inc(3);
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -344,19 +368,21 @@ inc(3);
     public async Task DistinctMethodCallsProvideIndependentThisBindings()
     {
         var engine = new JsEngine();
-        var source = @"
-let factory = {
-    create: function(number) {
-        return {
-            value: number,
-            read: function() { return this.value; } // rely on this binding when invoked as a method
-        };
-    }
-};
-let first = factory.create(7);
-let second = factory.create(8);
-first.read() + second.read();
-";
+        var source = """
+
+                     let factory = {
+                         create: function(number) {
+                             return {
+                                 value: number,
+                                 read: function() { return this.value; } // rely on this binding when invoked as a method
+                             };
+                         }
+                     };
+                     let first = factory.create(7);
+                     let second = factory.create(8);
+                     first.read() + second.read();
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -367,20 +393,22 @@ first.read() + second.read();
     public async Task ClassDeclarationSupportsConstructorsAndMethods()
     {
         var engine = new JsEngine();
-        var source = @"
-class Counter {
-    constructor(start) {
-        this.value = start;
-    }
+        var source = """
 
-    increment() {
-        this.value = this.value + 1; // mutate state then return it for verification
-        return this.value;
-    }
-}
-let instance = new Counter(5);
-instance.increment();
-";
+                     class Counter {
+                         constructor(start) {
+                             this.value = start;
+                         }
+
+                         increment() {
+                             this.value = this.value + 1; // mutate state then return it for verification
+                             return this.value;
+                         }
+                     }
+                     let instance = new Counter(5);
+                     instance.increment();
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -391,13 +419,15 @@ instance.increment();
     public async Task ClassWithoutExplicitConstructorFallsBackToDefault()
     {
         var engine = new JsEngine();
-        var source = @"
-class Widget {
-    describe() { return ""widget""; }
-}
-let widget = new Widget();
-Widget.prototype.constructor == Widget;
-";
+        var source = """
+
+                     class Widget {
+                         describe() { return "widget"; }
+                     }
+                     let widget = new Widget();
+                     Widget.prototype.constructor == Widget;
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -408,31 +438,33 @@ Widget.prototype.constructor == Widget;
     public async Task ClassInheritanceSupportsSuperConstructorAndMethodCalls()
     {
         var engine = new JsEngine();
-        var source = @"
-class Base {
-    constructor(value) {
-        this.base = value;
-    }
+        var source = """
 
-    read() {
-        return this.base;
-    }
-}
+                     class Base {
+                         constructor(value) {
+                             this.base = value;
+                         }
 
-class Derived extends Base {
-    constructor(value) {
-        super(value + 1); // forward to the base constructor with a transformed argument
-        this.extra = 5;
-    }
+                         read() {
+                             return this.base;
+                         }
+                     }
 
-    read() {
-        return super.read() + this.extra; // reuse the base implementation and add derived state
-    }
-}
+                     class Derived extends Base {
+                         constructor(value) {
+                             super(value + 1); // forward to the base constructor with a transformed argument
+                             this.extra = 5;
+                         }
 
-let instance = new Derived(2);
-instance.read();
-";
+                         read() {
+                             return super.read() + this.extra; // reuse the base implementation and add derived state
+                         }
+                     }
+
+                     let instance = new Derived(2);
+                     instance.read();
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -443,15 +475,17 @@ instance.read();
     public async Task EvaluateIfElseAndBlockScopes()
     {
         var engine = new JsEngine();
-        var source = @"
-let value = 0;
-if (false) {
-    value = 1;
-} else {
-    value = 2;
-}
-value;
-";
+        var source = """
+
+                     let value = 0;
+                     if (false) {
+                         value = 1;
+                     } else {
+                         value = 2;
+                     }
+                     value;
+
+                     """;
 
         var result = await engine.Evaluate(source);
         Assert.Equal(2d, result);
@@ -461,15 +495,17 @@ value;
     public async Task EvaluateWhileLoopUpdatesValues()
     {
         var engine = new JsEngine();
-        var source = @"
-let total = 0;
-let current = 1;
-while (current <= 3) {
-    total = total + current;
-    current = current + 1;
-}
-total;
-";
+        var source = """
+
+                     let total = 0;
+                     let current = 1;
+                     while (current <= 3) {
+                         total = total + current;
+                         current = current + 1;
+                     }
+                     total;
+
+                     """;
 
         var result = await engine.Evaluate(source);
         Assert.Equal(6d, result);
@@ -479,21 +515,23 @@ total;
     public async Task EvaluateForLoopHonoursBreakAndContinue()
     {
         var engine = new JsEngine();
-        var source = @"
-let sum = 0;
-for (let i = 0; i < 10; i = i + 1) {
-    if (i == 3) {
-        continue;
-    }
+        var source = """
 
-    if (i == 5) {
-        break;
-    }
+                     let sum = 0;
+                     for (let i = 0; i < 10; i = i + 1) {
+                         if (i == 3) {
+                             continue;
+                         }
 
-    sum = sum + i;
-}
-sum;
-";
+                         if (i == 5) {
+                             break;
+                         }
+
+                         sum = sum + i;
+                     }
+                     sum;
+
+                     """;
 
         var result = await engine.Evaluate(source);
         Assert.Equal(7d, result); // adds 0 + 1 + 2 + 4 before breaking at 5
@@ -503,20 +541,22 @@ sum;
     public async Task SwitchStatementSupportsFallthrough()
     {
         var engine = new JsEngine();
-        var source = @"
-function describe(value) {
-    switch (value) {
-        case 1:
-            return ""one"";
-        case 2:
-        case 3:
-            return ""few"";
-        default:
-            return ""many"";
-    }
-}
-describe(3);
-";
+        var source = """
+
+                     function describe(value) {
+                         switch (value) {
+                             case 1:
+                                 return "one";
+                             case 2:
+                             case 3:
+                                 return "few";
+                             default:
+                                 return "many";
+                         }
+                     }
+                     describe(3);
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -527,19 +567,21 @@ describe(3);
     public async Task SwitchBreakRemainsInsideLoop()
     {
         var engine = new JsEngine();
-        var source = @"
-let total = 0;
-for (let i = 0; i < 3; i = i + 1) {
-    switch (i) {
-        case 1:
-            total = total + 10;
-            break;
-        default:
-            total = total + 1;
-    }
-}
-total;
-";
+        var source = """
+
+                     let total = 0;
+                     for (let i = 0; i < 3; i = i + 1) {
+                         switch (i) {
+                             case 1:
+                                 total = total + 10;
+                                 break;
+                             default:
+                                 total = total + 1;
+                         }
+                     }
+                     total;
+
+                     """;
 
         var result = await engine.Evaluate(source);
 
@@ -551,13 +593,15 @@ total;
     public async Task EvaluateDoWhileRunsBodyAtLeastOnce()
     {
         var engine = new JsEngine();
-        var source = @"
-let attempts = 0;
-do {
-    attempts = attempts + 1;
-} while (false);
-attempts;
-";
+        var source = """
+
+                     let attempts = 0;
+                     do {
+                         attempts = attempts + 1;
+                     } while (false);
+                     attempts;
+
+                     """;
 
         var result = await engine.Evaluate(source);
         Assert.Equal(1d, result);
@@ -583,11 +627,13 @@ attempts;
     public async Task TernaryOperatorEvaluatesConditionForTruthiness()
     {
         var engine = new JsEngine();
-        var source = @"
-let x = 5;
-let result = x > 3 ? ""big"" : ""small"";
-result;
-";
+        var source = """
+
+                     let x = 5;
+                     let result = x > 3 ? "big" : "small";
+                     result;
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal("big", result);
     }
@@ -596,7 +642,7 @@ result;
     public async Task TernaryOperatorWithZeroAsFalsyCondition()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"0 ? ""yes"" : ""no"";");
+        var result = await engine.Evaluate("""0 ? "yes" : "no";""");
         Assert.Equal("no", result);
     }
 
@@ -612,11 +658,13 @@ result;
     public async Task TernaryOperatorCanBeNested()
     {
         var engine = new JsEngine();
-        var source = @"
-let score = 85;
-let grade = score >= 90 ? ""A"" : score >= 80 ? ""B"" : score >= 70 ? ""C"" : ""D"";
-grade;
-";
+        var source = """
+
+                     let score = 85;
+                     let grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : "D";
+                     grade;
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal("B", result);
     }
@@ -625,15 +673,17 @@ grade;
     public async Task TernaryOperatorOnlyEvaluatesSelectedBranch()
     {
         var engine = new JsEngine();
-        var source = @"
-let sideEffect = 0;
-function increment() {
-    sideEffect = sideEffect + 1;
-    return sideEffect;
-}
-let result = true ? 100 : increment();
-sideEffect;
-";
+        var source = """
+
+                     let sideEffect = 0;
+                     function increment() {
+                         sideEffect = sideEffect + 1;
+                         return sideEffect;
+                     }
+                     let result = true ? 100 : increment();
+                     sideEffect;
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal(0d, result); // increment should not be called
     }
@@ -642,13 +692,15 @@ sideEffect;
     public async Task TernaryOperatorWorksInComplexExpressions()
     {
         var engine = new JsEngine();
-        var source = @"
-let a = 5;
-let b = 10;
-let max = a > b ? a : b;
-let doubled = (max === 10 ? max : 0) * 2;
-doubled;
-";
+        var source = """
+
+                     let a = 5;
+                     let b = 10;
+                     let max = a > b ? a : b;
+                     let doubled = (max === 10 ? max : 0) * 2;
+                     doubled;
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal(20d, result);
     }
@@ -657,12 +709,14 @@ doubled;
     public async Task TernaryOperatorInFunctionReturn()
     {
         var engine = new JsEngine();
-        var source = @"
-function absoluteValue(x) {
-    return x >= 0 ? x : -x;
-}
-absoluteValue(-42);
-";
+        var source = """
+
+                     function absoluteValue(x) {
+                         return x >= 0 ? x : -x;
+                     }
+                     absoluteValue(-42);
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal(42d, result);
     }
@@ -695,11 +749,13 @@ absoluteValue(-42);
     public async Task TemplateLiteralWithStringInterpolation()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let name = ""Alice"";
-let age = 30;
-`Hello, my name is ${name} and I am ${age} years old.`;
-");
+        var result = await engine.Evaluate("""
+
+                                           let name = "Alice";
+                                           let age = 30;
+                                           `Hello, my name is ${name} and I am ${age} years old.`;
+
+                                           """);
         Assert.Equal("Hello, my name is Alice and I am 30 years old.", result);
     }
 
@@ -707,11 +763,13 @@ let age = 30;
     public async Task TemplateLiteralWithComplexExpressions()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-function greet(name) { return ""Hello, "" + name; }
-let user = ""Bob"";
-`${greet(user)}! You have ${3 * 5} messages.`;
-");
+        var result = await engine.Evaluate("""
+
+                                           function greet(name) { return "Hello, " + name; }
+                                           let user = "Bob";
+                                           `${greet(user)}! You have ${3 * 5} messages.`;
+
+                                           """);
         Assert.Equal("Hello, Bob! You have 15 messages.", result);
     }
 
@@ -727,13 +785,15 @@ let user = ""Bob"";
     public async Task GetterInObjectLiteral()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let obj = {
-    _value: 42,
-    get value() { return this._value; }
-};
-obj.value;
-");
+        var result = await engine.Evaluate("""
+
+                                           let obj = {
+                                               _value: 42,
+                                               get value() { return this._value; }
+                                           };
+                                           obj.value;
+
+                                           """);
         Assert.Equal(42d, result);
     }
 
@@ -741,14 +801,16 @@ obj.value;
     public async Task SetterInObjectLiteral()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let obj = {
-    _value: 0,
-    set value(v) { this._value = v * 2; }
-};
-obj.value = 21;
-obj._value;
-");
+        var result = await engine.Evaluate("""
+
+                                           let obj = {
+                                               _value: 0,
+                                               set value(v) { this._value = v * 2; }
+                                           };
+                                           obj.value = 21;
+                                           obj._value;
+
+                                           """);
         Assert.Equal(42d, result);
     }
 
@@ -756,17 +818,19 @@ obj._value;
     public async Task GetterAndSetterTogether()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let obj = {
-    _temp: 0,
-    get celsius() { return this._temp; },
-    set celsius(c) { this._temp = c; },
-    get fahrenheit() { return this._temp * 9 / 5 + 32; },
-    set fahrenheit(f) { this._temp = (f - 32) * 5 / 9; }
-};
-obj.celsius = 100;
-obj.fahrenheit;
-");
+        var result = await engine.Evaluate("""
+
+                                           let obj = {
+                                               _temp: 0,
+                                               get celsius() { return this._temp; },
+                                               set celsius(c) { this._temp = c; },
+                                               get fahrenheit() { return this._temp * 9 / 5 + 32; },
+                                               set fahrenheit(f) { this._temp = (f - 32) * 5 / 9; }
+                                           };
+                                           obj.celsius = 100;
+                                           obj.fahrenheit;
+
+                                           """);
         Assert.Equal(212d, result);
     }
 
@@ -774,19 +838,21 @@ obj.fahrenheit;
     public async Task GetterInClass()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-class Rectangle {
-    constructor(width, height) {
-        this.width = width;
-        this.height = height;
-    }
-    get area() {
-        return this.width * this.height;
-    }
-}
-let rect = new Rectangle(5, 10);
-rect.area;
-");
+        var result = await engine.Evaluate("""
+
+                                           class Rectangle {
+                                               constructor(width, height) {
+                                                   this.width = width;
+                                                   this.height = height;
+                                               }
+                                               get area() {
+                                                   return this.width * this.height;
+                                               }
+                                           }
+                                           let rect = new Rectangle(5, 10);
+                                           rect.area;
+
+                                           """);
         Assert.Equal(50d, result);
     }
 
@@ -794,24 +860,26 @@ rect.area;
     public async Task SetterInClass()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-class Person {
-    constructor(firstName, lastName) {
-        this.firstName = firstName;
-        this.lastName = lastName;
-    }
-    get fullName() {
-        return this.firstName + "" "" + this.lastName;
-    }
-    set fullName(name) {
-        this.firstName = ""Updated"";
-        this.lastName = name;
-    }
-}
-let person = new Person(""John"", ""Doe"");
-person.fullName = ""Smith"";
-person.fullName;
-");
+        var result = await engine.Evaluate("""
+
+                                           class Person {
+                                               constructor(firstName, lastName) {
+                                                   this.firstName = firstName;
+                                                   this.lastName = lastName;
+                                               }
+                                               get fullName() {
+                                                   return this.firstName + " " + this.lastName;
+                                               }
+                                               set fullName(name) {
+                                                   this.firstName = "Updated";
+                                                   this.lastName = name;
+                                               }
+                                           }
+                                           let person = new Person("John", "Doe");
+                                           person.fullName = "Smith";
+                                           person.fullName;
+
+                                           """);
         Assert.Equal("Updated Smith", result);
     }
 
@@ -819,18 +887,20 @@ person.fullName;
     public async Task RestParameterCollectsRemainingArguments()
     {
         var engine = new JsEngine();
-        var source = @"
-function sum(first, ...rest) {
-    let total = first;
-    let i = 0;
-    while (i < rest[""length""]) {
-        total = total + rest[i];
-        i = i + 1;
-    }
-    return total;
-}
-sum(1, 2, 3, 4, 5);
-";
+        var source = """
+
+                     function sum(first, ...rest) {
+                         let total = first;
+                         let i = 0;
+                         while (i < rest["length"]) {
+                             total = total + rest[i];
+                             i = i + 1;
+                         }
+                         return total;
+                     }
+                     sum(1, 2, 3, 4, 5);
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal(15d, result);
     }
@@ -839,12 +909,14 @@ sum(1, 2, 3, 4, 5);
     public async Task RestParameterWithNoExtraArgumentsCreatesEmptyArray()
     {
         var engine = new JsEngine();
-        var source = @"
-function test(a, ...rest) {
-    return rest[""length""];
-}
-test(1);
-";
+        var source = """
+
+                     function test(a, ...rest) {
+                         return rest["length"];
+                     }
+                     test(1);
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal(0d, result);
     }
@@ -853,12 +925,14 @@ test(1);
     public async Task SpreadOperatorInArrayLiteral()
     {
         var engine = new JsEngine();
-        var source = @"
-let arr1 = [1, 2, 3];
-let arr2 = [4, 5, 6];
-let combined = [0, ...arr1, ...arr2, 7];
-combined[0] + combined[1] + combined[2] + combined[3] + combined[4] + combined[5] + combined[6] + combined[7];
-";
+        var source = """
+
+                     let arr1 = [1, 2, 3];
+                     let arr2 = [4, 5, 6];
+                     let combined = [0, ...arr1, ...arr2, 7];
+                     combined[0] + combined[1] + combined[2] + combined[3] + combined[4] + combined[5] + combined[6] + combined[7];
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal(28d, result); // 0+1+2+3+4+5+6+7
     }
@@ -867,13 +941,15 @@ combined[0] + combined[1] + combined[2] + combined[3] + combined[4] + combined[5
     public async Task SpreadOperatorInFunctionCall()
     {
         var engine = new JsEngine();
-        var source = @"
-function add(a, b, c) {
-    return a + b + c;
-}
-let numbers = [10, 20, 30];
-add(...numbers);
-";
+        var source = """
+
+                     function add(a, b, c) {
+                         return a + b + c;
+                     }
+                     let numbers = [10, 20, 30];
+                     add(...numbers);
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal(60d, result);
     }
@@ -882,13 +958,15 @@ add(...numbers);
     public async Task SpreadOperatorWithMixedArguments()
     {
         var engine = new JsEngine();
-        var source = @"
-function greet(greeting, name1, name2) {
-    return greeting + "" "" + name1 + "" and "" + name2;
-}
-let names = [""Alice"", ""Bob""];
-greet(""Hello"", ...names);
-";
+        var source = """
+
+                     function greet(greeting, name1, name2) {
+                         return greeting + " " + name1 + " and " + name2;
+                     }
+                     let names = ["Alice", "Bob"];
+                     greet("Hello", ...names);
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal("Hello Alice and Bob", result);
     }
@@ -897,22 +975,24 @@ greet(""Hello"", ...names);
     public async Task RestParameterWithSpreadInCall()
     {
         var engine = new JsEngine();
-        var source = @"
-function joinAll(...items) {
-    let result = """";
-    let i = 0;
-    while (i < items[""length""]) {
-        if (i > 0) {
-            result = result + "","";
-        }
-        result = result + items[i];
-        i = i + 1;
-    }
-    return result;
-}
-let arr = [""b"", ""c""];
-joinAll(""a"", ...arr, ""d"");
-";
+        var source = """
+
+                     function joinAll(...items) {
+                         let result = "";
+                         let i = 0;
+                         while (i < items["length"]) {
+                             if (i > 0) {
+                                 result = result + ",";
+                             }
+                             result = result + items[i];
+                             i = i + 1;
+                         }
+                         return result;
+                     }
+                     let arr = ["b", "c"];
+                     joinAll("a", ...arr, "d");
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal("a,b,c,d", result);
     }
@@ -921,12 +1001,14 @@ joinAll(""a"", ...arr, ""d"");
     public async Task SpreadInNestedArrays()
     {
         var engine = new JsEngine();
-        var source = @"
-let inner = [2, 3];
-let outer = [1, ...inner, 4];
-let final = [0, ...outer, 5];
-final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
-";
+        var source = """
+
+                     let inner = [2, 3];
+                     let outer = [1, ...inner, 4];
+                     let final = [0, ...outer, 5];
+                     final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
+
+                     """;
         var result = await engine.Evaluate(source);
         Assert.Equal(15d, result); // 0+1+2+3+4+5
     }
@@ -1051,12 +1133,14 @@ final[0] + final[1] + final[2] + final[3] + final[4] + final[5];
         var engine = new JsEngine();
         
         // Calculate hypotenuse: sqrt(3^2 + 4^2) = 5
-        var result = await engine.Evaluate(@"
-let a = 3;
-let b = 4;
-let c = Math.sqrt(Math.pow(a, 2) + Math.pow(b, 2));
-c;
-");
+        var result = await engine.Evaluate("""
+
+                                           let a = 3;
+                                           let b = 4;
+                                           let c = Math.sqrt(Math.pow(a, 2) + Math.pow(b, 2));
+                                           c;
+
+                                           """);
         Assert.Equal(5d, result);
     }
 
@@ -1091,11 +1175,13 @@ c;
     public async Task ArrayMapTransformsElements()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [1, 2, 3, 4];
-let doubled = numbers.map(function(x) { return x * 2; });
-doubled[0] + doubled[1] + doubled[2] + doubled[3];
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3, 4];
+                                           let doubled = numbers.map(function(x) { return x * 2; });
+                                           doubled[0] + doubled[1] + doubled[2] + doubled[3];
+
+                                           """);
         Assert.Equal(20d, result); // 2 + 4 + 6 + 8
     }
 
@@ -1103,11 +1189,13 @@ doubled[0] + doubled[1] + doubled[2] + doubled[3];
     public async Task ArrayFilterSelectsElements()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [1, 2, 3, 4, 5, 6];
-let greaterThanThree = numbers.filter(function(x) { return x > 3; });
-greaterThanThree[""length""];
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3, 4, 5, 6];
+                                           let greaterThanThree = numbers.filter(function(x) { return x > 3; });
+                                           greaterThanThree["length"];
+
+                                           """);
         Assert.Equal(3d, result); // [4, 5, 6]
     }
 
@@ -1115,11 +1203,13 @@ greaterThanThree[""length""];
     public async Task ArrayReduceAccumulatesValues()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [1, 2, 3, 4, 5];
-let sum = numbers.reduce(function(acc, x, i, arr) { return acc + x; }, 0);
-sum;
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3, 4, 5];
+                                           let sum = numbers.reduce(function(acc, x, i, arr) { return acc + x; }, 0);
+                                           sum;
+
+                                           """);
         Assert.Equal(15d, result);
     }
 
@@ -1127,12 +1217,14 @@ sum;
     public async Task ArrayForEachIteratesElements()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [1, 2, 3];
-let sum = 0;
-numbers.forEach(function(x) { sum = sum + x; });
-sum;
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3];
+                                           let sum = 0;
+                                           numbers.forEach(function(x) { sum = sum + x; });
+                                           sum;
+
+                                           """);
         Assert.Equal(6d, result);
     }
 
@@ -1140,11 +1232,13 @@ sum;
     public async Task ArrayFindReturnsFirstMatch()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [1, 2, 3, 4, 5];
-let found = numbers.find(function(x) { return x > 3; });
-found;
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3, 4, 5];
+                                           let found = numbers.find(function(x) { return x > 3; });
+                                           found;
+
+                                           """);
         Assert.Equal(4d, result);
     }
 
@@ -1152,11 +1246,13 @@ found;
     public async Task ArrayFindIndexReturnsIndexOfFirstMatch()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [1, 2, 3, 4, 5];
-let index = numbers.findIndex(function(x) { return x > 3; });
-index;
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3, 4, 5];
+                                           let index = numbers.findIndex(function(x) { return x > 3; });
+                                           index;
+
+                                           """);
         Assert.Equal(3d, result);
     }
 
@@ -1165,16 +1261,20 @@ index;
     {
         var engine = new JsEngine();
         
-        var hasLarge = await engine.Evaluate(@"
-let numbers = [1, 3, 5, 6];
-numbers.some(function(x, i, arr) { return x > 5; });
-");
+        var hasLarge = await engine.Evaluate("""
+
+                                             let numbers = [1, 3, 5, 6];
+                                             numbers.some(function(x, i, arr) { return x > 5; });
+
+                                             """);
         Assert.True((bool)hasLarge!);
 
-        var hasNegative = await engine.Evaluate(@"
-let numbers = [1, 2, 3];
-numbers.some(function(x, i, arr) { return x < 0; });
-");
+        var hasNegative = await engine.Evaluate("""
+
+                                                let numbers = [1, 2, 3];
+                                                numbers.some(function(x, i, arr) { return x < 0; });
+
+                                                """);
         Assert.False((bool)hasNegative!);
     }
 
@@ -1183,16 +1283,20 @@ numbers.some(function(x, i, arr) { return x < 0; });
     {
         var engine = new JsEngine();
         
-        var allPositive = await engine.Evaluate(@"
-let numbers = [1, 2, 3, 4];
-numbers.every(function(x, i, arr) { return x > 0; });
-");
+        var allPositive = await engine.Evaluate("""
+
+                                                let numbers = [1, 2, 3, 4];
+                                                numbers.every(function(x, i, arr) { return x > 0; });
+
+                                                """);
         Assert.True((bool)allPositive!);
 
-        var allLarge = await engine.Evaluate(@"
-let numbers = [2, 3, 4];
-numbers.every(function(x, i, arr) { return x > 3; });
-");
+        var allLarge = await engine.Evaluate("""
+
+                                             let numbers = [2, 3, 4];
+                                             numbers.every(function(x, i, arr) { return x > 3; });
+
+                                             """);
         Assert.False((bool)allLarge!);
     }
 
@@ -1201,16 +1305,20 @@ numbers.every(function(x, i, arr) { return x > 3; });
     {
         var engine = new JsEngine();
         
-        var withComma = await engine.Evaluate(@"
-let items = [""a"", ""b"", ""c""];
-items.join("","");
-");
+        var withComma = await engine.Evaluate("""
+
+                                              let items = ["a", "b", "c"];
+                                              items.join(",");
+
+                                              """);
         Assert.Equal("a,b,c", withComma);
 
-        var withDash = await engine.Evaluate(@"
-let items = [""x"", ""y"", ""z""];
-items.join(""-"");
-");
+        var withDash = await engine.Evaluate("""
+
+                                             let items = ["x", "y", "z"];
+                                             items.join("-");
+
+                                             """);
         Assert.Equal("x-y-z", withDash);
     }
 
@@ -1219,16 +1327,20 @@ items.join(""-"");
     {
         var engine = new JsEngine();
         
-        var hasTwo = await engine.Evaluate(@"
-let numbers = [1, 2, 3];
-numbers.includes(2);
-");
+        var hasTwo = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3];
+                                           numbers.includes(2);
+
+                                           """);
         Assert.True((bool)hasTwo!);
 
-        var hasFive = await engine.Evaluate(@"
-let numbers = [1, 2, 3];
-numbers.includes(5);
-");
+        var hasFive = await engine.Evaluate("""
+
+                                            let numbers = [1, 2, 3];
+                                            numbers.includes(5);
+
+                                            """);
         Assert.False((bool)hasFive!);
     }
 
@@ -1237,16 +1349,20 @@ numbers.includes(5);
     {
         var engine = new JsEngine();
         
-        var index = await engine.Evaluate(@"
-let items = [""a"", ""b"", ""c"", ""b""];
-items.indexOf(""b"");
-");
+        var index = await engine.Evaluate("""
+
+                                          let items = ["a", "b", "c", "b"];
+                                          items.indexOf("b");
+
+                                          """);
         Assert.Equal(1d, index);
 
-        var notFound = await engine.Evaluate(@"
-let items = [""a"", ""b"", ""c""];
-items.indexOf(""d"");
-");
+        var notFound = await engine.Evaluate("""
+
+                                             let items = ["a", "b", "c"];
+                                             items.indexOf("d");
+
+                                             """);
         Assert.Equal(-1d, notFound);
     }
 
@@ -1255,11 +1371,13 @@ items.indexOf(""d"");
     {
         var engine = new JsEngine();
         
-        var result = await engine.Evaluate(@"
-let numbers = [0, 1, 2, 3, 4];
-let slice = numbers.slice(1, 3);
-slice[0] + slice[1];
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [0, 1, 2, 3, 4];
+                                           let slice = numbers.slice(1, 3);
+                                           slice[0] + slice[1];
+
+                                           """);
         Assert.Equal(3d, result); // [1, 2]
     }
 
@@ -1267,14 +1385,16 @@ slice[0] + slice[1];
     public async Task ArrayMethodsCanBeChained()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [1, 2, 3, 4, 5, 6];
-let result = numbers
-    .filter(function(x, i, arr) { return x > 3; })
-    .map(function(x, i, arr) { return x * 2; })
-    .reduce(function(acc, x, i, arr) { return acc + x; }, 0);
-result;
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3, 4, 5, 6];
+                                           let result = numbers
+                                               .filter(function(x, i, arr) { return x > 3; })
+                                               .map(function(x, i, arr) { return x * 2; })
+                                               .reduce(function(acc, x, i, arr) { return acc + x; }, 0);
+                                           result;
+
+                                           """);
         Assert.Equal(30d, result); // filter: [4,5,6], map: [8,10,12], reduce: 30
     }
 
@@ -1282,12 +1402,14 @@ result;
     public async Task ArrayPushAddsElements()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [1, 2, 3];
-numbers.push(4);
-numbers.push(5);
-numbers[""length""];
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3];
+                                           numbers.push(4);
+                                           numbers.push(5);
+                                           numbers["length"];
+
+                                           """);
         Assert.Equal(5d, result);
     }
 
@@ -1295,11 +1417,13 @@ numbers[""length""];
     public async Task ArrayPopRemovesLastElement()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [1, 2, 3, 4];
-let last = numbers.pop();
-last;
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3, 4];
+                                           let last = numbers.pop();
+                                           last;
+
+                                           """);
         Assert.Equal(4d, result);
     }
 
@@ -1307,11 +1431,13 @@ last;
     public async Task ArrayShiftRemovesFirstElement()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [10, 20, 30];
-let first = numbers.shift();
-first;
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [10, 20, 30];
+                                           let first = numbers.shift();
+                                           first;
+
+                                           """);
         Assert.Equal(10d, result);
     }
 
@@ -1319,11 +1445,13 @@ first;
     public async Task ArrayUnshiftAddsToBeginning()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [3, 4];
-numbers.unshift(1, 2);
-numbers[0];
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [3, 4];
+                                           numbers.unshift(1, 2);
+                                           numbers[0];
+
+                                           """);
         Assert.Equal(1d, result);
     }
 
@@ -1331,11 +1459,13 @@ numbers[0];
     public async Task ArraySpliceRemovesAndInserts()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [1, 2, 3, 4, 5];
-let removed = numbers.splice(2, 2, 99);
-numbers[2];
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3, 4, 5];
+                                           let removed = numbers.splice(2, 2, 99);
+                                           numbers[2];
+
+                                           """);
         Assert.Equal(99d, result);
     }
 
@@ -1343,12 +1473,14 @@ numbers[2];
     public async Task ArrayConcatCombinesArrays()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let arr1 = [1, 2];
-let arr2 = [3, 4];
-let combined = arr1.concat(arr2);
-combined[3];
-");
+        var result = await engine.Evaluate("""
+
+                                           let arr1 = [1, 2];
+                                           let arr2 = [3, 4];
+                                           let combined = arr1.concat(arr2);
+                                           combined[3];
+
+                                           """);
         Assert.Equal(4d, result);
     }
 
@@ -1356,11 +1488,13 @@ combined[3];
     public async Task ArrayReverseReversesInPlace()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [1, 2, 3, 4];
-numbers.reverse();
-numbers[0];
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [1, 2, 3, 4];
+                                           numbers.reverse();
+                                           numbers[0];
+
+                                           """);
         Assert.Equal(4d, result);
     }
 
@@ -1368,11 +1502,13 @@ numbers[0];
     public async Task ArraySortSortsElements()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let numbers = [3, 1, 4, 1, 5, 9, 2, 6];
-numbers.sort(function(a, b) { return a - b; });
-numbers[0];
-");
+        var result = await engine.Evaluate("""
+
+                                           let numbers = [3, 1, 4, 1, 5, 9, 2, 6];
+                                           numbers.sort(function(a, b) { return a - b; });
+                                           numbers[0];
+
+                                           """);
         Assert.Equal(1d, result);
     }
 
@@ -1389,10 +1525,12 @@ numbers[0];
     public async Task DateConstructorCreatesInstance()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let d = new Date(2024, 0, 15);
-d.getFullYear();
-");
+        var result = await engine.Evaluate("""
+
+                                           let d = new Date(2024, 0, 15);
+                                           d.getFullYear();
+
+                                           """);
         Assert.Equal(2024d, result);
     }
 
@@ -1400,10 +1538,12 @@ d.getFullYear();
     public async Task DateGetMonthReturnsZeroIndexed()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let d = new Date(2024, 5, 15);
-d.getMonth();
-");
+        var result = await engine.Evaluate("""
+
+                                           let d = new Date(2024, 5, 15);
+                                           d.getMonth();
+
+                                           """);
         Assert.Equal(5d, result);
     }
 
@@ -1411,10 +1551,12 @@ d.getMonth();
     public async Task DateToISOStringReturnsFormattedString()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let d = new Date(2024, 0, 1);
-d.toISOString();
-");
+        var result = await engine.Evaluate("""
+
+                                           let d = new Date(2024, 0, 1);
+                                           d.toISOString();
+
+                                           """);
         Assert.IsType<string>(result);
         Assert.Contains("2024", (string)result);
     }
@@ -1423,11 +1565,13 @@ d.toISOString();
     public async Task JsonParseHandlesObject()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let jsonStr = `{""name"":""Alice"",""age"":30}`;
-let obj = JSON.parse(jsonStr);
-obj.name;
-");
+        var result = await engine.Evaluate("""
+
+                                           let jsonStr = `{"name":"Alice","age":30}`;
+                                           let obj = JSON.parse(jsonStr);
+                                           obj.name;
+
+                                           """);
         Assert.Equal("Alice", result);
     }
 
@@ -1435,11 +1579,13 @@ obj.name;
     public async Task JsonParseHandlesArray()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let jsonStr = `[1,2,3,4]`;
-let arr = JSON.parse(jsonStr);
-arr[2];
-");
+        var result = await engine.Evaluate("""
+
+                                           let jsonStr = `[1,2,3,4]`;
+                                           let arr = JSON.parse(jsonStr);
+                                           arr[2];
+
+                                           """);
         Assert.Equal(3d, result);
     }
 
@@ -1447,10 +1593,12 @@ arr[2];
     public async Task JsonStringifyHandlesObject()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let obj = { name: ""Bob"", age: 25 };
-JSON.stringify(obj);
-");
+        var result = await engine.Evaluate("""
+
+                                           let obj = { name: "Bob", age: 25 };
+                                           JSON.stringify(obj);
+
+                                           """);
         Assert.IsType<string>(result);
         Assert.Contains("Bob", (string)result);
     }
@@ -1459,10 +1607,12 @@ JSON.stringify(obj);
     public async Task JsonStringifyHandlesArray()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-let arr = [1, 2, 3];
-JSON.stringify(arr);
-");
+        var result = await engine.Evaluate("""
+
+                                           let arr = [1, 2, 3];
+                                           JSON.stringify(arr);
+
+                                           """);
         Assert.Equal("[1,2,3]", result);
     }
 }

@@ -10,53 +10,55 @@ var engine = new JsEngine();
 // - classes
 // - arrow functions
 // - try/catch
-var jsCode = @"
-// Class with constructor and methods
-class Calculator {
-    constructor(name) {
-        this.name = name;
-        this.history = [];
-    }
-    
-    add(a, b) {
-        let result = a + b;
-        this.history.push(result);
-        return result;
-    }
-}
+var jsCode = """
 
-// Generator function
-function* fibonacci(n) {
-    let a = 0;
-    let b = 1;
-    let count = 0;
-    while (count < n) {
-        yield a;
-        let temp = a;
-        a = b;
-        b = temp + b;
-        count = count + 1;
-    }
-}
+             // Class with constructor and methods
+             class Calculator {
+                 constructor(name) {
+                     this.name = name;
+                     this.history = [];
+                 }
+                 
+                 add(a, b) {
+                     let result = a + b;
+                     this.history.push(result);
+                     return result;
+                 }
+             }
 
-// Async function with await
-async function fetchData(value) {
-    try {
-        let result = await Promise.resolve(value * 2);
-        let doubled = await Promise.resolve(result + 10);
-        return doubled;
-    } catch (error) {
-        return 0;
-    }
-}
+             // Generator function
+             function* fibonacci(n) {
+                 let a = 0;
+                 let b = 1;
+                 let count = 0;
+                 while (count < n) {
+                     yield a;
+                     let temp = a;
+                     a = b;
+                     b = temp + b;
+                     count = count + 1;
+                 }
+             }
 
-// Arrow function
-let square = function(x) { return x * x; };
+             // Async function with await
+             async function fetchData(value) {
+                 try {
+                     let result = await Promise.resolve(value * 2);
+                     let doubled = await Promise.resolve(result + 10);
+                     return doubled;
+                 } catch (error) {
+                     return 0;
+                 }
+             }
 
-// Main computation
-let calc = new Calculator(""MyCalc"");
-let sum = calc.add(5, 10);
-";
+             // Arrow function
+             let square = function(x) { return x * x; };
+
+             // Main computation
+             let calc = new Calculator("MyCalc");
+             let sum = calc.add(5, 10);
+
+             """;
 
 Console.WriteLine("=== Original S-Expression (Before CPS Transformation) ===\n");
 

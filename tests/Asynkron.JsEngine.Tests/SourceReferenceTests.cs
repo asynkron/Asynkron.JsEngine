@@ -10,10 +10,12 @@ public class SourceReferenceTests
     [Fact]
     public async Task SourceReference_ForLoop_CapturesSourceRange()
     {
-        var source = @"
-for (var x = 0; x < 10; x++) {
-    console.log(x);
-}";
+        var source = """
+
+                     for (var x = 0; x < 10; x++) {
+                         console.log(x);
+                     }
+                     """;
 
         var engine = new JsEngine();
         var parsed = engine.ParseWithoutTransformation(source);
@@ -34,9 +36,11 @@ for (var x = 0; x < 10; x++) {
     [Fact]
     public async Task SourceReference_MultipleStatements_EachHasOwnReference()
     {
-        var source = @"
-for (var i = 0; i < 5; i++) { }
-for (var j = 0; j < 3; j++) { }";
+        var source = """
+
+                     for (var i = 0; i < 5; i++) { }
+                     for (var j = 0; j < 3; j++) { }
+                     """;
 
         var engine = new JsEngine();
         var parsed = engine.ParseWithoutTransformation(source);
@@ -85,10 +89,12 @@ for (var j = 0; j < 3; j++) { }";
     [Fact]
     public async Task SourceReference_LineAndColumn_TrackCorrectly()
     {
-        var source = @"let x = 1;
-for (let i = 0; i < 5; i++) {
-    x++;
-}";
+        var source = """
+                     let x = 1;
+                     for (let i = 0; i < 5; i++) {
+                         x++;
+                     }
+                     """;
 
         var engine = new JsEngine();
         var parsed = engine.ParseWithoutTransformation(source);

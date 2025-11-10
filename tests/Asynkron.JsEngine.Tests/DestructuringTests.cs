@@ -180,10 +180,12 @@ public class DestructuringTests
     public async Task ComplexMixedDestructuring()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            let {x, y: [a, b], z: {m, n}} = {x: 1, y: [2, 3], z: {m: 4, n: 5}};
-            x + a + b + m + n;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let {x, y: [a, b], z: {m, n}} = {x: 1, y: [2, 3], z: {m: 4, n: 5}};
+                                                       x + a + b + m + n;
+                                                   
+                                           """);
         Assert.Equal(15d, result);
     }
 
@@ -266,13 +268,15 @@ public class DestructuringTests
     public async Task FunctionReturnDestructuring()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function getCoords() {
-                return [10, 20];
-            }
-            let [x, y] = getCoords();
-            x + y;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function getCoords() {
+                                                           return [10, 20];
+                                                       }
+                                                       let [x, y] = getCoords();
+                                                       x + y;
+                                                   
+                                           """);
         Assert.Equal(30d, result);
     }
 
@@ -280,13 +284,15 @@ public class DestructuringTests
     public async Task ObjectReturnDestructuring()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function getUser() {
-                return {name: ""Alice"", age: 30};
-            }
-            let {age} = getUser();
-            age;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function getUser() {
+                                                           return {name: "Alice", age: 30};
+                                                       }
+                                                       let {age} = getUser();
+                                                       age;
+                                                   
+                                           """);
         Assert.Equal(30d, result);
     }
 
@@ -294,11 +300,13 @@ public class DestructuringTests
     public async Task ArrayDestructuringInExpression()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            let arr = [1, 2, 3];
-            let [first, second] = arr;
-            first + second;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let arr = [1, 2, 3];
+                                                       let [first, second] = arr;
+                                                       first + second;
+                                                   
+                                           """);
         Assert.Equal(3d, result);
     }
 
@@ -307,11 +315,13 @@ public class DestructuringTests
     public async Task MultipleArrayDestructuringStatements()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            let [a, b] = [1, 2];
-            let [c, d] = [3, 4];
-            a + b + c + d;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let [a, b] = [1, 2];
+                                                       let [c, d] = [3, 4];
+                                                       a + b + c + d;
+                                                   
+                                           """);
         Assert.Equal(10d, result);
     }
 
@@ -319,11 +329,13 @@ public class DestructuringTests
     public async Task MultipleObjectDestructuringStatements()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            let {x} = {x: 1};
-            let {y} = {y: 2};
-            x + y;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let {x} = {x: 1};
+                                                       let {y} = {y: 2};
+                                                       x + y;
+                                                   
+                                           """);
         Assert.Equal(3d, result);
     }
 
@@ -331,10 +343,12 @@ public class DestructuringTests
     public async Task ArrayDestructuringWithExpressions()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            let [a, b] = [1 + 1, 2 + 2];
-            a + b;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let [a, b] = [1 + 1, 2 + 2];
+                                                       a + b;
+                                                   
+                                           """);
         Assert.Equal(6d, result);
     }
 
@@ -342,10 +356,12 @@ public class DestructuringTests
     public async Task ObjectDestructuringWithExpressionDefaults()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            let {x = 5 + 5, y = 10 + 10} = {};
-            x + y;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let {x = 5 + 5, y = 10 + 10} = {};
+                                                       x + y;
+                                                   
+                                           """);
         Assert.Equal(30d, result);
     }
 
@@ -353,11 +369,13 @@ public class DestructuringTests
     public async Task ArrayDestructuringWithComputedValues()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function getArray() { return [10, 20, 30]; }
-            let [x, y, z] = getArray();
-            x + y + z;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function getArray() { return [10, 20, 30]; }
+                                                       let [x, y, z] = getArray();
+                                                       x + y + z;
+                                                   
+                                           """);
         Assert.Equal(60d, result);
     }
 
@@ -365,10 +383,12 @@ public class DestructuringTests
     public async Task RestElementCapturesEmpty()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            let [a, b, ...rest] = [1, 2];
-            rest.length;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let [a, b, ...rest] = [1, 2];
+                                                       rest.length;
+                                                   
+                                           """);
         Assert.Equal(0d, result);
     }
 
@@ -377,12 +397,14 @@ public class DestructuringTests
     public async Task FunctionParameterArrayDestructuring()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function test([x, y]) {
-                return x + y;
-            }
-            test([1, 2]);
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function test([x, y]) {
+                                                           return x + y;
+                                                       }
+                                                       test([1, 2]);
+                                                   
+                                           """);
         Assert.Equal(3d, result);
     }
 
@@ -390,12 +412,14 @@ public class DestructuringTests
     public async Task FunctionParameterObjectDestructuring()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function test({x, y}) {
-                return x + y;
-            }
-            test({x: 1, y: 2});
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function test({x, y}) {
+                                                           return x + y;
+                                                       }
+                                                       test({x: 1, y: 2});
+                                                   
+                                           """);
         Assert.Equal(3d, result);
     }
 
@@ -403,12 +427,14 @@ public class DestructuringTests
     public async Task FunctionParameterArrayDestructuringWithDefaults()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function test([x = 10, y = 20]) {
-                return x + y;
-            }
-            test([5]);
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function test([x = 10, y = 20]) {
+                                                           return x + y;
+                                                       }
+                                                       test([5]);
+                                                   
+                                           """);
         Assert.Equal(25d, result);
     }
 
@@ -416,12 +442,14 @@ public class DestructuringTests
     public async Task FunctionParameterObjectDestructuringWithDefaults()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function test({x = 10, y = 20}) {
-                return x + y;
-            }
-            test({x: 5});
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function test({x = 10, y = 20}) {
+                                                           return x + y;
+                                                       }
+                                                       test({x: 5});
+                                                   
+                                           """);
         Assert.Equal(25d, result);
     }
 
@@ -429,12 +457,14 @@ public class DestructuringTests
     public async Task FunctionParameterNestedDestructuring()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function test({a, b: [c, d]}) {
-                return a + c + d;
-            }
-            test({a: 1, b: [2, 3]});
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function test({a, b: [c, d]}) {
+                                                           return a + c + d;
+                                                       }
+                                                       test({a: 1, b: [2, 3]});
+                                                   
+                                           """);
         Assert.Equal(6d, result);
     }
 
@@ -442,12 +472,14 @@ public class DestructuringTests
     public async Task FunctionParameterArrayRest()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function test([a, ...rest]) {
-                return a + rest.length;
-            }
-            test([1, 2, 3, 4]);
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function test([a, ...rest]) {
+                                                           return a + rest.length;
+                                                       }
+                                                       test([1, 2, 3, 4]);
+                                                   
+                                           """);
         Assert.Equal(4d, result);
     }
 
@@ -455,12 +487,14 @@ public class DestructuringTests
     public async Task FunctionParameterObjectRest()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function test({x, ...rest}) {
-                return x + rest.y + rest.z;
-            }
-            test({x: 1, y: 2, z: 3});
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function test({x, ...rest}) {
+                                                           return x + rest.y + rest.z;
+                                                       }
+                                                       test({x: 1, y: 2, z: 3});
+                                                   
+                                           """);
         Assert.Equal(6d, result);
     }
 
@@ -468,12 +502,14 @@ public class DestructuringTests
     public async Task FunctionParameterMixedDestructuringAndRegular()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function test(a, [b, c], {d}) {
-                return a + b + c + d;
-            }
-            test(1, [2, 3], {d: 4});
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function test(a, [b, c], {d}) {
+                                                           return a + b + c + d;
+                                                       }
+                                                       test(1, [2, 3], {d: 4});
+                                                   
+                                           """);
         Assert.Equal(10d, result);
     }
 
@@ -482,12 +518,14 @@ public class DestructuringTests
     public async Task AssignmentArrayDestructuring()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            var a = 0;
-            var b = 0;
-            [a, b] = [10, 20];
-            a + b;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       var a = 0;
+                                                       var b = 0;
+                                                       [a, b] = [10, 20];
+                                                       a + b;
+                                                   
+                                           """);
         Assert.Equal(30d, result);
     }
 
@@ -495,12 +533,14 @@ public class DestructuringTests
     public async Task VariableSwapping()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            var x = 1;
-            var y = 2;
-            [x, y] = [y, x];
-            x * 10 + y;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       var x = 1;
+                                                       var y = 2;
+                                                       [x, y] = [y, x];
+                                                       x * 10 + y;
+                                                   
+                                           """);
         Assert.Equal(21d, result);
     }
 
@@ -508,13 +548,15 @@ public class DestructuringTests
     public async Task AssignmentNestedDestructuring()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            var a = 0;
-            var b = 0;
-            var c = 0;
-            [a, [b, c]] = [1, [2, 3]];
-            a + b + c;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       var a = 0;
+                                                       var b = 0;
+                                                       var c = 0;
+                                                       [a, [b, c]] = [1, [2, 3]];
+                                                       a + b + c;
+                                                   
+                                           """);
         Assert.Equal(6d, result);
     }
 
@@ -522,12 +564,14 @@ public class DestructuringTests
     public async Task AssignmentWithRest()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            var a = 0;
-            var rest = [];
-            [a, ...rest] = [1, 2, 3, 4];
-            a + rest.length;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       var a = 0;
+                                                       var rest = [];
+                                                       [a, ...rest] = [1, 2, 3, 4];
+                                                       a + rest.length;
+                                                   
+                                           """);
         Assert.Equal(4d, result);
     }
 }

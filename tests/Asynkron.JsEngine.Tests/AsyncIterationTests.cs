@@ -18,23 +18,25 @@ public class AsyncIterationTests
         // Test that regular for-of with await in body works
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let result = """";
-            let promises = [
-                Promise.resolve(""a""),
-                Promise.resolve(""b""),
-                Promise.resolve(""c"")
-            ];
-            
-            async function test() {
-                for (let promise of promises) {
-                    let item = await promise;
-                    result = result + item;
-                }
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     let promises = [
+                                         Promise.resolve("a"),
+                                         Promise.resolve("b"),
+                                         Promise.resolve("c")
+                                     ];
+                                     
+                                     async function test() {
+                                         for (let promise of promises) {
+                                             let item = await promise;
+                                             result = result + item;
+                                         }
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
@@ -45,18 +47,20 @@ public class AsyncIterationTests
     {
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let result = """";
-            let arr = [""a"", ""b"", ""c""];
-            
-            async function test() {
-                for await (let item of arr) {
-                    result = result + item;
-                }
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     let arr = ["a", "b", "c"];
+                                     
+                                     async function test() {
+                                         for await (let item of arr) {
+                                             result = result + item;
+                                         }
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
@@ -74,31 +78,33 @@ public class AsyncIterationTests
             return null;
         });
         
-        await engine.Run(@"
-            let sum = 0;
-            
-            function* generator() {
-                log(""Generator: yielding 1"");
-                yield 1;
-                log(""Generator: yielding 2"");
-                yield 2;
-                log(""Generator: yielding 3"");
-                yield 3;
-                log(""Generator: done"");
-            }
-            
-            async function test() {
-                log(""Starting loop"");
-                for await (let num of generator()) {
-                    log(""Got num: "" + num);
-                    sum = sum + num;
-                    log(""Sum after add: "" + sum);
-                }
-                log(""After loop, sum: "" + sum);
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let sum = 0;
+                                     
+                                     function* generator() {
+                                         log("Generator: yielding 1");
+                                         yield 1;
+                                         log("Generator: yielding 2");
+                                         yield 2;
+                                         log("Generator: yielding 3");
+                                         yield 3;
+                                         log("Generator: done");
+                                     }
+                                     
+                                     async function test() {
+                                         log("Starting loop");
+                                         for await (let num of generator()) {
+                                             log("Got num: " + num);
+                                             sum = sum + num;
+                                             log("Sum after add: " + sum);
+                                         }
+                                         log("After loop, sum: " + sum);
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("sum;");
         _output.WriteLine($"Final sum: '{result}'");
@@ -110,17 +116,19 @@ public class AsyncIterationTests
     {
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let result = """";
-            
-            async function test() {
-                for await (let char of ""hello"") {
-                    result = result + char;
-                }
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     
+                                     async function test() {
+                                         for await (let char of "hello") {
+                                             result = result + char;
+                                         }
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         Assert.Equal("hello", result);
@@ -138,29 +146,31 @@ public class AsyncIterationTests
             return null;
         });
         
-        await engine.Run(@"
-            let count = 0;
-            let arr = [1, 2, 3, 4, 5];
-            
-            async function test() {
-                log(""Starting loop"");
-                for await (let item of arr) {
-                    log(""Item: "" + item);
-                    log(""Count before increment: "" + count);
-                    count = count + 1;
-                    log(""Count after increment: "" + count);
-                    log(""About to check if item === 3, item is: "" + item);
-                    if (item === 3) {
-                        log(""Breaking at item 3"");
-                        break;
-                    }
-                    log(""Continuing to next item"");
-                }
-                log(""After loop, count: "" + count);
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let count = 0;
+                                     let arr = [1, 2, 3, 4, 5];
+                                     
+                                     async function test() {
+                                         log("Starting loop");
+                                         for await (let item of arr) {
+                                             log("Item: " + item);
+                                             log("Count before increment: " + count);
+                                             count = count + 1;
+                                             log("Count after increment: " + count);
+                                             log("About to check if item === 3, item is: " + item);
+                                             if (item === 3) {
+                                                 log("Breaking at item 3");
+                                                 break;
+                                             }
+                                             log("Continuing to next item");
+                                         }
+                                         log("After loop, count: " + count);
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("count;");
         _output.WriteLine($"Final count: '{result}'");
@@ -179,27 +189,29 @@ public class AsyncIterationTests
             return null;
         });
         
-        await engine.Run(@"
-            let sum = 0;
-            let arr = [1, 2, 3, 4, 5];
-            
-            async function test() {
-                log(""Starting loop"");
-                for await (let item of arr) {
-                    log(""Item: "" + item);
-                    if (item === 3) {
-                        log(""Skipping item 3"");
-                        continue;
-                    }
-                    log(""Adding item: "" + item);
-                    sum = sum + item;
-                    log(""Sum after add: "" + sum);
-                }
-                log(""After loop, sum: "" + sum);
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let sum = 0;
+                                     let arr = [1, 2, 3, 4, 5];
+                                     
+                                     async function test() {
+                                         log("Starting loop");
+                                         for await (let item of arr) {
+                                             log("Item: " + item);
+                                             if (item === 3) {
+                                                 log("Skipping item 3");
+                                                 continue;
+                                             }
+                                             log("Adding item: " + item);
+                                             sum = sum + item;
+                                             log("Sum after add: " + sum);
+                                         }
+                                         log("After loop, sum: " + sum);
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("sum;");
         _output.WriteLine($"Final sum: '{result}'");
@@ -214,13 +226,15 @@ public class AsyncIterationTests
         // for await...of must be used inside an async function
         // This should work in our current implementation even outside async
         // but in strict JavaScript it would require async context
-        var result = await engine.Evaluate(@"
-            let result = """";
-            for await (let item of [""x"", ""y""]) {
-                result = result + item;
-            }
-            result;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let result = "";
+                                                       for await (let item of ["x", "y"]) {
+                                                           result = result + item;
+                                                       }
+                                                       result;
+                                                   
+                                           """);
         
         Assert.Equal("xy", result);
     }
@@ -230,9 +244,11 @@ public class AsyncIterationTests
     {
         var engine = new JsEngine();
         
-        var result = await engine.Run(@"
-            typeof Symbol.asyncIterator;
-        ");
+        var result = await engine.Run("""
+
+                                                  typeof Symbol.asyncIterator;
+                                              
+                                      """);
         
         Assert.Equal("symbol", result);
     }
@@ -245,27 +261,29 @@ public class AsyncIterationTests
         // Currently, promises in arrays are treated as objects, not awaited.
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let result = """";
-            
-            // For-await-of can iterate arrays, but won't automatically await promise values
-            // This works if we await them manually in the loop body
-            let promises = [
-                Promise.resolve(""a""),
-                Promise.resolve(""b""),
-                Promise.resolve(""c"")
-            ];
-            
-            async function test() {
-                for await (let promise of promises) {
-                    // Need to manually await the promise
-                    let item = await promise;
-                    result = result + item;
-                }
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     
+                                     // For-await-of can iterate arrays, but won't automatically await promise values
+                                     // This works if we await them manually in the loop body
+                                     let promises = [
+                                         Promise.resolve("a"),
+                                         Promise.resolve("b"),
+                                         Promise.resolve("c")
+                                     ];
+                                     
+                                     async function test() {
+                                         for await (let promise of promises) {
+                                             // Need to manually await the promise
+                                             let item = await promise;
+                                             result = result + item;
+                                         }
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
@@ -276,34 +294,36 @@ public class AsyncIterationTests
     {
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let result = """";
-            
-            // Custom object with async iterator
-            let asyncIterable = {
-                [Symbol.asyncIterator]() {
-                    let count = 0;
-                    return {
-                        next() {
-                            count = count + 1;
-                            if (count <= 3) {
-                                return Promise.resolve({ value: count, done: false });
-                            } else {
-                                return Promise.resolve({ done: true });
-                            }
-                        }
-                    };
-                }
-            };
-            
-            async function test() {
-                for await (let num of asyncIterable) {
-                    result = result + num;
-                }
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     
+                                     // Custom object with async iterator
+                                     let asyncIterable = {
+                                         [Symbol.asyncIterator]() {
+                                             let count = 0;
+                                             return {
+                                                 next() {
+                                                     count = count + 1;
+                                                     if (count <= 3) {
+                                                         return Promise.resolve({ value: count, done: false });
+                                                     } else {
+                                                         return Promise.resolve({ done: true });
+                                                     }
+                                                 }
+                                             };
+                                         }
+                                     };
+                                     
+                                     async function test() {
+                                         for await (let num of asyncIterable) {
+                                             result = result + num;
+                                         }
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         Assert.Equal("123", result);
@@ -315,34 +335,36 @@ public class AsyncIterationTests
         // This test shows that Symbol.asyncIterator works when it returns synchronous values
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let result = """";
-            
-            // Custom object with async iterator that returns sync values
-            let asyncIterable = {
-                [Symbol.asyncIterator]() {
-                    let count = 0;
-                    return {
-                        next() {
-                            count = count + 1;
-                            if (count <= 3) {
-                                return { value: count, done: false };
-                            } else {
-                                return { done: true };
-                            }
-                        }
-                    };
-                }
-            };
-            
-            async function test() {
-                for await (let num of asyncIterable) {
-                    result = result + num;
-                }
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     
+                                     // Custom object with async iterator that returns sync values
+                                     let asyncIterable = {
+                                         [Symbol.asyncIterator]() {
+                                             let count = 0;
+                                             return {
+                                                 next() {
+                                                     count = count + 1;
+                                                     if (count <= 3) {
+                                                         return { value: count, done: false };
+                                                     } else {
+                                                         return { done: true };
+                                                     }
+                                                 }
+                                             };
+                                         }
+                                     };
+                                     
+                                     async function test() {
+                                         for await (let num of asyncIterable) {
+                                             result = result + num;
+                                         }
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         Assert.Equal("123", result);
@@ -368,47 +390,49 @@ public class AsyncIterationTests
             return null;
         });
         
-        await engine.Run(@"
-            let asyncIterable = {
-                [Symbol.asyncIterator]() {
-                    let count = 0;
-                    return {
-                        next() {
-                            count = count + 1;
-                            log(""Iterator next() called, count: "" + count);
-                            if (count === 2) {
-                                log(""Rejecting at count 2"");
-                                return Promise.reject(""test error"");
-                            }
-                            if (count <= 3) {
-                                log(""Resolving with value: "" + count);
-                                return Promise.resolve({ value: count, done: false });
-                            }
-                            log(""Done iterating"");
-                            return Promise.resolve({ done: true });
-                        }
-                    };
-                }
-            };
-            
-            async function test() {
-                log(""Starting test function"");
-                try {
-                    log(""Starting for-await-of loop"");
-                    for await (let num of asyncIterable) {
-                        log(""Got num in loop: "" + num);
-                        // Should throw on second iteration
-                    }
-                    log(""Loop completed without error"");
-                } catch (e) {
-                    log(""Caught error: "" + e);
-                    markError();
-                }
-                log(""Test function complete"");
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let asyncIterable = {
+                                         [Symbol.asyncIterator]() {
+                                             let count = 0;
+                                             return {
+                                                 next() {
+                                                     count = count + 1;
+                                                     log("Iterator next() called, count: " + count);
+                                                     if (count === 2) {
+                                                         log("Rejecting at count 2");
+                                                         return Promise.reject("test error");
+                                                     }
+                                                     if (count <= 3) {
+                                                         log("Resolving with value: " + count);
+                                                         return Promise.resolve({ value: count, done: false });
+                                                     }
+                                                     log("Done iterating");
+                                                     return Promise.resolve({ done: true });
+                                                 }
+                                             };
+                                         }
+                                     };
+                                     
+                                     async function test() {
+                                         log("Starting test function");
+                                         try {
+                                             log("Starting for-await-of loop");
+                                             for await (let num of asyncIterable) {
+                                                 log("Got num in loop: " + num);
+                                                 // Should throw on second iteration
+                                             }
+                                             log("Loop completed without error");
+                                         } catch (e) {
+                                             log("Caught error: " + e);
+                                             markError();
+                                         }
+                                         log("Test function complete");
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         _output.WriteLine($"Error caught: {errorCaught}");
         Assert.True(errorCaught);
@@ -435,47 +459,49 @@ public class AsyncIterationTests
             return null;
         });
         
-        await engine.Run(@"
-            let syncIterable = {
-                [Symbol.iterator]() {
-                    let count = 0;
-                    return {
-                        next() {
-                            count = count + 1;
-                            log(""Iterator next() called, count: "" + count);
-                            if (count === 2) {
-                                log(""Throwing at count 2"");
-                                throw ""test error"";
-                            }
-                            if (count <= 3) {
-                                log(""Returning value: "" + count);
-                                return { value: count, done: false };
-                            }
-                            log(""Done iterating"");
-                            return { done: true };
-                        }
-                    };
-                }
-            };
-            
-            async function test() {
-                log(""Starting test function"");
-                try {
-                    log(""Starting for-await-of loop"");
-                    for await (let num of syncIterable) {
-                        log(""Got num in loop: "" + num);
-                        // Should throw on second iteration
-                    }
-                    log(""Loop completed without error"");
-                } catch (e) {
-                    log(""Caught error: "" + e);
-                    markError();
-                }
-                log(""Test function complete"");
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let syncIterable = {
+                                         [Symbol.iterator]() {
+                                             let count = 0;
+                                             return {
+                                                 next() {
+                                                     count = count + 1;
+                                                     log("Iterator next() called, count: " + count);
+                                                     if (count === 2) {
+                                                         log("Throwing at count 2");
+                                                         throw "test error";
+                                                     }
+                                                     if (count <= 3) {
+                                                         log("Returning value: " + count);
+                                                         return { value: count, done: false };
+                                                     }
+                                                     log("Done iterating");
+                                                     return { done: true };
+                                                 }
+                                             };
+                                         }
+                                     };
+                                     
+                                     async function test() {
+                                         log("Starting test function");
+                                         try {
+                                             log("Starting for-await-of loop");
+                                             for await (let num of syncIterable) {
+                                                 log("Got num in loop: " + num);
+                                                 // Should throw on second iteration
+                                             }
+                                             log("Loop completed without error");
+                                         } catch (e) {
+                                             log("Caught error: " + e);
+                                             markError();
+                                         }
+                                         log("Test function complete");
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         _output.WriteLine($"Error caught: {errorCaught}");
         Assert.True(errorCaught);
@@ -493,43 +519,45 @@ public class AsyncIterationTests
             return null;
         });
         
-        await engine.Run(@"
-            let result = """";
-            
-            // Object with only sync iterator (Symbol.iterator)
-            let syncIterable = {
-                [Symbol.iterator]() {
-                    log(""Symbol.iterator called"");
-                    let values = [""x"", ""y"", ""z""];
-                    let index = 0;
-                    return {
-                        next() {
-                            log(""next() called, index: "" + index);
-                            if (index < values.length) {
-                                let value = values[index++];
-                                log(""Returning value: "" + value);
-                                return { value: value, done: false };
-                            }
-                            log(""Done iterating"");
-                            return { done: true };
-                        }
-                    };
-                }
-            };
-            
-            async function test() {
-                log(""Starting test function"");
-                log(""Starting for-await-of loop"");
-                for await (let item of syncIterable) {
-                    log(""Got item: "" + item);
-                    result = result + item;
-                    log(""Result so far: "" + result);
-                }
-                log(""After loop, result: "" + result);
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     
+                                     // Object with only sync iterator (Symbol.iterator)
+                                     let syncIterable = {
+                                         [Symbol.iterator]() {
+                                             log("Symbol.iterator called");
+                                             let values = ["x", "y", "z"];
+                                             let index = 0;
+                                             return {
+                                                 next() {
+                                                     log("next() called, index: " + index);
+                                                     if (index < values.length) {
+                                                         let value = values[index++];
+                                                         log("Returning value: " + value);
+                                                         return { value: value, done: false };
+                                                     }
+                                                     log("Done iterating");
+                                                     return { done: true };
+                                                 }
+                                             };
+                                         }
+                                     };
+                                     
+                                     async function test() {
+                                         log("Starting test function");
+                                         log("Starting for-await-of loop");
+                                         for await (let item of syncIterable) {
+                                             log("Got item: " + item);
+                                             result = result + item;
+                                             log("Result so far: " + result);
+                                         }
+                                         log("After loop, result: " + result);
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         _output.WriteLine($"Final result: '{result}'");
@@ -542,31 +570,33 @@ public class AsyncIterationTests
         var engine = new JsEngine();
         
         // Test without async function to isolate the issue
-        var result = await engine.Evaluate(@"
-            let result = """";
-            
-            // Object with only sync iterator (Symbol.iterator)
-            let syncIterable = {
-                [Symbol.iterator]() {
-                    let values = [""x"", ""y"", ""z""];
-                    let index = 0;
-                    return {
-                        next() {
-                            if (index < values.length) {
-                                return { value: values[index++], done: false };
-                            }
-                            return { done: true };
-                        }
-                    };
-                }
-            };
-            
-            for await (let item of syncIterable) {
-                result = result + item;
-            }
-            
-            result;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let result = "";
+                                                       
+                                                       // Object with only sync iterator (Symbol.iterator)
+                                                       let syncIterable = {
+                                                           [Symbol.iterator]() {
+                                                               let values = ["x", "y", "z"];
+                                                               let index = 0;
+                                                               return {
+                                                                   next() {
+                                                                       if (index < values.length) {
+                                                                           return { value: values[index++], done: false };
+                                                                       }
+                                                                       return { done: true };
+                                                                   }
+                                                               };
+                                                           }
+                                                       };
+                                                       
+                                                       for await (let item of syncIterable) {
+                                                           result = result + item;
+                                                       }
+                                                       
+                                                       result;
+                                                   
+                                           """);
         
         Assert.Equal("xyz", result);
     }
@@ -577,26 +607,28 @@ public class AsyncIterationTests
         // Test that regular for-of with await in body works, using __debug() to inspect state
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let result = """";
-            let promises = [
-                Promise.resolve(""a""),
-                Promise.resolve(""b""),
-                Promise.resolve(""c"")
-            ];
-            
-            async function test() {
-                for (let promise of promises) {
-                    __debug(); // Before await
-                    let item = await promise;
-                    __debug(); // After await
-                    result = result + item;
-                }
-                __debug(); // After loop
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     let promises = [
+                                         Promise.resolve("a"),
+                                         Promise.resolve("b"),
+                                         Promise.resolve("c")
+                                     ];
+                                     
+                                     async function test() {
+                                         for (let promise of promises) {
+                                             __debug(); // Before await
+                                             let item = await promise;
+                                             __debug(); // After await
+                                             result = result + item;
+                                         }
+                                         __debug(); // After loop
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
@@ -636,20 +668,22 @@ public class AsyncIterationTests
         // Test for-await-of with __debug() to inspect state during iteration
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let result = """";
-            let arr = [""x"", ""y"", ""z""];
-            
-            async function test() {
-                for await (let item of arr) {
-                    __debug();
-                    result = result + item;
-                }
-                __debug();
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     let arr = ["x", "y", "z"];
+                                     
+                                     async function test() {
+                                         for await (let item of arr) {
+                                             __debug();
+                                             result = result + item;
+                                         }
+                                         __debug();
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         Assert.Equal("xyz", result);

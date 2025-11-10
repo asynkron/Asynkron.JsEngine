@@ -10,11 +10,13 @@ public class DebugTests
     {
         var engine = new JsEngine();
         
-        var source = @"
-            let x = 42;
-            let y = 'hello';
-            __debug();
-        ";
+        var source = """
+
+                                 let x = 42;
+                                 let y = 'hello';
+                                 __debug();
+                             
+                     """;
         
         // Execute and get debug message
         object? temp = await engine.Evaluate(source);
@@ -33,13 +35,15 @@ public class DebugTests
     {
         var engine = new JsEngine();
         
-        var source = @"
-            for (var i = 0; i < 10; i++) {
-                if (i === 5) {
-                    __debug();
-                }
-            }
-        ";
+        var source = """
+
+                                 for (var i = 0; i < 10; i++) {
+                                     if (i === 5) {
+                                         __debug();
+                                     }
+                                 }
+                             
+                     """;
         
         object? temp = await engine.Evaluate(source);
         
@@ -55,11 +59,13 @@ public class DebugTests
     {
         var engine = new JsEngine();
         
-        var source = @"
-            for (var i = 0; i < 3; i++) {
-                __debug();
-            }
-        ";
+        var source = """
+
+                                 for (var i = 0; i < 3; i++) {
+                                     __debug();
+                                 }
+                             
+                     """;
         
         object? temp = await engine.Evaluate(source);
         
@@ -79,16 +85,18 @@ public class DebugTests
     {
         var engine = new JsEngine();
         
-        var source = @"
-            let globalVar = 'global';
-            
-            function testFunc(param) {
-                let localVar = 'local';
-                __debug();
-            }
-            
-            testFunc(123);
-        ";
+        var source = """
+
+                                 let globalVar = 'global';
+                                 
+                                 function testFunc(param) {
+                                     let localVar = 'local';
+                                     __debug();
+                                 }
+                                 
+                                 testFunc(123);
+                             
+                     """;
         
         object? temp = await engine.Evaluate(source);
         
@@ -110,22 +118,24 @@ public class DebugTests
     {
         var engine = new JsEngine();
         
-        var source = @"
-            let outer = 'outer';
-            
-            function outerFunc() {
-                let middle = 'middle';
-                
-                function innerFunc() {
-                    let inner = 'inner';
-                    __debug();
-                }
-                
-                innerFunc();
-            }
-            
-            outerFunc();
-        ";
+        var source = """
+
+                                 let outer = 'outer';
+                                 
+                                 function outerFunc() {
+                                     let middle = 'middle';
+                                     
+                                     function innerFunc() {
+                                         let inner = 'inner';
+                                         __debug();
+                                     }
+                                     
+                                     innerFunc();
+                                 }
+                                 
+                                 outerFunc();
+                             
+                     """;
         
         object? temp = await engine.Evaluate(source);
         
@@ -145,16 +155,18 @@ public class DebugTests
     {
         var engine = new JsEngine();
         
-        var source = @"
-            function outer() {
-                function inner() {
-                    __debug();
-                }
-                inner();
-            }
-            
-            outer();
-        ";
+        var source = """
+
+                                 function outer() {
+                                     function inner() {
+                                         __debug();
+                                     }
+                                     inner();
+                                 }
+                                 
+                                 outer();
+                             
+                     """;
         
         object? temp = await engine.Evaluate(source);
         
@@ -176,11 +188,13 @@ public class DebugTests
     {
         var engine = new JsEngine();
         
-        var source = @"
-            for (var i = 0; i < 1; i++) {
-                __debug();
-            }
-        ";
+        var source = """
+
+                                 for (var i = 0; i < 1; i++) {
+                                     __debug();
+                                 }
+                             
+                     """;
         
         object? temp = await engine.Evaluate(source);
         
@@ -199,21 +213,23 @@ public class DebugTests
     {
         var engine = new JsEngine();
         
-        var source = @"
-            function level1() {
-                level2();
-            }
-            
-            function level2() {
-                level3();
-            }
-            
-            function level3() {
-                __debug();
-            }
-            
-            level1();
-        ";
+        var source = """
+
+                                 function level1() {
+                                     level2();
+                                 }
+                                 
+                                 function level2() {
+                                     level3();
+                                 }
+                                 
+                                 function level3() {
+                                     __debug();
+                                 }
+                                 
+                                 level1();
+                             
+                     """;
         
         object? temp = await engine.Evaluate(source);
         
@@ -240,10 +256,12 @@ public class DebugTests
     {
         var engine = new JsEngine();
         
-        var source = @"
-            let x = 42;
-            __debug();
-        ";
+        var source = """
+
+                                 let x = 42;
+                                 __debug();
+                             
+                     """;
         
         object? temp = await engine.Evaluate(source);
         
@@ -258,13 +276,15 @@ public class DebugTests
     {
         var engine = new JsEngine();
         
-        var source = @"
-            for (var i = 0; i < 2; i++) {
-                for (var j = 0; j < 2; j++) {
-                    __debug();
-                }
-            }
-        ";
+        var source = """
+
+                                 for (var i = 0; i < 2; i++) {
+                                     for (var j = 0; j < 2; j++) {
+                                         __debug();
+                                     }
+                                 }
+                             
+                     """;
         
         object? temp = await engine.Evaluate(source);
         

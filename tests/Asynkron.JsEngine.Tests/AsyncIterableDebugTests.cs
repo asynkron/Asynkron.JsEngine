@@ -30,30 +30,32 @@ public class AsyncIterableDebugTests
             return null;
         });
         
-        await engine.Run(@"
-            let result = """";
-            
-            log(""Before async function"");
-            
-            async function test() {
-                log(""Inside test function"");
-                log(""About to start for-await-of"");
-                
-                for await (let char of ""hello"") {
-                    log(""In loop, char: "" + char);
-                    __debug();
-                    result = result + char;
-                    log(""After append, result: "" + result);
-                }
-                
-                log(""After loop, final result: "" + result);
-                __debug();
-            }
-            
-            log(""About to call test()"");
-            test();
-            log(""After test() call"");
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     
+                                     log("Before async function");
+                                     
+                                     async function test() {
+                                         log("Inside test function");
+                                         log("About to start for-await-of");
+                                         
+                                         for await (let char of "hello") {
+                                             log("In loop, char: " + char);
+                                             __debug();
+                                             result = result + char;
+                                             log("After append, result: " + result);
+                                         }
+                                         
+                                         log("After loop, final result: " + result);
+                                         __debug();
+                                     }
+                                     
+                                     log("About to call test()");
+                                     test();
+                                     log("After test() call");
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         _output.WriteLine($"Final result: '{result}'");
@@ -78,14 +80,16 @@ public class AsyncIterableDebugTests
     public async Task ForAwaitOf_WithString_ShowTransformation()
     {
         // Show the transformation of the for-await-of with string
-        var source = @"
-            async function test() {
-                let result = """";
-                for await (let char of ""hello"") {
-                    result = result + char;
-                }
-            }
-        ";
+        var source = """
+
+                                 async function test() {
+                                     let result = "";
+                                     for await (let char of "hello") {
+                                         result = result + char;
+                                     }
+                                 }
+                             
+                     """;
 
         var engine = new JsEngine();
         
@@ -114,29 +118,31 @@ public class AsyncIterableDebugTests
             return null;
         });
         
-        await engine.Run(@"
-            let result = """";
-            let arr = [""h"", ""e"", ""l"", ""l"", ""o""];
-            
-            log(""Before async function"");
-            
-            async function test() {
-                log(""Inside test function"");
-                log(""About to start for-await-of"");
-                
-                for await (let char of arr) {
-                    log(""In loop, char: "" + char);
-                    result = result + char;
-                    log(""After append, result: "" + result);
-                }
-                
-                log(""After loop, final result: "" + result);
-            }
-            
-            log(""About to call test()"");
-            test();
-            log(""After test() call"");
-        ");
+        await engine.Run("""
+
+                                     let result = "";
+                                     let arr = ["h", "e", "l", "l", "o"];
+                                     
+                                     log("Before async function");
+                                     
+                                     async function test() {
+                                         log("Inside test function");
+                                         log("About to start for-await-of");
+                                         
+                                         for await (let char of arr) {
+                                             log("In loop, char: " + char);
+                                             result = result + char;
+                                             log("After append, result: " + result);
+                                         }
+                                         
+                                         log("After loop, final result: " + result);
+                                     }
+                                     
+                                     log("About to call test()");
+                                     test();
+                                     log("After test() call");
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         _output.WriteLine($"Final result: '{result}'");
@@ -156,16 +162,18 @@ public class AsyncIterableDebugTests
             return null;
         });
         
-        var result = await engine.Evaluate(@"
-            let result = """";
-            log(""Before for-await"");
-            for await (let char of ""hello"") {
-                log(""In loop, char: "" + char);
-                result = result + char;
-            }
-            log(""After for-await"");
-            result;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let result = "";
+                                                       log("Before for-await");
+                                                       for await (let char of "hello") {
+                                                           log("In loop, char: " + char);
+                                                           result = result + char;
+                                                       }
+                                                       log("After for-await");
+                                                       result;
+                                                   
+                                           """);
         
         _output.WriteLine($"Final result: '{result}'");
         Assert.Equal("hello", result);
@@ -177,11 +185,13 @@ public class AsyncIterableDebugTests
         // Test that strings have an iterator in the first place
         var engine = new JsEngine();
         
-        var result = await engine.Run(@"
-            let str = ""hello"";
-            let hasIterator = typeof str[Symbol.iterator] === ""function"";
-            hasIterator;
-        ");
+        var result = await engine.Run("""
+
+                                                  let str = "hello";
+                                                  let hasIterator = typeof str[Symbol.iterator] === "function";
+                                                  hasIterator;
+                                              
+                                      """);
         
         _output.WriteLine($"String has iterator: {result}");
         Assert.Equal(true, result);
@@ -193,17 +203,19 @@ public class AsyncIterableDebugTests
         // Test manual iteration over a string
         var engine = new JsEngine();
         
-        await engine.Run(@"
-            let str = ""hello"";
-            let result = """";
-            let iterator = str[Symbol.iterator]();
-            
-            let iterResult = iterator.next();
-            while (!iterResult.done) {
-                result = result + iterResult.value;
-                iterResult = iterator.next();
-            }
-        ");
+        await engine.Run("""
+
+                                     let str = "hello";
+                                     let result = "";
+                                     let iterator = str[Symbol.iterator]();
+                                     
+                                     let iterResult = iterator.next();
+                                     while (!iterResult.done) {
+                                         result = result + iterResult.value;
+                                         iterResult = iterator.next();
+                                     }
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         _output.WriteLine($"Result: '{result}'");
@@ -251,36 +263,38 @@ public class AsyncIterableDebugTests
             return null;
         });
         
-        await engine.Run(@"
-            let str = ""hello"";
-            let result = """";
-            
-            async function test() {
-                log(""Getting iterator"");
-                let iterator = str[Symbol.asyncIterator] || str[Symbol.iterator]();
-                log(""Got iterator: "" + (typeof iterator));
-                
-                if (typeof iterator === ""function"") {
-                    log(""iterator is a function, calling it"");
-                    iterator = iterator();
-                }
-                
-                log(""Calling next()"");
-                let iterResult = await iterator.next();
-                log(""First next result: "" + JSON.stringify(iterResult));
-                
-                while (!iterResult.done) {
-                    log(""Value: "" + iterResult.value);
-                    result = result + iterResult.value;
-                    iterResult = await iterator.next();
-                    log(""Next result: "" + JSON.stringify(iterResult));
-                }
-                
-                log(""Done iterating"");
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let str = "hello";
+                                     let result = "";
+                                     
+                                     async function test() {
+                                         log("Getting iterator");
+                                         let iterator = str[Symbol.asyncIterator] || str[Symbol.iterator]();
+                                         log("Got iterator: " + (typeof iterator));
+                                         
+                                         if (typeof iterator === "function") {
+                                             log("iterator is a function, calling it");
+                                             iterator = iterator();
+                                         }
+                                         
+                                         log("Calling next()");
+                                         let iterResult = await iterator.next();
+                                         log("First next result: " + JSON.stringify(iterResult));
+                                         
+                                         while (!iterResult.done) {
+                                             log("Value: " + iterResult.value);
+                                             result = result + iterResult.value;
+                                             iterResult = await iterator.next();
+                                             log("Next result: " + JSON.stringify(iterResult));
+                                         }
+                                         
+                                         log("Done iterating");
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("result;");
         _output.WriteLine($"Result: '{result}'");
@@ -300,29 +314,31 @@ public class AsyncIterableDebugTests
             return null;
         });
         
-        await engine.Run(@"
-            let count = 0;
-            let arr = [1, 2, 3, 4, 5];
-            
-            async function test() {
-                log(""Starting loop"");
-                for await (let item of arr) {
-                    log(""Item: "" + item);
-                    log(""Count before increment: "" + count);
-                    count = count + 1;
-                    log(""Count after increment: "" + count);
-                    log(""About to check if item === 3, item is: "" + item);
-                    if (item === 3) {
-                        log(""Breaking at item 3"");
-                        break;
-                    }
-                    log(""Continuing to next item"");
-                }
-                log(""After loop, count: "" + count);
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let count = 0;
+                                     let arr = [1, 2, 3, 4, 5];
+                                     
+                                     async function test() {
+                                         log("Starting loop");
+                                         for await (let item of arr) {
+                                             log("Item: " + item);
+                                             log("Count before increment: " + count);
+                                             count = count + 1;
+                                             log("Count after increment: " + count);
+                                             log("About to check if item === 3, item is: " + item);
+                                             if (item === 3) {
+                                                 log("Breaking at item 3");
+                                                 break;
+                                             }
+                                             log("Continuing to next item");
+                                         }
+                                         log("After loop, count: " + count);
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("count;");
         _output.WriteLine($"Final count: '{result}'");
@@ -333,18 +349,20 @@ public class AsyncIterableDebugTests
     public async Task ForAwaitOf_WithBreak_ShowTransformation()
     {
         // Show the transformation of for-await-of with break
-        var source = @"
-            async function test() {
-                let count = 0;
-                let arr = [1, 2, 3];
-                for await (let item of arr) {
-                    count = count + 1;
-                    if (item === 3) {
-                        break;
-                    }
-                }
-            }
-        ";
+        var source = """
+
+                                 async function test() {
+                                     let count = 0;
+                                     let arr = [1, 2, 3];
+                                     for await (let item of arr) {
+                                         count = count + 1;
+                                         if (item === 3) {
+                                             break;
+                                         }
+                                     }
+                                 }
+                             
+                     """;
 
         var engine = new JsEngine();
         
@@ -373,27 +391,29 @@ public class AsyncIterableDebugTests
             return null;
         });
         
-        await engine.Run(@"
-            let sum = 0;
-            let arr = [1, 2, 3, 4, 5];
-            
-            async function test() {
-                log(""Starting loop"");
-                for await (let item of arr) {
-                    log(""Item: "" + item);
-                    if (item === 3) {
-                        log(""Skipping item 3"");
-                        continue;
-                    }
-                    log(""Adding item: "" + item);
-                    sum = sum + item;
-                    log(""Sum after add: "" + sum);
-                }
-                log(""After loop, sum: "" + sum);
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let sum = 0;
+                                     let arr = [1, 2, 3, 4, 5];
+                                     
+                                     async function test() {
+                                         log("Starting loop");
+                                         for await (let item of arr) {
+                                             log("Item: " + item);
+                                             if (item === 3) {
+                                                 log("Skipping item 3");
+                                                 continue;
+                                             }
+                                             log("Adding item: " + item);
+                                             sum = sum + item;
+                                             log("Sum after add: " + sum);
+                                         }
+                                         log("After loop, sum: " + sum);
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("sum;");
         _output.WriteLine($"Final sum: '{result}'");
@@ -413,31 +433,33 @@ public class AsyncIterableDebugTests
             return null;
         });
         
-        await engine.Run(@"
-            let sum = 0;
-            
-            function* generator() {
-                log(""Generator: yielding 1"");
-                yield 1;
-                log(""Generator: yielding 2"");
-                yield 2;
-                log(""Generator: yielding 3"");
-                yield 3;
-                log(""Generator: done"");
-            }
-            
-            async function test() {
-                log(""Starting loop"");
-                for await (let num of generator()) {
-                    log(""Got num: "" + num);
-                    sum = sum + num;
-                    log(""Sum after add: "" + sum);
-                }
-                log(""After loop, sum: "" + sum);
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let sum = 0;
+                                     
+                                     function* generator() {
+                                         log("Generator: yielding 1");
+                                         yield 1;
+                                         log("Generator: yielding 2");
+                                         yield 2;
+                                         log("Generator: yielding 3");
+                                         yield 3;
+                                         log("Generator: done");
+                                     }
+                                     
+                                     async function test() {
+                                         log("Starting loop");
+                                         for await (let num of generator()) {
+                                             log("Got num: " + num);
+                                             sum = sum + num;
+                                             log("Sum after add: " + sum);
+                                         }
+                                         log("After loop, sum: " + sum);
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("sum;");
         _output.WriteLine($"Final sum: '{result}'");
@@ -457,22 +479,24 @@ public class AsyncIterableDebugTests
             return null;
         });
         
-        await engine.Run(@"
-            let count = 0;
-            let arr = [""a"", ""b"", ""c""];
-            
-            async function test() {
-                log(""Starting loop"");
-                for await (let item of arr) {
-                    log(""Item: "" + item);
-                    count = count + 1;
-                    log(""Count: "" + count);
-                }
-                log(""After loop, count: "" + count);
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let count = 0;
+                                     let arr = ["a", "b", "c"];
+                                     
+                                     async function test() {
+                                         log("Starting loop");
+                                         for await (let item of arr) {
+                                             log("Item: " + item);
+                                             count = count + 1;
+                                             log("Count: " + count);
+                                         }
+                                         log("After loop, count: " + count);
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("count;");
         _output.WriteLine($"Final count: '{result}'");
@@ -492,25 +516,27 @@ public class AsyncIterableDebugTests
             return null;
         });
         
-        await engine.Run(@"
-            let count = 0;
-            let arr = [1, 2, 3, 4, 5];
-            
-            async function test() {
-                log(""Starting loop"");
-                for await (let item of arr) {
-                    log(""Item: "" + item);
-                    if (item === 3) {
-                        log(""Found item 3"");
-                    }
-                    count = count + 1;
-                    log(""Count: "" + count);
-                }
-                log(""After loop, count: "" + count);
-            }
-            
-            test();
-        ");
+        await engine.Run("""
+
+                                     let count = 0;
+                                     let arr = [1, 2, 3, 4, 5];
+                                     
+                                     async function test() {
+                                         log("Starting loop");
+                                         for await (let item of arr) {
+                                             log("Item: " + item);
+                                             if (item === 3) {
+                                                 log("Found item 3");
+                                             }
+                                             count = count + 1;
+                                             log("Count: " + count);
+                                         }
+                                         log("After loop, count: " + count);
+                                     }
+                                     
+                                     test();
+                                 
+                         """);
         
         var result = await engine.Evaluate("count;");
         _output.WriteLine($"Final count: '{result}'");
@@ -521,18 +547,20 @@ public class AsyncIterableDebugTests
     public async Task ForAwaitOf_WithIfNoBreak_ShowTransformation()
     {
         // Show the transformation for if without break
-        var source = @"
-            async function test() {
-                let count = 0;
-                let arr = [1, 2, 3];
-                for await (let item of arr) {
-                    if (item === 2) {
-                        log(""item is 2"");
-                    }
-                    count = count + 1;
-                }
-            }
-        ";
+        var source = """
+
+                                 async function test() {
+                                     let count = 0;
+                                     let arr = [1, 2, 3];
+                                     for await (let item of arr) {
+                                         if (item === 2) {
+                                             log("item is 2");
+                                         }
+                                         count = count + 1;
+                                     }
+                                 }
+                             
+                     """;
 
         var engine = new JsEngine();
         var transformedSexpr = engine.Parse(source);

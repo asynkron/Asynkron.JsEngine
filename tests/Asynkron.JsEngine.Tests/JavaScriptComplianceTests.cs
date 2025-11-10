@@ -185,11 +185,13 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Arrays can have holes
-        var result = await engine.Evaluate(@"
-            let arr = [1, 2, 3];
-            arr[10] = 11;
-            arr.length;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let arr = [1, 2, 3];
+                                                       arr[10] = 11;
+                                                       arr.length;
+                                                   
+                                           """);
         Assert.Equal(11d, result);
     }
 
@@ -199,19 +201,23 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Negative indices don't work like Python
-        var result = await engine.Evaluate(@"
-            let arr = [1, 2, 3];
-            arr[-1] = 99;
-            arr[-1];
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let arr = [1, 2, 3];
+                                                       arr[-1] = 99;
+                                                       arr[-1];
+                                                   
+                                           """);
         Assert.Equal(99d, result);
         
         // But length is not affected
-        var result2 = await engine.Evaluate(@"
-            let arr = [1, 2, 3];
-            arr[-1] = 99;
-            arr.length;
-        ");
+        var result2 = await engine.Evaluate("""
+
+                                                        let arr = [1, 2, 3];
+                                                        arr[-1] = 99;
+                                                        arr.length;
+                                                    
+                                            """);
         Assert.Equal(3d, result2);
     }
 
@@ -221,11 +227,13 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Length changes when elements are added
-        var result = await engine.Evaluate(@"
-            let arr = [1, 2, 3];
-            arr[5] = 6;
-            arr.length;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let arr = [1, 2, 3];
+                                                       arr[5] = 6;
+                                                       arr.length;
+                                                   
+                                           """);
         Assert.Equal(6d, result);
     }
 
@@ -239,13 +247,15 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // let has block scope
-        var result = await engine.Evaluate(@"
-            let x = 1;
-            if (true) {
-                let x = 2;
-            }
-            x;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let x = 1;
+                                                       if (true) {
+                                                           let x = 2;
+                                                       }
+                                                       x;
+                                                   
+                                           """);
         Assert.Equal(1d, result);
     }
 
@@ -255,13 +265,15 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // var has function scope (or global if not in function)
-        var result = await engine.Evaluate(@"
-            var x = 1;
-            if (true) {
-                var x = 2;
-            }
-            x;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       var x = 1;
+                                                       if (true) {
+                                                           var x = 2;
+                                                       }
+                                                       x;
+                                                   
+                                           """);
         Assert.Equal(2d, result);
     }
 
@@ -271,13 +283,15 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Classic closure problem with var in loop
-        var result = await engine.Evaluate(@"
-            let funcs = [];
-            for (var i = 0; i < 3; i = i + 1) {
-                funcs[i] = function() { return i; };
-            }
-            funcs[0]() + funcs[1]() + funcs[2]();
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let funcs = [];
+                                                       for (var i = 0; i < 3; i = i + 1) {
+                                                           funcs[i] = function() { return i; };
+                                                       }
+                                                       funcs[0]() + funcs[1]() + funcs[2]();
+                                                   
+                                           """);
         // All functions capture the same 'i' which ends at 3
         Assert.Equal(9d, result); // 3 + 3 + 3
     }
@@ -288,15 +302,17 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Nested let declarations shadow outer ones
-        var result = await engine.Evaluate(@"
-            let x = 1;
-            let y = 2;
-            if (true) {
-                let y = 3;
-                x = x + y;
-            }
-            x + y;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let x = 1;
+                                                       let y = 2;
+                                                       if (true) {
+                                                           let y = 3;
+                                                           x = x + y;
+                                                       }
+                                                       x + y;
+                                                   
+                                           """);
         // x becomes 1+3=4, y is still 2, result is 4+2=6
         Assert.Equal(6d, result);
     }
@@ -311,14 +327,16 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // 'this' works when method is called normally
-        var result = await engine.Evaluate(@"
-            let obj = {
-                value: 42,
-                getValue: function() { return this.value; }
-            };
-            
-            obj.getValue();
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let obj = {
+                                                           value: 42,
+                                                           getValue: function() { return this.value; }
+                                                       };
+                                                       
+                                                       obj.getValue();
+                                                   
+                                           """);
         Assert.Equal(42d, result);
     }
 
@@ -328,18 +346,20 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Arrow functions capture 'this' from surrounding scope
-        var result = await engine.Evaluate(@"
-            let obj = {
-                value: 42,
-                getArrow: function() {
-                    let that = this;
-                    let arrow = function() { return that.value; };
-                    return arrow();
-                }
-            };
-            
-            obj.getArrow();
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let obj = {
+                                                           value: 42,
+                                                           getArrow: function() {
+                                                               let that = this;
+                                                               let arrow = function() { return that.value; };
+                                                               return arrow();
+                                                           }
+                                                       };
+                                                       
+                                                       obj.getArrow();
+                                                   
+                                           """);
         Assert.Equal(42d, result);
     }
 
@@ -506,11 +526,13 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Numeric keys are converted to strings
-        var result = await engine.Evaluate(@"
-            let obj = {};
-            obj[1] = ""one"";
-            obj[""1""];
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let obj = {};
+                                                       obj[1] = "one";
+                                                       obj["1"];
+                                                   
+                                           """);
         Assert.Equal("one", result);
     }
 
@@ -520,11 +542,13 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Can access properties with special names
-        var result = await engine.Evaluate(@"
-            let obj = {};
-            obj[""my-property""] = 42;
-            obj[""my-property""];
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let obj = {};
+                                                       obj["my-property"] = 42;
+                                                       obj["my-property"];
+                                                   
+                                           """);
         Assert.Equal(42d, result);
     }
 
@@ -534,12 +558,14 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Can add properties dynamically
-        var result = await engine.Evaluate(@"
-            let obj = { a: 1 };
-            obj.b = 2;
-            obj.c = 3;
-            obj.a + obj.b + obj.c;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let obj = { a: 1 };
+                                                       obj.b = 2;
+                                                       obj.c = 3;
+                                                       obj.a + obj.b + obj.c;
+                                                   
+                                           """);
         Assert.Equal(6d, result);
     }
 
@@ -553,22 +579,24 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Switch falls through without break
-        var result = await engine.Evaluate(@"
-            let x = 1;
-            let result = 0;
-            switch (x) {
-                case 1:
-                    result = result + 1;
-                case 2:
-                    result = result + 2;
-                case 3:
-                    result = result + 3;
-                    break;
-                default:
-                    result = result + 100;
-            }
-            result;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let x = 1;
+                                                       let result = 0;
+                                                       switch (x) {
+                                                           case 1:
+                                                               result = result + 1;
+                                                           case 2:
+                                                               result = result + 2;
+                                                           case 3:
+                                                               result = result + 3;
+                                                               break;
+                                                           default:
+                                                               result = result + 100;
+                                                       }
+                                                       result;
+                                                   
+                                           """);
         Assert.Equal(6d, result); // 1 + 2 + 3
     }
 
@@ -578,24 +606,28 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Empty for loop with break
-        var result1 = await engine.Evaluate(@"
-            let i = 0;
-            for (;;) {
-                i = i + 1;
-                if (i >= 3) break;
-            }
-            i;
-        ");
+        var result1 = await engine.Evaluate("""
+
+                                                        let i = 0;
+                                                        for (;;) {
+                                                            i = i + 1;
+                                                            if (i >= 3) break;
+                                                        }
+                                                        i;
+                                                    
+                                            """);
         Assert.Equal(3d, result1);
         
         // For loop with complex condition
-        var result2 = await engine.Evaluate(@"
-            let sum = 0;
-            for (let i = 0; i < 5; i = i + 1) {
-                sum = sum + i;
-            }
-            sum;
-        ");
+        var result2 = await engine.Evaluate("""
+
+                                                        let sum = 0;
+                                                        for (let i = 0; i < 5; i = i + 1) {
+                                                            sum = sum + i;
+                                                        }
+                                                        sum;
+                                                    
+                                            """);
         // 0 + 1 + 2 + 3 + 4 = 10
         Assert.Equal(10d, result2);
     }
@@ -610,20 +642,22 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Deeply nested object access
-        var result = await engine.Evaluate(@"
-            let obj = {
-                a: {
-                    b: {
-                        c: {
-                            d: {
-                                e: 42
-                            }
-                        }
-                    }
-                }
-            };
-            obj.a.b.c.d.e;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let obj = {
+                                                           a: {
+                                                               b: {
+                                                                   c: {
+                                                                       d: {
+                                                                           e: 42
+                                                                       }
+                                                                   }
+                                                               }
+                                                           }
+                                                       };
+                                                       obj.a.b.c.d.e;
+                                                   
+                                           """);
         Assert.Equal(42d, result);
     }
 
@@ -633,16 +667,18 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Deeply nested function calls
-        var result = await engine.Evaluate(@"
-            function add(x) {
-                return function(y) {
-                    return function(z) {
-                        return x + y + z;
-                    };
-                };
-            }
-            add(1)(2)(3);
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function add(x) {
+                                                           return function(y) {
+                                                               return function(z) {
+                                                                   return x + y + z;
+                                                               };
+                                                           };
+                                                       }
+                                                       add(1)(2)(3);
+                                                   
+                                           """);
         Assert.Equal(6d, result);
     }
 
@@ -656,15 +692,17 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Second operand should not be evaluated if first is falsy
-        var result = await engine.Evaluate(@"
-            let x = 0;
-            function increment() {
-                x = x + 1;
-                return true;
-            }
-            false && increment();
-            x;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let x = 0;
+                                                       function increment() {
+                                                           x = x + 1;
+                                                           return true;
+                                                       }
+                                                       false && increment();
+                                                       x;
+                                                   
+                                           """);
         Assert.Equal(0d, result); // increment was not called
     }
 
@@ -674,15 +712,17 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Second operand should not be evaluated if first is truthy
-        var result = await engine.Evaluate(@"
-            let x = 0;
-            function increment() {
-                x = x + 1;
-                return true;
-            }
-            true || increment();
-            x;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let x = 0;
+                                                       function increment() {
+                                                           x = x + 1;
+                                                           return true;
+                                                       }
+                                                       true || increment();
+                                                       x;
+                                                   
+                                           """);
         Assert.Equal(0d, result); // increment was not called
     }
 
@@ -692,20 +732,22 @@ public class JavaScriptComplianceTests
         var engine = new JsEngine();
         
         // Only one branch should be evaluated
-        var result = await engine.Evaluate(@"
-            let x = 0;
-            let y = 0;
-            function incrementX() {
-                x = x + 1;
-                return x;
-            }
-            function incrementY() {
-                y = y + 1;
-                return y;
-            }
-            true ? incrementX() : incrementY();
-            x + y * 10;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let x = 0;
+                                                       let y = 0;
+                                                       function incrementX() {
+                                                           x = x + 1;
+                                                           return x;
+                                                       }
+                                                       function incrementY() {
+                                                           y = y + 1;
+                                                           return y;
+                                                       }
+                                                       true ? incrementX() : incrementY();
+                                                       x + y * 10;
+                                                   
+                                           """);
         Assert.Equal(1d, result); // x=1, y=0, result is 1 + 0*10 = 1
     }
 }

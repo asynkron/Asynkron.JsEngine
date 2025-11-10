@@ -16,9 +16,11 @@ public class TimerTests
             return null;
         });
 
-        await engine.Run(@"
-            setTimeout(callback, 10);
-        ");
+        await engine.Run("""
+
+                                     setTimeout(callback, 10);
+                                 
+                         """);
 
         Assert.True(executed, "setTimeout callback should have been executed");
     }
@@ -28,10 +30,12 @@ public class TimerTests
     {
         var engine = new JsEngine();
         
-        var result = await engine.Run(@"
-            let timerId = setTimeout(function() {}, 100);
-            timerId;
-        ");
+        var result = await engine.Run("""
+
+                                                  let timerId = setTimeout(function() {}, 100);
+                                                  timerId;
+                                              
+                                      """);
 
         Assert.IsType<double>(result);
         Assert.True((double)result! >= 1);
@@ -49,10 +53,12 @@ public class TimerTests
             return null;
         });
 
-        await engine.Run(@"
-            let timerId = setTimeout(callback, 10);
-            clearTimeout(timerId);
-        ");
+        await engine.Run("""
+
+                                     let timerId = setTimeout(callback, 10);
+                                     clearTimeout(timerId);
+                                 
+                         """);
 
         // Wait a bit to ensure callback would have executed if not cleared
         await Task.Delay(50);
@@ -74,13 +80,15 @@ public class TimerTests
 
         engine.SetGlobalFunction("getCount", args => count);
 
-        var result = await engine.Run(@"
-            let timerId = setInterval(callback, 20);
-            setTimeout(function() {
-                clearInterval(timerId);
-            }, 100);
-            getCount();
-        ");
+        var result = await engine.Run("""
+
+                                                  let timerId = setInterval(callback, 20);
+                                                  setTimeout(function() {
+                                                      clearInterval(timerId);
+                                                  }, 100);
+                                                  getCount();
+                                              
+                                      """);
 
         // Should have executed multiple times
         Assert.True(count >= 2, $"setInterval should have executed at least 2 times, but executed {count} times");
@@ -98,10 +106,12 @@ public class TimerTests
             return null;
         });
 
-        await engine.Run(@"
-            let timerId = setInterval(callback, 10);
-            clearInterval(timerId);
-        ");
+        await engine.Run("""
+
+                                     let timerId = setInterval(callback, 10);
+                                     clearInterval(timerId);
+                                 
+                         """);
 
         // Wait a bit
         await Task.Delay(50);
@@ -124,13 +134,15 @@ public class TimerTests
             return null;
         });
 
-        await engine.Run(@"
-            addToOrder(""start"");
-            setTimeout(function() {
-                addToOrder(""timeout"");
-            }, 0);
-            addToOrder(""end"");
-        ");
+        await engine.Run("""
+
+                                     addToOrder("start");
+                                     setTimeout(function() {
+                                         addToOrder("timeout");
+                                     }, 0);
+                                     addToOrder("end");
+                                 
+                         """);
 
         Assert.Equal(new[] { "start", "end", "timeout" }, order);
     }
@@ -150,12 +162,14 @@ public class TimerTests
             return null;
         });
 
-        await engine.Run(@"
-            let message = ""Hello from closure"";
-            setTimeout(function() {
-                capture(message);
-            }, 10);
-        ");
+        await engine.Run("""
+
+                                     let message = "Hello from closure";
+                                     setTimeout(function() {
+                                         capture(message);
+                                     }, 10);
+                                 
+                         """);
 
         Assert.Equal("Hello from closure", capturedValue);
     }

@@ -10,10 +10,12 @@ public class TransformationOriginTests
     [Fact]
     public async Task Origin_AsyncFunction_TracksBackToOriginal()
     {
-        var source = @"
-async function test() {
-    return 42;
-}";
+        var source = """
+
+                     async function test() {
+                         return 42;
+                     }
+                     """;
 
         var engine = new JsEngine();
         
@@ -36,10 +38,12 @@ async function test() {
     [Fact]
     public async Task Origin_UntransformedCode_HasNullOrigin()
     {
-        var source = @"
-function test() {
-    return 42;
-}";
+        var source = """
+
+                     function test() {
+                         return 42;
+                     }
+                     """;
 
         var engine = new JsEngine();
         var parsed = engine.Parse(source);
@@ -55,11 +59,13 @@ function test() {
     [Fact]
     public async Task Origin_ChainedTransformations_CanTraceBack()
     {
-        var source = @"
-async function test() {
-    let x = await Promise.resolve(5);
-    return x;
-}";
+        var source = """
+
+                     async function test() {
+                         let x = await Promise.resolve(5);
+                         return x;
+                     }
+                     """;
 
         var engine = new JsEngine();
         var (original, transformed) = engine.ParseWithTransformationSteps(source);
@@ -106,11 +112,13 @@ async function test() {
     [Fact]
     public async Task Origin_OnlyTransformedNodes_HaveOriginSet()
     {
-        var source = @"
-let x = 1;
-async function test() {
-    return x;
-}";
+        var source = """
+
+                     let x = 1;
+                     async function test() {
+                         return x;
+                     }
+                     """;
 
         var engine = new JsEngine();
         var (original, transformed) = engine.ParseWithTransformationSteps(source);

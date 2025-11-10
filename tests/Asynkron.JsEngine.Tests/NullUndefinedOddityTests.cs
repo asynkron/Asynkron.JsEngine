@@ -368,10 +368,12 @@ public class NullUndefinedOddityTests
     public async Task UndefinedAsVariableValue()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            let x = undefined;
-            typeof x;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let x = undefined;
+                                                       typeof x;
+                                                   
+                                           """);
         Assert.Equal("undefined", result);
     }
 
@@ -379,10 +381,12 @@ public class NullUndefinedOddityTests
     public async Task NullAsVariableValue()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            let x = null;
-            typeof x;
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let x = null;
+                                                       typeof x;
+                                                   
+                                           """);
         Assert.Equal("object", result);
     }
 
@@ -390,12 +394,14 @@ public class NullUndefinedOddityTests
     public async Task TypeofInFunction()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            function checkType(value) {
-                return typeof value;
-            }
-            checkType(undefined);
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function checkType(value) {
+                                                           return typeof value;
+                                                       }
+                                                       checkType(undefined);
+                                                   
+                                           """);
         Assert.Equal("undefined", result);
     }
 
@@ -403,16 +409,18 @@ public class NullUndefinedOddityTests
     public async Task MultipleTypeofChecks()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            let results = [
-                typeof null,
-                typeof undefined,
-                typeof 42,
-                typeof ""hello"",
-                typeof true
-            ];
-            results[0] + "","" + results[1] + "","" + results[2] + "","" + results[3] + "","" + results[4];
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       let results = [
+                                                           typeof null,
+                                                           typeof undefined,
+                                                           typeof 42,
+                                                           typeof "hello",
+                                                           typeof true
+                                                       ];
+                                                       results[0] + "," + results[1] + "," + results[2] + "," + results[3] + "," + results[4];
+                                                   
+                                           """);
         Assert.Equal("object,undefined,number,string,boolean", result);
     }
 }

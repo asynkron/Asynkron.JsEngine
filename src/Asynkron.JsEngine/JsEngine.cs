@@ -400,7 +400,8 @@ public sealed class JsEngine
             {
                 // Log the exception but don't let it kill the event loop
                 // Individual task failures should not stop the event queue processing
-                Console.Error.WriteLine($"Unhandled exception in event queue task: {ex}");
+                Console.Error.WriteLine($"[ProcessEventQueue] Unhandled exception in event queue task: {ex.GetType().Name}: {ex.Message}");
+                Console.Error.WriteLine($"[ProcessEventQueue] Stack trace: {ex.StackTrace}");
             }
             finally
             {

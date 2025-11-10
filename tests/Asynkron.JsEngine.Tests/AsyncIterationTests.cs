@@ -1,4 +1,5 @@
 using Xunit;
+using System.Collections.Generic;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -459,5 +460,108 @@ public class AsyncIterationTests
         ");
         
         Assert.Equal("xyz", result);
+    }
+
+    [Fact]
+    public async Task RegularForOf_WithAwaitInBodyWithDebug()
+    {
+        // Test that regular for-of with await in body works, using __debug() to inspect state
+        var engine = new JsEngine();
+        
+        await engine.Run(@"
+            let result = """";
+            let promises = [
+                Promise.resolve(""a""),
+                Promise.resolve(""b""),
+                Promise.resolve(""c"")
+            ];
+            
+            async function test() {
+                for (let promise of promises) {
+                    __debug(); // Before await
+                    let item = await promise;
+                    __debug(); // After await
+                    result = result + item;
+                }
+                __debug(); // After loop
+            }
+            
+            test();
+        ");
+        
+        var result = engine.Evaluate("result;");
+        Assert.Equal("abc", result);
+
+        // Verify we got debug messages - should have 7 total:
+        // 3 iterations * 2 (before + after await) + 1 after loop = 7
+        var debugMessages = new List<DebugMessage>();
+        for (int i = 0; i < 7; i++)
+        {
+            debugMessages.Add(await engine.DebugMessages().ReadAsync());
+        }
+
+        Assert.Equal(7, debugMessages.Count);
+
+        // Verify that the result accumulates correctly through the iterations
+        // Messages 0,1: first iteration (before await, after await)
+        // Messages 2,3: second iteration
+        // Messages 4,5: third iteration
+        // Message 6: after loop
+        
+        // After first await completes
+        Assert.True(debugMessages[1].Variables.ContainsKey("item"));
+        Assert.Equal("a", debugMessages[1].Variables["item"]);
+        
+        // After second await completes
+        Assert.True(debugMessages[3].Variables.ContainsKey("item"));
+        Assert.Equal("b", debugMessages[3].Variables["item"]);
+        
+        // After third await completes
+        Assert.True(debugMessages[5].Variables.ContainsKey("item"));
+        Assert.Equal("c", debugMessages[5].Variables["item"]);
+    }
+
+    [Fact]
+    public async Task ForAwaitOf_WithArrayWithDebug()
+    {
+        // Test for-await-of with __debug() to inspect state during iteration
+        var engine = new JsEngine();
+        
+        await engine.Run(@"
+            let result = """";
+            let arr = [""x"", ""y"", ""z""];
+            
+            async function test() {
+                for await (let item of arr) {
+                    __debug();
+                    result = result + item;
+                }
+                __debug();
+            }
+            
+            test();
+        ");
+        
+        var result = engine.Evaluate("result;");
+        Assert.Equal("xyz", result);
+
+        // Should have 4 debug messages (3 iterations + 1 after loop)
+        var debugMessages = new List<DebugMessage>();
+        for (int i = 0; i < 4; i++)
+        {
+            debugMessages.Add(await engine.DebugMessages().ReadAsync());
+        }
+
+        Assert.Equal(4, debugMessages.Count);
+
+        // Verify item values in each iteration
+        Assert.True(debugMessages[0].Variables.ContainsKey("item"));
+        Assert.Equal("x", debugMessages[0].Variables["item"]);
+        
+        Assert.True(debugMessages[1].Variables.ContainsKey("item"));
+        Assert.Equal("y", debugMessages[1].Variables["item"]);
+        
+        Assert.True(debugMessages[2].Variables.ContainsKey("item"));
+        Assert.Equal("z", debugMessages[2].Variables["item"]);
     }
 }

@@ -230,19 +230,65 @@ public sealed class JsEngine
         => Evaluate(Parse(source));
 
     /// <summary>
-    /// Evaluates an S-expression program.
+    /// Evaluates an S-expression program by scheduling it on the event queue.
+    /// This ensures all code executes through the event loop, maintaining proper
+    /// single-threaded execution semantics.
     /// </summary>
     public object? Evaluate(Cons program)
     {
-        // Check if the program contains any import/export statements
-        if (HasModuleStatements(program))
+        // Store the result to be returned
+        object? result = null;
+        Exception? exception = null;
+        
+        // Schedule the evaluation on the event queue
+        // This ensures ALL code runs through the event loop
+        ScheduleTask(async () =>
         {
-            // Treat as a module
-            var exports = new JsObject();
-            return EvaluateModule(program, _global, exports);
+            try
+            {
+                // Check if the program contains any import/export statements
+                if (HasModuleStatements(program))
+                {
+                    // Treat as a module
+                    var exports = new JsObject();
+                    result = EvaluateModule(program, _global, exports);
+                }
+                else
+                {
+                    result = Evaluator.EvaluateProgram(program, _global);
+                }
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+            
+            await Task.CompletedTask;
+        });
+        
+        // Since this is synchronous, we need to process the queue synchronously
+        // This is a temporary shim - callers should use Run() instead
+        ProcessEventQueueSync();
+        
+        if (exception != null)
+        {
+            throw exception;
         }
         
-        return Evaluator.EvaluateProgram(program, _global);
+        return result;
+    }
+    
+    /// <summary>
+    /// Processes the event queue synchronously (blocking).
+    /// This is a helper for the synchronous Evaluate method.
+    /// </summary>
+    private void ProcessEventQueueSync()
+    {
+        while (_eventQueue.Reader.TryRead(out var task))
+        {
+            // Block on the task
+            task().GetAwaiter().GetResult();
+        }
     }
     
     /// <summary>

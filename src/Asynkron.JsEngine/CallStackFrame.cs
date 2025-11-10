@@ -23,10 +23,9 @@ public sealed class CallStackFrame
     public Cons? Expression { get; }
 
     /// <summary>
-    /// Gets the parent frame that created this frame, forming a linked list of execution context.
-    /// Null for the root frame.
+    /// Gets the depth of this frame in the call stack (0 for outermost/root).
     /// </summary>
-    public CallStackFrame? Parent { get; }
+    public int Depth { get; }
 
     /// <summary>
     /// Initializes a new instance of the CallStackFrame class.
@@ -34,46 +33,13 @@ public sealed class CallStackFrame
     /// <param name="operationType">The type of operation (e.g., "call", "function", "for", "while")</param>
     /// <param name="description">Human-readable description of what's happening</param>
     /// <param name="expression">The S-expression being evaluated</param>
-    /// <param name="parent">The parent frame, if any</param>
-    internal CallStackFrame(string operationType, string description, Cons? expression = null, CallStackFrame? parent = null)
+    /// <param name="depth">The depth in the call stack</param>
+    internal CallStackFrame(string operationType, string description, Cons? expression, int depth)
     {
         OperationType = operationType;
         Description = description;
         Expression = expression;
-        Parent = parent;
-    }
-
-    /// <summary>
-    /// Gets the depth of this frame in the call stack (0 for root).
-    /// </summary>
-    public int Depth
-    {
-        get
-        {
-            int depth = 0;
-            var current = Parent;
-            while (current != null)
-            {
-                depth++;
-                current = current.Parent;
-            }
-            return depth;
-        }
-    }
-
-    /// <summary>
-    /// Converts the call stack to a list, from innermost (this frame) to outermost (root).
-    /// </summary>
-    public List<CallStackFrame> ToList()
-    {
-        var frames = new List<CallStackFrame>();
-        CallStackFrame? current = this;
-        while (current != null)
-        {
-            frames.Add(current);
-            current = current.Parent;
-        }
-        return frames;
+        Depth = depth;
     }
 
     /// <summary>

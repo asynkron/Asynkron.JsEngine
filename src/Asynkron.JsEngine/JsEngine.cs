@@ -111,8 +111,8 @@ public sealed class JsEngine
         // Register dynamic import function
         SetGlobalFunction("import", args => DynamicImport(args));
         
-        // Register debug function
-        SetGlobalFunction("__debug", args => CaptureDebugMessage(args));
+        // Register debug function as a debug-aware host function
+        _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));
     }
 
     /// <summary>
@@ -123,32 +123,16 @@ public sealed class JsEngine
     /// <summary>
     /// Captures the current execution state and writes a debug message to the debug channel.
     /// </summary>
-    private object? CaptureDebugMessage(IReadOnlyList<object?> args)
+    private object? CaptureDebugMessage(Environment environment, EvaluationContext context, IReadOnlyList<object?> args)
     {
-        var environment = Evaluator.CurrentEnvironment;
-        var context = Evaluator.CurrentContext;
-        var callStackFrame = Evaluator.CurrentCallStackFrame;
-
-        if (environment is null || context is null)
-        {
-            // If we can't get the current state, create an empty debug message
-            var emptyMessage = new DebugMessage(
-                new Dictionary<string, object?>(),
-                "Unknown",
-                new List<CallStackFrame>()
-            );
-            _debugChannel.Writer.TryWrite(emptyMessage);
-            return null;
-        }
-
         // Get all variables from the current environment and parent scopes
         var variables = environment.GetAllVariables();
 
         // Get the control flow state
         var controlFlowState = context.Flow.ToString();
 
-        // Get the call stack
-        var callStack = callStackFrame?.ToList() ?? new List<CallStackFrame>();
+        // Get the call stack by traversing the environment chain
+        var callStack = environment.BuildCallStack();
 
         // Create and write the debug message
         var debugMessage = new DebugMessage(variables, controlFlowState, callStack);

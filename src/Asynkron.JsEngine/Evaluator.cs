@@ -4,27 +4,6 @@ namespace Asynkron.JsEngine;
 
 internal static class Evaluator
 {
-    /// <summary>
-    /// Thread-local storage for the current environment during evaluation.
-    /// Used by debug functions to access the execution context.
-    /// </summary>
-    [ThreadStatic]
-    internal static Environment? CurrentEnvironment;
-    
-    /// <summary>
-    /// Thread-local storage for the current evaluation context during evaluation.
-    /// Used by debug functions to access the execution context.
-    /// </summary>
-    [ThreadStatic]
-    internal static EvaluationContext? CurrentContext;
-    
-    /// <summary>
-    /// Thread-local storage for the current call stack frame during evaluation.
-    /// Used by debug functions to access the execution call stack.
-    /// </summary>
-    [ThreadStatic]
-    internal static CallStackFrame? CurrentCallStackFrame;
-
     public static object? EvaluateProgram(Cons program, Environment environment)
     {
         return EvaluateProgram(program, environment, new EvaluationContext());
@@ -250,46 +229,33 @@ internal static class Evaluator
         var conditionExpression = cons.Rest.Head;
         var body = cons.Rest.Rest.Head;
 
-        // Push a call stack frame for the while loop
-        var whileFrame = new CallStackFrame("while", "while loop", cons, CurrentCallStackFrame);
-        var previousFrame = CurrentCallStackFrame;
-        CurrentCallStackFrame = whileFrame;
-
-        try
+        object? lastResult = null;
+        while (IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
         {
-            object? lastResult = null;
-            while (IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
+            if (context.ShouldStopEvaluation)
+                break;
+            
+            lastResult = EvaluateStatement(body, environment, context);
+            
+            if (context.IsContinue)
             {
-                if (context.ShouldStopEvaluation)
-                    break;
-                
-                lastResult = EvaluateStatement(body, environment, context);
-                
-                if (context.IsContinue)
-                {
-                    context.ClearContinue();
-                    continue;
-                }
-                
-                if (context.IsBreak)
-                {
-                    context.ClearBreak();
-                    break;
-                }
-                
-                if (context.IsReturn || context.IsThrow)
-                {
-                    break;  // Propagate return/throw
-                }
+                context.ClearContinue();
+                continue;
             }
+            
+            if (context.IsBreak)
+            {
+                context.ClearBreak();
+                break;
+            }
+            
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;  // Propagate return/throw
+            }
+        }
 
-            return lastResult;
-        }
-        finally
-        {
-            // Pop the call stack frame
-            CurrentCallStackFrame = previousFrame;
-        }
+        return lastResult;
     }
 
     private static object? EvaluateDoWhile(Cons cons, Environment environment, EvaluationContext context)
@@ -333,62 +299,50 @@ internal static class Evaluator
         var incrementExpression = cons.Rest.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Rest.Head;
 
-        var loopEnvironment = new Environment(environment);
+        // Create environment for the loop, passing the for loop S-expression
+        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for loop");
 
         if (initializer is not null)
         {
             EvaluateStatement(initializer, loopEnvironment, context);
         }
 
-        // Push a call stack frame for the for loop
-        var forFrame = new CallStackFrame("for", "for loop", cons, CurrentCallStackFrame);
-        var previousFrame = CurrentCallStackFrame;
-        CurrentCallStackFrame = forFrame;
-
-        try
+        object? lastResult = null;
+        while (conditionExpression is null || IsTruthy(EvaluateExpression(conditionExpression, loopEnvironment, context)))
         {
-            object? lastResult = null;
-            while (conditionExpression is null || IsTruthy(EvaluateExpression(conditionExpression, loopEnvironment, context)))
+            if (context.ShouldStopEvaluation)
+                break;
+            
+            lastResult = EvaluateStatement(body, loopEnvironment, context);
+            
+            if (context.IsContinue)
             {
-                if (context.ShouldStopEvaluation)
-                    break;
-                
-                lastResult = EvaluateStatement(body, loopEnvironment, context);
-                
-                if (context.IsContinue)
-                {
-                    context.ClearContinue();
-                    if (incrementExpression is not null)
-                    {
-                        EvaluateExpression(incrementExpression, loopEnvironment, context);
-                    }
-                    continue;
-                }
-                
-                if (context.IsBreak)
-                {
-                    context.ClearBreak();
-                    break;
-                }
-                
-                if (context.IsReturn || context.IsThrow)
-                {
-                    break;  // Propagate return/throw
-                }
-
+                context.ClearContinue();
                 if (incrementExpression is not null)
                 {
                     EvaluateExpression(incrementExpression, loopEnvironment, context);
                 }
+                continue;
+            }
+            
+            if (context.IsBreak)
+            {
+                context.ClearBreak();
+                break;
+            }
+            
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;  // Propagate return/throw
             }
 
-            return lastResult;
+            if (incrementExpression is not null)
+            {
+                EvaluateExpression(incrementExpression, loopEnvironment, context);
+            }
         }
-        finally
-        {
-            // Pop the call stack frame
-            CurrentCallStackFrame = previousFrame;
-        }
+
+        return lastResult;
     }
 
     private static object? EvaluateForIn(Cons cons, Environment environment, EvaluationContext context)
@@ -404,7 +358,7 @@ internal static class Evaluator
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
         
-        var loopEnvironment = new Environment(environment);
+        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for-in loop");
         object? lastResult = null;
 
         // Get keys to iterate over
@@ -475,7 +429,7 @@ internal static class Evaluator
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
         
-        var loopEnvironment = new Environment(environment);
+        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for-of loop");
         object? lastResult = null;
 
         // Get values to iterate over
@@ -547,7 +501,7 @@ internal static class Evaluator
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
         
-        var loopEnvironment = new Environment(environment);
+        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for-await-of loop");
         object? lastResult = null;
 
         // Try to get an iterator using the async iterator protocol
@@ -1445,27 +1399,20 @@ internal static class Evaluator
 
         try
         {
-            // Create a call stack frame for this function call
-            var calleeName = GetCalleeDescription(calleeExpression, environment);
-            var callFrame = new CallStackFrame("call", $"Call to {calleeName}", cons, CurrentCallStackFrame);
+            // If this is an environment-aware callable, set the calling environment
+            if (callable is IEnvironmentAwareCallable envAware)
+            {
+                envAware.CallingEnvironment = environment;
+            }
             
-            // Set thread-local variables for debug functions to access
-            var previousEnvironment = CurrentEnvironment;
-            var previousContext = CurrentContext;
-            var previousCallFrame = CurrentCallStackFrame;
-            try
+            // If this is a debug-aware function, set the environment and context
+            if (callable is DebugAwareHostFunction debugFunc)
             {
-                CurrentEnvironment = environment;
-                CurrentContext = context;
-                CurrentCallStackFrame = callFrame;
-                return callable.Invoke(arguments, thisValue);
+                debugFunc.CurrentEnvironment = environment;
+                debugFunc.CurrentContext = context;
             }
-            finally
-            {
-                CurrentEnvironment = previousEnvironment;
-                CurrentContext = previousContext;
-                CurrentCallStackFrame = previousCallFrame;
-            }
+            
+            return callable.Invoke(arguments, thisValue);
         }
         catch (ThrowSignal signal)
         {
@@ -1473,35 +1420,6 @@ internal static class Evaluator
             context.SetThrow(signal.ThrownValue);
             return signal.ThrownValue;
         }
-    }
-
-    /// <summary>
-    /// Gets a human-readable description of the callee for debugging purposes.
-    /// </summary>
-    private static string GetCalleeDescription(object? calleeExpression, Environment environment)
-    {
-        if (calleeExpression is Symbol symbol)
-        {
-            return symbol.Name;
-        }
-        
-        if (calleeExpression is Cons { Head: Symbol head } calleeCons)
-        {
-            if (ReferenceEquals(head, JsSymbols.GetProperty) || ReferenceEquals(head, JsSymbols.OptionalGetProperty))
-            {
-                // For member access like obj.method(), show as "obj.method"
-                var propertyName = calleeCons.Rest.Rest.Head;
-                return $"<member>.{propertyName}";
-            }
-            
-            if (ReferenceEquals(head, JsSymbols.GetIndex) || ReferenceEquals(head, JsSymbols.OptionalGetIndex))
-            {
-                // For computed access like obj[key](), show as "obj[...]"
-                return "<member>[...]";
-            }
-        }
-        
-        return "<anonymous>";
     }
 
     private static (object? Callee, object? ThisValue) ResolveCallee(object? calleeExpression, Environment environment, EvaluationContext context)

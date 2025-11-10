@@ -620,12 +620,23 @@ public sealed class CpsTransformer
                 ])
             ]);
             
-            // Create: promiseExpr.then(callback)
+            // Wrap promiseExpr in Promise.resolve() to handle both Promises and non-Promise values
+            var promiseResolveCall = Cons.FromEnumerable([
+                JsSymbols.Call,
+                Cons.FromEnumerable([
+                    JsSymbols.GetProperty,
+                    Symbol.Intern("Promise"),
+                    "resolve"
+                ]),
+                promiseExpr
+            ]);
+            
+            // Create: Promise.resolve(promiseExpr).then(callback)
             var thenCall = Cons.FromEnumerable([
                 JsSymbols.Call, 
                 Cons.FromEnumerable([
                     JsSymbols.GetProperty, 
-                    promiseExpr, 
+                    promiseResolveCall, 
                     "then"
                 ]), 
                 thenCallback
@@ -775,12 +786,23 @@ public sealed class CpsTransformer
                             continuation
                         ]);
                         
-                        // Create the .then() call: promiseExpr.then(thenCallback)
+                        // Wrap promiseExpr in Promise.resolve() to handle both Promises and non-Promise values
+                        var promiseResolveCall = Cons.FromEnumerable([
+                            JsSymbols.Call,
+                            Cons.FromEnumerable([
+                                JsSymbols.GetProperty,
+                                Symbol.Intern("Promise"),
+                                "resolve"
+                            ]),
+                            promiseExpr
+                        ]);
+                        
+                        // Create the .then() call: Promise.resolve(promiseExpr).then(thenCallback)
                         var thenCall = Cons.FromEnumerable([
                             JsSymbols.Call, 
                             Cons.FromEnumerable([
                                 JsSymbols.GetProperty, 
-                                promiseExpr, 
+                                promiseResolveCall, 
                                 "then"
                             ]), 
                             thenCallback
@@ -812,12 +834,23 @@ public sealed class CpsTransformer
                         // Extract the promise expression
                         var promiseExpr = retValueCons.Rest.Head;
                         
-                        // Create: promiseExpr.then(resolve)
+                        // Wrap promiseExpr in Promise.resolve() to handle both Promises and non-Promise values
+                        var promiseResolveCall = Cons.FromEnumerable([
+                            JsSymbols.Call,
+                            Cons.FromEnumerable([
+                                JsSymbols.GetProperty,
+                                Symbol.Intern("Promise"),
+                                "resolve"
+                            ]),
+                            promiseExpr
+                        ]);
+                        
+                        // Create: Promise.resolve(promiseExpr).then(resolve)
                         var thenCall = Cons.FromEnumerable([
                             JsSymbols.Call, 
                             Cons.FromEnumerable([
                                 JsSymbols.GetProperty, 
-                                promiseExpr, 
+                                promiseResolveCall, 
                                 "then"
                             ]), 
                             resolveParam

@@ -3435,6 +3435,28 @@ internal static class StandardLibrary
 
             var iterable = args[0];
             
+            // Handle generators - they are already iterators
+            if (iterable is JsGenerator generator)
+            {
+                // Wrap the generator in a JsObject that exposes the Next method
+                var iteratorObj = new JsObject();
+                iteratorObj.SetProperty("next", new HostFunction(_ =>
+                {
+                    return generator.Next();
+                }));
+                iteratorObj.SetProperty("return", new HostFunction(args =>
+                {
+                    var value = args.Count > 0 ? args[0] : null;
+                    return generator.Return(value);
+                }));
+                iteratorObj.SetProperty("throw", new HostFunction(args =>
+                {
+                    var error = args.Count > 0 ? args[0] : null;
+                    return generator.Throw(error);
+                }));
+                return iteratorObj;
+            }
+            
             // Handle strings specially - they need Symbol.iterator
             if (iterable is string str)
             {
@@ -3461,9 +3483,17 @@ internal static class StandardLibrary
                 return iteratorObj;
             }
             
-            // For objects, try Symbol.asyncIterator first, then Symbol.iterator
+            // For objects, check if it's already an iterator (has a "next" method)
+            // This handles generator objects which are returned from generator functions
             if (iterable is JsObject jsObj)
             {
+                // Check if it's already an iterator (has a "next" method)
+                if (jsObj.TryGetProperty("next", out var nextMethod) && nextMethod is IJsCallable)
+                {
+                    // It's already an iterator, return it as-is
+                    return jsObj;
+                }
+                
                 // Try Symbol.asyncIterator
                 var asyncIteratorSymbol = JsSymbol.For("Symbol.asyncIterator");
                 var asyncIteratorKey = $"@@symbol:{asyncIteratorSymbol.GetHashCode()}";

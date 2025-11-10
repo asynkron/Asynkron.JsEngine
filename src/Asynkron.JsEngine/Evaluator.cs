@@ -208,7 +208,8 @@ internal static class Evaluator
     {
         var conditionExpression = cons.Rest.Head;
         var thenBranch = cons.Rest.Rest.Head;
-        var elseBranch = cons.Rest.Rest.Rest.Head;
+        var elseBranchCons = cons.Rest.Rest.Rest;
+        var elseBranch = elseBranchCons.IsEmpty ? null : elseBranchCons.Head;
 
         var condition = EvaluateExpression(conditionExpression, environment, context);
         if (IsTruthy(condition))

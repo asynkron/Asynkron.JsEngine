@@ -7,99 +7,109 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class GeneratorTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task GeneratorFunction_CanBeDeclared()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act & Assert - Should not throw
-        engine.EvaluateSync(@"
-            function* simpleGenerator() {
-                yield 1;
-            }
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* simpleGenerator() {
+                                                             yield 1;
+                                                         }
+                                                     
+                                             """);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task GeneratorFunction_ReturnsIteratorObject()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        var result = engine.EvaluateSync(@"
-            function* gen() {
-                yield 1;
-            }
-            gen();
-        ");
+        var result = await engine.Evaluate("""
+
+                                                       function* gen() {
+                                                           yield 1;
+                                                       }
+                                                       gen();
+                                                   
+                                           """);
 
         // Assert
         Assert.NotNull(result);
         // The result should be an object (we can't directly check JsObject since it's internal)
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_HasNextMethod()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 1;
-            }
-            let g = gen();
-        ");
-        var hasNext = engine.EvaluateSync("g.next;");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 1;
+                                                         }
+                                                         let g = gen();
+                                                     
+                                             """);
+        var hasNext = await engine.Evaluate("g.next;");
 
         // Assert - next should be callable
         Assert.NotNull(hasNext);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_YieldsSingleValue()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 42;
-            }
-            let g = gen();
-            let result = g.next();
-        ");
-        var value = engine.EvaluateSync("result.value;");
-        var done = engine.EvaluateSync("result.done;");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 42;
+                                                         }
+                                                         let g = gen();
+                                                         let result = g.next();
+                                                     
+                                             """);
+        var value = await engine.Evaluate("result.value;");
+        var done = await engine.Evaluate("result.done;");
 
         // Assert
         Assert.Equal(42.0, value);
         Assert.False((bool)done!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_YieldsMultipleValues()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 1;
-                yield 2;
-                yield 3;
-            }
-            let g = gen();
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 1;
+                                                             yield 2;
+                                                             yield 3;
+                                                         }
+                                                         let g = gen();
+                                                     
+                                             """);
         
-        var r1Value = engine.EvaluateSync("g.next().value;");
-        var r2Value = engine.EvaluateSync("g.next().value;");
-        var r3Value = engine.EvaluateSync("g.next().value;");
+        var r1Value = await engine.Evaluate("g.next().value;");
+        var r2Value = await engine.Evaluate("g.next().value;");
+        var r3Value = await engine.Evaluate("g.next().value;");
 
         // Assert
         Assert.Equal(1.0, r1Value);
@@ -107,165 +117,179 @@ public class GeneratorTests
         Assert.Equal(3.0, r3Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_ReturnsIteratorResult()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 10;
-            }
-            let g = gen();
-            let result = g.next();
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 10;
+                                                         }
+                                                         let g = gen();
+                                                         let result = g.next();
+                                                     
+                                             """);
         
         // Assert - result should be an object with value and done properties
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         Assert.NotNull(result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_IteratorResultHasValueAndDone()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 5;
-            }
-            let g = gen();
-            let result = g.next();
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 5;
+                                                         }
+                                                         let g = gen();
+                                                         let result = g.next();
+                                                     
+                                             """);
         
         // Check the properties exist by accessing them
-        var value = engine.EvaluateSync("result.value;");
-        var done = engine.EvaluateSync("result.done;");
+        var value = await engine.Evaluate("result.value;");
+        var done = await engine.Evaluate("result.done;");
         
         // Assert - both properties should exist
         Assert.NotNull(value);
         Assert.NotNull(done);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_CompletesWithDoneTrue()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 1;
-            }
-            let g = gen();
-            g.next();  // Get the yielded value
-            let finalResult = g.next();  // Generator is done
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 1;
+                                                         }
+                                                         let g = gen();
+                                                         g.next();  // Get the yielded value
+                                                         let finalResult = g.next();  // Generator is done
+                                                     
+                                             """);
         
-        var done = engine.EvaluateSync("finalResult.done;");
-        var value = engine.EvaluateSync("finalResult.value;");
+        var done = await engine.Evaluate("finalResult.done;");
+        var value = await engine.Evaluate("finalResult.value;");
 
         // Assert
         Assert.True((bool)done!);
         Assert.Null(value);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_YieldsExpressions()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 1 + 1;
-                yield 2 * 3;
-            }
-            let g = gen();
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 1 + 1;
+                                                             yield 2 * 3;
+                                                         }
+                                                         let g = gen();
+                                                     
+                                             """);
         
-        var r1 = engine.EvaluateSync("g.next().value;");
-        var r2 = engine.EvaluateSync("g.next().value;");
+        var r1 = await engine.Evaluate("g.next().value;");
+        var r2 = await engine.Evaluate("g.next().value;");
 
         // Assert
         Assert.Equal(2.0, r1);
         Assert.Equal(6.0, r2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_YieldsVariables()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                let x = 10;
-                yield x;
-                let y = 20;
-                yield y;
-            }
-            let g = gen();
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             let x = 10;
+                                                             yield x;
+                                                             let y = 20;
+                                                             yield y;
+                                                         }
+                                                         let g = gen();
+                                                     
+                                             """);
         
-        var r1 = engine.EvaluateSync("g.next().value;");
-        var r2 = engine.EvaluateSync("g.next().value;");
+        var r1 = await engine.Evaluate("g.next().value;");
+        var r2 = await engine.Evaluate("g.next().value;");
 
         // Assert
         Assert.Equal(10.0, r1);
         Assert.Equal(20.0, r2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_WithParameters()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen(start) {
-                yield start;
-                yield start + 1;
-            }
-            let g = gen(100);
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen(start) {
+                                                             yield start;
+                                                             yield start + 1;
+                                                         }
+                                                         let g = gen(100);
+                                                     
+                                             """);
         
-        var r1 = engine.EvaluateSync("g.next().value;");
-        var r2 = engine.EvaluateSync("g.next().value;");
+        var r1 = await engine.Evaluate("g.next().value;");
+        var r2 = await engine.Evaluate("g.next().value;");
 
         // Assert
         Assert.Equal(100.0, r1);
         Assert.Equal(101.0, r2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_CanBeCalledMultipleTimes()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 1;
-                yield 2;
-            }
-            let g1 = gen();
-            let g2 = gen();
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 1;
+                                                             yield 2;
+                                                         }
+                                                         let g1 = gen();
+                                                         let g2 = gen();
+                                                     
+                                             """);
         
-        var g1_r1 = engine.EvaluateSync("g1.next().value;");
-        var g2_r1 = engine.EvaluateSync("g2.next().value;");
-        var g1_r2 = engine.EvaluateSync("g1.next().value;");
-        var g2_r2 = engine.EvaluateSync("g2.next().value;");
+        var g1_r1 = await engine.Evaluate("g1.next().value;");
+        var g2_r1 = await engine.Evaluate("g2.next().value;");
+        var g1_r2 = await engine.Evaluate("g1.next().value;");
+        var g2_r2 = await engine.Evaluate("g2.next().value;");
 
         // Assert - Each generator maintains independent state
         Assert.Equal(1.0, g1_r1);
@@ -274,47 +298,51 @@ public class GeneratorTests
         Assert.Equal(2.0, g2_r2);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_EmptyGenerator()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-            }
-            let g = gen();
-            let result = g.next();
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                         }
+                                                         let g = gen();
+                                                         let result = g.next();
+                                                     
+                                             """);
         
-        var done = engine.EvaluateSync("result.done;");
+        var done = await engine.Evaluate("result.done;");
 
         // Assert
         Assert.True((bool)done!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_WithReturn()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 1;
-                return 99;
-            }
-            let g = gen();
-            let r1 = g.next();
-            let r2 = g.next();
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 1;
+                                                             return 99;
+                                                         }
+                                                         let g = gen();
+                                                         let r1 = g.next();
+                                                         let r2 = g.next();
+                                                     
+                                             """);
         
-        var r1Value = engine.EvaluateSync("r1.value;");
-        var r1Done = engine.EvaluateSync("r1.done;");
-        var r2Value = engine.EvaluateSync("r2.value;");
-        var r2Done = engine.EvaluateSync("r2.done;");
+        var r1Value = await engine.Evaluate("r1.value;");
+        var r1Done = await engine.Evaluate("r1.done;");
+        var r2Value = await engine.Evaluate("r2.value;");
+        var r2Done = await engine.Evaluate("r2.done;");
 
         // Assert
         Assert.Equal(1.0, r1Value);
@@ -323,68 +351,74 @@ public class GeneratorTests
         Assert.True((bool)r2Done!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task GeneratorExpression_CanBeAssigned()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            let gen = function*() {
-                yield 42;
-            };
-            let g = gen();
-            let result = g.next();
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         let gen = function*() {
+                                                             yield 42;
+                                                         };
+                                                         let g = gen();
+                                                         let result = g.next();
+                                                     
+                                             """);
         
-        var value = engine.EvaluateSync("result.value;");
+        var value = await engine.Evaluate("result.value;");
 
         // Assert
         Assert.Equal(42.0, value);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_HasReturnMethod()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 1;
-                yield 2;
-            }
-            let g = gen();
-        ");
-        var hasReturn = engine.EvaluateSync("g[\"return\"];");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 1;
+                                                             yield 2;
+                                                         }
+                                                         let g = gen();
+                                                     
+                                             """);
+        var hasReturn = await engine.Evaluate("g[\"return\"];");
 
         // Assert - return should be callable
         Assert.NotNull(hasReturn);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_ReturnMethodCompletesGenerator()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 1;
-                yield 2;
-            }
-            let g = gen();
-            g.next();  // Get first value
-            let returnResult = g[""return""](99);
-            let nextResult = g.next();  // Should be done
-        ");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 1;
+                                                             yield 2;
+                                                         }
+                                                         let g = gen();
+                                                         g.next();  // Get first value
+                                                         let returnResult = g["return"](99);
+                                                         let nextResult = g.next();  // Should be done
+                                                     
+                                             """);
         
-        var returnValue = engine.EvaluateSync("returnResult.value;");
-        var returnDone = engine.EvaluateSync("returnResult.done;");
-        var nextDone = engine.EvaluateSync("nextResult.done;");
+        var returnValue = await engine.Evaluate("returnResult.value;");
+        var returnDone = await engine.Evaluate("returnResult.done;");
+        var nextDone = await engine.Evaluate("nextResult.done;");
 
         // Assert
         Assert.Equal(99.0, returnValue);
@@ -392,54 +426,60 @@ public class GeneratorTests
         Assert.True((bool)nextDone!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Generator_HasThrowMethod()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
-            function* gen() {
-                yield 1;
-            }
-            let g = gen();
-        ");
-        var hasThrow = engine.EvaluateSync("g[\"throw\"];");
+        object? temp = await engine.Evaluate("""
+
+                                                         function* gen() {
+                                                             yield 1;
+                                                         }
+                                                         let g = gen();
+                                                     
+                                             """);
+        var hasThrow = await engine.Evaluate("g[\"throw\"];");
 
         // Assert - throw should be callable
         Assert.NotNull(hasThrow);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseGeneratorSyntax_FunctionStar()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act & Assert - Should parse without error
-        var program = engine.Parse(@"
-            function* myGenerator() {
-                yield 1;
-            }
-        ");
+        var program = engine.Parse("""
+
+                                               function* myGenerator() {
+                                                   yield 1;
+                                               }
+                                           
+                                   """);
         
         Assert.NotNull(program);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ParseYieldExpression()
     {
         // Arrange
         var engine = new JsEngine();
 
         // Act & Assert - Should parse without error
-        var program = engine.Parse(@"
-            function* gen() {
-                let x = 5;
-                yield x + 1;
-            }
-        ");
+        var program = engine.Parse("""
+
+                                               function* gen() {
+                                                   let x = 5;
+                                                   yield x + 1;
+                                               }
+                                           
+                                   """);
         
         Assert.NotNull(program);
     }

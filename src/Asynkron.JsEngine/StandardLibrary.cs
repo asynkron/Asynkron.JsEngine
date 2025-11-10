@@ -3233,10 +3233,10 @@ internal static class StandardLibrary
             }
             
             // Evaluate the code string using the engine
-            // Use EvaluateSync since eval executes synchronously in JavaScript
-            #pragma warning disable CS0618 // Type or member is obsolete
-            return engine.EvaluateSync(code);
-            #pragma warning restore CS0618 // Type or member is obsolete
+            // TODO: this hangs, the event loop is now blocking itself.
+            // can we do async host functions? can we run this on the event loop and still return a result?
+            var res = engine.Evaluate(code).Result;
+            return res;
         });
     }
     

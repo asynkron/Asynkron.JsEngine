@@ -15,18 +15,20 @@ public class TransformationDebugTest
         _output = output;
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ShowTransformation_ForOfWithAwait()
     {
-        var source = @"
-            async function test() {
-                let result = """";
-                for (let item of [""a""]) {
-                    let value = await Promise.resolve(item);
-                    result = result + value;
-                }
-            }
-        ";
+        var source = """
+
+                                 async function test() {
+                                     let result = "";
+                                     for (let item of ["a"]) {
+                                         let value = await Promise.resolve(item);
+                                         result = result + value;
+                                     }
+                                 }
+                             
+                     """;
 
         var engine = new JsEngine();
         
@@ -42,16 +44,18 @@ public class TransformationDebugTest
         _output.WriteLine(transformedSexpr.ToString());
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ShowTransformation_SimpleAsyncAwait()
     {
         // Simpler case that works
-        var source = @"
-            async function test() {
-                let x = await Promise.resolve(5);
-                return x;
-            }
-        ";
+        var source = """
+
+                                 async function test() {
+                                     let x = await Promise.resolve(5);
+                                     return x;
+                                 }
+                             
+                     """;
 
         var engine = new JsEngine();
         

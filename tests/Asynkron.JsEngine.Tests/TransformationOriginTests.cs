@@ -7,13 +7,15 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class TransformationOriginTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Origin_AsyncFunction_TracksBackToOriginal()
     {
-        var source = @"
-async function test() {
-    return 42;
-}";
+        var source = """
+
+                     async function test() {
+                         return 42;
+                     }
+                     """;
 
         var engine = new JsEngine();
         
@@ -33,13 +35,15 @@ async function test() {
         Assert.Same(originalFunc, transformedFunc.Origin);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Origin_UntransformedCode_HasNullOrigin()
     {
-        var source = @"
-function test() {
-    return 42;
-}";
+        var source = """
+
+                     function test() {
+                         return 42;
+                     }
+                     """;
 
         var engine = new JsEngine();
         var parsed = engine.Parse(source);
@@ -52,14 +56,16 @@ function test() {
         Assert.Null(func!.Origin);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Origin_ChainedTransformations_CanTraceBack()
     {
-        var source = @"
-async function test() {
-    let x = await Promise.resolve(5);
-    return x;
-}";
+        var source = """
+
+                     async function test() {
+                         let x = await Promise.resolve(5);
+                         return x;
+                     }
+                     """;
 
         var engine = new JsEngine();
         var (original, transformed) = engine.ParseWithTransformationSteps(source);
@@ -76,7 +82,7 @@ async function test() {
         Assert.Same(originalFunc, transformedFunc.Origin);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Origin_WithSourceReference_BothPropertiesWork()
     {
         var source = @"async function test() { return 42; }";
@@ -103,14 +109,16 @@ async function test() {
         Assert.Contains("async", sourceText);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Origin_OnlyTransformedNodes_HaveOriginSet()
     {
-        var source = @"
-let x = 1;
-async function test() {
-    return x;
-}";
+        var source = """
+
+                     let x = 1;
+                     async function test() {
+                         return x;
+                     }
+                     """;
 
         var engine = new JsEngine();
         var (original, transformed) = engine.ParseWithTransformationSteps(source);

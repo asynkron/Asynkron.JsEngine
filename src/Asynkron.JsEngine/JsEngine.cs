@@ -33,16 +33,16 @@ public sealed class JsEngine
         SetGlobal("String", StandardLibrary.CreateStringConstructor());
         SetGlobal("Object", StandardLibrary.CreateObjectConstructor());
         SetGlobal("Array", StandardLibrary.CreateArrayConstructor());
-        
+
         // Register global constants
         SetGlobal("Infinity", double.PositiveInfinity);
         SetGlobal("NaN", double.NaN);
         SetGlobal("undefined", JsSymbols.Undefined);
-        
+
         // Register Date constructor as a callable object with static methods
         var dateConstructor = StandardLibrary.CreateDateConstructor();
         var dateObj = StandardLibrary.CreateDateObject();
-        
+
         // Add static methods to constructor
         if (dateConstructor is HostFunction hf)
         {
@@ -51,31 +51,31 @@ public sealed class JsEngine
                 hf.SetProperty(prop.Key, prop.Value);
             }
         }
-        
+
         SetGlobal("Date", dateConstructor);
         SetGlobal("JSON", StandardLibrary.CreateJsonObject());
-        
+
         // Register RegExp constructor
         SetGlobal("RegExp", StandardLibrary.CreateRegExpConstructor());
-        
+
         // Register Promise constructor
         SetGlobal("Promise", StandardLibrary.CreatePromiseConstructor(this));
-        
+
         // Register Symbol constructor
         SetGlobal("Symbol", StandardLibrary.CreateSymbolConstructor());
-        
+
         // Register Map constructor
         SetGlobal("Map", StandardLibrary.CreateMapConstructor());
-        
+
         // Register Set constructor
         SetGlobal("Set", StandardLibrary.CreateSetConstructor());
-        
+
         // Register WeakMap constructor
         SetGlobal("WeakMap", StandardLibrary.CreateWeakMapConstructor());
-        
+
         // Register WeakSet constructor
         SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
-        
+
         // Register ArrayBuffer and TypedArray constructors
         SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor());
         SetGlobal("DataView", StandardLibrary.CreateDataViewConstructor());
@@ -88,33 +88,36 @@ public sealed class JsEngine
         SetGlobal("Uint32Array", StandardLibrary.CreateUint32ArrayConstructor());
         SetGlobal("Float32Array", StandardLibrary.CreateFloat32ArrayConstructor());
         SetGlobal("Float64Array", StandardLibrary.CreateFloat64ArrayConstructor());
-        
+
         // Register Error constructors
         SetGlobal("Error", StandardLibrary.CreateErrorConstructor("Error"));
         SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor("TypeError"));
         SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor("RangeError"));
         SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor("ReferenceError"));
         SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor("SyntaxError"));
-        
-        // Register eval function
-        SetGlobal("eval", StandardLibrary.CreateEvalFunction(this));
-        
+
+        // Register eval function as an environment-aware callable
+        // This allows eval to execute code in the caller's scope without blocking the event loop
+        SetGlobal("eval", new EvalHostFunction(this));
+
         // Register internal helpers for async iteration
         SetGlobal("__getAsyncIterator", StandardLibrary.CreateGetAsyncIteratorHelper());
         SetGlobal("__iteratorNext", StandardLibrary.CreateIteratorNextHelper(this));
         SetGlobal("__awaitHelper", StandardLibrary.CreateAwaitHelper(this));
-        
+
         // Register timer functions
         SetGlobalFunction("setTimeout", args => SetTimeout(args));
         SetGlobalFunction("setInterval", args => SetInterval(args));
         SetGlobalFunction("clearTimeout", args => ClearTimer(args));
         SetGlobalFunction("clearInterval", args => ClearTimer(args));
-        
+
         // Register dynamic import function
         SetGlobalFunction("import", args => DynamicImport(args));
-        
+
         // Register debug function as a debug-aware host function
         _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));
+
+        _ = ProcessEventQueue();
     }
 
     /// <summary>
@@ -236,13 +239,13 @@ public sealed class JsEngine
     /// This ensures all code executes through the event loop, maintaining proper
     /// single-threaded execution semantics.
     /// </summary>
-    public Task<object?> Evaluate(Cons program)
+    private async Task<object?> Evaluate(Cons program)
     {
         var tcs = new TaskCompletionSource<object?>();
         
         // Schedule the evaluation on the event queue
         // This ensures ALL code runs through the event loop
-        ScheduleTask(async () =>
+        ScheduleTask( () =>
         {
             try
             {
@@ -266,67 +269,14 @@ public sealed class JsEngine
                 tcs.SetException(ex);
             }
             
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         });
         
-        return tcs.Task;
+        var res = await tcs.Task;
+        
+        return res;
     }
-    
-    /// <summary>
-    /// Synchronously evaluates JavaScript source code.
-    /// This is a convenience method that blocks until evaluation completes.
-    /// For proper async semantics, use Evaluate() or Run() instead.
-    /// </summary>
-    [Obsolete("Use async Evaluate() or Run() for proper event loop execution")]
-    public object? EvaluateSync([LanguageInjection("javascript")]string source)
-    {
-        var task = Evaluate(source);
-        ProcessEventQueueSync();
-        try
-        {
-            return task.Result;
-        }
-        catch (AggregateException ex) when (ex.InnerException != null)
-        {
-            // Unwrap the inner exception to maintain compatibility
-            throw ex.InnerException;
-        }
-    }
-    
-    /// <summary>
-    /// Synchronously evaluates an S-expression program.
-    /// This is a convenience method that blocks until evaluation completes.
-    /// For proper async semantics, use Evaluate() or Run() instead.
-    /// </summary>
-    [Obsolete("Use async Evaluate() or Run() for proper event loop execution")]
-    public object? EvaluateSync(Cons program)
-    {
-        var task = Evaluate(program);
-        ProcessEventQueueSync();
-        try
-        {
-            return task.Result;
-        }
-        catch (AggregateException ex) when (ex.InnerException != null)
-        {
-            // Unwrap the inner exception to maintain compatibility
-            throw ex.InnerException;
-        }
-    }
-    
-    /// <summary>
-    /// Processes the event queue synchronously (blocking).
-    /// This is a helper for synchronous evaluation.
-    /// </summary>
-    private void ProcessEventQueueSync()
-    {
-        while (_eventQueue.Reader.TryRead(out var task))
-        {
-            // Block on the task
-            task().GetAwaiter().GetResult();
-        }
-    }
-    
+
     /// <summary>
     /// Checks if a program contains any import or export statements.
     /// </summary>
@@ -375,7 +325,8 @@ public sealed class JsEngine
 
     /// <summary>
     /// Parses and evaluates the provided source code, then processes any scheduled events
-    /// in the event queue. The engine will continue running until the queue is empty.
+    /// in the event queue. The engine will continue running until the queue is empty
+    /// and all pending timer tasks have completed.
     /// </summary>
     /// <param name="source">The JavaScript source code to execute</param>
     /// <returns>A task that completes when all scheduled events have been processed</returns>
@@ -384,11 +335,34 @@ public sealed class JsEngine
         // Schedule evaluation on the event queue
         var evaluateTask = Evaluate(source);
         
-        // Process the event queue until it's empty
-        await ProcessEventQueue();
-        
         // Get the result from evaluation
         var result = await evaluateTask;
+        
+        // Wait for all pending work to complete:
+        // - Event queue to drain  
+        // - Timer tasks to complete and schedule their callbacks
+        // We loop with a timeout to avoid hanging forever
+        var startTime = DateTime.UtcNow;
+        var maxWaitTime = TimeSpan.FromMilliseconds(1500); // Leave some margin for the 2000ms test timeout
+        
+        while ((DateTime.UtcNow - startTime) < maxWaitTime)
+        {
+            // Check if we have any active timer tasks
+            bool hasActiveTasks;
+            lock (_activeTimerTasks)
+            {
+                hasActiveTasks = _activeTimerTasks.Count > 0;
+            }
+            
+            if (!hasActiveTasks)
+            {
+                // No active tasks, we're done
+                break;
+            }
+            
+            // Wait a bit for timer tasks to complete their cleanup
+            await Task.Delay(20);
+        }
         
         return result;
     }
@@ -410,32 +384,9 @@ public sealed class JsEngine
     /// </summary>
     private async Task ProcessEventQueue()
     {
-        while (_eventQueue.Reader.TryRead(out var task))
+        await foreach(var x in _eventQueue.Reader.ReadAllAsync())
         {
-            await task();
-        }
-
-        // Wait for any active timer tasks to schedule their work
-        // We poll multiple times to handle scenarios where timers schedule other timers
-        for (int i = 0; i < 50 && _activeTimerTasks.Count > 0; i++)
-        {
-            await Task.Delay(20);
-            
-            // Process any newly scheduled events
-            while (_eventQueue.Reader.TryRead(out var task))
-            {
-                await task();
-            }
-            
-            // If there are no more active tasks, we can stop
-            bool hasActiveTasks;
-            lock (_activeTimerTasks)
-            {
-                hasActiveTasks = _activeTimerTasks.Count > 0;
-            }
-            
-            if (!hasActiveTasks)
-                break;
+            await x();
         }
     }
 

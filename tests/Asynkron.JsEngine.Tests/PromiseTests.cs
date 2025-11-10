@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class PromiseTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_CanBeResolved()
     {
         var engine = new JsEngine();
@@ -21,21 +21,23 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p = new Promise(function(resolve, reject) {
-                resolve(""test value"");
-            });
-            
-            p.then(function(value) {
-                checkResolved(value);
-            });
-        ");
+        await engine.Run("""
+
+                                     let p = new Promise(function(resolve, reject) {
+                                         resolve("test value");
+                                     });
+                                     
+                                     p.then(function(value) {
+                                         checkResolved(value);
+                                     });
+                                 
+                         """);
 
         Assert.True(resolved);
         Assert.Equal("test value", resolvedValue);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_CanBeRejected()
     {
         var engine = new JsEngine();
@@ -52,21 +54,23 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p = new Promise(function(resolve, reject) {
-                reject(""error reason"");
-            });
-            
-            p[""catch""](function(reason) {
-                checkRejected(reason);
-            });
-        ");
+        await engine.Run("""
+
+                                     let p = new Promise(function(resolve, reject) {
+                                         reject("error reason");
+                                     });
+                                     
+                                     p["catch"](function(reason) {
+                                         checkRejected(reason);
+                                     });
+                                 
+                         """);
 
         Assert.True(rejected);
         Assert.Equal("error reason", rejectedReason);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_ThenReturnsNewPromise()
     {
         var engine = new JsEngine();
@@ -81,22 +85,24 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p = new Promise(function(resolve, reject) {
-                resolve(10);
-            });
-            
-            p.then(function(value) {
-                return value + 5;
-            }).then(function(value) {
-                captureResult(value);
-            });
-        ");
+        await engine.Run("""
+
+                                     let p = new Promise(function(resolve, reject) {
+                                         resolve(10);
+                                     });
+                                     
+                                     p.then(function(value) {
+                                         return value + 5;
+                                     }).then(function(value) {
+                                         captureResult(value);
+                                     });
+                                 
+                         """);
 
         Assert.Equal("15", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_CanChainMultipleThen()
     {
         var engine = new JsEngine();
@@ -111,26 +117,28 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p = new Promise(function(resolve, reject) {
-                resolve(1);
-            });
-            
-            p.then(function(value) {
-                addResult(value);
-                return value + 1;
-            }).then(function(value) {
-                addResult(value);
-                return value + 1;
-            }).then(function(value) {
-                addResult(value);
-            });
-        ");
+        await engine.Run("""
+
+                                     let p = new Promise(function(resolve, reject) {
+                                         resolve(1);
+                                     });
+                                     
+                                     p.then(function(value) {
+                                         addResult(value);
+                                         return value + 1;
+                                     }).then(function(value) {
+                                         addResult(value);
+                                         return value + 1;
+                                     }).then(function(value) {
+                                         addResult(value);
+                                     });
+                                 
+                         """);
 
         Assert.Equal(new[] { "1", "2", "3" }, results);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_Resolve_CreatesResolvedPromise()
     {
         var engine = new JsEngine();
@@ -145,17 +153,19 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p = Promise.resolve(""resolved value"");
-            p.then(function(value) {
-                captureResult(value);
-            });
-        ");
+        await engine.Run("""
+
+                                     let p = Promise.resolve("resolved value");
+                                     p.then(function(value) {
+                                         captureResult(value);
+                                     });
+                                 
+                         """);
 
         Assert.Equal("resolved value", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_Reject_CreatesRejectedPromise()
     {
         var engine = new JsEngine();
@@ -170,18 +180,20 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p = Promise.reject(""rejection reason"");
-            p[""catch""](
-            function(reason) {
-                captureResult(reason);
-            });
-        ");
+        await engine.Run("""
+
+                                     let p = Promise.reject("rejection reason");
+                                     p["catch"](
+                                     function(reason) {
+                                         captureResult(reason);
+                                     });
+                                 
+                         """);
 
         Assert.Equal("rejection reason", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_CatchHandlesRejection()
     {
         var engine = new JsEngine();
@@ -193,22 +205,24 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p = new Promise(function(resolve, reject) {
-                reject(""error"");
-            });
-            
-            p.then(function(value) {
-                // This should not execute
-            })[""catch""](function(reason) {
-                markCaught();
-            });
-        ");
+        await engine.Run("""
+
+                                     let p = new Promise(function(resolve, reject) {
+                                         reject("error");
+                                     });
+                                     
+                                     p.then(function(value) {
+                                         // This should not execute
+                                     })["catch"](function(reason) {
+                                         markCaught();
+                                     });
+                                 
+                         """);
 
         Assert.True(caught);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_Finally_ExecutesOnBothResolveAndReject()
     {
         var engine = new JsEngine();
@@ -220,22 +234,24 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p1 = Promise.resolve(""value"");
-            p1[""finally""](function() {
-                incrementFinally();
-            });
-            
-            let p2 = Promise.reject(""error"");
-            p2[""finally""](function() {
-                incrementFinally();
-            });
-        ");
+        await engine.Run("""
+
+                                     let p1 = Promise.resolve("value");
+                                     p1["finally"](function() {
+                                         incrementFinally();
+                                     });
+                                     
+                                     let p2 = Promise.reject("error");
+                                     p2["finally"](function() {
+                                         incrementFinally();
+                                     });
+                                 
+                         """);
 
         Assert.Equal(2, finallyCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_All_ResolvesWhenAllResolve()
     {
         var engine = new JsEngine();
@@ -250,22 +266,24 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p1 = Promise.resolve(1);
-            let p2 = Promise.resolve(2);
-            let p3 = Promise.resolve(3);
-            
-            Promise.all([p1, p2, p3]).then(function(values) {
-                addResult(values[0]);
-                addResult(values[1]);
-                addResult(values[2]);
-            });
-        ");
+        await engine.Run("""
+
+                                     let p1 = Promise.resolve(1);
+                                     let p2 = Promise.resolve(2);
+                                     let p3 = Promise.resolve(3);
+                                     
+                                     Promise.all([p1, p2, p3]).then(function(values) {
+                                         addResult(values[0]);
+                                         addResult(values[1]);
+                                         addResult(values[2]);
+                                     });
+                                 
+                         """);
 
         Assert.Equal(new[] { "1", "2", "3" }, results);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_All_RejectsWhenOneRejects()
     {
         var engine = new JsEngine();
@@ -282,22 +300,24 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p1 = Promise.resolve(1);
-            let p2 = Promise.reject(""error"");
-            let p3 = Promise.resolve(3);
-            
-            Promise.all([p1, p2, p3])[""catch""](
-            function(err) {
-                captureRejection(err);
-            });
-        ");
+        await engine.Run("""
+
+                                     let p1 = Promise.resolve(1);
+                                     let p2 = Promise.reject("error");
+                                     let p3 = Promise.resolve(3);
+                                     
+                                     Promise.all([p1, p2, p3])["catch"](
+                                     function(err) {
+                                         captureRejection(err);
+                                     });
+                                 
+                         """);
 
         Assert.True(rejected);
         Assert.Equal("error", reason);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_Race_ResolvesWithFirstSettled()
     {
         var engine = new JsEngine();
@@ -312,19 +332,21 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p1 = Promise.resolve(""first"");
-            let p2 = Promise.resolve(""second"");
-            
-            Promise.race([p1, p2]).then(function(value) {
-                captureResult(value);
-            });
-        ");
+        await engine.Run("""
+
+                                     let p1 = Promise.resolve("first");
+                                     let p2 = Promise.resolve("second");
+                                     
+                                     Promise.race([p1, p2]).then(function(value) {
+                                         captureResult(value);
+                                     });
+                                 
+                         """);
 
         Assert.Equal("first", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_IntegrationWithSetTimeout()
     {
         var engine = new JsEngine();
@@ -339,22 +361,24 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p = new Promise(function(resolve, reject) {
-                setTimeout(function() {
-                    resolve(""async value"");
-                }, 20);
-            });
-            
-            p.then(function(value) {
-                captureResult(value);
-            });
-        ");
+        await engine.Run("""
+
+                                     let p = new Promise(function(resolve, reject) {
+                                         setTimeout(function() {
+                                             resolve("async value");
+                                         }, 20);
+                                     });
+                                     
+                                     p.then(function(value) {
+                                         captureResult(value);
+                                     });
+                                 
+                         """);
 
         Assert.Equal("async value", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_ExecutorRunsImmediately()
     {
         var engine = new JsEngine();
@@ -366,17 +390,19 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            markExecutorRan();
-            let p = new Promise(function(resolve, reject) {
-                markExecutorRan();
-            });
-        ");
+        await engine.Run("""
+
+                                     markExecutorRan();
+                                     let p = new Promise(function(resolve, reject) {
+                                         markExecutorRan();
+                                     });
+                                 
+                         """);
 
         Assert.Equal(2, executorCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_CatchReturnsResolvedPromise()
     {
         var engine = new JsEngine();
@@ -391,16 +417,18 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run(@"
-            let p = Promise.reject(""error"");
-            
-            let p2 = p[""catch""](function(err) {
-                return ""recovered"";
-            });
-            p2.then(function(value) {
-                captureFinal(value);
-            });
-        ");
+        await engine.Run("""
+
+                                     let p = Promise.reject("error");
+                                     
+                                     let p2 = p["catch"](function(err) {
+                                         return "recovered";
+                                     });
+                                     p2.then(function(value) {
+                                         captureFinal(value);
+                                     });
+                                 
+                         """);
 
         Assert.Equal("recovered", finalValue);
     }

@@ -8,7 +8,7 @@ var script = File.ReadAllText("/tmp/test_oddities.js");
 // Run the script
 try
 {
-    engine.EvaluateSync(script);
+    object? temp = engine.Evaluate(script).Result;
 }
 catch (Exception ex)
 {

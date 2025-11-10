@@ -5,19 +5,21 @@ namespace Asynkron.JsEngine.Tests;
 
 public class DebugTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesBasicVariables()
     {
         var engine = new JsEngine();
         
-        var source = @"
-            let x = 42;
-            let y = 'hello';
-            __debug();
-        ";
+        var source = """
+
+                                 let x = 42;
+                                 let y = 'hello';
+                                 __debug();
+                             
+                     """;
         
         // Execute and get debug message
-        engine.EvaluateSync(source);
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -28,20 +30,22 @@ public class DebugTests
         Assert.Equal("hello", debugMessage.Variables["y"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesLoopCounter()
     {
         var engine = new JsEngine();
         
-        var source = @"
-            for (var i = 0; i < 10; i++) {
-                if (i === 5) {
-                    __debug();
-                }
-            }
-        ";
+        var source = """
+
+                                 for (var i = 0; i < 10; i++) {
+                                     if (i === 5) {
+                                         __debug();
+                                     }
+                                 }
+                             
+                     """;
         
-        engine.EvaluateSync(source);
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -50,18 +54,20 @@ public class DebugTests
         Assert.Equal(5d, debugMessage.Variables["i"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesAllIterationsInLoop()
     {
         var engine = new JsEngine();
         
-        var source = @"
-            for (var i = 0; i < 3; i++) {
-                __debug();
-            }
-        ";
+        var source = """
+
+                                 for (var i = 0; i < 3; i++) {
+                                     __debug();
+                                 }
+                             
+                     """;
         
-        engine.EvaluateSync(source);
+        object? temp = await engine.Evaluate(source);
         
         // Should have 3 debug messages
         var msg1 = await engine.DebugMessages().ReadAsync();
@@ -74,23 +80,25 @@ public class DebugTests
         Assert.Equal(2d, msg3.Variables["i"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesFunctionScope()
     {
         var engine = new JsEngine();
         
-        var source = @"
-            let globalVar = 'global';
-            
-            function testFunc(param) {
-                let localVar = 'local';
-                __debug();
-            }
-            
-            testFunc(123);
-        ";
+        var source = """
+
+                                 let globalVar = 'global';
+                                 
+                                 function testFunc(param) {
+                                     let localVar = 'local';
+                                     __debug();
+                                 }
+                                 
+                                 testFunc(123);
+                             
+                     """;
         
-        engine.EvaluateSync(source);
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -105,29 +113,31 @@ public class DebugTests
         Assert.Equal("global", debugMessage.Variables["globalVar"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesNestedScopes()
     {
         var engine = new JsEngine();
         
-        var source = @"
-            let outer = 'outer';
-            
-            function outerFunc() {
-                let middle = 'middle';
-                
-                function innerFunc() {
-                    let inner = 'inner';
-                    __debug();
-                }
-                
-                innerFunc();
-            }
-            
-            outerFunc();
-        ";
+        var source = """
+
+                                 let outer = 'outer';
+                                 
+                                 function outerFunc() {
+                                     let middle = 'middle';
+                                     
+                                     function innerFunc() {
+                                         let inner = 'inner';
+                                         __debug();
+                                     }
+                                     
+                                     innerFunc();
+                                 }
+                                 
+                                 outerFunc();
+                             
+                     """;
         
-        engine.EvaluateSync(source);
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -140,23 +150,25 @@ public class DebugTests
         Assert.Equal("outer", debugMessage.Variables["outer"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesCallStack()
     {
         var engine = new JsEngine();
         
-        var source = @"
-            function outer() {
-                function inner() {
-                    __debug();
-                }
-                inner();
-            }
-            
-            outer();
-        ";
+        var source = """
+
+                                 function outer() {
+                                     function inner() {
+                                         __debug();
+                                     }
+                                     inner();
+                                 }
+                                 
+                                 outer();
+                             
+                     """;
         
-        engine.EvaluateSync(source);
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -171,18 +183,20 @@ public class DebugTests
         Assert.Contains(callStackDescriptions, d => d.Contains("outer"));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesLoopInCallStack()
     {
         var engine = new JsEngine();
         
-        var source = @"
-            for (var i = 0; i < 1; i++) {
-                __debug();
-            }
-        ";
+        var source = """
+
+                                 for (var i = 0; i < 1; i++) {
+                                     __debug();
+                                 }
+                             
+                     """;
         
-        engine.EvaluateSync(source);
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -194,28 +208,30 @@ public class DebugTests
         Assert.True(hasForLoop, "Expected to find a 'for' loop in the call stack");
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CallStackShowsDepth()
     {
         var engine = new JsEngine();
         
-        var source = @"
-            function level1() {
-                level2();
-            }
-            
-            function level2() {
-                level3();
-            }
-            
-            function level3() {
-                __debug();
-            }
-            
-            level1();
-        ";
+        var source = """
+
+                                 function level1() {
+                                     level2();
+                                 }
+                                 
+                                 function level2() {
+                                     level3();
+                                 }
+                                 
+                                 function level3() {
+                                     __debug();
+                                 }
+                                 
+                                 level1();
+                             
+                     """;
         
-        engine.EvaluateSync(source);
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -235,17 +251,19 @@ public class DebugTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesControlFlowState()
     {
         var engine = new JsEngine();
         
-        var source = @"
-            let x = 42;
-            __debug();
-        ";
+        var source = """
+
+                                 let x = 42;
+                                 __debug();
+                             
+                     """;
         
-        engine.EvaluateSync(source);
+        object? temp = await engine.Evaluate(source);
         
         var debugMessage = await engine.DebugMessages().ReadAsync();
         
@@ -253,20 +271,22 @@ public class DebugTests
         Assert.Equal("None", debugMessage.ControlFlowState);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_WorksInNestedLoops()
     {
         var engine = new JsEngine();
         
-        var source = @"
-            for (var i = 0; i < 2; i++) {
-                for (var j = 0; j < 2; j++) {
-                    __debug();
-                }
-            }
-        ";
+        var source = """
+
+                                 for (var i = 0; i < 2; i++) {
+                                     for (var j = 0; j < 2; j++) {
+                                         __debug();
+                                     }
+                                 }
+                             
+                     """;
         
-        engine.EvaluateSync(source);
+        object? temp = await engine.Evaluate(source);
         
         // Should have 4 debug messages (2x2)
         var messages = new List<DebugMessage>();

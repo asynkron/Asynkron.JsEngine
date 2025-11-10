@@ -9,7 +9,7 @@ public class ObjectEnhancementsTests
     public async Task ObjectPropertyShorthand()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let name = 'Alice';
             let age = 30;
             let person = { name, age };
@@ -22,7 +22,7 @@ public class ObjectEnhancementsTests
     public async Task ObjectPropertyShorthandAge()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let name = 'Alice';
             let age = 30;
             let person = { name, age };
@@ -35,7 +35,7 @@ public class ObjectEnhancementsTests
     public async Task ObjectPropertyShorthandMixed()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let x = 10;
             let obj = { x, y: 20, z: 30 };
             obj.x + obj.y + obj.z;
@@ -48,7 +48,7 @@ public class ObjectEnhancementsTests
     public async Task ObjectMethodShorthand()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let person = {
                 name: 'Alice',
                 greet() {
@@ -64,7 +64,7 @@ public class ObjectEnhancementsTests
     public async Task ObjectMethodShorthandMultiple()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let calculator = {
                 add(a, b) {
                     return a + b;
@@ -82,7 +82,7 @@ public class ObjectEnhancementsTests
     public async Task ObjectMethodShorthandWithThis()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let counter = {
                 count: 0,
                 increment() {
@@ -105,7 +105,7 @@ public class ObjectEnhancementsTests
     public async Task ComputedPropertyName()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let propName = 'dynamicKey';
             let obj = {
                 [propName]: 'value'
@@ -119,7 +119,7 @@ public class ObjectEnhancementsTests
     public async Task ComputedPropertyNameExpression()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {
                 ['computed' + 'Key']: 123
             };
@@ -132,7 +132,7 @@ public class ObjectEnhancementsTests
     public async Task ComputedPropertyNameMixed()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let key1 = 'a';
             let key2 = 'b';
             let obj = {
@@ -149,7 +149,7 @@ public class ObjectEnhancementsTests
     public async Task ComputedPropertyNameWithMethod()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let methodName = 'greet';
             let person = {
                 name: 'Bob',
@@ -166,7 +166,7 @@ public class ObjectEnhancementsTests
     public async Task ComputedPropertyNameNumber()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let index = 0;
             let obj = {
                 [index]: 'zero',
@@ -182,7 +182,7 @@ public class ObjectEnhancementsTests
     public async Task CombinedShorthandAndComputed()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let name = 'Alice';
             let key = 'age';
             let person = {
@@ -202,7 +202,7 @@ public class ObjectEnhancementsTests
     public async Task ObjectSpreadInLiteral()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj1 = { a: 1, b: 2 };
             let obj2 = { c: 3, d: 4 };
             let merged = { ...obj1, ...obj2, e: 5 };
@@ -215,7 +215,7 @@ public class ObjectEnhancementsTests
     public async Task ObjectSpreadOverwrites()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj1 = { a: 1, b: 2 };
             let obj2 = { b: 20, c: 3 };
             let merged = { ...obj1, ...obj2 };
@@ -228,7 +228,7 @@ public class ObjectEnhancementsTests
     public async Task ObjectSpreadWithRegularProperties()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let base = { x: 1, y: 2 };
             let extended = { ...base, z: 3, w: 4 };
             extended.x + extended.y + extended.z + extended.w;

@@ -6,7 +6,7 @@ public class WeakMapTests
     public async Task WeakMap_Constructor_Creates_Empty_WeakMap()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             typeof wm;
         ");
@@ -17,7 +17,7 @@ public class WeakMapTests
     public async Task WeakMap_Set_And_Get_With_Object_Key()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let obj = { id: 1 };
             wm.set(obj, ""value"");
@@ -30,7 +30,7 @@ public class WeakMapTests
     public async Task WeakMap_Set_Returns_WeakMap_For_Chaining()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let obj1 = { id: 1 };
             let obj2 = { id: 2 };
@@ -44,7 +44,7 @@ public class WeakMapTests
     public async Task WeakMap_Has_Checks_Key_Existence()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let obj1 = { id: 1 };
             let obj2 = { id: 2 };
@@ -60,7 +60,7 @@ public class WeakMapTests
     public async Task WeakMap_Delete_Removes_Entry()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let obj = { id: 1 };
             wm.set(obj, ""value"");
@@ -75,7 +75,7 @@ public class WeakMapTests
     public async Task WeakMap_Delete_Returns_False_For_Nonexistent_Key()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let obj = { id: 1 };
             wm.delete(obj);
@@ -87,7 +87,7 @@ public class WeakMapTests
     public async Task WeakMap_Get_Returns_Undefined_For_Missing_Key()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let obj = { id: 1 };
             let value = wm.get(obj);
@@ -156,7 +156,7 @@ public class WeakMapTests
     public async Task WeakMap_Accepts_Array_As_Key()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let arr = [1, 2, 3];
             wm.set(arr, ""array value"");
@@ -169,7 +169,7 @@ public class WeakMapTests
     public async Task WeakMap_Accepts_Function_As_Key()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let fn = function() { return 42; };
             wm.set(fn, ""function value"");
@@ -182,7 +182,7 @@ public class WeakMapTests
     public async Task WeakMap_Different_Objects_Are_Different_Keys()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let obj1 = { x: 1 };
             let obj2 = { x: 1 };
@@ -199,7 +199,7 @@ public class WeakMapTests
     public async Task WeakMap_Updates_Existing_Key()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let obj = { id: 1 };
             wm.set(obj, ""value1"");
@@ -213,7 +213,7 @@ public class WeakMapTests
     public async Task WeakMap_Can_Store_Undefined_As_Value()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let obj = { id: 1 };
             let undef = undefined;
@@ -227,7 +227,7 @@ public class WeakMapTests
     public async Task WeakMap_Can_Store_Null_As_Value()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let obj = { id: 1 };
             wm.set(obj, null);
@@ -240,7 +240,7 @@ public class WeakMapTests
     public async Task WeakMap_Has_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             wm.has(""string"");
         ");
@@ -251,7 +251,7 @@ public class WeakMapTests
     public async Task WeakMap_Get_Returns_Undefined_For_Primitive()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             let value = wm.get(""string"");
             typeof value;
@@ -263,7 +263,7 @@ public class WeakMapTests
     public async Task WeakMap_Delete_Returns_False_For_Primitive()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             wm.delete(""string"");
         ");
@@ -274,7 +274,7 @@ public class WeakMapTests
     public async Task WeakMap_Constructor_Accepts_Array_Of_Entries()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj1 = { id: 1 };
             let obj2 = { id: 2 };
             let entries = [[obj1, ""a""], [obj2, ""b""]];
@@ -290,7 +290,7 @@ public class WeakMapTests
     public async Task WeakMap_Typeof_Returns_Object()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let wm = new WeakMap();
             typeof wm;
         ");

@@ -6,7 +6,7 @@ public class PrivateFieldsTests
     public async Task PrivateFieldBasicAccess()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Counter {
                 #count = 0;
                 
@@ -31,7 +31,7 @@ public class PrivateFieldsTests
     public async Task PrivateFieldInitializedInConstructor()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Counter {
                 #count;
                 
@@ -54,7 +54,7 @@ public class PrivateFieldsTests
     public async Task MultiplePrivateFields()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Rectangle {
                 #width = 0;
                 #height = 0;
@@ -82,7 +82,7 @@ public class PrivateFieldsTests
         // For now, private fields are accessible as they're stored as properties
         // In a future implementation, we could add access control
         // This test documents the current behavior
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Counter {
                 #count = 42;
             }
@@ -97,7 +97,7 @@ public class PrivateFieldsTests
     public async Task PrivateFieldInGetter()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Person {
                 #name;
                 
@@ -120,7 +120,7 @@ public class PrivateFieldsTests
     public async Task PrivateFieldInSetter()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Person {
                 #name;
                 
@@ -144,7 +144,7 @@ public class PrivateFieldsTests
     public async Task PrivateFieldWithPublicField()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Mixed {
                 #private = 10;
                 public = 20;
@@ -164,7 +164,7 @@ public class PrivateFieldsTests
     public async Task PrivateFieldInInheritedClass()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Base {
                 #secret = 100;
                 
@@ -189,7 +189,7 @@ public class PrivateFieldsTests
     public async Task PrivateFieldsAreSeparateBetweenInstances()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Counter {
                 #count = 0;
                 
@@ -217,7 +217,7 @@ public class PrivateFieldsTests
     public async Task PrivateFieldWithSameNameAsPublic()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Test {
                 #value = 10;
                 value = 20;

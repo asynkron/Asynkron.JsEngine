@@ -236,13 +236,13 @@ public sealed class JsEngine
     /// This ensures all code executes through the event loop, maintaining proper
     /// single-threaded execution semantics.
     /// </summary>
-    public Task<object?> Evaluate(Cons program)
+    public async Task<object?> Evaluate(Cons program)
     {
         var tcs = new TaskCompletionSource<object?>();
         
         // Schedule the evaluation on the event queue
         // This ensures ALL code runs through the event loop
-        ScheduleTask(async () =>
+        ScheduleTask( () =>
         {
             try
             {
@@ -266,10 +266,11 @@ public sealed class JsEngine
                 tcs.SetException(ex);
             }
             
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         });
         
-        return tcs.Task;
+        var res = await tcs.Task;
+        return res;
     }
     
     /// <summary>

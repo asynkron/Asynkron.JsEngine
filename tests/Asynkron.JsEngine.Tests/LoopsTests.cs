@@ -9,7 +9,7 @@ public class LoopsTests
     public async Task ForInLoopBasic()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { a: 1, b: 2, c: 3 };
             let keys = '';
             for (let key in obj) {
@@ -24,7 +24,7 @@ public class LoopsTests
     public async Task ForInLoopWithValues()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { x: 10, y: 20, z: 30 };
             let sum = 0;
             for (let key in obj) {
@@ -39,7 +39,7 @@ public class LoopsTests
     public async Task ForInLoopArray()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [10, 20, 30];
             let indices = '';
             for (let i in arr) {
@@ -54,7 +54,7 @@ public class LoopsTests
     public async Task ForInLoopWithBreak()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { a: 1, b: 2, c: 3, d: 4 };
             let result = '';
             for (let key in obj) {
@@ -72,7 +72,7 @@ public class LoopsTests
     public async Task ForInLoopWithContinue()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { a: 1, b: 2, c: 3, d: 4 };
             let result = '';
             for (let key in obj) {
@@ -91,7 +91,7 @@ public class LoopsTests
     public async Task ForOfLoopArray()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [10, 20, 30];
             let sum = 0;
             for (let value of arr) {
@@ -106,7 +106,7 @@ public class LoopsTests
     public async Task ForOfLoopString()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let str = 'abc';
             let result = '';
             for (let char of str) {
@@ -121,7 +121,7 @@ public class LoopsTests
     public async Task ForOfLoopWithBreak()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [1, 2, 3, 4, 5];
             let sum = 0;
             for (let value of arr) {
@@ -139,7 +139,7 @@ public class LoopsTests
     public async Task ForOfLoopWithContinue()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [1, 2, 3, 4, 5];
             let sum = 0;
             for (let value of arr) {
@@ -157,7 +157,7 @@ public class LoopsTests
     public async Task ForOfLoopNested()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let matrix = [[1, 2], [3, 4]];
             let sum = 0;
             for (let row of matrix) {

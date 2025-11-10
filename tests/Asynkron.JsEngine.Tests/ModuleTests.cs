@@ -23,7 +23,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import add from ""math.js"";
             add(2, 3);
         ");
@@ -48,7 +48,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import config from ""config.js"";
             config.name;
         ");
@@ -73,7 +73,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import { x, y } from ""utils.js"";
             x + y;
         ");
@@ -103,7 +103,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import { add, multiply } from ""math.js"";
             add(2, 3) + multiply(4, 5);
         ");
@@ -129,7 +129,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import { add as sum } from ""math.js"";
             sum(10, 20);
         ");
@@ -159,7 +159,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import * as math from ""math.js"";
             math.add(10, 5) + math.subtract(10, 5);
         ");
@@ -186,7 +186,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import { x, y } from ""utils.js"";
             x + y;
         ");
@@ -211,7 +211,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import { value } from ""utils.js"";
             value;
         ");
@@ -272,7 +272,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import { PI, E } from ""constants.js"";
             PI + E;
         ");
@@ -305,7 +305,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import { Point } from ""point.js"";
             let p = new Point(3, 4);
             p.distance();
@@ -336,7 +336,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import main, { helper } from ""module.js"";
             main() + ""-"" + helper();
         ");
@@ -395,7 +395,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import Rectangle from ""Rectangle.js"";
             let rect = new Rectangle(5, 10);
             rect.area();
@@ -423,7 +423,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             import { add, sub, mul, div } from ""math.js"";
             add(10, 5) + sub(10, 5) + mul(10, 5) + div(10, 5);
         ");
@@ -456,7 +456,7 @@ public class ModuleTests
             });
         ");
         
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         Assert.Equal("Hello, World", result);
     }
     
@@ -493,7 +493,7 @@ public class ModuleTests
             });
         ");
         
-        var result = engine.EvaluateSync("finalResult;");
+        var result = await engine.Evaluate("finalResult;");
         Assert.Equal(100.0, result);
     }
     
@@ -522,7 +522,7 @@ public class ModuleTests
             });
         ");
         
-        var result = engine.EvaluateSync("value;");
+        var result = await engine.Evaluate("value;");
         Assert.Equal(42.0, result);
     }
     
@@ -557,8 +557,8 @@ public class ModuleTests
             });
         ");
         
-        var first = engine.EvaluateSync("first;");
-        var second = engine.EvaluateSync("second;");
+        var first = await engine.Evaluate("first;");
+        var second = await engine.Evaluate("second;");
         
         // Both should be 1 because the module is cached
         Assert.Equal(1.0, first);
@@ -582,7 +582,7 @@ public class ModuleTests
             });
         ");
         
-        var result = engine.EvaluateSync("errorCaught;");
+        var result = await engine.Evaluate("errorCaught;");
         Assert.True((bool)result!);
     }
 }

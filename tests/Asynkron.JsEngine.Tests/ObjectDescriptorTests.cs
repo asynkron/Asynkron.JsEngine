@@ -10,7 +10,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Writable_False_Prevents_Modification()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'readonly', {
                 value: 42,
@@ -26,7 +26,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Writable_True_Allows_Modification()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'prop', {
                 value: 10,
@@ -42,7 +42,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Default_Writable_Is_True()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'prop', { value: 10 });
             obj.prop = 20;
@@ -57,7 +57,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Enumerable_False_Hides_From_Keys()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'visible', { value: 1, enumerable: true });
             Object.defineProperty(obj, 'hidden', { value: 2, enumerable: false });
@@ -70,7 +70,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Enumerable_False_Visible_In_GetOwnPropertyNames()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'hidden', { value: 2, enumerable: false });
             Object.getOwnPropertyNames(obj).length;
@@ -82,7 +82,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Enumerable_True_Shows_In_Keys()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'visible', { value: 1, enumerable: true });
             Object.keys(obj)[0];
@@ -94,7 +94,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Multiple_Properties_Different_Enumerable()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'a', { value: 1, enumerable: true });
             Object.defineProperty(obj, 'b', { value: 2, enumerable: false });
@@ -110,7 +110,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Configurable_False_Prevents_Redefinition()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'prop', {
                 value: 42,
@@ -128,7 +128,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Configurable_True_Allows_Redefinition()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'prop', {
                 value: 42,
@@ -148,7 +148,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Getter_Works()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { _value: 5 };
             Object.defineProperty(obj, 'computed', {
                 ['get']: function() { return this._value * 2; }
@@ -162,7 +162,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Setter_Works()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'computed', {
                 ['set']: function(v) { this._value = v * 2; }
@@ -177,7 +177,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Getter_And_Setter_Work_Together()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'computed', {
                 ['get']: function() { return this._value || 0; },
@@ -193,7 +193,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Getter_Only_Property_Cannot_Be_Set()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'readonly', {
                 ['get']: function() { return 42; }
@@ -210,7 +210,7 @@ public class ObjectDescriptorTests
     public async Task GetOwnPropertyDescriptor_Returns_Value()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { x: 42 };
             let desc = Object.getOwnPropertyDescriptor(obj, 'x');
             desc.value;
@@ -222,7 +222,7 @@ public class ObjectDescriptorTests
     public async Task GetOwnPropertyDescriptor_Returns_Writable_True_For_Normal_Property()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { x: 42 };
             let desc = Object.getOwnPropertyDescriptor(obj, 'x');
             desc.writable;
@@ -234,7 +234,7 @@ public class ObjectDescriptorTests
     public async Task GetOwnPropertyDescriptor_Returns_Writable_False_For_Readonly()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'x', {
                 value: 42,
@@ -250,7 +250,7 @@ public class ObjectDescriptorTests
     public async Task GetOwnPropertyDescriptor_Returns_Enumerable()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'x', {
                 value: 42,
@@ -266,7 +266,7 @@ public class ObjectDescriptorTests
     public async Task GetOwnPropertyDescriptor_Returns_Configurable()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'x', {
                 value: 42,
@@ -282,7 +282,7 @@ public class ObjectDescriptorTests
     public async Task GetOwnPropertyDescriptor_Returns_Undefined_For_Nonexistent()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { x: 42 };
             Object.getOwnPropertyDescriptor(obj, 'y');
         ");
@@ -293,7 +293,7 @@ public class ObjectDescriptorTests
     public async Task GetOwnPropertyDescriptor_Returns_Getter()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'x', {
                 ['get']: function() { return 42; }
@@ -308,7 +308,7 @@ public class ObjectDescriptorTests
     public async Task GetOwnPropertyDescriptor_Returns_Setter()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'x', {
                 ['set']: function(v) { this._v = v; }
@@ -323,7 +323,7 @@ public class ObjectDescriptorTests
     public async Task GetOwnPropertyDescriptor_Accessor_Has_No_Value_Or_Writable()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'x', {
                 ['get']: function() { return 42; }
@@ -340,7 +340,7 @@ public class ObjectDescriptorTests
     public async Task GetOwnPropertyNames_Returns_All_Properties()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'a', { value: 1, enumerable: true });
             Object.defineProperty(obj, 'b', { value: 2, enumerable: false });
@@ -353,7 +353,7 @@ public class ObjectDescriptorTests
     public async Task GetOwnPropertyNames_Includes_Non_Enumerable()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'hidden', { value: 1, enumerable: false });
             Object.getOwnPropertyNames(obj).includes('hidden');
@@ -367,7 +367,7 @@ public class ObjectDescriptorTests
     public async Task Object_Create_With_Property_Descriptors()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = Object.create(null, {
                 x: { value: 10, writable: true }
             });
@@ -380,7 +380,7 @@ public class ObjectDescriptorTests
     public async Task Object_Create_Property_Descriptors_Default_Enumerable_False()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = Object.create(null, {
                 x: { value: 10 }
             });
@@ -393,7 +393,7 @@ public class ObjectDescriptorTests
     public async Task Object_Create_Property_Descriptors_Can_Be_Enumerable()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = Object.create(null, {
                 x: { value: 10, enumerable: true }
             });
@@ -406,7 +406,7 @@ public class ObjectDescriptorTests
     public async Task Object_Create_Multiple_Properties()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = Object.create(null, {
                 x: { value: 10, enumerable: true },
                 y: { value: 20, enumerable: true }
@@ -420,7 +420,7 @@ public class ObjectDescriptorTests
     public async Task Object_Create_With_Accessor_Descriptor()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = Object.create(null, {
                 computed: {
                     ['get']: function() { return 42; },
@@ -438,7 +438,7 @@ public class ObjectDescriptorTests
     public async Task Frozen_Object_Properties_Become_Non_Writable()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { x: 10 };
             Object.freeze(obj);
             let desc = Object.getOwnPropertyDescriptor(obj, 'x');
@@ -451,7 +451,7 @@ public class ObjectDescriptorTests
     public async Task Frozen_Object_Properties_Become_Non_Configurable()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { x: 10 };
             Object.freeze(obj);
             let desc = Object.getOwnPropertyDescriptor(obj, 'x');
@@ -464,7 +464,7 @@ public class ObjectDescriptorTests
     public async Task Sealed_Object_Properties_Become_Non_Configurable()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { x: 10 };
             Object.seal(obj);
             let desc = Object.getOwnPropertyDescriptor(obj, 'x');
@@ -477,7 +477,7 @@ public class ObjectDescriptorTests
     public async Task Sealed_Object_Properties_Remain_Writable()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { x: 10 };
             Object.seal(obj);
             let desc = Object.getOwnPropertyDescriptor(obj, 'x');
@@ -492,7 +492,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Returns_The_Object()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             let returned = Object.defineProperty(obj, 'x', { value: 42 });
             returned === obj;
@@ -504,7 +504,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_On_Frozen_Object_Is_Ignored()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { x: 10 };
             Object.freeze(obj);
             Object.defineProperty(obj, 'y', { value: 20 });
@@ -517,7 +517,7 @@ public class ObjectDescriptorTests
     public async Task DefineProperty_Modify_Frozen_Property_Is_Ignored()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { x: 10 };
             Object.freeze(obj);
             Object.defineProperty(obj, 'x', { value: 20 });
@@ -530,7 +530,7 @@ public class ObjectDescriptorTests
     public async Task Object_Keys_Respects_Enumerable_Flag()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'a', { value: 1, enumerable: true });
             Object.defineProperty(obj, 'b', { value: 2, enumerable: false });
@@ -545,7 +545,7 @@ public class ObjectDescriptorTests
     public async Task Object_Values_Respects_Enumerable_Flag()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'a', { value: 1, enumerable: true });
             Object.defineProperty(obj, 'b', { value: 2, enumerable: false });
@@ -560,7 +560,7 @@ public class ObjectDescriptorTests
     public async Task Object_Entries_Respects_Enumerable_Flag()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = {};
             Object.defineProperty(obj, 'a', { value: 1, enumerable: true });
             Object.defineProperty(obj, 'b', { value: 2, enumerable: false });

@@ -28,7 +28,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             function* gen() {
                 yield 1;
             }
@@ -53,7 +53,7 @@ public class GeneratorTests
             }
             let g = gen();
         ");
-        var hasNext = engine.EvaluateSync("g.next;");
+        var hasNext = await engine.Evaluate("g.next;");
 
         // Assert - next should be callable
         Assert.NotNull(hasNext);
@@ -73,8 +73,8 @@ public class GeneratorTests
             let g = gen();
             let result = g.next();
         ");
-        var value = engine.EvaluateSync("result.value;");
-        var done = engine.EvaluateSync("result.done;");
+        var value = await engine.Evaluate("result.value;");
+        var done = await engine.Evaluate("result.done;");
 
         // Assert
         Assert.Equal(42.0, value);
@@ -97,9 +97,9 @@ public class GeneratorTests
             let g = gen();
         ");
         
-        var r1Value = engine.EvaluateSync("g.next().value;");
-        var r2Value = engine.EvaluateSync("g.next().value;");
-        var r3Value = engine.EvaluateSync("g.next().value;");
+        var r1Value = await engine.Evaluate("g.next().value;");
+        var r2Value = await engine.Evaluate("g.next().value;");
+        var r3Value = await engine.Evaluate("g.next().value;");
 
         // Assert
         Assert.Equal(1.0, r1Value);
@@ -123,7 +123,7 @@ public class GeneratorTests
         ");
         
         // Assert - result should be an object with value and done properties
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         Assert.NotNull(result);
     }
 
@@ -143,8 +143,8 @@ public class GeneratorTests
         ");
         
         // Check the properties exist by accessing them
-        var value = engine.EvaluateSync("result.value;");
-        var done = engine.EvaluateSync("result.done;");
+        var value = await engine.Evaluate("result.value;");
+        var done = await engine.Evaluate("result.done;");
         
         // Assert - both properties should exist
         Assert.NotNull(value);
@@ -167,8 +167,8 @@ public class GeneratorTests
             let finalResult = g.next();  // Generator is done
         ");
         
-        var done = engine.EvaluateSync("finalResult.done;");
-        var value = engine.EvaluateSync("finalResult.value;");
+        var done = await engine.Evaluate("finalResult.done;");
+        var value = await engine.Evaluate("finalResult.value;");
 
         // Assert
         Assert.True((bool)done!);
@@ -190,8 +190,8 @@ public class GeneratorTests
             let g = gen();
         ");
         
-        var r1 = engine.EvaluateSync("g.next().value;");
-        var r2 = engine.EvaluateSync("g.next().value;");
+        var r1 = await engine.Evaluate("g.next().value;");
+        var r2 = await engine.Evaluate("g.next().value;");
 
         // Assert
         Assert.Equal(2.0, r1);
@@ -215,8 +215,8 @@ public class GeneratorTests
             let g = gen();
         ");
         
-        var r1 = engine.EvaluateSync("g.next().value;");
-        var r2 = engine.EvaluateSync("g.next().value;");
+        var r1 = await engine.Evaluate("g.next().value;");
+        var r2 = await engine.Evaluate("g.next().value;");
 
         // Assert
         Assert.Equal(10.0, r1);
@@ -238,8 +238,8 @@ public class GeneratorTests
             let g = gen(100);
         ");
         
-        var r1 = engine.EvaluateSync("g.next().value;");
-        var r2 = engine.EvaluateSync("g.next().value;");
+        var r1 = await engine.Evaluate("g.next().value;");
+        var r2 = await engine.Evaluate("g.next().value;");
 
         // Assert
         Assert.Equal(100.0, r1);
@@ -262,10 +262,10 @@ public class GeneratorTests
             let g2 = gen();
         ");
         
-        var g1_r1 = engine.EvaluateSync("g1.next().value;");
-        var g2_r1 = engine.EvaluateSync("g2.next().value;");
-        var g1_r2 = engine.EvaluateSync("g1.next().value;");
-        var g2_r2 = engine.EvaluateSync("g2.next().value;");
+        var g1_r1 = await engine.Evaluate("g1.next().value;");
+        var g2_r1 = await engine.Evaluate("g2.next().value;");
+        var g1_r2 = await engine.Evaluate("g1.next().value;");
+        var g2_r2 = await engine.Evaluate("g2.next().value;");
 
         // Assert - Each generator maintains independent state
         Assert.Equal(1.0, g1_r1);
@@ -288,7 +288,7 @@ public class GeneratorTests
             let result = g.next();
         ");
         
-        var done = engine.EvaluateSync("result.done;");
+        var done = await engine.Evaluate("result.done;");
 
         // Assert
         Assert.True((bool)done!);
@@ -311,10 +311,10 @@ public class GeneratorTests
             let r2 = g.next();
         ");
         
-        var r1Value = engine.EvaluateSync("r1.value;");
-        var r1Done = engine.EvaluateSync("r1.done;");
-        var r2Value = engine.EvaluateSync("r2.value;");
-        var r2Done = engine.EvaluateSync("r2.done;");
+        var r1Value = await engine.Evaluate("r1.value;");
+        var r1Done = await engine.Evaluate("r1.done;");
+        var r2Value = await engine.Evaluate("r2.value;");
+        var r2Done = await engine.Evaluate("r2.done;");
 
         // Assert
         Assert.Equal(1.0, r1Value);
@@ -338,7 +338,7 @@ public class GeneratorTests
             let result = g.next();
         ");
         
-        var value = engine.EvaluateSync("result.value;");
+        var value = await engine.Evaluate("result.value;");
 
         // Assert
         Assert.Equal(42.0, value);
@@ -358,7 +358,7 @@ public class GeneratorTests
             }
             let g = gen();
         ");
-        var hasReturn = engine.EvaluateSync("g[\"return\"];");
+        var hasReturn = await engine.Evaluate("g[\"return\"];");
 
         // Assert - return should be callable
         Assert.NotNull(hasReturn);
@@ -382,9 +382,9 @@ public class GeneratorTests
             let nextResult = g.next();  // Should be done
         ");
         
-        var returnValue = engine.EvaluateSync("returnResult.value;");
-        var returnDone = engine.EvaluateSync("returnResult.done;");
-        var nextDone = engine.EvaluateSync("nextResult.done;");
+        var returnValue = await engine.Evaluate("returnResult.value;");
+        var returnDone = await engine.Evaluate("returnResult.done;");
+        var nextDone = await engine.Evaluate("nextResult.done;");
 
         // Assert
         Assert.Equal(99.0, returnValue);
@@ -405,7 +405,7 @@ public class GeneratorTests
             }
             let g = gen();
         ");
-        var hasThrow = engine.EvaluateSync("g[\"throw\"];");
+        var hasThrow = await engine.Evaluate("g[\"throw\"];");
 
         // Assert - throw should be callable
         Assert.NotNull(hasThrow);

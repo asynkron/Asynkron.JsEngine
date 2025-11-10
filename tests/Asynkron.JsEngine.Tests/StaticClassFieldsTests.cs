@@ -8,7 +8,7 @@ public class StaticClassFieldsTests
     public async Task Static_Field_With_Initializer()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Counter {
                 static count = 0;
                 
@@ -30,7 +30,7 @@ public class StaticClassFieldsTests
     // public async Task Static_Field_Without_Initializer()
     // {
     //     var engine = new JsEngine();
-    //     var result = engine.EvaluateSync(@"
+    //     var result = await engine.Evaluate(@"
     //         class MyClass {
     //             static value;
     //         }
@@ -45,7 +45,7 @@ public class StaticClassFieldsTests
     public async Task Multiple_Static_Fields()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Config {
                 static host = ""localhost"";
                 static port = 8080;
@@ -61,7 +61,7 @@ public class StaticClassFieldsTests
     public async Task Static_Method()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class MathUtils {
                 static add(a, b) {
                     return a + b;
@@ -77,7 +77,7 @@ public class StaticClassFieldsTests
     public async Task Static_Method_And_Field()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Calculator {
                 static PI = 3.14159;
                 
@@ -95,7 +95,7 @@ public class StaticClassFieldsTests
     public async Task Static_Field_Shared_Across_Instances()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Example {
                 static shared = 100;
                 
@@ -116,7 +116,7 @@ public class StaticClassFieldsTests
     public async Task Static_Private_Field()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Secret {
                 static #key = ""secret123"";
                 
@@ -134,7 +134,7 @@ public class StaticClassFieldsTests
     public async Task Static_Field_With_Expression_Initializer()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Numbers {
                 static value = 5 * 10 + 3;
             }
@@ -148,7 +148,7 @@ public class StaticClassFieldsTests
     public async Task Static_Method_Accessing_Static_Field()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Counter {
                 static count = 0;
                 
@@ -175,7 +175,7 @@ public class StaticClassFieldsTests
     public async Task Instance_Method_Cannot_Access_Static_Field_Via_This()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             class Example {
                 static staticValue = 100;
                 

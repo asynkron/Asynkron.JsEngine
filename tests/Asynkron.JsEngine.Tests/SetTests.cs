@@ -6,7 +6,7 @@ public class SetTests
     public async Task Set_Constructor_Creates_Empty_Set()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.size;
         ");
@@ -17,7 +17,7 @@ public class SetTests
     public async Task Set_Add_Adds_Value()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.add(""value"");
             mySet.has(""value"");
@@ -29,7 +29,7 @@ public class SetTests
     public async Task Set_Add_Returns_Set_For_Chaining()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.add(1).add(2).add(3);
             mySet.size;
@@ -41,7 +41,7 @@ public class SetTests
     public async Task Set_Has_Checks_Value_Existence()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.add(""value"");
             let has1 = mySet.has(""value"");
@@ -55,7 +55,7 @@ public class SetTests
     public async Task Set_Delete_Removes_Value()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.add(""value"");
             let deleted = mySet.delete(""value"");
@@ -69,7 +69,7 @@ public class SetTests
     public async Task Set_Delete_Returns_False_For_Nonexistent_Value()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.delete(""missing"");
         ");
@@ -80,7 +80,7 @@ public class SetTests
     public async Task Set_Clear_Removes_All_Values()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.add(1);
             mySet.add(2);
@@ -94,7 +94,7 @@ public class SetTests
     public async Task Set_Size_Tracks_Value_Count()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             let s1 = mySet.size;
             mySet.add(1);
@@ -112,7 +112,7 @@ public class SetTests
     public async Task Set_Only_Stores_Unique_Values()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.add(1);
             mySet.add(1);
@@ -126,7 +126,7 @@ public class SetTests
     public async Task Set_Accepts_Any_Type_As_Value()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             let obj = { id: 1 };
             mySet.add(obj);
@@ -148,7 +148,7 @@ public class SetTests
     public async Task Set_ForEach_Iterates_All_Values()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.add(1);
             mySet.add(2);
@@ -167,7 +167,7 @@ public class SetTests
     public async Task Set_Values_Returns_Array_Of_Values()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.add(1);
             mySet.add(2);
@@ -183,7 +183,7 @@ public class SetTests
     public async Task Set_Keys_Returns_Array_Of_Values()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.add(1);
             mySet.add(2);
@@ -198,7 +198,7 @@ public class SetTests
     public async Task Set_Entries_Returns_Array_Of_Value_Value_Pairs()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.add(1);
             mySet.add(2);
@@ -214,7 +214,7 @@ public class SetTests
     public async Task Set_Maintains_Insertion_Order()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             mySet.add(""third"");
             mySet.add(""first"");
@@ -230,7 +230,7 @@ public class SetTests
     public async Task Set_Constructor_Accepts_Array_Of_Values()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let values = [1, 2, 3, 2, 1];
             let mySet = new Set(values);
             mySet.size;
@@ -242,7 +242,7 @@ public class SetTests
     public async Task Set_Handles_NaN_As_Value()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             let nan = 0 / 0;
             mySet.add(nan);
@@ -255,7 +255,7 @@ public class SetTests
     public async Task Set_Multiple_NaN_Values_Are_Considered_Same()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             let nan1 = 0 / 0;
             let nan2 = 0 / 0;
@@ -270,7 +270,7 @@ public class SetTests
     public async Task Set_Typeof_Returns_Object()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             typeof mySet;
         ");
@@ -281,7 +281,7 @@ public class SetTests
     public async Task Set_Can_Store_Objects()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             let obj1 = { name: ""Alice"" };
             let obj2 = { name: ""Bob"" };
@@ -298,7 +298,7 @@ public class SetTests
     public async Task Set_Different_Objects_With_Same_Content_Are_Different()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let mySet = new Set();
             let obj1 = { x: 1 };
             let obj2 = { x: 1 };

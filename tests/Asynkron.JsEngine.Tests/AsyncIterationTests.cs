@@ -36,7 +36,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
     }
 
@@ -58,7 +58,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
     }
     
@@ -100,7 +100,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("sum;");
+        var result = await engine.Evaluate("sum;");
         _output.WriteLine($"Final sum: '{result}'");
         Assert.Equal(6.0, result);
     }
@@ -122,7 +122,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         Assert.Equal("hello", result);
     }
     
@@ -162,7 +162,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("count;");
+        var result = await engine.Evaluate("count;");
         _output.WriteLine($"Final count: '{result}'");
         Assert.Equal(3.0, result);
     }
@@ -201,7 +201,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("sum;");
+        var result = await engine.Evaluate("sum;");
         _output.WriteLine($"Final sum: '{result}'");
         Assert.Equal(12.0, result); // 1 + 2 + 4 + 5 = 12
     }
@@ -214,7 +214,7 @@ public class AsyncIterationTests
         // for await...of must be used inside an async function
         // This should work in our current implementation even outside async
         // but in strict JavaScript it would require async context
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let result = """";
             for await (let item of [""x"", ""y""]) {
                 result = result + item;
@@ -267,7 +267,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
     }
     
@@ -305,7 +305,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         Assert.Equal("123", result);
     }
     
@@ -344,7 +344,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         Assert.Equal("123", result);
     }
     
@@ -531,7 +531,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         _output.WriteLine($"Final result: '{result}'");
         Assert.Equal("xyz", result);
     }
@@ -542,7 +542,7 @@ public class AsyncIterationTests
         var engine = new JsEngine();
         
         // Test without async function to isolate the issue
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let result = """";
             
             // Object with only sync iterator (Symbol.iterator)
@@ -598,7 +598,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
 
         // Verify we got debug messages - should have 7 total:
@@ -651,7 +651,7 @@ public class AsyncIterationTests
             test();
         ");
         
-        var result = engine.EvaluateSync("result;");
+        var result = await engine.Evaluate("result;");
         Assert.Equal("xyz", result);
 
         // Should have 4 debug messages (3 iterations + 1 after loop)

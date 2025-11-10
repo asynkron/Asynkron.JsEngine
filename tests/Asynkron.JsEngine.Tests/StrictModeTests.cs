@@ -44,7 +44,7 @@ public class StrictModeTests
     {
         var engine = new JsEngine();
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             ""use strict"";
             let a = 1;
             const b = 2;
@@ -76,7 +76,7 @@ public class StrictModeTests
     {
         var engine = new JsEngine();
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             ""use strict"";
             function outer() {
                 let x = 10;
@@ -97,7 +97,7 @@ public class StrictModeTests
     {
         var engine = new JsEngine();
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             ""use strict"";
             class MyClass {
                 constructor(value) {
@@ -133,7 +133,7 @@ public class StrictModeTests
     {
         var engine = new JsEngine();
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             ""use strict"";
             {
                 let x = 5;
@@ -150,7 +150,7 @@ public class StrictModeTests
     {
         var engine = new JsEngine();
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             {
                 ""use strict"";
                 let x = 100;
@@ -166,7 +166,7 @@ public class StrictModeTests
     {
         var engine = new JsEngine();
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             ""use strict"";
             let sum = 0;
             let i = 1;
@@ -185,7 +185,7 @@ public class StrictModeTests
     {
         var engine = new JsEngine();
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             ""use strict"";
             let result = 0;
             for (let i = 0; i < 5; i = i + 1) {
@@ -202,7 +202,7 @@ public class StrictModeTests
     {
         var engine = new JsEngine();
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             ""use strict"";
             let obj = {
                 x: 10,
@@ -222,7 +222,7 @@ public class StrictModeTests
     {
         var engine = new JsEngine();
         
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             ""use strict"";
             let arr = [1, 2, 3, 4, 5];
             let sum = 0;

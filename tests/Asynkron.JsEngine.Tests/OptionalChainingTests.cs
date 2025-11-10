@@ -8,7 +8,7 @@ public class OptionalChainingTests
     public async Task OptionalPropertyAccessNull()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = null;
             obj?.name;
         ");
@@ -19,7 +19,7 @@ public class OptionalChainingTests
     public async Task OptionalPropertyAccessDefined()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { name: 'Alice' };
             obj?.name;
         ");
@@ -30,7 +30,7 @@ public class OptionalChainingTests
     public async Task OptionalPropertyChain()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { user: { name: 'Bob' } };
             obj?.user?.name;
         ");
@@ -41,7 +41,7 @@ public class OptionalChainingTests
     public async Task OptionalPropertyChainNull()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { user: null };
             obj?.user?.name;
         ");
@@ -52,7 +52,7 @@ public class OptionalChainingTests
     public async Task OptionalMethodCallNull()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = null;
             obj?.();
         ");
@@ -63,7 +63,7 @@ public class OptionalChainingTests
     public async Task OptionalMethodCallDefined()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let greet = function() { return 'Hello'; };
             greet?.();
         ");
@@ -74,7 +74,7 @@ public class OptionalChainingTests
     public async Task OptionalIndexAccessNull()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = null;
             arr?.[0];
         ");
@@ -85,7 +85,7 @@ public class OptionalChainingTests
     public async Task OptionalIndexAccessDefined()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [10, 20, 30];
             arr?.[1];
         ");
@@ -96,7 +96,7 @@ public class OptionalChainingTests
     public async Task OptionalChainingShortCircuit()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = null;
             let x = 0;
             let result = obj?.prop + (x = 1);
@@ -110,7 +110,7 @@ public class OptionalChainingTests
     public async Task OptionalChainingWithUndefined()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = undefined;
             obj?.name;
         ");

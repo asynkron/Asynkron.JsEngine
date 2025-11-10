@@ -11,7 +11,7 @@ public class RegExpTests
     public async Task RegExp_Constructor_Basic()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""hello"");
             regex.source;
         ");
@@ -22,7 +22,7 @@ public class RegExpTests
     public async Task RegExp_Constructor_WithFlags()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""hello"", ""i"");
             regex.ignoreCase;
         ");
@@ -33,7 +33,7 @@ public class RegExpTests
     public async Task RegExp_Test_Matches()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""world"");
             regex.test(""hello world"");
         ");
@@ -44,7 +44,7 @@ public class RegExpTests
     public async Task RegExp_Test_NoMatch()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""xyz"");
             regex.test(""hello world"");
         ");
@@ -55,7 +55,7 @@ public class RegExpTests
     public async Task RegExp_Test_CaseInsensitive()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""HELLO"", ""i"");
             regex.test(""hello world"");
         ");
@@ -66,7 +66,7 @@ public class RegExpTests
     public async Task RegExp_Exec_ReturnsMatchArray()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""world"");
             let match = regex.exec(""hello world"");
             match[0];
@@ -78,7 +78,7 @@ public class RegExpTests
     public async Task RegExp_Exec_ReturnsIndex()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""world"");
             let match = regex.exec(""hello world"");
             match.index;
@@ -90,7 +90,7 @@ public class RegExpTests
     public async Task RegExp_Exec_WithCaptureGroups()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""([a-z]+)@([a-z]+)"");
             let match = regex.exec(""user@example.com"");
             match[1];
@@ -102,7 +102,7 @@ public class RegExpTests
     public async Task RegExp_Exec_NoMatch_ReturnsNull()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""xyz"");
             regex.exec(""hello world"");
         ");
@@ -113,7 +113,7 @@ public class RegExpTests
     public async Task String_Match_WithRegExp()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let str = ""hello world"";
             let regex = new RegExp(""world"");
             let match = str.match(regex);
@@ -126,7 +126,7 @@ public class RegExpTests
     public async Task String_Match_GlobalFlag()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let str = ""hello hello hello"";
             let regex = new RegExp(""hello"", ""g"");
             let matches = str.match(regex);
@@ -139,7 +139,7 @@ public class RegExpTests
     public async Task String_Search_ReturnsIndex()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let str = ""hello world"";
             let regex = new RegExp(""world"");
             str.search(regex);
@@ -151,7 +151,7 @@ public class RegExpTests
     public async Task String_Search_NoMatch()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let str = ""hello"";
             let regex = new RegExp(""xyz"");
             str.search(regex);
@@ -163,7 +163,7 @@ public class RegExpTests
     public async Task String_Replace_WithRegExp()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let str = ""hello world"";
             let regex = new RegExp(""world"");
             str.replace(regex, ""there"");
@@ -175,7 +175,7 @@ public class RegExpTests
     public async Task String_Replace_GlobalFlag()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let str = ""hello hello hello"";
             let regex = new RegExp(""hello"", ""g"");
             str.replace(regex, ""hi"");
@@ -187,7 +187,7 @@ public class RegExpTests
     public async Task RegExp_GlobalFlag_Test_UpdatesLastIndex()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""o"", ""g"");
             let str = ""hello world"";
             let found1 = regex.test(str);
@@ -205,7 +205,7 @@ public class RegExpTests
     public async Task RegExp_Pattern_WithDigits()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""[0-9]+"");
             regex.test(""abc123def"");
         ");
@@ -216,7 +216,7 @@ public class RegExpTests
     public async Task RegExp_Pattern_EmailLike()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""[a-z]+@[a-z]+\.[a-z]+"", ""i"");
             regex.test(""user@example.com"");
         ");
@@ -227,7 +227,7 @@ public class RegExpTests
     public async Task RegExp_Multiline_Flag()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = new RegExp(""^world"", ""m"");
             regex.multiline;
         ");
@@ -239,7 +239,7 @@ public class RegExpTests
     public async Task RegexLiteral_Basic()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = /hello/;
             regex.source;
         ");
@@ -250,7 +250,7 @@ public class RegExpTests
     public async Task RegexLiteral_WithFlags()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = /hello/i;
             regex.ignoreCase;
         ");
@@ -264,8 +264,8 @@ public class RegExpTests
         engine.EvaluateSync(@"
             let regex = /hello/gi;
         ");
-        var ignoreCase = engine.EvaluateSync("regex.ignoreCase;");
-        var global = engine.EvaluateSync("regex.global;");
+        var ignoreCase = await engine.Evaluate("regex.ignoreCase;");
+        var global = await engine.Evaluate("regex.global;");
         Assert.True((bool)ignoreCase!);
         Assert.True((bool)global!);
     }
@@ -274,7 +274,7 @@ public class RegExpTests
     public async Task RegexLiteral_Test()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = /world/;
             regex.test(""hello world"");
         ");
@@ -285,7 +285,7 @@ public class RegExpTests
     public async Task RegexLiteral_TestCaseInsensitive()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = /HELLO/i;
             regex.test(""hello world"");
         ");
@@ -296,7 +296,7 @@ public class RegExpTests
     public async Task RegexLiteral_Exec()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = /world/;
             let match = regex.exec(""hello world"");
             match[0];
@@ -308,7 +308,7 @@ public class RegExpTests
     public async Task RegexLiteral_WithEscapes()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = /\d+/;
             regex.test(""abc123"");
         ");
@@ -319,7 +319,7 @@ public class RegExpTests
     public async Task RegexLiteral_WithCharacterClass()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = /[0-9]+/;
             regex.test(""abc123"");
         ");
@@ -330,7 +330,7 @@ public class RegExpTests
     public async Task RegexLiteral_InAssignment()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let pattern = /test/i;
             pattern.test(""Testing"");
         ");
@@ -341,7 +341,7 @@ public class RegExpTests
     public async Task RegexLiteral_InFunctionCall()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             function testPattern(regex) {
                 return regex.test(""hello"");
             }
@@ -354,7 +354,7 @@ public class RegExpTests
     public async Task RegexLiteral_InArray()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let patterns = [/hello/, /world/];
             patterns[0].test(""hello"");
         ");
@@ -365,7 +365,7 @@ public class RegExpTests
     public async Task RegexLiteral_InObject()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let obj = { pattern: /test/ };
             obj.pattern.test(""test"");
         ");
@@ -376,7 +376,7 @@ public class RegExpTests
     public async Task RegexLiteral_StringMatch()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let str = ""I have 2 cats and 3 dogs"";
             let matches = str.match(/[0-9]+/g);
             matches.length;
@@ -388,7 +388,7 @@ public class RegExpTests
     public async Task RegexLiteral_StringReplace()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let str = ""hello hello hello"";
             str.replace(/hello/g, ""hi"");
         ");
@@ -399,7 +399,7 @@ public class RegExpTests
     public async Task RegexLiteral_StringSearch()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let str = ""The year is 2024"";
             str.search(/[0-9]+/);
         ");
@@ -410,7 +410,7 @@ public class RegExpTests
     public async Task RegexLiteral_ComplexPattern()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let emailPattern = /([a-z]+)@([a-z]+)\.([a-z]+)/i;
             let match = emailPattern.exec(""user@example.com"");
             match[1];
@@ -422,7 +422,7 @@ public class RegExpTests
     public async Task RegexLiteral_AfterReturn()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             function getPattern() {
                 return /test/;
             }
@@ -435,7 +435,7 @@ public class RegExpTests
     public async Task RegexLiteral_AfterComma()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             function check(a, b) {
                 return b.test(""hello"");
             }
@@ -448,7 +448,7 @@ public class RegExpTests
     public async Task RegexLiteral_EscapedSlash()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = /\//;
             regex.test(""a/b"");
         ");
@@ -459,7 +459,7 @@ public class RegExpTests
     public async Task RegexLiteral_ComplexCharacterClass()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let regex = /[a-zA-Z0-9_]/;
             regex.test(""test_123"");
         ");

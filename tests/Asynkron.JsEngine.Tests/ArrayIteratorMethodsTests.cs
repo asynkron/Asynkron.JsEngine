@@ -8,7 +8,7 @@ public class ArrayIteratorMethodsTests
     public async Task Array_Entries_ReturnsIndexValuePairs()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = ['a', 'b', 'c'];
             let entries = arr.entries();
             entries[0][0] + entries[0][1];
@@ -20,7 +20,7 @@ public class ArrayIteratorMethodsTests
     public async Task Array_Entries_WithMultipleElements()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [10, 20, 30];
             let entries = arr.entries();
             entries[1][0] + entries[1][1];
@@ -32,7 +32,7 @@ public class ArrayIteratorMethodsTests
     public async Task Array_Entries_ReturnsCorrectLength()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [1, 2, 3, 4, 5];
             let entries = arr.entries();
             entries.length;
@@ -44,7 +44,7 @@ public class ArrayIteratorMethodsTests
     public async Task Array_Keys_ReturnsIndices()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = ['a', 'b', 'c'];
             let keys = arr.keys();
             keys[0] + keys[1] + keys[2];
@@ -56,7 +56,7 @@ public class ArrayIteratorMethodsTests
     public async Task Array_Keys_ReturnsCorrectLength()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [1, 2, 3, 4];
             let keys = arr.keys();
             keys.length;
@@ -68,7 +68,7 @@ public class ArrayIteratorMethodsTests
     public async Task Array_Values_ReturnsElementValues()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [10, 20, 30];
             let values = arr.values();
             values[0] + values[1] + values[2];
@@ -80,7 +80,7 @@ public class ArrayIteratorMethodsTests
     public async Task Array_Values_ReturnsCorrectLength()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [1, 2, 3];
             let values = arr.values();
             values.length;
@@ -92,7 +92,7 @@ public class ArrayIteratorMethodsTests
     public async Task Array_Values_WithStringArray()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = ['hello', 'world'];
             let values = arr.values();
             values[0] + ' ' + values[1];
@@ -104,7 +104,7 @@ public class ArrayIteratorMethodsTests
     public async Task Array_Entries_CanBeIterated()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [1, 2, 3];
             let entries = arr.entries();
             let sum = 0;
@@ -120,7 +120,7 @@ public class ArrayIteratorMethodsTests
     public async Task Array_Keys_CanBeIterated()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [10, 20, 30];
             let keys = arr.keys();
             let sum = 0;
@@ -136,7 +136,7 @@ public class ArrayIteratorMethodsTests
     public async Task Array_Values_CanBeIterated()
     {
         var engine = new JsEngine();
-        var result = engine.EvaluateSync(@"
+        var result = await engine.Evaluate(@"
             let arr = [5, 10, 15];
             let values = arr.values();
             let product = 1;

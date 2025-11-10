@@ -110,6 +110,12 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object ParseAsyncFunctionDeclaration()
     {
+        // Save the position - we need to go back to include 'async'
+        // At this point both 'async' and 'function' have been consumed
+        // So we go back 2 tokens to get 'async'
+        var startTokenIndex = _current >= 2 ? _current - 2 : 0;
+        var startToken = _tokens[startTokenIndex];
+        
         var nameToken = Consume(TokenType.Identifier, "Expected function name.");
         var name = Symbol.Intern(nameToken.Lexeme);
         Consume(TokenType.LeftParen, "Expected '(' after function name.");
@@ -117,7 +123,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.RightParen, "Expected ')' after function parameters.");
         var body = ParseBlock();
 
-        return Cons.FromEnumerable([JsSymbols.Async, name, parameters, body]);
+        return MakeCons([JsSymbols.Async, name, parameters, body], startToken);
     }
 
     private object ParseClassDeclaration()

@@ -307,11 +307,18 @@ public sealed class CpsTransformer
     /// <summary>
     /// Recursively chains statements, handling await expressions by creating promise chains.
     /// </summary>
-    private object? ChainStatementsWithAwaits(List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null)
+    private object? ChainStatementsWithAwaits(List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null, bool addFinalContinuation = true)
     {
         if (index >= statements.Count)
         {
-            // No more statements, resolve with null
+            // No more statements
+            if (!addFinalContinuation)
+            {
+                // Don't add a continuation - this is for if/else branches that should fall through
+                return Cons.FromEnumerable([JsSymbols.Block]);
+            }
+            
+            // Add resolve call
             // In loop context, return the promise from resolve to chain iterations
             bool inLoopContext = loopContinueTarget != null || loopBreakTarget != null;
             return CreateResolveCall(null, resolveParam, inLoopContext);
@@ -443,7 +450,7 @@ public sealed class CpsTransformer
             tryCons.Head is Symbol trySymbol && ReferenceEquals(trySymbol, JsSymbols.Try))
         {
             // Transform try-catch with special handling for async context
-            return TransformTryInAsyncContext(tryCons, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+            return TransformTryInAsyncContext(tryCons, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
         }
         
         // Check if this is a for-of statement - needs transformation if body contains await
@@ -488,29 +495,60 @@ public sealed class CpsTransformer
                 if (needsTransform)
                 {
                     // Transform branches recursively - handles break/continue/await/return
-                    var transformedThen = TransformBlockInAsyncContext(thenBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-                    var transformedElse = elseBranch != null ? TransformBlockInAsyncContext(elseBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget) : null;
+                    // Use TransformIfBranchInLoopContext when in loop context to avoid adding continuation at end
+                    bool inLoopContext = loopContinueTarget != null || loopBreakTarget != null;
+                    
+                    object? transformedThen, transformedElse = null;
+                    if (inLoopContext)
+                    {
+                        transformedThen = TransformIfBranchInLoopContext(thenBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+                        transformedElse = elseBranch != null ? TransformIfBranchInLoopContext(elseBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget) : null;
+                    }
+                    else
+                    {
+                        transformedThen = TransformBlockInAsyncContext(thenBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+                        transformedElse = elseBranch != null ? TransformBlockInAsyncContext(elseBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget) : null;
+                    }
+                    
+                    // Check if both branches (or the single then-branch with no else) return early
+                    // If so, we shouldn't add the continuation after the if statement
+                    bool allBranchesReturnEarly = false;
+                    if (transformedElse != null)
+                    {
+                        // Both branches exist - check if both return early
+                        allBranchesReturnEarly = BlockAlwaysReturnsEarly(transformedThen) && BlockAlwaysReturnsEarly(transformedElse);
+                    }
+                    // If there's no else branch, it can't guarantee early return since execution falls through when condition is false
                     
                     var transformedIf = transformedElse != null
                         ? Cons.FromEnumerable([JsSymbols.If, condition, transformedThen, transformedElse])
                         : Cons.FromEnumerable([JsSymbols.If, condition, transformedThen]);
                     
-                    var ifRest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-                    
-                    if (ifRest is Cons ifRestCons && !ifRestCons.IsEmpty && 
-                        ifRestCons.Head is Symbol ifRestSymbol && ReferenceEquals(ifRestSymbol, JsSymbols.Block))
+                    // Only add continuation if not all branches return early
+                    if (!allBranchesReturnEarly)
                     {
-                        var flattenedStatements = new List<object?> { JsSymbols.Block, transformedIf };
-                        var current = ifRestCons.Rest;
-                        while (current is Cons c && !c.IsEmpty)
+                        var ifRest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
+                        
+                        if (ifRest is Cons ifRestCons && !ifRestCons.IsEmpty && 
+                            ifRestCons.Head is Symbol ifRestSymbol && ReferenceEquals(ifRestSymbol, JsSymbols.Block))
                         {
-                            flattenedStatements.Add(c.Head);
-                            current = c.Rest;
+                            var flattenedStatements = new List<object?> { JsSymbols.Block, transformedIf };
+                            var current = ifRestCons.Rest;
+                            while (current is Cons c && !c.IsEmpty)
+                            {
+                                flattenedStatements.Add(c.Head);
+                                current = c.Rest;
+                            }
+                            return Cons.FromEnumerable(flattenedStatements);
                         }
-                        return Cons.FromEnumerable(flattenedStatements);
+                        
+                        return Cons.FromEnumerable([JsSymbols.Block, transformedIf, ifRest]);
                     }
-                    
-                    return Cons.FromEnumerable([JsSymbols.Block, transformedIf, ifRest]);
+                    else
+                    {
+                        // All branches return early, just return the if statement without continuation
+                        return Cons.FromEnumerable([JsSymbols.Block, transformedIf]);
+                    }
                 }
             }
         }
@@ -519,11 +557,11 @@ public sealed class CpsTransformer
         if (ContainsAwait(statement))
         {
             // Transform this statement with await into a promise chain
-            return TransformStatementWithAwait(statement, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+            return TransformStatementWithAwait(statement, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
         }
 
         // No await and not a special case, just include it and continue
-        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
         
         // If rest is a block, flatten it to avoid nested blocks
         if (rest is Cons restCons && !restCons.IsEmpty && 
@@ -630,11 +668,78 @@ public sealed class CpsTransformer
     }
 
     /// <summary>
+    /// Checks if a transformed block always returns early (doesn't fall through).
+    /// A block returns early if it ends with a return statement or if all branches
+    /// of a final if statement return early.
+    /// </summary>
+    private bool BlockAlwaysReturnsEarly(object? block)
+    {
+        if (block == null)
+        {
+            return false;
+        }
+
+        // If it's a return statement, it returns early
+        if (block is Cons returnCons && !returnCons.IsEmpty && 
+            returnCons.Head is Symbol returnSym && ReferenceEquals(returnSym, JsSymbols.Return))
+        {
+            return true;
+        }
+
+        // If it's a block, check the last statement
+        if (block is Cons blockCons && !blockCons.IsEmpty &&
+            blockCons.Head is Symbol blockSym && ReferenceEquals(blockSym, JsSymbols.Block))
+        {
+            // Find the last statement in the block
+            object? lastStmt = null;
+            var current = blockCons.Rest;
+            while (current is Cons c && !c.IsEmpty)
+            {
+                lastStmt = c.Head;
+                current = c.Rest;
+            }
+
+            if (lastStmt != null)
+            {
+                // Check if last statement is a return
+                if (lastStmt is Cons lastCons && !lastCons.IsEmpty &&
+                    lastCons.Head is Symbol lastSym && ReferenceEquals(lastSym, JsSymbols.Return))
+                {
+                    return true;
+                }
+
+                // Check if last statement is an if where all branches return early
+                if (lastStmt is Cons ifCons && !ifCons.IsEmpty &&
+                    ifCons.Head is Symbol ifSym && ReferenceEquals(ifSym, JsSymbols.If))
+                {
+                    var ifParts = ConsList(ifCons);
+                    if (ifParts.Count >= 3)
+                    {
+                        var thenBranch = ifParts[2];
+                        var elseBranch = ifParts.Count > 3 ? ifParts[3] : null;
+
+                        // If there's an else branch, both must return early
+                        if (elseBranch != null)
+                        {
+                            return BlockAlwaysReturnsEarly(thenBranch) && BlockAlwaysReturnsEarly(elseBranch);
+                        }
+                        // If there's no else branch, the if doesn't guarantee early return
+                        // because execution can fall through when condition is false
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Transforms a statement containing await into a promise chain.
     /// Example: let x = await p; [rest]
     /// Becomes: p.then(function(x) { [rest] })
     /// </summary>
-    private object? TransformStatementWithAwait(object? statement, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null)
+    private object? TransformStatementWithAwait(object? statement, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null, bool addFinalContinuation = true)
     {
         // Handle different statement types
         if (statement is Cons cons && !cons.IsEmpty && cons.Head is Symbol symbol)
@@ -691,7 +796,7 @@ public sealed class CpsTransformer
                     else if (ContainsAwait(value))
                     {
                         // Extract awaits from the complex expression and chain them
-                        return ExtractAndChainAwaits(varKeyword, varName, value, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+                        return ExtractAndChainAwaits(varKeyword, varName, value, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
                     }
                 }
             }
@@ -732,7 +837,7 @@ public sealed class CpsTransformer
         }
 
         // Default: include the statement as-is and continue
-        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
         return Cons.FromEnumerable([
             JsSymbols.Block, 
             statement, 
@@ -744,7 +849,7 @@ public sealed class CpsTransformer
     /// Transforms a try-catch statement within an async function context.
     /// Handles return statements in try and catch blocks by calling resolve.
     /// </summary>
-    private object? TransformTryInAsyncContext(Cons tryCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null)
+    private object? TransformTryInAsyncContext(Cons tryCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null, bool addFinalContinuation = true)
     {
         // tryCons is (try tryBlock catchClause? finallyBlock?)
         var parts = ConsList(tryCons);
@@ -787,7 +892,7 @@ public sealed class CpsTransformer
         }
 
         // Continue with remaining statements
-        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
 
         // Build the transformed try statement
         var transformedTry = Cons.FromEnumerable([
@@ -877,11 +982,43 @@ public sealed class CpsTransformer
     }
 
     /// <summary>
+    /// Transforms an if branch (then or else) within a loop context.
+    /// Unlike TransformBlockInAsyncContext, this does NOT add a continuation at the end
+    /// because if branches should fall through to the next statement after the if.
+    /// </summary>
+    private object? TransformIfBranchInLoopContext(object? branch, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget, object? loopBreakTarget)
+    {
+        if (branch is not Cons branchCons || branchCons.IsEmpty)
+        {
+            return branch;
+        }
+
+        // Check if this is a block
+        if (branchCons.Head is Symbol blockSymbol && ReferenceEquals(blockSymbol, JsSymbols.Block))
+        {
+            var statements = new List<object?>();
+            var current = branchCons.Rest;
+            
+            while (current is Cons c && !c.IsEmpty)
+            {
+                statements.Add(c.Head);
+                current = c.Rest;
+            }
+
+            // Chain statements WITHOUT adding final continuation (addFinalContinuation = false)
+            // This allows the if branch to fall through to subsequent statements
+            return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation: false);
+        }
+
+        return branch;
+    }
+
+    /// <summary>
     /// Extracts await expressions from a complex expression and chains them.
     /// Example: let x = (await p1) + (await p2);
     /// Becomes: p1.then(function(t1) { p2.then(function(t2) { let x = t1 + t2; [rest] }) })
     /// </summary>
-    private object? ExtractAndChainAwaits(object? varKeyword, object? varName, object? expr, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null)
+    private object? ExtractAndChainAwaits(object? varKeyword, object? varName, object? expr, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null, bool addFinalContinuation = true)
     {
         // Collect all await expressions in the expression
         var awaits = new List<(object? promiseExpr, Symbol tempVar)>();
@@ -890,7 +1027,7 @@ public sealed class CpsTransformer
         if (awaits.Count == 0)
         {
             // No awaits found, shouldn't happen but handle gracefully
-            var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+            var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
             return Cons.FromEnumerable([
                 JsSymbols.Block, 
                 Cons.FromEnumerable([varKeyword, varName, expr]), 

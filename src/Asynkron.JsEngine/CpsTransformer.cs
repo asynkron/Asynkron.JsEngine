@@ -301,13 +301,13 @@ public sealed class CpsTransformer
         }
 
         // Build the chain of statements, handling await specially
-        return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam);
+        return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam, null, null);
     }
 
     /// <summary>
     /// Recursively chains statements, handling await expressions by creating promise chains.
     /// </summary>
-    private object? ChainStatementsWithAwaits(List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    private object? ChainStatementsWithAwaits(List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null)
     {
         if (index >= statements.Count)
         {
@@ -316,6 +316,39 @@ public sealed class CpsTransformer
         }
 
         var statement = statements[index];
+        
+        // Check if this is a break statement
+        if (statement is Cons breakCons && !breakCons.IsEmpty && 
+            breakCons.Head is Symbol breakSymbol && ReferenceEquals(breakSymbol, JsSymbols.Break))
+        {
+            // In loop context, break should call the after-loop continuation
+            if (loopBreakTarget != null)
+            {
+                return loopBreakTarget;
+            }
+            // Outside loop context, just include it (will be handled at runtime)
+        }
+        
+        // Check if this is a continue statement
+        if (statement is Cons continueCons && !continueCons.IsEmpty && 
+            continueCons.Head is Symbol continueSymbol && ReferenceEquals(continueSymbol, JsSymbols.Continue))
+        {
+            // In loop context, continue should call the loop check function (next iteration)
+            if (loopContinueTarget != null)
+            {
+                return Cons.FromEnumerable([
+                    JsSymbols.Block,
+                    Cons.FromEnumerable([
+                        JsSymbols.Return,
+                        Cons.FromEnumerable([
+                            JsSymbols.Call,
+                            loopContinueTarget
+                        ])
+                    ])
+                ]);
+            }
+            // Outside loop context, just include it (will be handled at runtime)
+        }
         
         // Check if this is a return statement
         if (statement is Cons cons && !cons.IsEmpty && 
@@ -330,7 +363,7 @@ public sealed class CpsTransformer
             tryCons.Head is Symbol trySymbol && ReferenceEquals(trySymbol, JsSymbols.Try))
         {
             // Transform try-catch with special handling for async context
-            return TransformTryInAsyncContext(tryCons, statements, index, resolveParam, rejectParam);
+            return TransformTryInAsyncContext(tryCons, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
         }
         
         // Check if this is a for-of statement - needs transformation if body contains await
@@ -356,15 +389,53 @@ public sealed class CpsTransformer
             return TransformForOfWithAwaitInBody(forAwaitCons, statements, index, resolveParam, rejectParam);
         }
         
+        // Check if this is an if statement - recursively transform branches
+        if (statement is Cons ifCons && !ifCons.IsEmpty && 
+            ifCons.Head is Symbol ifSymbol && ReferenceEquals(ifSymbol, JsSymbols.If))
+        {
+            var ifParts = ConsList(ifCons);
+            if (ifParts.Count >= 3)
+            {
+                var condition = ifParts[1];
+                var thenBranch = ifParts[2];
+                var elseBranch = ifParts.Count > 3 ? ifParts[3] : null;
+                
+                // Always transform branches recursively - handles break/continue/await/return
+                var transformedThen = TransformBlockInAsyncContext(thenBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+                var transformedElse = elseBranch != null ? TransformBlockInAsyncContext(elseBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget) : null;
+                
+                var transformedIf = transformedElse != null
+                    ? Cons.FromEnumerable([JsSymbols.If, condition, transformedThen, transformedElse])
+                    : Cons.FromEnumerable([JsSymbols.If, condition, transformedThen]);
+                
+                var ifRest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+                
+                if (ifRest is Cons ifRestCons && !ifRestCons.IsEmpty && 
+                    ifRestCons.Head is Symbol ifRestSymbol && ReferenceEquals(ifRestSymbol, JsSymbols.Block))
+                {
+                    var flattenedStatements = new List<object?> { JsSymbols.Block, transformedIf };
+                    var current = ifRestCons.Rest;
+                    while (current is Cons c && !c.IsEmpty)
+                    {
+                        flattenedStatements.Add(c.Head);
+                        current = c.Rest;
+                    }
+                    return Cons.FromEnumerable(flattenedStatements);
+                }
+                
+                return Cons.FromEnumerable([JsSymbols.Block, transformedIf, ifRest]);
+            }
+        }
+        
         // Check if this statement contains await
         if (ContainsAwait(statement))
         {
             // Transform this statement with await into a promise chain
-            return TransformStatementWithAwait(statement, statements, index, resolveParam, rejectParam);
+            return TransformStatementWithAwait(statement, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
         }
 
-        // No await and not a return, just include it and continue
-        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
+        // No await and not a special case, just include it and continue
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
         
         // If rest is a block, flatten it to avoid nested blocks
         if (rest is Cons restCons && !restCons.IsEmpty && 
@@ -475,7 +546,7 @@ public sealed class CpsTransformer
     /// Example: let x = await p; [rest]
     /// Becomes: p.then(function(x) { [rest] })
     /// </summary>
-    private object? TransformStatementWithAwait(object? statement, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    private object? TransformStatementWithAwait(object? statement, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null)
     {
         // Handle different statement types
         if (statement is Cons cons && !cons.IsEmpty && cons.Head is Symbol symbol)
@@ -501,7 +572,7 @@ public sealed class CpsTransformer
                         
                         // Create continuation for remaining statements
                         var restStatements = statements.Skip(index + 1).ToList();
-                        var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam);
+                        var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
                         
                         // Create the .then() callback: function(varName) { [continuation] }
                         var thenCallback = Cons.FromEnumerable([
@@ -532,7 +603,7 @@ public sealed class CpsTransformer
                     else if (ContainsAwait(value))
                     {
                         // Extract awaits from the complex expression and chain them
-                        return ExtractAndChainAwaits(varKeyword, varName, value, statements, index, resolveParam, rejectParam);
+                        return ExtractAndChainAwaits(varKeyword, varName, value, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
                     }
                 }
             }
@@ -573,7 +644,7 @@ public sealed class CpsTransformer
         }
 
         // Default: include the statement as-is and continue
-        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
         return Cons.FromEnumerable([
             JsSymbols.Block, 
             statement, 
@@ -585,7 +656,7 @@ public sealed class CpsTransformer
     /// Transforms a try-catch statement within an async function context.
     /// Handles return statements in try and catch blocks by calling resolve.
     /// </summary>
-    private object? TransformTryInAsyncContext(Cons tryCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    private object? TransformTryInAsyncContext(Cons tryCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null)
     {
         // tryCons is (try tryBlock catchClause? finallyBlock?)
         var parts = ConsList(tryCons);
@@ -596,7 +667,7 @@ public sealed class CpsTransformer
 
         // Transform the try block with async context
         var tryBlock = parts[1];
-        var transformedTryBlock = TransformBlockInAsyncContext(tryBlock, resolveParam, rejectParam);
+        var transformedTryBlock = TransformBlockInAsyncContext(tryBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
 
         object? transformedCatchClause = null;
         if (parts.Count > 2 && parts[2] != null)
@@ -610,7 +681,7 @@ public sealed class CpsTransformer
                     var catchSymbol = catchParts[0]; // 'catch'
                     var catchParam = catchParts[1];
                     var catchBlock = catchParts[2];
-                    var transformedCatchBlock = TransformBlockInAsyncContext(catchBlock, resolveParam, rejectParam);
+                    var transformedCatchBlock = TransformBlockInAsyncContext(catchBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
                     
                     transformedCatchClause = Cons.FromEnumerable([
                         catchSymbol, 
@@ -624,11 +695,11 @@ public sealed class CpsTransformer
         object? transformedFinallyBlock = null;
         if (parts.Count > 3 && parts[3] != null)
         {
-            transformedFinallyBlock = TransformBlockInAsyncContext(parts[3], resolveParam, rejectParam);
+            transformedFinallyBlock = TransformBlockInAsyncContext(parts[3], resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
         }
 
         // Continue with remaining statements
-        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
 
         // Build the transformed try statement
         var transformedTry = Cons.FromEnumerable([
@@ -691,7 +762,7 @@ public sealed class CpsTransformer
     /// <summary>
     /// Transforms a block within an async function context, handling return statements.
     /// </summary>
-    private object? TransformBlockInAsyncContext(object? block, Symbol resolveParam, Symbol rejectParam)
+    private object? TransformBlockInAsyncContext(object? block, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null)
     {
         if (block is not Cons blockCons || blockCons.IsEmpty)
         {
@@ -711,7 +782,7 @@ public sealed class CpsTransformer
             }
 
             // Chain statements with async context
-            return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam);
+            return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
         }
 
         return block;
@@ -722,7 +793,7 @@ public sealed class CpsTransformer
     /// Example: let x = (await p1) + (await p2);
     /// Becomes: p1.then(function(t1) { p2.then(function(t2) { let x = t1 + t2; [rest] }) })
     /// </summary>
-    private object? ExtractAndChainAwaits(object? varKeyword, object? varName, object? expr, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    private object? ExtractAndChainAwaits(object? varKeyword, object? varName, object? expr, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null)
     {
         // Collect all await expressions in the expression
         var awaits = new List<(object? promiseExpr, Symbol tempVar)>();
@@ -731,7 +802,7 @@ public sealed class CpsTransformer
         if (awaits.Count == 0)
         {
             // No awaits found, shouldn't happen but handle gracefully
-            var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam);
+            var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
             return Cons.FromEnumerable([
                 JsSymbols.Block, 
                 Cons.FromEnumerable([varKeyword, varName, expr]), 
@@ -745,7 +816,7 @@ public sealed class CpsTransformer
         var varDecl = Cons.FromEnumerable([varKeyword, varName, transformedExpr]);
         var innerStatements = new List<object?> { varDecl };
         innerStatements.AddRange(restStatements);
-        var innerBody = ChainStatementsWithAwaits(innerStatements, 0, resolveParam, rejectParam);
+        var innerBody = ChainStatementsWithAwaits(innerStatements, 0, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
 
         // Chain the awaits from right to left (innermost first)
         for (int i = awaits.Count - 1; i >= 0; i--)
@@ -1253,7 +1324,8 @@ public sealed class CpsTransformer
         
         // Chain the body statements with await handling
         // Use loopResolve instead of resolveParam so the body calls loopCheck at the end
-        var transformedBody = ChainStatementsWithAwaits(bodyStatements, 0, loopResolve, rejectParam);
+        // Pass loopCheckFunc for continue and afterLoopContinuation for break
+        var transformedBody = ChainStatementsWithAwaits(bodyStatements, 0, loopResolve, rejectParam, loopCheckFunc, afterLoopContinuation);
         
         // Now wrap the transformed body with the loop resolve function definition
         // function __loopResolve() { return __loopCheck(); }

@@ -312,7 +312,9 @@ public sealed class CpsTransformer
         if (index >= statements.Count)
         {
             // No more statements, resolve with null
-            return CreateResolveCall(null, resolveParam);
+            // In loop context, return the promise from resolve to chain iterations
+            bool inLoopContext = loopContinueTarget != null || loopBreakTarget != null;
+            return CreateResolveCall(null, resolveParam, inLoopContext);
         }
 
         var statement = statements[index];
@@ -909,7 +911,7 @@ public sealed class CpsTransformer
     /// <summary>
     /// Creates a call to resolve with the given value.
     /// </summary>
-    private object? CreateResolveCall(object? value, Symbol resolveParam)
+    private object? CreateResolveCall(object? value, Symbol resolveParam, bool shouldReturn = false)
     {
         // Create: (call resolve value)
         var args = new List<object?> { JsSymbols.Call, resolveParam };
@@ -918,6 +920,15 @@ public sealed class CpsTransformer
             args.Add(value);
         }
         var resolveCall = Cons.FromEnumerable(args);
+
+        // In loop context, we need to return the promise from resolve call to chain iterations
+        if (shouldReturn)
+        {
+            return Cons.FromEnumerable([
+                JsSymbols.Block,
+                Cons.FromEnumerable([JsSymbols.Return, resolveCall])
+            ]);
+        }
 
         return Cons.FromEnumerable([
             JsSymbols.Block, 

@@ -24,10 +24,4 @@
     <ProjectReference Include="..\..\src\Asynkron.JsEngine\Asynkron.JsEngine.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="xunit.runner.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
 </Project>

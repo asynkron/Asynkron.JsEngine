@@ -4,6 +4,20 @@ namespace Asynkron.JsEngine;
 
 internal static class Evaluator
 {
+    /// <summary>
+    /// Thread-local storage for the current environment during evaluation.
+    /// Used by debug functions to access the execution context.
+    /// </summary>
+    [ThreadStatic]
+    internal static Environment? CurrentEnvironment;
+    
+    /// <summary>
+    /// Thread-local storage for the current evaluation context during evaluation.
+    /// Used by debug functions to access the execution context.
+    /// </summary>
+    [ThreadStatic]
+    internal static EvaluationContext? CurrentContext;
+
     public static object? EvaluateProgram(Cons program, Environment environment)
     {
         return EvaluateProgram(program, environment, new EvaluationContext());
@@ -1398,7 +1412,20 @@ internal static class Evaluator
 
         try
         {
-            return callable.Invoke(arguments, thisValue);
+            // Set thread-local variables for debug functions to access
+            var previousEnvironment = CurrentEnvironment;
+            var previousContext = CurrentContext;
+            try
+            {
+                CurrentEnvironment = environment;
+                CurrentContext = context;
+                return callable.Invoke(arguments, thisValue);
+            }
+            finally
+            {
+                CurrentEnvironment = previousEnvironment;
+                CurrentContext = previousContext;
+            }
         }
         catch (ThrowSignal signal)
         {

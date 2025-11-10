@@ -91,4 +91,31 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
 
         return current;
     }
+
+    /// <summary>
+    /// Gets all variables from this environment and all enclosing environments.
+    /// Used for debugging purposes.
+    /// </summary>
+    public Dictionary<string, object?> GetAllVariables()
+    {
+        var result = new Dictionary<string, object?>();
+        
+        // Traverse up the scope chain
+        var current = this;
+        while (current is not null)
+        {
+            // Add variables from current scope (only if not already present from inner scope)
+            foreach (var kvp in current._values)
+            {
+                if (!result.ContainsKey(kvp.Key.Name))
+                {
+                    result[kvp.Key.Name] = kvp.Value.Value;
+                }
+            }
+            
+            current = current._enclosing;
+        }
+        
+        return result;
+    }
 }

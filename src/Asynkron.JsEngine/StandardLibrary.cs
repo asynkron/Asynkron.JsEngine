@@ -2077,6 +2077,40 @@ internal static class StandardLibrary
             url = url.Replace("\"", "&quot;");
             return $"<a href=\"{url}\">{str}</a>";
         }));
+        
+        // Set up Symbol.iterator for string
+        var iteratorSymbol = JsSymbol.For("Symbol.iterator");
+        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+        
+        // Create iterator function that returns an iterator object
+        var iteratorFunction = new HostFunction((thisValue, args) =>
+        {
+            // Use array to hold index so it can be mutated in closure
+            var indexHolder = new int[] { 0 };
+            var iterator = new JsObject();
+            
+            // Add next() method to iterator
+            iterator.SetProperty("next", new HostFunction((nextThisValue, nextArgs) =>
+            {
+                var result = new JsObject();
+                if (indexHolder[0] < str.Length)
+                {
+                    result.SetProperty("value", str[indexHolder[0]].ToString());
+                    result.SetProperty("done", false);
+                    indexHolder[0]++;
+                }
+                else
+                {
+                    result.SetProperty("value", JsSymbols.Undefined);
+                    result.SetProperty("done", true);
+                }
+                return result;
+            }));
+            
+            return iterator;
+        });
+        
+        stringObj.SetProperty(iteratorKey, iteratorFunction);
     }
 
     private static JsArray CreateArrayFromStrings(string[] strings)

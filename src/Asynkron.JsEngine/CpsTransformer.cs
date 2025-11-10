@@ -346,17 +346,14 @@ public sealed class CpsTransformer
             }
         }
 
-        // Check if this is a for-await-of statement - needs transformation in async context
+        // Check if this is a for-await-of statement - always transform in async context
+        // We wrap iterator.next() in Promise.resolve() to handle both sync and async iterators
         if (statement is Cons forAwaitCons && !forAwaitCons.IsEmpty && 
             forAwaitCons.Head is Symbol forAwaitSymbol && ReferenceEquals(forAwaitSymbol, JsSymbols.ForAwaitOf))
         {
-            // Check if body contains await
-            var parts = ConsList(forAwaitCons);
-            if (parts.Count >= 4 && ContainsAwait(parts[3]))
-            {
-                // Transform for-await-of with await in body
-                return TransformForOfWithAwaitInBody(forAwaitCons, statements, index, resolveParam, rejectParam);
-            }
+            // Always transform for-await-of in async functions
+            // Promise.resolve() ensures both sync and async iterators work the same way
+            return TransformForOfWithAwaitInBody(forAwaitCons, statements, index, resolveParam, rejectParam);
         }
         
         // Check if this statement contains await
@@ -1204,18 +1201,12 @@ public sealed class CpsTransformer
         Symbol resolveParam,
         Symbol rejectParam)
     {
-        // let __result = __iterator.next();
-        var getNext = Cons.FromEnumerable([
-            JsSymbols.Let,
-            resultVar,
-            Cons.FromEnumerable([
-                JsSymbols.Call,
-                Cons.FromEnumerable([
-                    JsSymbols.GetProperty,
-                    iteratorVar,
-                    "next"
-                ])
-            ])
+        // Call __iteratorNext(iterator) - this C# helper wraps result in Promise if needed
+        // This handles both sync and async iterators uniformly
+        var callIteratorNext = Cons.FromEnumerable([
+            JsSymbols.Call,
+            Symbol.Intern("__iteratorNext"),
+            iteratorVar
         ]);
 
         // if (__result.done) { afterLoopContinuation } else { body + call loopCheckFunc }
@@ -1299,11 +1290,35 @@ public sealed class CpsTransformer
             transformedBody
         ]);
 
-        // Function body
+        // Create the .then() callback: function(__result) { if (__result.done) {...} else {...} }
+        var thenCallback = Cons.FromEnumerable([
+            JsSymbols.Lambda,
+            null,
+            Cons.FromEnumerable([resultVar]),
+            Cons.FromEnumerable([
+                JsSymbols.Block,
+                ifStatement
+            ])
+        ]);
+
+        // __iteratorNext(iterator).then(callback)
+        var thenCall = Cons.FromEnumerable([
+            JsSymbols.Call,
+            Cons.FromEnumerable([
+                JsSymbols.GetProperty,
+                callIteratorNext,
+                "then"
+            ]),
+            thenCallback
+        ]);
+
+        // Return the promise chain
         return Cons.FromEnumerable([
             JsSymbols.Block,
-            getNext,
-            ifStatement
+            Cons.FromEnumerable([
+                JsSymbols.Return,
+                thenCall
+            ])
         ]);
     }
 

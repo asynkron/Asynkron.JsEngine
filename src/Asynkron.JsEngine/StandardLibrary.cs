@@ -3386,4 +3386,37 @@ internal static class StandardLibrary
             JsFloat64Array.FromArray,
             (buffer, offset, length) => new JsFloat64Array(buffer, offset, length),
             JsFloat64Array.BYTES_PER_ELEMENT);
+
+    /// <summary>
+    /// Helper method for async iteration: gets next value from iterator and wraps in Promise if needed.
+    /// This handles both sync and async iterators uniformly.
+    /// </summary>
+    public static HostFunction CreateIteratorNextHelper(JsEngine engine)
+    {
+        return new HostFunction(args =>
+        {
+            // args[0] should be the iterator object
+            if (args.Count == 0 || args[0] is not JsObject iterator)
+                throw new InvalidOperationException("__iteratorNext requires an iterator object");
+
+            // Call iterator.next()
+            if (!iterator.TryGetProperty("next", out var nextMethod) || nextMethod is not IJsCallable nextCallable)
+                throw new InvalidOperationException("Iterator must have a 'next' method");
+
+            var result = nextCallable.Invoke([], iterator);
+
+            // Check if result is already a promise (has a "then" method)
+            if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable)
+            {
+                // Already a promise, return as-is
+                return result;
+            }
+
+            // Not a promise, wrap in Promise.resolve()
+            var promise = new JsPromise(engine);
+            AddPromiseInstanceMethods(promise.JsObject, promise, engine);
+            promise.Resolve(result);
+            return promise.JsObject;
+        });
+    }
 }

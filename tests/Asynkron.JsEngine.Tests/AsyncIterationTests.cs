@@ -54,7 +54,7 @@ public class AsyncIterationTests
         Assert.Equal("abc", result);
     }
     
-    [Fact(Skip = "CPS transformer: Promise.resolve() approach breaks some tests - needs debugging")]
+    [Fact]
     public async Task ForAwaitOf_WithGenerator()
     {
         var engine = new JsEngine();
@@ -217,7 +217,7 @@ public class AsyncIterationTests
         Assert.Equal("abc", result);
     }
     
-    [Fact(Skip = "CPS transformer: Promise.resolve() approach breaks some tests - needs debugging")]
+    [Fact]
     public async Task ForAwaitOf_WithCustomAsyncIterator()
     {
         var engine = new JsEngine();
@@ -294,7 +294,7 @@ public class AsyncIterationTests
         Assert.Equal("123", result);
     }
     
-    [Fact(Skip = "CPS transformer: Promise.resolve() approach breaks some tests - needs debugging")]
+    [Fact]
     public async Task ForAwaitOf_ErrorPropagation()
     {
         var engine = new JsEngine();
@@ -341,7 +341,7 @@ public class AsyncIterationTests
         Assert.True(errorCaught);
     }
     
-    [Fact(Skip = "CPS transformer: Promise.resolve() approach breaks some tests - needs debugging")]
+    [Fact]
     public async Task ForAwaitOf_SyncErrorPropagation()
     {
         // Test error handling with synchronous iterators
@@ -389,7 +389,7 @@ public class AsyncIterationTests
         Assert.True(errorCaught);
     }
     
-    [Fact(Skip = "CPS transformer: Promise.resolve() approach breaks some tests - needs debugging")]
+    [Fact]
     public async Task ForAwaitOf_FallbackToSyncIterator()
     {
         var engine = new JsEngine();

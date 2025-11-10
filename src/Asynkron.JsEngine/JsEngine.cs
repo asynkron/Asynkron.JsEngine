@@ -357,7 +357,14 @@ public sealed class JsEngine
             // If there are active timer tasks, wait for them to complete
             if (activeTasks.Length > 0)
             {
-                await Task.WhenAll(activeTasks);
+                try
+                {
+                    await Task.WhenAll(activeTasks);
+                }
+                catch (TaskCanceledException)
+                {
+                    // Some timers were cancelled, which is fine
+                }
             }
             
             // After timers complete, give the event queue a moment to process any callbacks

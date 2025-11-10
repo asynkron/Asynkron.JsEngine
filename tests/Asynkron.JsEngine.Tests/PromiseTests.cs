@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class PromiseTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_CanBeResolved()
     {
         var engine = new JsEngine();
@@ -37,7 +37,7 @@ public class PromiseTests
         Assert.Equal("test value", resolvedValue);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_CanBeRejected()
     {
         var engine = new JsEngine();
@@ -70,7 +70,7 @@ public class PromiseTests
         Assert.Equal("error reason", rejectedReason);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_ThenReturnsNewPromise()
     {
         var engine = new JsEngine();
@@ -102,7 +102,7 @@ public class PromiseTests
         Assert.Equal("15", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_CanChainMultipleThen()
     {
         var engine = new JsEngine();
@@ -138,7 +138,7 @@ public class PromiseTests
         Assert.Equal(new[] { "1", "2", "3" }, results);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_Resolve_CreatesResolvedPromise()
     {
         var engine = new JsEngine();
@@ -165,7 +165,7 @@ public class PromiseTests
         Assert.Equal("resolved value", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_Reject_CreatesRejectedPromise()
     {
         var engine = new JsEngine();
@@ -193,7 +193,7 @@ public class PromiseTests
         Assert.Equal("rejection reason", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_CatchHandlesRejection()
     {
         var engine = new JsEngine();
@@ -222,7 +222,7 @@ public class PromiseTests
         Assert.True(caught);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_Finally_ExecutesOnBothResolveAndReject()
     {
         var engine = new JsEngine();
@@ -251,7 +251,7 @@ public class PromiseTests
         Assert.Equal(2, finallyCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_All_ResolvesWhenAllResolve()
     {
         var engine = new JsEngine();
@@ -283,7 +283,7 @@ public class PromiseTests
         Assert.Equal(new[] { "1", "2", "3" }, results);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_All_RejectsWhenOneRejects()
     {
         var engine = new JsEngine();
@@ -317,7 +317,7 @@ public class PromiseTests
         Assert.Equal("error", reason);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_Race_ResolvesWithFirstSettled()
     {
         var engine = new JsEngine();
@@ -346,7 +346,7 @@ public class PromiseTests
         Assert.Equal("first", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_IntegrationWithSetTimeout()
     {
         var engine = new JsEngine();
@@ -378,7 +378,7 @@ public class PromiseTests
         Assert.Equal("async value", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_ExecutorRunsImmediately()
     {
         var engine = new JsEngine();
@@ -402,7 +402,7 @@ public class PromiseTests
         Assert.Equal(2, executorCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Promise_CatchReturnsResolvedPromise()
     {
         var engine = new JsEngine();

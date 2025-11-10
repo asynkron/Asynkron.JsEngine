@@ -16,7 +16,7 @@ public class NpmPackageTests
     // left-pad: String padding utility
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LeftPad_PadsStringWithSpaces()
     {
         var engine = new JsEngine();
@@ -43,7 +43,7 @@ public class NpmPackageTests
         Assert.Equal("  foo", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LeftPad_PadsStringWithCustomCharacter()
     {
         var engine = new JsEngine();
@@ -69,7 +69,7 @@ public class NpmPackageTests
         Assert.Equal("00042", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LeftPad_HandlesEmptyString()
     {
         var engine = new JsEngine();
@@ -95,7 +95,7 @@ public class NpmPackageTests
         Assert.Equal("aaa", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LeftPad_NoModificationIfAlreadyLongEnough()
     {
         var engine = new JsEngine();
@@ -125,7 +125,7 @@ public class NpmPackageTests
     // is-odd / is-even: Number parity checking
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task IsOdd_IdentifiesOddNumbers()
     {
         var engine = new JsEngine();
@@ -150,7 +150,7 @@ public class NpmPackageTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task IsEven_IdentifiesEvenNumbers()
     {
         var engine = new JsEngine();
@@ -176,7 +176,7 @@ public class NpmPackageTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task IsOdd_HandlesNegativeNumbers()
     {
         var engine = new JsEngine();
@@ -204,7 +204,7 @@ public class NpmPackageTests
     // clamp: Constrain number to range
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Clamp_ReturnsNumberWithinRange()
     {
         var engine = new JsEngine();
@@ -223,7 +223,7 @@ public class NpmPackageTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Clamp_ClampsToMinimum()
     {
         var engine = new JsEngine();
@@ -242,7 +242,7 @@ public class NpmPackageTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Clamp_ClampsToMaximum()
     {
         var engine = new JsEngine();
@@ -265,7 +265,7 @@ public class NpmPackageTests
     // in-range: Check if number is in range
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task InRange_ReturnsTrueForNumberInRange()
     {
         var engine = new JsEngine();
@@ -288,7 +288,7 @@ public class NpmPackageTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task InRange_ReturnsFalseForNumberOutOfRange()
     {
         var engine = new JsEngine();
@@ -311,7 +311,7 @@ public class NpmPackageTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task InRange_HandlesSingleArgumentForm()
     {
         var engine = new JsEngine();
@@ -338,7 +338,7 @@ public class NpmPackageTests
     // fibonacci: Generate fibonacci sequence
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Fibonacci_GeneratesCorrectSequence()
     {
         var engine = new JsEngine();
@@ -363,7 +363,7 @@ public class NpmPackageTests
         Assert.Equal("0,1,1,2,3,5,8,13,21,34", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Fibonacci_IterativeVersion()
     {
         var engine = new JsEngine();
@@ -397,7 +397,7 @@ public class NpmPackageTests
     // Luhn algorithm: Credit card validation
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Luhn_ValidatesValidCreditCard()
     {
         var engine = new JsEngine();
@@ -434,7 +434,7 @@ public class NpmPackageTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Luhn_RejectsInvalidCreditCard()
     {
         var engine = new JsEngine();
@@ -475,7 +475,7 @@ public class NpmPackageTests
     // array-shuffle: Fisher-Yates shuffle
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayShuffle_MaintainsAllElements()
     {
         var engine = new JsEngine();
@@ -517,7 +517,7 @@ public class NpmPackageTests
     // deepEqual: Deep object/array comparison
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DeepEqual_ComparesSimpleObjects()
     {
         var engine = new JsEngine();
@@ -558,7 +558,7 @@ public class NpmPackageTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DeepEqual_DetectsDifferences()
     {
         var engine = new JsEngine();
@@ -603,7 +603,7 @@ public class NpmPackageTests
     // camelCase: Convert string to camelCase
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task CamelCase_ConvertsHyphenatedString()
     {
         var engine = new JsEngine();
@@ -640,7 +640,7 @@ public class NpmPackageTests
         Assert.Equal("helloWorldTest", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task CamelCase_HandlesUnderscores()
     {
         var engine = new JsEngine();
@@ -681,7 +681,7 @@ public class NpmPackageTests
     // kebabCase: Convert string to kebab-case
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task KebabCase_ConvertsCamelCase()
     {
         var engine = new JsEngine();
@@ -722,7 +722,7 @@ public class NpmPackageTests
     // capitalize: Capitalize first letter
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Capitalize_CapitalizesFirstLetter()
     {
         var engine = new JsEngine();
@@ -742,7 +742,7 @@ public class NpmPackageTests
         Assert.Equal("Hello world", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Capitalize_HandlesEmptyString()
     {
         var engine = new JsEngine();
@@ -766,7 +766,7 @@ public class NpmPackageTests
     // flatten: Flatten nested arrays
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Flatten_FlattensNestedArrays()
     {
         var engine = new JsEngine();
@@ -804,7 +804,7 @@ public class NpmPackageTests
     // sum: Sum array of numbers
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Sum_AddsArrayOfNumbers()
     {
         var engine = new JsEngine();
@@ -827,7 +827,7 @@ public class NpmPackageTests
         Assert.Equal(15d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Sum_HandlesEmptyArray()
     {
         var engine = new JsEngine();
@@ -854,7 +854,7 @@ public class NpmPackageTests
     // unique: Remove duplicates from array
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Unique_RemovesDuplicates()
     {
         var engine = new JsEngine();
@@ -895,7 +895,7 @@ public class NpmPackageTests
     // chunk: Split array into chunks
     // ========================================
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Chunk_SplitsArrayIntoChunks()
     {
         var engine = new JsEngine();
@@ -928,7 +928,7 @@ public class NpmPackageTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Chunk_VerifyChunkContents()
     {
         var engine = new JsEngine();

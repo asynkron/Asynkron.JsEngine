@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class LoopsTests
 {
     // for...in loop tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForInLoopBasic()
     {
         var engine = new JsEngine();
@@ -22,7 +22,7 @@ public class LoopsTests
         Assert.Equal("abc", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForInLoopWithValues()
     {
         var engine = new JsEngine();
@@ -39,7 +39,7 @@ public class LoopsTests
         Assert.Equal(60d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForInLoopArray()
     {
         var engine = new JsEngine();
@@ -56,7 +56,7 @@ public class LoopsTests
         Assert.Equal("012", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForInLoopWithBreak()
     {
         var engine = new JsEngine();
@@ -76,7 +76,7 @@ public class LoopsTests
         Assert.Equal("ab", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForInLoopWithContinue()
     {
         var engine = new JsEngine();
@@ -97,7 +97,7 @@ public class LoopsTests
     }
 
     // for...of loop tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForOfLoopArray()
     {
         var engine = new JsEngine();
@@ -114,7 +114,7 @@ public class LoopsTests
         Assert.Equal(60d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForOfLoopString()
     {
         var engine = new JsEngine();
@@ -131,7 +131,7 @@ public class LoopsTests
         Assert.Equal("abc", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForOfLoopWithBreak()
     {
         var engine = new JsEngine();
@@ -151,7 +151,7 @@ public class LoopsTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForOfLoopWithContinue()
     {
         var engine = new JsEngine();
@@ -171,7 +171,7 @@ public class LoopsTests
         Assert.Equal(12d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForOfLoopNested()
     {
         var engine = new JsEngine();

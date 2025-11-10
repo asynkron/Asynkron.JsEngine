@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class SourceReferenceTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SourceReference_ForLoop_CapturesSourceRange()
     {
         var source = """
@@ -33,7 +33,7 @@ public class SourceReferenceTests
         Assert.Contains("console.log", capturedText);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SourceReference_MultipleStatements_EachHasOwnReference()
     {
         var source = """
@@ -64,7 +64,7 @@ public class SourceReferenceTests
         Assert.Contains("j < 3", secondText);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SourceReference_GetText_ReturnsCorrectSourceText()
     {
         var source = @"for (let i = 0; i < 5; i++) { }";
@@ -86,7 +86,7 @@ public class SourceReferenceTests
         Assert.Contains("i++", text);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SourceReference_LineAndColumn_TrackCorrectly()
     {
         var source = """

@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class AdditionalMethodsTests
 {
     // String methods
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StringReplaceAll()
     {
         var engine = new JsEngine();
@@ -18,7 +18,7 @@ public class AdditionalMethodsTests
         Assert.Equal("hi world hi", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StringAt()
     {
         var engine = new JsEngine();
@@ -31,7 +31,7 @@ public class AdditionalMethodsTests
         Assert.Equal("e", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StringAtNegative()
     {
         var engine = new JsEngine();
@@ -44,7 +44,7 @@ public class AdditionalMethodsTests
         Assert.Equal("o", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StringTrimStart()
     {
         var engine = new JsEngine();
@@ -57,7 +57,7 @@ public class AdditionalMethodsTests
         Assert.Equal("hello  ", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StringTrimEnd()
     {
         var engine = new JsEngine();
@@ -71,7 +71,7 @@ public class AdditionalMethodsTests
     }
 
     // Array methods
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayAt()
     {
         var engine = new JsEngine();
@@ -84,7 +84,7 @@ public class AdditionalMethodsTests
         Assert.Equal(20d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayAtNegative()
     {
         var engine = new JsEngine();
@@ -97,7 +97,7 @@ public class AdditionalMethodsTests
         Assert.Equal(30d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayFlat()
     {
         var engine = new JsEngine();
@@ -111,7 +111,7 @@ public class AdditionalMethodsTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayFlatDepth()
     {
         var engine = new JsEngine();
@@ -125,7 +125,7 @@ public class AdditionalMethodsTests
         Assert.Equal(4d, result); // 1, 2, 3, [4]
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayFlatMap()
     {
         var engine = new JsEngine();
@@ -139,7 +139,7 @@ public class AdditionalMethodsTests
         Assert.Equal(18d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayFindLast()
     {
         var engine = new JsEngine();
@@ -152,7 +152,7 @@ public class AdditionalMethodsTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayFindLastIndex()
     {
         var engine = new JsEngine();
@@ -166,7 +166,7 @@ public class AdditionalMethodsTests
     }
 
     // Object methods
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectFromEntries()
     {
         var engine = new JsEngine();
@@ -180,7 +180,7 @@ public class AdditionalMethodsTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectHasOwn()
     {
         var engine = new JsEngine();
@@ -193,7 +193,7 @@ public class AdditionalMethodsTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectHasOwnFalse()
     {
         var engine = new JsEngine();

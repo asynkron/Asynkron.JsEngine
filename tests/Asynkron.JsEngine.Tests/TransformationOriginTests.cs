@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class TransformationOriginTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Origin_AsyncFunction_TracksBackToOriginal()
     {
         var source = """
@@ -35,7 +35,7 @@ public class TransformationOriginTests
         Assert.Same(originalFunc, transformedFunc.Origin);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Origin_UntransformedCode_HasNullOrigin()
     {
         var source = """
@@ -56,7 +56,7 @@ public class TransformationOriginTests
         Assert.Null(func!.Origin);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Origin_ChainedTransformations_CanTraceBack()
     {
         var source = """
@@ -82,7 +82,7 @@ public class TransformationOriginTests
         Assert.Same(originalFunc, transformedFunc.Origin);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Origin_WithSourceReference_BothPropertiesWork()
     {
         var source = @"async function test() { return 42; }";
@@ -109,7 +109,7 @@ public class TransformationOriginTests
         Assert.Contains("async", sourceText);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Origin_OnlyTransformedNodes_HaveOriginSet()
     {
         var source = """

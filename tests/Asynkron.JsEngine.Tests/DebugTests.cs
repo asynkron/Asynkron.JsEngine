@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class DebugTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesBasicVariables()
     {
         var engine = new JsEngine();
@@ -30,7 +30,7 @@ public class DebugTests
         Assert.Equal("hello", debugMessage.Variables["y"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesLoopCounter()
     {
         var engine = new JsEngine();
@@ -54,7 +54,7 @@ public class DebugTests
         Assert.Equal(5d, debugMessage.Variables["i"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesAllIterationsInLoop()
     {
         var engine = new JsEngine();
@@ -80,7 +80,7 @@ public class DebugTests
         Assert.Equal(2d, msg3.Variables["i"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesFunctionScope()
     {
         var engine = new JsEngine();
@@ -113,7 +113,7 @@ public class DebugTests
         Assert.Equal("global", debugMessage.Variables["globalVar"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesNestedScopes()
     {
         var engine = new JsEngine();
@@ -150,7 +150,7 @@ public class DebugTests
         Assert.Equal("outer", debugMessage.Variables["outer"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesCallStack()
     {
         var engine = new JsEngine();
@@ -183,7 +183,7 @@ public class DebugTests
         Assert.Contains(callStackDescriptions, d => d.Contains("outer"));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesLoopInCallStack()
     {
         var engine = new JsEngine();
@@ -208,7 +208,7 @@ public class DebugTests
         Assert.True(hasForLoop, "Expected to find a 'for' loop in the call stack");
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CallStackShowsDepth()
     {
         var engine = new JsEngine();
@@ -251,7 +251,7 @@ public class DebugTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesControlFlowState()
     {
         var engine = new JsEngine();
@@ -271,7 +271,7 @@ public class DebugTests
         Assert.Equal("None", debugMessage.ControlFlowState);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DebugFunction_WorksInNestedLoops()
     {
         var engine = new JsEngine();

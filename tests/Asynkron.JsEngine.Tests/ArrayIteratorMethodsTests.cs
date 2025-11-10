@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class ArrayIteratorMethodsTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Entries_ReturnsIndexValuePairs()
     {
         var engine = new JsEngine();
@@ -18,7 +18,7 @@ public class ArrayIteratorMethodsTests
         Assert.Equal("0a", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Entries_WithMultipleElements()
     {
         var engine = new JsEngine();
@@ -32,7 +32,7 @@ public class ArrayIteratorMethodsTests
         Assert.Equal(1d + 20d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Entries_ReturnsCorrectLength()
     {
         var engine = new JsEngine();
@@ -46,7 +46,7 @@ public class ArrayIteratorMethodsTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Keys_ReturnsIndices()
     {
         var engine = new JsEngine();
@@ -60,7 +60,7 @@ public class ArrayIteratorMethodsTests
         Assert.Equal(0d + 1d + 2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Keys_ReturnsCorrectLength()
     {
         var engine = new JsEngine();
@@ -74,7 +74,7 @@ public class ArrayIteratorMethodsTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Values_ReturnsElementValues()
     {
         var engine = new JsEngine();
@@ -88,7 +88,7 @@ public class ArrayIteratorMethodsTests
         Assert.Equal(10d + 20d + 30d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Values_ReturnsCorrectLength()
     {
         var engine = new JsEngine();
@@ -102,7 +102,7 @@ public class ArrayIteratorMethodsTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Values_WithStringArray()
     {
         var engine = new JsEngine();
@@ -116,7 +116,7 @@ public class ArrayIteratorMethodsTests
         Assert.Equal("hello world", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Entries_CanBeIterated()
     {
         var engine = new JsEngine();
@@ -134,7 +134,7 @@ public class ArrayIteratorMethodsTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Keys_CanBeIterated()
     {
         var engine = new JsEngine();
@@ -152,7 +152,7 @@ public class ArrayIteratorMethodsTests
         Assert.Equal(3d, result); // 0 + 1 + 2
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Array_Values_CanBeIterated()
     {
         var engine = new JsEngine();

@@ -2,7 +2,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class SymbolTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Symbol_Creates_Unique_Symbols()
     {
         var engine = new JsEngine();
@@ -16,7 +16,7 @@ public class SymbolTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Symbol_With_Description()
     {
         var engine = new JsEngine();
@@ -29,7 +29,7 @@ public class SymbolTests
         Assert.Equal("symbol", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Symbol_Typeof_Returns_Symbol()
     {
         var engine = new JsEngine();
@@ -41,7 +41,7 @@ public class SymbolTests
         Assert.Equal("symbol", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Symbol_For_Creates_Global_Symbol()
     {
         var engine = new JsEngine();
@@ -55,7 +55,7 @@ public class SymbolTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Symbol_For_Different_Keys_Creates_Different_Symbols()
     {
         var engine = new JsEngine();
@@ -69,7 +69,7 @@ public class SymbolTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Symbol_KeyFor_Returns_Key_For_Global_Symbol()
     {
         var engine = new JsEngine();
@@ -82,7 +82,7 @@ public class SymbolTests
         Assert.Equal("myKey", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Symbol_KeyFor_Returns_Undefined_For_Non_Global_Symbol()
     {
         var engine = new JsEngine();
@@ -96,7 +96,7 @@ public class SymbolTests
         Assert.Equal("undefined", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Symbol_Can_Be_Used_As_Object_Property_Key()
     {
         var engine = new JsEngine();
@@ -112,7 +112,7 @@ public class SymbolTests
     }
 
     // Symbol properties should not be enumerable in for...in loops
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Symbol_Properties_Are_Not_Enumerable()
     {
         var engine = new JsEngine();
@@ -132,7 +132,7 @@ public class SymbolTests
         Assert.Equal(1.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Symbol_Works_With_Undefined()
     {
         var engine = new JsEngine();
@@ -145,7 +145,7 @@ public class SymbolTests
         Assert.Equal("symbol", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Multiple_Global_Symbols_Work_Correctly()
     {
         var engine = new JsEngine();

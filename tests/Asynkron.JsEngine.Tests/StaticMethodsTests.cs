@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class StaticMethodsTests
 {
     // Object static methods tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectKeys()
     {
         var engine = new JsEngine();
@@ -19,7 +19,7 @@ public class StaticMethodsTests
         Assert.Equal("abc", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectValues()
     {
         var engine = new JsEngine();
@@ -33,7 +33,7 @@ public class StaticMethodsTests
         Assert.Equal(60d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectEntries()
     {
         var engine = new JsEngine();
@@ -47,7 +47,7 @@ public class StaticMethodsTests
         Assert.Equal("x1y2", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectAssign()
     {
         var engine = new JsEngine();
@@ -63,7 +63,7 @@ public class StaticMethodsTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectAssignOverwrites()
     {
         var engine = new JsEngine();
@@ -79,7 +79,7 @@ public class StaticMethodsTests
     }
 
     // Array static methods tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayIsArray()
     {
         var engine = new JsEngine();
@@ -93,7 +93,7 @@ public class StaticMethodsTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayIsArrayString()
     {
         var engine = new JsEngine();
@@ -106,7 +106,7 @@ public class StaticMethodsTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayFrom()
     {
         var engine = new JsEngine();
@@ -120,7 +120,7 @@ public class StaticMethodsTests
         Assert.Equal("abc", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayFromArray()
     {
         var engine = new JsEngine();
@@ -134,7 +134,7 @@ public class StaticMethodsTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayOf()
     {
         var engine = new JsEngine();
@@ -147,7 +147,7 @@ public class StaticMethodsTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayOfSingle()
     {
         var engine = new JsEngine();

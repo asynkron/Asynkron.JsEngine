@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class LogicalAssignmentOperatorsTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LogicalAndAssignment_AssignsWhenTruthy()
     {
         var engine = new JsEngine();
@@ -18,7 +18,7 @@ public class LogicalAssignmentOperatorsTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LogicalAndAssignment_DoesNotAssignWhenFalsy()
     {
         var engine = new JsEngine();
@@ -32,7 +32,7 @@ public class LogicalAssignmentOperatorsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LogicalOrAssignment_AssignsWhenFalsy()
     {
         var engine = new JsEngine();
@@ -46,7 +46,7 @@ public class LogicalAssignmentOperatorsTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LogicalOrAssignment_DoesNotAssignWhenTruthy()
     {
         var engine = new JsEngine();
@@ -60,7 +60,7 @@ public class LogicalAssignmentOperatorsTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NullishCoalescingAssignment_AssignsWhenNullOrUndefined()
     {
         var engine = new JsEngine();
@@ -74,7 +74,7 @@ public class LogicalAssignmentOperatorsTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NullishCoalescingAssignment_DoesNotAssignWhenNotNullish()
     {
         var engine = new JsEngine();
@@ -88,7 +88,7 @@ public class LogicalAssignmentOperatorsTests
         Assert.Equal(0d, result); // 0 is not nullish, so not replaced
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LogicalAssignment_WorksWithObjects()
     {
         var engine = new JsEngine();
@@ -103,7 +103,7 @@ public class LogicalAssignmentOperatorsTests
         Assert.Equal(20d + 30d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NullishCoalescingAssignment_WithUndefined()
     {
         var engine = new JsEngine();

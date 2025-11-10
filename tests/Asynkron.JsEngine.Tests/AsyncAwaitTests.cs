@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class AsyncAwaitTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_CanBeParsed()
     {
         // Arrange
@@ -26,7 +26,7 @@ public class AsyncAwaitTests
         Assert.NotNull(program);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_CanBeDeclared()
     {
         // Arrange
@@ -41,7 +41,7 @@ public class AsyncAwaitTests
                                              """);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunctionExpression_CanBeParsed()
     {
         // Arrange
@@ -59,7 +59,7 @@ public class AsyncAwaitTests
         Assert.NotNull(program);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AwaitExpression_CanBeParsed()
     {
         // Arrange
@@ -78,7 +78,7 @@ public class AsyncAwaitTests
         Assert.NotNull(program);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_ReturnsPromise()
     {
         // Arrange
@@ -112,7 +112,7 @@ public class AsyncAwaitTests
         Assert.Equal("42", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithAwait_ReturnsValue()
     {
         // Arrange
@@ -146,7 +146,7 @@ public class AsyncAwaitTests
         Assert.Equal("42", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithMultipleAwaits()
     {
         // Arrange
@@ -181,7 +181,7 @@ public class AsyncAwaitTests
         Assert.Equal("30", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithAwaitInExpression()
     {
         // Arrange
@@ -215,7 +215,7 @@ public class AsyncAwaitTests
         Assert.Equal("30", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_HandlesRejection()
     {
         // Arrange
@@ -245,7 +245,7 @@ public class AsyncAwaitTests
         Assert.True(caught);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithTryCatch()
     {
         // Arrange
@@ -282,7 +282,7 @@ public class AsyncAwaitTests
         Assert.Equal("caught", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_ChainedCalls()
     {
         // Arrange
@@ -325,7 +325,7 @@ public class AsyncAwaitTests
         Assert.Equal("20", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunctionExpression_Works()
     {
         // Arrange
@@ -358,7 +358,7 @@ public class AsyncAwaitTests
         Assert.Equal("42", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task CpsTransformer_AlreadyTransformedCodeDoesNotNeedTransformation()
     {
         // Arrange
@@ -382,7 +382,7 @@ public class AsyncAwaitTests
         Assert.False(needsTransform);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task CpsTransformer_AlreadyTransformedAwaitDoesNotNeedTransformation()
     {
         // Arrange
@@ -407,7 +407,7 @@ public class AsyncAwaitTests
         Assert.False(needsTransform);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task CpsTransformer_TransformIsIdempotent()
     {
         // Arrange
@@ -431,7 +431,7 @@ public class AsyncAwaitTests
         Assert.Same(program, transformed); // Should be the same instance
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_SequentialAwaits()
     {
         // Arrange
@@ -467,7 +467,7 @@ public class AsyncAwaitTests
         Assert.Equal("16", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_ReturnsNull()
     {
         // Arrange
@@ -497,7 +497,7 @@ public class AsyncAwaitTests
         Assert.True(wasCalled);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_NoReturn()
     {
         // Arrange
@@ -527,7 +527,7 @@ public class AsyncAwaitTests
         Assert.True(wasCalled);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithSetTimeoutDelay_ReturnsValue()
     {
         // Arrange
@@ -566,7 +566,7 @@ public class AsyncAwaitTests
         Assert.Equal("42", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithMultipleSetTimeoutDelays()
     {
         // Arrange
@@ -613,7 +613,7 @@ public class AsyncAwaitTests
         Assert.Equal("30", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithDelayAndComputation()
     {
         // Arrange
@@ -657,7 +657,7 @@ public class AsyncAwaitTests
         Assert.Equal("16", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithParallelDelays()
     {
         // Arrange
@@ -704,7 +704,7 @@ public class AsyncAwaitTests
         Assert.Equal(new[] { "first", "second", "third" }, results);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithNestedDelays()
     {
         // Arrange
@@ -753,7 +753,7 @@ public class AsyncAwaitTests
         Assert.Equal("18", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_MultipleSequentialAwaitsWithDebug()
     {
         // This test proves that a single straight block of awaits actually work

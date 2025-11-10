@@ -17,7 +17,7 @@ public class AsyncIterableDebugTests
         _output = output;
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString_Debug()
     {
         // Debug version of the failing string test
@@ -76,7 +76,7 @@ public class AsyncIterableDebugTests
         Assert.Equal("hello", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString_ShowTransformation()
     {
         // Show the transformation of the for-await-of with string
@@ -105,7 +105,7 @@ public class AsyncIterableDebugTests
         _output.WriteLine(transformedSexpr.ToString());
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithArray_CompareWithString()
     {
         // This test PASSES - let's see what's different
@@ -149,7 +149,7 @@ public class AsyncIterableDebugTests
         Assert.Equal("hello", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString_NoAsync()
     {
         // Test without async function wrapper - as shown in ForAwaitOf_RequiresAsyncFunction
@@ -179,7 +179,7 @@ public class AsyncIterableDebugTests
         Assert.Equal("hello", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SimpleString_Iterator_Test()
     {
         // Test that strings have an iterator in the first place
@@ -197,7 +197,7 @@ public class AsyncIterableDebugTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SimpleString_ManualIteration_Test()
     {
         // Test manual iteration over a string
@@ -222,7 +222,7 @@ public class AsyncIterableDebugTests
         Assert.Equal("hello", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Test_OR_Expression_Parsing()
     {
         // Test to see the parsed S-expression for the OR expression
@@ -250,7 +250,7 @@ public class AsyncIterableDebugTests
         _output.WriteLine("");
     }
     
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString_ManualAsyncIteration()
     {
         // Test manual async iteration over a string
@@ -301,7 +301,7 @@ public class AsyncIterableDebugTests
         Assert.Equal("hello", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithBreak_Debug()
     {
         // Debug version of the failing break test
@@ -345,7 +345,7 @@ public class AsyncIterableDebugTests
         Assert.Equal(3.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithBreak_ShowTransformation()
     {
         // Show the transformation of for-await-of with break
@@ -378,7 +378,7 @@ public class AsyncIterableDebugTests
         _output.WriteLine(transformedSexpr.ToString());
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithContinue_Debug()
     {
         // Debug version of the failing continue test
@@ -420,7 +420,7 @@ public class AsyncIterableDebugTests
         Assert.Equal(12.0, result); // 1 + 2 + 4 + 5 = 12
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithGenerator_Debug()
     {
         // Debug version of the failing generator test
@@ -466,7 +466,7 @@ public class AsyncIterableDebugTests
         Assert.Equal(6.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_SimpleNoConditions_Debug()
     {
         // Test for-await-of without any break/continue/conditions to isolate the basic iteration
@@ -503,7 +503,7 @@ public class AsyncIterableDebugTests
         Assert.Equal(3.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithIfNoBreak_Debug()
     {
         // Test with an if statement but no break to see if if statements work correctly
@@ -543,7 +543,7 @@ public class AsyncIterableDebugTests
         Assert.Equal(5.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithIfNoBreak_ShowTransformation()
     {
         // Show the transformation for if without break

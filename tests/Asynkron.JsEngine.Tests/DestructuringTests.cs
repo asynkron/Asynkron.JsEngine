@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class DestructuringTests
 {
     // Basic Array Destructuring Tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task BasicArrayDestructuring()
     {
         var engine = new JsEngine();
@@ -13,7 +13,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithMoreElements()
     {
         var engine = new JsEngine();
@@ -21,7 +21,7 @@ public class DestructuringTests
         Assert.Equal(2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithFewerElements()
     {
         var engine = new JsEngine();
@@ -29,7 +29,7 @@ public class DestructuringTests
         Assert.Null(result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithSkippedElements()
     {
         var engine = new JsEngine();
@@ -37,7 +37,7 @@ public class DestructuringTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithDefaults()
     {
         var engine = new JsEngine();
@@ -45,7 +45,7 @@ public class DestructuringTests
         Assert.Equal(25d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithAllDefaults()
     {
         var engine = new JsEngine();
@@ -53,7 +53,7 @@ public class DestructuringTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithRestElement()
     {
         var engine = new JsEngine();
@@ -61,7 +61,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringRestElementValues()
     {
         var engine = new JsEngine();
@@ -69,7 +69,7 @@ public class DestructuringTests
         Assert.Equal(9d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithOnlyRestElement()
     {
         var engine = new JsEngine();
@@ -77,7 +77,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NestedArrayDestructuring()
     {
         var engine = new JsEngine();
@@ -85,7 +85,7 @@ public class DestructuringTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DeepNestedArrayDestructuring()
     {
         var engine = new JsEngine();
@@ -94,7 +94,7 @@ public class DestructuringTests
     }
 
     // Basic Object Destructuring Tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task BasicObjectDestructuring()
     {
         var engine = new JsEngine();
@@ -102,7 +102,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectDestructuringWithRenaming()
     {
         var engine = new JsEngine();
@@ -110,7 +110,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectDestructuringWithDefaults()
     {
         var engine = new JsEngine();
@@ -118,7 +118,7 @@ public class DestructuringTests
         Assert.Equal(25d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectDestructuringWithRenamingAndDefaults()
     {
         var engine = new JsEngine();
@@ -126,7 +126,7 @@ public class DestructuringTests
         Assert.Equal(25d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectDestructuringWithRestProperties()
     {
         var engine = new JsEngine();
@@ -135,7 +135,7 @@ public class DestructuringTests
         Assert.Equal(5d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectDestructuringMissingProperties()
     {
         var engine = new JsEngine();
@@ -143,7 +143,7 @@ public class DestructuringTests
         Assert.Null(result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NestedObjectDestructuring()
     {
         var engine = new JsEngine();
@@ -151,7 +151,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DeepNestedObjectDestructuring()
     {
         var engine = new JsEngine();
@@ -160,7 +160,7 @@ public class DestructuringTests
     }
 
     // Mixed Array and Object Destructuring
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithNestedObject()
     {
         var engine = new JsEngine();
@@ -168,7 +168,7 @@ public class DestructuringTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectDestructuringWithNestedArray()
     {
         var engine = new JsEngine();
@@ -176,7 +176,7 @@ public class DestructuringTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ComplexMixedDestructuring()
     {
         var engine = new JsEngine();
@@ -190,7 +190,7 @@ public class DestructuringTests
     }
 
     // Const and Var Destructuring
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ConstArrayDestructuring()
     {
         var engine = new JsEngine();
@@ -198,7 +198,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ConstObjectDestructuring()
     {
         var engine = new JsEngine();
@@ -206,7 +206,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task VarArrayDestructuring()
     {
         var engine = new JsEngine();
@@ -214,7 +214,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task VarObjectDestructuring()
     {
         var engine = new JsEngine();
@@ -223,7 +223,7 @@ public class DestructuringTests
     }
 
     // Edge Cases
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringEmptyArray()
     {
         var engine = new JsEngine();
@@ -231,7 +231,7 @@ public class DestructuringTests
         Assert.Null(result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectDestructuringEmptyObject()
     {
         var engine = new JsEngine();
@@ -239,7 +239,7 @@ public class DestructuringTests
         Assert.Null(result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithDefaultAndValue()
     {
         var engine = new JsEngine();
@@ -247,7 +247,7 @@ public class DestructuringTests
         Assert.Equal(20d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectDestructuringMultiplePropertiesWithSomeDefaults()
     {
         var engine = new JsEngine();
@@ -255,7 +255,7 @@ public class DestructuringTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithRestAndDefaults()
     {
         var engine = new JsEngine();
@@ -264,7 +264,7 @@ public class DestructuringTests
     }
 
     // Real-world patterns
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FunctionReturnDestructuring()
     {
         var engine = new JsEngine();
@@ -280,7 +280,7 @@ public class DestructuringTests
         Assert.Equal(30d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectReturnDestructuring()
     {
         var engine = new JsEngine();
@@ -296,7 +296,7 @@ public class DestructuringTests
         Assert.Equal(30d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringInExpression()
     {
         var engine = new JsEngine();
@@ -311,7 +311,7 @@ public class DestructuringTests
     }
 
     // Additional edge cases
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MultipleArrayDestructuringStatements()
     {
         var engine = new JsEngine();
@@ -325,7 +325,7 @@ public class DestructuringTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MultipleObjectDestructuringStatements()
     {
         var engine = new JsEngine();
@@ -339,7 +339,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithExpressions()
     {
         var engine = new JsEngine();
@@ -352,7 +352,7 @@ public class DestructuringTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ObjectDestructuringWithExpressionDefaults()
     {
         var engine = new JsEngine();
@@ -365,7 +365,7 @@ public class DestructuringTests
         Assert.Equal(30d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithComputedValues()
     {
         var engine = new JsEngine();
@@ -379,7 +379,7 @@ public class DestructuringTests
         Assert.Equal(60d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RestElementCapturesEmpty()
     {
         var engine = new JsEngine();
@@ -393,7 +393,7 @@ public class DestructuringTests
     }
 
     // Function Parameter Destructuring Tests
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FunctionParameterArrayDestructuring()
     {
         var engine = new JsEngine();
@@ -408,7 +408,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FunctionParameterObjectDestructuring()
     {
         var engine = new JsEngine();
@@ -423,7 +423,7 @@ public class DestructuringTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FunctionParameterArrayDestructuringWithDefaults()
     {
         var engine = new JsEngine();
@@ -438,7 +438,7 @@ public class DestructuringTests
         Assert.Equal(25d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FunctionParameterObjectDestructuringWithDefaults()
     {
         var engine = new JsEngine();
@@ -453,7 +453,7 @@ public class DestructuringTests
         Assert.Equal(25d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FunctionParameterNestedDestructuring()
     {
         var engine = new JsEngine();
@@ -468,7 +468,7 @@ public class DestructuringTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FunctionParameterArrayRest()
     {
         var engine = new JsEngine();
@@ -483,7 +483,7 @@ public class DestructuringTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FunctionParameterObjectRest()
     {
         var engine = new JsEngine();
@@ -498,7 +498,7 @@ public class DestructuringTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FunctionParameterMixedDestructuringAndRegular()
     {
         var engine = new JsEngine();
@@ -514,7 +514,7 @@ public class DestructuringTests
     }
 
     // Assignment Destructuring Tests (without declaration)
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AssignmentArrayDestructuring()
     {
         var engine = new JsEngine();
@@ -529,7 +529,7 @@ public class DestructuringTests
         Assert.Equal(30d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task VariableSwapping()
     {
         var engine = new JsEngine();
@@ -544,7 +544,7 @@ public class DestructuringTests
         Assert.Equal(21d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AssignmentNestedDestructuring()
     {
         var engine = new JsEngine();
@@ -560,7 +560,7 @@ public class DestructuringTests
         Assert.Equal(6d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task AssignmentWithRest()
     {
         var engine = new JsEngine();

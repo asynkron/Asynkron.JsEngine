@@ -15,7 +15,7 @@ public class TransformationDebugTest
         _output = output;
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ShowTransformation_ForOfWithAwait()
     {
         var source = """
@@ -44,7 +44,7 @@ public class TransformationDebugTest
         _output.WriteLine(transformedSexpr.ToString());
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ShowTransformation_SimpleAsyncAwait()
     {
         // Simpler case that works

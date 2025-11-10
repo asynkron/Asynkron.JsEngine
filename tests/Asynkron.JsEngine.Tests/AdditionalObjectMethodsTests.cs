@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class AdditionalObjectMethodsTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyNames_ReturnsAllPropertyNames()
     {
         var engine = new JsEngine();
@@ -18,7 +18,7 @@ public class AdditionalObjectMethodsTests
         Assert.Equal(3d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyNames_IncludesProperties()
     {
         var engine = new JsEngine();
@@ -32,7 +32,7 @@ public class AdditionalObjectMethodsTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyNames_WithEmptyObject()
     {
         var engine = new JsEngine();
@@ -46,7 +46,7 @@ public class AdditionalObjectMethodsTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_ReturnsDescriptor()
     {
         var engine = new JsEngine();
@@ -60,7 +60,7 @@ public class AdditionalObjectMethodsTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_HasWritableProperty()
     {
         var engine = new JsEngine();
@@ -74,7 +74,7 @@ public class AdditionalObjectMethodsTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_HasEnumerableProperty()
     {
         var engine = new JsEngine();
@@ -88,7 +88,7 @@ public class AdditionalObjectMethodsTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_HasConfigurableProperty()
     {
         var engine = new JsEngine();
@@ -102,7 +102,7 @@ public class AdditionalObjectMethodsTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_ForFrozenObject()
     {
         var engine = new JsEngine();
@@ -117,7 +117,7 @@ public class AdditionalObjectMethodsTests
         Assert.Equal(false, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_ReturnsUndefinedForNonExistent()
     {
         var engine = new JsEngine();
@@ -130,7 +130,7 @@ public class AdditionalObjectMethodsTests
         Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_DefineProperty_DefinesNewProperty()
     {
         var engine = new JsEngine();
@@ -144,7 +144,7 @@ public class AdditionalObjectMethodsTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_DefineProperty_ReturnsObject()
     {
         var engine = new JsEngine();
@@ -158,7 +158,7 @@ public class AdditionalObjectMethodsTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_DefineProperty_UpdatesExistingProperty()
     {
         var engine = new JsEngine();
@@ -172,7 +172,7 @@ public class AdditionalObjectMethodsTests
         Assert.Equal(99d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Object_DefineProperty_WithMultipleProperties()
     {
         var engine = new JsEngine();

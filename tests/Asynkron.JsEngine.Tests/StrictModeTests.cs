@@ -2,7 +2,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class StrictModeTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_DetectedAndParsed()
     {
         // Verify that "use strict" directive is detected and added to the AST
@@ -26,7 +26,7 @@ public class StrictModeTests
         Assert.True(ReferenceEquals(firstStmtCons.Head, JsSymbols.UseStrict));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_ErrorMessageFormat()
     {
         // In strict mode, assigning to an undefined variable should throw a ReferenceError
@@ -43,7 +43,7 @@ public class StrictModeTests
         Assert.Contains("is not defined", ex.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_ProperDeclarationsWork()
     {
         var engine = new JsEngine();
@@ -61,7 +61,7 @@ public class StrictModeTests
         Assert.Equal(6.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_DetectedInFunctionBody()
     {
         var engine = new JsEngine();
@@ -79,7 +79,7 @@ public class StrictModeTests
         Assert.Contains("is not defined", ex.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_NestedFunctions()
     {
         var engine = new JsEngine();
@@ -102,7 +102,7 @@ public class StrictModeTests
         Assert.Equal(30.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_WithClasses()
     {
         var engine = new JsEngine();
@@ -126,7 +126,7 @@ public class StrictModeTests
         Assert.Equal(42.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_AssignmentToConstFails()
     {
         var engine = new JsEngine();
@@ -142,7 +142,7 @@ public class StrictModeTests
         Assert.Contains("constant", ex.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_LetDeclarationsWork()
     {
         var engine = new JsEngine();
@@ -161,7 +161,7 @@ public class StrictModeTests
         Assert.Equal(15.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_InBlockScope()
     {
         var engine = new JsEngine();
@@ -179,7 +179,7 @@ public class StrictModeTests
         Assert.Equal(100.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_MultipleStatements()
     {
         var engine = new JsEngine();
@@ -200,7 +200,7 @@ public class StrictModeTests
         Assert.Equal(55.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_WithForLoops()
     {
         var engine = new JsEngine();
@@ -219,7 +219,7 @@ public class StrictModeTests
         Assert.Equal(10.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_WithObjectLiterals()
     {
         var engine = new JsEngine();
@@ -241,7 +241,7 @@ public class StrictModeTests
         Assert.Equal(30.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_WithArrays()
     {
         var engine = new JsEngine();

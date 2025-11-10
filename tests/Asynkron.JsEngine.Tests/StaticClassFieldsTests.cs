@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class StaticClassFieldsTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Static_Field_With_Initializer()
     {
         var engine = new JsEngine();
@@ -28,7 +28,7 @@ public class StaticClassFieldsTests
     }
 
     // Note: Fields without initializers not yet supported - parser requires = for field declarations
-    // [Fact]
+    // [Fact(Timeout = 2000)]
     // public async Task Static_Field_Without_Initializer()
     // {
     //     var engine = new JsEngine();
@@ -43,7 +43,7 @@ public class StaticClassFieldsTests
     //     Assert.Equal(42.0, result);
     // }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Multiple_Static_Fields()
     {
         var engine = new JsEngine();
@@ -61,7 +61,7 @@ public class StaticClassFieldsTests
         Assert.Equal("localhost:8080", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Static_Method()
     {
         var engine = new JsEngine();
@@ -79,7 +79,7 @@ public class StaticClassFieldsTests
         Assert.Equal(30.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Static_Method_And_Field()
     {
         var engine = new JsEngine();
@@ -99,7 +99,7 @@ public class StaticClassFieldsTests
         Assert.Equal(314.159, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Static_Field_Shared_Across_Instances()
     {
         var engine = new JsEngine();
@@ -122,7 +122,7 @@ public class StaticClassFieldsTests
         Assert.Equal(1998.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Static_Private_Field()
     {
         var engine = new JsEngine();
@@ -142,7 +142,7 @@ public class StaticClassFieldsTests
         Assert.Equal("secret123", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Static_Field_With_Expression_Initializer()
     {
         var engine = new JsEngine();
@@ -158,7 +158,7 @@ public class StaticClassFieldsTests
         Assert.Equal(53.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Static_Method_Accessing_Static_Field()
     {
         var engine = new JsEngine();
@@ -187,7 +187,7 @@ public class StaticClassFieldsTests
         Assert.Equal(1.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Instance_Method_Cannot_Access_Static_Field_Via_This()
     {
         var engine = new JsEngine();

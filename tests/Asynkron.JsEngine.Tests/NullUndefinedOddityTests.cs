@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class NullUndefinedOddityTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeofNull_ReturnsObject()
     {
         // JavaScript oddity: typeof null === "object" (historical bug)
@@ -17,7 +17,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("object", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeofUndefined_ReturnsUndefined()
     {
         var engine = new JsEngine();
@@ -25,7 +25,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("undefined", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeofNumber_ReturnsNumber()
     {
         var engine = new JsEngine();
@@ -33,7 +33,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("number", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeofString_ReturnsString()
     {
         var engine = new JsEngine();
@@ -41,7 +41,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("string", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeofBoolean_ReturnsBoolean()
     {
         var engine = new JsEngine();
@@ -51,7 +51,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("boolean", falseResult);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeofFunction_ReturnsFunction()
     {
         var engine = new JsEngine();
@@ -59,7 +59,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("function", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeofObject_ReturnsObject()
     {
         var engine = new JsEngine();
@@ -67,7 +67,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("object", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeofArray_ReturnsObject()
     {
         // Arrays are objects in JavaScript
@@ -76,7 +76,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("object", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LooseEquality_NullEqualsUndefined()
     {
         // JavaScript oddity: null == undefined (with loose equality)
@@ -85,7 +85,7 @@ public class NullUndefinedOddityTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictEquality_NullNotEqualsUndefined()
     {
         // But null !== undefined (with strict equality)
@@ -94,7 +94,7 @@ public class NullUndefinedOddityTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LooseInequality_NullNotNotEqualUndefined()
     {
         // null != undefined should be false
@@ -103,7 +103,7 @@ public class NullUndefinedOddityTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictInequality_NullNotEqualUndefined()
     {
         // null !== undefined should be true
@@ -112,7 +112,7 @@ public class NullUndefinedOddityTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Null_IsFalsy()
     {
         var engine = new JsEngine();
@@ -120,7 +120,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("no", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Undefined_IsFalsy()
     {
         var engine = new JsEngine();
@@ -128,7 +128,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("no", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NotNull_IsTrue()
     {
         var engine = new JsEngine();
@@ -136,7 +136,7 @@ public class NullUndefinedOddityTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NotUndefined_IsTrue()
     {
         var engine = new JsEngine();
@@ -144,7 +144,7 @@ public class NullUndefinedOddityTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NullishCoalescing_NullReturnsDefault()
     {
         var engine = new JsEngine();
@@ -152,7 +152,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("default", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NullishCoalescing_UndefinedReturnsDefault()
     {
         var engine = new JsEngine();
@@ -160,7 +160,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("default", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LogicalOr_NullReturnsRightOperand()
     {
         var engine = new JsEngine();
@@ -168,7 +168,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("default", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LogicalOr_UndefinedReturnsRightOperand()
     {
         var engine = new JsEngine();
@@ -176,7 +176,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("default", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NullPlusNumber_ReturnsNumber()
     {
         // null coerces to 0 in arithmetic
@@ -185,7 +185,7 @@ public class NullUndefinedOddityTests
         Assert.Equal(1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task UndefinedPlusNumber_ReturnsNaN()
     {
         // undefined coerces to NaN in arithmetic
@@ -194,7 +194,7 @@ public class NullUndefinedOddityTests
         Assert.True(double.IsNaN((double)result!));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NullMultipliedByNumber_ReturnsZero()
     {
         // null coerces to 0
@@ -203,7 +203,7 @@ public class NullUndefinedOddityTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task UndefinedMultipliedByNumber_ReturnsNaN()
     {
         // undefined coerces to NaN
@@ -212,7 +212,7 @@ public class NullUndefinedOddityTests
         Assert.True(double.IsNaN((double)result!));
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StringConcatenation_NullToString()
     {
         var engine = new JsEngine();
@@ -220,7 +220,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("value: null", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StringConcatenation_UndefinedToString()
     {
         var engine = new JsEngine();
@@ -228,7 +228,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("value: undefined", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TemplateLiteral_NullToString()
     {
         var engine = new JsEngine();
@@ -236,7 +236,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("value: null", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TemplateLiteral_UndefinedToString()
     {
         var engine = new JsEngine();
@@ -244,7 +244,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("value: undefined", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NullComparison_WithZero()
     {
         // JavaScript oddity: null >= 0 is true, but null > 0 and null == 0 are false
@@ -260,7 +260,7 @@ public class NullUndefinedOddityTests
         Assert.False((bool)equals!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task UndefinedComparison_WithZero()
     {
         // undefined compared with numbers returns false (except for !=)
@@ -276,7 +276,7 @@ public class NullUndefinedOddityTests
         Assert.False((bool)equals!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NullNotEqualToZero()
     {
         var engine = new JsEngine();
@@ -284,7 +284,7 @@ public class NullUndefinedOddityTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task UndefinedNotEqualToZero()
     {
         var engine = new JsEngine();
@@ -292,7 +292,7 @@ public class NullUndefinedOddityTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictEquality_NullWithNull()
     {
         var engine = new JsEngine();
@@ -300,7 +300,7 @@ public class NullUndefinedOddityTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task StrictEquality_UndefinedWithUndefined()
     {
         var engine = new JsEngine();
@@ -308,7 +308,7 @@ public class NullUndefinedOddityTests
         Assert.True((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LooseEquality_NullNotEqualToNumber()
     {
         var engine = new JsEngine();
@@ -316,7 +316,7 @@ public class NullUndefinedOddityTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LooseEquality_UndefinedNotEqualToNumber()
     {
         var engine = new JsEngine();
@@ -324,7 +324,7 @@ public class NullUndefinedOddityTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LooseEquality_NullNotEqualToFalse()
     {
         var engine = new JsEngine();
@@ -332,7 +332,7 @@ public class NullUndefinedOddityTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LooseEquality_UndefinedNotEqualToFalse()
     {
         var engine = new JsEngine();
@@ -340,7 +340,7 @@ public class NullUndefinedOddityTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LooseEquality_NullNotEqualToEmptyString()
     {
         var engine = new JsEngine();
@@ -348,7 +348,7 @@ public class NullUndefinedOddityTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task LooseEquality_UndefinedNotEqualToEmptyString()
     {
         var engine = new JsEngine();
@@ -356,7 +356,7 @@ public class NullUndefinedOddityTests
         Assert.False((bool)result!);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeofInExpression()
     {
         var engine = new JsEngine();
@@ -364,7 +364,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("correct", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task UndefinedAsVariableValue()
     {
         var engine = new JsEngine();
@@ -377,7 +377,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("undefined", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task NullAsVariableValue()
     {
         var engine = new JsEngine();
@@ -390,7 +390,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("object", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeofInFunction()
     {
         var engine = new JsEngine();
@@ -405,7 +405,7 @@ public class NullUndefinedOddityTests
         Assert.Equal("undefined", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MultipleTypeofChecks()
     {
         var engine = new JsEngine();

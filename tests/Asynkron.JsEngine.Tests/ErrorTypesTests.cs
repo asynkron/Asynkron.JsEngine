@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class ErrorTypesTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Error_CanBeCreated()
     {
         var engine = new JsEngine();
@@ -17,7 +17,7 @@ public class ErrorTypesTests
         Assert.Equal("test message", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Error_HasName()
     {
         var engine = new JsEngine();
@@ -30,7 +30,7 @@ public class ErrorTypesTests
         Assert.Equal("Error", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Error_ToString_WithMessage()
     {
         var engine = new JsEngine();
@@ -43,7 +43,7 @@ public class ErrorTypesTests
         Assert.Equal("Error: test message", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeError_CanBeCreated()
     {
         var engine = new JsEngine();
@@ -56,7 +56,7 @@ public class ErrorTypesTests
         Assert.Equal("TypeError: type error message", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeError_HasCorrectName()
     {
         var engine = new JsEngine();
@@ -69,7 +69,7 @@ public class ErrorTypesTests
         Assert.Equal("TypeError", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RangeError_CanBeCreated()
     {
         var engine = new JsEngine();
@@ -82,7 +82,7 @@ public class ErrorTypesTests
         Assert.Equal("out of range", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RangeError_HasCorrectName()
     {
         var engine = new JsEngine();
@@ -95,7 +95,7 @@ public class ErrorTypesTests
         Assert.Equal("RangeError", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ReferenceError_CanBeCreated()
     {
         var engine = new JsEngine();
@@ -108,7 +108,7 @@ public class ErrorTypesTests
         Assert.Equal("reference not found", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ReferenceError_HasCorrectName()
     {
         var engine = new JsEngine();
@@ -121,7 +121,7 @@ public class ErrorTypesTests
         Assert.Equal("ReferenceError", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SyntaxError_CanBeCreated()
     {
         var engine = new JsEngine();
@@ -134,7 +134,7 @@ public class ErrorTypesTests
         Assert.Equal("syntax issue", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SyntaxError_HasCorrectName()
     {
         var engine = new JsEngine();
@@ -147,7 +147,7 @@ public class ErrorTypesTests
         Assert.Equal("SyntaxError", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Error_WithNoMessage()
     {
         var engine = new JsEngine();
@@ -160,7 +160,7 @@ public class ErrorTypesTests
         Assert.Equal("", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Error_ToString_WithNoMessage()
     {
         var engine = new JsEngine();
@@ -173,7 +173,7 @@ public class ErrorTypesTests
         Assert.Equal("TypeError", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypeError_CanBeThrown()
     {
         var engine = new JsEngine();
@@ -191,7 +191,7 @@ public class ErrorTypesTests
         Assert.Equal("TypeError: invalid type", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task RangeError_CanBeThrown()
     {
         var engine = new JsEngine();
@@ -209,7 +209,7 @@ public class ErrorTypesTests
         Assert.Equal("RangeError: value out of range", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ReferenceError_CanBeThrown()
     {
         var engine = new JsEngine();
@@ -227,7 +227,7 @@ public class ErrorTypesTests
         Assert.Equal("ReferenceError: undefined reference", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task SyntaxError_CanBeThrown()
     {
         var engine = new JsEngine();
@@ -245,7 +245,7 @@ public class ErrorTypesTests
         Assert.Equal("SyntaxError: bad syntax", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Error_PreservesPropertiesWhenCaught()
     {
         var engine = new JsEngine();
@@ -265,7 +265,7 @@ public class ErrorTypesTests
         Assert.Equal("custom value", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task MultipleErrorTypes_CanBeDistinguished()
     {
         var engine = new JsEngine();
@@ -297,7 +297,7 @@ public class ErrorTypesTests
         Assert.Equal("TypeError,RangeError,ReferenceError", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Error_CanBeRethrown()
     {
         var engine = new JsEngine();
@@ -319,7 +319,7 @@ public class ErrorTypesTests
         Assert.Equal("TypeError: original", result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Error_InFunctionCall()
     {
         var engine = new JsEngine();

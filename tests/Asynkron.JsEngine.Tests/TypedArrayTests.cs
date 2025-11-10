@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class TypedArrayTests
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayBuffer_CreatesWithLength()
     {
         var engine = new JsEngine();
@@ -17,7 +17,7 @@ public class TypedArrayTests
         Assert.Equal(8d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayBuffer_Slice_CreatesNewBuffer()
     {
         var engine = new JsEngine();
@@ -31,7 +31,7 @@ public class TypedArrayTests
         Assert.Equal(8d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayBuffer_IsView_ReturnsFalseForBuffer()
     {
         var engine = new JsEngine();
@@ -44,7 +44,7 @@ public class TypedArrayTests
         Assert.Equal(false, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ArrayBuffer_IsView_ReturnsTrueForTypedArray()
     {
         var engine = new JsEngine();
@@ -57,7 +57,7 @@ public class TypedArrayTests
         Assert.Equal(true, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Int8Array_CreatesFromLength()
     {
         var engine = new JsEngine();
@@ -70,7 +70,7 @@ public class TypedArrayTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Int8Array_ElementAccess()
     {
         var engine = new JsEngine();
@@ -86,7 +86,7 @@ public class TypedArrayTests
         Assert.Equal(20d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Int8Array_HandlesOverflow()
     {
         var engine = new JsEngine();
@@ -101,7 +101,7 @@ public class TypedArrayTests
         Assert.Equal(-1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Uint8Array_CreatesFromArray()
     {
         var engine = new JsEngine();
@@ -114,7 +114,7 @@ public class TypedArrayTests
         Assert.Equal(60d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Uint8Array_ByteLength()
     {
         var engine = new JsEngine();
@@ -127,7 +127,7 @@ public class TypedArrayTests
         Assert.Equal(10d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Uint8ClampedArray_ClampsToRange()
     {
         var engine = new JsEngine();
@@ -143,7 +143,7 @@ public class TypedArrayTests
         Assert.Equal(383d, result); // 0 + 255 + 128
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Int16Array_BytesPerElement()
     {
         var engine = new JsEngine();
@@ -156,7 +156,7 @@ public class TypedArrayTests
         Assert.Equal(2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Int16Array_ElementStorage()
     {
         var engine = new JsEngine();
@@ -171,7 +171,7 @@ public class TypedArrayTests
         Assert.Equal(-1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Uint16Array_ElementStorage()
     {
         var engine = new JsEngine();
@@ -186,7 +186,7 @@ public class TypedArrayTests
         Assert.Equal(65536d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Int32Array_BytesPerElement()
     {
         var engine = new JsEngine();
@@ -199,7 +199,7 @@ public class TypedArrayTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Int32Array_ElementStorage()
     {
         var engine = new JsEngine();
@@ -214,7 +214,7 @@ public class TypedArrayTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Uint32Array_ElementStorage()
     {
         var engine = new JsEngine();
@@ -229,7 +229,7 @@ public class TypedArrayTests
         Assert.Equal(4294967296d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Float32Array_BytesPerElement()
     {
         var engine = new JsEngine();
@@ -242,7 +242,7 @@ public class TypedArrayTests
         Assert.Equal(4d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Float32Array_ElementStorage()
     {
         var engine = new JsEngine();
@@ -257,7 +257,7 @@ public class TypedArrayTests
         Assert.Equal(585d, result); // Float32 precision
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Float64Array_BytesPerElement()
     {
         var engine = new JsEngine();
@@ -270,7 +270,7 @@ public class TypedArrayTests
         Assert.Equal(8d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task Float64Array_ElementStorage()
     {
         var engine = new JsEngine();
@@ -285,7 +285,7 @@ public class TypedArrayTests
         Assert.Equal(5859d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_CreatesFromBuffer()
     {
         var engine = new JsEngine();
@@ -299,7 +299,7 @@ public class TypedArrayTests
         Assert.Equal(4d, result); // 16 bytes / 4 bytes per element
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_CreatesFromBufferWithOffset()
     {
         var engine = new JsEngine();
@@ -313,7 +313,7 @@ public class TypedArrayTests
         Assert.Equal(3d, result); // (16-4) bytes / 4 bytes per element
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_CreatesFromBufferWithOffsetAndLength()
     {
         var engine = new JsEngine();
@@ -327,7 +327,7 @@ public class TypedArrayTests
         Assert.Equal(2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_BufferProperty()
     {
         var engine = new JsEngine();
@@ -341,7 +341,7 @@ public class TypedArrayTests
         Assert.Equal(16d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_ByteOffsetProperty()
     {
         var engine = new JsEngine();
@@ -355,7 +355,7 @@ public class TypedArrayTests
         Assert.Equal(8d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_Subarray_CreatesView()
     {
         var engine = new JsEngine();
@@ -370,7 +370,7 @@ public class TypedArrayTests
         Assert.Equal(100d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_Slice_CopiesData()
     {
         var engine = new JsEngine();
@@ -385,7 +385,7 @@ public class TypedArrayTests
         Assert.Equal(2d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_Set_FromTypedArray()
     {
         var engine = new JsEngine();
@@ -400,7 +400,7 @@ public class TypedArrayTests
         Assert.Equal(6d, result); // 0 + 1 + 2 + 3 + 0
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_Set_FromArray()
     {
         var engine = new JsEngine();
@@ -414,7 +414,7 @@ public class TypedArrayTests
         Assert.Equal(60d, result); // 0 + 10 + 20 + 30 + 0
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DataView_CreatesFromBuffer()
     {
         var engine = new JsEngine();
@@ -428,7 +428,7 @@ public class TypedArrayTests
         Assert.Equal(16d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DataView_GetSetInt8()
     {
         var engine = new JsEngine();
@@ -444,7 +444,7 @@ public class TypedArrayTests
         Assert.Equal(-1d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DataView_GetSetUint8()
     {
         var engine = new JsEngine();
@@ -460,7 +460,7 @@ public class TypedArrayTests
         Assert.Equal(355d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DataView_GetSetInt16()
     {
         var engine = new JsEngine();
@@ -475,7 +475,7 @@ public class TypedArrayTests
         Assert.Equal(1000d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DataView_GetSetInt32()
     {
         var engine = new JsEngine();
@@ -490,7 +490,7 @@ public class TypedArrayTests
         Assert.Equal(1000000d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DataView_GetSetFloat32()
     {
         var engine = new JsEngine();
@@ -505,7 +505,7 @@ public class TypedArrayTests
         Assert.Equal(314d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DataView_GetSetFloat64()
     {
         var engine = new JsEngine();
@@ -520,7 +520,7 @@ public class TypedArrayTests
         Assert.Equal(3141d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DataView_SharedBuffer()
     {
         var engine = new JsEngine();
@@ -536,7 +536,7 @@ public class TypedArrayTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DataView_WithOffset()
     {
         var engine = new JsEngine();
@@ -550,7 +550,7 @@ public class TypedArrayTests
         Assert.Equal(8d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DataView_WithOffsetAndLength()
     {
         var engine = new JsEngine();
@@ -564,7 +564,7 @@ public class TypedArrayTests
         Assert.Equal(8d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_MultipleViewsShareBuffer()
     {
         var engine = new JsEngine();
@@ -587,7 +587,7 @@ public class TypedArrayTests
         Assert.Equal(67305985d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_ConstructorBYTES_PER_ELEMENT()
     {
         var engine = new JsEngine();
@@ -601,7 +601,7 @@ public class TypedArrayTests
         Assert.Equal(11d, result); // 1 + 2 + 8
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_ZeroLengthArray()
     {
         var engine = new JsEngine();
@@ -614,7 +614,7 @@ public class TypedArrayTests
         Assert.Equal(0d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_LargeArray()
     {
         var engine = new JsEngine();
@@ -628,7 +628,7 @@ public class TypedArrayTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_SubarrayNegativeIndices()
     {
         var engine = new JsEngine();
@@ -642,7 +642,7 @@ public class TypedArrayTests
         Assert.Equal(2d, result); // Elements at indices 3, 4
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_SliceNegativeIndices()
     {
         var engine = new JsEngine();

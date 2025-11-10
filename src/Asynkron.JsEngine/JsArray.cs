@@ -11,6 +11,7 @@ internal sealed class JsArray
     public JsArray()
     {
         UpdateLength();
+        SetupIterator();
     }
 
     public JsArray(IEnumerable<object?> items)
@@ -21,6 +22,7 @@ internal sealed class JsArray
         }
 
         UpdateLength();
+        SetupIterator();
     }
 
     public IReadOnlyList<object?> Items => _items;
@@ -137,5 +139,42 @@ internal sealed class JsArray
     private void UpdateLength()
     {
         _properties.SetProperty("length", (double)_items.Count);
+    }
+
+    private void SetupIterator()
+    {
+        // Set up Symbol.iterator
+        var iteratorSymbol = JsSymbol.For("Symbol.iterator");
+        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+        
+        // Create iterator function that returns an iterator object
+        var iteratorFunction = new HostFunction((thisValue, args) =>
+        {
+            // Use array to hold index so it can be mutated in closure
+            var indexHolder = new int[] { 0 };
+            var iterator = new JsObject();
+            
+            // Add next() method to iterator
+            iterator.SetProperty("next", new HostFunction((nextThisValue, nextArgs) =>
+            {
+                var result = new JsObject();
+                if (indexHolder[0] < _items.Count)
+                {
+                    result.SetProperty("value", _items[indexHolder[0]]);
+                    result.SetProperty("done", false);
+                    indexHolder[0]++;
+                }
+                else
+                {
+                    result.SetProperty("value", JsSymbols.Undefined);
+                    result.SetProperty("done", true);
+                }
+                return result;
+            }));
+            
+            return iterator;
+        });
+        
+        _properties.SetProperty(iteratorKey, iteratorFunction);
     }
 }

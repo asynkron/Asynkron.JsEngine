@@ -1,4 +1,5 @@
 using Xunit;
+using System.Collections.Generic;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -704,5 +705,78 @@ public class AsyncAwaitTests
 
         // Assert
         Assert.Equal("18", result);
+    }
+
+    [Fact]
+    public async Task AsyncFunction_MultipleSequentialAwaitsWithDebug()
+    {
+        // This test proves that a single straight block of awaits actually work
+        // by using __debug() to capture state between each await
+        var engine = new JsEngine();
+        var result = "";
+
+        engine.SetGlobalFunction("captureResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+            return null;
+        });
+
+        // Act
+        await engine.Run(@"
+            function bar() {
+                return Promise.resolve(10);
+            }
+            
+            async function foo() {
+                let x1 = await bar();
+                __debug(); 
+                let x2 = await bar();
+                __debug();
+                let x3 = await bar();
+                __debug();
+                return x1 + x2 + x3;
+            }
+            
+            foo().then(function(value) {
+                captureResult(value);
+            });
+        ");
+
+        // Get the debug messages
+        var debugMessages = new List<DebugMessage>();
+        for (int i = 0; i < 3; i++)
+        {
+            debugMessages.Add(await engine.DebugMessages().ReadAsync());
+        }
+
+        // Assert - Verify we captured state after each await
+        Assert.Equal(3, debugMessages.Count);
+        
+        // After first await, x1 should be defined
+        Assert.True(debugMessages[0].Variables.ContainsKey("x1"));
+        Assert.Equal(10d, debugMessages[0].Variables["x1"]);
+        Assert.False(debugMessages[0].Variables.ContainsKey("x2"));
+        Assert.False(debugMessages[0].Variables.ContainsKey("x3"));
+        
+        // After second await, x1 and x2 should be defined
+        Assert.True(debugMessages[1].Variables.ContainsKey("x1"));
+        Assert.Equal(10d, debugMessages[1].Variables["x1"]);
+        Assert.True(debugMessages[1].Variables.ContainsKey("x2"));
+        Assert.Equal(10d, debugMessages[1].Variables["x2"]);
+        Assert.False(debugMessages[1].Variables.ContainsKey("x3"));
+        
+        // After third await, all three should be defined
+        Assert.True(debugMessages[2].Variables.ContainsKey("x1"));
+        Assert.Equal(10d, debugMessages[2].Variables["x1"]);
+        Assert.True(debugMessages[2].Variables.ContainsKey("x2"));
+        Assert.Equal(10d, debugMessages[2].Variables["x2"]);
+        Assert.True(debugMessages[2].Variables.ContainsKey("x3"));
+        Assert.Equal(10d, debugMessages[2].Variables["x3"]);
+        
+        // Final result should be correct
+        Assert.Equal("30", result);
     }
 }

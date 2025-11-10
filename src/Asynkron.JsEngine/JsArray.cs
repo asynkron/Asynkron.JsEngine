@@ -150,18 +150,19 @@ internal sealed class JsArray
         // Create iterator function that returns an iterator object
         var iteratorFunction = new HostFunction((thisValue, args) =>
         {
-            var index = 0;
+            // Use array to hold index so it can be mutated in closure
+            var indexHolder = new int[] { 0 };
             var iterator = new JsObject();
             
             // Add next() method to iterator
             iterator.SetProperty("next", new HostFunction((nextThisValue, nextArgs) =>
             {
                 var result = new JsObject();
-                if (index < _items.Count)
+                if (indexHolder[0] < _items.Count)
                 {
-                    result.SetProperty("value", _items[index]);
+                    result.SetProperty("value", _items[indexHolder[0]]);
                     result.SetProperty("done", false);
-                    index++;
+                    indexHolder[0]++;
                 }
                 else
                 {

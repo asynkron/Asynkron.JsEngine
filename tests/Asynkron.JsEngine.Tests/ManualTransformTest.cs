@@ -35,7 +35,7 @@ public class ManualTransformTest
             function test() {
                 return new Promise(function(__resolve, __reject) {
                     try {
-                        log(""entering try block"");
+                        log(""A: before loop"");
                         
                         // Get iterator
                         let __iterator = arr[Symbol.iterator]();

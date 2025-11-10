@@ -68,6 +68,19 @@ public sealed class Cons : IEnumerable<object?>
     }
 
     /// <summary>
+    /// Reference to the original source code location that created this s-expression.
+    /// This is used for debugging and error reporting.
+    /// </summary>
+    public SourceReference? SourceReference { get; private set; }
+
+    /// <summary>
+    /// Reference to the original s-expression that this s-expression was transformed from.
+    /// If null, this s-expression has not been transformed.
+    /// Multiple transformations can be chained: cons.Origin.Origin.Origin...
+    /// </summary>
+    public Cons? Origin { get; private set; }
+
+    /// <summary>
     /// Creates a cons cell from a head and optional rest.
     /// </summary>
     public static Cons Cell(object? head, Cons? rest = null)
@@ -149,6 +162,26 @@ public sealed class Cons : IEnumerable<object?>
         }
 
         throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
+    /// <summary>
+    /// Sets the source reference for this s-expression.
+    /// Returns this instance for method chaining.
+    /// </summary>
+    public Cons WithSourceReference(SourceReference? sourceReference)
+    {
+        SourceReference = sourceReference;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the origin (the original s-expression this was transformed from).
+    /// Returns this instance for method chaining.
+    /// </summary>
+    public Cons WithOrigin(Cons? origin)
+    {
+        Origin = origin;
+        return this;
     }
 
     /// <summary>

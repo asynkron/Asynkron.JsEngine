@@ -287,8 +287,10 @@ public class AsyncIterableDebugTests
                 log(""Starting loop"");
                 for await (let item of arr) {
                     log(""Item: "" + item);
+                    log(""Count before increment: "" + count);
                     count = count + 1;
                     log(""Count after increment: "" + count);
+                    log(""About to check if item === 3, item is: "" + item);
                     if (item === 3) {
                         log(""Breaking at item 3"");
                         break;
@@ -332,6 +334,186 @@ public class AsyncIterableDebugTests
         _output.WriteLine("");
 
         // Parse with transformation
+        var transformedSexpr = engine.Parse(source);
+        _output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
+        _output.WriteLine(transformedSexpr.ToString());
+    }
+
+    [Fact]
+    public async Task ForAwaitOf_WithContinue_Debug()
+    {
+        // Debug version of the failing continue test
+        var engine = new JsEngine();
+        
+        engine.SetGlobalFunction("log", args =>
+        {
+            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            _output.WriteLine($"LOG: {message}");
+            return null;
+        });
+        
+        await engine.Run(@"
+            let sum = 0;
+            let arr = [1, 2, 3, 4, 5];
+            
+            async function test() {
+                log(""Starting loop"");
+                for await (let item of arr) {
+                    log(""Item: "" + item);
+                    if (item === 3) {
+                        log(""Skipping item 3"");
+                        continue;
+                    }
+                    log(""Adding item: "" + item);
+                    sum = sum + item;
+                    log(""Sum after add: "" + sum);
+                }
+                log(""After loop, sum: "" + sum);
+            }
+            
+            test();
+        ");
+        
+        var result = engine.Evaluate("sum;");
+        _output.WriteLine($"Final sum: '{result}'");
+        Assert.Equal(12.0, result); // 1 + 2 + 4 + 5 = 12
+    }
+
+    [Fact]
+    public async Task ForAwaitOf_WithGenerator_Debug()
+    {
+        // Debug version of the failing generator test
+        var engine = new JsEngine();
+        
+        engine.SetGlobalFunction("log", args =>
+        {
+            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            _output.WriteLine($"LOG: {message}");
+            return null;
+        });
+        
+        await engine.Run(@"
+            let sum = 0;
+            
+            function* generator() {
+                log(""Generator: yielding 1"");
+                yield 1;
+                log(""Generator: yielding 2"");
+                yield 2;
+                log(""Generator: yielding 3"");
+                yield 3;
+                log(""Generator: done"");
+            }
+            
+            async function test() {
+                log(""Starting loop"");
+                for await (let num of generator()) {
+                    log(""Got num: "" + num);
+                    sum = sum + num;
+                    log(""Sum after add: "" + sum);
+                }
+                log(""After loop, sum: "" + sum);
+            }
+            
+            test();
+        ");
+        
+        var result = engine.Evaluate("sum;");
+        _output.WriteLine($"Final sum: '{result}'");
+        Assert.Equal(6.0, result);
+    }
+
+    [Fact]
+    public async Task ForAwaitOf_SimpleNoConditions_Debug()
+    {
+        // Test for-await-of without any break/continue/conditions to isolate the basic iteration
+        var engine = new JsEngine();
+        
+        engine.SetGlobalFunction("log", args =>
+        {
+            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            _output.WriteLine($"LOG: {message}");
+            return null;
+        });
+        
+        await engine.Run(@"
+            let count = 0;
+            let arr = [""a"", ""b"", ""c""];
+            
+            async function test() {
+                log(""Starting loop"");
+                for await (let item of arr) {
+                    log(""Item: "" + item);
+                    count = count + 1;
+                    log(""Count: "" + count);
+                }
+                log(""After loop, count: "" + count);
+            }
+            
+            test();
+        ");
+        
+        var result = engine.Evaluate("count;");
+        _output.WriteLine($"Final count: '{result}'");
+        Assert.Equal(3.0, result);
+    }
+
+    [Fact]
+    public async Task ForAwaitOf_WithIfNoBreak_Debug()
+    {
+        // Test with an if statement but no break to see if if statements work correctly
+        var engine = new JsEngine();
+        
+        engine.SetGlobalFunction("log", args =>
+        {
+            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            _output.WriteLine($"LOG: {message}");
+            return null;
+        });
+        
+        await engine.Run(@"
+            let count = 0;
+            let arr = [1, 2, 3, 4, 5];
+            
+            async function test() {
+                log(""Starting loop"");
+                for await (let item of arr) {
+                    log(""Item: "" + item);
+                    if (item === 3) {
+                        log(""Found item 3"");
+                    }
+                    count = count + 1;
+                    log(""Count: "" + count);
+                }
+                log(""After loop, count: "" + count);
+            }
+            
+            test();
+        ");
+        
+        var result = engine.Evaluate("count;");
+        _output.WriteLine($"Final count: '{result}'");
+        Assert.Equal(5.0, result);
+    }
+
+    [Fact]
+    public async Task ForAwaitOf_WithIfNoBreak_ShowTransformation()
+    {
+        // Show the transformation for if without break
+        var source = @"
+            async function test() {
+                let count = 0;
+                let arr = [1, 2, 3];
+                for await (let item of arr) {
+                    if (item === 2) {
+                        log(""item is 2"");
+                    }
+                    count = count + 1;
+                }
+            }
+        ";
+
+        var engine = new JsEngine();
         var transformedSexpr = engine.Parse(source);
         _output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
         _output.WriteLine(transformedSexpr.ToString());

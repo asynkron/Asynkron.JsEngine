@@ -1229,8 +1229,12 @@ public sealed class CpsTransformer
         var afterLoopStatements = statements.Skip(index + 1).ToList();
         var afterLoopContinuation = ChainStatementsWithAwaits(afterLoopStatements, 0, resolveParam, rejectParam);
 
-        // Get iterator: let __iterator = iterable[Symbol.iterator]();
-        var getIteratorStmt = BuildGetIteratorForTransform(iterableExpr, iteratorVar);
+        // Check if this is for-await-of
+        bool isForAwaitOf = loopType is Symbol loopSymbol && ReferenceEquals(loopSymbol, JsSymbols.ForAwaitOf);
+
+        // Get iterator: let __iterator = __getAsyncIterator(iterable) for for-await-of
+        // or let __iterator = iterable[Symbol.iterator]() for regular for-of
+        var getIteratorStmt = BuildGetIteratorForTransform(iterableExpr, iteratorVar, isForAwaitOf);
 
         // Build the loop check function that:
         // - Gets next value
@@ -1415,36 +1419,57 @@ public sealed class CpsTransformer
 
     /// <summary>
     /// Builds code to get an iterator from an iterable.
-    /// Returns: let __iterator = iterable[Symbol.iterator]();
+    /// For for-await-of: let __iterator = __getAsyncIterator(iterable);
+    /// For regular for-of: let __iterator = iterable[Symbol.iterator]();
     /// </summary>
-    private object? BuildGetIteratorForTransform(object? iterableExpr, Symbol iteratorVar)
+    private object? BuildGetIteratorForTransform(object? iterableExpr, Symbol iteratorVar, bool isForAwaitOf)
     {
-        // Symbol.iterator
-        var iteratorSymbol = Cons.FromEnumerable([
-            JsSymbols.GetProperty,
-            Symbol.Intern("Symbol"),
-            "iterator"
-        ]);
+        if (isForAwaitOf)
+        {
+            // Use __getAsyncIterator helper which tries Symbol.asyncIterator first,
+            // then falls back to Symbol.iterator
+            var callGetAsyncIterator = Cons.FromEnumerable([
+                JsSymbols.Call,
+                Symbol.Intern("__getAsyncIterator"),
+                iterableExpr
+            ]);
 
-        // iterable[Symbol.iterator]
-        var getIteratorMethod = Cons.FromEnumerable([
-            JsSymbols.GetIndex,
-            iterableExpr,
-            iteratorSymbol
-        ]);
+            return Cons.FromEnumerable([
+                JsSymbols.Let,
+                iteratorVar,
+                callGetAsyncIterator
+            ]);
+        }
+        else
+        {
+            // Regular for-of: use Symbol.iterator
+            // Symbol.iterator
+            var iteratorSymbol = Cons.FromEnumerable([
+                JsSymbols.GetProperty,
+                Symbol.Intern("Symbol"),
+                "iterator"
+            ]);
 
-        // iterable[Symbol.iterator]()
-        var callIteratorMethod = Cons.FromEnumerable([
-            JsSymbols.Call,
-            getIteratorMethod
-        ]);
+            // iterable[Symbol.iterator]
+            var getIteratorMethod = Cons.FromEnumerable([
+                JsSymbols.GetIndex,
+                iterableExpr,
+                iteratorSymbol
+            ]);
 
-        // let __iterator = iterable[Symbol.iterator]();
-        return Cons.FromEnumerable([
-            JsSymbols.Let,
-            iteratorVar,
-            callIteratorMethod
-        ]);
+            // iterable[Symbol.iterator]()
+            var callIteratorMethod = Cons.FromEnumerable([
+                JsSymbols.Call,
+                getIteratorMethod
+            ]);
+
+            // let __iterator = iterable[Symbol.iterator]();
+            return Cons.FromEnumerable([
+                JsSymbols.Let,
+                iteratorVar,
+                callIteratorMethod
+            ]);
+        }
     }
 
     /// <summary>

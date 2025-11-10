@@ -3388,6 +3388,83 @@ internal static class StandardLibrary
             JsFloat64Array.BYTES_PER_ELEMENT);
 
     /// <summary>
+    /// Helper method for async iteration: gets an async iterator from an iterable.
+    /// For for-await-of: tries Symbol.asyncIterator first, falls back to Symbol.iterator.
+    /// </summary>
+    public static HostFunction CreateGetAsyncIteratorHelper()
+    {
+        return new HostFunction(args =>
+        {
+            // args[0] should be the iterable
+            if (args.Count == 0)
+                throw new InvalidOperationException("__getAsyncIterator requires an iterable");
+
+            var iterable = args[0];
+            
+            // Handle strings specially - they need Symbol.iterator
+            if (iterable is string str)
+            {
+                // Create a string iterator manually
+                var index = 0;
+                var iteratorObj = new JsObject();
+                iteratorObj.SetProperty("next", new HostFunction(_ =>
+                {
+                    if (index < str.Length)
+                    {
+                        var result = new JsObject();
+                        result.SetProperty("value", str[index].ToString());
+                        result.SetProperty("done", false);
+                        index++;
+                        return result;
+                    }
+                    else
+                    {
+                        var result = new JsObject();
+                        result.SetProperty("done", true);
+                        return result;
+                    }
+                }));
+                return iteratorObj;
+            }
+            
+            // For objects, try Symbol.asyncIterator first, then Symbol.iterator
+            if (iterable is JsObject jsObj)
+            {
+                // Try Symbol.asyncIterator
+                var asyncIteratorSymbol = JsSymbol.For("Symbol.asyncIterator");
+                var asyncIteratorKey = $"@@symbol:{asyncIteratorSymbol.GetHashCode()}";
+                if (jsObj.TryGetProperty(asyncIteratorKey, out var asyncIteratorMethod) && asyncIteratorMethod is IJsCallable asyncIteratorCallable)
+                {
+                    return asyncIteratorCallable.Invoke([], jsObj);
+                }
+                
+                // Fall back to Symbol.iterator
+                var iteratorSymbol = JsSymbol.For("Symbol.iterator");
+                var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+                if (jsObj.TryGetProperty(iteratorKey, out var iteratorMethod) && iteratorMethod is IJsCallable iteratorCallable)
+                {
+                    return iteratorCallable.Invoke([], jsObj);
+                }
+                
+                throw new InvalidOperationException("Object is not iterable (no Symbol.asyncIterator or Symbol.iterator method)");
+            }
+            
+            // For arrays, get the iterator
+            if (iterable is JsArray jsArray)
+            {
+                var iteratorSymbol = JsSymbol.For("Symbol.iterator");
+                var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+                if (jsArray.TryGetProperty(iteratorKey, out var iteratorMethod) && iteratorMethod is IJsCallable iteratorCallable)
+                {
+                    return iteratorCallable.Invoke([], jsArray);
+                }
+            }
+            
+            throw new InvalidOperationException($"Value is not iterable: {iterable?.GetType().Name}");
+        });
+    }
+
+    /// <summary>
     /// Helper method for async iteration: gets next value from iterator and wraps in Promise if needed.
     /// This handles both sync and async iterators uniformly.
     /// </summary>

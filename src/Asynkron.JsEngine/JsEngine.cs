@@ -99,7 +99,8 @@ public sealed class JsEngine
         // Register eval function
         SetGlobal("eval", StandardLibrary.CreateEvalFunction(this));
         
-        // Register internal helper for async iteration (wraps iterator.next() in Promise if needed)
+        // Register internal helpers for async iteration
+        SetGlobal("__getAsyncIterator", StandardLibrary.CreateGetAsyncIteratorHelper());
         SetGlobal("__iteratorNext", StandardLibrary.CreateIteratorNextHelper(this));
         
         // Register timer functions

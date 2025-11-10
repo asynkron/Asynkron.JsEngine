@@ -299,7 +299,8 @@ internal static class Evaluator
         var incrementExpression = cons.Rest.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Rest.Head;
 
-        var loopEnvironment = new Environment(environment);
+        // Create environment for the loop, passing the for loop S-expression
+        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for loop");
 
         if (initializer is not null)
         {
@@ -357,7 +358,7 @@ internal static class Evaluator
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
         
-        var loopEnvironment = new Environment(environment);
+        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for-in loop");
         object? lastResult = null;
 
         // Get keys to iterate over
@@ -428,7 +429,7 @@ internal static class Evaluator
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
         
-        var loopEnvironment = new Environment(environment);
+        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for-of loop");
         object? lastResult = null;
 
         // Get values to iterate over
@@ -500,7 +501,7 @@ internal static class Evaluator
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
         
-        var loopEnvironment = new Environment(environment);
+        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for-await-of loop");
         object? lastResult = null;
 
         // Try to get an iterator using the async iterator protocol
@@ -1398,6 +1399,19 @@ internal static class Evaluator
 
         try
         {
+            // If this is an environment-aware callable, set the calling environment
+            if (callable is IEnvironmentAwareCallable envAware)
+            {
+                envAware.CallingEnvironment = environment;
+            }
+            
+            // If this is a debug-aware function, set the environment and context
+            if (callable is DebugAwareHostFunction debugFunc)
+            {
+                debugFunc.CurrentEnvironment = environment;
+                debugFunc.CurrentContext = context;
+            }
+            
             return callable.Invoke(arguments, thisValue);
         }
         catch (ThrowSignal signal)

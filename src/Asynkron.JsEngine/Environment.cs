@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine;
 
-internal sealed class Environment(Environment? enclosing = null, bool isFunctionScope = false, bool isStrict = false)
+internal sealed class Environment(Environment? enclosing = null, bool isFunctionScope = false, bool isStrict = false, Cons? creatingExpression = null, string? description = null)
 {
     private sealed class Binding(object? value, bool isConst)
     {
@@ -13,6 +13,8 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     private readonly Environment? _enclosing = enclosing;
     private readonly bool _isFunctionScope = isFunctionScope;
     private readonly bool _isStrict = isStrict;
+    private readonly Cons? _creatingExpression = creatingExpression;
+    private readonly string? _description = description;
 
     /// <summary>
     /// Returns true if this environment or any enclosing environment is in strict mode.
@@ -90,5 +92,149 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
         }
 
         return current;
+    }
+
+    /// <summary>
+    /// Gets all variables from this environment and all enclosing environments.
+    /// Used for debugging purposes.
+    /// </summary>
+    public Dictionary<string, object?> GetAllVariables()
+    {
+        var result = new Dictionary<string, object?>();
+        
+        // Traverse up the scope chain
+        var current = this;
+        while (current is not null)
+        {
+            // Add variables from current scope (only if not already present from inner scope)
+            foreach (var kvp in current._values)
+            {
+                if (!result.ContainsKey(kvp.Key.Name))
+                {
+                    result[kvp.Key.Name] = kvp.Value.Value;
+                }
+            }
+            
+            current = current._enclosing;
+        }
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Builds a call stack by traversing the enclosing environment chain
+    /// and collecting information about the S-expressions that created each environment.
+    /// </summary>
+    public List<CallStackFrame> BuildCallStack()
+    {
+        var frames = new List<CallStackFrame>();
+        var current = this;
+        int depth = 0;
+        int iterations = 0;
+        const int maxIterations = 100; // Prevent infinite loops
+        
+        while (current is not null && iterations < maxIterations)
+        {
+            iterations++;
+            
+            // Always add a frame if we have any identifying information
+            if (current._creatingExpression is not null || current._description is not null)
+            {
+                var operationType = DetermineOperationType(current._creatingExpression);
+                var description = current._description ?? GetExpressionDescription(current._creatingExpression, operationType);
+                
+                frames.Add(new CallStackFrame(
+                    operationType,
+                    description,
+                    current._creatingExpression,
+                    depth
+                ));
+                
+                depth++;
+            }
+            
+            // Follow the enclosing chain (lexical scope chain)
+            current = current._enclosing;
+        }
+        
+        return frames;
+    }
+
+    /// <summary>
+    /// Determines the operation type from an S-expression.
+    /// </summary>
+    private static string DetermineOperationType(Cons? expression)
+    {
+        if (expression is null)
+            return "unknown";
+        
+        if (expression.Head is Symbol symbol)
+        {
+            if (ReferenceEquals(symbol, JsSymbols.Call))
+                return "call";
+            if (ReferenceEquals(symbol, JsSymbols.For))
+                return "for";
+            if (ReferenceEquals(symbol, JsSymbols.While))
+                return "while";
+            if (ReferenceEquals(symbol, JsSymbols.DoWhile))
+                return "do-while";
+            if (ReferenceEquals(symbol, JsSymbols.Function))
+                return "function";
+            if (ReferenceEquals(symbol, JsSymbols.Block))
+                return "block";
+            
+            return symbol.Name;
+        }
+        
+        return "expression";
+    }
+
+    /// <summary>
+    /// Gets a human-readable description for an S-expression.
+    /// </summary>
+    private static string GetExpressionDescription(Cons? expression, string operationType)
+    {
+        if (expression is null)
+            return "unknown";
+        
+        return operationType switch
+        {
+            "for" => "for loop",
+            "while" => "while loop",
+            "do-while" => "do-while loop",
+            "function" => GetFunctionName(expression),
+            "call" => GetCallDescription(expression),
+            "block" => "block",
+            _ => operationType
+        };
+    }
+
+    /// <summary>
+    /// Extracts the function name from a function S-expression.
+    /// </summary>
+    private static string GetFunctionName(Cons expression)
+    {
+        // (function name params body)
+        if (expression.Rest.Head is Symbol nameSymbol)
+        {
+            return $"function {nameSymbol.Name}";
+        }
+        return "anonymous function";
+    }
+
+    /// <summary>
+    /// Gets a description of a function call.
+    /// </summary>
+    private static string GetCallDescription(Cons expression)
+    {
+        // (call callee args...)
+        var callee = expression.Rest.Head;
+        
+        if (callee is Symbol symbol)
+        {
+            return $"call to {symbol.Name}";
+        }
+        
+        return "function call";
     }
 }

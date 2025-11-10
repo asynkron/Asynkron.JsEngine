@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine;
 
-internal sealed class JsFunction : IJsCallable
+internal sealed class JsFunction : IEnvironmentAwareCallable
 {
     private readonly Symbol? _name;
     private readonly IReadOnlyList<object> _parameters; // Can be Symbol or Cons (for destructuring patterns)
@@ -10,6 +10,11 @@ internal sealed class JsFunction : IJsCallable
     private readonly JsObject _properties = new();
     private JsFunction? _superConstructor;
     private JsObject? _superPrototype;
+
+    /// <summary>
+    /// The environment that is calling this function. Used for building call stacks.
+    /// </summary>
+    public Environment? CallingEnvironment { get; set; }
 
     public JsFunction(Symbol? name, IReadOnlyList<object> parameters, Symbol? restParameter, Cons body, Environment closure)
     {
@@ -44,7 +49,8 @@ internal sealed class JsFunction : IJsCallable
         }
 
         var context = new EvaluationContext();
-        var environment = new Environment(_closure, isFunctionScope: true);
+        var functionDescription = _name != null ? $"function {_name.Name}" : "anonymous function";
+        var environment = new Environment(_closure, isFunctionScope: true, creatingExpression: _body, description: functionDescription);
         
         // Bind regular parameters (could be symbols or destructuring patterns)
         for (var i = 0; i < _parameters.Count; i++)

@@ -11,6 +11,7 @@ public sealed class JsEngine
     private readonly Environment _global = new(isFunctionScope: true);
     private readonly CpsTransformer _cpsTransformer = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
+    private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly HashSet<Task> _activeTimerTasks = [];
     private int _nextTimerId = 1;
@@ -109,6 +110,35 @@ public sealed class JsEngine
         
         // Register dynamic import function
         SetGlobalFunction("import", args => DynamicImport(args));
+        
+        // Register debug function as a debug-aware host function
+        _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));
+    }
+
+    /// <summary>
+    /// Returns a channel reader that can be used to read debug messages captured during execution.
+    /// </summary>
+    public ChannelReader<DebugMessage> DebugMessages() => _debugChannel.Reader;
+
+    /// <summary>
+    /// Captures the current execution state and writes a debug message to the debug channel.
+    /// </summary>
+    private object? CaptureDebugMessage(Environment environment, EvaluationContext context, IReadOnlyList<object?> args)
+    {
+        // Get all variables from the current environment and parent scopes
+        var variables = environment.GetAllVariables();
+
+        // Get the control flow state
+        var controlFlowState = context.Flow.ToString();
+
+        // Get the call stack by traversing the environment chain
+        var callStack = environment.BuildCallStack();
+
+        // Create and write the debug message
+        var debugMessage = new DebugMessage(variables, controlFlowState, callStack);
+        _debugChannel.Writer.TryWrite(debugMessage);
+
+        return null;
     }
 
     /// <summary>

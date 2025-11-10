@@ -1265,11 +1265,11 @@ public sealed class CpsTransformer
         var transformedBody = ChainStatementsWithAwaits(bodyStatements, 0, loopResolve, rejectParam);
         
         // Now wrap the transformed body with the loop resolve function definition
-        // function __loopResolve() { __loopCheck(); }
+        // function __loopResolve() { return __loopCheck(); }
         var loopResolveFuncBody = Cons.FromEnumerable([
             JsSymbols.Block,
             Cons.FromEnumerable([
-                JsSymbols.ExpressionStatement,
+                JsSymbols.Return,
                 Cons.FromEnumerable([
                     JsSymbols.Call,
                     loopCheckFunc

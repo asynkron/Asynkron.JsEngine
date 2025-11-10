@@ -211,47 +211,33 @@ public class AsyncIterableDebugTests
     }
 
     [Fact]
-    public async Task Test_Symbol_AsyncIterator_OR_Expression()
+    public void Test_OR_Expression_Parsing()
     {
-        // Test the OR expression with Symbol properties
+        // Test to see the parsed S-expression for the OR expression
         var engine = new JsEngine();
         
-        engine.SetGlobalFunction("log", args =>
-        {
-            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
-            return null;
-        });
+        // Test simple OR first
+        var simpleOr = @"let result = a || b;";
+        var simpleSexpr = engine.Parse(simpleOr);
+        _output.WriteLine("=== SIMPLE OR ===");
+        _output.WriteLine(simpleSexpr.ToString());
+        _output.WriteLine("");
         
-        await engine.Run(@"
-            let str = ""hello"";
-            
-            async function test() {
-                log(""Step 1: Accessing Symbol.asyncIterator"");
-                let asyncIter = str[Symbol.asyncIterator];
-                log(""Step 2: asyncIter type: "" + (typeof asyncIter));
-                
-                log(""Step 3: Accessing Symbol.iterator"");
-                let syncIter = str[Symbol.iterator];
-                log(""Step 4: syncIter type: "" + (typeof syncIter));
-                
-                log(""Step 5: Calling Symbol.iterator function"");
-                let iteratorObj = str[Symbol.iterator]();
-                log(""Step 6: iteratorObj type: "" + (typeof iteratorObj));
-                
-                log(""Step 7: Testing OR expression - asyncIter || syncIter"");
-                let result1 = asyncIter || syncIter;
-                log(""Step 8: result1 type: "" + (typeof result1));
-                
-                log(""Step 9: Testing OR expression with call - asyncIter || syncIter()"");
-                let result2 = str[Symbol.asyncIterator] || str[Symbol.iterator]();
-                log(""Step 10: result2 type: "" + (typeof result2));
-            }
-            
-            await test();
-        ");
+        // Test OR with function call on right
+        var orWithCall = @"let result = a || b();";
+        var orWithCallSexpr = engine.Parse(orWithCall);
+        _output.WriteLine("=== OR WITH FUNCTION CALL ===");
+        _output.WriteLine(orWithCallSexpr.ToString());
+        _output.WriteLine("");
+        
+        // Test the actual problematic expression
+        var problematicExpr = @"let iterator = str[Symbol.asyncIterator] || str[Symbol.iterator]();";
+        var problematicSexpr = engine.Parse(problematicExpr);
+        _output.WriteLine("=== PROBLEMATIC OR EXPRESSION ===");
+        _output.WriteLine(problematicSexpr.ToString());
+        _output.WriteLine("");
     }
-
+    
     [Fact]
     public async Task ForAwaitOf_WithString_ManualAsyncIteration()
     {

@@ -1733,7 +1733,8 @@ internal static class Evaluator
             return value;
         }
 
-        throw new InvalidOperationException($"Cannot read property '{propertyName}' from value '{target}'.");
+        // Return undefined for non-existent properties (JavaScript behavior)
+        return JsSymbols.Undefined;
     }
 
     private static object? EvaluateSetProperty(Cons cons, Environment environment, EvaluationContext context)
@@ -1909,7 +1910,8 @@ internal static class Evaluator
             return propertyValue;
         }
 
-        throw new InvalidOperationException($"Cannot read property '{propertyName}' from value '{target}'.");
+        // Return undefined for non-existent properties (JavaScript behavior)
+        return JsSymbols.Undefined;
     }
 
     private static object? EvaluateSetIndex(Cons cons, Environment environment, EvaluationContext context)

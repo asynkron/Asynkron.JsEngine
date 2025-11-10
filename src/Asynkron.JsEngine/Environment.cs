@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine;
 
-internal sealed class Environment(Environment? enclosing = null, bool isFunctionScope = false, bool isStrict = false, Cons? creatingExpression = null, string? description = null, Environment? caller = null)
+internal sealed class Environment(Environment? enclosing = null, bool isFunctionScope = false, bool isStrict = false, Cons? creatingExpression = null, string? description = null)
 {
     private sealed class Binding(object? value, bool isConst)
     {
@@ -15,7 +15,6 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     private readonly bool _isStrict = isStrict;
     private readonly Cons? _creatingExpression = creatingExpression;
     private readonly string? _description = description;
-    private readonly Environment? _caller = caller; // Tracks the environment that called into this one (for call stack)
 
     /// <summary>
     /// Returns true if this environment or any enclosing environment is in strict mode.
@@ -96,16 +95,6 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     }
 
     /// <summary>
-    /// For debugging: gets the description of this environment.
-    /// </summary>
-    internal string? GetDescription() => _description;
-    
-    /// <summary>
-    /// For debugging: checks if this environment has a caller set.
-    /// </summary>
-    internal bool HasCaller() => _caller is not null;
-
-    /// <summary>
     /// Gets all variables from this environment and all enclosing environments.
     /// Used for debugging purposes.
     /// </summary>
@@ -133,7 +122,7 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     }
 
     /// <summary>
-    /// Builds a call stack by traversing the caller chain (not the lexical/enclosing chain)
+    /// Builds a call stack by traversing the enclosing environment chain
     /// and collecting information about the S-expressions that created each environment.
     /// </summary>
     public List<CallStackFrame> BuildCallStack()
@@ -164,8 +153,8 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
                 depth++;
             }
             
-            // Follow the caller chain, not the enclosing chain
-            current = current._caller;
+            // Follow the enclosing chain (lexical scope chain)
+            current = current._enclosing;
         }
         
         return frames;

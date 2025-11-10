@@ -50,7 +50,7 @@ internal sealed class JsFunction : IEnvironmentAwareCallable
 
         var context = new EvaluationContext();
         var functionDescription = _name != null ? $"function {_name.Name}" : "anonymous function";
-        var environment = new Environment(_closure, isFunctionScope: true, creatingExpression: _body, description: functionDescription, caller: CallingEnvironment);
+        var environment = new Environment(_closure, isFunctionScope: true, creatingExpression: _body, description: functionDescription);
         
         // Bind regular parameters (could be symbols or destructuring patterns)
         for (var i = 0; i < _parameters.Count; i++)

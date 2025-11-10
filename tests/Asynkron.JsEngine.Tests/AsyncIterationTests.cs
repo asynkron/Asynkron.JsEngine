@@ -54,7 +54,7 @@ public class AsyncIterationTests
         Assert.Equal("abc", result);
     }
     
-    [Fact(Skip = "Generators with for-await-of inside async functions require CPS transformation - sum remains 0 instead of 6")]
+    [Fact(Skip = "CPS transformer not yet fixed: Generators with for-await-of in async functions need iterator.next() promise handling")]
     public async Task ForAwaitOf_WithGenerator()
     {
         var engine = new JsEngine();
@@ -217,7 +217,7 @@ public class AsyncIterationTests
         Assert.Equal("abc", result);
     }
     
-    [Fact(Skip = "Async iterators returning promises from next() require CPS transformation - result is empty")]
+    [Fact(Skip = "CPS transformer not yet fixed: Async iterators returning promises from next() need await handling")]
     public async Task ForAwaitOf_WithCustomAsyncIterator()
     {
         var engine = new JsEngine();
@@ -294,7 +294,7 @@ public class AsyncIterationTests
         Assert.Equal("123", result);
     }
     
-    [Fact(Skip = "Promise rejection in async iterators requires CPS transformation - error not caught")]
+    [Fact(Skip = "CPS transformer not yet fixed: Promise rejection in async iterators needs proper error propagation")]
     public async Task ForAwaitOf_ErrorPropagation()
     {
         var engine = new JsEngine();
@@ -341,7 +341,7 @@ public class AsyncIterationTests
         Assert.True(errorCaught);
     }
     
-    [Fact(Skip = "Sync errors in for-await-of inside async functions require CPS transformation - error not caught")]
+    [Fact(Skip = "CPS transformer not yet fixed: Sync exceptions in for-await-of inside async functions need error handling")]
     public async Task ForAwaitOf_SyncErrorPropagation()
     {
         // Test error handling with synchronous iterators
@@ -389,7 +389,7 @@ public class AsyncIterationTests
         Assert.True(errorCaught);
     }
     
-    [Fact(Skip = "Sync iterator fallback in for-await-of inside async functions requires CPS transformation - result is empty")]
+    [Fact(Skip = "CPS transformer not yet fixed: Sync iterator fallback in for-await-of inside async functions doesn't execute")]
     public async Task ForAwaitOf_FallbackToSyncIterator()
     {
         var engine = new JsEngine();

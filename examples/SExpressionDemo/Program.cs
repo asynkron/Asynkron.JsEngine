@@ -76,7 +76,7 @@ Console.WriteLine("\n\n=== Verification: Execute the Transformed Code ===\n");
 // Verify that the transformed code actually works
 try
 {
-    var result = engine.Evaluate(transformedProgram);
+    var result = engine.EvaluateSync(transformedProgram);
     Console.WriteLine($"Execution completed successfully. Result: {result ?? "null"}");
 }
 catch (Exception ex)

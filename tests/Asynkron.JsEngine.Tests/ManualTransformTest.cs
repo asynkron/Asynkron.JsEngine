@@ -76,7 +76,7 @@ public class ManualTransformTest
             test();
         ");
         
-        var result = engine.Evaluate("result;");
+        var result = engine.EvaluateSync("result;");
         _output.WriteLine($"Result: '{result}'");
         _output.WriteLine($"Logs: {string.Join(" | ", logs)}");
         

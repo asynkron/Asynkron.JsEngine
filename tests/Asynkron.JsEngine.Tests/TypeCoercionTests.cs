@@ -15,7 +15,7 @@ public class TypeCoercionTests
     public void ArrayToString_EmptyArray()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("\"value: \" + [];");
+        var result = engine.EvaluateSync("\"value: \" + [];");
         Assert.Equal("value: ", result);
     }
 
@@ -23,7 +23,7 @@ public class TypeCoercionTests
     public void ArrayToString_SingleElement()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("\"value: \" + [5];");
+        var result = engine.EvaluateSync("\"value: \" + [5];");
         Assert.Equal("value: 5", result);
     }
 
@@ -31,7 +31,7 @@ public class TypeCoercionTests
     public void ArrayToString_MultipleElements()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("\"value: \" + [1, 2, 3];");
+        var result = engine.EvaluateSync("\"value: \" + [1, 2, 3];");
         Assert.Equal("value: 1,2,3", result);
     }
 
@@ -39,7 +39,7 @@ public class TypeCoercionTests
     public void ArrayToString_NestedArrays()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("\"value: \" + [[1], [2], [3]];");
+        var result = engine.EvaluateSync("\"value: \" + [[1], [2], [3]];");
         Assert.Equal("value: 1,2,3", result);
     }
 
@@ -47,10 +47,10 @@ public class TypeCoercionTests
     public void ArrayToString_WithNullUndefined()
     {
         var engine = new JsEngine();
-        var result1 = engine.Evaluate("\"value: \" + [1, null, 3];");
+        var result1 = engine.EvaluateSync("\"value: \" + [1, null, 3];");
         Assert.Equal("value: 1,null,3", result1);
 
-        var result2 = engine.Evaluate("\"value: \" + [1, undefined, 3];");
+        var result2 = engine.EvaluateSync("\"value: \" + [1, undefined, 3];");
         Assert.Equal("value: 1,undefined,3", result2);
     }
 
@@ -62,7 +62,7 @@ public class TypeCoercionTests
     public void ObjectToString_EmptyObject()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("\"value: \" + {};");
+        var result = engine.EvaluateSync("\"value: \" + {};");
         Assert.Equal("value: [object Object]", result);
     }
 
@@ -70,7 +70,7 @@ public class TypeCoercionTests
     public void ObjectToString_ObjectWithProperties()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let obj = { a: 1, b: 2 }; \"value: \" + obj;");
+        var result = engine.EvaluateSync("let obj = { a: 1, b: 2 }; \"value: \" + obj;");
         Assert.Equal("value: [object Object]", result);
     }
 
@@ -82,7 +82,7 @@ public class TypeCoercionTests
     public void ArrayToNumber_EmptyArray()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("[] - 0;");
+        var result = engine.EvaluateSync("[] - 0;");
         Assert.Equal(0d, result);
     }
 
@@ -90,7 +90,7 @@ public class TypeCoercionTests
     public void ArrayToNumber_SingleElement()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("[5] - 0;");
+        var result = engine.EvaluateSync("[5] - 0;");
         Assert.Equal(5d, result);
     }
 
@@ -98,7 +98,7 @@ public class TypeCoercionTests
     public void ArrayToNumber_SingleStringElement()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("[\"10\"] - 0;");
+        var result = engine.EvaluateSync("[\"10\"] - 0;");
         Assert.Equal(10d, result);
     }
 
@@ -106,7 +106,7 @@ public class TypeCoercionTests
     public void ArrayToNumber_MultipleElements()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("[1, 2] - 0;");
+        var result = engine.EvaluateSync("[1, 2] - 0;");
         Assert.True(double.IsNaN((double)result!));
     }
 
@@ -114,7 +114,7 @@ public class TypeCoercionTests
     public void ArrayToNumber_InArithmetic()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("[] + 5;");
+        var result = engine.EvaluateSync("[] + 5;");
         Assert.Equal("5", result);
     }
 
@@ -128,7 +128,7 @@ public class TypeCoercionTests
         var engine = new JsEngine();
         // Note: {} at the start of a statement is parsed as a block, not an object literal
         // Using parentheses forces it to be parsed as an expression
-        var result = engine.Evaluate("({}) - 0;");
+        var result = engine.EvaluateSync("({}) - 0;");
         Assert.True(double.IsNaN((double)result!));
     }
 
@@ -136,7 +136,7 @@ public class TypeCoercionTests
     public void ObjectToNumber_ObjectWithProperties()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("let obj = { a: 1 }; obj - 0;");
+        var result = engine.EvaluateSync("let obj = { a: 1 }; obj - 0;");
         Assert.True(double.IsNaN((double)result!));
     }
 
@@ -148,7 +148,7 @@ public class TypeCoercionTests
     public void StringToNumber_EmptyString()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("\"\" - 0;");
+        var result = engine.EvaluateSync("\"\" - 0;");
         Assert.Equal(0d, result);
     }
 
@@ -156,12 +156,12 @@ public class TypeCoercionTests
     public void StringToNumber_WhitespaceOnly()
     {
         var engine = new JsEngine();
-        var result1 = engine.Evaluate("\"   \" - 0;");
+        var result1 = engine.EvaluateSync("\"   \" - 0;");
         Assert.Equal(0d, result1);
 
         // Note: Escape sequences like \t and \n are not yet properly parsed by the lexer
         // This test uses actual whitespace characters instead
-        var result2 = engine.Evaluate("\" \" - 0;");
+        var result2 = engine.EvaluateSync("\" \" - 0;");
         Assert.Equal(0d, result2);
     }
 
@@ -169,7 +169,7 @@ public class TypeCoercionTests
     public void StringToNumber_ValidNumber()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("\"123\" - 0;");
+        var result = engine.EvaluateSync("\"123\" - 0;");
         Assert.Equal(123d, result);
     }
 
@@ -177,7 +177,7 @@ public class TypeCoercionTests
     public void StringToNumber_NumberWithWhitespace()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("\"  123  \" - 0;");
+        var result = engine.EvaluateSync("\"  123  \" - 0;");
         Assert.Equal(123d, result);
     }
 
@@ -185,7 +185,7 @@ public class TypeCoercionTests
     public void StringToNumber_InvalidNumber()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("\"123abc\" - 0;");
+        var result = engine.EvaluateSync("\"123abc\" - 0;");
         Assert.True(double.IsNaN((double)result!));
     }
 
@@ -193,7 +193,7 @@ public class TypeCoercionTests
     public void StringToNumber_Decimal()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("\"3.14\" - 0;");
+        var result = engine.EvaluateSync("\"3.14\" - 0;");
         Assert.Equal(3.14d, result);
     }
 
@@ -206,13 +206,13 @@ public class TypeCoercionTests
     {
         var engine = new JsEngine();
         
-        var result1 = engine.Evaluate("0 == \"\";");
+        var result1 = engine.EvaluateSync("0 == \"\";");
         Assert.True((bool)result1!);
         
-        var result2 = engine.Evaluate("0 == \"0\";");
+        var result2 = engine.EvaluateSync("0 == \"0\";");
         Assert.True((bool)result2!);
         
-        var result3 = engine.Evaluate("5 == \"5\";");
+        var result3 = engine.EvaluateSync("5 == \"5\";");
         Assert.True((bool)result3!);
     }
 
@@ -221,13 +221,13 @@ public class TypeCoercionTests
     {
         var engine = new JsEngine();
         
-        var result1 = engine.Evaluate("false == \"\";");
+        var result1 = engine.EvaluateSync("false == \"\";");
         Assert.True((bool)result1!);
         
-        var result2 = engine.Evaluate("false == \"0\";");
+        var result2 = engine.EvaluateSync("false == \"0\";");
         Assert.True((bool)result2!);
         
-        var result3 = engine.Evaluate("true == \"1\";");
+        var result3 = engine.EvaluateSync("true == \"1\";");
         Assert.True((bool)result3!);
     }
 
@@ -236,10 +236,10 @@ public class TypeCoercionTests
     {
         var engine = new JsEngine();
         
-        var result1 = engine.Evaluate("false == 0;");
+        var result1 = engine.EvaluateSync("false == 0;");
         Assert.True((bool)result1!);
         
-        var result2 = engine.Evaluate("true == 1;");
+        var result2 = engine.EvaluateSync("true == 1;");
         Assert.True((bool)result2!);
     }
 
@@ -249,7 +249,7 @@ public class TypeCoercionTests
         var engine = new JsEngine();
         
         // Note: Using actual whitespace instead of escape sequences
-        var result = engine.Evaluate("\"   \" == 0;");
+        var result = engine.EvaluateSync("\"   \" == 0;");
         Assert.True((bool)result!);
     }
 
@@ -258,13 +258,13 @@ public class TypeCoercionTests
     {
         var engine = new JsEngine();
         
-        var result1 = engine.Evaluate("[] == \"\";");
+        var result1 = engine.EvaluateSync("[] == \"\";");
         Assert.True((bool)result1!);
         
-        var result2 = engine.Evaluate("[\"\"] == \"\";");
+        var result2 = engine.EvaluateSync("[\"\"] == \"\";");
         Assert.True((bool)result2!);
         
-        var result3 = engine.Evaluate("[1, 2] == \"1,2\";");
+        var result3 = engine.EvaluateSync("[1, 2] == \"1,2\";");
         Assert.True((bool)result3!);
     }
 
@@ -273,13 +273,13 @@ public class TypeCoercionTests
     {
         var engine = new JsEngine();
         
-        var result1 = engine.Evaluate("[] == 0;");
+        var result1 = engine.EvaluateSync("[] == 0;");
         Assert.True((bool)result1!);
         
-        var result2 = engine.Evaluate("[0] == 0;");
+        var result2 = engine.EvaluateSync("[0] == 0;");
         Assert.True((bool)result2!);
         
-        var result3 = engine.Evaluate("[5] == 5;");
+        var result3 = engine.EvaluateSync("[5] == 5;");
         Assert.True((bool)result3!);
     }
 
@@ -289,13 +289,13 @@ public class TypeCoercionTests
         var engine = new JsEngine();
         
         // Strict inequality should not perform type coercion
-        var result1 = engine.Evaluate("0 === \"\";");
+        var result1 = engine.EvaluateSync("0 === \"\";");
         Assert.False((bool)result1!);
         
-        var result2 = engine.Evaluate("0 === \"0\";");
+        var result2 = engine.EvaluateSync("0 === \"0\";");
         Assert.False((bool)result2!);
         
-        var result3 = engine.Evaluate("false === 0;");
+        var result3 = engine.EvaluateSync("false === 0;");
         Assert.False((bool)result3!);
     }
 
@@ -307,7 +307,7 @@ public class TypeCoercionTests
     public void Addition_ArrayConcatenation()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("[1, 2] + [3, 4];");
+        var result = engine.EvaluateSync("[1, 2] + [3, 4];");
         Assert.Equal("1,23,4", result);
     }
 
@@ -315,7 +315,7 @@ public class TypeCoercionTests
     public void Addition_EmptyArrays()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("[] + [];");
+        var result = engine.EvaluateSync("[] + [];");
         Assert.Equal("", result);
     }
 
@@ -325,7 +325,7 @@ public class TypeCoercionTests
         var engine = new JsEngine();
         // Note: {} at the start of a statement is parsed as a block, not an object literal
         // Using parentheses forces it to be parsed as an expression
-        var result = engine.Evaluate("({}) + [];");
+        var result = engine.EvaluateSync("({}) + [];");
         Assert.Equal("[object Object]", result);
     }
 
@@ -333,7 +333,7 @@ public class TypeCoercionTests
     public void Addition_ArrayAndNumber()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate("[1, 2] + 3;");
+        var result = engine.EvaluateSync("[1, 2] + 3;");
         Assert.Equal("1,23", result);
     }
 
@@ -347,7 +347,7 @@ public class TypeCoercionTests
         var engine = new JsEngine();
         
         // NaN should be falsy
-        var result = engine.Evaluate("Math.sqrt(-1) ? 1 : 0;");
+        var result = engine.EvaluateSync("Math.sqrt(-1) ? 1 : 0;");
         Assert.Equal(0d, result);
     }
 
@@ -357,7 +357,7 @@ public class TypeCoercionTests
         var engine = new JsEngine();
         
         // Invalid string to number conversion produces NaN which is falsy
-        var result = engine.Evaluate("(\"abc\" - 0) ? 1 : 0;");
+        var result = engine.EvaluateSync("(\"abc\" - 0) ? 1 : 0;");
         Assert.Equal(0d, result);
     }
 
@@ -371,11 +371,11 @@ public class TypeCoercionTests
         var engine = new JsEngine();
         
         // null converts to 0
-        var result1 = engine.Evaluate("null + 5;");
+        var result1 = engine.EvaluateSync("null + 5;");
         Assert.Equal(5d, result1);
         
         // undefined converts to NaN
-        var result2 = engine.Evaluate("undefined + 5;");
+        var result2 = engine.EvaluateSync("undefined + 5;");
         Assert.True(double.IsNaN((double)result2!));
     }
 
@@ -385,10 +385,10 @@ public class TypeCoercionTests
         var engine = new JsEngine();
         
         // true converts to 1, false to 0
-        var result1 = engine.Evaluate("true + 5;");
+        var result1 = engine.EvaluateSync("true + 5;");
         Assert.Equal(6d, result1);
         
-        var result2 = engine.Evaluate("false + 5;");
+        var result2 = engine.EvaluateSync("false + 5;");
         Assert.Equal(5d, result2);
     }
 
@@ -398,7 +398,7 @@ public class TypeCoercionTests
         var engine = new JsEngine();
         
         // Complex chain of type coercions
-        var result = engine.Evaluate("\"5\" - \"2\" + 3;");
+        var result = engine.EvaluateSync("\"5\" - \"2\" + 3;");
         Assert.Equal(6d, result); // "5" - "2" = 3, then 3 + 3 = 6
     }
 
@@ -408,10 +408,10 @@ public class TypeCoercionTests
         var engine = new JsEngine();
         
         // Array converts to primitive for comparison
-        var result1 = engine.Evaluate("[10] == 10;");
+        var result1 = engine.EvaluateSync("[10] == 10;");
         Assert.True((bool)result1!);
         
-        var result2 = engine.Evaluate("[10] == \"10\";");
+        var result2 = engine.EvaluateSync("[10] == \"10\";");
         Assert.True((bool)result2!);
     }
 }

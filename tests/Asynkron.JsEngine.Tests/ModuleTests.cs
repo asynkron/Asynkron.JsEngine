@@ -23,7 +23,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import add from ""math.js"";
             add(2, 3);
         ");
@@ -48,7 +48,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import config from ""config.js"";
             config.name;
         ");
@@ -73,7 +73,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import { x, y } from ""utils.js"";
             x + y;
         ");
@@ -103,7 +103,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import { add, multiply } from ""math.js"";
             add(2, 3) + multiply(4, 5);
         ");
@@ -129,7 +129,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import { add as sum } from ""math.js"";
             sum(10, 20);
         ");
@@ -159,7 +159,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import * as math from ""math.js"";
             math.add(10, 5) + math.subtract(10, 5);
         ");
@@ -186,7 +186,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import { x, y } from ""utils.js"";
             x + y;
         ");
@@ -211,7 +211,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import { value } from ""utils.js"";
             value;
         ");
@@ -241,12 +241,12 @@ public class ModuleTests
         });
         
         // Load the module twice
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             import { count, increment } from ""counter.js"";
             increment();
         ");
         
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             import { count } from ""counter.js"";
             count;
         ");
@@ -272,7 +272,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import { PI, E } from ""constants.js"";
             PI + E;
         ");
@@ -305,7 +305,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import { Point } from ""point.js"";
             let p = new Point(3, 4);
             p.distance();
@@ -336,7 +336,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import main, { helper } from ""module.js"";
             main() + ""-"" + helper();
         ");
@@ -361,7 +361,7 @@ public class ModuleTests
         });
         
         // Import the module which sets a variable
-        engine.Evaluate(@"
+        engine.EvaluateSync(@"
             import ""side-effect.js"";
         ");
         
@@ -395,7 +395,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import Rectangle from ""Rectangle.js"";
             let rect = new Rectangle(5, 10);
             rect.area();
@@ -423,7 +423,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
         
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             import { add, sub, mul, div } from ""math.js"";
             add(10, 5) + sub(10, 5) + mul(10, 5) + div(10, 5);
         ");
@@ -456,7 +456,7 @@ public class ModuleTests
             });
         ");
         
-        var result = engine.Evaluate("result;");
+        var result = engine.EvaluateSync("result;");
         Assert.Equal("Hello, World", result);
     }
     
@@ -493,7 +493,7 @@ public class ModuleTests
             });
         ");
         
-        var result = engine.Evaluate("finalResult;");
+        var result = engine.EvaluateSync("finalResult;");
         Assert.Equal(100.0, result);
     }
     
@@ -522,7 +522,7 @@ public class ModuleTests
             });
         ");
         
-        var result = engine.Evaluate("value;");
+        var result = engine.EvaluateSync("value;");
         Assert.Equal(42.0, result);
     }
     
@@ -557,8 +557,8 @@ public class ModuleTests
             });
         ");
         
-        var first = engine.Evaluate("first;");
-        var second = engine.Evaluate("second;");
+        var first = engine.EvaluateSync("first;");
+        var second = engine.EvaluateSync("second;");
         
         // Both should be 1 because the module is cached
         Assert.Equal(1.0, first);
@@ -582,7 +582,7 @@ public class ModuleTests
             });
         ");
         
-        var result = engine.Evaluate("errorCaught;");
+        var result = engine.EvaluateSync("errorCaught;");
         Assert.True((bool)result!);
     }
 }

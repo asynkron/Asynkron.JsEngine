@@ -8,7 +8,7 @@ public class LogicalAssignmentOperatorsTests
     public void LogicalAndAssignment_AssignsWhenTruthy()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 5;
             x &&= 10;
             x;
@@ -20,7 +20,7 @@ public class LogicalAssignmentOperatorsTests
     public void LogicalAndAssignment_DoesNotAssignWhenFalsy()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 0;
             x &&= 10;
             x;
@@ -32,7 +32,7 @@ public class LogicalAssignmentOperatorsTests
     public void LogicalOrAssignment_AssignsWhenFalsy()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 0;
             x ||= 10;
             x;
@@ -44,7 +44,7 @@ public class LogicalAssignmentOperatorsTests
     public void LogicalOrAssignment_DoesNotAssignWhenTruthy()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 5;
             x ||= 10;
             x;
@@ -56,7 +56,7 @@ public class LogicalAssignmentOperatorsTests
     public void NullishCoalescingAssignment_AssignsWhenNullOrUndefined()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = null;
             x ??= 10;
             x;
@@ -68,7 +68,7 @@ public class LogicalAssignmentOperatorsTests
     public void NullishCoalescingAssignment_DoesNotAssignWhenNotNullish()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = 0;
             x ??= 10;
             x;
@@ -80,7 +80,7 @@ public class LogicalAssignmentOperatorsTests
     public void LogicalAssignment_WorksWithObjects()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { a: 5, b: 0 };
             obj.a &&= 20;
             obj.b ||= 30;
@@ -93,7 +93,7 @@ public class LogicalAssignmentOperatorsTests
     public void NullishCoalescingAssignment_WithUndefined()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let x = undefined;
             x ??= 42;
             x;

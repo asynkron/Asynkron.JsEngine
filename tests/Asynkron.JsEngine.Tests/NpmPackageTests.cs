@@ -37,7 +37,7 @@ public class NpmPackageTests
             leftPad('foo', 5, ' ');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("  foo", result);
     }
 
@@ -61,7 +61,7 @@ public class NpmPackageTests
             leftPad('42', 5, '0');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("00042", result);
     }
 
@@ -85,7 +85,7 @@ public class NpmPackageTests
             leftPad('', 3, 'a');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("aaa", result);
     }
 
@@ -109,7 +109,7 @@ public class NpmPackageTests
             leftPad('hello', 3, '0');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("hello", result);
     }
 
@@ -136,7 +136,7 @@ public class NpmPackageTests
             result1 && result2 && !result3 && !result4;
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.True((bool)result!);
     }
 
@@ -160,7 +160,7 @@ public class NpmPackageTests
             result1 && result2 && result3 && !result4 && !result5;
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.True((bool)result!);
     }
 
@@ -182,7 +182,7 @@ public class NpmPackageTests
             result1 && result2 && !result3;
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.True((bool)result!);
     }
 
@@ -203,7 +203,7 @@ public class NpmPackageTests
             clamp(5, 0, 10);
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal(5d, result);
     }
 
@@ -220,7 +220,7 @@ public class NpmPackageTests
             clamp(-5, 0, 10);
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal(0d, result);
     }
 
@@ -237,7 +237,7 @@ public class NpmPackageTests
             clamp(15, 0, 10);
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal(10d, result);
     }
 
@@ -262,7 +262,7 @@ public class NpmPackageTests
             inRange(5, 0, 10);
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.True((bool)result!);
     }
 
@@ -283,7 +283,7 @@ public class NpmPackageTests
             inRange(15, 0, 10);
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.False((bool)result!);
     }
 
@@ -304,7 +304,7 @@ public class NpmPackageTests
             inRange(5, 10, undefined);
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.True((bool)result!);
     }
 
@@ -331,7 +331,7 @@ public class NpmPackageTests
             result.join(',');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("0,1,1,2,3,5,8,13,21,34", result);
     }
 
@@ -359,7 +359,7 @@ public class NpmPackageTests
             fibonacciIterative(10);
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal(55d, result);
     }
 
@@ -398,7 +398,7 @@ public class NpmPackageTests
             luhn('4532015112830366');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.True((bool)result!);
     }
 
@@ -433,7 +433,7 @@ public class NpmPackageTests
             luhn('1234567812345678');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.False((bool)result!);
     }
 
@@ -473,7 +473,7 @@ public class NpmPackageTests
             sorted.join(',');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("1,2,3,4,5", result);
     }
 
@@ -516,7 +516,7 @@ public class NpmPackageTests
             deepEqual(obj1, obj2);
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.True((bool)result!);
     }
 
@@ -555,7 +555,7 @@ public class NpmPackageTests
             deepEqual(obj1, obj2);
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.False((bool)result!);
     }
 
@@ -594,7 +594,7 @@ public class NpmPackageTests
             camelCase('hello-world-test');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("helloWorldTest", result);
     }
 
@@ -629,7 +629,7 @@ public class NpmPackageTests
             camelCase('foo_bar_baz');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("fooBarBaz", result);
     }
 
@@ -668,7 +668,7 @@ public class NpmPackageTests
             kebabCase('helloWorldTest');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("hello-world-test", result);
     }
 
@@ -690,7 +690,7 @@ public class NpmPackageTests
             capitalize('hello world');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("Hello world", result);
     }
 
@@ -708,7 +708,7 @@ public class NpmPackageTests
             capitalize('');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("", result);
     }
 
@@ -744,7 +744,7 @@ public class NpmPackageTests
             flat.join(',');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("1,2,3,4,5,6", result);
     }
 
@@ -769,7 +769,7 @@ public class NpmPackageTests
             sum([1, 2, 3, 4, 5]);
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal(15d, result);
     }
 
@@ -790,7 +790,7 @@ public class NpmPackageTests
             sum([]);
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal(0d, result);
     }
 
@@ -829,7 +829,7 @@ public class NpmPackageTests
             uniq.join(',');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("1,2,3,4,5", result);
     }
 
@@ -864,7 +864,7 @@ public class NpmPackageTests
             chunks.length;
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal(3d, result);
     }
 
@@ -895,7 +895,7 @@ public class NpmPackageTests
             chunks[0].join(',') + ';' + chunks[1].join(',') + ';' + chunks[2].join(',');
         ";
         
-        var result = engine.Evaluate(script);
+        var result = engine.EvaluateSync(script);
         Assert.Equal("1,2;3,4;5", result);
     }
 }

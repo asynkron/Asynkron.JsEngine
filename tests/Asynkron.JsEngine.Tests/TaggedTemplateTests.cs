@@ -11,7 +11,7 @@ public class TaggedTemplateTests
     public void TaggedTemplate_BasicFunction()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function myTag(strings, ...values) {
                 return strings[0] + values[0] + strings[1];
             }
@@ -25,7 +25,7 @@ public class TaggedTemplateTests
     public void TaggedTemplate_MultipleSubstitutions()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function tag(strings, ...values) {
                 let result = """";
                 let i = 0;
@@ -47,7 +47,7 @@ public class TaggedTemplateTests
     public void TaggedTemplate_StringsArray()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function tag(strings) {
                 return strings.length;
             }
@@ -60,7 +60,7 @@ public class TaggedTemplateTests
     public void TaggedTemplate_NoSubstitutions()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function tag(strings) {
                 return strings[0];
             }
@@ -73,7 +73,7 @@ public class TaggedTemplateTests
     public void TaggedTemplate_WithExpressions()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function tag(strings, ...values) {
                 return values[0] + values[1];
             }
@@ -86,7 +86,7 @@ public class TaggedTemplateTests
     public void String_Raw_Basic()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             String.raw`Hello\nWorld`;
         ");
         Assert.Equal("Hello\\nWorld", result);
@@ -96,7 +96,7 @@ public class TaggedTemplateTests
     public void String_Raw_WithSubstitutions()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let name = ""Alice"";
             String.raw`Line1\n${name}\tLine2`;
         ");
@@ -107,7 +107,7 @@ public class TaggedTemplateTests
     public void String_Raw_MultipleLines()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             String.raw`First\nSecond\rThird\tFourth`;
         ");
         Assert.Equal("First\\nSecond\\rThird\\tFourth", result);
@@ -117,7 +117,7 @@ public class TaggedTemplateTests
     public void TaggedTemplate_RawProperty()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function tag(strings) {
                 return strings.raw[0];
             }
@@ -130,7 +130,7 @@ public class TaggedTemplateTests
     public void TaggedTemplate_CompareRawAndCooked()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function tag(strings) {
                 return strings[0] === strings.raw[0];
             }
@@ -143,7 +143,7 @@ public class TaggedTemplateTests
     public void TaggedTemplate_AsMethodCall()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = {
                 tag: function(strings, value) {
                     return strings[0] + value + strings[1];
@@ -158,7 +158,7 @@ public class TaggedTemplateTests
     public void TaggedTemplate_ChainedAccess()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             function createTagFunction() {
                 return function(strings, value) {
                     return value * 2;

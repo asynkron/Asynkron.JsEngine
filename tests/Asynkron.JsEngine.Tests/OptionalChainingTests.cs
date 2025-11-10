@@ -8,7 +8,7 @@ public class OptionalChainingTests
     public void OptionalPropertyAccessNull()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = null;
             obj?.name;
         ");
@@ -19,7 +19,7 @@ public class OptionalChainingTests
     public void OptionalPropertyAccessDefined()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { name: 'Alice' };
             obj?.name;
         ");
@@ -30,7 +30,7 @@ public class OptionalChainingTests
     public void OptionalPropertyChain()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { user: { name: 'Bob' } };
             obj?.user?.name;
         ");
@@ -41,7 +41,7 @@ public class OptionalChainingTests
     public void OptionalPropertyChainNull()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { user: null };
             obj?.user?.name;
         ");
@@ -52,7 +52,7 @@ public class OptionalChainingTests
     public void OptionalMethodCallNull()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = null;
             obj?.();
         ");
@@ -63,7 +63,7 @@ public class OptionalChainingTests
     public void OptionalMethodCallDefined()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let greet = function() { return 'Hello'; };
             greet?.();
         ");
@@ -74,7 +74,7 @@ public class OptionalChainingTests
     public void OptionalIndexAccessNull()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = null;
             arr?.[0];
         ");
@@ -85,7 +85,7 @@ public class OptionalChainingTests
     public void OptionalIndexAccessDefined()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [10, 20, 30];
             arr?.[1];
         ");
@@ -96,7 +96,7 @@ public class OptionalChainingTests
     public void OptionalChainingShortCircuit()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = null;
             let x = 0;
             let result = obj?.prop + (x = 1);
@@ -110,7 +110,7 @@ public class OptionalChainingTests
     public void OptionalChainingWithUndefined()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = undefined;
             obj?.name;
         ");

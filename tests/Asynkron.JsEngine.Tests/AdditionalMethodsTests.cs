@@ -9,7 +9,7 @@ public class AdditionalMethodsTests
     public void StringReplaceAll()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = 'hello world hello';
             str.replaceAll('hello', 'hi');
         ");
@@ -20,7 +20,7 @@ public class AdditionalMethodsTests
     public void StringAt()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = 'hello';
             str.at(1);
         ");
@@ -31,7 +31,7 @@ public class AdditionalMethodsTests
     public void StringAtNegative()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = 'hello';
             str.at(-1);
         ");
@@ -42,7 +42,7 @@ public class AdditionalMethodsTests
     public void StringTrimStart()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = '  hello  ';
             str.trimStart();
         ");
@@ -53,7 +53,7 @@ public class AdditionalMethodsTests
     public void StringTrimEnd()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let str = '  hello  ';
             str.trimEnd();
         ");
@@ -65,7 +65,7 @@ public class AdditionalMethodsTests
     public void ArrayAt()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [10, 20, 30];
             arr.at(1);
         ");
@@ -76,7 +76,7 @@ public class AdditionalMethodsTests
     public void ArrayAtNegative()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [10, 20, 30];
             arr.at(-1);
         ");
@@ -87,7 +87,7 @@ public class AdditionalMethodsTests
     public void ArrayFlat()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [1, [2, 3], [4, [5, 6]]];
             let flat = arr.flat();
             flat[0] + flat[1] + flat[2] + flat[3];
@@ -99,7 +99,7 @@ public class AdditionalMethodsTests
     public void ArrayFlatDepth()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [1, [2, [3, [4]]]];
             let flat = arr.flat(2);
             flat.length;
@@ -111,7 +111,7 @@ public class AdditionalMethodsTests
     public void ArrayFlatMap()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [1, 2, 3];
             let result = arr.flatMap(function(x) { return [x, x * 2]; });
             result[0] + result[1] + result[2] + result[3] + result[4] + result[5];
@@ -123,7 +123,7 @@ public class AdditionalMethodsTests
     public void ArrayFindLast()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [1, 2, 3, 4, 5];
             arr.findLast(function(x) { return x > 2; });
         ");
@@ -134,7 +134,7 @@ public class AdditionalMethodsTests
     public void ArrayFindLastIndex()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let arr = [1, 2, 3, 4, 5];
             arr.findLastIndex(function(x) { return x > 2; });
         ");
@@ -146,7 +146,7 @@ public class AdditionalMethodsTests
     public void ObjectFromEntries()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let entries = [['a', 1], ['b', 2]];
             let obj = Object.fromEntries(entries);
             obj.a + obj.b;
@@ -158,7 +158,7 @@ public class AdditionalMethodsTests
     public void ObjectHasOwn()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { a: 1 };
             Object.hasOwn(obj, 'a');
         ");
@@ -169,7 +169,7 @@ public class AdditionalMethodsTests
     public void ObjectHasOwnFalse()
     {
         var engine = new JsEngine();
-        var result = engine.Evaluate(@"
+        var result = engine.EvaluateSync(@"
             let obj = { a: 1 };
             Object.hasOwn(obj, 'b');
         ");

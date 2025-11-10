@@ -27,10 +27,10 @@ var leftPadScript = @"
     leftPad('Hello', 10, ' ');
 ";
 
-var padded = engine.Evaluate(leftPadScript);
+var padded = engine.EvaluateSync(leftPadScript);
 Console.WriteLine($"leftPad('Hello', 10, ' ') = '{padded}'");
 
-var paddedNumber = engine.Evaluate("leftPad('42', 6, '0');");
+var paddedNumber = engine.EvaluateSync("leftPad('42', 6, '0');");
 Console.WriteLine($"leftPad('42', 6, '0') = '{paddedNumber}'");
 Console.WriteLine();
 
@@ -66,7 +66,7 @@ var parityScript = @"
     'Odds: ' + odds.join(', ') + ' | Evens: ' + evens.join(', ');
 ";
 
-var result = engine.Evaluate(parityScript);
+var result = engine.EvaluateSync(parityScript);
 Console.WriteLine(result);
 Console.WriteLine();
 
@@ -91,7 +91,7 @@ var clampScript = @"
     'Values: [' + values.join(', ') + '] => Clamped [0-10]: [' + clamped.join(', ') + ']';
 ";
 
-var clamped = engine.Evaluate(clampScript);
+var clamped = engine.EvaluateSync(clampScript);
 Console.WriteLine(clamped);
 Console.WriteLine();
 
@@ -134,7 +134,7 @@ var camelCaseScript = @"
     converted.join(', ');
 ";
 
-var camelCased = engine.Evaluate(camelCaseScript);
+var camelCased = engine.EvaluateSync(camelCaseScript);
 Console.WriteLine($"Converted to camelCase: {camelCased}");
 Console.WriteLine();
 
@@ -168,7 +168,7 @@ var fibonacciScript = @"
     'First 15 Fibonacci numbers: ' + sequence.join(', ');
 ";
 
-var fibonacci = engine.Evaluate(fibonacciScript);
+var fibonacci = engine.EvaluateSync(fibonacciScript);
 Console.WriteLine(fibonacci);
 Console.WriteLine();
 
@@ -219,7 +219,7 @@ var luhnScript = @"
     results.join(' | ');
 ";
 
-var validation = engine.Evaluate(luhnScript);
+var validation = engine.EvaluateSync(luhnScript);
 Console.WriteLine(validation);
 Console.WriteLine();
 
@@ -257,7 +257,7 @@ var chunkScript = @"
     'Data: [' + data.join(', ') + '] => Chunks of 3: ' + formatted.join(', ');
 ";
 
-var chunked = engine.Evaluate(chunkScript);
+var chunked = engine.EvaluateSync(chunkScript);
 Console.WriteLine(chunked);
 Console.WriteLine();
 
@@ -294,7 +294,7 @@ var uniqueScript = @"
     'Input: [' + duplicates.join(', ') + '] => Unique: [' + uniques.join(', ') + ']';
 ";
 
-var unique = engine.Evaluate(uniqueScript);
+var unique = engine.EvaluateSync(uniqueScript);
 Console.WriteLine(unique);
 Console.WriteLine();
 
@@ -338,7 +338,7 @@ var deepEqualScript = @"
     'obj1 vs obj2: ' + result1 + ' | obj1 vs obj3: ' + result2;
 ";
 
-var comparison = engine.Evaluate(deepEqualScript);
+var comparison = engine.EvaluateSync(deepEqualScript);
 Console.WriteLine(comparison);
 Console.WriteLine();
 

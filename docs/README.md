@@ -100,12 +100,23 @@ Guide for integrating CPS transformation into the evaluation pipeline.
 Comprehensive catalog of JavaScript features not yet implemented in Asynkron.JsEngine, organized by priority and category.
 
 **Key Topics:**
-- High-priority features (ES6 modules, single-quoted strings, object shorthand)
-- Medium-priority features (for...of/in, Symbol type, Map/Set, bitwise operators)
-- Low-priority features (Proxy, BigInt, Typed Arrays)
+- Medium-priority features (additional array/string methods, object rest/spread)
+- Low-priority features (Proxy, BigInt, Typed Arrays, WeakMap/WeakSet)
 - Implementation complexity estimates
 - Recommended implementation phases
-- Quick wins and compatibility priorities
+
+### [COMPLETED_FEATURES.md](COMPLETED_FEATURES.md)
+**Status: Feature Documentation**
+
+Comprehensive catalog of JavaScript features that have been successfully implemented in Asynkron.JsEngine.
+
+**Key Topics:**
+- ES6 modules (import/export)
+- Modern syntax (single quotes, object shorthand, computed properties)
+- Iteration (for...of, for...in)
+- Operators (bitwise, exponentiation, increment/decrement, compound assignment)
+- Collections (Symbol, Map, Set)
+- Advanced features (optional chaining, private class fields)
 
 ---
 
@@ -134,7 +145,12 @@ Comprehensive catalog of JavaScript features not yet implemented in Asynkron.JsE
 
 ### "I want to know what features to implement next"
 → Read [MISSING_FEATURES.md](MISSING_FEATURES.md) for comprehensive feature list with priorities  
+→ See [COMPLETED_FEATURES.md](COMPLETED_FEATURES.md) for already implemented features  
 → See recommended implementation phases and quick wins
+
+### "I want to know what features are already implemented"
+→ Read [COMPLETED_FEATURES.md](COMPLETED_FEATURES.md) for complete list of implemented features  
+→ Check [FEATURE_STATUS_SUMMARY.md](FEATURE_STATUS_SUMMARY.md) for overall compatibility status
 
 ---
 

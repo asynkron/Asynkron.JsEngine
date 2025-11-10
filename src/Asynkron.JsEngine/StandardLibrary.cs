@@ -3527,7 +3527,19 @@ internal static class StandardLibrary
             if (!iterator.TryGetProperty("next", out var nextMethod) || nextMethod is not IJsCallable nextCallable)
                 throw new InvalidOperationException("Iterator must have a 'next' method");
 
-            var result = nextCallable.Invoke([], iterator);
+            object? result;
+            try
+            {
+                result = nextCallable.Invoke([], iterator);
+            }
+            catch (Exception ex)
+            {
+                // If next() throws an error, wrap it in a rejected promise
+                var rejectedPromise = new JsPromise(engine);
+                AddPromiseInstanceMethods(rejectedPromise.JsObject, rejectedPromise, engine);
+                rejectedPromise.Reject(ex.Message);
+                return rejectedPromise.JsObject;
+            }
 
             // Check if result is already a promise (has a "then" method)
             if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable)

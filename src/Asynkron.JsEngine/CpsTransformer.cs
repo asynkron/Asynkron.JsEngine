@@ -880,11 +880,15 @@ public sealed class CpsTransformer
             return tryCons;
         }
 
+        // Continue with remaining statements after the try-catch
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
+
         // Transform the try block with async context
         var tryBlock = parts[1];
-        var transformedTryBlock = TransformBlockInAsyncContext(tryBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-
-        object? transformedCatchClause = null;
+        
+        // Check if we have a catch clause
+        Symbol? catchParam = null;
+        object? catchBlock = null;
         if (parts.Count > 2 && parts[2] != null)
         {
             // catchClause is (catch param block)
@@ -894,48 +898,69 @@ public sealed class CpsTransformer
                 if (catchParts.Count >= 3)
                 {
                     var catchSymbol = catchParts[0]; // 'catch'
-                    var catchParam = catchParts[1];
-                    var catchBlock = catchParts[2];
-                    var transformedCatchBlock = TransformBlockInAsyncContext(catchBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-                    
-                    transformedCatchClause = Cons.FromEnumerable([
-                        catchSymbol, 
-                        catchParam, 
-                        transformedCatchBlock
-                    ]);
+                    catchParam = catchParts[1] as Symbol;
+                    catchBlock = catchParts[2];
                 }
             }
         }
-
-        object? transformedFinallyBlock = null;
-        if (parts.Count > 3 && parts[3] != null)
+        
+        // Create a catch handler function that will be used as the reject parameter for the try block
+        // This function will execute the catch block and then continue with rest
+        Symbol tryCatchRejectHandler;
+        object? tryCatchRejectHandlerDecl = null;
+        
+        if (catchBlock != null && catchParam != null)
         {
-            transformedFinallyBlock = TransformBlockInAsyncContext(parts[3], resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+            tryCatchRejectHandler = Symbol.Intern("__tryCatchReject" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            
+            // Transform the catch block
+            // The catch block's continuation is the rest of the statements
+            var transformedCatchBlock = TransformBlockInAsyncContext(catchBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+            
+            // Combine catch block with rest
+            var catchWithRest = Cons.FromEnumerable([
+                JsSymbols.Block,
+                transformedCatchBlock,
+                rest
+            ]);
+            
+            // Create function: function __tryCatchReject(catchParam) { catchBlock; rest; }
+            tryCatchRejectHandlerDecl = Cons.FromEnumerable([
+                JsSymbols.Function,
+                tryCatchRejectHandler,
+                Cons.FromEnumerable([catchParam]),
+                catchWithRest
+            ]);
         }
-
-        // Continue with remaining statements
-        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
-
-        // Build the transformed try statement
-        var transformedTry = Cons.FromEnumerable([
-            JsSymbols.Try, 
-            transformedTryBlock, 
-            transformedCatchClause, 
-            transformedFinallyBlock
-        ]);
-
-        // If rest is just resolving null, return just the try statement
-        if (IsSimpleResolveCall(rest))
+        else
         {
-            return Cons.FromEnumerable([JsSymbols.Block, transformedTry]);
+            // No catch clause, use the outer reject handler
+            tryCatchRejectHandler = rejectParam;
         }
-
-        // Combine with rest
-        return Cons.FromEnumerable([
-            JsSymbols.Block, 
-            transformedTry, 
+        
+        // Transform the try block, using the catch handler as the reject parameter
+        var transformedTryBlock = TransformBlockInAsyncContext(tryBlock, resolveParam, tryCatchRejectHandler, loopContinueTarget, loopBreakTarget);
+        
+        // If try block completes successfully, execute rest
+        var tryWithRest = Cons.FromEnumerable([
+            JsSymbols.Block,
+            transformedTryBlock,
             rest
         ]);
+        
+        // If we have a catch handler function, define it first
+        if (tryCatchRejectHandlerDecl != null)
+        {
+            return Cons.FromEnumerable([
+                JsSymbols.Block,
+                tryCatchRejectHandlerDecl,
+                tryWithRest
+            ]);
+        }
+        else
+        {
+            return tryWithRest;
+        }
     }
 
     /// <summary>
@@ -1644,12 +1669,40 @@ public sealed class CpsTransformer
             thenCallback
         ]);
 
-        // Return the promise chain
+        // Add .catch() handler to propagate errors: .catch(__reject)
+        var catchCallback = Cons.FromEnumerable([
+            JsSymbols.Lambda,
+            null,
+            Cons.FromEnumerable([Symbol.Intern("__error")]),
+            Cons.FromEnumerable([
+                JsSymbols.Block,
+                Cons.FromEnumerable([
+                    JsSymbols.Return,
+                    Cons.FromEnumerable([
+                        JsSymbols.Call,
+                        rejectParam,
+                        Symbol.Intern("__error")
+                    ])
+                ])
+            ])
+        ]);
+
+        var catchCall = Cons.FromEnumerable([
+            JsSymbols.Call,
+            Cons.FromEnumerable([
+                JsSymbols.GetProperty,
+                thenCall,
+                "catch"
+            ]),
+            catchCallback
+        ]);
+
+        // Return the promise chain with error handling
         return Cons.FromEnumerable([
             JsSymbols.Block,
             Cons.FromEnumerable([
                 JsSymbols.Return,
-                thenCall
+                catchCall
             ])
         ]);
     }

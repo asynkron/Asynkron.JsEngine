@@ -285,8 +285,10 @@ public class AsyncIterableDebugTests
                                          while (!iterResult.done) {
                                              log("Value: " + iterResult.value);
                                              result = result + iterResult.value;
-                                             log("calling next");
-                                             iterResult = await iterator.next(); //TODO<- fails here
+                                             log("calling next before await");
+                                             __debug("before next");
+                                             iterResult = await iterator.next();
+                                             __debug("after next");
                                              log("Next result: " + JSON.stringify(iterResult));
                                          }
                                          

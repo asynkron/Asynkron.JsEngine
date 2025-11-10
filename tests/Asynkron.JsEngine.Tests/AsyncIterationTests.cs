@@ -54,7 +54,7 @@ public class AsyncIterationTests
         Assert.Equal("abc", result);
     }
     
-    [Fact(Skip = "CPS transformer not yet fixed: Generators with for-await-of in async functions need iterator.next() promise handling")]
+    [Fact(Skip = "CPS transformer: Promise.resolve() approach breaks some tests - needs debugging")]
     public async Task ForAwaitOf_WithGenerator()
     {
         var engine = new JsEngine();
@@ -217,7 +217,7 @@ public class AsyncIterationTests
         Assert.Equal("abc", result);
     }
     
-    [Fact(Skip = "CPS transformer not yet fixed: Async iterators returning promises from next() need await handling")]
+    [Fact(Skip = "CPS transformer: Promise.resolve() approach breaks some tests - needs debugging")]
     public async Task ForAwaitOf_WithCustomAsyncIterator()
     {
         var engine = new JsEngine();
@@ -294,7 +294,7 @@ public class AsyncIterationTests
         Assert.Equal("123", result);
     }
     
-    [Fact(Skip = "CPS transformer not yet fixed: Promise rejection in async iterators needs proper error propagation")]
+    [Fact(Skip = "CPS transformer: Promise.resolve() approach breaks some tests - needs debugging")]
     public async Task ForAwaitOf_ErrorPropagation()
     {
         var engine = new JsEngine();
@@ -341,7 +341,7 @@ public class AsyncIterationTests
         Assert.True(errorCaught);
     }
     
-    [Fact(Skip = "CPS transformer not yet fixed: Sync exceptions in for-await-of inside async functions need error handling")]
+    [Fact(Skip = "CPS transformer: Promise.resolve() approach breaks some tests - needs debugging")]
     public async Task ForAwaitOf_SyncErrorPropagation()
     {
         // Test error handling with synchronous iterators
@@ -389,7 +389,7 @@ public class AsyncIterationTests
         Assert.True(errorCaught);
     }
     
-    [Fact(Skip = "CPS transformer not yet fixed: Sync iterator fallback in for-await-of inside async functions doesn't execute")]
+    [Fact(Skip = "CPS transformer: Promise.resolve() approach breaks some tests - needs debugging")]
     public async Task ForAwaitOf_FallbackToSyncIterator()
     {
         var engine = new JsEngine();

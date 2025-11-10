@@ -12,7 +12,7 @@ public class TypeCoercionTests
     // ========================================
 
     [Fact]
-    public void ArrayToString_EmptyArray()
+    public async Task ArrayToString_EmptyArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"value: \" + [];");
@@ -20,7 +20,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void ArrayToString_SingleElement()
+    public async Task ArrayToString_SingleElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"value: \" + [5];");
@@ -28,7 +28,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void ArrayToString_MultipleElements()
+    public async Task ArrayToString_MultipleElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"value: \" + [1, 2, 3];");
@@ -36,7 +36,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void ArrayToString_NestedArrays()
+    public async Task ArrayToString_NestedArrays()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"value: \" + [[1], [2], [3]];");
@@ -44,7 +44,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void ArrayToString_WithNullUndefined()
+    public async Task ArrayToString_WithNullUndefined()
     {
         var engine = new JsEngine();
         var result1 = engine.EvaluateSync("\"value: \" + [1, null, 3];");
@@ -59,7 +59,7 @@ public class TypeCoercionTests
     // ========================================
 
     [Fact]
-    public void ObjectToString_EmptyObject()
+    public async Task ObjectToString_EmptyObject()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"value: \" + {};");
@@ -67,7 +67,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void ObjectToString_ObjectWithProperties()
+    public async Task ObjectToString_ObjectWithProperties()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let obj = { a: 1, b: 2 }; \"value: \" + obj;");
@@ -79,7 +79,7 @@ public class TypeCoercionTests
     // ========================================
 
     [Fact]
-    public void ArrayToNumber_EmptyArray()
+    public async Task ArrayToNumber_EmptyArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("[] - 0;");
@@ -87,7 +87,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void ArrayToNumber_SingleElement()
+    public async Task ArrayToNumber_SingleElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("[5] - 0;");
@@ -95,7 +95,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void ArrayToNumber_SingleStringElement()
+    public async Task ArrayToNumber_SingleStringElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("[\"10\"] - 0;");
@@ -103,7 +103,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void ArrayToNumber_MultipleElements()
+    public async Task ArrayToNumber_MultipleElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("[1, 2] - 0;");
@@ -111,7 +111,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void ArrayToNumber_InArithmetic()
+    public async Task ArrayToNumber_InArithmetic()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("[] + 5;");
@@ -123,7 +123,7 @@ public class TypeCoercionTests
     // ========================================
 
     [Fact]
-    public void ObjectToNumber_EmptyObject()
+    public async Task ObjectToNumber_EmptyObject()
     {
         var engine = new JsEngine();
         // Note: {} at the start of a statement is parsed as a block, not an object literal
@@ -133,7 +133,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void ObjectToNumber_ObjectWithProperties()
+    public async Task ObjectToNumber_ObjectWithProperties()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let obj = { a: 1 }; obj - 0;");
@@ -145,7 +145,7 @@ public class TypeCoercionTests
     // ========================================
 
     [Fact]
-    public void StringToNumber_EmptyString()
+    public async Task StringToNumber_EmptyString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"\" - 0;");
@@ -153,7 +153,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void StringToNumber_WhitespaceOnly()
+    public async Task StringToNumber_WhitespaceOnly()
     {
         var engine = new JsEngine();
         var result1 = engine.EvaluateSync("\"   \" - 0;");
@@ -166,7 +166,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void StringToNumber_ValidNumber()
+    public async Task StringToNumber_ValidNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"123\" - 0;");
@@ -174,7 +174,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void StringToNumber_NumberWithWhitespace()
+    public async Task StringToNumber_NumberWithWhitespace()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"  123  \" - 0;");
@@ -182,7 +182,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void StringToNumber_InvalidNumber()
+    public async Task StringToNumber_InvalidNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"123abc\" - 0;");
@@ -190,7 +190,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void StringToNumber_Decimal()
+    public async Task StringToNumber_Decimal()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("\"3.14\" - 0;");
@@ -202,7 +202,7 @@ public class TypeCoercionTests
     // ========================================
 
     [Fact]
-    public void LooseEquality_NumberAndString()
+    public async Task LooseEquality_NumberAndString()
     {
         var engine = new JsEngine();
         
@@ -217,7 +217,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void LooseEquality_BooleanAndString()
+    public async Task LooseEquality_BooleanAndString()
     {
         var engine = new JsEngine();
         
@@ -232,7 +232,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void LooseEquality_BooleanAndNumber()
+    public async Task LooseEquality_BooleanAndNumber()
     {
         var engine = new JsEngine();
         
@@ -244,7 +244,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void LooseEquality_WhitespaceStringAndNumber()
+    public async Task LooseEquality_WhitespaceStringAndNumber()
     {
         var engine = new JsEngine();
         
@@ -254,7 +254,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void LooseEquality_ArrayAndString()
+    public async Task LooseEquality_ArrayAndString()
     {
         var engine = new JsEngine();
         
@@ -269,7 +269,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void LooseEquality_ArrayAndNumber()
+    public async Task LooseEquality_ArrayAndNumber()
     {
         var engine = new JsEngine();
         
@@ -284,7 +284,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void LooseEquality_StrictInequalityPreserved()
+    public async Task LooseEquality_StrictInequalityPreserved()
     {
         var engine = new JsEngine();
         
@@ -304,7 +304,7 @@ public class TypeCoercionTests
     // ========================================
 
     [Fact]
-    public void Addition_ArrayConcatenation()
+    public async Task Addition_ArrayConcatenation()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("[1, 2] + [3, 4];");
@@ -312,7 +312,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void Addition_EmptyArrays()
+    public async Task Addition_EmptyArrays()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("[] + [];");
@@ -320,7 +320,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void Addition_ObjectAndArray()
+    public async Task Addition_ObjectAndArray()
     {
         var engine = new JsEngine();
         // Note: {} at the start of a statement is parsed as a block, not an object literal
@@ -330,7 +330,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void Addition_ArrayAndNumber()
+    public async Task Addition_ArrayAndNumber()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("[1, 2] + 3;");
@@ -342,7 +342,7 @@ public class TypeCoercionTests
     // ========================================
 
     [Fact]
-    public void Truthiness_NaNIsFalsy()
+    public async Task Truthiness_NaNIsFalsy()
     {
         var engine = new JsEngine();
         
@@ -352,7 +352,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void Truthiness_InvalidStringConversionProducesNaN()
+    public async Task Truthiness_InvalidStringConversionProducesNaN()
     {
         var engine = new JsEngine();
         
@@ -366,7 +366,7 @@ public class TypeCoercionTests
     // ========================================
 
     [Fact]
-    public void TypeCoercion_NullAndUndefinedInArithmetic()
+    public async Task TypeCoercion_NullAndUndefinedInArithmetic()
     {
         var engine = new JsEngine();
         
@@ -380,7 +380,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void TypeCoercion_BooleanInArithmetic()
+    public async Task TypeCoercion_BooleanInArithmetic()
     {
         var engine = new JsEngine();
         
@@ -393,7 +393,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void TypeCoercion_MixedOperations()
+    public async Task TypeCoercion_MixedOperations()
     {
         var engine = new JsEngine();
         
@@ -403,7 +403,7 @@ public class TypeCoercionTests
     }
 
     [Fact]
-    public void TypeCoercion_ArrayInLooseEquality()
+    public async Task TypeCoercion_ArrayInLooseEquality()
     {
         var engine = new JsEngine();
         

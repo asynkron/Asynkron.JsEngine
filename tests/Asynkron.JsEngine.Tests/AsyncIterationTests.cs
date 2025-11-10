@@ -207,7 +207,7 @@ public class AsyncIterationTests
     }
     
     [Fact]
-    public void ForAwaitOf_RequiresAsyncFunction()
+    public async Task ForAwaitOf_RequiresAsyncFunction()
     {
         var engine = new JsEngine();
         
@@ -537,7 +537,7 @@ public class AsyncIterationTests
     }
     
     [Fact]
-    public void ForAwaitOf_WithSyncIteratorNoAsync()
+    public async Task ForAwaitOf_WithSyncIteratorNoAsync()
     {
         var engine = new JsEngine();
         

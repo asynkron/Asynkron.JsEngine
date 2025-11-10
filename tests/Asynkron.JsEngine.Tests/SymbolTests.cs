@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine.Tests;
 public class SymbolTests
 {
     [Fact]
-    public void Symbol_Creates_Unique_Symbols()
+    public async Task Symbol_Creates_Unique_Symbols()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -15,7 +15,7 @@ public class SymbolTests
     }
 
     [Fact]
-    public void Symbol_With_Description()
+    public async Task Symbol_With_Description()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -26,7 +26,7 @@ public class SymbolTests
     }
 
     [Fact]
-    public void Symbol_Typeof_Returns_Symbol()
+    public async Task Symbol_Typeof_Returns_Symbol()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -36,7 +36,7 @@ public class SymbolTests
     }
 
     [Fact]
-    public void Symbol_For_Creates_Global_Symbol()
+    public async Task Symbol_For_Creates_Global_Symbol()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -48,7 +48,7 @@ public class SymbolTests
     }
 
     [Fact]
-    public void Symbol_For_Different_Keys_Creates_Different_Symbols()
+    public async Task Symbol_For_Different_Keys_Creates_Different_Symbols()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -60,7 +60,7 @@ public class SymbolTests
     }
 
     [Fact]
-    public void Symbol_KeyFor_Returns_Key_For_Global_Symbol()
+    public async Task Symbol_KeyFor_Returns_Key_For_Global_Symbol()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -71,7 +71,7 @@ public class SymbolTests
     }
 
     [Fact]
-    public void Symbol_KeyFor_Returns_Undefined_For_Non_Global_Symbol()
+    public async Task Symbol_KeyFor_Returns_Undefined_For_Non_Global_Symbol()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -83,7 +83,7 @@ public class SymbolTests
     }
 
     [Fact]
-    public void Symbol_Can_Be_Used_As_Object_Property_Key()
+    public async Task Symbol_Can_Be_Used_As_Object_Property_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -97,7 +97,7 @@ public class SymbolTests
 
     // Symbol properties should not be enumerable in for...in loops
     [Fact]
-    public void Symbol_Properties_Are_Not_Enumerable()
+    public async Task Symbol_Properties_Are_Not_Enumerable()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -115,7 +115,7 @@ public class SymbolTests
     }
 
     [Fact]
-    public void Symbol_Works_With_Undefined()
+    public async Task Symbol_Works_With_Undefined()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -126,7 +126,7 @@ public class SymbolTests
     }
 
     [Fact]
-    public void Multiple_Global_Symbols_Work_Correctly()
+    public async Task Multiple_Global_Symbols_Work_Correctly()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

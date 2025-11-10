@@ -6,7 +6,7 @@ public class StaticMethodsTests
 {
     // Object static methods tests
     [Fact]
-    public void ObjectKeys()
+    public async Task ObjectKeys()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -18,7 +18,7 @@ public class StaticMethodsTests
     }
 
     [Fact]
-    public void ObjectValues()
+    public async Task ObjectValues()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -30,7 +30,7 @@ public class StaticMethodsTests
     }
 
     [Fact]
-    public void ObjectEntries()
+    public async Task ObjectEntries()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -42,7 +42,7 @@ public class StaticMethodsTests
     }
 
     [Fact]
-    public void ObjectAssign()
+    public async Task ObjectAssign()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -56,7 +56,7 @@ public class StaticMethodsTests
     }
 
     [Fact]
-    public void ObjectAssignOverwrites()
+    public async Task ObjectAssignOverwrites()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -70,7 +70,7 @@ public class StaticMethodsTests
 
     // Array static methods tests
     [Fact]
-    public void ArrayIsArray()
+    public async Task ArrayIsArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -82,7 +82,7 @@ public class StaticMethodsTests
     }
 
     [Fact]
-    public void ArrayIsArrayString()
+    public async Task ArrayIsArrayString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -93,7 +93,7 @@ public class StaticMethodsTests
     }
 
     [Fact]
-    public void ArrayFrom()
+    public async Task ArrayFrom()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -105,7 +105,7 @@ public class StaticMethodsTests
     }
 
     [Fact]
-    public void ArrayFromArray()
+    public async Task ArrayFromArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -117,7 +117,7 @@ public class StaticMethodsTests
     }
 
     [Fact]
-    public void ArrayOf()
+    public async Task ArrayOf()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -128,7 +128,7 @@ public class StaticMethodsTests
     }
 
     [Fact]
-    public void ArrayOfSingle()
+    public async Task ArrayOfSingle()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

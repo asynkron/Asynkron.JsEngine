@@ -17,7 +17,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void LeftPad_PadsStringWithSpaces()
+    public async Task LeftPad_PadsStringWithSpaces()
     {
         var engine = new JsEngine();
         
@@ -42,7 +42,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void LeftPad_PadsStringWithCustomCharacter()
+    public async Task LeftPad_PadsStringWithCustomCharacter()
     {
         var engine = new JsEngine();
         
@@ -66,7 +66,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void LeftPad_HandlesEmptyString()
+    public async Task LeftPad_HandlesEmptyString()
     {
         var engine = new JsEngine();
         
@@ -90,7 +90,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void LeftPad_NoModificationIfAlreadyLongEnough()
+    public async Task LeftPad_NoModificationIfAlreadyLongEnough()
     {
         var engine = new JsEngine();
         
@@ -118,7 +118,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void IsOdd_IdentifiesOddNumbers()
+    public async Task IsOdd_IdentifiesOddNumbers()
     {
         var engine = new JsEngine();
         
@@ -141,7 +141,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void IsEven_IdentifiesEvenNumbers()
+    public async Task IsEven_IdentifiesEvenNumbers()
     {
         var engine = new JsEngine();
         
@@ -165,7 +165,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void IsOdd_HandlesNegativeNumbers()
+    public async Task IsOdd_HandlesNegativeNumbers()
     {
         var engine = new JsEngine();
         
@@ -191,7 +191,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void Clamp_ReturnsNumberWithinRange()
+    public async Task Clamp_ReturnsNumberWithinRange()
     {
         var engine = new JsEngine();
         
@@ -208,7 +208,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void Clamp_ClampsToMinimum()
+    public async Task Clamp_ClampsToMinimum()
     {
         var engine = new JsEngine();
         
@@ -225,7 +225,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void Clamp_ClampsToMaximum()
+    public async Task Clamp_ClampsToMaximum()
     {
         var engine = new JsEngine();
         
@@ -246,7 +246,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void InRange_ReturnsTrueForNumberInRange()
+    public async Task InRange_ReturnsTrueForNumberInRange()
     {
         var engine = new JsEngine();
         
@@ -267,7 +267,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void InRange_ReturnsFalseForNumberOutOfRange()
+    public async Task InRange_ReturnsFalseForNumberOutOfRange()
     {
         var engine = new JsEngine();
         
@@ -288,7 +288,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void InRange_HandlesSingleArgumentForm()
+    public async Task InRange_HandlesSingleArgumentForm()
     {
         var engine = new JsEngine();
         
@@ -313,7 +313,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void Fibonacci_GeneratesCorrectSequence()
+    public async Task Fibonacci_GeneratesCorrectSequence()
     {
         var engine = new JsEngine();
         
@@ -336,7 +336,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void Fibonacci_IterativeVersion()
+    public async Task Fibonacci_IterativeVersion()
     {
         var engine = new JsEngine();
         
@@ -368,7 +368,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void Luhn_ValidatesValidCreditCard()
+    public async Task Luhn_ValidatesValidCreditCard()
     {
         var engine = new JsEngine();
         
@@ -403,7 +403,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void Luhn_RejectsInvalidCreditCard()
+    public async Task Luhn_RejectsInvalidCreditCard()
     {
         var engine = new JsEngine();
         
@@ -442,7 +442,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void ArrayShuffle_MaintainsAllElements()
+    public async Task ArrayShuffle_MaintainsAllElements()
     {
         var engine = new JsEngine();
         
@@ -482,7 +482,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void DeepEqual_ComparesSimpleObjects()
+    public async Task DeepEqual_ComparesSimpleObjects()
     {
         var engine = new JsEngine();
         
@@ -521,7 +521,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void DeepEqual_DetectsDifferences()
+    public async Task DeepEqual_DetectsDifferences()
     {
         var engine = new JsEngine();
         
@@ -564,7 +564,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void CamelCase_ConvertsHyphenatedString()
+    public async Task CamelCase_ConvertsHyphenatedString()
     {
         var engine = new JsEngine();
         
@@ -599,7 +599,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void CamelCase_HandlesUnderscores()
+    public async Task CamelCase_HandlesUnderscores()
     {
         var engine = new JsEngine();
         
@@ -638,7 +638,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void KebabCase_ConvertsCamelCase()
+    public async Task KebabCase_ConvertsCamelCase()
     {
         var engine = new JsEngine();
         
@@ -677,7 +677,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void Capitalize_CapitalizesFirstLetter()
+    public async Task Capitalize_CapitalizesFirstLetter()
     {
         var engine = new JsEngine();
         
@@ -695,7 +695,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void Capitalize_HandlesEmptyString()
+    public async Task Capitalize_HandlesEmptyString()
     {
         var engine = new JsEngine();
         
@@ -717,7 +717,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void Flatten_FlattensNestedArrays()
+    public async Task Flatten_FlattensNestedArrays()
     {
         var engine = new JsEngine();
         
@@ -753,7 +753,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void Sum_AddsArrayOfNumbers()
+    public async Task Sum_AddsArrayOfNumbers()
     {
         var engine = new JsEngine();
         
@@ -774,7 +774,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void Sum_HandlesEmptyArray()
+    public async Task Sum_HandlesEmptyArray()
     {
         var engine = new JsEngine();
         
@@ -799,7 +799,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void Unique_RemovesDuplicates()
+    public async Task Unique_RemovesDuplicates()
     {
         var engine = new JsEngine();
         
@@ -838,7 +838,7 @@ public class NpmPackageTests
     // ========================================
 
     [Fact]
-    public void Chunk_SplitsArrayIntoChunks()
+    public async Task Chunk_SplitsArrayIntoChunks()
     {
         var engine = new JsEngine();
         
@@ -869,7 +869,7 @@ public class NpmPackageTests
     }
 
     [Fact]
-    public void Chunk_VerifyChunkContents()
+    public async Task Chunk_VerifyChunkContents()
     {
         var engine = new JsEngine();
         

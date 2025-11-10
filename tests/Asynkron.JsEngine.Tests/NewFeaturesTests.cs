@@ -6,7 +6,7 @@ public class NewFeaturesTests
 {
     // Single-quoted strings tests
     [Fact]
-    public void SingleQuotedString()
+    public async Task SingleQuotedString()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let message = 'Hello World'; message;");
@@ -14,7 +14,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void SingleQuotedStringWithDoubleQuotes()
+    public async Task SingleQuotedStringWithDoubleQuotes()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let message = 'He said \"Hello\"'; message;");
@@ -23,7 +23,7 @@ public class NewFeaturesTests
 
     // Multi-line comment tests
     [Fact]
-    public void MultiLineComment()
+    public async Task MultiLineComment()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -36,7 +36,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void MultiLineCommentBetweenCode()
+    public async Task MultiLineCommentBetweenCode()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -48,7 +48,7 @@ public class NewFeaturesTests
 
     // Modulo operator tests
     [Fact]
-    public void ModuloOperator()
+    public async Task ModuloOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 10 % 3; x;");
@@ -56,7 +56,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void ModuloOperatorNegative()
+    public async Task ModuloOperatorNegative()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = -10 % 3; x;");
@@ -65,7 +65,7 @@ public class NewFeaturesTests
 
     // Increment/Decrement operator tests
     [Fact]
-    public void PostIncrementOperator()
+    public async Task PostIncrementOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5; let y = x++; y;");
@@ -73,7 +73,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void PostIncrementSideEffect()
+    public async Task PostIncrementSideEffect()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5; x++; x;");
@@ -81,7 +81,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void PreIncrementOperator()
+    public async Task PreIncrementOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5; let y = ++x; y;");
@@ -89,7 +89,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void PostDecrementOperator()
+    public async Task PostDecrementOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5; let y = x--; y;");
@@ -97,7 +97,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void PreDecrementOperator()
+    public async Task PreDecrementOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5; let y = --x; y;");
@@ -106,7 +106,7 @@ public class NewFeaturesTests
 
     // Compound assignment operator tests
     [Fact]
-    public void PlusEqualOperator()
+    public async Task PlusEqualOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5; x += 3; x;");
@@ -114,7 +114,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void MinusEqualOperator()
+    public async Task MinusEqualOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 10; x -= 3; x;");
@@ -122,7 +122,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void StarEqualOperator()
+    public async Task StarEqualOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5; x *= 3; x;");
@@ -130,7 +130,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void SlashEqualOperator()
+    public async Task SlashEqualOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 15; x /= 3; x;");
@@ -138,7 +138,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void PercentEqualOperator()
+    public async Task PercentEqualOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 10; x %= 3; x;");
@@ -147,7 +147,7 @@ public class NewFeaturesTests
 
     // Bitwise operator tests
     [Fact]
-    public void BitwiseAndOperator()
+    public async Task BitwiseAndOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5 & 3; x;");
@@ -155,7 +155,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void BitwiseOrOperator()
+    public async Task BitwiseOrOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5 | 3; x;");
@@ -163,7 +163,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void BitwiseXorOperator()
+    public async Task BitwiseXorOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5 ^ 3; x;");
@@ -171,7 +171,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void BitwiseNotOperator()
+    public async Task BitwiseNotOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = ~5; x;");
@@ -179,7 +179,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void LeftShiftOperator()
+    public async Task LeftShiftOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5 << 2; x;");
@@ -187,7 +187,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void RightShiftOperator()
+    public async Task RightShiftOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 20 >> 2; x;");
@@ -195,7 +195,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void UnsignedRightShiftOperator()
+    public async Task UnsignedRightShiftOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = -5 >>> 1; x;");
@@ -203,7 +203,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void BitwiseAndEqualOperator()
+    public async Task BitwiseAndEqualOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5; x &= 3; x;");
@@ -211,7 +211,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void BitwiseOrEqualOperator()
+    public async Task BitwiseOrEqualOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5; x |= 3; x;");
@@ -219,7 +219,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void BitwiseXorEqualOperator()
+    public async Task BitwiseXorEqualOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5; x ^= 3; x;");
@@ -227,7 +227,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void LeftShiftEqualOperator()
+    public async Task LeftShiftEqualOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 5; x <<= 2; x;");
@@ -235,7 +235,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void RightShiftEqualOperator()
+    public async Task RightShiftEqualOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 20; x >>= 2; x;");
@@ -243,7 +243,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void UnsignedRightShiftEqualOperator()
+    public async Task UnsignedRightShiftEqualOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = -5; x >>>= 1; x;");
@@ -252,7 +252,7 @@ public class NewFeaturesTests
 
     // Exponentiation operator tests
     [Fact]
-    public void ExponentiationOperator()
+    public async Task ExponentiationOperator()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("2 ** 3;");
@@ -260,7 +260,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void ExponentiationWithNegativeExponent()
+    public async Task ExponentiationWithNegativeExponent()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("2 ** -2;");
@@ -268,7 +268,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void ExponentiationWithDecimal()
+    public async Task ExponentiationWithDecimal()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("1.5 ** 2;");
@@ -276,7 +276,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void ExponentiationRightAssociative()
+    public async Task ExponentiationRightAssociative()
     {
         var engine = new JsEngine();
         // 2 ** 3 ** 2 should be 2 ** (3 ** 2) = 2 ** 9 = 512
@@ -285,7 +285,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void ExponentiationPrecedence()
+    public async Task ExponentiationPrecedence()
     {
         var engine = new JsEngine();
         // 10 + 2 ** 3 * 5 should be 10 + (2 ** 3) * 5 = 10 + 8 * 5 = 10 + 40 = 50
@@ -294,7 +294,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void ExponentiationCompoundAssignment()
+    public async Task ExponentiationCompoundAssignment()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let x = 2; x **= 3; x;");
@@ -302,7 +302,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void ExponentiationInExpression()
+    public async Task ExponentiationInExpression()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("let base = 3; let exp = 4; base ** exp;");
@@ -310,7 +310,7 @@ public class NewFeaturesTests
     }
 
     [Fact]
-    public void ExponentiationZeroPower()
+    public async Task ExponentiationZeroPower()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync("5 ** 0;");

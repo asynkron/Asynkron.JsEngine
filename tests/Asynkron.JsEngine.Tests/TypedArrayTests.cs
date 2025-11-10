@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class TypedArrayTests
 {
     [Fact]
-    public void ArrayBuffer_CreatesWithLength()
+    public async Task ArrayBuffer_CreatesWithLength()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -16,7 +16,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void ArrayBuffer_Slice_CreatesNewBuffer()
+    public async Task ArrayBuffer_Slice_CreatesNewBuffer()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -28,7 +28,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void ArrayBuffer_IsView_ReturnsFalseForBuffer()
+    public async Task ArrayBuffer_IsView_ReturnsFalseForBuffer()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -39,7 +39,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void ArrayBuffer_IsView_ReturnsTrueForTypedArray()
+    public async Task ArrayBuffer_IsView_ReturnsTrueForTypedArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -50,7 +50,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Int8Array_CreatesFromLength()
+    public async Task Int8Array_CreatesFromLength()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -61,7 +61,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Int8Array_ElementAccess()
+    public async Task Int8Array_ElementAccess()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -75,7 +75,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Int8Array_HandlesOverflow()
+    public async Task Int8Array_HandlesOverflow()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -88,7 +88,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Uint8Array_CreatesFromArray()
+    public async Task Uint8Array_CreatesFromArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -99,7 +99,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Uint8Array_ByteLength()
+    public async Task Uint8Array_ByteLength()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -110,7 +110,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Uint8ClampedArray_ClampsToRange()
+    public async Task Uint8ClampedArray_ClampsToRange()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -124,7 +124,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Int16Array_BytesPerElement()
+    public async Task Int16Array_BytesPerElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -135,7 +135,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Int16Array_ElementStorage()
+    public async Task Int16Array_ElementStorage()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -148,7 +148,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Uint16Array_ElementStorage()
+    public async Task Uint16Array_ElementStorage()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -161,7 +161,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Int32Array_BytesPerElement()
+    public async Task Int32Array_BytesPerElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -172,7 +172,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Int32Array_ElementStorage()
+    public async Task Int32Array_ElementStorage()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -185,7 +185,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Uint32Array_ElementStorage()
+    public async Task Uint32Array_ElementStorage()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -198,7 +198,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Float32Array_BytesPerElement()
+    public async Task Float32Array_BytesPerElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -209,7 +209,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Float32Array_ElementStorage()
+    public async Task Float32Array_ElementStorage()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -222,7 +222,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Float64Array_BytesPerElement()
+    public async Task Float64Array_BytesPerElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -233,7 +233,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void Float64Array_ElementStorage()
+    public async Task Float64Array_ElementStorage()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -246,7 +246,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_CreatesFromBuffer()
+    public async Task TypedArray_CreatesFromBuffer()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -258,7 +258,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_CreatesFromBufferWithOffset()
+    public async Task TypedArray_CreatesFromBufferWithOffset()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -270,7 +270,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_CreatesFromBufferWithOffsetAndLength()
+    public async Task TypedArray_CreatesFromBufferWithOffsetAndLength()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -282,7 +282,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_BufferProperty()
+    public async Task TypedArray_BufferProperty()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -294,7 +294,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_ByteOffsetProperty()
+    public async Task TypedArray_ByteOffsetProperty()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -306,7 +306,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_Subarray_CreatesView()
+    public async Task TypedArray_Subarray_CreatesView()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -319,7 +319,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_Slice_CopiesData()
+    public async Task TypedArray_Slice_CopiesData()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -332,7 +332,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_Set_FromTypedArray()
+    public async Task TypedArray_Set_FromTypedArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -345,7 +345,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_Set_FromArray()
+    public async Task TypedArray_Set_FromArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -357,7 +357,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void DataView_CreatesFromBuffer()
+    public async Task DataView_CreatesFromBuffer()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -369,7 +369,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void DataView_GetSetInt8()
+    public async Task DataView_GetSetInt8()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -383,7 +383,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void DataView_GetSetUint8()
+    public async Task DataView_GetSetUint8()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -397,7 +397,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void DataView_GetSetInt16()
+    public async Task DataView_GetSetInt16()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -410,7 +410,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void DataView_GetSetInt32()
+    public async Task DataView_GetSetInt32()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -423,7 +423,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void DataView_GetSetFloat32()
+    public async Task DataView_GetSetFloat32()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -436,7 +436,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void DataView_GetSetFloat64()
+    public async Task DataView_GetSetFloat64()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -449,7 +449,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void DataView_SharedBuffer()
+    public async Task DataView_SharedBuffer()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -463,7 +463,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void DataView_WithOffset()
+    public async Task DataView_WithOffset()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -475,7 +475,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void DataView_WithOffsetAndLength()
+    public async Task DataView_WithOffsetAndLength()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -487,7 +487,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_MultipleViewsShareBuffer()
+    public async Task TypedArray_MultipleViewsShareBuffer()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -508,7 +508,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_ConstructorBYTES_PER_ELEMENT()
+    public async Task TypedArray_ConstructorBYTES_PER_ELEMENT()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -520,7 +520,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_ZeroLengthArray()
+    public async Task TypedArray_ZeroLengthArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -531,7 +531,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_LargeArray()
+    public async Task TypedArray_LargeArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -543,7 +543,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_SubarrayNegativeIndices()
+    public async Task TypedArray_SubarrayNegativeIndices()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -555,7 +555,7 @@ public class TypedArrayTests
     }
 
     [Fact]
-    public void TypedArray_SliceNegativeIndices()
+    public async Task TypedArray_SliceNegativeIndices()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

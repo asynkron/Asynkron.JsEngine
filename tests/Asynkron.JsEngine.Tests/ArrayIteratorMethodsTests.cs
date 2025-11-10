@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class ArrayIteratorMethodsTests
 {
     [Fact]
-    public void Array_Entries_ReturnsIndexValuePairs()
+    public async Task Array_Entries_ReturnsIndexValuePairs()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -17,7 +17,7 @@ public class ArrayIteratorMethodsTests
     }
 
     [Fact]
-    public void Array_Entries_WithMultipleElements()
+    public async Task Array_Entries_WithMultipleElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -29,7 +29,7 @@ public class ArrayIteratorMethodsTests
     }
 
     [Fact]
-    public void Array_Entries_ReturnsCorrectLength()
+    public async Task Array_Entries_ReturnsCorrectLength()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -41,7 +41,7 @@ public class ArrayIteratorMethodsTests
     }
 
     [Fact]
-    public void Array_Keys_ReturnsIndices()
+    public async Task Array_Keys_ReturnsIndices()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -53,7 +53,7 @@ public class ArrayIteratorMethodsTests
     }
 
     [Fact]
-    public void Array_Keys_ReturnsCorrectLength()
+    public async Task Array_Keys_ReturnsCorrectLength()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -65,7 +65,7 @@ public class ArrayIteratorMethodsTests
     }
 
     [Fact]
-    public void Array_Values_ReturnsElementValues()
+    public async Task Array_Values_ReturnsElementValues()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -77,7 +77,7 @@ public class ArrayIteratorMethodsTests
     }
 
     [Fact]
-    public void Array_Values_ReturnsCorrectLength()
+    public async Task Array_Values_ReturnsCorrectLength()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -89,7 +89,7 @@ public class ArrayIteratorMethodsTests
     }
 
     [Fact]
-    public void Array_Values_WithStringArray()
+    public async Task Array_Values_WithStringArray()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -101,7 +101,7 @@ public class ArrayIteratorMethodsTests
     }
 
     [Fact]
-    public void Array_Entries_CanBeIterated()
+    public async Task Array_Entries_CanBeIterated()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -117,7 +117,7 @@ public class ArrayIteratorMethodsTests
     }
 
     [Fact]
-    public void Array_Keys_CanBeIterated()
+    public async Task Array_Keys_CanBeIterated()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -133,7 +133,7 @@ public class ArrayIteratorMethodsTests
     }
 
     [Fact]
-    public void Array_Values_CanBeIterated()
+    public async Task Array_Values_CanBeIterated()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

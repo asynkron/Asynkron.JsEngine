@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class StaticClassFieldsTests
 {
     [Fact]
-    public void Static_Field_With_Initializer()
+    public async Task Static_Field_With_Initializer()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -27,7 +27,7 @@ public class StaticClassFieldsTests
 
     // Note: Fields without initializers not yet supported - parser requires = for field declarations
     // [Fact]
-    // public void Static_Field_Without_Initializer()
+    // public async Task Static_Field_Without_Initializer()
     // {
     //     var engine = new JsEngine();
     //     var result = engine.EvaluateSync(@"
@@ -42,7 +42,7 @@ public class StaticClassFieldsTests
     // }
 
     [Fact]
-    public void Multiple_Static_Fields()
+    public async Task Multiple_Static_Fields()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -58,7 +58,7 @@ public class StaticClassFieldsTests
     }
 
     [Fact]
-    public void Static_Method()
+    public async Task Static_Method()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -74,7 +74,7 @@ public class StaticClassFieldsTests
     }
 
     [Fact]
-    public void Static_Method_And_Field()
+    public async Task Static_Method_And_Field()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -92,7 +92,7 @@ public class StaticClassFieldsTests
     }
 
     [Fact]
-    public void Static_Field_Shared_Across_Instances()
+    public async Task Static_Field_Shared_Across_Instances()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -113,7 +113,7 @@ public class StaticClassFieldsTests
     }
 
     [Fact]
-    public void Static_Private_Field()
+    public async Task Static_Private_Field()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -131,7 +131,7 @@ public class StaticClassFieldsTests
     }
 
     [Fact]
-    public void Static_Field_With_Expression_Initializer()
+    public async Task Static_Field_With_Expression_Initializer()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -145,7 +145,7 @@ public class StaticClassFieldsTests
     }
 
     [Fact]
-    public void Static_Method_Accessing_Static_Field()
+    public async Task Static_Method_Accessing_Static_Field()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -172,7 +172,7 @@ public class StaticClassFieldsTests
     }
 
     [Fact]
-    public void Instance_Method_Cannot_Access_Static_Field_Via_This()
+    public async Task Instance_Method_Cannot_Access_Static_Field_Via_This()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

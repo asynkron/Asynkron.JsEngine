@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class ParserTests
 {
     [Fact]
-    public void ParseLetDeclarationProducesExpectedSExpression()
+    public async Task ParseLetDeclarationProducesExpectedSExpression()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let answer = 1 + 2; answer;");
@@ -26,7 +26,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseVarDeclarationWithoutInitializerUsesSentinel()
+    public async Task ParseVarDeclarationWithoutInitializerUsesSentinel()
     {
         var engine = new JsEngine();
         var program = engine.Parse("var counter; counter;");
@@ -38,7 +38,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseConstDeclarationProducesConstSymbol()
+    public async Task ParseConstDeclarationProducesConstSymbol()
     {
         var engine = new JsEngine();
         var program = engine.Parse("const answer = 42; answer;");
@@ -50,7 +50,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseObjectLiteralAndPropertyAccess()
+    public async Task ParseObjectLiteralAndPropertyAccess()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let obj = { a: 10, x: function () { return this.x; } }; obj.a;");
@@ -92,7 +92,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParsePropertyAssignment()
+    public async Task ParsePropertyAssignment()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let obj = {}; obj.value = 5;");
@@ -108,7 +108,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseArrayLiteralAndIndexedAssignment()
+    public async Task ParseArrayLiteralAndIndexedAssignment()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let numbers = [1, 2, 3]; numbers[1] = numbers[0];");
@@ -138,7 +138,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseLogicalOperatorsRespectPrecedence()
+    public async Task ParseLogicalOperatorsRespectPrecedence()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let flag = true || false && true;");
@@ -157,7 +157,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseNullishCoalescingProducesOperatorSymbol()
+    public async Task ParseNullishCoalescingProducesOperatorSymbol()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let value = null ?? 42;");
@@ -172,7 +172,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseStrictEqualityOperators()
+    public async Task ParseStrictEqualityOperators()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let comparisons = 1 === 1; let others = 2 !== 3;");
@@ -195,7 +195,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseNewExpression()
+    public async Task ParseNewExpression()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let instance = new Factory.Builder(1, 2); instance;");
@@ -217,7 +217,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseClassDeclarationProducesConstructorAndMethods()
+    public async Task ParseClassDeclarationProducesConstructorAndMethods()
     {
         var engine = new JsEngine();
         var program = engine.Parse("class Counter { constructor(start) { this.value = start; } increment() { return this.value; } }");
@@ -249,7 +249,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseClassDeclarationCapturesExtendsClause()
+    public async Task ParseClassDeclarationCapturesExtendsClause()
     {
         var engine = new JsEngine();
         var program = engine.Parse("class Derived extends Base.Type { method() { return super.method(); } }");
@@ -267,7 +267,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseSwitchStatementKeepsClauseOrder()
+    public async Task ParseSwitchStatementKeepsClauseOrder()
     {
         var engine = new JsEngine();
         var program = engine.Parse("switch (value) { case 1: foo(); case 2: break; default: bar(); }");
@@ -296,7 +296,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseTryCatchFinallyStatement()
+    public async Task ParseTryCatchFinallyStatement()
     {
         var engine = new JsEngine();
         var program = engine.Parse("try { action(); } catch (err) { handle(err); } finally { cleanup(); }");
@@ -319,7 +319,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseTryFinallyWithoutCatchStoresNullCatch()
+    public async Task ParseTryFinallyWithoutCatchStoresNullCatch()
     {
         var engine = new JsEngine();
         var program = engine.Parse("try { work(); } finally { tidy(); }");
@@ -334,7 +334,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseIfAndLoopStatements()
+    public async Task ParseIfAndLoopStatements()
     {
         var engine = new JsEngine();
         var program = engine.Parse("if (flag) x = 1; else x = 2; while (x < 10) { x = x + 1; } for (let i = 0; i < 3; i = i + 1) { continue; } do { break; } while (false);");
@@ -366,7 +366,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseRestParameterInFunction()
+    public async Task ParseRestParameterInFunction()
     {
         var engine = new JsEngine();
         var program = engine.Parse("function test(a, b, ...rest) { return rest; }");
@@ -388,7 +388,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseSpreadInArrayLiteral()
+    public async Task ParseSpreadInArrayLiteral()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let arr = [1, ...other, 2];");
@@ -410,7 +410,7 @@ public class ParserTests
     }
 
     [Fact]
-    public void ParseSpreadInFunctionCall()
+    public async Task ParseSpreadInFunctionCall()
     {
         var engine = new JsEngine();
         var program = engine.Parse("foo(1, ...args, 2);");

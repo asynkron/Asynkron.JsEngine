@@ -13,7 +13,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void TypeCoercion_StringMinusNumber()
+    public async Task TypeCoercion_StringMinusNumber()
     {
         var engine = new JsEngine();
         
@@ -27,7 +27,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void TypeCoercion_StringMultiplyNumber()
+    public async Task TypeCoercion_StringMultiplyNumber()
     {
         var engine = new JsEngine();
         
@@ -40,7 +40,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void TypeCoercion_BooleanArithmetic()
+    public async Task TypeCoercion_BooleanArithmetic()
     {
         var engine = new JsEngine();
         
@@ -56,7 +56,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void TypeCoercion_StringPlusNumber()
+    public async Task TypeCoercion_StringPlusNumber()
     {
         var engine = new JsEngine();
         
@@ -74,7 +74,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void NaN_FromMathSqrt()
+    public async Task NaN_FromMathSqrt()
     {
         var engine = new JsEngine();
         
@@ -84,7 +84,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void NaN_PropagatesInMathOperations()
+    public async Task NaN_PropagatesInMathOperations()
     {
         var engine = new JsEngine();
         
@@ -97,7 +97,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Math_LargeNumberOperations()
+    public async Task Math_LargeNumberOperations()
     {
         var engine = new JsEngine();
         
@@ -111,7 +111,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Math_VerySmallNumbers()
+    public async Task Math_VerySmallNumbers()
     {
         var engine = new JsEngine();
         
@@ -127,7 +127,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void Equality_ZeroComparisons()
+    public async Task Equality_ZeroComparisons()
     {
         var engine = new JsEngine();
         
@@ -140,7 +140,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Equality_ObjectsNeverEqual()
+    public async Task Equality_ObjectsNeverEqual()
     {
         var engine = new JsEngine();
         
@@ -153,7 +153,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Equality_LooseVsStrict()
+    public async Task Equality_LooseVsStrict()
     {
         var engine = new JsEngine();
         
@@ -180,7 +180,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void Array_SparseArrays()
+    public async Task Array_SparseArrays()
     {
         var engine = new JsEngine();
         
@@ -194,7 +194,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Array_NegativeIndices()
+    public async Task Array_NegativeIndices()
     {
         var engine = new JsEngine();
         
@@ -216,7 +216,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Array_LengthPropertyChanges()
+    public async Task Array_LengthPropertyChanges()
     {
         var engine = new JsEngine();
         
@@ -234,7 +234,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void Scope_LetBlockScoping()
+    public async Task Scope_LetBlockScoping()
     {
         var engine = new JsEngine();
         
@@ -250,7 +250,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Scope_VarFunctionScoping()
+    public async Task Scope_VarFunctionScoping()
     {
         var engine = new JsEngine();
         
@@ -266,7 +266,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Scope_ClosureCapture()
+    public async Task Scope_ClosureCapture()
     {
         var engine = new JsEngine();
         
@@ -283,7 +283,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Scope_NestedLetScoping()
+    public async Task Scope_NestedLetScoping()
     {
         var engine = new JsEngine();
         
@@ -306,7 +306,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void ThisBinding_MethodCall()
+    public async Task ThisBinding_MethodCall()
     {
         var engine = new JsEngine();
         
@@ -323,7 +323,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void ThisBinding_ArrowFunctionLexicalThis()
+    public async Task ThisBinding_ArrowFunctionLexicalThis()
     {
         var engine = new JsEngine();
         
@@ -348,7 +348,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void StringCoercion_NumberToString()
+    public async Task StringCoercion_NumberToString()
     {
         var engine = new JsEngine();
         
@@ -361,7 +361,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void StringCoercion_BooleanToString()
+    public async Task StringCoercion_BooleanToString()
     {
         var engine = new JsEngine();
         
@@ -378,7 +378,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void Truthiness_FalsyValues()
+    public async Task Truthiness_FalsyValues()
     {
         var engine = new JsEngine();
         
@@ -403,7 +403,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Truthiness_TruthyValues()
+    public async Task Truthiness_TruthyValues()
     {
         var engine = new JsEngine();
         
@@ -427,7 +427,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void OperatorPrecedence_LogicalAndOr()
+    public async Task OperatorPrecedence_LogicalAndOr()
     {
         var engine = new JsEngine();
         
@@ -440,7 +440,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void OperatorPrecedence_ComparisonAndLogical()
+    public async Task OperatorPrecedence_ComparisonAndLogical()
     {
         var engine = new JsEngine();
         
@@ -457,7 +457,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void Math_MinMaxWithMultipleArgs()
+    public async Task Math_MinMaxWithMultipleArgs()
     {
         var engine = new JsEngine();
         
@@ -471,7 +471,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Math_OperationsWithLargeNumbers()
+    public async Task Math_OperationsWithLargeNumbers()
     {
         var engine = new JsEngine();
         
@@ -484,7 +484,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void Math_TrigonometryEdgeCases()
+    public async Task Math_TrigonometryEdgeCases()
     {
         var engine = new JsEngine();
         
@@ -501,7 +501,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void ObjectPropertyAccess_NumericKeys()
+    public async Task ObjectPropertyAccess_NumericKeys()
     {
         var engine = new JsEngine();
         
@@ -515,7 +515,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void ObjectPropertyAccess_SpecialProperties()
+    public async Task ObjectPropertyAccess_SpecialProperties()
     {
         var engine = new JsEngine();
         
@@ -529,7 +529,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void ObjectPropertyAccess_DynamicProperties()
+    public async Task ObjectPropertyAccess_DynamicProperties()
     {
         var engine = new JsEngine();
         
@@ -548,7 +548,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void ControlFlow_SwitchFallthrough()
+    public async Task ControlFlow_SwitchFallthrough()
     {
         var engine = new JsEngine();
         
@@ -573,7 +573,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void ControlFlow_ForLoopEdgeCases()
+    public async Task ControlFlow_ForLoopEdgeCases()
     {
         var engine = new JsEngine();
         
@@ -605,7 +605,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void NestedStructures_DeepNesting()
+    public async Task NestedStructures_DeepNesting()
     {
         var engine = new JsEngine();
         
@@ -628,7 +628,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void NestedStructures_DeepFunctionNesting()
+    public async Task NestedStructures_DeepFunctionNesting()
     {
         var engine = new JsEngine();
         
@@ -651,7 +651,7 @@ public class JavaScriptComplianceTests
     // ========================================
 
     [Fact]
-    public void ExpressionEvaluation_ShortCircuitAnd()
+    public async Task ExpressionEvaluation_ShortCircuitAnd()
     {
         var engine = new JsEngine();
         
@@ -669,7 +669,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void ExpressionEvaluation_ShortCircuitOr()
+    public async Task ExpressionEvaluation_ShortCircuitOr()
     {
         var engine = new JsEngine();
         
@@ -687,7 +687,7 @@ public class JavaScriptComplianceTests
     }
 
     [Fact]
-    public void ExpressionEvaluation_TernaryLazyEvaluation()
+    public async Task ExpressionEvaluation_TernaryLazyEvaluation()
     {
         var engine = new JsEngine();
         

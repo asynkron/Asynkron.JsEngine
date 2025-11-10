@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine.Tests;
 public class MapTests
 {
     [Fact]
-    public void Map_Methods_Are_Functions()
+    public async Task Map_Methods_Are_Functions()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -14,7 +14,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Constructor_Creates_Empty_Map()
+    public async Task Map_Constructor_Creates_Empty_Map()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -25,7 +25,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Set_And_Get()
+    public async Task Map_Set_And_Get()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -37,7 +37,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Set_Returns_Map_For_Chaining()
+    public async Task Map_Set_Returns_Map_For_Chaining()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -49,7 +49,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Has_Checks_Key_Existence()
+    public async Task Map_Has_Checks_Key_Existence()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -63,7 +63,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Delete_Removes_Entry()
+    public async Task Map_Delete_Removes_Entry()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -77,7 +77,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Delete_Returns_False_For_Nonexistent_Key()
+    public async Task Map_Delete_Returns_False_For_Nonexistent_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -88,7 +88,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Clear_Removes_All_Entries()
+    public async Task Map_Clear_Removes_All_Entries()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -102,7 +102,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Size_Tracks_Entry_Count()
+    public async Task Map_Size_Tracks_Entry_Count()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -120,7 +120,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Accepts_Any_Type_As_Key()
+    public async Task Map_Accepts_Any_Type_As_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -140,7 +140,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_ForEach_Iterates_All_Entries()
+    public async Task Map_ForEach_Iterates_All_Entries()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -159,7 +159,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Keys_Returns_Array_Of_Keys()
+    public async Task Map_Keys_Returns_Array_Of_Keys()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -174,7 +174,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Values_Returns_Array_Of_Values()
+    public async Task Map_Values_Returns_Array_Of_Values()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -189,7 +189,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Entries_Returns_Array_Of_Pairs()
+    public async Task Map_Entries_Returns_Array_Of_Pairs()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -205,7 +205,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Maintains_Insertion_Order()
+    public async Task Map_Maintains_Insertion_Order()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -221,7 +221,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Overwrites_Existing_Key()
+    public async Task Map_Overwrites_Existing_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -238,7 +238,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Constructor_Accepts_Array_Of_Entries()
+    public async Task Map_Constructor_Accepts_Array_Of_Entries()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -252,7 +252,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Get_Returns_Undefined_For_Missing_Key()
+    public async Task Map_Get_Returns_Undefined_For_Missing_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -264,7 +264,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Handles_NaN_As_Key()
+    public async Task Map_Handles_NaN_As_Key()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -277,7 +277,7 @@ public class MapTests
     }
 
     [Fact]
-    public void Map_Typeof_Returns_Object()
+    public async Task Map_Typeof_Returns_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

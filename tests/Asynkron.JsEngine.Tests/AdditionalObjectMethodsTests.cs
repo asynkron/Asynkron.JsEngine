@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class AdditionalObjectMethodsTests
 {
     [Fact]
-    public void Object_GetOwnPropertyNames_ReturnsAllPropertyNames()
+    public async Task Object_GetOwnPropertyNames_ReturnsAllPropertyNames()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -17,7 +17,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_GetOwnPropertyNames_IncludesProperties()
+    public async Task Object_GetOwnPropertyNames_IncludesProperties()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -29,7 +29,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_GetOwnPropertyNames_WithEmptyObject()
+    public async Task Object_GetOwnPropertyNames_WithEmptyObject()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -41,7 +41,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_GetOwnPropertyDescriptor_ReturnsDescriptor()
+    public async Task Object_GetOwnPropertyDescriptor_ReturnsDescriptor()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -53,7 +53,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_GetOwnPropertyDescriptor_HasWritableProperty()
+    public async Task Object_GetOwnPropertyDescriptor_HasWritableProperty()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -65,7 +65,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_GetOwnPropertyDescriptor_HasEnumerableProperty()
+    public async Task Object_GetOwnPropertyDescriptor_HasEnumerableProperty()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -77,7 +77,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_GetOwnPropertyDescriptor_HasConfigurableProperty()
+    public async Task Object_GetOwnPropertyDescriptor_HasConfigurableProperty()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -89,7 +89,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_GetOwnPropertyDescriptor_ForFrozenObject()
+    public async Task Object_GetOwnPropertyDescriptor_ForFrozenObject()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -102,7 +102,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_GetOwnPropertyDescriptor_ReturnsUndefinedForNonExistent()
+    public async Task Object_GetOwnPropertyDescriptor_ReturnsUndefinedForNonExistent()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -113,7 +113,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_DefineProperty_DefinesNewProperty()
+    public async Task Object_DefineProperty_DefinesNewProperty()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -125,7 +125,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_DefineProperty_ReturnsObject()
+    public async Task Object_DefineProperty_ReturnsObject()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -137,7 +137,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_DefineProperty_UpdatesExistingProperty()
+    public async Task Object_DefineProperty_UpdatesExistingProperty()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -149,7 +149,7 @@ public class AdditionalObjectMethodsTests
     }
 
     [Fact]
-    public void Object_DefineProperty_WithMultipleProperties()
+    public async Task Object_DefineProperty_WithMultipleProperties()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

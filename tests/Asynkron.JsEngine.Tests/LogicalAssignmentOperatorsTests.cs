@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class LogicalAssignmentOperatorsTests
 {
     [Fact]
-    public void LogicalAndAssignment_AssignsWhenTruthy()
+    public async Task LogicalAndAssignment_AssignsWhenTruthy()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -17,7 +17,7 @@ public class LogicalAssignmentOperatorsTests
     }
 
     [Fact]
-    public void LogicalAndAssignment_DoesNotAssignWhenFalsy()
+    public async Task LogicalAndAssignment_DoesNotAssignWhenFalsy()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -29,7 +29,7 @@ public class LogicalAssignmentOperatorsTests
     }
 
     [Fact]
-    public void LogicalOrAssignment_AssignsWhenFalsy()
+    public async Task LogicalOrAssignment_AssignsWhenFalsy()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -41,7 +41,7 @@ public class LogicalAssignmentOperatorsTests
     }
 
     [Fact]
-    public void LogicalOrAssignment_DoesNotAssignWhenTruthy()
+    public async Task LogicalOrAssignment_DoesNotAssignWhenTruthy()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -53,7 +53,7 @@ public class LogicalAssignmentOperatorsTests
     }
 
     [Fact]
-    public void NullishCoalescingAssignment_AssignsWhenNullOrUndefined()
+    public async Task NullishCoalescingAssignment_AssignsWhenNullOrUndefined()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -65,7 +65,7 @@ public class LogicalAssignmentOperatorsTests
     }
 
     [Fact]
-    public void NullishCoalescingAssignment_DoesNotAssignWhenNotNullish()
+    public async Task NullishCoalescingAssignment_DoesNotAssignWhenNotNullish()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -77,7 +77,7 @@ public class LogicalAssignmentOperatorsTests
     }
 
     [Fact]
-    public void LogicalAssignment_WorksWithObjects()
+    public async Task LogicalAssignment_WorksWithObjects()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -90,7 +90,7 @@ public class LogicalAssignmentOperatorsTests
     }
 
     [Fact]
-    public void NullishCoalescingAssignment_WithUndefined()
+    public async Task NullishCoalescingAssignment_WithUndefined()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

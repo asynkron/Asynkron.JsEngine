@@ -6,7 +6,7 @@ public class AdditionalMethodsTests
 {
     // String methods
     [Fact]
-    public void StringReplaceAll()
+    public async Task StringReplaceAll()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -17,7 +17,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void StringAt()
+    public async Task StringAt()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -28,7 +28,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void StringAtNegative()
+    public async Task StringAtNegative()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -39,7 +39,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void StringTrimStart()
+    public async Task StringTrimStart()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -50,7 +50,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void StringTrimEnd()
+    public async Task StringTrimEnd()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -62,7 +62,7 @@ public class AdditionalMethodsTests
 
     // Array methods
     [Fact]
-    public void ArrayAt()
+    public async Task ArrayAt()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -73,7 +73,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void ArrayAtNegative()
+    public async Task ArrayAtNegative()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -84,7 +84,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void ArrayFlat()
+    public async Task ArrayFlat()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -96,7 +96,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void ArrayFlatDepth()
+    public async Task ArrayFlatDepth()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -108,7 +108,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void ArrayFlatMap()
+    public async Task ArrayFlatMap()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -120,7 +120,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void ArrayFindLast()
+    public async Task ArrayFindLast()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -131,7 +131,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void ArrayFindLastIndex()
+    public async Task ArrayFindLastIndex()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -143,7 +143,7 @@ public class AdditionalMethodsTests
 
     // Object methods
     [Fact]
-    public void ObjectFromEntries()
+    public async Task ObjectFromEntries()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -155,7 +155,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void ObjectHasOwn()
+    public async Task ObjectHasOwn()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -166,7 +166,7 @@ public class AdditionalMethodsTests
     }
 
     [Fact]
-    public void ObjectHasOwnFalse()
+    public async Task ObjectHasOwnFalse()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

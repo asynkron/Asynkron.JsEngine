@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class AdditionalArrayMethodsTests
 {
     [Fact]
-    public void Array_Fill_FillsWithValue()
+    public async Task Array_Fill_FillsWithValue()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -17,7 +17,7 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact]
-    public void Array_Fill_WithStartAndEnd()
+    public async Task Array_Fill_WithStartAndEnd()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -29,7 +29,7 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact]
-    public void Array_Fill_WithNegativeIndices()
+    public async Task Array_Fill_WithNegativeIndices()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -41,7 +41,7 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact]
-    public void Array_CopyWithin_CopiesElements()
+    public async Task Array_CopyWithin_CopiesElements()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -53,7 +53,7 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact]
-    public void Array_CopyWithin_WithAllArguments()
+    public async Task Array_CopyWithin_WithAllArguments()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -65,7 +65,7 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact]
-    public void Array_ToSorted_ReturnsSortedCopy()
+    public async Task Array_ToSorted_ReturnsSortedCopy()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -77,7 +77,7 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact]
-    public void Array_ToReversed_ReturnsReversedCopy()
+    public async Task Array_ToReversed_ReturnsReversedCopy()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -89,7 +89,7 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact]
-    public void Array_ToSpliced_ReturnsModifiedCopy()
+    public async Task Array_ToSpliced_ReturnsModifiedCopy()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -101,7 +101,7 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact]
-    public void Array_With_ReplacesElement()
+    public async Task Array_With_ReplacesElement()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -113,7 +113,7 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact]
-    public void Array_With_HandlesNegativeIndex()
+    public async Task Array_With_HandlesNegativeIndex()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

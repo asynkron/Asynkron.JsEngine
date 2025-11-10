@@ -16,7 +16,7 @@ public class TransformationDebugTest
     }
 
     [Fact]
-    public void ShowTransformation_ForOfWithAwait()
+    public async Task ShowTransformation_ForOfWithAwait()
     {
         var source = @"
             async function test() {
@@ -43,7 +43,7 @@ public class TransformationDebugTest
     }
 
     [Fact]
-    public void ShowTransformation_SimpleAsyncAwait()
+    public async Task ShowTransformation_SimpleAsyncAwait()
     {
         // Simpler case that works
         var source = @"

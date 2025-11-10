@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 public class TransformationOriginTests
 {
     [Fact]
-    public void Origin_AsyncFunction_TracksBackToOriginal()
+    public async Task Origin_AsyncFunction_TracksBackToOriginal()
     {
         var source = @"
 async function test() {
@@ -34,7 +34,7 @@ async function test() {
     }
 
     [Fact]
-    public void Origin_UntransformedCode_HasNullOrigin()
+    public async Task Origin_UntransformedCode_HasNullOrigin()
     {
         var source = @"
 function test() {
@@ -53,7 +53,7 @@ function test() {
     }
 
     [Fact]
-    public void Origin_ChainedTransformations_CanTraceBack()
+    public async Task Origin_ChainedTransformations_CanTraceBack()
     {
         var source = @"
 async function test() {
@@ -77,7 +77,7 @@ async function test() {
     }
 
     [Fact]
-    public void Origin_WithSourceReference_BothPropertiesWork()
+    public async Task Origin_WithSourceReference_BothPropertiesWork()
     {
         var source = @"async function test() { return 42; }";
 
@@ -104,7 +104,7 @@ async function test() {
     }
 
     [Fact]
-    public void Origin_OnlyTransformedNodes_HaveOriginSet()
+    public async Task Origin_OnlyTransformedNodes_HaveOriginSet()
     {
         var source = @"
 let x = 1;

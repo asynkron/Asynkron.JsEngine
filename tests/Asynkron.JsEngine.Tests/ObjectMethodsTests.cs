@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class ObjectMethodsTests
 {
     [Fact]
-    public void Object_Freeze_Prevents_Property_Modification()
+    public async Task Object_Freeze_Prevents_Property_Modification()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -18,7 +18,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_Freeze_Prevents_Property_Addition()
+    public async Task Object_Freeze_Prevents_Property_Addition()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -31,7 +31,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_Freeze_Returns_Same_Object()
+    public async Task Object_Freeze_Returns_Same_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -43,7 +43,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_IsFrozen_Returns_True_For_Frozen_Object()
+    public async Task Object_IsFrozen_Returns_True_For_Frozen_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -55,7 +55,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_IsFrozen_Returns_False_For_Normal_Object()
+    public async Task Object_IsFrozen_Returns_False_For_Normal_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -66,7 +66,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_Seal_Prevents_Property_Addition()
+    public async Task Object_Seal_Prevents_Property_Addition()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -79,7 +79,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_Seal_Allows_Property_Modification()
+    public async Task Object_Seal_Allows_Property_Modification()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -92,7 +92,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_Seal_Returns_Same_Object()
+    public async Task Object_Seal_Returns_Same_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -104,7 +104,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_IsSealed_Returns_True_For_Sealed_Object()
+    public async Task Object_IsSealed_Returns_True_For_Sealed_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -116,7 +116,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_IsSealed_Returns_False_For_Normal_Object()
+    public async Task Object_IsSealed_Returns_False_For_Normal_Object()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -127,7 +127,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_Frozen_Is_Also_Sealed()
+    public async Task Object_Frozen_Is_Also_Sealed()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -139,7 +139,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_Create_Creates_Object_With_Null_Prototype()
+    public async Task Object_Create_Creates_Object_With_Null_Prototype()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -150,7 +150,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_Create_Creates_Object_With_Specified_Prototype()
+    public async Task Object_Create_Creates_Object_With_Specified_Prototype()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -162,7 +162,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_Create_New_Properties_Dont_Affect_Prototype()
+    public async Task Object_Create_New_Properties_Dont_Affect_Prototype()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -175,7 +175,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_Create_Can_Override_Inherited_Properties()
+    public async Task Object_Create_Can_Override_Inherited_Properties()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -188,7 +188,7 @@ public class ObjectMethodsTests
     }
 
     [Fact]
-    public void Object_Create_Prototype_Chain_Works()
+    public async Task Object_Create_Prototype_Chain_Works()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine.Tests;
 public class PrivateFieldsTests
 {
     [Fact]
-    public void PrivateFieldBasicAccess()
+    public async Task PrivateFieldBasicAccess()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -28,7 +28,7 @@ public class PrivateFieldsTests
     }
 
     [Fact]
-    public void PrivateFieldInitializedInConstructor()
+    public async Task PrivateFieldInitializedInConstructor()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -51,7 +51,7 @@ public class PrivateFieldsTests
     }
 
     [Fact]
-    public void MultiplePrivateFields()
+    public async Task MultiplePrivateFields()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -76,7 +76,7 @@ public class PrivateFieldsTests
     }
 
     [Fact]
-    public void PrivateFieldNotAccessibleOutsideClass()
+    public async Task PrivateFieldNotAccessibleOutsideClass()
     {
         var engine = new JsEngine();
         // For now, private fields are accessible as they're stored as properties
@@ -94,7 +94,7 @@ public class PrivateFieldsTests
     }
 
     [Fact]
-    public void PrivateFieldInGetter()
+    public async Task PrivateFieldInGetter()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -117,7 +117,7 @@ public class PrivateFieldsTests
     }
 
     [Fact]
-    public void PrivateFieldInSetter()
+    public async Task PrivateFieldInSetter()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -141,7 +141,7 @@ public class PrivateFieldsTests
     }
 
     [Fact]
-    public void PrivateFieldWithPublicField()
+    public async Task PrivateFieldWithPublicField()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -161,7 +161,7 @@ public class PrivateFieldsTests
     }
 
     [Fact]
-    public void PrivateFieldInInheritedClass()
+    public async Task PrivateFieldInInheritedClass()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -186,7 +186,7 @@ public class PrivateFieldsTests
     }
 
     [Fact]
-    public void PrivateFieldsAreSeparateBetweenInstances()
+    public async Task PrivateFieldsAreSeparateBetweenInstances()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -214,7 +214,7 @@ public class PrivateFieldsTests
     }
 
     [Fact]
-    public void PrivateFieldWithSameNameAsPublic()
+    public async Task PrivateFieldWithSameNameAsPublic()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

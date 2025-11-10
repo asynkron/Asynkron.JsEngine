@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 public class SignalPatternTests
 {
     [Fact]
-    public void WhileLoop_WithBreak_WorksCorrectly()
+    public async Task WhileLoop_WithBreak_WorksCorrectly()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -27,7 +27,7 @@ public class SignalPatternTests
     }
     
     [Fact]
-    public void WhileLoop_WithContinue_WorksCorrectly()
+    public async Task WhileLoop_WithContinue_WorksCorrectly()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -48,7 +48,7 @@ public class SignalPatternTests
     }
     
     [Fact]
-    public void Function_WithReturn_WorksCorrectly()
+    public async Task Function_WithReturn_WorksCorrectly()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -63,7 +63,7 @@ public class SignalPatternTests
     }
     
     [Fact]
-    public void NestedLoops_WithBreakAndContinue_WorkCorrectly()
+    public async Task NestedLoops_WithBreakAndContinue_WorkCorrectly()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"
@@ -88,7 +88,7 @@ public class SignalPatternTests
     }
     
     [Fact]
-    public void TryCatchFinally_WithReturn_WorksCorrectly()
+    public async Task TryCatchFinally_WithReturn_WorksCorrectly()
     {
         var engine = new JsEngine();
         var result = engine.EvaluateSync(@"

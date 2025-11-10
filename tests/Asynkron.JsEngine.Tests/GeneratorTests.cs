@@ -14,11 +14,11 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act & Assert - Should not throw
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* simpleGenerator() {
                 yield 1;
             }
-        ");
+        ").Result;
     }
 
     [Fact]
@@ -47,12 +47,12 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 1;
             }
             let g = gen();
-        ");
+        ").Result;
         var hasNext = await engine.Evaluate("g.next;");
 
         // Assert - next should be callable
@@ -66,13 +66,13 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 42;
             }
             let g = gen();
             let result = g.next();
-        ");
+        ").Result;
         var value = await engine.Evaluate("result.value;");
         var done = await engine.Evaluate("result.done;");
 
@@ -88,14 +88,14 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 1;
                 yield 2;
                 yield 3;
             }
             let g = gen();
-        ");
+        ").Result;
         
         var r1Value = await engine.Evaluate("g.next().value;");
         var r2Value = await engine.Evaluate("g.next().value;");
@@ -114,13 +114,13 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 10;
             }
             let g = gen();
             let result = g.next();
-        ");
+        ").Result;
         
         // Assert - result should be an object with value and done properties
         var result = await engine.Evaluate("result;");
@@ -134,13 +134,13 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 5;
             }
             let g = gen();
             let result = g.next();
-        ");
+        ").Result;
         
         // Check the properties exist by accessing them
         var value = await engine.Evaluate("result.value;");
@@ -158,14 +158,14 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 1;
             }
             let g = gen();
             g.next();  // Get the yielded value
             let finalResult = g.next();  // Generator is done
-        ");
+        ").Result;
         
         var done = await engine.Evaluate("finalResult.done;");
         var value = await engine.Evaluate("finalResult.value;");
@@ -182,13 +182,13 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 1 + 1;
                 yield 2 * 3;
             }
             let g = gen();
-        ");
+        ").Result;
         
         var r1 = await engine.Evaluate("g.next().value;");
         var r2 = await engine.Evaluate("g.next().value;");
@@ -205,7 +205,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 let x = 10;
                 yield x;
@@ -213,7 +213,7 @@ public class GeneratorTests
                 yield y;
             }
             let g = gen();
-        ");
+        ").Result;
         
         var r1 = await engine.Evaluate("g.next().value;");
         var r2 = await engine.Evaluate("g.next().value;");
@@ -230,13 +230,13 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen(start) {
                 yield start;
                 yield start + 1;
             }
             let g = gen(100);
-        ");
+        ").Result;
         
         var r1 = await engine.Evaluate("g.next().value;");
         var r2 = await engine.Evaluate("g.next().value;");
@@ -253,14 +253,14 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 1;
                 yield 2;
             }
             let g1 = gen();
             let g2 = gen();
-        ");
+        ").Result;
         
         var g1_r1 = await engine.Evaluate("g1.next().value;");
         var g2_r1 = await engine.Evaluate("g2.next().value;");
@@ -281,12 +281,12 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
             }
             let g = gen();
             let result = g.next();
-        ");
+        ").Result;
         
         var done = await engine.Evaluate("result.done;");
 
@@ -301,7 +301,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 1;
                 return 99;
@@ -309,7 +309,7 @@ public class GeneratorTests
             let g = gen();
             let r1 = g.next();
             let r2 = g.next();
-        ");
+        ").Result;
         
         var r1Value = await engine.Evaluate("r1.value;");
         var r1Done = await engine.Evaluate("r1.done;");
@@ -330,13 +330,13 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             let gen = function*() {
                 yield 42;
             };
             let g = gen();
             let result = g.next();
-        ");
+        ").Result;
         
         var value = await engine.Evaluate("result.value;");
 
@@ -351,13 +351,13 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 1;
                 yield 2;
             }
             let g = gen();
-        ");
+        ").Result;
         var hasReturn = await engine.Evaluate("g[\"return\"];");
 
         // Assert - return should be callable
@@ -371,7 +371,7 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 1;
                 yield 2;
@@ -380,7 +380,7 @@ public class GeneratorTests
             g.next();  // Get first value
             let returnResult = g[""return""](99);
             let nextResult = g.next();  // Should be done
-        ");
+        ").Result;
         
         var returnValue = await engine.Evaluate("returnResult.value;");
         var returnDone = await engine.Evaluate("returnResult.done;");
@@ -399,12 +399,12 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             function* gen() {
                 yield 1;
             }
             let g = gen();
-        ");
+        ").Result;
         var hasThrow = await engine.Evaluate("g[\"throw\"];");
 
         // Assert - throw should be callable

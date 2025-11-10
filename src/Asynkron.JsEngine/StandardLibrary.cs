@@ -3235,7 +3235,7 @@ internal static class StandardLibrary
             // Evaluate the code string using the engine
             // Use EvaluateSync since eval executes synchronously in JavaScript
             #pragma warning disable CS0618 // Type or member is obsolete
-            return engine.EvaluateSync(code);
+            return engine.Evaluate(code).Result;
             #pragma warning restore CS0618 // Type or member is obsolete
         });
     }

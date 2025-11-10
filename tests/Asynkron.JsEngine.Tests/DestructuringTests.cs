@@ -130,7 +130,7 @@ public class DestructuringTests
     public async Task ObjectDestructuringWithRestProperties()
     {
         var engine = new JsEngine();
-        engine.EvaluateSync("let {x, ...rest} = {x: 1, y: 2, z: 3};");
+        object? temp = engine.Evaluate("let {x, ...rest} = {x: 1, y: 2, z: 3};").Result;
         var result = await engine.Evaluate("rest.y + rest.z;");
         Assert.Equal(5d, result);
     }

@@ -31,11 +31,11 @@ public class AsyncAwaitTests
         var engine = new JsEngine();
 
         // Act & Assert - Should not throw
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             async function test() {
                 return 42;
             }
-        ");
+        ").Result;
     }
 
     [Fact]

@@ -100,10 +100,10 @@ public class WeakMapTests
     public async Task WeakMap_Rejects_String_As_Key()
     {
         var engine = new JsEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.Evaluate(@"
             let wm = new WeakMap();
             wm.set(""string"", ""value"");
-        ")));
+        ").Result));
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
@@ -111,10 +111,10 @@ public class WeakMapTests
     public async Task WeakMap_Rejects_Number_As_Key()
     {
         var engine = new JsEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.Evaluate(@"
             let wm = new WeakMap();
             wm.set(42, ""value"");
-        ")));
+        ").Result));
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
@@ -122,10 +122,10 @@ public class WeakMapTests
     public async Task WeakMap_Rejects_Boolean_As_Key()
     {
         var engine = new JsEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.Evaluate(@"
             let wm = new WeakMap();
             wm.set(true, ""value"");
-        ")));
+        ").Result));
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
@@ -133,10 +133,10 @@ public class WeakMapTests
     public async Task WeakMap_Rejects_Null_As_Key()
     {
         var engine = new JsEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.Evaluate(@"
             let wm = new WeakMap();
             wm.set(null, ""value"");
-        ")));
+        ").Result));
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 
@@ -144,11 +144,11 @@ public class WeakMapTests
     public async Task WeakMap_Rejects_Undefined_As_Key()
     {
         var engine = new JsEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.EvaluateSync(@"
+        var exception = await Assert.ThrowsAsync<Exception>(() => Task.Run(() => engine.Evaluate(@"
             let wm = new WeakMap();
             let x = undefined;
             wm.set(x, ""value"");
-        ")));
+        ").Result));
         Assert.Contains("Invalid value used as weak map key", exception.Message);
     }
 

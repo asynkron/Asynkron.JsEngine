@@ -274,7 +274,7 @@ public class BigIntTests
     public async Task BigIntCannotMixWithNumberInAddition()
     {
         var engine = new JsEngine();
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("10n + 5;")));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.Evaluate("10n + 5;").Result));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -282,7 +282,7 @@ public class BigIntTests
     public async Task BigIntCannotMixWithNumberInSubtraction()
     {
         var engine = new JsEngine();
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("10n - 5;")));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.Evaluate("10n - 5;").Result));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -290,7 +290,7 @@ public class BigIntTests
     public async Task BigIntCannotMixWithNumberInMultiplication()
     {
         var engine = new JsEngine();
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("10n * 5;")));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.Evaluate("10n * 5;").Result));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -298,7 +298,7 @@ public class BigIntTests
     public async Task BigIntCannotMixWithNumberInDivision()
     {
         var engine = new JsEngine();
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("10n / 5;")));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.Evaluate("10n / 5;").Result));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -306,7 +306,7 @@ public class BigIntTests
     public async Task BigIntCannotUseUnsignedRightShift()
     {
         var engine = new JsEngine();
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("10n >>> 2n;")));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.Evaluate("10n >>> 2n;").Result));
         Assert.Contains("BigInts have no unsigned right shift", exception.Message);
     }
 
@@ -314,21 +314,21 @@ public class BigIntTests
     public async Task BigIntDivisionByZeroThrows()
     {
         var engine = new JsEngine();
-        await Assert.ThrowsAsync<DivideByZeroException>(() => Task.Run(() => engine.EvaluateSync("10n / 0n;")));
+        await Assert.ThrowsAsync<DivideByZeroException>(() => Task.Run(() => engine.Evaluate("10n / 0n;").Result));
     }
 
     [Fact]
     public async Task BigIntModuloByZeroThrows()
     {
         var engine = new JsEngine();
-        await Assert.ThrowsAsync<DivideByZeroException>(() => Task.Run(() => engine.EvaluateSync("10n % 0n;")));
+        await Assert.ThrowsAsync<DivideByZeroException>(() => Task.Run(() => engine.Evaluate("10n % 0n;").Result));
     }
 
     [Fact]
     public async Task BigIntNegativeExponentiationThrows()
     {
         var engine = new JsEngine();
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.EvaluateSync("2n ** -1n;")));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => engine.Evaluate("2n ** -1n;").Result));
         Assert.Contains("Exponent must be non-negative", exception.Message);
     }
 

@@ -274,31 +274,7 @@ public sealed class JsEngine
         var res = await tcs.Task;
         return res;
     }
-    
-    /// <summary>
-    /// Synchronously evaluates JavaScript source code.
-    /// This is a convenience method that blocks until evaluation completes.
-    /// For proper async semantics, use Evaluate() or Run() instead.
-    /// </summary>
-    [Obsolete("Use async Evaluate() or Run() for proper event loop execution")]
-    public object? EvaluateSync([LanguageInjection("javascript")]string source)
-    {
-        var task = Evaluate(source);
-        return task.Result;
-    }
-    
-    /// <summary>
-    /// Synchronously evaluates an S-expression program.
-    /// This is a convenience method that blocks until evaluation completes.
-    /// For proper async semantics, use Evaluate() or Run() instead.
-    /// </summary>
-    [Obsolete("Use async Evaluate() or Run() for proper event loop execution")]
-    public object? EvaluateSync(Cons program)
-    {
-        var task = Evaluate(program);
-        return task.Result;
-    }
-    
+
     /// <summary>
     /// Checks if a program contains any import or export statements.
     /// </summary>

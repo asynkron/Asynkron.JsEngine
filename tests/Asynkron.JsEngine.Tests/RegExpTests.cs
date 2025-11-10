@@ -261,9 +261,9 @@ public class RegExpTests
     public async Task RegexLiteral_MultipleFlags()
     {
         var engine = new JsEngine();
-        engine.EvaluateSync(@"
+        object? temp = engine.Evaluate(@"
             let regex = /hello/gi;
-        ");
+        ").Result;
         var ignoreCase = await engine.Evaluate("regex.ignoreCase;");
         var global = await engine.Evaluate("regex.global;");
         Assert.True((bool)ignoreCase!);

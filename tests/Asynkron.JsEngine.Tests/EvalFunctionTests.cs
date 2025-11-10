@@ -36,7 +36,7 @@ public class EvalFunctionTests
         Assert.Equal(42d, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 1000)]
     public async Task Eval_WithString()
     {
         var engine = new JsEngine();

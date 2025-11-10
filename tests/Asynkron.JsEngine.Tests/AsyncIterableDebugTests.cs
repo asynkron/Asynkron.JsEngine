@@ -211,6 +211,48 @@ public class AsyncIterableDebugTests
     }
 
     [Fact]
+    public async Task Test_Symbol_AsyncIterator_OR_Expression()
+    {
+        // Test the OR expression with Symbol properties
+        var engine = new JsEngine();
+        
+        engine.SetGlobalFunction("log", args =>
+        {
+            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            _output.WriteLine($"LOG: {message}");
+            return null;
+        });
+        
+        await engine.Run(@"
+            let str = ""hello"";
+            
+            async function test() {
+                log(""Step 1: Accessing Symbol.asyncIterator"");
+                let asyncIter = str[Symbol.asyncIterator];
+                log(""Step 2: asyncIter type: "" + (typeof asyncIter));
+                
+                log(""Step 3: Accessing Symbol.iterator"");
+                let syncIter = str[Symbol.iterator];
+                log(""Step 4: syncIter type: "" + (typeof syncIter));
+                
+                log(""Step 5: Calling Symbol.iterator function"");
+                let iteratorObj = str[Symbol.iterator]();
+                log(""Step 6: iteratorObj type: "" + (typeof iteratorObj));
+                
+                log(""Step 7: Testing OR expression - asyncIter || syncIter"");
+                let result1 = asyncIter || syncIter;
+                log(""Step 8: result1 type: "" + (typeof result1));
+                
+                log(""Step 9: Testing OR expression with call - asyncIter || syncIter()"");
+                let result2 = str[Symbol.asyncIterator] || str[Symbol.iterator]();
+                log(""Step 10: result2 type: "" + (typeof result2));
+            }
+            
+            await test();
+        ");
+    }
+
+    [Fact]
     public async Task ForAwaitOf_WithString_ManualAsyncIteration()
     {
         // Test manual async iteration over a string

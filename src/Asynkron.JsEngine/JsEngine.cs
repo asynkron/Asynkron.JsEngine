@@ -96,8 +96,9 @@ public sealed class JsEngine
         SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor("ReferenceError"));
         SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor("SyntaxError"));
 
-        // Register eval function
-        SetGlobal("eval", StandardLibrary.CreateEvalFunction(this));
+        // Register eval function as an environment-aware callable
+        // This allows eval to execute code in the caller's scope without blocking the event loop
+        SetGlobal("eval", new EvalHostFunction(this));
 
         // Register internal helpers for async iteration
         SetGlobal("__getAsyncIterator", StandardLibrary.CreateGetAsyncIteratorHelper());
@@ -324,7 +325,8 @@ public sealed class JsEngine
 
     /// <summary>
     /// Parses and evaluates the provided source code, then processes any scheduled events
-    /// in the event queue. The engine will continue running until the queue is empty.
+    /// in the event queue. The engine will continue running until the queue is empty
+    /// and all pending timer tasks have completed.
     /// </summary>
     /// <param name="source">The JavaScript source code to execute</param>
     /// <returns>A task that completes when all scheduled events have been processed</returns>
@@ -335,6 +337,42 @@ public sealed class JsEngine
         
         // Get the result from evaluation
         var result = await evaluateTask;
+        
+        // Wait for all pending work to complete:
+        // - Event queue to drain
+        // - Timer tasks to complete and schedule their callbacks
+        // We need to loop because timer tasks might schedule new events on the queue
+        while (true)
+        {
+            // Wait a bit for any pending timer tasks to schedule their callbacks
+            await Task.Delay(10);
+            
+            // Check if we have any active timer tasks
+            Task[] activeTasks;
+            lock (_activeTimerTasks)
+            {
+                activeTasks = _activeTimerTasks.ToArray();
+            }
+            
+            // If there are active timer tasks, wait for them to complete
+            if (activeTasks.Length > 0)
+            {
+                await Task.WhenAll(activeTasks);
+            }
+            
+            // After timers complete, give the event queue a moment to process any callbacks
+            await Task.Delay(10);
+            
+            // Check again if any new timer tasks were created
+            lock (_activeTimerTasks)
+            {
+                if (_activeTimerTasks.Count == 0)
+                {
+                    // No more timer tasks, we're done
+                    break;
+                }
+            }
+        }
         
         return result;
     }

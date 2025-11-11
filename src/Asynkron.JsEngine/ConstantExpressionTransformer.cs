@@ -177,7 +177,7 @@ public sealed class ConstantExpressionTransformer
 
     // Arithmetic operation folding
 
-    private object? FoldAddition(List<object?> operands)
+    private static object? FoldAddition(List<object?> operands)
     {
         if (operands.Count != 2) return null;
 
@@ -198,7 +198,7 @@ public sealed class ConstantExpressionTransformer
         return null;
     }
 
-    private object? FoldSubtraction(List<object?> operands)
+    private static object? FoldSubtraction(List<object?> operands)
     {
         if (operands.Count != 2) return null;
         if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
@@ -206,7 +206,7 @@ public sealed class ConstantExpressionTransformer
         return (double)operands[0]! - (double)operands[1]!;
     }
 
-    private object? FoldMultiplication(List<object?> operands)
+    private static object? FoldMultiplication(List<object?> operands)
     {
         if (operands.Count != 2) return null;
         if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
@@ -214,7 +214,7 @@ public sealed class ConstantExpressionTransformer
         return (double)operands[0]! * (double)operands[1]!;
     }
 
-    private object? FoldDivision(List<object?> operands)
+    private static object? FoldDivision(List<object?> operands)
     {
         if (operands.Count != 2) return null;
         if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
@@ -232,7 +232,7 @@ public sealed class ConstantExpressionTransformer
         return (double)operands[0]! / divisor;
     }
 
-    private object? FoldModulo(List<object?> operands)
+    private static object? FoldModulo(List<object?> operands)
     {
         if (operands.Count != 2) return null;
         if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
@@ -243,7 +243,7 @@ public sealed class ConstantExpressionTransformer
         return (double)operands[0]! % divisor;
     }
 
-    private object? FoldExponentiation(List<object?> operands)
+    private static object? FoldExponentiation(List<object?> operands)
     {
         if (operands.Count != 2) return null;
         if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
@@ -253,7 +253,7 @@ public sealed class ConstantExpressionTransformer
 
     // Unary operation folding
 
-    private object? FoldUnaryMinus(List<object?> operands)
+    private static object? FoldUnaryMinus(List<object?> operands)
     {
         if (operands.Count != 1) return null;
         if (!operands[0].IsConstantNumber()) return null;
@@ -261,7 +261,7 @@ public sealed class ConstantExpressionTransformer
         return -(double)operands[0]!;
     }
 
-    private object? FoldUnaryPlus(List<object?> operands)
+    private static object? FoldUnaryPlus(List<object?> operands)
     {
         if (operands.Count != 1) return null;
         if (!operands[0].IsConstantNumber()) return null;
@@ -269,7 +269,7 @@ public sealed class ConstantExpressionTransformer
         return (double)operands[0]!;
     }
 
-    private object? FoldLogicalNot(List<object?> operands)
+    private static object? FoldLogicalNot(List<object?> operands)
     {
         if (operands.Count != 1) return null;
 
@@ -279,7 +279,7 @@ public sealed class ConstantExpressionTransformer
 
     // Logical operation folding
 
-    private object? FoldLogicalAnd(List<object?> operands)
+    private static object? FoldLogicalAnd(List<object?> operands)
     {
         if (operands.Count != 2) return null;
 
@@ -291,7 +291,7 @@ public sealed class ConstantExpressionTransformer
         return right;
     }
 
-    private object? FoldLogicalOr(List<object?> operands)
+    private static object? FoldLogicalOr(List<object?> operands)
     {
         if (operands.Count != 2) return null;
 
@@ -305,7 +305,7 @@ public sealed class ConstantExpressionTransformer
 
     // Comparison operation folding
 
-    private object? FoldEquals(List<object?> operands)
+    private static object? FoldEquals(List<object?> operands)
     {
         if (operands.Count != 2) return null;
 
@@ -313,28 +313,28 @@ public sealed class ConstantExpressionTransformer
         return LooseEquals(operands[0], operands[1]);
     }
 
-    private object? FoldNotEquals(List<object?> operands)
+    private static object? FoldNotEquals(List<object?> operands)
     {
         if (operands.Count != 2) return null;
 
         return !LooseEquals(operands[0], operands[1]);
     }
 
-    private object? FoldStrictEquals(List<object?> operands)
+    private static object? FoldStrictEquals(List<object?> operands)
     {
         if (operands.Count != 2) return null;
 
         return StrictEquals(operands[0], operands[1]);
     }
 
-    private object? FoldStrictNotEquals(List<object?> operands)
+    private static object? FoldStrictNotEquals(List<object?> operands)
     {
         if (operands.Count != 2) return null;
 
         return !StrictEquals(operands[0], operands[1]);
     }
 
-    private object? FoldLessThan(List<object?> operands)
+    private static object? FoldLessThan(List<object?> operands)
     {
         if (operands.Count != 2) return null;
 
@@ -360,7 +360,7 @@ public sealed class ConstantExpressionTransformer
         return null;
     }
 
-    private object? FoldLessThanOrEqual(List<object?> operands)
+    private static object? FoldLessThanOrEqual(List<object?> operands)
     {
         if (operands.Count != 2) return null;
 
@@ -386,7 +386,7 @@ public sealed class ConstantExpressionTransformer
         return null;
     }
 
-    private object? FoldGreaterThan(List<object?> operands)
+    private static object? FoldGreaterThan(List<object?> operands)
     {
         if (operands.Count != 2) return null;
 
@@ -412,7 +412,7 @@ public sealed class ConstantExpressionTransformer
         return null;
     }
 
-    private object? FoldGreaterThanOrEqual(List<object?> operands)
+    private static object? FoldGreaterThanOrEqual(List<object?> operands)
     {
         if (operands.Count != 2) return null;
 
@@ -440,7 +440,7 @@ public sealed class ConstantExpressionTransformer
 
     // Bitwise operation folding
 
-    private object? FoldBitwiseAnd(List<object?> operands)
+    private static object? FoldBitwiseAnd(List<object?> operands)
     {
         if (operands.Count != 2) return null;
         if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
@@ -451,7 +451,7 @@ public sealed class ConstantExpressionTransformer
         return (double)(left & right);
     }
 
-    private object? FoldBitwiseOr(List<object?> operands)
+    private static object? FoldBitwiseOr(List<object?> operands)
     {
         if (operands.Count != 2) return null;
         if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
@@ -462,7 +462,7 @@ public sealed class ConstantExpressionTransformer
         return (double)(left | right);
     }
 
-    private object? FoldBitwiseXor(List<object?> operands)
+    private static object? FoldBitwiseXor(List<object?> operands)
     {
         if (operands.Count != 2) return null;
         if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
@@ -473,7 +473,7 @@ public sealed class ConstantExpressionTransformer
         return (double)(left ^ right);
     }
 
-    private object? FoldBitwiseNot(List<object?> operands)
+    private static object? FoldBitwiseNot(List<object?> operands)
     {
         if (operands.Count != 1) return null;
         if (!operands[0].IsConstantNumber()) return null;
@@ -483,7 +483,7 @@ public sealed class ConstantExpressionTransformer
         return (double)~value;
     }
 
-    private object? FoldLeftShift(List<object?> operands)
+    private static object? FoldLeftShift(List<object?> operands)
     {
         if (operands.Count != 2) return null;
         if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
@@ -494,7 +494,7 @@ public sealed class ConstantExpressionTransformer
         return (double)(left << right);
     }
 
-    private object? FoldRightShift(List<object?> operands)
+    private static object? FoldRightShift(List<object?> operands)
     {
         if (operands.Count != 2) return null;
         if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
@@ -505,7 +505,7 @@ public sealed class ConstantExpressionTransformer
         return (double)(left >> right);
     }
 
-    private object? FoldUnsignedRightShift(List<object?> operands)
+    private static object? FoldUnsignedRightShift(List<object?> operands)
     {
         if (operands.Count != 2) return null;
         if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;

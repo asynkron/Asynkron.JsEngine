@@ -188,7 +188,7 @@ public sealed class JsEngine
     /// Parses JavaScript source code into an S-expression representation WITHOUT applying any transformations.
     /// This is useful for debugging and understanding the initial parse tree before any transformation.
     /// </summary>
-    public Cons ParseWithoutTransformation([LanguageInjection("javascript")] string source)
+    public static Cons ParseWithoutTransformation([LanguageInjection("javascript")] string source)
     {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
@@ -285,7 +285,7 @@ public sealed class JsEngine
     /// <summary>
     /// Checks if a program contains any import or export statements.
     /// </summary>
-    private bool HasModuleStatements(Cons program)
+    private static bool HasModuleStatements(Cons program)
     {
         if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program)) return false;
 

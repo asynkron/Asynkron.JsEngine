@@ -18,7 +18,7 @@ public class SourceReferenceTests
                      """;
 
         var engine = new JsEngine();
-        var parsed = engine.ParseWithoutTransformation(source);
+        var parsed = JsEngine.ParseWithoutTransformation(source);
 
         // Navigate to the for loop statement
         // parsed is (program for-statement)
@@ -43,7 +43,7 @@ public class SourceReferenceTests
                      """;
 
         var engine = new JsEngine();
-        var parsed = engine.ParseWithoutTransformation(source);
+        var parsed = JsEngine.ParseWithoutTransformation(source);
 
         // parsed is (program statement1 statement2)
         var firstStatement = parsed.Rest.Head as Cons;
@@ -70,7 +70,7 @@ public class SourceReferenceTests
         var source = @"for (let i = 0; i < 5; i++) { }";
 
         var engine = new JsEngine();
-        var parsed = engine.ParseWithoutTransformation(source);
+        var parsed = JsEngine.ParseWithoutTransformation(source);
 
         var forStatement = parsed.Rest.Head as Cons;
 
@@ -97,7 +97,7 @@ public class SourceReferenceTests
                      """;
 
         var engine = new JsEngine();
-        var parsed = engine.ParseWithoutTransformation(source);
+        var parsed = JsEngine.ParseWithoutTransformation(source);
 
         // The for loop is on line 2
         var forStatement = parsed.Rest.Rest.Head as Cons;

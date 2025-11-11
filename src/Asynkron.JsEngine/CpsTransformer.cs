@@ -1283,7 +1283,7 @@ public sealed class CpsTransformer
     /// Extracts await expressions from a complex expression, replacing them with temporary variables.
     /// Returns the transformed expression and populates the awaits list.
     /// </summary>
-    private object? ExtractAwaitsFromExpression(object? expr, List<(object? promiseExpr, Symbol tempVar)> awaits)
+    private static object? ExtractAwaitsFromExpression(object? expr, List<(object? promiseExpr, Symbol tempVar)> awaits)
     {
         if (expr == null) return null;
 
@@ -1322,7 +1322,7 @@ public sealed class CpsTransformer
     /// <summary>
     /// Creates a call to resolve with the given value.
     /// </summary>
-    private object? CreateResolveCall(object? value, Symbol resolveParam, bool shouldReturn = false)
+    private static object? CreateResolveCall(object? value, Symbol resolveParam, bool shouldReturn = false)
     {
         // Create: (call resolve value)
         var args = new List<object?> { JsSymbols.Call, resolveParam };
@@ -1830,7 +1830,7 @@ public sealed class CpsTransformer
     /// For for-await-of: let __iterator = __getAsyncIterator(iterable);
     /// For regular for-of: let __iterator = iterable[Symbol.iterator]();
     /// </summary>
-    private object? BuildGetIteratorForTransform(object? iterableExpr, Symbol iteratorVar, bool isForAwaitOf)
+    private static object? BuildGetIteratorForTransform(object? iterableExpr, Symbol iteratorVar, bool isForAwaitOf)
     {
         if (isForAwaitOf)
         {
@@ -1977,7 +1977,7 @@ public sealed class CpsTransformer
     /// <summary>
     /// Converts a Cons to a List for easier manipulation.
     /// </summary>
-    private List<object?> ConsList(Cons cons)
+    private static List<object?> ConsList(Cons cons)
     {
         var result = new List<object?>();
         var current = cons;
@@ -1996,7 +1996,7 @@ public sealed class CpsTransformer
     /// </summary>
     /// <param name="expr">The expression to search</param>
     /// <returns>True if async/generator constructs are found</returns>
-    private bool ContainsAsyncOrGenerator(object? expr)
+    private static bool ContainsAsyncOrGenerator(object? expr)
     {
         if (expr == null) return false;
 

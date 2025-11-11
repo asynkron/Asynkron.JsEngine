@@ -26,7 +26,7 @@ public class TransformationDebugTest(ITestOutputHelper output)
         var engine = new JsEngine();
 
         // Parse without transformation
-        var originalSexpr = engine.ParseWithoutTransformation(source);
+        var originalSexpr = JsEngine.ParseWithoutTransformation(source);
         output.WriteLine("=== ORIGINAL S-EXPRESSION ===");
         output.WriteLine(originalSexpr.ToString());
         output.WriteLine("");
@@ -53,7 +53,7 @@ public class TransformationDebugTest(ITestOutputHelper output)
         var engine = new JsEngine();
 
         // Parse without transformation
-        var originalSexpr = engine.ParseWithoutTransformation(source);
+        var originalSexpr = JsEngine.ParseWithoutTransformation(source);
         output.WriteLine("=== ORIGINAL (works) ===");
         output.WriteLine(originalSexpr.ToString());
         output.WriteLine("");

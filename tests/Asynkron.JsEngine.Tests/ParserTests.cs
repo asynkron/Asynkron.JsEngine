@@ -9,7 +9,7 @@ public class ParserTests
     {
         var engine = new JsEngine();
         // Use ParseWithoutTransformation to test parser structure without constant folding
-        var program = engine.ParseWithoutTransformation("let answer = 1 + 2; answer;");
+        var program = JsEngine.ParseWithoutTransformation("let answer = 1 + 2; answer;");
 
         Assert.Same(JsSymbols.Program, program.Head);
         var letStatement = Assert.IsType<Cons>(program.Rest.Head);
@@ -144,7 +144,7 @@ public class ParserTests
     {
         var engine = new JsEngine();
         // Use ParseWithoutTransformation to test parser structure without constant folding
-        var program = engine.ParseWithoutTransformation("let flag = true || false && true;");
+        var program = JsEngine.ParseWithoutTransformation("let flag = true || false && true;");
 
         var letStatement = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.Let, letStatement.Head);
@@ -179,7 +179,7 @@ public class ParserTests
     {
         var engine = new JsEngine();
         // Use ParseWithoutTransformation to test parser structure without constant folding
-        var program = engine.ParseWithoutTransformation("let comparisons = 1 === 1; let others = 2 !== 3;");
+        var program = JsEngine.ParseWithoutTransformation("let comparisons = 1 === 1; let others = 2 !== 3;");
 
         var strictEqual = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.Let, strictEqual.Head);

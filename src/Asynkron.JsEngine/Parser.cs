@@ -1661,7 +1661,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         return S(OptionalGetProperty, target, propertyName);
     }
 
-    private bool IsKeyword(Token token)
+    private static bool IsKeyword(Token token)
     {
         return token.Type switch
         {

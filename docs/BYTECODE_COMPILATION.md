@@ -86,12 +86,23 @@ private static object? EvaluateCompositeExpression(Cons cons, Environment enviro
 ```
 Tree structure with complex objects:
 (+ (+ 1 2) 3)
-  ├─ Symbol(+)
-  ├─ Cons(+)
-  │   ├─ Symbol(+)
-  │   ├─ Number(1)
-  │   └─ Number(2)
-  └─ Number(3)
+```
+
+```mermaid
+flowchart TB
+    plus1((+))
+    sym_plus1((Symbol +))
+    cons_plus((Cons +))
+    sym_plus2((Symbol +))
+    num1((Number 1))
+    num2((Number 2))
+    num3((Number 3))
+    plus1 --> sym_plus1
+    plus1 --> cons_plus
+    plus1 --> num3
+    cons_plus --> sym_plus2
+    cons_plus --> num1
+    cons_plus --> num2
 ```
 
 **Bytecode (Proposed):**

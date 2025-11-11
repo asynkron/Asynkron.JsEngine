@@ -288,11 +288,15 @@ if (ReferenceEquals(symbol, JsSymbols.Let))
 
 Each scope has an `Environment` object that chains to its parent:
 
-```
-Global Environment
-    └─> Function Scope (outer)
-            └─> Block Scope
-                    └─> Function Scope (inner)
+```mermaid
+flowchart TB
+    global((Global Environment))
+    outer((Function Scope outer))
+    block((Block Scope))
+    inner((Function Scope inner))
+    global --> outer
+    outer --> block
+    block --> inner
 ```
 
 ### Variable Lookup

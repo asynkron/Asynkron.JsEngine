@@ -569,37 +569,3 @@ public class AsyncIterableDebugTests
         _output.WriteLine(transformedSexpr.ToString());
     }
 }
-using Xunit;
-using Xunit.Abstractions;
-using Asynkron.JsEngine;
-
-namespace Asynkron.JsEngine.Tests;
-
-public class AssignmentTransformTest
-{
-    private readonly ITestOutputHelper _output;
-
-    public AssignmentTransformTest(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
-    [Fact]
-    public async Task TestAssignmentAwaitTransformation()
-    {
-        var engine = new JsEngine();
-        var code = @"
-async function test() {
-    let x = 1;
-    x = await p();
-}";
-
-        var original = engine.ParseWithoutTransformation(code);
-        _output.WriteLine("=== ORIGINAL ===");
-        _output.WriteLine(original.ToString());
-
-        var transformed = engine.Parse(code);
-        _output.WriteLine("\n=== TRANSFORMED ===");
-        _output.WriteLine(transformed.ToString());
-    }
-}

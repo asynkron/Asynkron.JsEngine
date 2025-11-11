@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 
 namespace Asynkron.JsEngine;
 
@@ -341,19 +342,37 @@ internal sealed class Lexer(string source)
     {
         while (!IsAtEnd && Peek() != '"')
         {
-            if (Peek() == '\n')
+            if (Peek() == '\\')
+            {
+                // Handle escape sequences: consume the backslash and the next character
+                Advance(); // consume '\'
+                if (!IsAtEnd)
+                {
+                    if (Peek() == '\n')
+                    {
+                        _line++;
+                        _column = 1;
+                    }
+                    Advance(); // consume the escaped character
+                }
+            }
+            else if (Peek() == '\n')
             {
                 _line++;
                 _column = 1;
+                Advance();
             }
-
-            Advance();
+            else
+            {
+                Advance();
+            }
         }
 
         if (IsAtEnd) throw new ParseException("Unterminated string literal.");
 
         Advance();
-        var value = _source[(_start + 1)..(_current - 1)];
+        var rawValue = _source[(_start + 1)..(_current - 1)];
+        var value = DecodeEscapeSequences(rawValue);
         AddToken(TokenType.String, value);
     }
 
@@ -361,19 +380,37 @@ internal sealed class Lexer(string source)
     {
         while (!IsAtEnd && Peek() != '\'')
         {
-            if (Peek() == '\n')
+            if (Peek() == '\\')
+            {
+                // Handle escape sequences: consume the backslash and the next character
+                Advance(); // consume '\'
+                if (!IsAtEnd)
+                {
+                    if (Peek() == '\n')
+                    {
+                        _line++;
+                        _column = 1;
+                    }
+                    Advance(); // consume the escaped character
+                }
+            }
+            else if (Peek() == '\n')
             {
                 _line++;
                 _column = 1;
+                Advance();
             }
-
-            Advance();
+            else
+            {
+                Advance();
+            }
         }
 
         if (IsAtEnd) throw new ParseException("Unterminated string literal.");
 
         Advance();
-        var value = _source[(_start + 1)..(_current - 1)];
+        var rawValue = _source[(_start + 1)..(_current - 1)];
+        var value = DecodeEscapeSequences(rawValue);
         AddToken(TokenType.String, value);
     }
 
@@ -586,5 +623,123 @@ internal sealed class Lexer(string source)
 
         var regexValue = new RegexLiteralValue(pattern.ToString(), flags.ToString());
         AddToken(TokenType.RegexLiteral, regexValue);
+    }
+
+    private static string DecodeEscapeSequences(string rawString)
+    {
+        var result = new StringBuilder(rawString.Length);
+        var i = 0;
+        while (i < rawString.Length)
+        {
+            if (rawString[i] == '\\' && i + 1 < rawString.Length)
+            {
+                var nextChar = rawString[i + 1];
+                switch (nextChar)
+                {
+                    case 'n':
+                        result.Append('\n');
+                        i += 2;
+                        break;
+                    case 'r':
+                        result.Append('\r');
+                        i += 2;
+                        break;
+                    case 't':
+                        result.Append('\t');
+                        i += 2;
+                        break;
+                    case 'b':
+                        result.Append('\b');
+                        i += 2;
+                        break;
+                    case 'f':
+                        result.Append('\f');
+                        i += 2;
+                        break;
+                    case 'v':
+                        result.Append('\v');
+                        i += 2;
+                        break;
+                    case '0':
+                        result.Append('\0');
+                        i += 2;
+                        break;
+                    case '\\':
+                        result.Append('\\');
+                        i += 2;
+                        break;
+                    case '\'':
+                        result.Append('\'');
+                        i += 2;
+                        break;
+                    case '"':
+                        result.Append('"');
+                        i += 2;
+                        break;
+                    case 'x':
+                        // Hexadecimal escape sequence \xHH
+                        if (i + 3 < rawString.Length)
+                        {
+                            var hex = rawString.Substring(i + 2, 2);
+                            if (int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var value))
+                            {
+                                result.Append((char)value);
+                                i += 4;
+                            }
+                            else
+                            {
+                                // Invalid hex, keep the backslash and x
+                                result.Append('\\');
+                                result.Append('x');
+                                i += 2;
+                            }
+                        }
+                        else
+                        {
+                            result.Append('\\');
+                            result.Append('x');
+                            i += 2;
+                        }
+                        break;
+                    case 'u':
+                        // Unicode escape sequence \uHHHH
+                        if (i + 5 < rawString.Length)
+                        {
+                            var hex = rawString.Substring(i + 2, 4);
+                            if (int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var value))
+                            {
+                                result.Append((char)value);
+                                i += 6;
+                            }
+                            else
+                            {
+                                // Invalid hex, keep the backslash and u
+                                result.Append('\\');
+                                result.Append('u');
+                                i += 2;
+                            }
+                        }
+                        else
+                        {
+                            result.Append('\\');
+                            result.Append('u');
+                            i += 2;
+                        }
+                        break;
+                    default:
+                        // For any other character after \, just include the character itself
+                        // This handles line continuations and other cases
+                        result.Append(nextChar);
+                        i += 2;
+                        break;
+                }
+            }
+            else
+            {
+                result.Append(rawString[i]);
+                i++;
+            }
+        }
+        return result.ToString();
     }
 }

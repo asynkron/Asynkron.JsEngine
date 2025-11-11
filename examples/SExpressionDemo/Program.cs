@@ -60,18 +60,23 @@ var jsCode = """
 
              """;
 
-Console.WriteLine("=== Original S-Expression (Before CPS Transformation) ===\n");
+Console.WriteLine("=== Original S-Expression (Before Transformations) ===\n");
 
-// Parse and get both the original and transformed S-expressions
-var (originalProgram, transformedProgram) = engine.ParseWithTransformationSteps(jsCode);
+// Parse and get the S-expressions at each transformation stage
+var (originalProgram, constantFoldedProgram, cpsTransformedProgram) = engine.ParseWithTransformationSteps(jsCode);
 
 // Display the original S-expression
 Console.WriteLine(originalProgram.ToString());
 
-Console.WriteLine("\n\n=== CPS-Transformed S-Expression (After Transformation) ===\n");
+Console.WriteLine("\n\n=== After Constant Folding ===\n");
 
-// Display the transformed S-expression
-Console.WriteLine(transformedProgram.ToString());
+// Display the constant-folded S-expression
+Console.WriteLine(constantFoldedProgram.ToString());
+
+Console.WriteLine("\n\n=== After CPS Transformation ===\n");
+
+// Display the CPS-transformed S-expression
+Console.WriteLine(cpsTransformedProgram.ToString());
 
 Console.WriteLine("\n\n=== Verification: Execute the Transformed Code ===\n");
 

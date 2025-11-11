@@ -1036,15 +1036,15 @@ public sealed class CpsTransformer
         // Transform the try block, using the catch handler as the reject parameter
         var transformedTryBlock2 = TransformBlockInAsyncContext(tryBlock, resolveParam, tryCatchRejectHandler, loopContinueTarget, loopBreakTarget);
         
-        // If the try block doesn't contain await, we need to wrap the try-catch-rest in an IIFE
-        // so we can return early from the catch handler without executing rest twice
-        object? result;
+        // If the try block doesn't contain await but we're using promise-based transformation
+        // (because catch has await), wrap in try-catch to convert sync throws to reject calls
+        object? wrappedTryBlock;
         if (!ContainsAwait(tryBlock))
         {
-            // Synchronous try block - wrap in try-catch that returns early to avoid executing rest twice
+            // Synchronous try block - wrap in try-catch to catch sync errors
             var errorParam = Symbol.Intern("__syncError" + Guid.NewGuid().ToString("N").Substring(0, 8));
             
-            // Create catch block: { tryCatchRejectHandler(errorParam); return; }
+            // Create catch block: { tryCatchRejectHandler(errorParam); }
             var syncCatchBlock = Cons.FromEnumerable([
                 JsSymbols.Block,
                 Cons.FromEnumerable([
@@ -1054,8 +1054,7 @@ public sealed class CpsTransformer
                         tryCatchRejectHandler,
                         errorParam
                     ])
-                ]),
-                Cons.FromEnumerable([JsSymbols.Return, null])  // Return early to prevent rest from executing
+                ])
             ]);
             
             // Create catch clause: (catch errorParam syncCatchBlock)
@@ -1065,47 +1064,27 @@ public sealed class CpsTransformer
                 syncCatchBlock
             ]);
             
-            // Create: try { transformedTryBlock2 } catch (errorParam) { tryCatchRejectHandler(errorParam); return; }
-            var wrappedTry = Cons.FromEnumerable([
+            // Wrap: try { transformedTryBlock2 } catch (errorParam) { tryCatchRejectHandler(errorParam); }
+            wrappedTryBlock = Cons.FromEnumerable([
                 JsSymbols.Try,
                 transformedTryBlock2,
                 syncCatchClause,
                 null  // no finally
             ]);
-            
-            // Wrap in IIFE with rest: (function() { try-catch; rest; })()
-            var iifeBody = Cons.FromEnumerable([
-                JsSymbols.Block,
-                wrappedTry,
-                restAfterTry
-            ]);
-            
-            var iife = Cons.FromEnumerable([
-                JsSymbols.Lambda,  // Anonymous function
-                null,  // No name
-                Cons.Empty,  // No parameters
-                iifeBody
-            ]);
-            
-            var iifeCall = Cons.FromEnumerable([
-                JsSymbols.Call,
-                iife
-            ]);
-            
-            result = Cons.FromEnumerable([
-                JsSymbols.Block,
-                Cons.FromEnumerable([JsSymbols.ExpressionStatement, iifeCall])
-            ]);
         }
         else
         {
-            // Async try block - use the regular promise-based transformation
-            result = Cons.FromEnumerable([
-                JsSymbols.Block,
-                transformedTryBlock2,
-                restAfterTry
-            ]);
+            // Async try block - errors are already promise rejections
+            wrappedTryBlock = transformedTryBlock2;
         }
+        
+        // If try block completes successfully, execute rest
+        // Note: If an error occurs in sync try and catch handles it, rest will execute in the catch handler
+        var tryWithRest = Cons.FromEnumerable([
+            JsSymbols.Block,
+            wrappedTryBlock,
+            restAfterTry
+        ]);
         
         // If we have a catch handler function, define it first
         if (tryCatchRejectHandlerDecl != null)
@@ -1113,12 +1092,12 @@ public sealed class CpsTransformer
             return Cons.FromEnumerable([
                 JsSymbols.Block,
                 tryCatchRejectHandlerDecl,
-                result
+                tryWithRest
             ]);
         }
         else
         {
-            return result;
+            return tryWithRest;
         }
     }
 

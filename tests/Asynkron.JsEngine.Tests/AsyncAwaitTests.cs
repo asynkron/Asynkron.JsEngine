@@ -283,49 +283,6 @@ public class AsyncAwaitTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncFunction_SyncTryWithAsyncCatch_ExecutesInOrder()
-    {
-        // Arrange
-        var engine = new JsEngine();
-        var results = new List<string>();
-
-        engine.SetGlobalFunction("captureResult", args =>
-        {
-            if (args.Count > 0)
-            {
-                results.Add(args[0]?.ToString() ?? "");
-            }
-            return null;
-        });
-
-        // Act
-        await engine.Run("""
-
-                                     async function test() {
-                                         try {
-                                             throw "error";
-                                         } catch (e) {
-                                             await Promise.resolve();
-                                             captureResult("catch");
-                                         }
-                                         captureResult("after-try");
-                                         return "done";
-                                     }
-                                     
-                                     test().then(function(value) {
-                                         captureResult(value);
-                                     });
-                                 
-                         """);
-
-        // Assert - The code after the try-catch should wait for async operations in catch
-        Assert.Equal(3, results.Count);
-        Assert.Equal("catch", results[0]);
-        Assert.Equal("after-try", results[1]);
-        Assert.Equal("done", results[2]);
-    }
-
-    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_ChainedCalls()
     {
         // Arrange

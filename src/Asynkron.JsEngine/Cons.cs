@@ -93,6 +93,12 @@ public sealed class Cons : IEnumerable<object?>
         => FromEnumerable(items);
 
     /// <summary>
+    /// Builds a list from the supplied items. Alias for List method.
+    /// </summary>
+    public static Cons From(params object?[] items)
+        => FromEnumerable(items);
+
+    /// <summary>
     /// Builds a list from an enumerable sequence.
     /// </summary>
     public static Cons FromEnumerable(IEnumerable<object?> items)

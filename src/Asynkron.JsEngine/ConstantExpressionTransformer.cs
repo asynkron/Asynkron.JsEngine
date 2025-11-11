@@ -571,7 +571,7 @@ public sealed class ConstantExpressionTransformer
             null => "null",
             string s => s,
             bool b => b ? "true" : "false",
-            double d => d.ToString(),
+            double d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
             _ => value.ToString() ?? ""
         };
     }

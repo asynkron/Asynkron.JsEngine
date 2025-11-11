@@ -1,6 +1,9 @@
 namespace Asynkron.JsEngine;
 
-internal interface IJsCallable
+/// <summary>
+/// Represents a callable object in JavaScript.
+/// </summary>
+public interface IJsCallable
 {
     object? Invoke(IReadOnlyList<object?> arguments, object? thisValue);
 }

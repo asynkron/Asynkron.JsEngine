@@ -103,10 +103,10 @@ public class EventQueueTests
     public async Task Run_CompletesWhenQueueIsEmpty()
     {
         var engine = new JsEngine();
-        
+
         // Run with no scheduled tasks - should complete immediately
         var result = await engine.Run("5 + 5;");
-        
+
         Assert.Equal(10d, result);
     }
 
@@ -116,14 +116,12 @@ public class EventQueueTests
         var engine = new JsEngine();
         var count = 0;
 
-        for (int i = 0; i < 10; i++)
-        {
+        for (var i = 0; i < 10; i++)
             engine.ScheduleTask(() =>
             {
                 count++;
                 return Task.CompletedTask;
             });
-        }
 
         await engine.Run("let x = 1;");
 

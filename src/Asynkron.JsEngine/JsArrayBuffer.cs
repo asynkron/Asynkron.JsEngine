@@ -13,10 +13,8 @@ internal sealed class JsArrayBuffer
     public JsArrayBuffer(int byteLength)
     {
         if (byteLength < 0)
-        {
             throw new ArgumentOutOfRangeException(nameof(byteLength), "ArrayBuffer size cannot be negative");
-        }
-        
+
         _buffer = new byte[byteLength];
     }
 
@@ -39,12 +37,12 @@ internal sealed class JsArrayBuffer
         var len = _buffer.Length;
         var relativeStart = begin < 0 ? Math.Max(len + begin, 0) : Math.Min(begin, len);
         var relativeEnd = end < 0 ? Math.Max(len + end, 0) : Math.Min(end, len);
-        
+
         var newLen = Math.Max(relativeEnd - relativeStart, 0);
         var newBuffer = new JsArrayBuffer(newLen);
-        
+
         Array.Copy(_buffer, relativeStart, newBuffer._buffer, 0, newLen);
-        
+
         return newBuffer;
     }
 }

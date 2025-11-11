@@ -3,30 +3,23 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ManualTransformTest
+public class ManualTransformTest(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public ManualTransformTest(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact(Timeout = 2000)]
     public async Task ManualCpsLoop()
     {
         // Manually write what the CPS transformer should create
         var engine = new JsEngine();
         var logs = new List<string>();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
             logs.Add(msg);
-            _output.WriteLine($"LOG: {msg}");
+            output.WriteLine($"LOG: {msg}");
             return null;
         });
-        
+
         // This is what the transformation SHOULD create
         await engine.Run("""
 
@@ -77,11 +70,11 @@ public class ManualTransformTest
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
-        _output.WriteLine($"Result: '{result}'");
-        _output.WriteLine($"Logs: {string.Join(" | ", logs)}");
-        
+        output.WriteLine($"Result: '{result}'");
+        output.WriteLine($"Logs: {string.Join(" | ", logs)}");
+
         Assert.Equal("x", result);
     }
 }

@@ -66,10 +66,8 @@ internal sealed class JsGenerator : IJsCallable
     public object? Next(object? value = null)
     {
         if (_done)
-        {
             // Generator is already completed
             return CreateIteratorResult(null, true);
-        }
 
         if (_state == GeneratorState.Completed)
         {
@@ -94,10 +92,10 @@ internal sealed class JsGenerator : IJsCallable
 
             // Create context for this execution
             var context = new EvaluationContext();
-            
+
             // Execute the body (or re-execute it to get to the next yield)
             var result = Evaluator.EvaluateBlock(_body, _executionEnv, context);
-            
+
             // Check if yield was encountered
             if (context.IsYield)
             {
@@ -105,7 +103,7 @@ internal sealed class JsGenerator : IJsCallable
                 _currentYieldIndex++;
                 return CreateIteratorResult(context.FlowValue, false);
             }
-            
+
             // Check if return was encountered
             if (context.IsReturn)
             {
@@ -113,7 +111,7 @@ internal sealed class JsGenerator : IJsCallable
                 _done = true;
                 return CreateIteratorResult(context.FlowValue, true);
             }
-            
+
             // If we get here without a yield, the generator is complete
             _state = GeneratorState.Completed;
             _done = true;
@@ -152,22 +150,19 @@ internal sealed class JsGenerator : IJsCallable
     private void BindParameters(Environment env)
     {
         var (regularParams, restParam) = ParseParameterList(_parameters);
-        
+
         // Bind regular parameters
-        for (int i = 0; i < regularParams.Count; i++)
+        for (var i = 0; i < regularParams.Count; i++)
         {
             var paramValue = i < _arguments.Count ? _arguments[i] : null;
             env.Define(regularParams[i], paramValue);
         }
-        
+
         // Bind rest parameter if present
         if (restParam != null)
         {
             var restArgs = new JsArray();
-            for (int i = regularParams.Count; i < _arguments.Count; i++)
-            {
-                restArgs.Push(_arguments[i]);
-            }
+            for (var i = regularParams.Count; i < _arguments.Count; i++) restArgs.Push(_arguments[i]);
             env.Define(restParam, restArgs);
         }
     }
@@ -181,26 +176,18 @@ internal sealed class JsGenerator : IJsCallable
         while (!current.IsEmpty)
         {
             var param = current.Head;
-            
+
             // Check if this is a rest parameter (wrapped in a rest cons)
             if (param is Cons paramCons && !paramCons.IsEmpty)
-            {
                 if (paramCons.Head is Symbol paramSymbol && paramSymbol.Name == "rest")
                 {
                     // This is a rest parameter
-                    if (paramCons.Rest.Head is Symbol restSymbol)
-                    {
-                        restParam = restSymbol;
-                    }
+                    if (paramCons.Rest.Head is Symbol restSymbol) restParam = restSymbol;
                     break; // Rest param must be last
                 }
-            }
-            
+
             // Regular parameter
-            if (param is Symbol symbol)
-            {
-                regularParams.Add(symbol);
-            }
+            if (param is Symbol symbol) regularParams.Add(symbol);
 
             current = current.Rest;
         }

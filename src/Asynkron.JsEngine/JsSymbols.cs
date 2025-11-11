@@ -70,21 +70,21 @@ public static class JsSymbols
     public static readonly Symbol Continuation = Symbol.Intern("continuation");
     public static readonly Symbol CallK = Symbol.Intern("call-k");
     public static readonly Symbol LetK = Symbol.Intern("let-k");
-    
+
     // Async/Await symbols
     public static readonly Symbol Async = Symbol.Intern("async");
     public static readonly Symbol Await = Symbol.Intern("await");
     public static readonly Symbol Promise = Symbol.Intern("promise");
-    
+
     // Generator symbols
     public static readonly Symbol Generator = Symbol.Intern("generator");
     public static readonly Symbol Yield = Symbol.Intern("yield");
     public static readonly Symbol YieldStar = Symbol.Intern("yield*");
-    
+
     // Suspension/Resumption symbols
     public static readonly Symbol Suspend = Symbol.Intern("suspend");
     public static readonly Symbol Resume = Symbol.Intern("resume");
-    
+
     // Destructuring symbols
     public static readonly Symbol ArrayPattern = Symbol.Intern("array-pattern");
     public static readonly Symbol ObjectPattern = Symbol.Intern("object-pattern");
@@ -93,7 +93,7 @@ public static class JsSymbols
     public static readonly Symbol PatternRest = Symbol.Intern("pattern-rest");
     public static readonly Symbol PatternDefault = Symbol.Intern("pattern-default");
     public static readonly Symbol DestructuringAssignment = Symbol.Intern("destructuring-assignment");
-    
+
     // Module symbols
     public static readonly Symbol Import = Symbol.Intern("import");
     public static readonly Symbol DynamicImport = Symbol.Intern("dynamic-import");
@@ -106,9 +106,12 @@ public static class JsSymbols
     public static readonly Symbol ExportDeclaration = Symbol.Intern("export-declaration");
     public static readonly Symbol From = Symbol.Intern("from");
     public static readonly Symbol As = Symbol.Intern("as");
-    
+
     // Strict mode
     public static readonly Symbol UseStrict = Symbol.Intern("use-strict");
 
-    public static Symbol Operator(string op) => Symbol.Intern(op);
+    public static Symbol Operator(string op)
+    {
+        return Symbol.Intern(op);
+    }
 }

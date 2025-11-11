@@ -1,6 +1,11 @@
 namespace Asynkron.JsEngine;
 
-internal sealed class Environment(Environment? enclosing = null, bool isFunctionScope = false, bool isStrict = false, Cons? creatingExpression = null, string? description = null)
+internal sealed class Environment(
+    Environment? enclosing = null,
+    bool isFunctionScope = false,
+    bool isStrict = false,
+    Cons? creatingExpression = null,
+    string? description = null)
 {
     private sealed class Binding(object? value, bool isConst)
     {
@@ -32,28 +37,19 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
         var scope = GetFunctionScope();
         if (scope._values.TryGetValue(name, out var existing))
         {
-            if (hasInitializer)
-            {
-                existing.Value = value;
-            }
+            if (hasInitializer) existing.Value = value;
 
             return;
         }
 
-        scope._values[name] = new Binding(value, isConst: false);
+        scope._values[name] = new Binding(value, false);
     }
 
     public object? Get(Symbol name)
     {
-        if (_values.TryGetValue(name, out var binding))
-        {
-            return binding.Value;
-        }
+        if (_values.TryGetValue(name, out var binding)) return binding.Value;
 
-        if (_enclosing is not null)
-        {
-            return _enclosing.Get(name);
-        }
+        if (_enclosing is not null) return _enclosing.Get(name);
 
         throw new InvalidOperationException($"Undefined symbol '{name.Name}'.");
     }
@@ -62,10 +58,7 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     {
         if (_values.TryGetValue(name, out var binding))
         {
-            if (binding.IsConst)
-            {
-                throw new InvalidOperationException($"Cannot reassign constant '{name.Name}'.");
-            }
+            if (binding.IsConst) throw new InvalidOperationException($"Cannot reassign constant '{name.Name}'.");
 
             binding.Value = value;
             return;
@@ -86,10 +79,8 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     {
         var current = this;
         while (!current._isFunctionScope)
-        {
             current = current._enclosing
-                ?? throw new InvalidOperationException("Unable to locate function scope for var declaration.");
-        }
+                      ?? throw new InvalidOperationException("Unable to locate function scope for var declaration.");
 
         return current;
     }
@@ -101,23 +92,19 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     public Dictionary<string, object?> GetAllVariables()
     {
         var result = new Dictionary<string, object?>();
-        
+
         // Traverse up the scope chain
         var current = this;
         while (current is not null)
         {
             // Add variables from current scope (only if not already present from inner scope)
             foreach (var kvp in current._values)
-            {
                 if (!result.ContainsKey(kvp.Key.Name))
-                {
                     result[kvp.Key.Name] = kvp.Value.Value;
-                }
-            }
-            
+
             current = current._enclosing;
         }
-        
+
         return result;
     }
 
@@ -129,34 +116,35 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     {
         var frames = new List<CallStackFrame>();
         var current = this;
-        int depth = 0;
-        int iterations = 0;
+        var depth = 0;
+        var iterations = 0;
         const int maxIterations = 100; // Prevent infinite loops
-        
+
         while (current is not null && iterations < maxIterations)
         {
             iterations++;
-            
+
             // Always add a frame if we have any identifying information
             if (current._creatingExpression is not null || current._description is not null)
             {
                 var operationType = DetermineOperationType(current._creatingExpression);
-                var description = current._description ?? GetExpressionDescription(current._creatingExpression, operationType);
-                
+                var description = current._description ??
+                                  GetExpressionDescription(current._creatingExpression, operationType);
+
                 frames.Add(new CallStackFrame(
                     operationType,
                     description,
                     current._creatingExpression,
                     depth
                 ));
-                
+
                 depth++;
             }
-            
+
             // Follow the enclosing chain (lexical scope chain)
             current = current._enclosing;
         }
-        
+
         return frames;
     }
 
@@ -167,7 +155,7 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     {
         if (expression is null)
             return "unknown";
-        
+
         if (expression.Head is Symbol symbol)
         {
             if (ReferenceEquals(symbol, JsSymbols.Call))
@@ -182,10 +170,10 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
                 return "function";
             if (ReferenceEquals(symbol, JsSymbols.Block))
                 return "block";
-            
+
             return symbol.Name;
         }
-        
+
         return "expression";
     }
 
@@ -196,7 +184,7 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     {
         if (expression is null)
             return "unknown";
-        
+
         return operationType switch
         {
             "for" => "for loop",
@@ -215,10 +203,7 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     private static string GetFunctionName(Cons expression)
     {
         // (function name params body)
-        if (expression.Rest.Head is Symbol nameSymbol)
-        {
-            return $"function {nameSymbol.Name}";
-        }
+        if (expression.Rest.Head is Symbol nameSymbol) return $"function {nameSymbol.Name}";
         return "anonymous function";
     }
 
@@ -229,12 +214,9 @@ internal sealed class Environment(Environment? enclosing = null, bool isFunction
     {
         // (call callee args...)
         var callee = expression.Rest.Head;
-        
-        if (callee is Symbol symbol)
-        {
-            return $"call to {symbol.Name}";
-        }
-        
+
+        if (callee is Symbol symbol) return $"call to {symbol.Name}";
+
         return "function call";
     }
 }

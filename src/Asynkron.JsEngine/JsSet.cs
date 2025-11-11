@@ -15,9 +15,15 @@ internal sealed class JsSet
     /// </summary>
     public int Size => _values.Count;
 
-    public bool TryGetProperty(string name, out object? value) => _properties.TryGetProperty(name, out value);
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return _properties.TryGetProperty(name, out value);
+    }
 
-    public void SetProperty(string name, object? value) => _properties.SetProperty(name, value);
+    public void SetProperty(string name, object? value)
+    {
+        _properties.SetProperty(name, value);
+    }
 
     /// <summary>
     /// Adds a value to the Set. Returns the Set object to allow chaining.
@@ -26,10 +32,7 @@ internal sealed class JsSet
     public JsSet Add(object? value)
     {
         // Check if value already exists
-        if (!Has(value))
-        {
-            _values.Add(value);
-        }
+        if (!Has(value)) _values.Add(value);
         return this;
     }
 
@@ -39,12 +42,9 @@ internal sealed class JsSet
     public bool Has(object? value)
     {
         foreach (var item in _values)
-        {
             if (SameValueZero(item, value))
-            {
                 return true;
-            }
-        }
+
         return false;
     }
 
@@ -54,14 +54,13 @@ internal sealed class JsSet
     /// </summary>
     public bool Delete(object? value)
     {
-        for (int i = 0; i < _values.Count; i++)
-        {
+        for (var i = 0; i < _values.Count; i++)
             if (SameValueZero(_values[i], value))
             {
                 _values.RemoveAt(i);
                 return true;
             }
-        }
+
         return false;
     }
 
@@ -80,10 +79,8 @@ internal sealed class JsSet
     public void ForEach(IJsCallable callback, object? thisArg)
     {
         foreach (var value in _values)
-        {
             // In Set.forEach, the value is passed as both the first and second argument
             callback.Invoke([value, value, this], thisArg);
-        }
     }
 
     /// <summary>
@@ -106,6 +103,7 @@ internal sealed class JsSet
             var pair = new JsArray([value, value]);
             entries.Add(pair);
         }
+
         return new JsArray(entries);
     }
 
@@ -129,22 +127,13 @@ internal sealed class JsSet
         if (x == null || y == null) return false;
 
         // Handle NaN (NaN is equal to NaN in SameValueZero)
-        if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy))
-        {
-            return true;
-        }
+        if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy)) return true;
 
         // Handle strings - use value equality
-        if (x is string sx && y is string sy)
-        {
-            return sx == sy;
-        }
+        if (x is string sx && y is string sy) return sx == sy;
 
         // For reference types, use reference equality
-        if (!x.GetType().IsValueType || !y.GetType().IsValueType)
-        {
-            return ReferenceEquals(x, y);
-        }
+        if (!x.GetType().IsValueType || !y.GetType().IsValueType) return ReferenceEquals(x, y);
 
         // For value types, use Equals
         return x.Equals(y);

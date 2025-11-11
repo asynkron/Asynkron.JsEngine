@@ -249,13 +249,13 @@ public class NullUndefinedOddityTests
     {
         // JavaScript oddity: null >= 0 is true, but null > 0 and null == 0 are false
         var engine = new JsEngine();
-        
+
         var greaterOrEqual = await engine.Evaluate("null >= 0;");
         Assert.True((bool)greaterOrEqual!);
-        
+
         var greater = await engine.Evaluate("null > 0;");
         Assert.False((bool)greater!);
-        
+
         var equals = await engine.Evaluate("null == 0;");
         Assert.False((bool)equals!);
     }
@@ -265,13 +265,13 @@ public class NullUndefinedOddityTests
     {
         // undefined compared with numbers returns false (except for !=)
         var engine = new JsEngine();
-        
+
         var greater = await engine.Evaluate("undefined > 0;");
         Assert.False((bool)greater!);
-        
+
         var less = await engine.Evaluate("undefined < 0;");
         Assert.False((bool)less!);
-        
+
         var equals = await engine.Evaluate("undefined == 0;");
         Assert.False((bool)equals!);
     }

@@ -10,33 +10,43 @@ public static class ConsExtensions
     /// Checks if the given object is a constant number (double).
     /// </summary>
     public static bool IsConstantNumber(this object? obj)
-        => obj is double;
+    {
+        return obj is double;
+    }
 
     /// <summary>
     /// Checks if the given object is a constant string.
     /// </summary>
     public static bool IsConstantString(this object? obj)
-        => obj is string;
+    {
+        return obj is string;
+    }
 
     /// <summary>
     /// Checks if the given object is a constant boolean.
     /// </summary>
     public static bool IsConstantBoolean(this object? obj)
-        => obj is bool;
+    {
+        return obj is bool;
+    }
 
     /// <summary>
     /// Checks if the given object is a constant null value.
     /// </summary>
     public static bool IsConstantNull(this object? obj)
-        => obj == null;
+    {
+        return obj == null;
+    }
 
     /// <summary>
     /// Checks if the given object is any constant literal value
     /// (number, string, boolean, or null).
     /// </summary>
     public static bool IsConstant(this object? obj)
-        => obj.IsConstantNumber() || 
-           obj.IsConstantString() || 
-           obj.IsConstantBoolean() || 
-           obj.IsConstantNull();
+    {
+        return obj.IsConstantNumber() ||
+               obj.IsConstantString() ||
+               obj.IsConstantBoolean() ||
+               obj.IsConstantNull();
+    }
 }

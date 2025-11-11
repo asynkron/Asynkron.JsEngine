@@ -50,17 +50,13 @@ internal static class StandardLibrary
         {
             if (args.Count == 0) return double.NaN;
             if (args[0] is not double d) return double.NaN;
-            
+
             // JavaScript Math.round uses "round half away from zero"
             // while .NET Math.Round uses "round half to even" by default
             if (d >= 0)
-            {
                 return Math.Floor(d + 0.5);
-            }
             else
-            {
                 return Math.Ceiling(d - 0.5);
-            }
         });
 
         math["sqrt"] = new HostFunction(args =>
@@ -82,13 +78,12 @@ internal static class StandardLibrary
             if (args.Count == 0) return double.NegativeInfinity;
             var max = double.NegativeInfinity;
             foreach (var arg in args)
-            {
                 if (arg is double d)
                 {
                     if (double.IsNaN(d)) return double.NaN;
                     if (d > max) max = d;
                 }
-            }
+
             return max;
         });
 
@@ -97,20 +92,16 @@ internal static class StandardLibrary
             if (args.Count == 0) return double.PositiveInfinity;
             var min = double.PositiveInfinity;
             foreach (var arg in args)
-            {
                 if (arg is double d)
                 {
                     if (double.IsNaN(d)) return double.NaN;
                     if (d < min) min = d;
                 }
-            }
+
             return min;
         });
 
-        math["random"] = new HostFunction(args =>
-        {
-            return Random.Shared.NextDouble();
-        });
+        math["random"] = new HostFunction(args => { return Random.Shared.NextDouble(); });
 
         math["sin"] = new HostFunction(args =>
         {
@@ -230,14 +221,13 @@ internal static class StandardLibrary
             if (args.Count == 0) return 0d;
             double sumOfSquares = 0;
             foreach (var arg in args)
-            {
                 if (arg is double d)
                 {
                     if (double.IsNaN(d)) return double.NaN;
                     if (double.IsInfinity(d)) return double.PositiveInfinity;
                     sumOfSquares += d * d;
                 }
-            }
+
             return Math.Sqrt(sumOfSquares);
         });
 
@@ -304,21 +294,15 @@ internal static class StandardLibrary
         var date = new JsObject();
 
         // Date.now() - returns milliseconds since epoch
-        date["now"] = new HostFunction(args =>
-        {
-            return (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        });
+        date["now"] = new HostFunction(args => { return (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); });
 
         // Date.parse() - parses a date string
         date["parse"] = new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not string dateStr) return double.NaN;
-            
-            if (DateTimeOffset.TryParse(dateStr, out var parsed))
-            {
-                return (double)parsed.ToUnixTimeMilliseconds();
-            }
-            
+
+            if (DateTimeOffset.TryParse(dateStr, out var parsed)) return (double)parsed.ToUnixTimeMilliseconds();
+
             return double.NaN;
         });
 
@@ -333,9 +317,9 @@ internal static class StandardLibrary
         return new HostFunction((thisValue, args) =>
         {
             var dateInstance = new JsObject();
-            
+
             DateTimeOffset dateTime;
-            
+
             if (args.Count == 0)
             {
                 // No arguments: current date/time
@@ -345,29 +329,23 @@ internal static class StandardLibrary
             {
                 // Single argument: milliseconds since epoch or date string
                 if (args[0] is double ms)
-                {
                     dateTime = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
-                }
                 else if (args[0] is string dateStr && DateTimeOffset.TryParse(dateStr, out var parsed))
-                {
                     dateTime = parsed;
-                }
                 else
-                {
                     dateTime = DateTimeOffset.UtcNow;
-                }
             }
             else
             {
                 // Multiple arguments: year, month, day, hour, minute, second, millisecond
-                int year = args[0] is double y ? (int)y : 1970;
-                int month = args.Count > 1 && args[1] is double m ? (int)m + 1 : 1; // JS months are 0-indexed
-                int day = args.Count > 2 && args[2] is double d ? (int)d : 1;
-                int hour = args.Count > 3 && args[3] is double h ? (int)h : 0;
-                int minute = args.Count > 4 && args[4] is double min ? (int)min : 0;
-                int second = args.Count > 5 && args[5] is double s ? (int)s : 0;
-                int millisecond = args.Count > 6 && args[6] is double ms ? (int)ms : 0;
-                
+                var year = args[0] is double y ? (int)y : 1970;
+                var month = args.Count > 1 && args[1] is double m ? (int)m + 1 : 1; // JS months are 0-indexed
+                var day = args.Count > 2 && args[2] is double d ? (int)d : 1;
+                var hour = args.Count > 3 && args[3] is double h ? (int)h : 0;
+                var minute = args.Count > 4 && args[4] is double min ? (int)min : 0;
+                var second = args.Count > 5 && args[5] is double s ? (int)s : 0;
+                var millisecond = args.Count > 6 && args[6] is double ms ? (int)ms : 0;
+
                 try
                 {
                     dateTime = new DateTimeOffset(year, month, day, hour, minute, second, millisecond, TimeSpan.Zero);
@@ -377,20 +355,18 @@ internal static class StandardLibrary
                     dateTime = DateTimeOffset.UtcNow;
                 }
             }
-            
+
             // Store the internal date value
             dateInstance["_internalDate"] = (double)dateTime.ToUnixTimeMilliseconds();
-            
+
             // Add instance methods
             dateInstance["getTime"] = new HostFunction((thisVal, methodArgs) =>
             {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
-                {
-                    return ms;
-                }
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) &&
+                    val is double ms) return ms;
                 return double.NaN;
             });
-            
+
             dateInstance["getFullYear"] = new HostFunction((thisVal, methodArgs) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
@@ -398,9 +374,10 @@ internal static class StandardLibrary
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return (double)dt.Year;
                 }
+
                 return double.NaN;
             });
-            
+
             dateInstance["getMonth"] = new HostFunction((thisVal, methodArgs) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
@@ -408,9 +385,10 @@ internal static class StandardLibrary
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return (double)(dt.Month - 1); // JS months are 0-indexed
                 }
+
                 return double.NaN;
             });
-            
+
             dateInstance["getDate"] = new HostFunction((thisVal, methodArgs) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
@@ -418,9 +396,10 @@ internal static class StandardLibrary
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return (double)dt.Day;
                 }
+
                 return double.NaN;
             });
-            
+
             dateInstance["getDay"] = new HostFunction((thisVal, methodArgs) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
@@ -428,9 +407,10 @@ internal static class StandardLibrary
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return (double)dt.DayOfWeek;
                 }
+
                 return double.NaN;
             });
-            
+
             dateInstance["getHours"] = new HostFunction((thisVal, methodArgs) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
@@ -438,9 +418,10 @@ internal static class StandardLibrary
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return (double)dt.Hour;
                 }
+
                 return double.NaN;
             });
-            
+
             dateInstance["getMinutes"] = new HostFunction((thisVal, methodArgs) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
@@ -448,9 +429,10 @@ internal static class StandardLibrary
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return (double)dt.Minute;
                 }
+
                 return double.NaN;
             });
-            
+
             dateInstance["getSeconds"] = new HostFunction((thisVal, methodArgs) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
@@ -458,9 +440,10 @@ internal static class StandardLibrary
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return (double)dt.Second;
                 }
+
                 return double.NaN;
             });
-            
+
             dateInstance["getMilliseconds"] = new HostFunction((thisVal, methodArgs) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
@@ -468,9 +451,10 @@ internal static class StandardLibrary
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return (double)dt.Millisecond;
                 }
+
                 return double.NaN;
             });
-            
+
             dateInstance["toISOString"] = new HostFunction((thisVal, methodArgs) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
@@ -478,9 +462,10 @@ internal static class StandardLibrary
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return dt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
                 }
+
                 return "";
             });
-            
+
             dateInstance["toString"] = new HostFunction((thisVal, methodArgs) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
@@ -488,9 +473,10 @@ internal static class StandardLibrary
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return dt.ToString();
                 }
+
                 return "Invalid Date";
             });
-            
+
             return dateInstance;
         });
     }
@@ -506,7 +492,7 @@ internal static class StandardLibrary
         json["parse"] = new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not string jsonStr) return null;
-            
+
             try
             {
                 return ParseJsonValue(System.Text.Json.JsonDocument.Parse(jsonStr).RootElement);
@@ -522,9 +508,9 @@ internal static class StandardLibrary
         json["stringify"] = new HostFunction(args =>
         {
             if (args.Count == 0) return "undefined";
-            
+
             var value = args[0];
-            
+
             // Handle replacer function and space arguments if needed
             // For now, implement basic stringify
             return StringifyValue(value);
@@ -539,33 +525,27 @@ internal static class StandardLibrary
         {
             case System.Text.Json.JsonValueKind.Object:
                 var obj = new JsObject();
-                foreach (var prop in element.EnumerateObject())
-                {
-                    obj[prop.Name] = ParseJsonValue(prop.Value);
-                }
+                foreach (var prop in element.EnumerateObject()) obj[prop.Name] = ParseJsonValue(prop.Value);
                 return obj;
-            
+
             case System.Text.Json.JsonValueKind.Array:
                 var arr = new JsArray();
-                foreach (var item in element.EnumerateArray())
-                {
-                    arr.Push(ParseJsonValue(item));
-                }
+                foreach (var item in element.EnumerateArray()) arr.Push(ParseJsonValue(item));
                 AddArrayMethods(arr);
                 return arr;
-            
+
             case System.Text.Json.JsonValueKind.String:
                 return element.GetString();
-            
+
             case System.Text.Json.JsonValueKind.Number:
                 return element.GetDouble();
-            
+
             case System.Text.Json.JsonValueKind.True:
                 return true;
-            
+
             case System.Text.Json.JsonValueKind.False:
                 return false;
-            
+
             case System.Text.Json.JsonValueKind.Null:
             default:
                 return null;
@@ -575,31 +555,28 @@ internal static class StandardLibrary
     private static string StringifyValue(object? value, int depth = 0)
     {
         if (depth > 100) return "null"; // Prevent stack overflow
-        
+
         switch (value)
         {
             case null:
                 return "null";
-            
+
             case bool b:
                 return b ? "true" : "false";
-            
+
             case double d:
                 if (double.IsNaN(d) || double.IsInfinity(d))
                     return "null";
                 return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            
+
             case string s:
                 return System.Text.Json.JsonSerializer.Serialize(s);
-            
+
             case JsArray arr:
                 var arrItems = new List<string>();
-                foreach (var item in arr.Items)
-                {
-                    arrItems.Add(StringifyValue(item, depth + 1));
-                }
+                foreach (var item in arr.Items) arrItems.Add(StringifyValue(item, depth + 1));
                 return "[" + string.Join(",", arrItems) + "]";
-            
+
             case JsObject obj:
                 var objProps = new List<string>();
                 foreach (var kvp in obj)
@@ -607,16 +584,17 @@ internal static class StandardLibrary
                     // Skip functions and internal properties
                     if (kvp.Value is IJsCallable || kvp.Key.StartsWith("_"))
                         continue;
-                    
+
                     var key = System.Text.Json.JsonSerializer.Serialize(kvp.Key);
                     var val = StringifyValue(kvp.Value, depth + 1);
                     objProps.Add($"{key}:{val}");
                 }
+
                 return "{" + string.Join(",", objProps) + "}";
-            
+
             case IJsCallable:
                 return "undefined";
-            
+
             default:
                 return System.Text.Json.JsonSerializer.Serialize(value?.ToString() ?? "");
         }
@@ -635,10 +613,10 @@ internal static class StandardLibrary
                 AddRegExpMethods(emptyRegex);
                 return emptyRegex.JsObject;
             }
-            
+
             var pattern = args[0]?.ToString() ?? "";
-            var flags = args.Count > 1 ? (args[1]?.ToString() ?? "") : "";
-            
+            var flags = args.Count > 1 ? args[1]?.ToString() ?? "" : "";
+
             var regex = new JsRegExp(pattern, flags);
             regex.JsObject["__regex__"] = regex; // Store reference for internal use
             AddRegExpMethods(regex);
@@ -677,10 +655,7 @@ internal static class StandardLibrary
         array.SetProperty("push", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not JsArray jsArray) return null;
-            foreach (var arg in args)
-            {
-                jsArray.Push(arg);
-            }
+            foreach (var arg in args) jsArray.Push(arg);
             return jsArray.Items.Count;
         }));
 
@@ -698,12 +673,13 @@ internal static class StandardLibrary
             if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
 
             var result = new JsArray();
-            for (int i = 0; i < jsArray.Items.Count; i++)
+            for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
                 var mapped = callback.Invoke([element, (double)i, jsArray], null);
                 result.Push(mapped);
             }
+
             AddArrayMethods(result);
             return result;
         }));
@@ -715,15 +691,13 @@ internal static class StandardLibrary
             if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
 
             var result = new JsArray();
-            for (int i = 0; i < jsArray.Items.Count; i++)
+            for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
                 var keep = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(keep))
-                {
-                    result.Push(element);
-                }
+                if (IsTruthy(keep)) result.Push(element);
             }
+
             AddArrayMethods(result);
             return result;
         }));
@@ -734,12 +708,9 @@ internal static class StandardLibrary
             if (thisValue is not JsArray jsArray) return null;
             if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
 
-            if (jsArray.Items.Count == 0)
-            {
-                return args.Count > 1 ? args[1] : null;
-            }
+            if (jsArray.Items.Count == 0) return args.Count > 1 ? args[1] : null;
 
-            int startIndex = 0;
+            var startIndex = 0;
             object? accumulator;
 
             if (args.Count > 1)
@@ -752,7 +723,7 @@ internal static class StandardLibrary
                 startIndex = 1;
             }
 
-            for (int i = startIndex; i < jsArray.Items.Count; i++)
+            for (var i = startIndex; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
                 accumulator = callback.Invoke([accumulator, element, (double)i, jsArray], null);
@@ -767,7 +738,7 @@ internal static class StandardLibrary
             if (thisValue is not JsArray jsArray) return null;
             if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
 
-            for (int i = 0; i < jsArray.Items.Count; i++)
+            for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
                 callback.Invoke([element, (double)i, jsArray], null);
@@ -782,14 +753,11 @@ internal static class StandardLibrary
             if (thisValue is not JsArray jsArray) return null;
             if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
 
-            for (int i = 0; i < jsArray.Items.Count; i++)
+            for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
                 var match = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(match))
-                {
-                    return element;
-                }
+                if (IsTruthy(match)) return element;
             }
 
             return null;
@@ -801,14 +769,11 @@ internal static class StandardLibrary
             if (thisValue is not JsArray jsArray) return null;
             if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
 
-            for (int i = 0; i < jsArray.Items.Count; i++)
+            for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
                 var match = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(match))
-                {
-                    return (double)i;
-                }
+                if (IsTruthy(match)) return (double)i;
             }
 
             return -1d;
@@ -820,14 +785,11 @@ internal static class StandardLibrary
             if (thisValue is not JsArray jsArray) return false;
             if (args.Count == 0 || args[0] is not IJsCallable callback) return false;
 
-            for (int i = 0; i < jsArray.Items.Count; i++)
+            for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
                 var result = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(result))
-                {
-                    return true;
-                }
+                if (IsTruthy(result)) return true;
             }
 
             return false;
@@ -839,14 +801,11 @@ internal static class StandardLibrary
             if (thisValue is not JsArray jsArray) return true;
             if (args.Count == 0 || args[0] is not IJsCallable callback) return true;
 
-            for (int i = 0; i < jsArray.Items.Count; i++)
+            for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
                 var result = callback.Invoke([element, (double)i, jsArray], null);
-                if (!IsTruthy(result))
-                {
-                    return false;
-                }
+                if (!IsTruthy(result)) return false;
             }
 
             return true;
@@ -859,10 +818,7 @@ internal static class StandardLibrary
             var separator = args.Count > 0 && args[0] is string sep ? sep : ",";
 
             var parts = new List<string>();
-            foreach (var item in jsArray.Items)
-            {
-                parts.Add(item?.ToString() ?? "");
-            }
+            foreach (var item in jsArray.Items) parts.Add(item?.ToString() ?? "");
 
             return string.Join(separator, parts);
         }));
@@ -875,12 +831,8 @@ internal static class StandardLibrary
 
             var searchElement = args[0];
             foreach (var item in jsArray.Items)
-            {
                 if (AreStrictlyEqual(item, searchElement))
-                {
                     return true;
-                }
-            }
 
             return false;
         }));
@@ -892,13 +844,9 @@ internal static class StandardLibrary
             if (args.Count == 0) return -1d;
 
             var searchElement = args[0];
-            for (int i = 0; i < jsArray.Items.Count; i++)
-            {
+            for (var i = 0; i < jsArray.Items.Count; i++)
                 if (AreStrictlyEqual(jsArray.Items[i], searchElement))
-                {
                     return (double)i;
-                }
-            }
 
             return -1d;
         }));
@@ -908,8 +856,8 @@ internal static class StandardLibrary
         {
             if (thisValue is not JsArray jsArray) return null;
 
-            int start = 0;
-            int end = jsArray.Items.Count;
+            var start = 0;
+            var end = jsArray.Items.Count;
 
             if (args.Count > 0 && args[0] is double startD)
             {
@@ -924,10 +872,7 @@ internal static class StandardLibrary
             }
 
             var result = new JsArray();
-            for (int i = start; i < Math.Min(end, jsArray.Items.Count); i++)
-            {
-                result.Push(jsArray.Items[i]);
-            }
+            for (var i = start; i < Math.Min(end, jsArray.Items.Count); i++) result.Push(jsArray.Items[i]);
             AddArrayMethods(result);
             return result;
         }));
@@ -951,12 +896,12 @@ internal static class StandardLibrary
         array.SetProperty("splice", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not JsArray jsArray) return null;
-            
-            int start = args.Count > 0 && args[0] is double startD ? (int)startD : 0;
-            int deleteCount = args.Count > 1 && args[1] is double deleteD ? (int)deleteD : jsArray.Items.Count - start;
-            
-            object?[] itemsToInsert = args.Count > 2 ? args.Skip(2).ToArray() : [];
-            
+
+            var start = args.Count > 0 && args[0] is double startD ? (int)startD : 0;
+            var deleteCount = args.Count > 1 && args[1] is double deleteD ? (int)deleteD : jsArray.Items.Count - start;
+
+            var itemsToInsert = args.Count > 2 ? args.Skip(2).ToArray() : [];
+
             var deleted = jsArray.Splice(start, deleteCount, itemsToInsert);
             AddArrayMethods(deleted);
             return deleted;
@@ -966,30 +911,19 @@ internal static class StandardLibrary
         array.SetProperty("concat", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not JsArray jsArray) return null;
-            
+
             var result = new JsArray();
             // Add current array items
-            foreach (var item in jsArray.Items)
-            {
-                result.Push(item);
-            }
-            
+            foreach (var item in jsArray.Items) result.Push(item);
+
             // Add items from arguments
             foreach (var arg in args)
-            {
                 if (arg is JsArray argArray)
-                {
                     foreach (var item in argArray.Items)
-                    {
                         result.Push(item);
-                    }
-                }
                 else
-                {
                     result.Push(arg);
-                }
-            }
-            
+
             AddArrayMethods(result);
             return result;
         }));
@@ -1006,24 +940,18 @@ internal static class StandardLibrary
         array.SetProperty("sort", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not JsArray jsArray) return null;
-            
+
             var items = jsArray.Items.ToList();
-            
+
             if (args.Count > 0 && args[0] is IJsCallable compareFn)
-            {
                 // Sort with custom compare function
                 items.Sort((a, b) =>
                 {
                     var result = compareFn.Invoke([a, b], null);
-                    if (result is double d)
-                    {
-                        return d > 0 ? 1 : d < 0 ? -1 : 0;
-                    }
+                    if (result is double d) return d > 0 ? 1 : d < 0 ? -1 : 0;
                     return 0;
                 });
-            }
             else
-            {
                 // Default sort: convert to strings and sort lexicographically
                 items.Sort((a, b) =>
                 {
@@ -1031,14 +959,10 @@ internal static class StandardLibrary
                     var bStr = b?.ToString() ?? "";
                     return string.Compare(aStr, bStr, StringComparison.Ordinal);
                 });
-            }
-            
+
             // Replace array items with sorted items
-            for (int i = 0; i < items.Count; i++)
-            {
-                jsArray.SetElement(i, items[i]);
-            }
-            
+            for (var i = 0; i < items.Count; i++) jsArray.SetElement(i, items[i]);
+
             return jsArray;
         }));
 
@@ -1059,7 +983,7 @@ internal static class StandardLibrary
         {
             if (thisValue is not JsArray jsArray) return null;
             var depth = args.Count > 0 && args[0] is double d ? (int)d : 1;
-            
+
             var result = new JsArray();
             FlattenArray(jsArray, result, depth);
             AddArrayMethods(result);
@@ -1073,24 +997,19 @@ internal static class StandardLibrary
             if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
 
             var result = new JsArray();
-            for (int i = 0; i < jsArray.Items.Count; i++)
+            for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
                 var mapped = callback.Invoke([element, (double)i, jsArray], null);
-                
+
                 // Flatten one level
                 if (mapped is JsArray mappedArray)
-                {
-                    for (int j = 0; j < mappedArray.Items.Count; j++)
-                    {
+                    for (var j = 0; j < mappedArray.Items.Count; j++)
                         result.Push(mappedArray.GetElement(j));
-                    }
-                }
                 else
-                {
                     result.Push(mapped);
-                }
             }
+
             AddArrayMethods(result);
             return result;
         }));
@@ -1101,15 +1020,13 @@ internal static class StandardLibrary
             if (thisValue is not JsArray jsArray) return null;
             if (args.Count == 0 || args[0] is not IJsCallable callback) return null;
 
-            for (int i = jsArray.Items.Count - 1; i >= 0; i--)
+            for (var i = jsArray.Items.Count - 1; i >= 0; i--)
             {
                 var element = jsArray.Items[i];
                 var matches = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(matches))
-                {
-                    return element;
-                }
+                if (IsTruthy(matches)) return element;
             }
+
             return null;
         }));
 
@@ -1119,15 +1036,13 @@ internal static class StandardLibrary
             if (thisValue is not JsArray jsArray) return -1d;
             if (args.Count == 0 || args[0] is not IJsCallable callback) return -1d;
 
-            for (int i = jsArray.Items.Count - 1; i >= 0; i--)
+            for (var i = jsArray.Items.Count - 1; i >= 0; i--)
             {
                 var element = jsArray.Items[i];
                 var matches = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(matches))
-                {
-                    return (double)i;
-                }
+                if (IsTruthy(matches)) return (double)i;
             }
+
             return -1d;
         }));
 
@@ -1136,24 +1051,21 @@ internal static class StandardLibrary
         {
             if (thisValue is not JsArray jsArray) return null;
             if (args.Count == 0) return jsArray;
-            
+
             var value = args[0];
             var start = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
             var end = args.Count > 2 && args[2] is double d2 ? (int)d2 : jsArray.Items.Count;
-            
+
             // Handle negative indices
             if (start < 0) start = Math.Max(0, jsArray.Items.Count + start);
             if (end < 0) end = Math.Max(0, jsArray.Items.Count + end);
-            
+
             // Clamp to array bounds
             start = Math.Max(0, Math.Min(start, jsArray.Items.Count));
             end = Math.Max(start, Math.Min(end, jsArray.Items.Count));
-            
-            for (int i = start; i < end; i++)
-            {
-                jsArray.SetElement(i, value);
-            }
-            
+
+            for (var i = start; i < end; i++) jsArray.SetElement(i, value);
+
             return jsArray;
         }));
 
@@ -1162,38 +1074,32 @@ internal static class StandardLibrary
         {
             if (thisValue is not JsArray jsArray) return null;
             if (args.Count == 0) return jsArray;
-            
+
             var target = args[0] is double dt ? (int)dt : 0;
             var start = args.Count > 1 && args[1] is double ds ? (int)ds : 0;
             var end = args.Count > 2 && args[2] is double de ? (int)de : jsArray.Items.Count;
-            
+
             var len = jsArray.Items.Count;
-            
+
             // Handle negative indices
             if (target < 0) target = Math.Max(0, len + target);
             else target = Math.Min(target, len);
-            
+
             if (start < 0) start = Math.Max(0, len + start);
             else start = Math.Min(start, len);
-            
+
             if (end < 0) end = Math.Max(0, len + end);
             else end = Math.Min(end, len);
-            
+
             var count = Math.Min(end - start, len - target);
             if (count <= 0) return jsArray;
-            
+
             // Copy to temporary array to handle overlapping ranges
             var temp = new object?[count];
-            for (int i = 0; i < count; i++)
-            {
-                temp[i] = jsArray.GetElement(start + i);
-            }
-            
-            for (int i = 0; i < count; i++)
-            {
-                jsArray.SetElement(target + i, temp[i]);
-            }
-            
+            for (var i = 0; i < count; i++) temp[i] = jsArray.GetElement(start + i);
+
+            for (var i = 0; i < count; i++) jsArray.SetElement(target + i, temp[i]);
+
             return jsArray;
         }));
 
@@ -1201,31 +1107,22 @@ internal static class StandardLibrary
         array.SetProperty("toSorted", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not JsArray jsArray) return null;
-            
+
             var result = new JsArray();
-            for (int i = 0; i < jsArray.Items.Count; i++)
-            {
-                result.Push(jsArray.GetElement(i));
-            }
+            for (var i = 0; i < jsArray.Items.Count; i++) result.Push(jsArray.GetElement(i));
             AddArrayMethods(result);
-            
+
             var items = result.Items.ToList();
-            
+
             if (args.Count > 0 && args[0] is IJsCallable compareFn)
-            {
                 // Sort with custom compare function
                 items.Sort((a, b) =>
                 {
                     var cmp = compareFn.Invoke([a, b], null);
-                    if (cmp is double d)
-                    {
-                        return d > 0 ? 1 : d < 0 ? -1 : 0;
-                    }
+                    if (cmp is double d) return d > 0 ? 1 : d < 0 ? -1 : 0;
                     return 0;
                 });
-            }
             else
-            {
                 // Default sort: convert to strings and sort lexicographically
                 items.Sort((a, b) =>
                 {
@@ -1233,13 +1130,9 @@ internal static class StandardLibrary
                     var bStr = b?.ToString() ?? "";
                     return string.Compare(aStr, bStr, StringComparison.Ordinal);
                 });
-            }
-            
-            for (int i = 0; i < items.Count; i++)
-            {
-                result.SetElement(i, items[i]);
-            }
-            
+
+            for (var i = 0; i < items.Count; i++) result.SetElement(i, items[i]);
+
             return result;
         }));
 
@@ -1247,12 +1140,9 @@ internal static class StandardLibrary
         array.SetProperty("toReversed", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not JsArray jsArray) return null;
-            
+
             var result = new JsArray();
-            for (int i = jsArray.Items.Count - 1; i >= 0; i--)
-            {
-                result.Push(jsArray.GetElement(i));
-            }
+            for (var i = jsArray.Items.Count - 1; i >= 0; i--) result.Push(jsArray.GetElement(i));
             AddArrayMethods(result);
             return result;
         }));
@@ -1261,49 +1151,37 @@ internal static class StandardLibrary
         array.SetProperty("toSpliced", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not JsArray jsArray) return null;
-            
+
             var result = new JsArray();
             var len = jsArray.Items.Count;
-            
+
             if (args.Count == 0)
             {
                 // No arguments, return copy
-                for (int i = 0; i < len; i++)
-                {
-                    result.Push(jsArray.GetElement(i));
-                }
+                for (var i = 0; i < len; i++) result.Push(jsArray.GetElement(i));
             }
             else
             {
                 var start = args[0] is double ds ? (int)ds : 0;
                 var deleteCount = args.Count > 1 && args[1] is double dc ? (int)dc : len - start;
-                
+
                 // Handle negative start
                 if (start < 0) start = Math.Max(0, len + start);
                 else start = Math.Min(start, len);
-                
+
                 // Clamp deleteCount
                 deleteCount = Math.Max(0, Math.Min(deleteCount, len - start));
-                
+
                 // Copy elements before start
-                for (int i = 0; i < start; i++)
-                {
-                    result.Push(jsArray.GetElement(i));
-                }
-                
+                for (var i = 0; i < start; i++) result.Push(jsArray.GetElement(i));
+
                 // Insert new items
-                for (int i = 2; i < args.Count; i++)
-                {
-                    result.Push(args[i]);
-                }
-                
+                for (var i = 2; i < args.Count; i++) result.Push(args[i]);
+
                 // Copy elements after deleted section
-                for (int i = start + deleteCount; i < len; i++)
-                {
-                    result.Push(jsArray.GetElement(i));
-                }
+                for (var i = start + deleteCount; i < len; i++) result.Push(jsArray.GetElement(i));
             }
-            
+
             AddArrayMethods(result);
             return result;
         }));
@@ -1314,21 +1192,18 @@ internal static class StandardLibrary
             if (thisValue is not JsArray jsArray) return null;
             if (args.Count < 2) return null;
             if (args[0] is not double d) return null;
-            
+
             var index = (int)d;
             var value = args[1];
-            
+
             // Handle negative indices
             if (index < 0) index = jsArray.Items.Count + index;
-            
+
             // Index out of bounds throws RangeError in JavaScript
             if (index < 0 || index >= jsArray.Items.Count) return null;
-            
+
             var result = new JsArray();
-            for (int i = 0; i < jsArray.Items.Count; i++)
-            {
-                result.Push(i == index ? value : jsArray.GetElement(i));
-            }
+            for (var i = 0; i < jsArray.Items.Count; i++) result.Push(i == index ? value : jsArray.GetElement(i));
             AddArrayMethods(result);
             return result;
         }));
@@ -1337,14 +1212,15 @@ internal static class StandardLibrary
         array.SetProperty("entries", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not JsArray jsArray) return null;
-            
+
             var result = new JsArray();
-            for (int i = 0; i < jsArray.Items.Count; i++)
+            for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var entry = new JsArray([i, jsArray.GetElement(i)]);
                 AddArrayMethods(entry);
                 result.Push(entry);
             }
+
             AddArrayMethods(result);
             return result;
         }));
@@ -1353,12 +1229,9 @@ internal static class StandardLibrary
         array.SetProperty("keys", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not JsArray jsArray) return null;
-            
+
             var result = new JsArray();
-            for (int i = 0; i < jsArray.Items.Count; i++)
-            {
-                result.Push((double)i);
-            }
+            for (var i = 0; i < jsArray.Items.Count; i++) result.Push((double)i);
             AddArrayMethods(result);
             return result;
         }));
@@ -1367,12 +1240,9 @@ internal static class StandardLibrary
         array.SetProperty("values", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not JsArray jsArray) return null;
-            
+
             var result = new JsArray();
-            for (int i = 0; i < jsArray.Items.Count; i++)
-            {
-                result.Push(jsArray.GetElement(i));
-            }
+            for (var i = 0; i < jsArray.Items.Count; i++) result.Push(jsArray.GetElement(i));
             AddArrayMethods(result);
             return result;
         }));
@@ -1381,16 +1251,10 @@ internal static class StandardLibrary
     private static void FlattenArray(JsArray source, JsArray target, int depth)
     {
         foreach (var item in source.Items)
-        {
             if (depth > 0 && item is JsArray nestedArray)
-            {
                 FlattenArray(nestedArray, target, depth - 1);
-            }
             else
-            {
                 target.Push(item);
-            }
-        }
     }
 
     private static bool IsTruthy(object? value)
@@ -1501,10 +1365,10 @@ internal static class StandardLibrary
             {
                 var value = args.Count > 0 ? args[0] : null;
                 var promise = new JsPromise(engine);
-                
+
                 // Add instance methods
                 AddPromiseInstanceMethods(promise.JsObject, promise, engine);
-                
+
                 promise.Resolve(value);
                 return promise.JsObject;
             }));
@@ -1514,10 +1378,10 @@ internal static class StandardLibrary
             {
                 var reason = args.Count > 0 ? args[0] : null;
                 var promise = new JsPromise(engine);
-                
+
                 // Add instance methods
                 AddPromiseInstanceMethods(promise.JsObject, promise, engine);
-                
+
                 promise.Reject(reason);
                 return promise.JsObject;
             }));
@@ -1542,30 +1406,29 @@ internal static class StandardLibrary
                     return resultPromise.JsObject;
                 }
 
-                for (int i = 0; i < array.Items.Count; i++)
+                for (var i = 0; i < array.Items.Count; i++)
                 {
                     var index = i;
                     var item = array.Items[i];
 
                     // Check if item is a promise (JsObject with "then" method)
-                    if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable thenCallable)
+                    if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
+                        thenMethod is IJsCallable thenCallable)
                     {
                         thenCallable.Invoke([
                             new HostFunction(resolveArgs =>
                             {
                                 results[index] = resolveArgs.Count > 0 ? resolveArgs[0] : null;
                                 remaining--;
-                                
+
                                 if (remaining == 0)
                                 {
                                     var resultArray = new JsArray();
-                                    foreach (var result in results)
-                                    {
-                                        resultArray.Push(result);
-                                    }
+                                    foreach (var result in results) resultArray.Push(result);
                                     AddArrayMethods(resultArray);
                                     resultPromise.Resolve(resultArray);
                                 }
+
                                 return null;
                             }),
                             new HostFunction(rejectArgs =>
@@ -1579,14 +1442,11 @@ internal static class StandardLibrary
                     {
                         results[index] = item;
                         remaining--;
-                        
+
                         if (remaining == 0)
                         {
                             var resultArray = new JsArray();
-                            foreach (var result in results)
-                            {
-                                resultArray.Push(result);
-                            }
+                            foreach (var result in results) resultArray.Push(result);
                             AddArrayMethods(resultArray);
                             resultPromise.Resolve(resultArray);
                         }
@@ -1608,9 +1468,9 @@ internal static class StandardLibrary
                 var settled = false;
 
                 foreach (var item in array.Items)
-                {
                     // Check if item is a promise (JsObject with "then" method)
-                    if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable thenCallable)
+                    if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
+                        thenMethod is IJsCallable thenCallable)
                     {
                         thenCallable.Invoke([
                             new HostFunction(resolveArgs =>
@@ -1620,6 +1480,7 @@ internal static class StandardLibrary
                                     settled = true;
                                     resultPromise.Resolve(resolveArgs.Count > 0 ? resolveArgs[0] : null);
                                 }
+
                                 return null;
                             }),
                             new HostFunction(rejectArgs =>
@@ -1629,6 +1490,7 @@ internal static class StandardLibrary
                                     settled = true;
                                     resultPromise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
                                 }
+
                                 return null;
                             })
                         ], itemObj);
@@ -1638,7 +1500,6 @@ internal static class StandardLibrary
                         settled = true;
                         resultPromise.Resolve(item);
                     }
-                }
 
                 return resultPromise.JsObject;
             }));
@@ -1736,8 +1597,7 @@ internal static class StandardLibrary
         {
             if (args.Count == 0) return -1d;
             var searchStr = args[0]?.ToString() ?? "";
-            var position = args.Count > 1 && args[1] is double d ? 
-                Math.Min((int)d, str.Length - 1) : str.Length - 1;
+            var position = args.Count > 1 && args[1] is double d ? Math.Min((int)d, str.Length - 1) : str.Length - 1;
             var result = position >= 0 ? str.LastIndexOf(searchStr, position, StringComparison.Ordinal) : -1;
             return (double)result;
         }));
@@ -1747,15 +1607,11 @@ internal static class StandardLibrary
         {
             if (args.Count == 0) return str;
             var start = args[0] is double d1 ? Math.Max(0, Math.Min((int)d1, str.Length)) : 0;
-            var end = args.Count > 1 && args[1] is double d2 ? 
-                Math.Max(0, Math.Min((int)d2, str.Length)) : str.Length;
-            
+            var end = args.Count > 1 && args[1] is double d2 ? Math.Max(0, Math.Min((int)d2, str.Length)) : str.Length;
+
             // JavaScript substring swaps if start > end
-            if (start > end)
-            {
-                (start, end) = (end, start);
-            }
-            
+            if (start > end) (start, end) = (end, start);
+
             return str.Substring(start, end - start);
         }));
 
@@ -1765,14 +1621,14 @@ internal static class StandardLibrary
             if (args.Count == 0) return str;
             var start = args[0] is double d1 ? (int)d1 : 0;
             var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : str.Length;
-            
+
             // Handle negative indices
             if (start < 0) start = Math.Max(0, str.Length + start);
             else start = Math.Min(start, str.Length);
-            
+
             if (end < 0) end = Math.Max(0, str.Length + end);
             else end = Math.Min(end, str.Length);
-            
+
             if (start >= end) return "";
             return str.Substring(start, end - start);
         }));
@@ -1798,22 +1654,19 @@ internal static class StandardLibrary
         stringObj.SetProperty("split", new HostFunction(args =>
         {
             if (args.Count == 0) return CreateArrayFromStrings([str]);
-            
+
             var separator = args[0]?.ToString();
             var limit = args.Count > 1 && args[1] is double d ? (int)d : int.MaxValue;
-            
+
             if (separator == null || separator == "")
             {
                 // Split into individual characters
                 var chars = str.Select(c => c.ToString()).Take(limit).ToArray();
                 return CreateArrayFromStrings(chars);
             }
-            
+
             var parts = str.Split([separator], StringSplitOptions.None);
-            if (limit < parts.Length)
-            {
-                parts = parts.Take(limit).ToArray();
-            }
+            if (limit < parts.Length) parts = parts.Take(limit).ToArray();
             return CreateArrayFromStrings(parts);
         }));
 
@@ -1821,9 +1674,10 @@ internal static class StandardLibrary
         stringObj.SetProperty("replace", new HostFunction(args =>
         {
             if (args.Count < 2) return str;
-            
+
             // Check if first argument is a RegExp (JsObject with __regex__ property)
-            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) && regexValue is JsRegExp regex)
+            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) &&
+                regexValue is JsRegExp regex)
             {
                 var replaceValue = args[1]?.ToString() ?? "";
                 if (regex.Global)
@@ -1834,19 +1688,17 @@ internal static class StandardLibrary
                 {
                     var match = System.Text.RegularExpressions.Regex.Match(str, regex.Pattern);
                     if (match.Success)
-                    {
                         return str.Substring(0, match.Index) + replaceValue + str.Substring(match.Index + match.Length);
-                    }
                     return str;
                 }
             }
-            
+
             // String replacement (only first occurrence)
             var searchValue = args[0]?.ToString() ?? "";
             var replaceStr = args[1]?.ToString() ?? "";
             var index = str.IndexOf(searchValue, StringComparison.Ordinal);
             if (index == -1) return str;
-            
+
             return str.Substring(0, index) + replaceStr + str.Substring(index + searchValue.Length);
         }));
 
@@ -1854,19 +1706,16 @@ internal static class StandardLibrary
         stringObj.SetProperty("match", new HostFunction(args =>
         {
             if (args.Count == 0) return null;
-            
-            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) && regexValue is JsRegExp regex)
+
+            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) &&
+                regexValue is JsRegExp regex)
             {
                 if (regex.Global)
-                {
                     return regex.MatchAll(str);
-                }
                 else
-                {
                     return regex.Exec(str);
-                }
             }
-            
+
             return null;
         }));
 
@@ -1874,17 +1723,16 @@ internal static class StandardLibrary
         stringObj.SetProperty("search", new HostFunction(args =>
         {
             if (args.Count == 0) return -1d;
-            
-            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) && regexValue is JsRegExp regex)
+
+            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) &&
+                regexValue is JsRegExp regex)
             {
                 var result = regex.Exec(str);
-                if (result is JsArray arr && arr.TryGetProperty("index", out var indexObj) && indexObj is double d)
-                {
-                    return d;
-                }
+                if (result is JsArray arr && arr.TryGetProperty("index", out var indexObj) &&
+                    indexObj is double d) return d;
                 return -1d;
             }
-            
+
             return -1d;
         }));
 
@@ -1935,9 +1783,9 @@ internal static class StandardLibrary
             if (args.Count == 0) return str;
             var targetLength = args[0] is double d ? (int)d : 0;
             if (targetLength <= str.Length) return str;
-            var padString = args.Count > 1 ? (args[1]?.ToString() ?? " ") : " ";
+            var padString = args.Count > 1 ? args[1]?.ToString() ?? " " : " ";
             if (padString == "") return str;
-            
+
             var padLength = targetLength - str.Length;
             var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
             var padding = string.Concat(Enumerable.Repeat(padString, padCount));
@@ -1950,9 +1798,9 @@ internal static class StandardLibrary
             if (args.Count == 0) return str;
             var targetLength = args[0] is double d ? (int)d : 0;
             if (targetLength <= str.Length) return str;
-            var padString = args.Count > 1 ? (args[1]?.ToString() ?? " ") : " ";
+            var padString = args.Count > 1 ? args[1]?.ToString() ?? " " : " ";
             if (padString == "") return str;
-            
+
             var padLength = targetLength - str.Length;
             var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
             var padding = string.Concat(Enumerable.Repeat(padString, padCount));
@@ -1994,7 +1842,7 @@ internal static class StandardLibrary
             if (args.Count == 0 || args[0] is not double d) return null;
             var index = (int)d;
             if (index < 0 || index >= str.Length) return null;
-            
+
             // Get the code point at the given position
             // Handle surrogate pairs for characters outside the BMP (Basic Multilingual Plane)
             var c = str[index];
@@ -2010,6 +1858,7 @@ internal static class StandardLibrary
                     return (double)codePoint;
                 }
             }
+
             return (double)c;
         }));
 
@@ -2026,7 +1875,7 @@ internal static class StandardLibrary
         stringObj.SetProperty("normalize", new HostFunction(args =>
         {
             var form = args.Count > 0 && args[0] != null ? args[0]!.ToString() : "NFC";
-            
+
             try
             {
                 return form switch
@@ -2035,7 +1884,8 @@ internal static class StandardLibrary
                     "NFD" => str.Normalize(System.Text.NormalizationForm.FormD),
                     "NFKC" => str.Normalize(System.Text.NormalizationForm.FormKC),
                     "NFKD" => str.Normalize(System.Text.NormalizationForm.FormKD),
-                    _ => throw new Exception("RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.")
+                    _ => throw new Exception(
+                        "RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.")
                 };
             }
             catch
@@ -2048,12 +1898,10 @@ internal static class StandardLibrary
         stringObj.SetProperty("matchAll", new HostFunction(args =>
         {
             if (args.Count == 0) return null;
-            
-            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) && regexValue is JsRegExp regex)
-            {
-                return regex.MatchAll(str);
-            }
-            
+
+            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) &&
+                regexValue is JsRegExp regex) return regex.MatchAll(str);
+
             // If not a RegExp, convert to one
             var pattern = args[0]?.ToString() ?? "";
             var tempRegex = new JsRegExp(pattern, "g");
@@ -2063,7 +1911,7 @@ internal static class StandardLibrary
         // anchor(name) - deprecated HTML wrapper method
         stringObj.SetProperty("anchor", new HostFunction(args =>
         {
-            var name = args.Count > 0 ? (args[0]?.ToString() ?? "") : "";
+            var name = args.Count > 0 ? args[0]?.ToString() ?? "" : "";
             // Escape quotes in name
             name = name.Replace("\"", "&quot;");
             return $"<a name=\"{name}\">{str}</a>";
@@ -2072,23 +1920,23 @@ internal static class StandardLibrary
         // link(url) - deprecated HTML wrapper method
         stringObj.SetProperty("link", new HostFunction(args =>
         {
-            var url = args.Count > 0 ? (args[0]?.ToString() ?? "") : "";
+            var url = args.Count > 0 ? args[0]?.ToString() ?? "" : "";
             // Escape quotes in url
             url = url.Replace("\"", "&quot;");
             return $"<a href=\"{url}\">{str}</a>";
         }));
-        
+
         // Set up Symbol.iterator for string
         var iteratorSymbol = JsSymbol.For("Symbol.iterator");
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-        
+
         // Create iterator function that returns an iterator object
         var iteratorFunction = new HostFunction((thisValue, args) =>
         {
             // Use array to hold index so it can be mutated in closure
             var indexHolder = new int[] { 0 };
             var iterator = new JsObject();
-            
+
             // Add next() method to iterator
             iterator.SetProperty("next", new HostFunction((nextThisValue, nextArgs) =>
             {
@@ -2104,22 +1952,20 @@ internal static class StandardLibrary
                     result.SetProperty("value", JsSymbols.Undefined);
                     result.SetProperty("done", true);
                 }
+
                 return result;
             }));
-            
+
             return iterator;
         });
-        
+
         stringObj.SetProperty(iteratorKey, iteratorFunction);
     }
 
     private static JsArray CreateArrayFromStrings(string[] strings)
     {
         var array = new JsArray();
-        foreach (var s in strings)
-        {
-            array.Push(s);
-        }
+        foreach (var s in strings) array.Push(s);
         AddArrayMethods(array);
         return array;
     }
@@ -2135,12 +1981,9 @@ internal static class StandardLibrary
         objectConstructor["keys"] = new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
-            
+
             var keys = new JsArray();
-            foreach (var key in obj.GetEnumerablePropertyNames())
-            {
-                keys.Push(key);
-            }
+            foreach (var key in obj.GetEnumerablePropertyNames()) keys.Push(key);
             AddArrayMethods(keys);
             return keys;
         });
@@ -2149,15 +1992,12 @@ internal static class StandardLibrary
         objectConstructor["values"] = new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
-            
+
             var values = new JsArray();
             foreach (var key in obj.GetEnumerablePropertyNames())
-            {
                 if (obj.TryGetValue(key, out var value))
-                {
                     values.Push(value);
-                }
-            }
+
             AddArrayMethods(values);
             return values;
         });
@@ -2166,17 +2006,16 @@ internal static class StandardLibrary
         objectConstructor["entries"] = new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
-            
+
             var entries = new JsArray();
             foreach (var key in obj.GetEnumerablePropertyNames())
-            {
                 if (obj.TryGetValue(key, out var value))
                 {
                     var entry = new JsArray([key, value]);
                     AddArrayMethods(entry);
                     entries.Push(entry);
                 }
-            }
+
             AddArrayMethods(entries);
             return entries;
         });
@@ -2185,21 +2024,13 @@ internal static class StandardLibrary
         objectConstructor["assign"] = new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject target) return null;
-            
-            for (int i = 1; i < args.Count; i++)
-            {
+
+            for (var i = 1; i < args.Count; i++)
                 if (args[i] is JsObject source)
-                {
                     foreach (var key in source.GetOwnPropertyNames())
-                    {
                         if (source.TryGetValue(key, out var value))
-                        {
                             target[key] = value;
-                        }
-                    }
-                }
-            }
-            
+
             return target;
         });
 
@@ -2207,18 +2038,16 @@ internal static class StandardLibrary
         objectConstructor["fromEntries"] = new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsArray entries) return new JsObject();
-            
+
             var result = new JsObject();
             foreach (var entry in entries.Items)
-            {
                 if (entry is JsArray entryArray && entryArray.Items.Count >= 2)
                 {
                     var key = entryArray.GetElement(0)?.ToString() ?? "";
                     var value = entryArray.GetElement(1);
                     result[key] = value;
                 }
-            }
-            
+
             return result;
         });
 
@@ -2264,74 +2093,48 @@ internal static class StandardLibrary
         objectConstructor["create"] = new HostFunction(args =>
         {
             var obj = new JsObject();
-            if (args.Count > 0 && args[0] != null)
-            {
-                obj.SetPrototype(args[0]);
-            }
-            
+            if (args.Count > 0 && args[0] != null) obj.SetPrototype(args[0]);
+
             // Handle second parameter: property descriptors
             if (args.Count > 1 && args[1] is JsObject propsObj)
-            {
                 foreach (var propName in propsObj.GetOwnPropertyNames())
-                {
                     if (propsObj.TryGetValue(propName, out var descriptorObj) && descriptorObj is JsObject descObj)
                     {
                         var descriptor = new PropertyDescriptor();
-                        
+
                         // Check if this is an accessor descriptor
                         var hasGet = descObj.TryGetValue("get", out var getVal);
                         var hasSet = descObj.TryGetValue("set", out var setVal);
-                        
+
                         if (hasGet || hasSet)
                         {
                             // Accessor descriptor
-                            if (hasGet && getVal is IJsCallable getter)
-                            {
-                                descriptor.Get = getter;
-                            }
-                            if (hasSet && setVal is IJsCallable setter)
-                            {
-                                descriptor.Set = setter;
-                            }
+                            if (hasGet && getVal is IJsCallable getter) descriptor.Get = getter;
+                            if (hasSet && setVal is IJsCallable setter) descriptor.Set = setter;
                         }
                         else
                         {
                             // Data descriptor
-                            if (descObj.TryGetValue("value", out var value))
-                            {
-                                descriptor.Value = value;
-                            }
-                            
+                            if (descObj.TryGetValue("value", out var value)) descriptor.Value = value;
+
                             if (descObj.TryGetValue("writable", out var writableVal))
-                            {
                                 descriptor.Writable = writableVal is bool b ? b : ToBoolean(writableVal);
-                            }
                         }
-                        
+
                         // Common properties
                         if (descObj.TryGetValue("enumerable", out var enumerableVal))
-                        {
                             descriptor.Enumerable = enumerableVal is bool b ? b : ToBoolean(enumerableVal);
-                        }
                         else
-                        {
                             descriptor.Enumerable = false; // Default is false for Object.create
-                        }
-                        
+
                         if (descObj.TryGetValue("configurable", out var configurableVal))
-                        {
                             descriptor.Configurable = configurableVal is bool b ? b : ToBoolean(configurableVal);
-                        }
                         else
-                        {
                             descriptor.Configurable = false; // Default is false for Object.create
-                        }
-                        
+
                         obj.DefineProperty(propName, descriptor);
                     }
-                }
-            }
-            
+
             return obj;
         });
 
@@ -2339,12 +2142,9 @@ internal static class StandardLibrary
         objectConstructor["getOwnPropertyNames"] = new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
-            
+
             var names = new JsArray();
-            foreach (var name in obj.GetOwnPropertyNames())
-            {
-                names.Push(name);
-            }
+            foreach (var name in obj.GetOwnPropertyNames()) names.Push(name);
             AddArrayMethods(names);
             return names;
         });
@@ -2354,31 +2154,25 @@ internal static class StandardLibrary
         {
             if (args.Count < 2 || args[0] is not JsObject obj) return JsSymbols.Undefined;
             var propName = args[1]?.ToString() ?? "";
-            
+
             var desc = obj.GetOwnPropertyDescriptor(propName);
             if (desc == null) return JsSymbols.Undefined;
-            
+
             var resultDesc = new JsObject();
             if (desc.IsAccessorDescriptor)
             {
-                if (desc.Get != null)
-                {
-                    resultDesc["get"] = desc.Get;
-                }
-                if (desc.Set != null)
-                {
-                    resultDesc["set"] = desc.Set;
-                }
+                if (desc.Get != null) resultDesc["get"] = desc.Get;
+                if (desc.Set != null) resultDesc["set"] = desc.Set;
             }
             else
             {
                 resultDesc["value"] = desc.Value;
                 resultDesc["writable"] = desc.Writable;
             }
-            
+
             resultDesc["enumerable"] = desc.Enumerable;
             resultDesc["configurable"] = desc.Configurable;
-            
+
             return resultDesc;
         });
 
@@ -2387,55 +2181,40 @@ internal static class StandardLibrary
         {
             if (args.Count < 3 || args[0] is not JsObject obj) return args.Count > 0 ? args[0] : null;
             var propName = args[1]?.ToString() ?? "";
-            
+
             if (args[2] is JsObject descriptorObj)
             {
                 var descriptor = new PropertyDescriptor();
-                
+
                 // Check if this is an accessor descriptor
                 var hasGet = descriptorObj.TryGetValue("get", out var getVal);
                 var hasSet = descriptorObj.TryGetValue("set", out var setVal);
-                
+
                 if (hasGet || hasSet)
                 {
                     // Accessor descriptor
-                    if (hasGet && getVal is IJsCallable getter)
-                    {
-                        descriptor.Get = getter;
-                    }
-                    if (hasSet && setVal is IJsCallable setter)
-                    {
-                        descriptor.Set = setter;
-                    }
+                    if (hasGet && getVal is IJsCallable getter) descriptor.Get = getter;
+                    if (hasSet && setVal is IJsCallable setter) descriptor.Set = setter;
                 }
                 else
                 {
                     // Data descriptor
-                    if (descriptorObj.TryGetValue("value", out var value))
-                    {
-                        descriptor.Value = value;
-                    }
-                    
+                    if (descriptorObj.TryGetValue("value", out var value)) descriptor.Value = value;
+
                     if (descriptorObj.TryGetValue("writable", out var writableVal))
-                    {
                         descriptor.Writable = writableVal is bool b ? b : ToBoolean(writableVal);
-                    }
                 }
-                
+
                 // Common properties
                 if (descriptorObj.TryGetValue("enumerable", out var enumerableVal))
-                {
                     descriptor.Enumerable = enumerableVal is bool b ? b : ToBoolean(enumerableVal);
-                }
-                
+
                 if (descriptorObj.TryGetValue("configurable", out var configurableVal))
-                {
                     descriptor.Configurable = configurableVal is bool b ? b : ToBoolean(configurableVal);
-                }
-                
+
                 obj.DefineProperty(propName, descriptor);
             }
-            
+
             return obj;
         });
 
@@ -2455,10 +2234,7 @@ internal static class StandardLibrary
             {
                 var arr = new JsArray();
                 var len = (int)length;
-                for (int i = 0; i < len; i++)
-                {
-                    arr.Push(null);
-                }
+                for (var i = 0; i < len; i++) arr.Push(null);
                 AddArrayMethods(arr);
                 return arr;
             }
@@ -2481,28 +2257,18 @@ internal static class StandardLibrary
         arrayConstructor.SetProperty("from", new HostFunction(args =>
         {
             if (args.Count == 0) return new JsArray();
-            
+
             var items = new List<object?>();
-            
+
             if (args[0] is JsArray jsArray)
-            {
-                for (int i = 0; i < jsArray.Items.Count; i++)
-                {
+                for (var i = 0; i < jsArray.Items.Count; i++)
                     items.Add(jsArray.GetElement(i));
-                }
-            }
             else if (args[0] is string str)
-            {
-                foreach (char c in str)
-                {
+                foreach (var c in str)
                     items.Add(c.ToString());
-                }
-            }
             else
-            {
                 return new JsArray();
-            }
-            
+
             var result = new JsArray(items);
             AddArrayMethods(result);
             return result;
@@ -2544,10 +2310,7 @@ internal static class StandardLibrary
         // Symbol.keyFor(symbol) - gets the key for a global symbol
         symbolConstructor.SetProperty("keyFor", new HostFunction(args =>
         {
-            if (args.Count == 0 || args[0] is not JsSymbol sym)
-            {
-                return JsSymbols.Undefined;
-            }
+            if (args.Count == 0 || args[0] is not JsSymbol sym) return JsSymbols.Undefined;
             var key = JsSymbol.KeyFor(sym);
             return key ?? (object)JsSymbols.Undefined;
         }));
@@ -2567,19 +2330,13 @@ internal static class StandardLibrary
         var mapConstructor = new HostFunction(args =>
         {
             var map = new JsMap();
-            
+
             // If an iterable is provided, populate the map
             if (args.Count > 0 && args[0] is JsArray entries)
-            {
                 foreach (var entry in entries.Items)
-                {
                     if (entry is JsArray pair && pair.Items.Count >= 2)
-                    {
                         map.Set(pair.GetElement(0), pair.GetElement(1));
-                    }
-                }
-            }
-            
+
             AddMapMethods(map);
             return map;
         });
@@ -2593,7 +2350,7 @@ internal static class StandardLibrary
     private static void AddMapMethods(JsMap map)
     {
         // Note: size needs special handling as a getter - for now we'll just access it dynamically in the methods
-        
+
         // set(key, value)
         map.SetProperty("set", new HostFunction((thisValue, args) =>
         {
@@ -2674,16 +2431,12 @@ internal static class StandardLibrary
         var setConstructor = new HostFunction(args =>
         {
             var set = new JsSet();
-            
+
             // If an iterable is provided, populate the set
             if (args.Count > 0 && args[0] is JsArray values)
-            {
                 foreach (var value in values.Items)
-                {
                     set.Add(value);
-                }
-            }
-            
+
             AddSetMethods(set);
             return set;
         });
@@ -2697,7 +2450,7 @@ internal static class StandardLibrary
     private static void AddSetMethods(JsSet set)
     {
         // Note: size needs special handling as a getter - handled in Evaluator.TryGetPropertyValue
-        
+
         // add(value)
         set.SetProperty("add", new HostFunction((thisValue, args) =>
         {
@@ -2769,15 +2522,12 @@ internal static class StandardLibrary
         var weakMapConstructor = new HostFunction(args =>
         {
             var weakMap = new JsWeakMap();
-            
+
             // Note: WeakMap constructor can accept an iterable, but we'll start with basic support
             // If an iterable is provided, populate the weak map
             if (args.Count > 0 && args[0] is JsArray entries)
-            {
                 foreach (var entry in entries.Items)
-                {
                     if (entry is JsArray pair && pair.Items.Count >= 2)
-                    {
                         try
                         {
                             weakMap.Set(pair.GetElement(0), pair.GetElement(1));
@@ -2786,10 +2536,7 @@ internal static class StandardLibrary
                         {
                             throw new Exception(ex.Message);
                         }
-                    }
-                }
-            }
-            
+
             AddWeakMapMethods(weakMap);
             return weakMap;
         });
@@ -2851,12 +2598,10 @@ internal static class StandardLibrary
         var weakSetConstructor = new HostFunction(args =>
         {
             var weakSet = new JsWeakSet();
-            
+
             // If an iterable is provided, populate the weak set
             if (args.Count > 0 && args[0] is JsArray values)
-            {
                 foreach (var value in values.Items)
-                {
                     try
                     {
                         weakSet.Add(value);
@@ -2865,9 +2610,7 @@ internal static class StandardLibrary
                     {
                         throw new Exception(ex.Message);
                     }
-                }
-            }
-            
+
             AddWeakSetMethods(weakSet);
             return weakSet;
         });
@@ -2921,20 +2664,22 @@ internal static class StandardLibrary
         var numberConstructor = new HostFunction(args =>
         {
             if (args.Count == 0) return 0d;
-            
+
             var value = args[0];
             // Convert to number
             if (value is double d) return d;
             if (value is string s)
             {
                 if (string.IsNullOrWhiteSpace(s)) return 0d;
-                if (double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsed)) return parsed;
+                if (double.TryParse(s, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var parsed)) return parsed;
                 return double.NaN;
             }
+
             if (value is bool b) return b ? 1d : 0d;
             if (value == null) return 0d;
             if (ReferenceEquals(value, JsSymbols.Undefined)) return double.NaN;
-            
+
             return double.NaN;
         });
 
@@ -2980,19 +2725,18 @@ internal static class StandardLibrary
             var str = args[0]?.ToString() ?? "";
             str = str.Trim();
             if (str == "") return double.NaN;
-            
+
             // Try to parse, taking as much as possible from the start
             var match = System.Text.RegularExpressions.Regex.Match(str, @"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?");
             if (match.Success)
-            {
-                if (double.TryParse(match.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var result))
+                if (double.TryParse(match.Value, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var result))
                     return result;
-            }
-            
+
             if (str.StartsWith("Infinity")) return double.PositiveInfinity;
             if (str.StartsWith("+Infinity")) return double.PositiveInfinity;
             if (str.StartsWith("-Infinity")) return double.NegativeInfinity;
-            
+
             return double.NaN;
         }));
 
@@ -3003,10 +2747,10 @@ internal static class StandardLibrary
             var str = args[0]?.ToString() ?? "";
             str = str.Trim();
             if (str == "") return double.NaN;
-            
+
             var radix = args.Count > 1 && args[1] is double r ? (int)r : 10;
             if (radix < 2 || radix > 36) return double.NaN;
-            
+
             // Handle sign
             var sign = 1;
             if (str.StartsWith("-"))
@@ -3018,7 +2762,7 @@ internal static class StandardLibrary
             {
                 str = str.Substring(1).TrimStart();
             }
-            
+
             // Parse until we hit invalid character
             double result = 0;
             var hasDigits = false;
@@ -3038,37 +2782,37 @@ internal static class StandardLibrary
                 {
                     break; // Stop at first invalid character
                 }
-                
+
                 if (digit >= radix) break;
-                
+
                 result = result * radix + digit;
                 hasDigits = true;
             }
-            
+
             return hasDigits ? result * sign : double.NaN;
         }));
 
         // Number.EPSILON
         numberConstructor.SetProperty("EPSILON", double.Epsilon);
-        
+
         // Number.MAX_SAFE_INTEGER
         numberConstructor.SetProperty("MAX_SAFE_INTEGER", 9007199254740991d);
-        
+
         // Number.MIN_SAFE_INTEGER
         numberConstructor.SetProperty("MIN_SAFE_INTEGER", -9007199254740991d);
-        
+
         // Number.MAX_VALUE
         numberConstructor.SetProperty("MAX_VALUE", double.MaxValue);
-        
+
         // Number.MIN_VALUE
         numberConstructor.SetProperty("MIN_VALUE", double.MinValue);
-        
+
         // Number.POSITIVE_INFINITY
         numberConstructor.SetProperty("POSITIVE_INFINITY", double.PositiveInfinity);
-        
+
         // Number.NEGATIVE_INFINITY
         numberConstructor.SetProperty("NEGATIVE_INFINITY", double.NegativeInfinity);
-        
+
         // Number.NaN
         numberConstructor.SetProperty("NaN", double.NaN);
 
@@ -3084,7 +2828,7 @@ internal static class StandardLibrary
         var stringConstructor = new HostFunction(args =>
         {
             if (args.Count == 0) return "";
-            
+
             var value = args[0];
             // Convert to string
             if (value is string s) return s;
@@ -3092,7 +2836,7 @@ internal static class StandardLibrary
             if (value is bool b) return b ? "true" : "false";
             if (value == null) return "null";
             if (ReferenceEquals(value, JsSymbols.Undefined)) return "undefined";
-            
+
             return value.ToString() ?? "";
         });
 
@@ -3100,19 +2844,16 @@ internal static class StandardLibrary
         stringConstructor.SetProperty("fromCodePoint", new HostFunction(args =>
         {
             if (args.Count == 0) return "";
-            
+
             var result = new System.Text.StringBuilder();
             foreach (var arg in args)
-            {
                 if (arg is double d)
                 {
                     var codePoint = (int)d;
                     // Validate code point range
                     if (codePoint < 0 || codePoint > 0x10FFFF)
-                    {
                         throw new Exception("RangeError: Invalid code point " + codePoint);
-                    }
-                    
+
                     // Handle surrogate pairs for code points > 0xFFFF
                     if (codePoint <= 0xFFFF)
                     {
@@ -3126,7 +2867,7 @@ internal static class StandardLibrary
                         result.Append((char)(0xDC00 + (codePoint & 0x3FF)));
                     }
                 }
-            }
+
             return result.ToString();
         }));
 
@@ -3134,16 +2875,15 @@ internal static class StandardLibrary
         stringConstructor.SetProperty("fromCharCode", new HostFunction(args =>
         {
             if (args.Count == 0) return "";
-            
+
             var result = new System.Text.StringBuilder();
             foreach (var arg in args)
-            {
                 if (arg is double d)
                 {
                     var charCode = (int)d & 0xFFFF; // Limit to 16-bit range
                     result.Append((char)charCode);
                 }
-            }
+
             return result.ToString();
         }));
 
@@ -3152,39 +2892,30 @@ internal static class StandardLibrary
         stringConstructor.SetProperty("raw", new HostFunction(args =>
         {
             if (args.Count == 0) return "";
-            
+
             // First argument should be a template object with 'raw' property
-            if (args[0] is not JsObject template)
-            {
-                return "";
-            }
-            
+            if (args[0] is not JsObject template) return "";
+
             // Get the raw strings array
-            if (!template.TryGetProperty("raw", out var rawValue) || rawValue is not JsArray rawStrings)
-            {
-                return "";
-            }
-            
+            if (!template.TryGetProperty("raw", out var rawValue) || rawValue is not JsArray rawStrings) return "";
+
             var result = new System.Text.StringBuilder();
             var rawCount = rawStrings.Items.Count;
-            
-            for (int i = 0; i < rawCount; i++)
+
+            for (var i = 0; i < rawCount; i++)
             {
                 // Append the raw string part
                 var rawPart = rawStrings.GetElement(i)?.ToString() ?? "";
                 result.Append(rawPart);
-                
+
                 // Append the substitution if there is one
                 if (i < args.Count - 1)
                 {
                     var substitution = args[i + 1];
-                    if (substitution != null)
-                    {
-                        result.Append(substitution.ToString());
-                    }
+                    if (substitution != null) result.Append(substitution.ToString());
                 }
             }
-            
+
             return result.ToString();
         }));
 
@@ -3200,7 +2931,7 @@ internal static class StandardLibrary
         {
             var errorObj = new JsObject();
             var message = args.Count > 0 && args[0] != null ? args[0]!.ToString() : "";
-            
+
             errorObj["name"] = errorType;
             errorObj["message"] = message;
             errorObj["toString"] = new HostFunction((errThis, toStringArgs) =>
@@ -3211,27 +2942,31 @@ internal static class StandardLibrary
                     var msg = err.TryGetValue("message", out var m) ? m?.ToString() : "";
                     return string.IsNullOrEmpty(msg) ? name : $"{name}: {msg}";
                 }
+
                 return errorType;
             });
-            
+
             return errorObj;
         });
-        
+
         return errorConstructor;
     }
 
     /// <summary>
     /// Converts a value to a boolean following JavaScript truthiness rules.
     /// </summary>
-    private static bool ToBoolean(object? value) => value switch
+    private static bool ToBoolean(object? value)
     {
-        null => false,
-        Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => false,
-        bool b => b,
-        double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
-        string s => s.Length > 0,
-        _ => true
-    };
+        return value switch
+        {
+            null => false,
+            Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => false,
+            bool b => b,
+            double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
+            string s => s.Length > 0,
+            _ => true
+        };
+    }
 
     /// <summary>
     /// Creates the ArrayBuffer constructor.
@@ -3240,27 +2975,24 @@ internal static class StandardLibrary
     {
         var constructor = new HostFunction((thisValue, args) =>
         {
-            if (args.Count == 0)
-            {
-                return new JsArrayBuffer(0);
-            }
-            
+            if (args.Count == 0) return new JsArrayBuffer(0);
+
             var length = args[0] switch
             {
                 double d => (int)d,
                 int i => i,
                 _ => 0
             };
-            
+
             return new JsArrayBuffer(length);
         });
-        
+
         constructor.SetProperty("isView", new HostFunction(args =>
         {
             if (args.Count == 0) return false;
             return args[0] is TypedArrayBase || args[0] is JsDataView;
         }));
-        
+
         return constructor;
     }
 
@@ -3272,13 +3004,11 @@ internal static class StandardLibrary
         return new HostFunction((thisValue, args) =>
         {
             if (args.Count == 0 || args[0] is not JsArrayBuffer buffer)
-            {
                 throw new InvalidOperationException("DataView requires an ArrayBuffer");
-            }
-            
+
             var byteOffset = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
             int? byteLength = args.Count > 2 && args[2] is double d2 ? (int)d2 : null;
-            
+
             return new JsDataView(buffer, byteOffset, byteLength);
         });
     }
@@ -3294,30 +3024,21 @@ internal static class StandardLibrary
     {
         var constructor = new HostFunction((thisValue, args) =>
         {
-            if (args.Count == 0)
-            {
-                return fromLength(0);
-            }
-            
+            if (args.Count == 0) return fromLength(0);
+
             var firstArg = args[0];
-            
+
             // TypedArray(length)
-            if (firstArg is double d)
-            {
-                return fromLength((int)d);
-            }
-            
+            if (firstArg is double d) return fromLength((int)d);
+
             // TypedArray(array)
-            if (firstArg is JsArray array)
-            {
-                return fromArray(array);
-            }
-            
+            if (firstArg is JsArray array) return fromArray(array);
+
             // TypedArray(buffer, byteOffset, length)
             if (firstArg is JsArrayBuffer buffer)
             {
                 var byteOffset = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
-                
+
                 int length;
                 if (args.Count > 2 && args[2] is double d2)
                 {
@@ -3329,80 +3050,98 @@ internal static class StandardLibrary
                     var remainingBytes = buffer.ByteLength - byteOffset;
                     length = remainingBytes / bytesPerElement;
                 }
-                
+
                 return fromBuffer(buffer, byteOffset, length);
             }
-            
+
             return fromLength(0);
         });
-        
+
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
-        
+
         return constructor;
     }
 
-    public static HostFunction CreateInt8ArrayConstructor() =>
-        CreateTypedArrayConstructor(
+    public static HostFunction CreateInt8ArrayConstructor()
+    {
+        return CreateTypedArrayConstructor(
             JsInt8Array.FromLength,
             JsInt8Array.FromArray,
             (buffer, offset, length) => new JsInt8Array(buffer, offset, length),
             JsInt8Array.BYTES_PER_ELEMENT);
+    }
 
-    public static HostFunction CreateUint8ArrayConstructor() =>
-        CreateTypedArrayConstructor(
+    public static HostFunction CreateUint8ArrayConstructor()
+    {
+        return CreateTypedArrayConstructor(
             JsUint8Array.FromLength,
             JsUint8Array.FromArray,
             (buffer, offset, length) => new JsUint8Array(buffer, offset, length),
             JsUint8Array.BYTES_PER_ELEMENT);
+    }
 
-    public static HostFunction CreateUint8ClampedArrayConstructor() =>
-        CreateTypedArrayConstructor(
+    public static HostFunction CreateUint8ClampedArrayConstructor()
+    {
+        return CreateTypedArrayConstructor(
             JsUint8ClampedArray.FromLength,
             JsUint8ClampedArray.FromArray,
             (buffer, offset, length) => new JsUint8ClampedArray(buffer, offset, length),
             JsUint8ClampedArray.BYTES_PER_ELEMENT);
+    }
 
-    public static HostFunction CreateInt16ArrayConstructor() =>
-        CreateTypedArrayConstructor(
+    public static HostFunction CreateInt16ArrayConstructor()
+    {
+        return CreateTypedArrayConstructor(
             JsInt16Array.FromLength,
             JsInt16Array.FromArray,
             (buffer, offset, length) => new JsInt16Array(buffer, offset, length),
             JsInt16Array.BYTES_PER_ELEMENT);
+    }
 
-    public static HostFunction CreateUint16ArrayConstructor() =>
-        CreateTypedArrayConstructor(
+    public static HostFunction CreateUint16ArrayConstructor()
+    {
+        return CreateTypedArrayConstructor(
             JsUint16Array.FromLength,
             JsUint16Array.FromArray,
             (buffer, offset, length) => new JsUint16Array(buffer, offset, length),
             JsUint16Array.BYTES_PER_ELEMENT);
+    }
 
-    public static HostFunction CreateInt32ArrayConstructor() =>
-        CreateTypedArrayConstructor(
+    public static HostFunction CreateInt32ArrayConstructor()
+    {
+        return CreateTypedArrayConstructor(
             JsInt32Array.FromLength,
             JsInt32Array.FromArray,
             (buffer, offset, length) => new JsInt32Array(buffer, offset, length),
             JsInt32Array.BYTES_PER_ELEMENT);
+    }
 
-    public static HostFunction CreateUint32ArrayConstructor() =>
-        CreateTypedArrayConstructor(
+    public static HostFunction CreateUint32ArrayConstructor()
+    {
+        return CreateTypedArrayConstructor(
             JsUint32Array.FromLength,
             JsUint32Array.FromArray,
             (buffer, offset, length) => new JsUint32Array(buffer, offset, length),
             JsUint32Array.BYTES_PER_ELEMENT);
+    }
 
-    public static HostFunction CreateFloat32ArrayConstructor() =>
-        CreateTypedArrayConstructor(
+    public static HostFunction CreateFloat32ArrayConstructor()
+    {
+        return CreateTypedArrayConstructor(
             JsFloat32Array.FromLength,
             JsFloat32Array.FromArray,
             (buffer, offset, length) => new JsFloat32Array(buffer, offset, length),
             JsFloat32Array.BYTES_PER_ELEMENT);
+    }
 
-    public static HostFunction CreateFloat64ArrayConstructor() =>
-        CreateTypedArrayConstructor(
+    public static HostFunction CreateFloat64ArrayConstructor()
+    {
+        return CreateTypedArrayConstructor(
             JsFloat64Array.FromLength,
             JsFloat64Array.FromArray,
             (buffer, offset, length) => new JsFloat64Array(buffer, offset, length),
             JsFloat64Array.BYTES_PER_ELEMENT);
+    }
 
     /// <summary>
     /// Helper method for async iteration: gets an async iterator from an iterable.
@@ -3417,16 +3156,13 @@ internal static class StandardLibrary
                 throw new InvalidOperationException("__getAsyncIterator requires an iterable");
 
             var iterable = args[0];
-            
+
             // Handle generators - they are already iterators
             if (iterable is JsGenerator generator)
             {
                 // Wrap the generator in a JsObject that exposes the Next method
                 var iteratorObj = new JsObject();
-                iteratorObj.SetProperty("next", new HostFunction(_ =>
-                {
-                    return generator.Next();
-                }));
+                iteratorObj.SetProperty("next", new HostFunction(_ => { return generator.Next(); }));
                 iteratorObj.SetProperty("return", new HostFunction(args =>
                 {
                     var value = args.Count > 0 ? args[0] : null;
@@ -3439,7 +3175,7 @@ internal static class StandardLibrary
                 }));
                 return iteratorObj;
             }
-            
+
             // Handle strings specially - they need Symbol.iterator
             if (iterable is string str)
             {
@@ -3465,48 +3201,42 @@ internal static class StandardLibrary
                 }));
                 return iteratorObj;
             }
-            
+
             // For objects, check if it's already an iterator (has a "next" method)
             // This handles generator objects which are returned from generator functions
             if (iterable is JsObject jsObj)
             {
                 // Check if it's already an iterator (has a "next" method)
                 if (jsObj.TryGetProperty("next", out var nextMethod) && nextMethod is IJsCallable)
-                {
                     // It's already an iterator, return it as-is
                     return jsObj;
-                }
-                
+
                 // Try Symbol.asyncIterator
                 var asyncIteratorSymbol = JsSymbol.For("Symbol.asyncIterator");
                 var asyncIteratorKey = $"@@symbol:{asyncIteratorSymbol.GetHashCode()}";
-                if (jsObj.TryGetProperty(asyncIteratorKey, out var asyncIteratorMethod) && asyncIteratorMethod is IJsCallable asyncIteratorCallable)
-                {
+                if (jsObj.TryGetProperty(asyncIteratorKey, out var asyncIteratorMethod) &&
+                    asyncIteratorMethod is IJsCallable asyncIteratorCallable)
                     return asyncIteratorCallable.Invoke([], jsObj);
-                }
-                
+
                 // Fall back to Symbol.iterator
                 var iteratorSymbol = JsSymbol.For("Symbol.iterator");
                 var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-                if (jsObj.TryGetProperty(iteratorKey, out var iteratorMethod) && iteratorMethod is IJsCallable iteratorCallable)
-                {
-                    return iteratorCallable.Invoke([], jsObj);
-                }
-                
-                throw new InvalidOperationException("Object is not iterable (no Symbol.asyncIterator or Symbol.iterator method)");
+                if (jsObj.TryGetProperty(iteratorKey, out var iteratorMethod) &&
+                    iteratorMethod is IJsCallable iteratorCallable) return iteratorCallable.Invoke([], jsObj);
+
+                throw new InvalidOperationException(
+                    "Object is not iterable (no Symbol.asyncIterator or Symbol.iterator method)");
             }
-            
+
             // For arrays, get the iterator
             if (iterable is JsArray jsArray)
             {
                 var iteratorSymbol = JsSymbol.For("Symbol.iterator");
                 var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-                if (jsArray.TryGetProperty(iteratorKey, out var iteratorMethod) && iteratorMethod is IJsCallable iteratorCallable)
-                {
-                    return iteratorCallable.Invoke([], jsArray);
-                }
+                if (jsArray.TryGetProperty(iteratorKey, out var iteratorMethod) &&
+                    iteratorMethod is IJsCallable iteratorCallable) return iteratorCallable.Invoke([], jsArray);
             }
-            
+
             throw new InvalidOperationException($"Value is not iterable: {iterable?.GetType().Name}");
         });
     }
@@ -3542,11 +3272,10 @@ internal static class StandardLibrary
             }
 
             // Check if result is already a promise (has a "then" method)
-            if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable)
-            {
+            if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
+                thenMethod is IJsCallable)
                 // Already a promise, return as-is
                 return result;
-            }
 
             // Not a promise, wrap in Promise.resolve()
             var promise = new JsPromise(engine);
@@ -3555,7 +3284,7 @@ internal static class StandardLibrary
             return promise.JsObject;
         });
     }
-    
+
     /// <summary>
     /// Helper function for await expressions: wraps value in Promise if needed.
     /// Checks if the value is already a promise (has a "then" method) before wrapping.
@@ -3568,11 +3297,10 @@ internal static class StandardLibrary
             var value = args.Count > 0 ? args[0] : null;
 
             // Check if value is already a promise (has a "then" method)
-            if (value is JsObject valueObj && valueObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable)
-            {
+            if (value is JsObject valueObj && valueObj.TryGetProperty("then", out var thenMethod) &&
+                thenMethod is IJsCallable)
                 // Already a promise, return as-is
                 return value;
-            }
 
             // Not a promise, wrap in Promise.resolve()
             var promise = new JsPromise(engine);

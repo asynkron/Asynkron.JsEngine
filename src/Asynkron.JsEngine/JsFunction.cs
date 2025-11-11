@@ -16,7 +16,8 @@ internal sealed class JsFunction : IEnvironmentAwareCallable
     /// </summary>
     public Environment? CallingEnvironment { get; set; }
 
-    public JsFunction(Symbol? name, IReadOnlyList<object> parameters, Symbol? restParameter, Cons body, Environment closure)
+    public JsFunction(Symbol? name, IReadOnlyList<object> parameters, Symbol? restParameter, Cons body,
+        Environment closure)
     {
         _name = name;
         _parameters = parameters;
@@ -36,66 +37,49 @@ internal sealed class JsFunction : IEnvironmentAwareCallable
             // JavaScript allows passing more arguments than parameters
             // Only check for too few arguments
             if (arguments.Count < _parameters.Count)
-            {
-                throw new InvalidOperationException($"Function expected {_parameters.Count} arguments but received {arguments.Count}.");
-            }
+                throw new InvalidOperationException(
+                    $"Function expected {_parameters.Count} arguments but received {arguments.Count}.");
         }
         else
         {
             if (arguments.Count < _parameters.Count)
-            {
-                throw new InvalidOperationException($"Function expected at least {_parameters.Count} arguments but received {arguments.Count}.");
-            }
+                throw new InvalidOperationException(
+                    $"Function expected at least {_parameters.Count} arguments but received {arguments.Count}.");
         }
 
         var context = new EvaluationContext();
         var functionDescription = _name != null ? $"function {_name.Name}" : "anonymous function";
-        var environment = new Environment(_closure, isFunctionScope: true, creatingExpression: _body, description: functionDescription);
-        
+        var environment = new Environment(_closure, true, creatingExpression: _body, description: functionDescription);
+
         // Bind regular parameters (could be symbols or destructuring patterns)
         for (var i = 0; i < _parameters.Count; i++)
         {
             var parameter = _parameters[i];
             var argument = i < arguments.Count ? arguments[i] : null;
-            
+
             if (parameter is Symbol symbol)
-            {
                 // Simple parameter
                 environment.Define(symbol, argument);
-            }
             else if (parameter is Cons pattern)
-            {
                 // Destructuring parameter
                 Evaluator.DestructureParameter(pattern, argument, environment, context);
-            }
             else
-            {
                 throw new InvalidOperationException($"Invalid parameter type: {parameter?.GetType().Name ?? "null"}");
-            }
         }
 
         // Bind rest parameter if present
         if (_restParameter is not null)
         {
             var restArgs = new List<object?>();
-            for (var i = _parameters.Count; i < arguments.Count; i++)
-            {
-                restArgs.Add(arguments[i]);
-            }
+            for (var i = _parameters.Count; i < arguments.Count; i++) restArgs.Add(arguments[i]);
             var restArray = new JsArray();
-            foreach (var arg in restArgs)
-            {
-                restArray.Push(arg);
-            }
+            foreach (var arg in restArgs) restArray.Push(arg);
             environment.Define(_restParameter, restArray);
         }
 
         environment.Define(JsSymbols.This, thisValue);
 
-        if (_name is not null)
-        {
-            environment.Define(_name, this);
-        }
+        if (_name is not null) environment.Define(_name, this);
 
         if (_superConstructor is not null || _superPrototype is not null)
         {
@@ -104,23 +88,23 @@ internal sealed class JsFunction : IEnvironmentAwareCallable
         }
 
         var result = Evaluator.EvaluateBlock(_body, environment, context);
-        
-        if (context.IsReturn)
-        {
-            return context.FlowValue;
-        }
-        
-        if (context.IsThrow)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-        
+
+        if (context.IsReturn) return context.FlowValue;
+
+        if (context.IsThrow) throw new ThrowSignal(context.FlowValue);
+
         return result;
     }
 
-    public bool TryGetProperty(string name, out object? value) => _properties.TryGetProperty(name, out value);
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return _properties.TryGetProperty(name, out value);
+    }
 
-    public void SetProperty(string name, object? value) => _properties.SetProperty(name, value);
+    public void SetProperty(string name, object? value)
+    {
+        _properties.SetProperty(name, value);
+    }
 
     public void SetSuperBinding(JsFunction? superConstructor, JsObject? superPrototype)
     {

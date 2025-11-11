@@ -108,186 +108,113 @@ internal sealed class Lexer(string source)
                 break;
             case '+':
                 if (Match('+'))
-                {
                     AddToken(TokenType.PlusPlus);
-                }
                 else if (Match('='))
-                {
                     AddToken(TokenType.PlusEqual);
-                }
                 else
-                {
                     AddToken(TokenType.Plus);
-                }
                 break;
             case '.':
                 if (Match('.') && Match('.'))
-                {
                     AddToken(TokenType.DotDotDot);
-                }
                 else
-                {
                     AddToken(TokenType.Dot);
-                }
                 break;
             case '-':
                 if (Match('-'))
-                {
                     AddToken(TokenType.MinusMinus);
-                }
                 else if (Match('='))
-                {
                     AddToken(TokenType.MinusEqual);
-                }
                 else
-                {
                     AddToken(TokenType.Minus);
-                }
                 break;
             case '*':
                 if (Match('*'))
-                {
                     AddToken(Match('=') ? TokenType.StarStarEqual : TokenType.StarStar);
-                }
                 else if (Match('='))
-                {
                     AddToken(TokenType.StarEqual);
-                }
                 else
-                {
                     AddToken(TokenType.Star);
-                }
                 break;
             case '&':
                 if (Match('&'))
-                {
                     AddToken(Match('=') ? TokenType.AmpAmpEqual : TokenType.AmpAmp);
-                }
                 else if (Match('='))
-                {
                     AddToken(TokenType.AmpEqual);
-                }
                 else
-                {
                     AddToken(TokenType.Amp);
-                }
                 break;
             case '|':
                 if (Match('|'))
-                {
                     AddToken(Match('=') ? TokenType.PipePipeEqual : TokenType.PipePipe);
-                }
                 else if (Match('='))
-                {
                     AddToken(TokenType.PipeEqual);
-                }
                 else
-                {
                     AddToken(TokenType.Pipe);
-                }
                 break;
             case '?':
                 if (Match('?'))
-                {
                     AddToken(Match('=') ? TokenType.QuestionQuestionEqual : TokenType.QuestionQuestion);
-                }
                 else if (Match('.'))
-                {
                     AddToken(TokenType.QuestionDot);
-                }
                 else
-                {
                     AddToken(TokenType.Question);
-                }
                 break;
             case '/':
                 if (Match('/'))
-                {
                     SkipSingleLineComment();
-                }
                 else if (Match('*'))
-                {
                     SkipMultiLineComment();
-                }
                 else if (IsRegexContext())
-                {
                     ReadRegexLiteral();
-                }
                 else if (Match('='))
-                {
                     AddToken(TokenType.SlashEqual);
-                }
                 else
-                {
                     AddToken(TokenType.Slash);
-                }
                 break;
             case '!':
                 if (Match('='))
-                {
                     AddToken(Match('=') ? TokenType.BangEqualEqual : TokenType.BangEqual);
-                }
                 else
-                {
                     AddToken(TokenType.Bang);
-                }
                 break;
             case '=':
                 if (Match('='))
-                {
                     AddToken(Match('=') ? TokenType.EqualEqualEqual : TokenType.EqualEqual);
-                }
                 else
-                {
                     AddToken(TokenType.Equal);
-                }
                 break;
             case '>':
                 if (Match('>'))
                 {
                     if (Match('>'))
-                    {
                         AddToken(Match('=') ? TokenType.GreaterGreaterGreaterEqual : TokenType.GreaterGreaterGreater);
-                    }
                     else
-                    {
                         AddToken(Match('=') ? TokenType.GreaterGreaterEqual : TokenType.GreaterGreater);
-                    }
                 }
                 else
                 {
                     AddToken(Match('=') ? TokenType.GreaterEqual : TokenType.Greater);
                 }
+
                 break;
             case '<':
                 if (Match('<'))
-                {
                     AddToken(Match('=') ? TokenType.LessLessEqual : TokenType.LessLess);
-                }
                 else
-                {
                     AddToken(Match('=') ? TokenType.LessEqual : TokenType.Less);
-                }
                 break;
             case '%':
                 if (Match('='))
-                {
                     AddToken(TokenType.PercentEqual);
-                }
                 else
-                {
                     AddToken(TokenType.Percent);
-                }
                 break;
             case '^':
                 if (Match('='))
-                {
                     AddToken(TokenType.CaretEqual);
-                }
                 else
-                {
                     AddToken(TokenType.Caret);
-                }
                 break;
             case '~':
                 AddToken(TokenType.Tilde);
@@ -314,27 +241,18 @@ internal sealed class Lexer(string source)
                 break;
             default:
                 if (IsDigit(c))
-                {
                     ReadNumber();
-                }
                 else if (IsAlpha(c))
-                {
                     ReadIdentifier();
-                }
                 else
-                {
                     throw new ParseException($"Unexpected character '{c}' on line {_line} column {_column}.");
-                }
                 break;
         }
     }
 
     private void SkipSingleLineComment()
     {
-        while (!IsAtEnd && Peek() != '\n')
-        {
-            Advance();
-        }
+        while (!IsAtEnd && Peek() != '\n') Advance();
     }
 
     private void SkipMultiLineComment()
@@ -347,46 +265,37 @@ internal sealed class Lexer(string source)
                 Advance(); // consume '/'
                 return;
             }
+
             if (Peek() == '\n')
             {
                 _line++;
                 _column = 1;
             }
+
             Advance();
         }
+
         throw new ParseException("Unterminated multi-line comment.");
     }
 
     private void ReadIdentifier()
     {
-        while (IsAlphaNumeric(Peek()))
-        {
-            Advance();
-        }
+        while (IsAlphaNumeric(Peek())) Advance();
 
         var text = _source[_start.._current];
         if (Keywords.TryGetValue(text, out var keyword))
-        {
             AddToken(keyword);
-        }
         else
-        {
             AddToken(TokenType.Identifier);
-        }
     }
 
     private void ReadPrivateIdentifier()
     {
         // '#' has already been consumed
         if (!IsAlpha(Peek()))
-        {
             throw new ParseException($"Expected identifier after '#' on line {_line} column {_column}.");
-        }
-        
-        while (IsAlphaNumeric(Peek()))
-        {
-            Advance();
-        }
+
+        while (IsAlphaNumeric(Peek())) Advance();
 
         var text = _source[_start.._current]; // Includes the '#'
         AddToken(TokenType.PrivateIdentifier, text);
@@ -394,10 +303,7 @@ internal sealed class Lexer(string source)
 
     private void ReadNumber()
     {
-        while (IsDigit(Peek()))
-        {
-            Advance();
-        }
+        while (IsDigit(Peek())) Advance();
 
         // Check for decimal point (makes it a regular number, not BigInt)
         var hasDecimal = false;
@@ -405,10 +311,7 @@ internal sealed class Lexer(string source)
         {
             hasDecimal = true;
             Advance();
-            while (IsDigit(Peek()))
-            {
-                Advance();
-            }
+            while (IsDigit(Peek())) Advance();
         }
 
         // Check for BigInt suffix 'n'
@@ -417,7 +320,7 @@ internal sealed class Lexer(string source)
             // Check that 'n' is not part of a larger identifier
             var next = PeekNext();
             var isEndOrNonAlphaNum = next == '\0' || (!IsAlpha(next) && !IsDigit(next));
-            
+
             if (isEndOrNonAlphaNum)
             {
                 Advance(); // consume 'n'
@@ -427,7 +330,7 @@ internal sealed class Lexer(string source)
                 return;
             }
         }
-        
+
         // Regular number
         var text2 = _source[_start.._current];
         var value2 = double.Parse(text2, CultureInfo.InvariantCulture);
@@ -447,10 +350,7 @@ internal sealed class Lexer(string source)
             Advance();
         }
 
-        if (IsAtEnd)
-        {
-            throw new ParseException("Unterminated string literal.");
-        }
+        if (IsAtEnd) throw new ParseException("Unterminated string literal.");
 
         Advance();
         var value = _source[(_start + 1)..(_current - 1)];
@@ -470,10 +370,7 @@ internal sealed class Lexer(string source)
             Advance();
         }
 
-        if (IsAtEnd)
-        {
-            throw new ParseException("Unterminated string literal.");
-        }
+        if (IsAtEnd) throw new ParseException("Unterminated string literal.");
 
         Advance();
         var value = _source[(_start + 1)..(_current - 1)];
@@ -486,7 +383,6 @@ internal sealed class Lexer(string source)
         var currentString = new System.Text.StringBuilder();
 
         while (!IsAtEnd && Peek() != '`')
-        {
             if (Peek() == '$' && PeekNext() == '{')
             {
                 // Save the string part so far
@@ -517,17 +413,15 @@ internal sealed class Lexer(string source)
                             _line++;
                             _column = 1;
                         }
+
                         Advance();
                     }
                 }
 
-                if (IsAtEnd)
-                {
-                    throw new ParseException("Unterminated template literal expression.");
-                }
+                if (IsAtEnd) throw new ParseException("Unterminated template literal expression.");
 
                 // Extract the expression text
-                var expressionText = _source[expressionStart..(_current)];
+                var expressionText = _source[expressionStart.._current];
                 parts.Add(new TemplateExpression(expressionText));
 
                 // Skip the closing }
@@ -540,20 +434,14 @@ internal sealed class Lexer(string source)
                     _line++;
                     _column = 1;
                 }
+
                 currentString.Append(Advance());
             }
-        }
 
-        if (IsAtEnd)
-        {
-            throw new ParseException("Unterminated template literal.");
-        }
+        if (IsAtEnd) throw new ParseException("Unterminated template literal.");
 
         // Add any remaining string content
-        if (currentString.Length > 0)
-        {
-            parts.Add(currentString.ToString());
-        }
+        if (currentString.Length > 0) parts.Add(currentString.ToString());
 
         // Skip closing backtick
         Advance();
@@ -571,30 +459,44 @@ internal sealed class Lexer(string source)
 
     private bool Match(char expected)
     {
-        if (IsAtEnd || _source[_current] != expected)
-        {
-            return false;
-        }
+        if (IsAtEnd || _source[_current] != expected) return false;
 
         _current++;
         _column++;
         return true;
     }
 
-    private char Peek() => IsAtEnd ? '\0' : _source[_current];
+    private char Peek()
+    {
+        return IsAtEnd ? '\0' : _source[_current];
+    }
 
-    private char PeekNext() => _current + 1 >= _source.Length ? '\0' : _source[_current + 1];
+    private char PeekNext()
+    {
+        return _current + 1 >= _source.Length ? '\0' : _source[_current + 1];
+    }
 
     private bool IsAtEnd => _current >= _source.Length;
 
-    private static bool IsDigit(char c) => c is >= '0' and <= '9';
+    private static bool IsDigit(char c)
+    {
+        return c is >= '0' and <= '9';
+    }
 
-    private static bool IsAlpha(char c) => c is >= 'a' and <= 'z' || c is >= 'A' and <= 'Z' || c == '_' || c == '$';
+    private static bool IsAlpha(char c)
+    {
+        return c is >= 'a' and <= 'z' || c is >= 'A' and <= 'Z' || c == '_' || c == '$';
+    }
 
-    private static bool IsAlphaNumeric(char c) => IsAlpha(c) || IsDigit(c);
+    private static bool IsAlphaNumeric(char c)
+    {
+        return IsAlpha(c) || IsDigit(c);
+    }
 
     private void AddToken(TokenType type)
-        => AddToken(type, null);
+    {
+        AddToken(type, null);
+    }
 
     private void AddToken(TokenType type, object? literal)
     {
@@ -606,10 +508,7 @@ internal sealed class Lexer(string source)
     {
         // A regex literal can appear after tokens that cannot be followed by a division operator
         // Common contexts: =, (, [, ,, {, :, ;, !, &, |, ?, return, throw, etc.
-        if (_tokens.Count == 0)
-        {
-            return true; // Start of input
-        }
+        if (_tokens.Count == 0) return true; // Start of input
 
         var lastToken = _tokens[^1].Type;
         return lastToken is
@@ -644,15 +543,11 @@ internal sealed class Lexer(string source)
 
         // Read pattern until unescaped /
         while (!IsAtEnd && Peek() != '/')
-        {
             if (Peek() == '\\')
             {
                 // Include escape sequences in the pattern
                 pattern.Append(Advance());
-                if (!IsAtEnd)
-                {
-                    pattern.Append(Advance());
-                }
+                if (!IsAtEnd) pattern.Append(Advance());
             }
             else if (Peek() == '\n')
             {
@@ -663,45 +558,31 @@ internal sealed class Lexer(string source)
                 // Character class - read until ]
                 pattern.Append(Advance());
                 while (!IsAtEnd && Peek() != ']')
-                {
                     if (Peek() == '\\')
                     {
                         pattern.Append(Advance());
-                        if (!IsAtEnd)
-                        {
-                            pattern.Append(Advance());
-                        }
+                        if (!IsAtEnd) pattern.Append(Advance());
                     }
                     else
                     {
                         pattern.Append(Advance());
                     }
-                }
-                if (!IsAtEnd && Peek() == ']')
-                {
-                    pattern.Append(Advance());
-                }
+
+                if (!IsAtEnd && Peek() == ']') pattern.Append(Advance());
             }
             else
             {
                 pattern.Append(Advance());
             }
-        }
 
-        if (IsAtEnd)
-        {
-            throw new ParseException("Unterminated regex literal.");
-        }
+        if (IsAtEnd) throw new ParseException("Unterminated regex literal.");
 
         // Skip closing /
         Advance();
 
         // Read flags (g, i, m, etc.)
         var flags = new System.Text.StringBuilder();
-        while (!IsAtEnd && IsAlpha(Peek()))
-        {
-            flags.Append(Advance());
-        }
+        while (!IsAtEnd && IsAlpha(Peek())) flags.Append(Advance());
 
         var regexValue = new RegexLiteralValue(pattern.ToString(), flags.ToString());
         AddToken(TokenType.RegexLiteral, regexValue);

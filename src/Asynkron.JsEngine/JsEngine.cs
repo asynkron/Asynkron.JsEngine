@@ -17,10 +17,10 @@ public sealed class JsEngine
     private readonly HashSet<Task> _activeTimerTasks = [];
     private int _nextTimerId = 1;
     private int _pendingTaskCount = 0; // Track pending tasks in the event queue
-    
+
     // Module registry: maps module paths to their exported values
     private readonly Dictionary<string, JsObject> _moduleRegistry = new();
-    
+
     // Module loader function: allows custom module loading logic
     private Func<string, string>? _moduleLoader;
 
@@ -47,12 +47,8 @@ public sealed class JsEngine
 
         // Add static methods to constructor
         if (dateConstructor is HostFunction hf)
-        {
             foreach (var prop in dateObj)
-            {
                 hf.SetProperty(prop.Key, prop.Value);
-            }
-        }
 
         SetGlobal("Date", dateConstructor);
         SetGlobal("JSON", StandardLibrary.CreateJsonObject());
@@ -125,7 +121,10 @@ public sealed class JsEngine
     /// <summary>
     /// Returns a channel reader that can be used to read debug messages captured during execution.
     /// </summary>
-    public ChannelReader<DebugMessage> DebugMessages() => _debugChannel.Reader;
+    public ChannelReader<DebugMessage> DebugMessages()
+    {
+        return _debugChannel.Reader;
+    }
 
     /// <summary>
     /// Captures the current execution state and writes a debug message to the debug channel.
@@ -163,28 +162,25 @@ public sealed class JsEngine
     /// Constant folding runs first to simplify expressions like 1+2*7 to 15 before CPS transformation.
     /// CPS transformation is applied if the code contains async functions, generators, await expressions, or yield expressions.
     /// </summary>
-    public Cons Parse([LanguageInjection("javascript")]string source)
+    public Cons Parse([LanguageInjection("javascript")] string source)
     {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
         var tokens = lexer.Tokenize();
-        
+
         // Step 2: Parse to S-expressions
         var parser = new Parser(tokens, source);
         var program = parser.ParseProgram();
-        
+
         // Step 3: Apply constant expression folding (runs before CPS)
         // This simplifies constant expressions like (+ 1 (* 2 7)) to 15
         program = _constantTransformer.Transform(program);
-        
+
         // Step 4: Apply CPS transformation if needed
         // This enables support for generators and async/await by converting
         // the S-expression tree to continuation-passing style
-        if (_cpsTransformer.NeedsTransformation(program))
-        {
-            return _cpsTransformer.Transform(program);
-        }
-        
+        if (_cpsTransformer.NeedsTransformation(program)) return _cpsTransformer.Transform(program);
+
         return program;
     }
 
@@ -192,12 +188,12 @@ public sealed class JsEngine
     /// Parses JavaScript source code into an S-expression representation WITHOUT applying any transformations.
     /// This is useful for debugging and understanding the initial parse tree before any transformation.
     /// </summary>
-    public Cons ParseWithoutTransformation([LanguageInjection("javascript")]string source)
+    public Cons ParseWithoutTransformation([LanguageInjection("javascript")] string source)
     {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
         var tokens = lexer.Tokenize();
-        
+
         // Step 2: Parse to S-expressions (without any transformation)
         var parser = new Parser(tokens, source);
         return parser.ParseProgram();
@@ -209,30 +205,27 @@ public sealed class JsEngine
     /// </summary>
     /// <param name="source">JavaScript source code</param>
     /// <returns>A tuple containing (original, constantFolded, cpsTransformed) S-expressions.</returns>
-    public (Cons original, Cons constantFolded, Cons cpsTransformed) ParseWithTransformationSteps([LanguageInjection("javascript")]string source)
+    public (Cons original, Cons constantFolded, Cons cpsTransformed) ParseWithTransformationSteps(
+        [LanguageInjection("javascript")] string source)
     {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
         var tokens = lexer.Tokenize();
-        
+
         // Step 2: Parse to S-expressions
         var parser = new Parser(tokens, source);
         var original = parser.ParseProgram();
-        
+
         // Step 3: Apply constant expression folding
         var constantFolded = _constantTransformer.Transform(original);
-        
+
         // Step 4: Apply CPS transformation if needed
         Cons cpsTransformed;
         if (_cpsTransformer.NeedsTransformation(constantFolded))
-        {
             cpsTransformed = _cpsTransformer.Transform(constantFolded);
-        }
         else
-        {
             cpsTransformed = constantFolded;
-        }
-        
+
         return (original, constantFolded, cpsTransformed);
     }
 
@@ -241,8 +234,10 @@ public sealed class JsEngine
     /// This ensures all code executes through the event loop, maintaining proper
     /// single-threaded execution semantics.
     /// </summary>
-    public Task<object?> Evaluate([LanguageInjection("javascript")]string source)
-        => Evaluate(Parse(source));
+    public Task<object?> Evaluate([LanguageInjection("javascript")] string source)
+    {
+        return Evaluate(Parse(source));
+    }
 
     /// <summary>
     /// Evaluates an S-expression program by scheduling it on the event queue.
@@ -252,10 +247,10 @@ public sealed class JsEngine
     private async Task<object?> Evaluate(Cons program)
     {
         var tcs = new TaskCompletionSource<object?>();
-        
+
         // Schedule the evaluation on the event queue
         // This ensures ALL code runs through the event loop
-        ScheduleTask( () =>
+        ScheduleTask(() =>
         {
             try
             {
@@ -271,19 +266,19 @@ public sealed class JsEngine
                 {
                     result = Evaluator.EvaluateProgram(program, _global);
                 }
-                
+
                 tcs.SetResult(result);
             }
             catch (Exception ex)
             {
                 tcs.SetException(ex);
             }
-            
+
             return Task.CompletedTask;
         });
-        
+
         var res = await tcs.Task;
-        
+
         return res;
     }
 
@@ -292,26 +287,17 @@ public sealed class JsEngine
     /// </summary>
     private bool HasModuleStatements(Cons program)
     {
-        if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
-        {
-            return false;
-        }
-        
+        if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program)) return false;
+
         foreach (var stmt in program.Rest)
-        {
             if (stmt is Cons { Head: Symbol stmtHead })
-            {
                 if (ReferenceEquals(stmtHead, JsSymbols.Import) ||
                     ReferenceEquals(stmtHead, JsSymbols.Export) ||
                     ReferenceEquals(stmtHead, JsSymbols.ExportDefault) ||
                     ReferenceEquals(stmtHead, JsSymbols.ExportNamed) ||
                     ReferenceEquals(stmtHead, JsSymbols.ExportDeclaration))
-                {
                     return true;
-                }
-            }
-        }
-        
+
         return false;
     }
 
@@ -319,19 +305,25 @@ public sealed class JsEngine
     /// Registers a value in the global scope.
     /// </summary>
     public void SetGlobal(string name, object? value)
-        => _global.Define(Symbol.Intern(name), value);
+    {
+        _global.Define(Symbol.Intern(name), value);
+    }
 
     /// <summary>
     /// Registers a host function that can be invoked from interpreted code.
     /// </summary>
     public void SetGlobalFunction(string name, Func<IReadOnlyList<object?>, object?> handler)
-        => _global.Define(Symbol.Intern(name), new HostFunction(handler));
+    {
+        _global.Define(Symbol.Intern(name), new HostFunction(handler));
+    }
 
     /// <summary>
     /// Registers a host function that receives the <c>this</c> binding.
     /// </summary>
     public void SetGlobalFunction(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
-        => _global.Define(Symbol.Intern(name), new HostFunction(handler));
+    {
+        _global.Define(Symbol.Intern(name), new HostFunction(handler));
+    }
 
     /// <summary>
     /// Parses and evaluates the provided source code, then processes any scheduled events
@@ -340,22 +332,22 @@ public sealed class JsEngine
     /// </summary>
     /// <param name="source">The JavaScript source code to execute</param>
     /// <returns>A task that completes when all scheduled events have been processed</returns>
-    public async Task<object?> Run([LanguageInjection("javascript")]string source)
+    public async Task<object?> Run([LanguageInjection("javascript")] string source)
     {
         // Schedule evaluation on the event queue
         var evaluateTask = Evaluate(source);
-        
+
         // Get the result from evaluation
         var result = await evaluateTask;
-        
+
         // Wait for all pending work to complete:
         // - Event queue to drain (no pending tasks)
         // - Timer tasks to complete and schedule their callbacks
         // We loop with a timeout to avoid hanging forever
         var startTime = DateTime.UtcNow;
         var maxWaitTime = TimeSpan.FromMilliseconds(1500); // Leave some margin for the 2000ms test timeout
-        
-        while ((DateTime.UtcNow - startTime) < maxWaitTime)
+
+        while (DateTime.UtcNow - startTime < maxWaitTime)
         {
             // Check if we have any active timer tasks
             bool hasActiveTasks;
@@ -363,20 +355,18 @@ public sealed class JsEngine
             {
                 hasActiveTasks = _activeTimerTasks.Count > 0;
             }
-            
+
             // Check if we have any pending tasks in the event queue
             var hasPendingTasks = Interlocked.CompareExchange(ref _pendingTaskCount, 0, 0) > 0;
-            
+
             if (!hasActiveTasks && !hasPendingTasks)
-            {
                 // No active tasks and no pending tasks, we're done
                 break;
-            }
-            
+
             // Wait a bit for timer tasks and event queue to process
             await Task.Delay(20);
         }
-        
+
         return result;
     }
 
@@ -399,8 +389,7 @@ public sealed class JsEngine
     /// </summary>
     private async Task ProcessEventQueue()
     {
-        await foreach(var x in _eventQueue.Reader.ReadAllAsync())
-        {
+        await foreach (var x in _eventQueue.Reader.ReadAllAsync())
             try
             {
                 await x();
@@ -409,7 +398,8 @@ public sealed class JsEngine
             {
                 // Log the exception but don't let it kill the event loop
                 // Individual task failures should not stop the event queue processing
-                Console.Error.WriteLine($"[ProcessEventQueue] Unhandled exception in event queue task: {ex.GetType().Name}: {ex.Message}");
+                Console.Error.WriteLine(
+                    $"[ProcessEventQueue] Unhandled exception in event queue task: {ex.GetType().Name}: {ex.Message}");
                 Console.Error.WriteLine($"[ProcessEventQueue] Stack trace: {ex.StackTrace}");
             }
             finally
@@ -417,7 +407,6 @@ public sealed class JsEngine
                 // Decrement the pending task count after processing
                 Interlocked.Decrement(ref _pendingTaskCount);
             }
-        }
     }
 
     /// <summary>
@@ -430,7 +419,7 @@ public sealed class JsEngine
 
         var delay = args[1] is double d ? (int)d : 0;
         var timerId = _nextTimerId++;
-        
+
         var cts = new CancellationTokenSource();
         _timers[timerId] = cts;
 
@@ -440,15 +429,13 @@ public sealed class JsEngine
             try
             {
                 await Task.Delay(delay, cts.Token);
-                
+
                 if (!cts.Token.IsCancellationRequested)
-                {
                     ScheduleTask(() =>
                     {
                         callback.Invoke([], null);
                         return Task.CompletedTask;
                     });
-                }
             }
             catch (TaskCanceledException)
             {
@@ -458,12 +445,10 @@ public sealed class JsEngine
             {
                 _timers.Remove(timerId);
                 if (timerTask != null)
-                {
                     lock (_activeTimerTasks)
                     {
                         _activeTimerTasks.Remove(timerTask);
                     }
-                }
             }
         }, cts.Token);
 
@@ -485,7 +470,7 @@ public sealed class JsEngine
 
         var interval = args[1] is double d ? (int)d : 0;
         var timerId = _nextTimerId++;
-        
+
         var cts = new CancellationTokenSource();
         _timers[timerId] = cts;
 
@@ -497,15 +482,13 @@ public sealed class JsEngine
                 while (!cts.Token.IsCancellationRequested)
                 {
                     await Task.Delay(interval, cts.Token);
-                    
+
                     if (!cts.Token.IsCancellationRequested)
-                    {
                         ScheduleTask(() =>
                         {
                             callback.Invoke([], null);
                             return Task.CompletedTask;
                         });
-                    }
                 }
             }
             catch (TaskCanceledException)
@@ -516,12 +499,10 @@ public sealed class JsEngine
             {
                 _timers.Remove(timerId);
                 if (timerTask != null)
-                {
                     lock (_activeTimerTasks)
                     {
                         _activeTimerTasks.Remove(timerTask);
                     }
-                }
             }
         }, cts.Token);
 
@@ -550,30 +531,24 @@ public sealed class JsEngine
 
         return null;
     }
-    
+
     /// <summary>
     /// Implements dynamic import() - loads a module and returns a Promise that resolves to the module's exports.
     /// </summary>
     private object? DynamicImport(IReadOnlyList<object?> args)
     {
-        if (args.Count == 0)
-        {
-            throw new Exception("import() requires a module specifier");
-        }
+        if (args.Count == 0) throw new Exception("import() requires a module specifier");
 
         var modulePath = args[0]?.ToString();
-        if (string.IsNullOrEmpty(modulePath))
-        {
-            throw new Exception("import() requires a valid module specifier");
-        }
+        if (string.IsNullOrEmpty(modulePath)) throw new Exception("import() requires a valid module specifier");
 
         // Create a promise that will resolve with the module exports
         var promise = new JsPromise(this);
         var promiseObj = promise.JsObject;
-        
+
         // Add promise instance methods (then, catch, finally)
         StandardLibrary.AddPromiseInstanceMethods(promiseObj, promise, this);
-        
+
         // Schedule loading the module asynchronously
         _eventQueue.Writer.TryWrite(async () =>
         {
@@ -587,13 +562,13 @@ public sealed class JsEngine
             {
                 promise.Reject(ex.Message);
             }
-            
+
             await Task.CompletedTask;
         });
 
         return promiseObj;
     }
-    
+
     /// <summary>
     /// Sets a custom module loader function that will be called to load module source code.
     /// The function receives the module path and should return the module source code.
@@ -603,7 +578,7 @@ public sealed class JsEngine
     {
         _moduleLoader = loader;
     }
-    
+
     /// <summary>
     /// Loads and evaluates a module, returning its exports object.
     /// If the module has already been loaded, returns the cached exports.
@@ -611,41 +586,34 @@ public sealed class JsEngine
     internal JsObject LoadModule(string modulePath)
     {
         // Check if module is already loaded
-        if (_moduleRegistry.TryGetValue(modulePath, out var cachedExports))
-        {
-            return cachedExports;
-        }
-        
+        if (_moduleRegistry.TryGetValue(modulePath, out var cachedExports)) return cachedExports;
+
         // Load module source
         string source;
         if (_moduleLoader != null)
-        {
             source = _moduleLoader(modulePath);
-        }
         else
-        {
             // Default: load from file system
             source = File.ReadAllText(modulePath);
-        }
-        
+
         // Parse the module
         var program = Parse(source);
-        
+
         // Create a module exports object
         var exports = new JsObject();
-        
+
         // Create a module environment (inherits from global)
-        var moduleEnv = new Environment(_global, isFunctionScope: false);
-        
+        var moduleEnv = new Environment(_global, false);
+
         // Evaluate the module with export tracking
         EvaluateModule(program, moduleEnv, exports);
-        
+
         // Cache the exports
         _moduleRegistry[modulePath] = exports;
-        
+
         return exports;
     }
-    
+
     /// <summary>
     /// Evaluates a module program and populates the exports object.
     /// Returns the last evaluated value.
@@ -653,16 +621,14 @@ public sealed class JsEngine
     private object? EvaluateModule(Cons program, Environment moduleEnv, JsObject exports)
     {
         if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
-        {
             throw new InvalidOperationException("Expected program node");
-        }
-        
+
         object? lastValue = null;
         var statements = program.Rest;
         while (statements is not null && !statements.IsEmpty)
         {
             var stmt = statements.Head;
-            
+
             if (stmt is Cons { Head: Symbol stmtHead } stmtCons)
             {
                 if (ReferenceEquals(stmtHead, JsSymbols.Import))
@@ -674,50 +640,50 @@ public sealed class JsEngine
                 {
                     // export default expression
                     var expression = stmtCons.Rest.Head;
-                    
+
                     // Evaluate the expression and export it as default
                     // For function/class declarations with names, this will define them and return them
                     // For expressions, this will just evaluate them
                     object? value;
-                    
+
                     if (expression is Cons { Head: Symbol exprHead } exprCons)
                     {
-                        if (ReferenceEquals(exprHead, JsSymbols.Function) || 
+                        if (ReferenceEquals(exprHead, JsSymbols.Function) ||
                             ReferenceEquals(exprHead, JsSymbols.Class))
                         {
                             // It's a named function or class declaration
                             // Evaluate it to define it in the environment
                             var declProgram = Cons.FromEnumerable([JsSymbols.Program, expression]);
                             Evaluator.EvaluateProgram(declProgram, moduleEnv);
-                            
+
                             // Get the defined value from the environment
                             var name = exprCons.Rest.Head as Symbol;
                             if (name != null)
-                            {
                                 value = moduleEnv.Get(name);
-                            }
                             else
-                            {
                                 // Shouldn't happen, but handle it
                                 value = null;
-                            }
                         }
                         else
                         {
                             // It's some other construct - evaluate it as an expression
-                            var exprProgram = Cons.FromEnumerable([JsSymbols.Program, 
-                                Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])]);
+                            var exprProgram = Cons.FromEnumerable([
+                                JsSymbols.Program,
+                                Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])
+                            ]);
                             value = Evaluator.EvaluateProgram(exprProgram, moduleEnv);
                         }
                     }
                     else
                     {
                         // It's a symbol or literal - evaluate it as an expression
-                        var exprProgram = Cons.FromEnumerable([JsSymbols.Program, 
-                            Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])]);
+                        var exprProgram = Cons.FromEnumerable([
+                            JsSymbols.Program,
+                            Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])
+                        ]);
                         value = Evaluator.EvaluateProgram(exprProgram, moduleEnv);
                     }
-                    
+
                     exports["default"] = value;
                 }
                 else if (ReferenceEquals(stmtHead, JsSymbols.ExportNamed))
@@ -725,47 +691,40 @@ public sealed class JsEngine
                     // export { name1, name2 }
                     var exportList = stmtCons.Rest.Head as Cons;
                     var fromModule = stmtCons.Rest.Rest.Head as string;
-                    
+
                     if (fromModule != null)
                     {
                         // Re-export from another module
                         var sourceExports = LoadModule(fromModule);
-                        
+
                         if (exportList != null)
-                        {
                             foreach (var exportItem in exportList)
-                            {
                                 if (exportItem is Cons { Head: Symbol exportHead } exportCons &&
                                     ReferenceEquals(exportHead, JsSymbols.ExportNamed))
                                 {
                                     var local = exportCons.Rest.Head as Symbol;
                                     var exported = exportCons.Rest.Rest.Head as Symbol;
-                                    
+
                                     if (local != null && exported != null)
                                     {
                                         var localName = local.Name;
                                         var exportedName = exported.Name;
-                                        
+
                                         if (sourceExports.TryGetValue(localName, out var value))
-                                        {
                                             exports[exportedName] = value;
-                                        }
                                     }
                                 }
-                            }
-                        }
                     }
                     else if (exportList != null)
                     {
                         // Export from current module
                         foreach (var exportItem in exportList)
-                        {
                             if (exportItem is Cons { Head: Symbol exportHead } exportCons &&
                                 ReferenceEquals(exportHead, JsSymbols.ExportNamed))
                             {
                                 var local = exportCons.Rest.Head as Symbol;
                                 var exported = exportCons.Rest.Rest.Head as Symbol;
-                                
+
                                 if (local != null && exported != null)
                                 {
                                     var localName = local.Name;
@@ -774,23 +733,22 @@ public sealed class JsEngine
                                     exports[exportedName] = value;
                                 }
                             }
-                        }
                     }
                 }
                 else if (ReferenceEquals(stmtHead, JsSymbols.ExportDeclaration))
                 {
                     // export let/const/var/function/class
                     var declaration = stmtCons.Rest.Head;
-                    
+
                     // Evaluate the declaration
                     var declProgram = Cons.FromEnumerable([JsSymbols.Program, declaration]);
                     Evaluator.EvaluateProgram(declProgram, moduleEnv);
-                    
+
                     // Extract the declared names and add to exports
                     if (declaration is Cons { Head: Symbol declHead } declCons)
                     {
-                        if (ReferenceEquals(declHead, JsSymbols.Let) || 
-                            ReferenceEquals(declHead, JsSymbols.Const) || 
+                        if (ReferenceEquals(declHead, JsSymbols.Let) ||
+                            ReferenceEquals(declHead, JsSymbols.Const) ||
                             ReferenceEquals(declHead, JsSymbols.Var))
                         {
                             // Variable declaration: (let name value) or (let name)
@@ -801,7 +759,7 @@ public sealed class JsEngine
                                 exports[name.Name] = value;
                             }
                         }
-                        else if (ReferenceEquals(declHead, JsSymbols.Function) || 
+                        else if (ReferenceEquals(declHead, JsSymbols.Function) ||
                                  ReferenceEquals(declHead, JsSymbols.Async) ||
                                  ReferenceEquals(declHead, JsSymbols.Generator))
                         {
@@ -838,13 +796,13 @@ public sealed class JsEngine
                 var stmtProgram = Cons.FromEnumerable([JsSymbols.Program, stmt]);
                 lastValue = Evaluator.EvaluateProgram(stmtProgram, moduleEnv);
             }
-            
+
             statements = statements.Rest;
         }
-        
+
         return lastValue;
     }
-    
+
     /// <summary>
     /// Processes an import statement and brings imported values into the module environment.
     /// </summary>
@@ -853,59 +811,40 @@ public sealed class JsEngine
         // (import module-path) for side-effect imports
         // (import module-path default-import namespace-import named-imports) for regular imports
         var modulePath = importCons.Rest.Head as string;
-        
-        if (modulePath == null)
-        {
-            return; // Invalid import
-        }
-        
+
+        if (modulePath == null) return; // Invalid import
+
         // Load the module (for side effects)
         var exports = LoadModule(modulePath);
-        
+
         // Check if there are any imports to handle
-        if (importCons.Rest.Rest.IsEmpty)
-        {
-            return; // Side-effect only import
-        }
-        
+        if (importCons.Rest.Rest.IsEmpty) return; // Side-effect only import
+
         var defaultImport = importCons.Rest.Rest.Head as Symbol;
         var namespaceImport = !importCons.Rest.Rest.Rest.IsEmpty ? importCons.Rest.Rest.Rest.Head as Symbol : null;
-        var namedImports = !importCons.Rest.Rest.Rest.IsEmpty && !importCons.Rest.Rest.Rest.Rest.IsEmpty 
-            ? importCons.Rest.Rest.Rest.Rest.Head as Cons 
+        var namedImports = !importCons.Rest.Rest.Rest.IsEmpty && !importCons.Rest.Rest.Rest.Rest.IsEmpty
+            ? importCons.Rest.Rest.Rest.Rest.Head as Cons
             : null;
-        
+
         // Handle default import
         if (defaultImport != null && exports.TryGetValue("default", out var defaultValue))
-        {
             moduleEnv.Define(defaultImport, defaultValue);
-        }
-        
+
         // Handle namespace import
-        if (namespaceImport != null)
-        {
-            moduleEnv.Define(namespaceImport, exports);
-        }
-        
+        if (namespaceImport != null) moduleEnv.Define(namespaceImport, exports);
+
         // Handle named imports
         if (namedImports != null)
-        {
             foreach (var importItem in namedImports)
-            {
                 if (importItem is Cons { Head: Symbol importHead } importItemCons &&
                     ReferenceEquals(importHead, JsSymbols.ImportNamed))
                 {
                     var imported = importItemCons.Rest.Head as Symbol;
                     var local = importItemCons.Rest.Rest.Head as Symbol;
-                    
+
                     if (imported != null && local != null)
-                    {
                         if (exports.TryGetValue(imported.Name, out var value))
-                        {
                             moduleEnv.Define(local, value);
-                        }
-                    }
                 }
-            }
-        }
     }
 }

@@ -4,20 +4,14 @@ using System.Collections.Generic;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AsyncIterationTests
+public class AsyncIterationTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public AsyncIterationTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
     [Fact(Timeout = 2000)]
     public async Task RegularForOf_WithAwaitInBody()
     {
         // Test that regular for-of with await in body works
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -37,7 +31,7 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
     }
@@ -46,7 +40,7 @@ public class AsyncIterationTests
     public async Task ForAwaitOf_WithArray()
     {
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -61,23 +55,23 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithGenerator()
     {
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let sum = 0;
@@ -105,17 +99,17 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("sum;");
-        _output.WriteLine($"Final sum: '{result}'");
+        output.WriteLine($"Final sum: '{result}'");
         Assert.Equal(6.0, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString()
     {
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -129,23 +123,23 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
         Assert.Equal("hello", result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithBreak()
     {
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let count = 0;
@@ -171,24 +165,24 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("count;");
-        _output.WriteLine($"Final count: '{result}'");
+        output.WriteLine($"Final count: '{result}'");
         Assert.Equal(3.0, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithContinue()
     {
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let sum = 0;
@@ -212,17 +206,17 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("sum;");
-        _output.WriteLine($"Final sum: '{result}'");
+        output.WriteLine($"Final sum: '{result}'");
         Assert.Equal(12.0, result); // 1 + 2 + 4 + 5 = 12
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_RequiresAsyncFunction()
     {
         var engine = new JsEngine();
-        
+
         // for await...of must be used inside an async function
         // This should work in our current implementation even outside async
         // but in strict JavaScript it would require async context
@@ -235,24 +229,24 @@ public class AsyncIterationTests
                                                        result;
                                                    
                                            """);
-        
+
         Assert.Equal("xy", result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task SymbolAsyncIterator_Exists()
     {
         var engine = new JsEngine();
-        
+
         var result = await engine.Run("""
 
                                                   typeof Symbol.asyncIterator;
                                               
                                       """);
-        
+
         Assert.Equal("symbol", result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithPromiseArray()
     {
@@ -260,7 +254,7 @@ public class AsyncIterationTests
         // in arrays requires CPS transformation support. 
         // Currently, promises in arrays are treated as objects, not awaited.
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -284,16 +278,16 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithCustomAsyncIterator()
     {
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -324,17 +318,17 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
         Assert.Equal("123", result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithCustomSyncAsyncIterator()
     {
         // This test shows that Symbol.asyncIterator works when it returns synchronous values
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -365,31 +359,31 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
         Assert.Equal("123", result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_ErrorPropagation()
     {
         var engine = new JsEngine();
         var errorCaught = false;
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         engine.SetGlobalFunction("markError", args =>
         {
             errorCaught = true;
-            _output.WriteLine("LOG: Error caught!");
+            output.WriteLine("LOG: Error caught!");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let asyncIterable = {
@@ -433,32 +427,32 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
-        _output.WriteLine($"Error caught: {errorCaught}");
+
+        output.WriteLine($"Error caught: {errorCaught}");
         Assert.True(errorCaught);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_SyncErrorPropagation()
     {
         // Test error handling with synchronous iterators
         var engine = new JsEngine();
         var errorCaught = false;
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         engine.SetGlobalFunction("markError", args =>
         {
             errorCaught = true;
-            _output.WriteLine("LOG: Error caught!");
+            output.WriteLine("LOG: Error caught!");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let syncIterable = {
@@ -502,23 +496,23 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
-        _output.WriteLine($"Error caught: {errorCaught}");
+
+        output.WriteLine($"Error caught: {errorCaught}");
         Assert.True(errorCaught);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_FallbackToSyncIterator()
     {
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -558,17 +552,17 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
-        _output.WriteLine($"Final result: '{result}'");
+        output.WriteLine($"Final result: '{result}'");
         Assert.Equal("xyz", result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithSyncIteratorNoAsync()
     {
         var engine = new JsEngine();
-        
+
         // Test without async function to isolate the issue
         var result = await engine.Evaluate("""
 
@@ -597,7 +591,7 @@ public class AsyncIterationTests
                                                        result;
                                                    
                                            """);
-        
+
         Assert.Equal("xyz", result);
     }
 
@@ -606,7 +600,7 @@ public class AsyncIterationTests
     {
         // Test that regular for-of with await in body works, using __debug() to inspect state
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -629,17 +623,14 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
         Assert.Equal("abc", result);
 
         // Verify we got debug messages - should have 7 total:
         // 3 iterations * 2 (before + after await) + 1 after loop = 7
         var debugMessages = new List<DebugMessage>();
-        for (int i = 0; i < 7; i++)
-        {
-            debugMessages.Add(await engine.DebugMessages().ReadAsync());
-        }
+        for (var i = 0; i < 7; i++) debugMessages.Add(await engine.DebugMessages().ReadAsync());
 
         Assert.Equal(7, debugMessages.Count);
 
@@ -648,15 +639,15 @@ public class AsyncIterationTests
         // Messages 2,3: second iteration
         // Messages 4,5: third iteration
         // Message 6: after loop
-        
+
         // After first await completes
         Assert.True(debugMessages[1].Variables.ContainsKey("item"));
         Assert.Equal("a", debugMessages[1].Variables["item"]);
-        
+
         // After second await completes
         Assert.True(debugMessages[3].Variables.ContainsKey("item"));
         Assert.Equal("b", debugMessages[3].Variables["item"]);
-        
+
         // After third await completes
         Assert.True(debugMessages[5].Variables.ContainsKey("item"));
         Assert.Equal("c", debugMessages[5].Variables["item"]);
@@ -667,7 +658,7 @@ public class AsyncIterationTests
     {
         // Test for-await-of with __debug() to inspect state during iteration
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -684,26 +675,23 @@ public class AsyncIterationTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
         Assert.Equal("xyz", result);
 
         // Should have 4 debug messages (3 iterations + 1 after loop)
         var debugMessages = new List<DebugMessage>();
-        for (int i = 0; i < 4; i++)
-        {
-            debugMessages.Add(await engine.DebugMessages().ReadAsync());
-        }
+        for (var i = 0; i < 4; i++) debugMessages.Add(await engine.DebugMessages().ReadAsync());
 
         Assert.Equal(4, debugMessages.Count);
 
         // Verify item values in each iteration
         Assert.True(debugMessages[0].Variables.ContainsKey("item"));
         Assert.Equal("x", debugMessages[0].Variables["item"]);
-        
+
         Assert.True(debugMessages[1].Variables.ContainsKey("item"));
         Assert.Equal("y", debugMessages[1].Variables["item"]);
-        
+
         Assert.True(debugMessages[2].Variables.ContainsKey("item"));
         Assert.Equal("z", debugMessages[2].Variables["item"]);
     }

@@ -205,13 +205,13 @@ public class TypeCoercionTests
     public async Task LooseEquality_NumberAndString()
     {
         var engine = new JsEngine();
-        
+
         var result1 = await engine.Evaluate("0 == \"\";");
         Assert.True((bool)result1!);
-        
+
         var result2 = await engine.Evaluate("0 == \"0\";");
         Assert.True((bool)result2!);
-        
+
         var result3 = await engine.Evaluate("5 == \"5\";");
         Assert.True((bool)result3!);
     }
@@ -220,13 +220,13 @@ public class TypeCoercionTests
     public async Task LooseEquality_BooleanAndString()
     {
         var engine = new JsEngine();
-        
+
         var result1 = await engine.Evaluate("false == \"\";");
         Assert.True((bool)result1!);
-        
+
         var result2 = await engine.Evaluate("false == \"0\";");
         Assert.True((bool)result2!);
-        
+
         var result3 = await engine.Evaluate("true == \"1\";");
         Assert.True((bool)result3!);
     }
@@ -235,10 +235,10 @@ public class TypeCoercionTests
     public async Task LooseEquality_BooleanAndNumber()
     {
         var engine = new JsEngine();
-        
+
         var result1 = await engine.Evaluate("false == 0;");
         Assert.True((bool)result1!);
-        
+
         var result2 = await engine.Evaluate("true == 1;");
         Assert.True((bool)result2!);
     }
@@ -247,7 +247,7 @@ public class TypeCoercionTests
     public async Task LooseEquality_WhitespaceStringAndNumber()
     {
         var engine = new JsEngine();
-        
+
         // Note: Using actual whitespace instead of escape sequences
         var result = await engine.Evaluate("\"   \" == 0;");
         Assert.True((bool)result!);
@@ -257,13 +257,13 @@ public class TypeCoercionTests
     public async Task LooseEquality_ArrayAndString()
     {
         var engine = new JsEngine();
-        
+
         var result1 = await engine.Evaluate("[] == \"\";");
         Assert.True((bool)result1!);
-        
+
         var result2 = await engine.Evaluate("[\"\"] == \"\";");
         Assert.True((bool)result2!);
-        
+
         var result3 = await engine.Evaluate("[1, 2] == \"1,2\";");
         Assert.True((bool)result3!);
     }
@@ -272,13 +272,13 @@ public class TypeCoercionTests
     public async Task LooseEquality_ArrayAndNumber()
     {
         var engine = new JsEngine();
-        
+
         var result1 = await engine.Evaluate("[] == 0;");
         Assert.True((bool)result1!);
-        
+
         var result2 = await engine.Evaluate("[0] == 0;");
         Assert.True((bool)result2!);
-        
+
         var result3 = await engine.Evaluate("[5] == 5;");
         Assert.True((bool)result3!);
     }
@@ -287,14 +287,14 @@ public class TypeCoercionTests
     public async Task LooseEquality_StrictInequalityPreserved()
     {
         var engine = new JsEngine();
-        
+
         // Strict inequality should not perform type coercion
         var result1 = await engine.Evaluate("0 === \"\";");
         Assert.False((bool)result1!);
-        
+
         var result2 = await engine.Evaluate("0 === \"0\";");
         Assert.False((bool)result2!);
-        
+
         var result3 = await engine.Evaluate("false === 0;");
         Assert.False((bool)result3!);
     }
@@ -345,7 +345,7 @@ public class TypeCoercionTests
     public async Task Truthiness_NaNIsFalsy()
     {
         var engine = new JsEngine();
-        
+
         // NaN should be falsy
         var result = await engine.Evaluate("Math.sqrt(-1) ? 1 : 0;");
         Assert.Equal(0d, result);
@@ -355,7 +355,7 @@ public class TypeCoercionTests
     public async Task Truthiness_InvalidStringConversionProducesNaN()
     {
         var engine = new JsEngine();
-        
+
         // Invalid string to number conversion produces NaN which is falsy
         var result = await engine.Evaluate("(\"abc\" - 0) ? 1 : 0;");
         Assert.Equal(0d, result);
@@ -369,11 +369,11 @@ public class TypeCoercionTests
     public async Task TypeCoercion_NullAndUndefinedInArithmetic()
     {
         var engine = new JsEngine();
-        
+
         // null converts to 0
         var result1 = await engine.Evaluate("null + 5;");
         Assert.Equal(5d, result1);
-        
+
         // undefined converts to NaN
         var result2 = await engine.Evaluate("undefined + 5;");
         Assert.True(double.IsNaN((double)result2!));
@@ -383,11 +383,11 @@ public class TypeCoercionTests
     public async Task TypeCoercion_BooleanInArithmetic()
     {
         var engine = new JsEngine();
-        
+
         // true converts to 1, false to 0
         var result1 = await engine.Evaluate("true + 5;");
         Assert.Equal(6d, result1);
-        
+
         var result2 = await engine.Evaluate("false + 5;");
         Assert.Equal(5d, result2);
     }
@@ -396,7 +396,7 @@ public class TypeCoercionTests
     public async Task TypeCoercion_MixedOperations()
     {
         var engine = new JsEngine();
-        
+
         // Complex chain of type coercions
         var result = await engine.Evaluate("\"5\" - \"2\" + 3;");
         Assert.Equal(6d, result); // "5" - "2" = 3, then 3 + 3 = 6
@@ -406,11 +406,11 @@ public class TypeCoercionTests
     public async Task TypeCoercion_ArrayInLooseEquality()
     {
         var engine = new JsEngine();
-        
+
         // Array converts to primitive for comparison
         var result1 = await engine.Evaluate("[10] == 10;");
         Assert.True((bool)result1!);
-        
+
         var result2 = await engine.Evaluate("[10] == \"10\";");
         Assert.True((bool)result2!);
     }

@@ -20,10 +20,7 @@ public sealed class CpsTransformer
     /// <returns>True if CPS transformation is needed, false otherwise</returns>
     public bool NeedsTransformation(Cons program)
     {
-        if (program == null)
-        {
-            return false;
-        }
+        if (program == null) return false;
 
         return ContainsAsyncOrGenerator(program);
     }
@@ -36,20 +33,14 @@ public sealed class CpsTransformer
     /// <returns>The transformed S-expression program in CPS style</returns>
     public Cons Transform(Cons program)
     {
-        if (program == null || program.IsEmpty)
-        {
-            return program;
-        }
+        if (program == null || program.IsEmpty) return program;
 
         // If the program doesn't need transformation, return it unchanged
-        if (!NeedsTransformation(program))
-        {
-            return program;
-        }
+        if (!NeedsTransformation(program)) return program;
 
         // Transform each statement in the program
         var transformedStatements = new List<object?> { JsSymbols.Program };
-        
+
         var current = program.Rest; // Skip the 'program' symbol
         while (current is Cons cons && !cons.IsEmpty)
         {
@@ -65,73 +56,38 @@ public sealed class CpsTransformer
     /// </summary>
     private object? TransformExpression(object? expr)
     {
-        if (expr == null)
-        {
-            return null;
-        }
+        if (expr == null) return null;
 
         // If not a Cons, return as-is (literals, symbols, etc.)
-        if (expr is not Cons cons || cons.IsEmpty)
-        {
-            return expr;
-        }
+        if (expr is not Cons cons || cons.IsEmpty) return expr;
 
         // Check the head to determine what kind of expression this is
         if (cons.Head is Symbol symbol)
         {
             // Transform async function declarations
-            if (symbol == JsSymbols.Async)
-            {
-                return TransformAsyncFunction(cons);
-            }
+            if (symbol == JsSymbols.Async) return TransformAsyncFunction(cons);
 
             // Transform blocks that might contain await
-            if (symbol == JsSymbols.Block)
-            {
-                return TransformBlock(cons);
-            }
+            if (symbol == JsSymbols.Block) return TransformBlock(cons);
 
             // Transform await expressions
-            if (symbol == JsSymbols.Await)
-            {
-                return TransformAwait(cons);
-            }
+            if (symbol == JsSymbols.Await) return TransformAwait(cons);
 
             // Transform other statement types
             if (symbol == JsSymbols.Let || symbol == JsSymbols.Var || symbol == JsSymbols.Const)
-            {
                 return TransformVariableDeclaration(cons);
-            }
 
-            if (symbol == JsSymbols.Return)
-            {
-                return TransformReturn(cons);
-            }
+            if (symbol == JsSymbols.Return) return TransformReturn(cons);
 
-            if (symbol == JsSymbols.If)
-            {
-                return TransformIf(cons);
-            }
+            if (symbol == JsSymbols.If) return TransformIf(cons);
 
-            if (symbol == JsSymbols.ExpressionStatement)
-            {
-                return TransformExpressionStatement(cons);
-            }
+            if (symbol == JsSymbols.ExpressionStatement) return TransformExpressionStatement(cons);
 
-            if (symbol == JsSymbols.Call)
-            {
-                return TransformCall(cons);
-            }
+            if (symbol == JsSymbols.Call) return TransformCall(cons);
 
-            if (symbol == JsSymbols.Assign)
-            {
-                return TransformAssign(cons);
-            }
+            if (symbol == JsSymbols.Assign) return TransformAssign(cons);
 
-            if (symbol == JsSymbols.Try)
-            {
-                return TransformTry(cons);
-            }
+            if (symbol == JsSymbols.Try) return TransformTry(cons);
         }
 
         // For other expressions, recursively transform children
@@ -146,19 +102,16 @@ public sealed class CpsTransformer
     {
         // cons is (async name params body)
         var parts = ConsList(cons);
-        if (parts.Count < 4)
-        {
-            return cons;
-        }
+        if (parts.Count < 4) return cons;
 
         var asyncSymbol = parts[0]; // 'async'
-        var name = parts[1];        // function name or null
-        var parameters = parts[2];   // parameter list
-        var body = parts[3];        // function body
+        var name = parts[1]; // function name or null
+        var parameters = parts[2]; // parameter list
+        var body = parts[3]; // function body
 
         // DON'T transform the body here - it will be transformed inside CreateAsyncPromiseWrapper
         // which understands the async context (return => resolve, await => .then())
-        
+
         // Wrap the body in a Promise constructor
         // The async function will return a new Promise that resolves with the function's result
         var promiseBody = CreateAsyncPromiseWrapper(body);
@@ -166,11 +119,11 @@ public sealed class CpsTransformer
         // Return a regular function (declaration) or lambda (expression) that returns a promise
         // Use Lambda for anonymous functions (function expressions), Function for named functions (function declarations)
         var functionType = name == null ? JsSymbols.Lambda : JsSymbols.Function;
-        
+
         return MakeTransformedCons([
-            functionType, 
-            name, 
-            parameters, 
+            functionType,
+            name,
+            parameters,
             promiseBody
         ], cons);
     }
@@ -185,33 +138,33 @@ public sealed class CpsTransformer
         var resolveParam = Symbol.Intern("__resolve");
         var rejectParam = Symbol.Intern("__reject");
         var executorParams = Cons.FromEnumerable([resolveParam, rejectParam]);
-        
+
         // The executor body needs to handle the transformed body
         var executorBody = CreateAsyncExecutorBody(body, resolveParam, rejectParam);
-        
+
         var executor = Cons.FromEnumerable([
-            JsSymbols.Lambda, 
-            null, 
-            executorParams, 
+            JsSymbols.Lambda,
+            null,
+            executorParams,
             executorBody
         ]);
 
         // Create: (new Promise executor)
         var promiseCall = Cons.FromEnumerable([
-            JsSymbols.New, 
-            Symbol.Intern("Promise"), 
+            JsSymbols.New,
+            Symbol.Intern("Promise"),
             executor
         ]);
 
         // Wrap in return statement
         var returnStatement = Cons.FromEnumerable([
-            JsSymbols.Return, 
+            JsSymbols.Return,
             promiseCall
         ]);
 
         // Wrap in block
         return Cons.FromEnumerable([
-            JsSymbols.Block, 
+            JsSymbols.Block,
             returnStatement
         ]);
     }
@@ -224,33 +177,33 @@ public sealed class CpsTransformer
     {
         // Transform the body to handle await expressions
         var transformedBody = TransformAsyncBody(body, resolveParam, rejectParam);
-        
+
         // Wrap in a try-catch that calls resolve/reject
         var catchParam = Symbol.Intern("__error");
         var rejectCall = Cons.FromEnumerable([
-            JsSymbols.Call, 
-            rejectParam, 
+            JsSymbols.Call,
+            rejectParam,
             catchParam
         ]);
 
         var catchBlock = Cons.FromEnumerable([
-            JsSymbols.Block, 
+            JsSymbols.Block,
             Cons.FromEnumerable([JsSymbols.ExpressionStatement, rejectCall])
         ]);
 
         // Create the catch clause: (catch catchParam catchBlock)
         var catchClause = Cons.FromEnumerable([
-            JsSymbols.Catch, 
-            catchParam, 
+            JsSymbols.Catch,
+            catchParam,
             catchBlock
         ]);
 
         // Create try statement with catch and no finally (null)
         var tryStatement = Cons.FromEnumerable([
-            JsSymbols.Try, 
-            transformedBody, 
+            JsSymbols.Try,
+            transformedBody,
             catchClause,
-            null  // No finally clause
+            null // No finally clause
         ]);
 
         return Cons.FromEnumerable([JsSymbols.Block, tryStatement]);
@@ -264,17 +217,13 @@ public sealed class CpsTransformer
     private object? TransformAsyncBody(object? body, Symbol resolveParam, Symbol rejectParam)
     {
         if (body is not Cons cons || cons.IsEmpty)
-        {
             // No await, just call resolve with the result
             return CreateResolveCall(body, resolveParam);
-        }
 
         // Check if this is a block
         if (cons.Head is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Block))
-        {
             // Transform block statements, chaining awaits
             return TransformBlockWithAwaits(cons, resolveParam, rejectParam);
-        }
 
         // For other expressions, just resolve with the result
         return CreateResolveCall(body, resolveParam);
@@ -287,7 +236,7 @@ public sealed class CpsTransformer
     {
         var statements = new List<object?>();
         var current = blockCons.Rest; // Skip 'block' symbol
-        
+
         while (current is Cons c && !c.IsEmpty)
         {
             statements.Add(c.Head);
@@ -295,10 +244,8 @@ public sealed class CpsTransformer
         }
 
         if (statements.Count == 0)
-        {
             // Empty block, just resolve with null
             return CreateResolveCall(null, resolveParam);
-        }
 
         // Build the chain of statements, handling await specially
         return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam, null, null);
@@ -307,29 +254,28 @@ public sealed class CpsTransformer
     /// <summary>
     /// Recursively chains statements, handling await expressions by creating promise chains.
     /// </summary>
-    private object? ChainStatementsWithAwaits(List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null, bool addFinalContinuation = true)
+    private object? ChainStatementsWithAwaits(List<object?> statements, int index, Symbol resolveParam,
+        Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null,
+        bool addFinalContinuation = true)
     {
         if (index >= statements.Count)
         {
             // No more statements
             if (!addFinalContinuation)
-            {
                 // Don't add a continuation - this is for if/else branches that should fall through
                 return Cons.FromEnumerable([JsSymbols.Block]);
-            }
-            
+
             // Add resolve call
             // In loop context, return the promise from resolve to chain iterations
-            bool inLoopContext = loopContinueTarget != null || loopBreakTarget != null;
+            var inLoopContext = loopContinueTarget != null || loopBreakTarget != null;
             return CreateResolveCall(null, resolveParam, inLoopContext);
         }
 
         var statement = statements[index];
-        
+
         // Check if this is a break statement
-        if (statement is Cons breakCons && !breakCons.IsEmpty && 
+        if (statement is Cons breakCons && !breakCons.IsEmpty &&
             breakCons.Head is Symbol breakSymbol && ReferenceEquals(breakSymbol, JsSymbols.Break))
-        {
             // In loop context, break should jump to after-loop continuation
             if (loopBreakTarget != null)
             {
@@ -338,7 +284,6 @@ public sealed class CpsTransformer
                 // 2. A Cons representing (call __resolve) or similar call
                 // 3. A Cons representing (block (expr-stmt (call __resolve)))
                 // 4. A Cons representing (block (return (call __resolve)))
-                
                 if (loopBreakTarget is Symbol breakFunc)
                 {
                     // It's a function symbol, call it with return
@@ -353,24 +298,22 @@ public sealed class CpsTransformer
                 else if (loopBreakTarget is Cons breakCons2 && !breakCons2.IsEmpty)
                 {
                     var head = breakCons2.Head;
-                    
+
                     // Check if it's a block
                     if (head is Symbol blockSym && ReferenceEquals(blockSym, JsSymbols.Block))
                     {
                         // It's a block, check the first statement
-                        if (breakCons2.Rest is Cons blockRest && !blockRest.IsEmpty && 
+                        if (breakCons2.Rest is Cons blockRest && !blockRest.IsEmpty &&
                             blockRest.Head is Cons firstStmt && !firstStmt.IsEmpty)
                         {
                             var firstStmtHead = firstStmt.Head;
-                            
+
                             // If it's already a return statement, use the block as-is
                             if (firstStmtHead is Symbol returnSym && ReferenceEquals(returnSym, JsSymbols.Return))
-                            {
                                 return breakCons2;
-                            }
                             // If it's an expression statement, convert to return
-                            else if (firstStmtHead is Symbol exprSym && ReferenceEquals(exprSym, JsSymbols.ExpressionStatement))
-                            {
+                            else if (firstStmtHead is Symbol exprSym &&
+                                     ReferenceEquals(exprSym, JsSymbols.ExpressionStatement))
                                 // Get the expression from (expr-stmt expression)
                                 if (firstStmt.Rest is Cons exprRest && !exprRest.IsEmpty)
                                 {
@@ -381,8 +324,8 @@ public sealed class CpsTransformer
                                         expression
                                     ]);
                                 }
-                            }
                         }
+
                         // Block with other content, wrap in return (though this may not work correctly)
                         return Cons.FromEnumerable([
                             JsSymbols.Return,
@@ -413,16 +356,13 @@ public sealed class CpsTransformer
                     return loopBreakTarget;
                 }
             }
-            // Outside loop context, just include it (will be handled at runtime)
-        }
-        
+
+        // Outside loop context, just include it (will be handled at runtime)
         // Check if this is a continue statement
-        if (statement is Cons continueCons && !continueCons.IsEmpty && 
+        if (statement is Cons continueCons && !continueCons.IsEmpty &&
             continueCons.Head is Symbol continueSymbol && ReferenceEquals(continueSymbol, JsSymbols.Continue))
-        {
             // In loop context, continue should call the loop check function (next iteration)
             if (loopContinueTarget != null)
-            {
                 return Cons.FromEnumerable([
                     JsSymbols.Block,
                     Cons.FromEnumerable([
@@ -433,64 +373,53 @@ public sealed class CpsTransformer
                         ])
                     ])
                 ]);
-            }
-            // Outside loop context, just include it (will be handled at runtime)
-        }
-        
+
+        // Outside loop context, just include it (will be handled at runtime)
         // Check if this is a return statement
-        if (statement is Cons cons && !cons.IsEmpty && 
+        if (statement is Cons cons && !cons.IsEmpty &&
             cons.Head is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Return))
-        {
             // Always transform return statements to call resolve
             return TransformReturnStatement(cons, resolveParam, statements, index);
-        }
-        
+
         // Check if this is a try-catch statement
-        if (statement is Cons tryCons && !tryCons.IsEmpty && 
+        if (statement is Cons tryCons && !tryCons.IsEmpty &&
             tryCons.Head is Symbol trySymbol && ReferenceEquals(trySymbol, JsSymbols.Try))
-        {
             // Transform try-catch with special handling for async context
-            return TransformTryInAsyncContext(tryCons, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
-        }
-        
+            return TransformTryInAsyncContext(tryCons, statements, index, resolveParam, rejectParam, loopContinueTarget,
+                loopBreakTarget, addFinalContinuation);
+
         // Check if this is a for-of statement - needs transformation if body contains await
-        if (statement is Cons forOfCons && !forOfCons.IsEmpty && 
+        if (statement is Cons forOfCons && !forOfCons.IsEmpty &&
             forOfCons.Head is Symbol forOfSymbol && ReferenceEquals(forOfSymbol, JsSymbols.ForOf))
         {
             // Check if body contains await
             var parts = ConsList(forOfCons);
             if (parts.Count >= 4 && ContainsAwait(parts[3]))
-            {
                 // Transform for-of with await in body
                 return TransformForOfWithAwaitInBody(forOfCons, statements, index, resolveParam, rejectParam);
-            }
         }
 
         // Check if this is a for-await-of statement - always transform in async context
         // We wrap iterator.next() in Promise.resolve() to handle both sync and async iterators
-        if (statement is Cons forAwaitCons && !forAwaitCons.IsEmpty && 
+        if (statement is Cons forAwaitCons && !forAwaitCons.IsEmpty &&
             forAwaitCons.Head is Symbol forAwaitSymbol && ReferenceEquals(forAwaitSymbol, JsSymbols.ForAwaitOf))
-        {
             // Always transform for-await-of in async functions
             // Promise.resolve() ensures both sync and async iterators work the same way
             return TransformForOfWithAwaitInBody(forAwaitCons, statements, index, resolveParam, rejectParam);
-        }
-        
+
         // Check if this is a while statement - needs transformation if body contains await
-        if (statement is Cons whileCons && !whileCons.IsEmpty && 
+        if (statement is Cons whileCons && !whileCons.IsEmpty &&
             whileCons.Head is Symbol whileSymbol && ReferenceEquals(whileSymbol, JsSymbols.While))
         {
             // Check if body contains await
             var parts = ConsList(whileCons);
             if (parts.Count >= 3 && ContainsAwait(parts[2]))
-            {
                 // Transform while with await in body
                 return TransformWhileWithAwaitInBody(whileCons, statements, index, resolveParam, rejectParam);
-            }
         }
-        
+
         // Check if this is an if statement - recursively transform branches when in loop context or contains await
-        if (statement is Cons ifCons && !ifCons.IsEmpty && 
+        if (statement is Cons ifCons && !ifCons.IsEmpty &&
             ifCons.Head is Symbol ifSymbol && ReferenceEquals(ifSymbol, JsSymbols.If))
         {
             var ifParts = ConsList(ifCons);
@@ -499,50 +428,58 @@ public sealed class CpsTransformer
                 var condition = ifParts[1];
                 var thenBranch = ifParts[2];
                 var elseBranch = ifParts.Count > 3 ? ifParts[3] : null;
-                
+
                 // Check if we need to transform branches (in loop context or contains await)
-                bool needsTransform = (loopContinueTarget != null || loopBreakTarget != null) || 
-                                     ContainsAwait(thenBranch) || 
+                var needsTransform = loopContinueTarget != null || loopBreakTarget != null ||
+                                     ContainsAwait(thenBranch) ||
                                      (elseBranch != null && ContainsAwait(elseBranch));
-                
+
                 if (needsTransform)
                 {
                     // Transform branches recursively - handles break/continue/await/return
                     // Use TransformIfBranchInLoopContext when in loop context to avoid adding continuation at end
-                    bool inLoopContext = loopContinueTarget != null || loopBreakTarget != null;
-                    
+                    var inLoopContext = loopContinueTarget != null || loopBreakTarget != null;
+
                     object? transformedThen, transformedElse = null;
                     if (inLoopContext)
                     {
-                        transformedThen = TransformIfBranchInLoopContext(thenBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-                        transformedElse = elseBranch != null ? TransformIfBranchInLoopContext(elseBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget) : null;
+                        transformedThen = TransformIfBranchInLoopContext(thenBranch, resolveParam, rejectParam,
+                            loopContinueTarget, loopBreakTarget);
+                        transformedElse = elseBranch != null
+                            ? TransformIfBranchInLoopContext(elseBranch, resolveParam, rejectParam, loopContinueTarget,
+                                loopBreakTarget)
+                            : null;
                     }
                     else
                     {
-                        transformedThen = TransformBlockInAsyncContext(thenBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-                        transformedElse = elseBranch != null ? TransformBlockInAsyncContext(elseBranch, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget) : null;
+                        transformedThen = TransformBlockInAsyncContext(thenBranch, resolveParam, rejectParam,
+                            loopContinueTarget, loopBreakTarget);
+                        transformedElse = elseBranch != null
+                            ? TransformBlockInAsyncContext(elseBranch, resolveParam, rejectParam, loopContinueTarget,
+                                loopBreakTarget)
+                            : null;
                     }
-                    
+
                     // Check if both branches (or the single then-branch with no else) return early
                     // If so, we shouldn't add the continuation after the if statement
-                    bool allBranchesReturnEarly = false;
+                    var allBranchesReturnEarly = false;
                     if (transformedElse != null)
-                    {
                         // Both branches exist - check if both return early
-                        allBranchesReturnEarly = BlockAlwaysReturnsEarly(transformedThen) && BlockAlwaysReturnsEarly(transformedElse);
-                    }
+                        allBranchesReturnEarly = BlockAlwaysReturnsEarly(transformedThen) &&
+                                                 BlockAlwaysReturnsEarly(transformedElse);
                     // If there's no else branch, it can't guarantee early return since execution falls through when condition is false
-                    
+
                     var transformedIf = transformedElse != null
                         ? Cons.FromEnumerable([JsSymbols.If, condition, transformedThen, transformedElse])
                         : Cons.FromEnumerable([JsSymbols.If, condition, transformedThen]);
-                    
+
                     // Only add continuation if not all branches return early
                     if (!allBranchesReturnEarly)
                     {
-                        var ifRest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
-                        
-                        if (ifRest is Cons ifRestCons && !ifRestCons.IsEmpty && 
+                        var ifRest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam,
+                            loopContinueTarget, loopBreakTarget, addFinalContinuation);
+
+                        if (ifRest is Cons ifRestCons && !ifRestCons.IsEmpty &&
                             ifRestCons.Head is Symbol ifRestSymbol && ReferenceEquals(ifRestSymbol, JsSymbols.Block))
                         {
                             var flattenedStatements = new List<object?> { JsSymbols.Block, transformedIf };
@@ -552,9 +489,10 @@ public sealed class CpsTransformer
                                 flattenedStatements.Add(c.Head);
                                 current = c.Rest;
                             }
+
                             return Cons.FromEnumerable(flattenedStatements);
                         }
-                        
+
                         return Cons.FromEnumerable([JsSymbols.Block, transformedIf, ifRest]);
                     }
                     else
@@ -565,19 +503,19 @@ public sealed class CpsTransformer
                 }
             }
         }
-        
+
         // Check if this statement contains await
         if (ContainsAwait(statement))
-        {
             // Transform this statement with await into a promise chain
-            return TransformStatementWithAwait(statement, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
-        }
+            return TransformStatementWithAwait(statement, statements, index, resolveParam, rejectParam,
+                loopContinueTarget, loopBreakTarget, addFinalContinuation);
 
         // No await and not a special case, just include it and continue
-        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
-        
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget,
+            loopBreakTarget, addFinalContinuation);
+
         // If rest is a block, flatten it to avoid nested blocks
-        if (rest is Cons restCons && !restCons.IsEmpty && 
+        if (rest is Cons restCons && !restCons.IsEmpty &&
             restCons.Head is Symbol restSymbol && ReferenceEquals(restSymbol, JsSymbols.Block))
         {
             // rest is (block stmts...), so we want to create (block statement stmts...)
@@ -588,12 +526,13 @@ public sealed class CpsTransformer
                 flattenedStatements.Add(c.Head);
                 current = c.Rest;
             }
+
             return Cons.FromEnumerable(flattenedStatements);
         }
-        
+
         return Cons.FromEnumerable([
-            JsSymbols.Block, 
-            statement, 
+            JsSymbols.Block,
+            statement,
             rest
         ]);
     }
@@ -605,58 +544,58 @@ public sealed class CpsTransformer
     {
         var parts = ConsList(returnCons);
         var returnValue = parts.Count >= 2 ? parts[1] : null;
-        
+
         // Check if return value is an await expression
         if (returnValue is Cons valueCons && !valueCons.IsEmpty &&
             valueCons.Head is Symbol awaitSym && ReferenceEquals(awaitSym, JsSymbols.Await))
         {
             // Extract the promise expression
             var promiseExpr = valueCons.Rest.Head;
-            
+
             // Create a temporary parameter name for the .then() callback
             var valueParam = Symbol.Intern("__value");
-            
+
             // Create the .then() callback: function(__value) { resolve(__value); }
             var resolveCall = Cons.FromEnumerable([
-                JsSymbols.Call, 
-                resolveParam, 
+                JsSymbols.Call,
+                resolveParam,
                 valueParam
             ]);
-            
+
             var thenCallback = Cons.FromEnumerable([
-                JsSymbols.Lambda, 
-                null, 
-                Cons.FromEnumerable([valueParam]), 
+                JsSymbols.Lambda,
+                null,
+                Cons.FromEnumerable([valueParam]),
                 Cons.FromEnumerable([
-                    JsSymbols.Block, 
+                    JsSymbols.Block,
                     Cons.FromEnumerable([JsSymbols.ExpressionStatement, resolveCall])
                 ])
             ]);
-            
+
             // Use __awaitHelper to wrap promiseExpr in Promise if needed
             var awaitHelperCall = Cons.FromEnumerable([
                 JsSymbols.Call,
                 Symbol.Intern("__awaitHelper"),
                 promiseExpr
             ]);
-            
+
             // Create: __awaitHelper(promiseExpr).then(callback)
             var thenCall = Cons.FromEnumerable([
-                JsSymbols.Call, 
+                JsSymbols.Call,
                 Cons.FromEnumerable([
-                    JsSymbols.GetProperty, 
-                    awaitHelperCall, 
+                    JsSymbols.GetProperty,
+                    awaitHelperCall,
                     "then"
-                ]), 
+                ]),
                 thenCallback
             ]);
-            
+
             return Cons.FromEnumerable([
-                JsSymbols.Block, 
+                JsSymbols.Block,
                 Cons.FromEnumerable([JsSymbols.ExpressionStatement, thenCall])
             ]);
         }
-        
+
         // Regular return, call resolve with the value
         return CreateResolveCall(returnValue, resolveParam);
     }
@@ -666,42 +605,27 @@ public sealed class CpsTransformer
     /// </summary>
     private bool ContainsAwait(object? expr)
     {
-        if (expr == null)
-        {
-            return false;
-        }
+        if (expr == null) return false;
 
         if (expr is Cons cons && !cons.IsEmpty)
         {
             if (cons.Head is Symbol symbol)
             {
                 // Check for await expression
-                if (ReferenceEquals(symbol, JsSymbols.Await))
-                {
-                    return true;
-                }
-                
+                if (ReferenceEquals(symbol, JsSymbols.Await)) return true;
+
                 // Check for for-await-of loop
-                if (ReferenceEquals(symbol, JsSymbols.ForAwaitOf))
-                {
-                    return true;
-                }
-                
+                if (ReferenceEquals(symbol, JsSymbols.ForAwaitOf)) return true;
+
                 // Check for while loop with await in body
                 if (ReferenceEquals(symbol, JsSymbols.While))
                 {
                     var parts = ConsList(cons);
-                    if (parts.Count >= 3 && ContainsAwait(parts[2]))
-                    {
-                        return true;
-                    }
+                    if (parts.Count >= 3 && ContainsAwait(parts[2])) return true;
                 }
             }
 
-            if (ContainsAwait(cons.Head) || ContainsAwait(cons.Rest))
-            {
-                return true;
-            }
+            if (ContainsAwait(cons.Head) || ContainsAwait(cons.Rest)) return true;
         }
 
         return false;
@@ -714,17 +638,12 @@ public sealed class CpsTransformer
     /// </summary>
     private bool BlockAlwaysReturnsEarly(object? block)
     {
-        if (block == null)
-        {
-            return false;
-        }
+        if (block == null) return false;
 
         // If it's a return statement, it returns early
-        if (block is Cons returnCons && !returnCons.IsEmpty && 
+        if (block is Cons returnCons && !returnCons.IsEmpty &&
             returnCons.Head is Symbol returnSym && ReferenceEquals(returnSym, JsSymbols.Return))
-        {
             return true;
-        }
 
         // If it's a block, check the last statement
         if (block is Cons blockCons && !blockCons.IsEmpty &&
@@ -744,9 +663,7 @@ public sealed class CpsTransformer
                 // Check if last statement is a return
                 if (lastStmt is Cons lastCons && !lastCons.IsEmpty &&
                     lastCons.Head is Symbol lastSym && ReferenceEquals(lastSym, JsSymbols.Return))
-                {
                     return true;
-                }
 
                 // Check if last statement is an if where all branches return early
                 if (lastStmt is Cons ifCons && !ifCons.IsEmpty &&
@@ -760,9 +677,7 @@ public sealed class CpsTransformer
 
                         // If there's an else branch, both must return early
                         if (elseBranch != null)
-                        {
                             return BlockAlwaysReturnsEarly(thenBranch) && BlockAlwaysReturnsEarly(elseBranch);
-                        }
                         // If there's no else branch, the if doesn't guarantee early return
                         // because execution can fall through when condition is false
                         return false;
@@ -779,42 +694,45 @@ public sealed class CpsTransformer
     /// Example: let x = await p; [rest]
     /// Becomes: p.then(function(x) { [rest] })
     /// </summary>
-    private object? TransformStatementWithAwait(object? statement, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null, bool addFinalContinuation = true)
+    private object? TransformStatementWithAwait(object? statement, List<object?> statements, int index,
+        Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null,
+        bool addFinalContinuation = true)
     {
         // Handle different statement types
         if (statement is Cons cons && !cons.IsEmpty && cons.Head is Symbol symbol)
         {
             // Handle: let/var/const x = await expr;
-            if (ReferenceEquals(symbol, JsSymbols.Let) || 
-                ReferenceEquals(symbol, JsSymbols.Var) || 
+            if (ReferenceEquals(symbol, JsSymbols.Let) ||
+                ReferenceEquals(symbol, JsSymbols.Var) ||
                 ReferenceEquals(symbol, JsSymbols.Const))
             {
                 var parts = ConsList(cons);
                 if (parts.Count >= 3)
                 {
                     var varKeyword = parts[0]; // let/var/const
-                    var varName = parts[1];    // variable name
-                    var value = parts[2];      // value expression
-                    
+                    var varName = parts[1]; // variable name
+                    var value = parts[2]; // value expression
+
                     // Check if value is a simple await expression
-                    if (value is Cons valueCons && !valueCons.IsEmpty && 
+                    if (value is Cons valueCons && !valueCons.IsEmpty &&
                         valueCons.Head is Symbol awaitSym && ReferenceEquals(awaitSym, JsSymbols.Await))
                     {
                         // Extract the promise expression from (await promise-expr)
                         var promiseExpr = valueCons.Rest.Head;
-                        
+
                         // Create continuation for remaining statements
                         var restStatements = statements.Skip(index + 1).ToList();
-                        var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-                        
+                        var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam,
+                            loopContinueTarget, loopBreakTarget);
+
                         // Create the .then() callback: function(varName) { [continuation] }
                         var thenCallback = Cons.FromEnumerable([
-                            JsSymbols.Lambda, 
-                            null, 
-                            Cons.FromEnumerable([varName]), 
+                            JsSymbols.Lambda,
+                            null,
+                            Cons.FromEnumerable([varName]),
                             continuation
                         ]);
-                        
+
                         // Use __awaitHelper to wrap promiseExpr in Promise if needed
                         // This checks if the value is already thenable before wrapping
                         var awaitHelperCall = Cons.FromEnumerable([
@@ -822,21 +740,21 @@ public sealed class CpsTransformer
                             Symbol.Intern("__awaitHelper"),
                             promiseExpr
                         ]);
-                        
+
                         // Create the .then() call: __awaitHelper(promiseExpr).then(thenCallback)
                         var thenCall = Cons.FromEnumerable([
-                            JsSymbols.Call, 
+                            JsSymbols.Call,
                             Cons.FromEnumerable([
-                                JsSymbols.GetProperty, 
-                                awaitHelperCall, 
+                                JsSymbols.GetProperty,
+                                awaitHelperCall,
                                 "then"
-                            ]), 
+                            ]),
                             thenCallback
                         ]);
-                        
+
                         // Wrap in expression statement and block
                         return Cons.FromEnumerable([
-                            JsSymbols.Block, 
+                            JsSymbols.Block,
                             Cons.FromEnumerable([JsSymbols.ExpressionStatement, thenCall])
                         ]);
                     }
@@ -844,52 +762,51 @@ public sealed class CpsTransformer
                     else if (ContainsAwait(value))
                     {
                         // Extract awaits from the complex expression and chain them
-                        return ExtractAndChainAwaits(varKeyword, varName, value, statements, index, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
+                        return ExtractAndChainAwaits(varKeyword, varName, value, statements, index, resolveParam,
+                            rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
                     }
                 }
             }
-            
+
             // Handle: return await expr;
             if (ReferenceEquals(symbol, JsSymbols.Return))
             {
                 var parts = ConsList(cons);
                 if (parts.Count >= 2 && parts[1] is Cons retValueCons && !retValueCons.IsEmpty)
-                {
                     if (retValueCons.Head is Symbol awaitSym && ReferenceEquals(awaitSym, JsSymbols.Await))
                     {
                         // Extract the promise expression
                         var promiseExpr = retValueCons.Rest.Head;
-                        
+
                         // Use __awaitHelper to wrap promiseExpr in Promise if needed
                         var awaitHelperCall = Cons.FromEnumerable([
                             JsSymbols.Call,
                             Symbol.Intern("__awaitHelper"),
                             promiseExpr
                         ]);
-                        
+
                         // Create: __awaitHelper(promiseExpr).then(resolve)
                         var thenCall = Cons.FromEnumerable([
-                            JsSymbols.Call, 
+                            JsSymbols.Call,
                             Cons.FromEnumerable([
-                                JsSymbols.GetProperty, 
-                                awaitHelperCall, 
+                                JsSymbols.GetProperty,
+                                awaitHelperCall,
                                 "then"
-                            ]), 
+                            ]),
                             resolveParam
                         ]);
-                        
+
                         return Cons.FromEnumerable([
-                            JsSymbols.Block, 
+                            JsSymbols.Block,
                             Cons.FromEnumerable([JsSymbols.ExpressionStatement, thenCall])
                         ]);
                     }
-                }
-                
+
                 // Regular return without await, just call resolve
                 var returnValue = parts.Count >= 2 ? parts[1] : null;
                 return CreateResolveCall(returnValue, resolveParam);
             }
-            
+
             // Handle: (expr-stmt (assign x (await expr)))
             // This handles plain assignments like: x = await expr;
             if (ReferenceEquals(symbol, JsSymbols.ExpressionStatement))
@@ -902,24 +819,25 @@ public sealed class CpsTransformer
                     var assignParts = ConsList(exprCons);
                     if (assignParts.Count >= 3)
                     {
-                        var varName = assignParts[1];    // variable name
-                        var value = assignParts[2];      // value expression
-                        
+                        var varName = assignParts[1]; // variable name
+                        var value = assignParts[2]; // value expression
+
                         // Check if value is a simple await expression
-                        if (value is Cons valueCons && !valueCons.IsEmpty && 
+                        if (value is Cons valueCons && !valueCons.IsEmpty &&
                             valueCons.Head is Symbol awaitSym && ReferenceEquals(awaitSym, JsSymbols.Await))
                         {
                             // Extract the promise expression from (await promise-expr)
                             var promiseExpr = valueCons.Rest.Head;
-                            
+
                             // Create continuation for remaining statements
                             var restStatements = statements.Skip(index + 1).ToList();
-                            var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-                            
+                            var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam,
+                                loopContinueTarget, loopBreakTarget);
+
                             // Create the .then() callback: function(tempVar) { varName = tempVar; [continuation] }
                             // We need a temporary variable for the .then() callback parameter
                             var tempVar = Symbol.Intern("__awaitResult");
-                            
+
                             // Create the assignment statement in the callback: varName = tempVar
                             var assignStatement = Cons.FromEnumerable([
                                 JsSymbols.ExpressionStatement,
@@ -929,7 +847,7 @@ public sealed class CpsTransformer
                                     tempVar
                                 ])
                             ]);
-                            
+
                             // Combine assignment with continuation
                             object? callbackBody;
                             if (continuation is Cons contCons && !contCons.IsEmpty &&
@@ -949,35 +867,35 @@ public sealed class CpsTransformer
                                     continuation
                                 ]);
                             }
-                            
+
                             var thenCallback = Cons.FromEnumerable([
-                                JsSymbols.Lambda, 
-                                null, 
-                                Cons.FromEnumerable([tempVar]), 
+                                JsSymbols.Lambda,
+                                null,
+                                Cons.FromEnumerable([tempVar]),
                                 callbackBody
                             ]);
-                            
+
                             // Use __awaitHelper to wrap promiseExpr in Promise if needed
                             var awaitHelperCall = Cons.FromEnumerable([
                                 JsSymbols.Call,
                                 Symbol.Intern("__awaitHelper"),
                                 promiseExpr
                             ]);
-                            
+
                             // Create the .then() call: __awaitHelper(promiseExpr).then(thenCallback)
                             var thenCall = Cons.FromEnumerable([
-                                JsSymbols.Call, 
+                                JsSymbols.Call,
                                 Cons.FromEnumerable([
-                                    JsSymbols.GetProperty, 
-                                    awaitHelperCall, 
+                                    JsSymbols.GetProperty,
+                                    awaitHelperCall,
                                     "then"
-                                ]), 
+                                ]),
                                 thenCallback
                             ]);
-                            
+
                             // Wrap in expression statement and block
                             return Cons.FromEnumerable([
-                                JsSymbols.Block, 
+                                JsSymbols.Block,
                                 Cons.FromEnumerable([JsSymbols.ExpressionStatement, thenCall])
                             ]);
                         }
@@ -987,10 +905,11 @@ public sealed class CpsTransformer
         }
 
         // Default: include the statement as-is and continue
-        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
+        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget,
+            loopBreakTarget, addFinalContinuation);
         return Cons.FromEnumerable([
-            JsSymbols.Block, 
-            statement, 
+            JsSymbols.Block,
+            statement,
             rest
         ]);
     }
@@ -999,14 +918,13 @@ public sealed class CpsTransformer
     /// Transforms a try-catch statement within an async function context.
     /// Handles return statements in try and catch blocks by calling resolve.
     /// </summary>
-    private object? TransformTryInAsyncContext(Cons tryCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null, bool addFinalContinuation = true)
+    private object? TransformTryInAsyncContext(Cons tryCons, List<object?> statements, int index, Symbol resolveParam,
+        Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null,
+        bool addFinalContinuation = true)
     {
         // tryCons is (try tryBlock catchClause? finallyBlock?)
         var parts = ConsList(tryCons);
-        if (parts.Count < 2)
-        {
-            return tryCons;
-        }
+        if (parts.Count < 2) return tryCons;
 
         var tryBlock = parts[1];
         var catchClause = parts.Count > 2 ? parts[2] : null;
@@ -1016,8 +934,8 @@ public sealed class CpsTransformer
         // If catch contains await, we need full promise-based transformation
         // to ensure code after try-catch waits for async operations in catch
         // Note: Finally blocks with await are not fully supported in promise-based transformation
-        bool catchContainsAwait = false;
-        
+        var catchContainsAwait = false;
+
         if (catchClause != null && catchClause is Cons catchCons && !catchCons.IsEmpty)
         {
             var catchParts = ConsList(catchCons);
@@ -1027,14 +945,15 @@ public sealed class CpsTransformer
                 catchContainsAwait = ContainsAwait(catchBlock);
             }
         }
-        
+
         // Only keep synchronous try-catch structure if try and catch are both synchronous
         // Finally blocks are transformed in place regardless
         if (!ContainsAwait(tryBlock) && !catchContainsAwait)
         {
             // No await in try or catch blocks - transform blocks but keep try-catch structure
-            var transformedTryBlock = TransformBlockInAsyncContext(tryBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-            
+            var transformedTryBlock = TransformBlockInAsyncContext(tryBlock, resolveParam, rejectParam,
+                loopContinueTarget, loopBreakTarget);
+
             object? transformedCatchClause = null;
             if (catchClause != null && catchClause is Cons syncCatchCons && !syncCatchCons.IsEmpty)
             {
@@ -1044,8 +963,9 @@ public sealed class CpsTransformer
                     var catchSymbol = catchParts[0];
                     var catchParam = catchParts[1];
                     var catchBlock = catchParts[2];
-                    var transformedCatchBlock = TransformBlockInAsyncContext(catchBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-                    
+                    var transformedCatchBlock = TransformBlockInAsyncContext(catchBlock, resolveParam, rejectParam,
+                        loopContinueTarget, loopBreakTarget);
+
                     transformedCatchClause = Cons.FromEnumerable([
                         catchSymbol,
                         catchParam,
@@ -1053,13 +973,12 @@ public sealed class CpsTransformer
                     ]);
                 }
             }
-            
+
             object? transformedFinallyBlock = null;
             if (finallyBlock != null)
-            {
-                transformedFinallyBlock = TransformBlockInAsyncContext(finallyBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-            }
-            
+                transformedFinallyBlock = TransformBlockInAsyncContext(finallyBlock, resolveParam, rejectParam,
+                    loopContinueTarget, loopBreakTarget);
+
             // Keep try-catch structure
             var transformedTry = Cons.FromEnumerable([
                 JsSymbols.Try,
@@ -1067,10 +986,11 @@ public sealed class CpsTransformer
                 transformedCatchClause,
                 transformedFinallyBlock
             ]);
-            
+
             // Continue with remaining statements
-            var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
-            
+            var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget,
+                loopBreakTarget, addFinalContinuation);
+
             return Cons.FromEnumerable([
                 JsSymbols.Block,
                 transformedTry,
@@ -1080,7 +1000,8 @@ public sealed class CpsTransformer
 
         // Try block contains await - need to transform into promise-based error handling
         // Continue with remaining statements after the try-catch
-        var restAfterTry = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
+        var restAfterTry = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam,
+            loopContinueTarget, loopBreakTarget, addFinalContinuation);
 
         // Check if we have a catch clause
         Symbol? asyncCatchParam = null;
@@ -1094,27 +1015,28 @@ public sealed class CpsTransformer
                 asyncCatchBlock = asyncCatchParts[2];
             }
         }
-        
+
         // Create a catch handler function that will be used as the reject parameter for the try block
         // This function will execute the catch block and then continue with rest
         Symbol tryCatchRejectHandler;
         object? tryCatchRejectHandlerDecl = null;
-        
+
         if (asyncCatchBlock != null && asyncCatchParam != null)
         {
             tryCatchRejectHandler = Symbol.Intern("__tryCatchReject" + Guid.NewGuid().ToString("N").Substring(0, 8));
-            
+
             // Transform the catch block
             // The catch block's continuation is the rest of the statements
-            var transformedCatchBlock = TransformBlockInAsyncContext(asyncCatchBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
-            
+            var transformedCatchBlock = TransformBlockInAsyncContext(asyncCatchBlock, resolveParam, rejectParam,
+                loopContinueTarget, loopBreakTarget);
+
             // Combine catch block with rest
             var catchWithRest = Cons.FromEnumerable([
                 JsSymbols.Block,
                 transformedCatchBlock,
                 restAfterTry
             ]);
-            
+
             // Create function: function __tryCatchReject(asyncCatchParam) { catchBlock; rest; }
             tryCatchRejectHandlerDecl = Cons.FromEnumerable([
                 JsSymbols.Function,
@@ -1128,9 +1050,11 @@ public sealed class CpsTransformer
             // No catch clause, use the outer reject handler
             tryCatchRejectHandler = rejectParam;
         }
+
         // Transform the try block, using the catch handler as the reject parameter
-        var transformedTryBlock2 = TransformBlockInAsyncContext(tryBlock, resolveParam, tryCatchRejectHandler, loopContinueTarget, loopBreakTarget);
-        
+        var transformedTryBlock2 = TransformBlockInAsyncContext(tryBlock, resolveParam, tryCatchRejectHandler,
+            loopContinueTarget, loopBreakTarget);
+
         // If the try block doesn't contain await but we're using promise-based transformation
         // (because catch has await), wrap in try-catch to convert sync throws to reject calls
         object? wrappedTryBlock;
@@ -1138,7 +1062,7 @@ public sealed class CpsTransformer
         {
             // Synchronous try block - wrap in try-catch to catch sync errors
             var errorParam = Symbol.Intern("__syncError" + Guid.NewGuid().ToString("N").Substring(0, 8));
-            
+
             // Create catch block: { tryCatchRejectHandler(errorParam); }
             var syncCatchBlock = Cons.FromEnumerable([
                 JsSymbols.Block,
@@ -1151,20 +1075,20 @@ public sealed class CpsTransformer
                     ])
                 ])
             ]);
-            
+
             // Create catch clause: (catch errorParam syncCatchBlock)
             var syncCatchClause = Cons.FromEnumerable([
                 JsSymbols.Catch,
                 errorParam,
                 syncCatchBlock
             ]);
-            
+
             // Wrap: try { transformedTryBlock2 } catch (errorParam) { tryCatchRejectHandler(errorParam); }
             wrappedTryBlock = Cons.FromEnumerable([
                 JsSymbols.Try,
                 transformedTryBlock2,
                 syncCatchClause,
-                null  // no finally
+                null // no finally
             ]);
         }
         else
@@ -1172,7 +1096,7 @@ public sealed class CpsTransformer
             // Async try block - errors are already promise rejections
             wrappedTryBlock = transformedTryBlock2;
         }
-        
+
         // If try block completes successfully, execute rest
         // Note: If an error occurs in sync try and catch handles it, rest will execute in the catch handler
         var tryWithRest = Cons.FromEnumerable([
@@ -1180,20 +1104,16 @@ public sealed class CpsTransformer
             wrappedTryBlock,
             restAfterTry
         ]);
-        
+
         // If we have a catch handler function, define it first
         if (tryCatchRejectHandlerDecl != null)
-        {
             return Cons.FromEnumerable([
                 JsSymbols.Block,
                 tryCatchRejectHandlerDecl,
                 tryWithRest
             ]);
-        }
         else
-        {
             return tryWithRest;
-        }
     }
 
     /// <summary>
@@ -1235,19 +1155,17 @@ public sealed class CpsTransformer
     /// <summary>
     /// Transforms a block within an async function context, handling return statements.
     /// </summary>
-    private object? TransformBlockInAsyncContext(object? block, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null)
+    private object? TransformBlockInAsyncContext(object? block, Symbol resolveParam, Symbol rejectParam,
+        Symbol? loopContinueTarget = null, object? loopBreakTarget = null)
     {
-        if (block is not Cons blockCons || blockCons.IsEmpty)
-        {
-            return block;
-        }
+        if (block is not Cons blockCons || blockCons.IsEmpty) return block;
 
         // Check if this is a block
         if (blockCons.Head is Symbol blockSymbol && ReferenceEquals(blockSymbol, JsSymbols.Block))
         {
             var statements = new List<object?>();
             var current = blockCons.Rest;
-            
+
             while (current is Cons c && !c.IsEmpty)
             {
                 statements.Add(c.Head);
@@ -1255,7 +1173,8 @@ public sealed class CpsTransformer
             }
 
             // Chain statements with async context
-            return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+            return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam, loopContinueTarget,
+                loopBreakTarget);
         }
 
         return block;
@@ -1266,19 +1185,17 @@ public sealed class CpsTransformer
     /// Unlike TransformBlockInAsyncContext, this does NOT add a continuation at the end
     /// because if branches should fall through to the next statement after the if.
     /// </summary>
-    private object? TransformIfBranchInLoopContext(object? branch, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget, object? loopBreakTarget)
+    private object? TransformIfBranchInLoopContext(object? branch, Symbol resolveParam, Symbol rejectParam,
+        Symbol? loopContinueTarget, object? loopBreakTarget)
     {
-        if (branch is not Cons branchCons || branchCons.IsEmpty)
-        {
-            return branch;
-        }
+        if (branch is not Cons branchCons || branchCons.IsEmpty) return branch;
 
         // Check if this is a block
         if (branchCons.Head is Symbol blockSymbol && ReferenceEquals(blockSymbol, JsSymbols.Block))
         {
             var statements = new List<object?>();
             var current = branchCons.Rest;
-            
+
             while (current is Cons c && !c.IsEmpty)
             {
                 statements.Add(c.Head);
@@ -1287,7 +1204,8 @@ public sealed class CpsTransformer
 
             // Chain statements WITHOUT adding final continuation (addFinalContinuation = false)
             // This allows the if branch to fall through to subsequent statements
-            return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation: false);
+            return ChainStatementsWithAwaits(statements, 0, resolveParam, rejectParam, loopContinueTarget,
+                loopBreakTarget, false);
         }
 
         return branch;
@@ -1298,7 +1216,9 @@ public sealed class CpsTransformer
     /// Example: let x = (await p1) + (await p2);
     /// Becomes: p1.then(function(t1) { p2.then(function(t2) { let x = t1 + t2; [rest] }) })
     /// </summary>
-    private object? ExtractAndChainAwaits(object? varKeyword, object? varName, object? expr, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null, object? loopBreakTarget = null, bool addFinalContinuation = true)
+    private object? ExtractAndChainAwaits(object? varKeyword, object? varName, object? expr, List<object?> statements,
+        int index, Symbol resolveParam, Symbol rejectParam, Symbol? loopContinueTarget = null,
+        object? loopBreakTarget = null, bool addFinalContinuation = true)
     {
         // Collect all await expressions in the expression
         var awaits = new List<(object? promiseExpr, Symbol tempVar)>();
@@ -1307,10 +1227,11 @@ public sealed class CpsTransformer
         if (awaits.Count == 0)
         {
             // No awaits found, shouldn't happen but handle gracefully
-            var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
+            var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget,
+                loopBreakTarget, addFinalContinuation);
             return Cons.FromEnumerable([
-                JsSymbols.Block, 
-                Cons.FromEnumerable([varKeyword, varName, expr]), 
+                JsSymbols.Block,
+                Cons.FromEnumerable([varKeyword, varName, expr]),
                 rest
             ]);
         }
@@ -1321,35 +1242,36 @@ public sealed class CpsTransformer
         var varDecl = Cons.FromEnumerable([varKeyword, varName, transformedExpr]);
         var innerStatements = new List<object?> { varDecl };
         innerStatements.AddRange(restStatements);
-        var innerBody = ChainStatementsWithAwaits(innerStatements, 0, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+        var innerBody = ChainStatementsWithAwaits(innerStatements, 0, resolveParam, rejectParam, loopContinueTarget,
+            loopBreakTarget);
 
         // Chain the awaits from right to left (innermost first)
-        for (int i = awaits.Count - 1; i >= 0; i--)
+        for (var i = awaits.Count - 1; i >= 0; i--)
         {
             var (promiseExpr, tempVar) = awaits[i];
-            
+
             // Create the .then() callback: function(tempVar) { innerBody }
             var thenCallback = Cons.FromEnumerable([
-                JsSymbols.Lambda, 
-                null, 
-                Cons.FromEnumerable([tempVar]), 
+                JsSymbols.Lambda,
+                null,
+                Cons.FromEnumerable([tempVar]),
                 innerBody
             ]);
-            
+
             // Create the .then() call: promiseExpr.then(thenCallback)
             var thenCall = Cons.FromEnumerable([
-                JsSymbols.Call, 
+                JsSymbols.Call,
                 Cons.FromEnumerable([
-                    JsSymbols.GetProperty, 
-                    promiseExpr, 
+                    JsSymbols.GetProperty,
+                    promiseExpr,
                     "then"
-                ]), 
+                ]),
                 thenCallback
             ]);
-            
+
             // Wrap in block for next iteration
             innerBody = Cons.FromEnumerable([
-                JsSymbols.Block, 
+                JsSymbols.Block,
                 Cons.FromEnumerable([JsSymbols.ExpressionStatement, thenCall])
             ]);
         }
@@ -1363,29 +1285,23 @@ public sealed class CpsTransformer
     /// </summary>
     private object? ExtractAwaitsFromExpression(object? expr, List<(object? promiseExpr, Symbol tempVar)> awaits)
     {
-        if (expr == null)
-        {
-            return null;
-        }
+        if (expr == null) return null;
 
         // If not a Cons, return as-is
-        if (expr is not Cons cons || cons.IsEmpty)
-        {
-            return expr;
-        }
+        if (expr is not Cons cons || cons.IsEmpty) return expr;
 
         // Check if this is an await expression
         if (cons.Head is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Await))
         {
             // Extract the promise expression
             var promiseExpr = cons.Rest.Head;
-            
+
             // Create a temporary variable
             var tempVar = Symbol.Intern($"__await{awaits.Count}");
-            
+
             // Add to awaits list
             awaits.Add((promiseExpr, tempVar));
-            
+
             // Return the temporary variable
             return tempVar;
         }
@@ -1393,7 +1309,7 @@ public sealed class CpsTransformer
         // Recursively transform all children
         var items = new List<object?>();
         var current = cons;
-        
+
         while (current is Cons c && !c.IsEmpty)
         {
             items.Add(ExtractAwaitsFromExpression(c.Head, awaits));
@@ -1410,23 +1326,18 @@ public sealed class CpsTransformer
     {
         // Create: (call resolve value)
         var args = new List<object?> { JsSymbols.Call, resolveParam };
-        if (value != null)
-        {
-            args.Add(value);
-        }
+        if (value != null) args.Add(value);
         var resolveCall = Cons.FromEnumerable(args);
 
         // In loop context, we need to return the promise from resolve call to chain iterations
         if (shouldReturn)
-        {
             return Cons.FromEnumerable([
                 JsSymbols.Block,
                 Cons.FromEnumerable([JsSymbols.Return, resolveCall])
             ]);
-        }
 
         return Cons.FromEnumerable([
-            JsSymbols.Block, 
+            JsSymbols.Block,
             Cons.FromEnumerable([JsSymbols.ExpressionStatement, resolveCall])
         ]);
     }
@@ -1437,7 +1348,7 @@ public sealed class CpsTransformer
     private object? TransformBlock(Cons cons)
     {
         var statements = new List<object?> { JsSymbols.Block };
-        
+
         var current = cons.Rest; // Skip the 'block' symbol
         while (current is Cons c && !c.IsEmpty)
         {
@@ -1456,10 +1367,7 @@ public sealed class CpsTransformer
     {
         // cons is (await expression)
         var parts = ConsList(cons);
-        if (parts.Count < 2)
-        {
-            return cons;
-        }
+        if (parts.Count < 2) return cons;
 
         var expression = parts[1];
         var transformedExpr = TransformExpression(expression);
@@ -1474,18 +1382,15 @@ public sealed class CpsTransformer
     private object? TransformVariableDeclaration(Cons cons)
     {
         var parts = ConsList(cons);
-        if (parts.Count < 3)
-        {
-            return cons;
-        }
+        if (parts.Count < 3) return cons;
 
         var keyword = parts[0]; // let/var/const
         var name = parts[1];
         var value = parts[2];
 
         return Cons.FromEnumerable([
-            keyword, 
-            name, 
+            keyword,
+            name,
             TransformExpression(value)
         ]);
     }
@@ -1497,20 +1402,17 @@ public sealed class CpsTransformer
     private object? TransformReturn(Cons cons)
     {
         var parts = ConsList(cons);
-        if (parts.Count < 2)
-        {
-            return cons;
-        }
+        if (parts.Count < 2) return cons;
 
         var value = parts[1];
-        
+
         // Transform the return value
         var transformedValue = TransformExpression(value);
 
         // In an async function context, we need to call resolve
         // For now, we'll transform the return and let the evaluator handle it
         return Cons.FromEnumerable([
-            JsSymbols.Return, 
+            JsSymbols.Return,
             transformedValue
         ]);
     }
@@ -1521,28 +1423,23 @@ public sealed class CpsTransformer
     private object? TransformIf(Cons cons)
     {
         var parts = ConsList(cons);
-        if (parts.Count < 3)
-        {
-            return cons;
-        }
+        if (parts.Count < 3) return cons;
 
         var condition = TransformExpression(parts[1]);
         var thenBranch = TransformExpression(parts[2]);
         var elseBranch = parts.Count > 3 ? TransformExpression(parts[3]) : null;
 
         if (elseBranch != null)
-        {
             return Cons.FromEnumerable([
-                JsSymbols.If, 
-                condition, 
-                thenBranch, 
+                JsSymbols.If,
+                condition,
+                thenBranch,
                 elseBranch
             ]);
-        }
 
         return Cons.FromEnumerable([
-            JsSymbols.If, 
-            condition, 
+            JsSymbols.If,
+            condition,
             thenBranch
         ]);
     }
@@ -1553,13 +1450,10 @@ public sealed class CpsTransformer
     private object? TransformExpressionStatement(Cons cons)
     {
         var parts = ConsList(cons);
-        if (parts.Count < 2)
-        {
-            return cons;
-        }
+        if (parts.Count < 2) return cons;
 
         return Cons.FromEnumerable([
-            JsSymbols.ExpressionStatement, 
+            JsSymbols.ExpressionStatement,
             TransformExpression(parts[1])
         ]);
     }
@@ -1570,7 +1464,7 @@ public sealed class CpsTransformer
     private object? TransformCall(Cons cons)
     {
         var transformed = new List<object?> { JsSymbols.Call };
-        
+
         var current = cons.Rest; // Skip the 'call' symbol
         while (current is Cons c && !c.IsEmpty)
         {
@@ -1587,14 +1481,11 @@ public sealed class CpsTransformer
     private object? TransformAssign(Cons cons)
     {
         var parts = ConsList(cons);
-        if (parts.Count < 3)
-        {
-            return cons;
-        }
+        if (parts.Count < 3) return cons;
 
         return Cons.FromEnumerable([
-            JsSymbols.Assign, 
-            parts[1], 
+            JsSymbols.Assign,
+            parts[1],
             TransformExpression(parts[2])
         ]);
     }
@@ -1607,16 +1498,12 @@ public sealed class CpsTransformer
     {
         // cons is (try tryBlock catchClause? finallyBlock?)
         var parts = ConsList(cons);
-        if (parts.Count < 2)
-        {
-            return cons;
-        }
+        if (parts.Count < 2) return cons;
 
         var tryBlock = TransformExpression(parts[1]);
-        
+
         object? catchClause = null;
         if (parts.Count > 2 && parts[2] != null)
-        {
             // catchClause is (catch param block)
             if (parts[2] is Cons catchCons && !catchCons.IsEmpty)
             {
@@ -1626,26 +1513,22 @@ public sealed class CpsTransformer
                     var catchSymbol = catchParts[0]; // 'catch'
                     var catchParam = catchParts[1];
                     var catchBlock = TransformExpression(catchParts[2]);
-                    
+
                     catchClause = Cons.FromEnumerable([
-                        catchSymbol, 
-                        catchParam, 
+                        catchSymbol,
+                        catchParam,
                         catchBlock
                     ]);
                 }
             }
-        }
-        
+
         object? finallyBlock = null;
-        if (parts.Count > 3 && parts[3] != null)
-        {
-            finallyBlock = TransformExpression(parts[3]);
-        }
+        if (parts.Count > 3 && parts[3] != null) finallyBlock = TransformExpression(parts[3]);
 
         return Cons.FromEnumerable([
-            JsSymbols.Try, 
-            tryBlock, 
-            catchClause, 
+            JsSymbols.Try,
+            tryBlock,
+            catchClause,
             finallyBlock
         ]);
     }
@@ -1657,7 +1540,7 @@ public sealed class CpsTransformer
     {
         var items = new List<object?>();
         var current = cons;
-        
+
         while (current is Cons c && !c.IsEmpty)
         {
             items.Add(TransformExpression(c.Head));
@@ -1672,7 +1555,8 @@ public sealed class CpsTransformer
     /// Following @rogeralsing's CPS insight: the body's last fragment returns the loop head
     /// as continuation, creating a natural loop via the event queue.
     /// </summary>
-    private object? TransformForOfWithAwaitInBody(Cons forOfCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    private object? TransformForOfWithAwaitInBody(Cons forOfCons, List<object?> statements, int index,
+        Symbol resolveParam, Symbol rejectParam)
     {
         // Parse: (for-of/for-await-of (let/var/const variable) iterable body)
         var parts = ConsList(forOfCons);
@@ -1684,10 +1568,10 @@ public sealed class CpsTransformer
             return Cons.FromEnumerable([JsSymbols.Block, forOfCons, continuation]);
         }
 
-        var loopType = parts[0];        // for-of or for-await-of
-        var variableDecl = parts[1];    // (let/var/const variable)
-        var iterableExpr = parts[2];    // iterable expression  
-        var loopBody = parts[3];        // loop body
+        var loopType = parts[0]; // for-of or for-await-of
+        var variableDecl = parts[1]; // (let/var/const variable)
+        var iterableExpr = parts[2]; // iterable expression  
+        var loopBody = parts[3]; // loop body
 
         // Extract variable info
         Symbol? variableName = null;
@@ -1715,17 +1599,17 @@ public sealed class CpsTransformer
         // 2. Create loop check that gets next value
         // 3. If done, continue after loop
         // 4. If not done, extract value, execute body, and body's continuation is back to step 2
-        
+
         var iteratorVar = Symbol.Intern("__iterator" + Guid.NewGuid().ToString("N").Substring(0, 8));
         var resultVar = Symbol.Intern("__result");
         var loopCheckFunc = Symbol.Intern("__loopCheck" + Guid.NewGuid().ToString("N").Substring(0, 8));
-        
+
         // Get continuation after loop completes
         var afterLoopStatements = statements.Skip(index + 1).ToList();
         var afterLoopContinuation = ChainStatementsWithAwaits(afterLoopStatements, 0, resolveParam, rejectParam);
 
         // Check if this is for-await-of
-        bool isForAwaitOf = loopType is Symbol loopSymbol && ReferenceEquals(loopSymbol, JsSymbols.ForAwaitOf);
+        var isForAwaitOf = loopType is Symbol loopSymbol && ReferenceEquals(loopSymbol, JsSymbols.ForAwaitOf);
 
         // Get iterator: let __iterator = __getAsyncIterator(iterable) for for-await-of
         // or let __iterator = iterable[Symbol.iterator]() for regular for-of
@@ -1752,7 +1636,7 @@ public sealed class CpsTransformer
         var loopCheckFuncDecl = Cons.FromEnumerable([
             JsSymbols.Function,
             loopCheckFunc,
-            Cons.FromEnumerable([]),  // no params
+            Cons.FromEnumerable([]), // no params
             loopCheckFuncBody
         ]);
 
@@ -1839,12 +1723,13 @@ public sealed class CpsTransformer
         // "loop resolve" function that calls the loop check instead of resolving
         // This way, ChainStatementsWithAwaits will call this function at the end instead of __resolve
         var loopResolve = Symbol.Intern("__loopResolve" + Guid.NewGuid().ToString("N").Substring(0, 8));
-        
+
         // Chain the body statements with await handling
         // Use loopResolve instead of resolveParam so the body calls loopCheck at the end
         // Pass loopCheckFunc for continue and afterLoopContinuation for break
-        var transformedBody = ChainStatementsWithAwaits(bodyStatements, 0, loopResolve, rejectParam, loopCheckFunc, afterLoopContinuation);
-        
+        var transformedBody = ChainStatementsWithAwaits(bodyStatements, 0, loopResolve, rejectParam, loopCheckFunc,
+            afterLoopContinuation);
+
         // Now wrap the transformed body with the loop resolve function definition
         // function __loopResolve() { return __loopCheck(); }
         var loopResolveFuncBody = Cons.FromEnumerable([
@@ -1857,14 +1742,14 @@ public sealed class CpsTransformer
                 ])
             ])
         ]);
-        
+
         var loopResolveFuncDecl = Cons.FromEnumerable([
             JsSymbols.Function,
             loopResolve,
-            Cons.FromEnumerable([]),  // no params
+            Cons.FromEnumerable([]), // no params
             loopResolveFuncBody
         ]);
-        
+
         // The transformed body with the loop resolve function prepended
         transformedBody = Cons.FromEnumerable([
             JsSymbols.Block,
@@ -2007,14 +1892,12 @@ public sealed class CpsTransformer
     /// }
     /// __whileCheck();
     /// </summary>
-    private object? TransformWhileWithAwaitInBody(Cons whileCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    private object? TransformWhileWithAwaitInBody(Cons whileCons, List<object?> statements, int index,
+        Symbol resolveParam, Symbol rejectParam)
     {
         // whileCons is (while condition body)
         var parts = ConsList(whileCons);
-        if (parts.Count < 3)
-        {
-            return whileCons;
-        }
+        if (parts.Count < 3) return whileCons;
 
         var condition = parts[1];
         var body = parts[2];
@@ -2050,7 +1933,8 @@ public sealed class CpsTransformer
         // and as loopContinueTarget (for continue statements)
         // Pass afterLoopContinuation as loopBreakTarget (for break statements)
         // The body will call whileCheckFunc at the end to continue the loop
-        var transformedBodyBlock = ChainStatementsWithAwaits(bodyStatements, 0, whileCheckFunc, rejectParam, whileCheckFunc, afterLoopContinuation);
+        var transformedBodyBlock = ChainStatementsWithAwaits(bodyStatements, 0, whileCheckFunc, rejectParam,
+            whileCheckFunc, afterLoopContinuation);
 
         // Create if statement: if (condition) { transformedBodyBlock } else { afterLoopContinuation }
         var ifStatement = Cons.FromEnumerable([
@@ -2069,7 +1953,7 @@ public sealed class CpsTransformer
         var whileCheckFuncDecl = Cons.FromEnumerable([
             JsSymbols.Function,
             whileCheckFunc,
-            Cons.FromEnumerable([]),  // no params
+            Cons.FromEnumerable([]), // no params
             whileCheckFuncBody
         ]);
 
@@ -2097,7 +1981,7 @@ public sealed class CpsTransformer
     {
         var result = new List<object?>();
         var current = cons;
-        
+
         while (current is Cons c && !c.IsEmpty)
         {
             result.Add(c.Head);
@@ -2114,43 +1998,27 @@ public sealed class CpsTransformer
     /// <returns>True if async/generator constructs are found</returns>
     private bool ContainsAsyncOrGenerator(object? expr)
     {
-        if (expr == null)
-        {
-            return false;
-        }
+        if (expr == null) return false;
 
         // Check if this is a Cons (S-expression list)
         if (expr is Cons cons)
         {
             // Check if the list is empty
-            if (cons.IsEmpty)
-            {
-                return false;
-            }
+            if (cons.IsEmpty) return false;
 
             // Check the head of the list for async/generator symbols
             if (cons.Head is Symbol symbol)
-            {
                 if (symbol == JsSymbols.Async ||
                     symbol == JsSymbols.Await ||
                     symbol == JsSymbols.Generator ||
                     symbol == JsSymbols.Yield ||
                     symbol == JsSymbols.YieldStar)
-                {
                     return true;
-                }
-            }
 
             // Recursively check head and rest
-            if (ContainsAsyncOrGenerator(cons.Head))
-            {
-                return true;
-            }
+            if (ContainsAsyncOrGenerator(cons.Head)) return true;
 
-            if (ContainsAsyncOrGenerator(cons.Rest))
-            {
-                return true;
-            }
+            if (ContainsAsyncOrGenerator(cons.Rest)) return true;
         }
 
         return false;
@@ -2162,10 +2030,7 @@ public sealed class CpsTransformer
     private static Cons MakeTransformedCons(IEnumerable<object?> items, Cons? origin)
     {
         var cons = Cons.FromEnumerable(items);
-        if (origin != null)
-        {
-            cons.WithOrigin(origin);
-        }
+        if (origin != null) cons.WithOrigin(origin);
         return cons;
     }
 }

@@ -303,11 +303,11 @@ public class RegExpTests
     public async Task RegexLiteral_MultipleFlags()
     {
         var engine = new JsEngine();
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         let regex = /hello/gi;
-                                                     
-                                             """);
+                                                     let regex = /hello/gi;
+                                                 
+                                         """);
         var ignoreCase = await engine.Evaluate("regex.ignoreCase;");
         var global = await engine.Evaluate("regex.global;");
         Assert.True((bool)ignoreCase!);

@@ -7,10 +7,7 @@ internal sealed class HostFunction : IJsCallable
 
     public HostFunction(Func<IReadOnlyList<object?>, object?> handler)
     {
-        if (handler is null)
-        {
-            throw new ArgumentNullException(nameof(handler));
-        }
+        if (handler is null) throw new ArgumentNullException(nameof(handler));
 
         _handler = (_, args) => handler(args);
         _properties.SetProperty("prototype", new JsObject());
@@ -22,9 +19,18 @@ internal sealed class HostFunction : IJsCallable
         _properties.SetProperty("prototype", new JsObject());
     }
 
-    public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue) => _handler(thisValue, arguments);
+    public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+    {
+        return _handler(thisValue, arguments);
+    }
 
-    public bool TryGetProperty(string name, out object? value) => _properties.TryGetProperty(name, out value);
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return _properties.TryGetProperty(name, out value);
+    }
 
-    public void SetProperty(string name, object? value) => _properties.SetProperty(name, value);
+    public void SetProperty(string name, object? value)
+    {
+        _properties.SetProperty(name, value);
+    }
 }

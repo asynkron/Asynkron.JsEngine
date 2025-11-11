@@ -24,9 +24,7 @@ internal sealed class EvalHostFunction : IEnvironmentAwareCallable
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
     {
         if (arguments.Count == 0 || arguments[0] is not string code)
-        {
             return arguments.Count > 0 ? arguments[0] : JsSymbols.Undefined;
-        }
 
         // Use the calling environment if available, otherwise use global
         var environment = CallingEnvironment ?? throw new InvalidOperationException(
@@ -34,15 +32,21 @@ internal sealed class EvalHostFunction : IEnvironmentAwareCallable
 
         // Parse the code
         var program = _engine.Parse(code);
-        
+
         // Evaluate directly in the calling environment without going through the event queue
         // This is safe because eval() is synchronous in JavaScript
         var result = Evaluator.EvaluateProgram(program, environment);
-        
+
         return result;
     }
 
-    public bool TryGetProperty(string name, out object? value) => _properties.TryGetProperty(name, out value);
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return _properties.TryGetProperty(name, out value);
+    }
 
-    public void SetProperty(string name, object? value) => _properties.SetProperty(name, value);
+    public void SetProperty(string name, object? value)
+    {
+        _properties.SetProperty(name, value);
+    }
 }

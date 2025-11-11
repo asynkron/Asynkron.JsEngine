@@ -11,7 +11,7 @@ internal sealed class JsSymbol
 {
     private static readonly ConcurrentDictionary<string, JsSymbol> GlobalRegistry = new(StringComparer.Ordinal);
     private static int _nextId = 0;
-    
+
     private readonly int _id;
     private readonly string? _key; // null for non-global symbols, non-null for global symbols
 
@@ -54,10 +54,7 @@ internal sealed class JsSymbol
 
     public override string ToString()
     {
-        if (Description != null)
-        {
-            return $"Symbol({Description})";
-        }
+        if (Description != null) return $"Symbol({Description})";
         return "Symbol()";
     }
 

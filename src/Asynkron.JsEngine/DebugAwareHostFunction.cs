@@ -18,7 +18,7 @@ internal sealed class DebugAwareHostFunction : IEnvironmentAwareCallable
     // Store the environment and context for the invoke
     internal Environment? CurrentEnvironment { get; set; }
     internal EvaluationContext? CurrentContext { get; set; }
-    
+
     /// <summary>
     /// The environment that is calling this function. Not used for debug functions but required by interface.
     /// </summary>
@@ -27,14 +27,18 @@ internal sealed class DebugAwareHostFunction : IEnvironmentAwareCallable
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
     {
         if (CurrentEnvironment is null || CurrentContext is null)
-        {
             throw new InvalidOperationException("Debug-aware function called without environment/context set");
-        }
-        
+
         return _handler(CurrentEnvironment, CurrentContext, arguments);
     }
 
-    public bool TryGetProperty(string name, out object? value) => _properties.TryGetProperty(name, out value);
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return _properties.TryGetProperty(name, out value);
+    }
 
-    public void SetProperty(string name, object? value) => _properties.SetProperty(name, value);
+    public void SetProperty(string name, object? value)
+    {
+        _properties.SetProperty(name, value);
+    }
 }

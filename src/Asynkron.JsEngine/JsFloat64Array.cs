@@ -5,14 +5,10 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Represents a JavaScript Float64Array - an array of 64-bit floating point numbers.
 /// </summary>
-internal sealed class JsFloat64Array : TypedArrayBase
+internal sealed class JsFloat64Array(JsArrayBuffer buffer, int byteOffset, int length)
+    : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
 {
     public const int BYTES_PER_ELEMENT = 8;
-
-    public JsFloat64Array(JsArrayBuffer buffer, int byteOffset, int length)
-        : base(buffer, byteOffset, length, BYTES_PER_ELEMENT)
-    {
-    }
 
     public static JsFloat64Array FromLength(int length)
     {
@@ -46,7 +42,7 @@ internal sealed class JsFloat64Array : TypedArrayBase
     {
         var (start, finalEnd) = NormalizeSliceIndices(begin, end);
         var newLength = Math.Max(finalEnd - start, 0);
-        var newByteOffset = _byteOffset + (start * BYTES_PER_ELEMENT);
+        var newByteOffset = _byteOffset + start * BYTES_PER_ELEMENT;
         return new JsFloat64Array(_buffer, newByteOffset, newLength);
     }
 
@@ -55,12 +51,9 @@ internal sealed class JsFloat64Array : TypedArrayBase
         var (start, finalEnd) = NormalizeSliceIndices(begin, end);
         var newLength = Math.Max(finalEnd - start, 0);
         var newArray = FromLength(newLength);
-        
-        for (int i = 0; i < newLength; i++)
-        {
-            newArray.SetElement(i, GetElement(start + i));
-        }
-        
+
+        for (var i = 0; i < newLength; i++) newArray.SetElement(i, GetElement(start + i));
+
         return newArray;
     }
 }

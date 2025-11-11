@@ -23,10 +23,10 @@ public class SourceReferenceTests
         // Navigate to the for loop statement
         // parsed is (program for-statement)
         var forStatement = parsed.Rest.Head as Cons;
-        
+
         Assert.NotNull(forStatement);
         Assert.NotNull(forStatement!.SourceReference);
-        
+
         // Verify the source text captured
         var capturedText = forStatement.SourceReference!.GetText();
         Assert.Contains("for", capturedText);
@@ -48,18 +48,18 @@ public class SourceReferenceTests
         // parsed is (program statement1 statement2)
         var firstStatement = parsed.Rest.Head as Cons;
         var secondStatement = parsed.Rest.Rest.Head as Cons;
-        
+
         // Both for statements should have source references
         Assert.NotNull(firstStatement);
         Assert.NotNull(secondStatement);
-        
+
         // They should have source references (we added source tracking to ParseForStatement)
         Assert.NotNull(firstStatement!.SourceReference);
         Assert.NotNull(secondStatement!.SourceReference);
-        
+
         var firstText = firstStatement.SourceReference!.GetText();
         var secondText = secondStatement.SourceReference!.GetText();
-        
+
         Assert.Contains("i < 5", firstText);
         Assert.Contains("j < 3", secondText);
     }
@@ -73,12 +73,12 @@ public class SourceReferenceTests
         var parsed = engine.ParseWithoutTransformation(source);
 
         var forStatement = parsed.Rest.Head as Cons;
-        
+
         Assert.NotNull(forStatement);
         Assert.NotNull(forStatement!.SourceReference);
-        
+
         var text = forStatement.SourceReference!.GetText();
-        
+
         // The captured text should contain the entire for loop
         Assert.Contains("for", text);
         Assert.Contains("let i = 0", text);
@@ -101,11 +101,11 @@ public class SourceReferenceTests
 
         // The for loop is on line 2
         var forStatement = parsed.Rest.Rest.Head as Cons;
-        
+
         Assert.NotNull(forStatement);
         var sourceRef = forStatement!.SourceReference;
         Assert.NotNull(sourceRef);
-        
+
         // Verify line numbers (line 2 is where 'for' starts)
         // Note: Line numbers are 1-based
         Assert.True(sourceRef!.StartLine >= 2);

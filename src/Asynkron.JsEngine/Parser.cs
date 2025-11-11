@@ -1,4 +1,5 @@
 using static Asynkron.JsEngine.ConsDsl;
+using static Asynkron.JsEngine.JsSymbols;
 
 namespace Asynkron.JsEngine;
 
@@ -10,19 +11,13 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     public Cons ParseProgram()
     {
-        var statements = new List<object?> { JsSymbols.Program };
-        
+        var statements = new List<object?> { Program };
+
         // Check for "use strict" directive at the beginning
-        bool hasUseStrict = CheckForUseStrictDirective();
-        if (hasUseStrict)
-        {
-            statements.Add(S(JsSymbols.UseStrict));
-        }
-        
-        while (!Check(TokenType.Eof))
-        {
-            statements.Add(ParseDeclaration());
-        }
+        var hasUseStrict = CheckForUseStrictDirective();
+        if (hasUseStrict) statements.Add(S(UseStrict));
+
+        while (!Check(TokenType.Eof)) statements.Add(ParseDeclaration());
 
         return Cons.FromEnumerable(statements);
     }
@@ -48,48 +43,26 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         }
 
         // Check for export statement
-        if (Match(TokenType.Export))
-        {
-            return ParseExportDeclaration();
-        }
+        if (Match(TokenType.Export)) return ParseExportDeclaration();
 
         // Check for async function
         if (Match(TokenType.Async))
         {
             if (Match(TokenType.Function))
-            {
                 return ParseAsyncFunctionDeclaration();
-            }
             else
-            {
                 throw new ParseException("Expected 'function' after 'async'.");
-            }
         }
 
-        if (Match(TokenType.Function))
-        {
-            return ParseFunctionDeclaration();
-        }
+        if (Match(TokenType.Function)) return ParseFunctionDeclaration();
 
-        if (Match(TokenType.Class))
-        {
-            return ParseClassDeclaration();
-        }
+        if (Match(TokenType.Class)) return ParseClassDeclaration();
 
-        if (Match(TokenType.Let))
-        {
-            return ParseVariableDeclaration(TokenType.Let);
-        }
+        if (Match(TokenType.Let)) return ParseVariableDeclaration(TokenType.Let);
 
-        if (Match(TokenType.Var))
-        {
-            return ParseVariableDeclaration(TokenType.Var);
-        }
+        if (Match(TokenType.Var)) return ParseVariableDeclaration(TokenType.Var);
 
-        if (Match(TokenType.Const))
-        {
-            return ParseVariableDeclaration(TokenType.Const);
-        }
+        if (Match(TokenType.Const)) return ParseVariableDeclaration(TokenType.Const);
 
         return ParseStatement();
     }
@@ -98,7 +71,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         // Check if this is a generator function (function*)
         var isGenerator = Match(TokenType.Star);
-        
+
         var nameToken = Consume(TokenType.Identifier, "Expected function name.");
         var name = Symbol.Intern(nameToken.Lexeme);
         Consume(TokenType.LeftParen, "Expected '(' after function name.");
@@ -106,7 +79,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.RightParen, "Expected ')' after function parameters.");
         var body = ParseBlock();
 
-        var functionType = isGenerator ? JsSymbols.Generator : JsSymbols.Function;
+        var functionType = isGenerator ? Generator : Function;
         return S(functionType, name, parameters, body);
     }
 
@@ -117,7 +90,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         // So we go back 2 tokens to get 'async'
         var startTokenIndex = _current >= 2 ? _current - 2 : 0;
         var startToken = _tokens[startTokenIndex];
-        
+
         var nameToken = Consume(TokenType.Identifier, "Expected function name.");
         var name = Symbol.Intern(nameToken.Lexeme);
         Consume(TokenType.LeftParen, "Expected '(' after function name.");
@@ -125,7 +98,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.RightParen, "Expected ')' after function parameters.");
         var body = ParseBlock();
 
-        return MakeCons([JsSymbols.Async, name, parameters, body], startToken);
+        return MakeCons([Async, name, parameters, body], startToken);
     }
 
     private object ParseClassDeclaration()
@@ -137,7 +110,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         if (Match(TokenType.Extends))
         {
             var baseExpression = ParseExpression();
-            extendsClause = S(JsSymbols.Extends, baseExpression);
+            extendsClause = S(Extends, baseExpression);
         }
 
         Consume(TokenType.LeftBrace, "Expected '{' after class name or extends clause.");
@@ -151,58 +124,45 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         while (!Check(TokenType.RightBrace))
         {
             // Check for static keyword
-            bool isStatic = false;
-            if (Match(TokenType.Static))
-            {
-                isStatic = true;
-            }
-            
+            var isStatic = false;
+            if (Match(TokenType.Static)) isStatic = true;
+
             // Check for private field declaration
             if (Check(TokenType.PrivateIdentifier))
             {
                 var fieldToken = Advance();
                 var fieldName = fieldToken.Lexeme; // Includes the '#'
-                
+
                 object? initializer = null;
-                if (Match(TokenType.Equal))
-                {
-                    initializer = ParseExpression();
-                }
-                
+                if (Match(TokenType.Equal)) initializer = ParseExpression();
+
                 Match(TokenType.Semicolon); // optional semicolon
-                
+
                 if (isStatic)
-                {
-                    staticFields.Add(S(JsSymbols.StaticField, fieldName, initializer));
-                }
+                    staticFields.Add(S(StaticField, fieldName, initializer));
                 else
-                {
-                    privateFields.Add(S(JsSymbols.PrivateField, fieldName, initializer));
-                }
+                    privateFields.Add(S(PrivateField, fieldName, initializer));
             }
             // Check for getter/setter in class
             else if (Check(TokenType.Get) || Check(TokenType.Set))
             {
-                bool isGetter = Match(TokenType.Get);
+                var isGetter = Match(TokenType.Get);
                 if (!isGetter) Match(TokenType.Set);
-                
-                var methodNameToken = Consume(TokenType.Identifier, isGetter ? "Expected getter name in class body." : "Expected setter name in class body.");
+
+                var methodNameToken = Consume(TokenType.Identifier,
+                    isGetter ? "Expected getter name in class body." : "Expected setter name in class body.");
                 var methodName = methodNameToken.Lexeme;
-                
+
                 if (isGetter)
                 {
                     Consume(TokenType.LeftParen, "Expected '(' after getter name.");
                     Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
                     var body = ParseBlock();
-                    
+
                     if (isStatic)
-                    {
-                        methods.Add(S(JsSymbols.StaticGetter, methodName, body));
-                    }
+                        methods.Add(S(StaticGetter, methodName, body));
                     else
-                    {
-                        methods.Add(S(JsSymbols.Getter, methodName, body));
-                    }
+                        methods.Add(S(Getter, methodName, body));
                 }
                 else
                 {
@@ -211,57 +171,44 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     var param = Symbol.Intern(paramToken.Lexeme);
                     Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
                     var body = ParseBlock();
-                    
+
                     if (isStatic)
-                    {
-                        methods.Add(S(JsSymbols.StaticSetter, methodName, param, body));
-                    }
+                        methods.Add(S(StaticSetter, methodName, param, body));
                     else
-                    {
-                        methods.Add(S(JsSymbols.Setter, methodName, param, body));
-                    }
+                        methods.Add(S(Setter, methodName, param, body));
                 }
             }
             else if (Check(TokenType.Identifier))
             {
                 var methodNameToken = Consume(TokenType.Identifier, "Expected method name in class body.");
                 var methodName = methodNameToken.Lexeme;
-                
+
                 // Check if this is a field declaration
                 if (Match(TokenType.Equal))
                 {
                     var initializer = ParseExpression();
                     Match(TokenType.Semicolon); // optional semicolon
-                    
+
                     if (isStatic)
-                    {
-                        staticFields.Add(S(JsSymbols.StaticField, methodName, initializer));
-                    }
+                        staticFields.Add(S(StaticField, methodName, initializer));
                     else
-                    {
                         // Public instance field
-                        publicFields.Add(S(JsSymbols.PublicField, methodName, initializer));
-                    }
+                        publicFields.Add(S(PublicField, methodName, initializer));
                     continue;
                 }
-                
+
                 // Check for constructor
                 if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
                 {
-                    if (isStatic)
-                    {
-                        throw new ParseException("Constructor cannot be static.");
-                    }
+                    if (isStatic) throw new ParseException("Constructor cannot be static.");
                     if (constructor is not null)
-                    {
                         throw new ParseException("Class cannot declare multiple constructors.");
-                    }
-                    
+
                     Consume(TokenType.LeftParen, "Expected '(' after constructor name.");
                     var parameters = ParseParameterList();
                     Consume(TokenType.RightParen, "Expected ')' after constructor parameters.");
                     var body = ParseBlock();
-                    constructor = S(JsSymbols.Lambda, name, parameters, body);
+                    constructor = S(Lambda, name, parameters, body);
                 }
                 else
                 {
@@ -270,16 +217,12 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     var parameters = ParseParameterList();
                     Consume(TokenType.RightParen, "Expected ')' after method parameters.");
                     var body = ParseBlock();
-                    
-                    var lambda = S(JsSymbols.Lambda, null, parameters, body);
+
+                    var lambda = S(Lambda, null, parameters, body);
                     if (isStatic)
-                    {
-                        methods.Add(S(JsSymbols.StaticMethod, methodName, lambda));
-                    }
+                        methods.Add(S(StaticMethod, methodName, lambda));
                     else
-                    {
-                        methods.Add(S(JsSymbols.Method, methodName, lambda));
-                    }
+                        methods.Add(S(Method, methodName, lambda));
                 }
             }
             else
@@ -293,7 +236,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         constructor ??= CreateDefaultConstructor(name);
         var methodList = Cons.FromEnumerable(methods);
-        
+
         // Merge all fields into a single list (private, public, and static)
         var allFields = new List<object?>();
         allFields.AddRange(privateFields);
@@ -301,14 +244,13 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         allFields.AddRange(staticFields);
         var fieldList = Cons.FromEnumerable(allFields);
 
-        return S(JsSymbols.Class, name, extendsClause, constructor, methodList, fieldList);
+        return S(Class, name, extendsClause, constructor, methodList, fieldList);
     }
 
     private Cons ParseParameterList()
     {
         var parameters = new List<object?>();
         if (!Check(TokenType.RightParen))
-        {
             do
             {
                 // Check for rest parameter
@@ -316,11 +258,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 {
                     var restIdentifier = Consume(TokenType.Identifier, "Expected parameter name after '...'.");
                     var restParam = Symbol.Intern(restIdentifier.Lexeme);
-                    parameters.Add(S(JsSymbols.Rest, restParam));
+                    parameters.Add(S(Rest, restParam));
                     // Rest parameter must be last
                     break;
                 }
-                
+
                 // Check for array destructuring parameter
                 if (Check(TokenType.LeftBracket))
                 {
@@ -341,7 +283,6 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     parameters.Add(Symbol.Intern(identifier.Lexeme));
                 }
             } while (Match(TokenType.Comma));
-        }
 
         return Cons.FromEnumerable(parameters);
     }
@@ -357,15 +298,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         };
 
         // Check for destructuring patterns
-        if (Check(TokenType.LeftBracket))
-        {
-            return ParseArrayDestructuring(kind, keyword);
-        }
-        
-        if (Check(TokenType.LeftBrace))
-        {
-            return ParseObjectDestructuring(kind, keyword);
-        }
+        if (Check(TokenType.LeftBracket)) return ParseArrayDestructuring(kind, keyword);
+
+        if (Check(TokenType.LeftBrace)) return ParseObjectDestructuring(kind, keyword);
 
         var nameToken = Consume(TokenType.Identifier, $"Expected variable name after '{keyword}'.");
         var name = Symbol.Intern(nameToken.Lexeme);
@@ -377,25 +312,20 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         }
         else
         {
-            if (kind == TokenType.Const)
-            {
-                throw new ParseException("Const declarations require an initializer.");
-            }
+            if (kind == TokenType.Const) throw new ParseException("Const declarations require an initializer.");
 
             if (kind == TokenType.Let)
-            {
                 throw new ParseException("Let declarations require an initializer in this interpreter.");
-            }
 
-            initializer = JsSymbols.Uninitialized;
+            initializer = Uninitialized;
         }
 
         Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
         var tag = kind switch
         {
-            TokenType.Let => JsSymbols.Let,
-            TokenType.Var => JsSymbols.Var,
-            TokenType.Const => JsSymbols.Const,
+            TokenType.Let => Let,
+            TokenType.Var => Var,
+            TokenType.Const => Const,
             _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
         };
 
@@ -406,56 +336,49 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         Consume(TokenType.LeftBracket, "Expected '[' for array destructuring.");
         var pattern = ParseArrayDestructuringPattern();
-        
-        if (!Match(TokenType.Equal))
-        {
-            throw new ParseException($"Destructuring declarations require an initializer.");
-        }
-        
+
+        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.");
+
         var initializer = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
-        
+
         var tag = kind switch
         {
-            TokenType.Let => JsSymbols.Let,
-            TokenType.Var => JsSymbols.Var,
-            TokenType.Const => JsSymbols.Const,
+            TokenType.Let => Let,
+            TokenType.Var => Var,
+            TokenType.Const => Const,
             _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
         };
-        
+
         return S(tag, pattern, initializer);
     }
-    
+
     private object ParseObjectDestructuring(TokenType kind, string keyword)
     {
         Consume(TokenType.LeftBrace, "Expected '{' for object destructuring.");
         var pattern = ParseObjectDestructuringPattern();
-        
-        if (!Match(TokenType.Equal))
-        {
-            throw new ParseException($"Destructuring declarations require an initializer.");
-        }
-        
+
+        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.");
+
         var initializer = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
-        
+
         var tag = kind switch
         {
-            TokenType.Let => JsSymbols.Let,
-            TokenType.Var => JsSymbols.Var,
-            TokenType.Const => JsSymbols.Const,
+            TokenType.Let => Let,
+            TokenType.Var => Var,
+            TokenType.Const => Const,
             _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
         };
-        
+
         return S(tag, pattern, initializer);
     }
-    
+
     private Cons ParseArrayDestructuringPattern()
     {
-        var elements = new List<object?> { JsSymbols.ArrayPattern };
-        
+        var elements = new List<object?> { ArrayPattern };
+
         if (!Check(TokenType.RightBracket))
-        {
             do
             {
                 // Check for hole (skipped element)
@@ -464,70 +387,65 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     elements.Add(null); // null represents a hole
                     continue;
                 }
-                
+
                 // Check for rest element
                 if (Match(TokenType.DotDotDot))
                 {
                     var name = Consume(TokenType.Identifier, "Expected identifier after '...'.");
-                    elements.Add(S(JsSymbols.PatternRest, Symbol.Intern(name.Lexeme)));
+                    elements.Add(S(PatternRest, Symbol.Intern(name.Lexeme)));
                     break; // Rest must be last
                 }
-                
+
                 // Check for nested array pattern
                 if (Check(TokenType.LeftBracket))
                 {
                     Consume(TokenType.LeftBracket, "Expected '[' for nested array pattern.");
                     var nestedPattern = ParseArrayDestructuringPattern();
-                    elements.Add(S(JsSymbols.PatternElement, nestedPattern, null));
+                    elements.Add(S(PatternElement, nestedPattern, null));
                 }
                 // Check for nested object pattern
                 else if (Check(TokenType.LeftBrace))
                 {
                     Consume(TokenType.LeftBrace, "Expected '{' for nested object pattern.");
                     var nestedPattern = ParseObjectDestructuringPattern();
-                    elements.Add(S(JsSymbols.PatternElement, nestedPattern, null));
+                    elements.Add(S(PatternElement, nestedPattern, null));
                 }
                 else
                 {
                     // Simple identifier
                     var name = Consume(TokenType.Identifier, "Expected identifier in array pattern.");
                     var identifier = Symbol.Intern(name.Lexeme);
-                    
+
                     // Check for default value
                     object? defaultValue = null;
-                    if (Match(TokenType.Equal))
-                    {
-                        defaultValue = ParseExpression();
-                    }
-                    
-                    elements.Add(S(JsSymbols.PatternElement, identifier, defaultValue));
+                    if (Match(TokenType.Equal)) defaultValue = ParseExpression();
+
+                    elements.Add(S(PatternElement, identifier, defaultValue));
                 }
             } while (Match(TokenType.Comma));
-        }
-        
+
         Consume(TokenType.RightBracket, "Expected ']' after array pattern.");
         return Cons.FromEnumerable(elements);
     }
-    
+
     private Cons ParseObjectDestructuringPattern()
     {
-        var properties = new List<object?> { JsSymbols.ObjectPattern };
-        
+        var properties = new List<object?> { ObjectPattern };
+
         if (!Check(TokenType.RightBrace))
-        {
             do
             {
                 // Check for rest property
                 if (Match(TokenType.DotDotDot))
                 {
                     var name = Consume(TokenType.Identifier, "Expected identifier after '...'.");
-                    properties.Add(S(JsSymbols.PatternRest, Symbol.Intern(name.Lexeme)));
+                    properties.Add(S(PatternRest, Symbol.Intern(name.Lexeme)));
                     break; // Rest must be last
                 }
-                
+
                 // Parse property name
                 var propertyName = ParseObjectPropertyName();
-                
+
                 // Check for shorthand or renaming
                 if (Match(TokenType.Colon))
                 {
@@ -536,29 +454,26 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     {
                         Consume(TokenType.LeftBracket, "Expected '[' for nested array pattern.");
                         var nestedPattern = ParseArrayDestructuringPattern();
-                        properties.Add(S(JsSymbols.PatternProperty, propertyName, nestedPattern, null
+                        properties.Add(S(PatternProperty, propertyName, nestedPattern, null
                         ));
                     }
                     else if (Check(TokenType.LeftBrace))
                     {
                         Consume(TokenType.LeftBrace, "Expected '{' for nested object pattern.");
                         var nestedPattern = ParseObjectDestructuringPattern();
-                        properties.Add(S(JsSymbols.PatternProperty, propertyName, nestedPattern, null
+                        properties.Add(S(PatternProperty, propertyName, nestedPattern, null
                         ));
                     }
                     else
                     {
                         var targetName = Consume(TokenType.Identifier, "Expected identifier after ':'.");
                         var target = Symbol.Intern(targetName.Lexeme);
-                        
+
                         // Check for default value
                         object? defaultValue = null;
-                        if (Match(TokenType.Equal))
-                        {
-                            defaultValue = ParseExpression();
-                        }
-                        
-                        properties.Add(S(JsSymbols.PatternProperty, propertyName, target, defaultValue
+                        if (Match(TokenType.Equal)) defaultValue = ParseExpression();
+
+                        properties.Add(S(PatternProperty, propertyName, target, defaultValue
                         ));
                     }
                 }
@@ -566,40 +481,27 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 {
                     // Shorthand: {x} is same as {x: x}
                     var identifier = Symbol.Intern(propertyName);
-                    
+
                     // Check for default value
                     object? defaultValue = null;
-                    if (Match(TokenType.Equal))
-                    {
-                        defaultValue = ParseExpression();
-                    }
-                    
-                    properties.Add(S(JsSymbols.PatternProperty, propertyName, identifier, defaultValue
+                    if (Match(TokenType.Equal)) defaultValue = ParseExpression();
+
+                    properties.Add(S(PatternProperty, propertyName, identifier, defaultValue
                     ));
                 }
             } while (Match(TokenType.Comma));
-        }
-        
+
         Consume(TokenType.RightBrace, "Expected '}' after object pattern.");
         return Cons.FromEnumerable(properties);
     }
 
     private object ParseStatement()
     {
-        if (Match(TokenType.Try))
-        {
-            return ParseTryStatement();
-        }
+        if (Match(TokenType.Try)) return ParseTryStatement();
 
-        if (Match(TokenType.Switch))
-        {
-            return ParseSwitchStatement();
-        }
+        if (Match(TokenType.Switch)) return ParseSwitchStatement();
 
-        if (Match(TokenType.If))
-        {
-            return ParseIfStatement();
-        }
+        if (Match(TokenType.If)) return ParseIfStatement();
 
         if (Match(TokenType.For))
         {
@@ -608,42 +510,27 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return ParseForStatement(isForAwait);
         }
 
-        if (Match(TokenType.While))
-        {
-            return ParseWhileStatement();
-        }
+        if (Match(TokenType.While)) return ParseWhileStatement();
 
-        if (Match(TokenType.Do))
-        {
-            return ParseDoWhileStatement();
-        }
+        if (Match(TokenType.Do)) return ParseDoWhileStatement();
 
         if (Match(TokenType.Break))
         {
             Consume(TokenType.Semicolon, "Expected ';' after break statement.");
-            return S(JsSymbols.Break);
+            return S(Break);
         }
 
         if (Match(TokenType.Continue))
         {
             Consume(TokenType.Semicolon, "Expected ';' after continue statement.");
-            return S(JsSymbols.Continue);
+            return S(Continue);
         }
 
-        if (Match(TokenType.Return))
-        {
-            return ParseReturnStatement();
-        }
+        if (Match(TokenType.Return)) return ParseReturnStatement();
 
-        if (Match(TokenType.Throw))
-        {
-            return ParseThrowStatement();
-        }
+        if (Match(TokenType.Throw)) return ParseThrowStatement();
 
-        if (Match(TokenType.LeftBrace))
-        {
-            return ParseBlock(leftBraceConsumed: true);
-        }
+        if (Match(TokenType.LeftBrace)) return ParseBlock(true);
 
         return ParseExpressionStatement();
     }
@@ -665,7 +552,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var test = ParseExpression();
                 Consume(TokenType.Colon, "Expected ':' after case expression.");
                 clauses.Add(S(
-                    JsSymbols.Case,
+                    Case,
                     test,
                     ParseSwitchClauseStatements()
                 ));
@@ -674,15 +561,12 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
             if (Match(TokenType.Default))
             {
-                if (seenDefault)
-                {
-                    throw new ParseException("Switch statement can only contain one default clause.");
-                }
+                if (seenDefault) throw new ParseException("Switch statement can only contain one default clause.");
 
                 seenDefault = true;
                 Consume(TokenType.Colon, "Expected ':' after default keyword.");
                 clauses.Add(S(
-                    JsSymbols.Default,
+                    Default,
                     ParseSwitchClauseStatements()
                 ));
                 continue;
@@ -693,7 +577,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         Consume(TokenType.RightBrace, "Expected '}' after switch body.");
         return S(
-            JsSymbols.Switch,
+            Switch,
             discriminant,
             Cons.FromEnumerable(clauses)
         );
@@ -701,11 +585,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private Cons ParseSwitchClauseStatements()
     {
-        var statements = new List<object?> { JsSymbols.Block };
-        while (!Check(TokenType.Case) && !Check(TokenType.Default) && !Check(TokenType.RightBrace) && !Check(TokenType.Eof))
-        {
-            statements.Add(ParseDeclaration());
-        }
+        var statements = new List<object?> { Block };
+        while (!Check(TokenType.Case) && !Check(TokenType.Default) && !Check(TokenType.RightBrace) &&
+               !Check(TokenType.Eof)) statements.Add(ParseDeclaration());
 
         return Cons.FromEnumerable(statements);
     }
@@ -723,25 +605,20 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             Consume(TokenType.RightParen, "Expected ')' after catch parameter.");
             var catchBlock = ParseBlock();
             catchClause = S(
-                JsSymbols.Catch,
+                Catch,
                 catchSymbol,
                 catchBlock
             );
         }
 
         Cons? finallyBlock = null;
-        if (Match(TokenType.Finally))
-        {
-            finallyBlock = ParseBlock();
-        }
+        if (Match(TokenType.Finally)) finallyBlock = ParseBlock();
 
         if (catchClause is null && finallyBlock is null)
-        {
             throw new ParseException("Try statement requires at least a catch or finally clause.");
-        }
 
         return S(
-            JsSymbols.Try,
+            Try,
             tryBlock,
             catchClause,
             finallyBlock
@@ -755,12 +632,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.RightParen, "Expected ')' after if condition.");
         var thenBranch = ParseStatement();
         object? elseBranch = null;
-        if (Match(TokenType.Else))
-        {
-            elseBranch = ParseStatement();
-        }
+        if (Match(TokenType.Else)) elseBranch = ParseStatement();
 
-        return S(JsSymbols.If, condition, thenBranch, elseBranch);
+        return S(If, condition, thenBranch, elseBranch);
     }
 
     private object ParseWhileStatement()
@@ -769,7 +643,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var condition = ParseExpression();
         Consume(TokenType.RightParen, "Expected ')' after while condition.");
         var body = ParseStatement();
-        return S(JsSymbols.While, condition, body);
+        return S(While, condition, body);
     }
 
     private object ParseDoWhileStatement()
@@ -780,7 +654,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var condition = ParseExpression();
         Consume(TokenType.RightParen, "Expected ')' after do-while condition.");
         Consume(TokenType.Semicolon, "Expected ';' after do-while statement.");
-        return S(JsSymbols.DoWhile, condition, body);
+        return S(DoWhile, condition, body);
     }
 
     private object ParseForStatement(bool isForAwait = false)
@@ -788,17 +662,17 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         // Save the position at the start of parsing (after 'for' and optionally 'await')
         var startTokenIndex = _current > 0 ? _current - 1 : 0;
         var startToken = _tokens[startTokenIndex];
-        
+
         Consume(TokenType.LeftParen, "Expected '(' after 'for'.");
 
         // Check for for...in or for...of loops
         // We need to look ahead to detect if this is a for...in/of loop
         var checkpointPosition = _current;
-        
+
         // Try to parse variable declaration or identifier
         object? loopVariable = null;
         TokenType? varKind = null;
-        
+
         if (Match(TokenType.Let))
         {
             varKind = TokenType.Let;
@@ -817,22 +691,19 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var identifier = Consume(TokenType.Identifier, "Expected identifier in for loop.");
             loopVariable = Symbol.Intern(identifier.Lexeme);
         }
-        
+
         // Check if this is for...in or for...of
         if (loopVariable != null && (Match(TokenType.In) || Match(TokenType.Of)))
         {
             var isForOf = Previous().Type == TokenType.Of;
-            
+
             // for await requires for...of
-            if (isForAwait && !isForOf)
-            {
-                throw new ParseException("'for await' can only be used with 'of', not 'in'");
-            }
-            
+            if (isForAwait && !isForOf) throw new ParseException("'for await' can only be used with 'of', not 'in'");
+
             var iterableExpression = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after for...in/of clauses.");
             var body = ParseStatement();
-            
+
             var keyword = varKind switch
             {
                 TokenType.Let => "let",
@@ -840,72 +711,47 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 TokenType.Const => "const",
                 _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
             };
-            
+
             var varDecl = S(Symbol.Intern(keyword), loopVariable, null);
-            
+
             if (isForAwait)
-            {
-                return MakeCons([JsSymbols.ForAwaitOf, varDecl, iterableExpression, body], startToken);
-            }
+                return MakeCons([ForAwaitOf, varDecl, iterableExpression, body], startToken);
             else if (isForOf)
-            {
-                return MakeCons([JsSymbols.ForOf, varDecl, iterableExpression, body], startToken);
-            }
+                return MakeCons([ForOf, varDecl, iterableExpression, body], startToken);
             else
-            {
-                return MakeCons([JsSymbols.ForIn, varDecl, iterableExpression, body], startToken);
-            }
-        }
-        
-        // for await without of is an error
-        if (isForAwait)
-        {
-            throw new ParseException("'for await' can only be used with 'for await...of' syntax");
-        }
-        
-        // Not a for...in/of loop, reset and parse as regular for loop
-        _current = checkpointPosition;
-        
-        object? initializer = null;
-        if (Match(TokenType.Semicolon))
-        {
-            initializer = null;
-        }
-        else if (Match(TokenType.Let))
-        {
-            initializer = ParseVariableDeclaration(TokenType.Let);
-        }
-        else if (Match(TokenType.Var))
-        {
-            initializer = ParseVariableDeclaration(TokenType.Var);
-        }
-        else if (Match(TokenType.Const))
-        {
-            initializer = ParseVariableDeclaration(TokenType.Const);
-        }
-        else
-        {
-            initializer = ParseExpressionStatement();
+                return MakeCons([ForIn, varDecl, iterableExpression, body], startToken);
         }
 
+        // for await without of is an error
+        if (isForAwait) throw new ParseException("'for await' can only be used with 'for await...of' syntax");
+
+        // Not a for...in/of loop, reset and parse as regular for loop
+        _current = checkpointPosition;
+
+        object? initializer = null;
+        if (Match(TokenType.Semicolon))
+            initializer = null;
+        else if (Match(TokenType.Let))
+            initializer = ParseVariableDeclaration(TokenType.Let);
+        else if (Match(TokenType.Var))
+            initializer = ParseVariableDeclaration(TokenType.Var);
+        else if (Match(TokenType.Const))
+            initializer = ParseVariableDeclaration(TokenType.Const);
+        else
+            initializer = ParseExpressionStatement();
+
         object? condition = null;
-        if (!Check(TokenType.Semicolon))
-        {
-            condition = ParseExpression();
-        }
+        if (!Check(TokenType.Semicolon)) condition = ParseExpression();
 
         Consume(TokenType.Semicolon, "Expected ';' after for loop condition.");
 
         object? increment = null;
-        if (!Check(TokenType.RightParen))
-        {
-            increment = ParseExpression();
-        }
+        if (!Check(TokenType.RightParen)) increment = ParseExpression();
 
         Consume(TokenType.RightParen, "Expected ')' after for clauses.");
         var body2 = ParseStatement();
 
-        return MakeCons([JsSymbols.For, initializer, condition, increment, body2], startToken);
+        return MakeCons([For, initializer, condition, increment, body2], startToken);
     }
 
     private object ParseReturnStatement()
@@ -920,59 +766,55 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         Consume(TokenType.Semicolon, "Expected ';' after return statement.");
         return hasValue
-            ? S(JsSymbols.Return, value)
-            : S(JsSymbols.Return);
+            ? S(Return, value)
+            : S(Return);
     }
 
     private object ParseThrowStatement()
     {
         var value = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after throw statement.");
-        return S(JsSymbols.Throw, value);
+        return S(Throw, value);
     }
 
     private object ParseExpressionStatement()
     {
         var expression = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after expression statement.");
-        return S(JsSymbols.ExpressionStatement, expression);
+        return S(ExpressionStatement, expression);
     }
 
     private Cons ParseBlock(bool leftBraceConsumed = false)
     {
-        if (!leftBraceConsumed)
-        {
-            Consume(TokenType.LeftBrace, "Expected '{' to begin block.");
-        }
+        if (!leftBraceConsumed) Consume(TokenType.LeftBrace, "Expected '{' to begin block.");
 
-        var statements = new List<object?> { JsSymbols.Block };
-        
+        var statements = new List<object?> { Block };
+
         // Check for "use strict" directive at the beginning of the block
-        bool hasUseStrict = CheckForUseStrictDirective();
-        if (hasUseStrict)
-        {
-            statements.Add(S(JsSymbols.UseStrict));
-        }
-        
-        while (!Check(TokenType.RightBrace) && !Check(TokenType.Eof))
-        {
-            statements.Add(ParseDeclaration());
-        }
+        var hasUseStrict = CheckForUseStrictDirective();
+        if (hasUseStrict) statements.Add(S(UseStrict));
+
+        while (!Check(TokenType.RightBrace) && !Check(TokenType.Eof)) statements.Add(ParseDeclaration());
 
         Consume(TokenType.RightBrace, "Expected '}' after block.");
         return Cons.FromEnumerable(statements);
     }
 
-    private object? ParseExpression() => ParseAssignment();
+    private object? ParseExpression()
+    {
+        return ParseAssignment();
+    }
 
     private object? ParseAssignment()
     {
         var expr = ParseTernary();
 
         if (Match(TokenType.Equal, TokenType.PlusEqual, TokenType.MinusEqual, TokenType.StarEqual,
-                  TokenType.StarStarEqual, TokenType.SlashEqual, TokenType.PercentEqual, TokenType.AmpEqual, TokenType.PipeEqual,
-                  TokenType.CaretEqual, TokenType.LessLessEqual, TokenType.GreaterGreaterEqual, 
-                  TokenType.GreaterGreaterGreaterEqual, TokenType.AmpAmpEqual, TokenType.PipePipeEqual, TokenType.QuestionQuestionEqual))
+                TokenType.StarStarEqual, TokenType.SlashEqual, TokenType.PercentEqual, TokenType.AmpEqual,
+                TokenType.PipeEqual,
+                TokenType.CaretEqual, TokenType.LessLessEqual, TokenType.GreaterGreaterEqual,
+                TokenType.GreaterGreaterGreaterEqual, TokenType.AmpAmpEqual, TokenType.PipePipeEqual,
+                TokenType.QuestionQuestionEqual))
         {
             var op = Previous();
             var value = ParseAssignment();
@@ -1000,40 +842,37 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     _ => throw new InvalidOperationException("Unexpected compound assignment operator.")
                 };
 
-                value = S(JsSymbols.Operator(binaryOp), expr, value);
+                value = S(Operator(binaryOp), expr, value);
             }
 
-            if (expr is Symbol symbol)
-            {
-                return S(JsSymbols.Assign, symbol, value);
-            }
+            if (expr is Symbol symbol) return S(Assign, symbol, value);
 
-            if (expr is Cons { Head: Symbol head } assignmentTarget && ReferenceEquals(head, JsSymbols.GetProperty))
+            if (expr is Cons { Head: Symbol head } assignmentTarget && ReferenceEquals(head, GetProperty))
             {
                 var target = assignmentTarget.Rest.Head;
                 var propertyName = assignmentTarget.Rest.Rest.Head;
-                return S(JsSymbols.SetProperty, target, propertyName, value);
+                return S(SetProperty, target, propertyName, value);
             }
 
-            if (expr is Cons { Head: Symbol indexHead } indexTarget && ReferenceEquals(indexHead, JsSymbols.GetIndex))
+            if (expr is Cons { Head: Symbol indexHead } indexTarget && ReferenceEquals(indexHead, GetIndex))
             {
                 var target = indexTarget.Rest.Head;
                 var index = indexTarget.Rest.Rest.Head;
-                return S(JsSymbols.SetIndex, target, index, value);
+                return S(SetIndex, target, index, value);
             }
 
             // Check if this is an array literal that should be treated as a destructuring pattern
-            if (expr is Cons { Head: Symbol arrayHead } arrayLiteral && ReferenceEquals(arrayHead, JsSymbols.ArrayLiteral))
+            if (expr is Cons { Head: Symbol arrayHead } arrayLiteral && ReferenceEquals(arrayHead, ArrayLiteral))
             {
                 var pattern = ConvertArrayLiteralToPattern(arrayLiteral);
-                return S(JsSymbols.DestructuringAssignment, pattern, value);
+                return S(DestructuringAssignment, pattern, value);
             }
 
             // Check if this is an object literal that should be treated as a destructuring pattern
-            if (expr is Cons { Head: Symbol objectHead } objectLiteral && ReferenceEquals(objectHead, JsSymbols.ObjectLiteral))
+            if (expr is Cons { Head: Symbol objectHead } objectLiteral && ReferenceEquals(objectHead, ObjectLiteral))
             {
                 var pattern = ConvertObjectLiteralToPattern(objectLiteral);
-                return S(JsSymbols.DestructuringAssignment, pattern, value);
+                return S(DestructuringAssignment, pattern, value);
             }
 
             throw new ParseException($"Invalid assignment target near line {op.Line} column {op.Column}.");
@@ -1051,7 +890,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var thenBranch = ParseExpression();
             Consume(TokenType.Colon, "Expected ':' after then branch of ternary expression.");
             var elseBranch = ParseTernary();
-            return S(JsSymbols.Ternary, expr, thenBranch, elseBranch);
+            return S(Ternary, expr, thenBranch, elseBranch);
         }
 
         return expr;
@@ -1065,7 +904,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             var right = ParseLogicalAnd();
             expr = S(
-                JsSymbols.Operator("||"),
+                Operator("||"),
                 expr,
                 right
             );
@@ -1082,7 +921,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             var right = ParseNullishCoalescing();
             expr = S(
-                JsSymbols.Operator("&&"),
+                Operator("&&"),
                 expr,
                 right
             );
@@ -1099,7 +938,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             var right = ParseBitwiseOr();
             expr = S(
-                JsSymbols.Operator("??"),
+                Operator("??"),
                 expr,
                 right
             );
@@ -1116,7 +955,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             var right = ParseBitwiseXor();
             expr = S(
-                JsSymbols.Operator("|"),
+                Operator("|"),
                 expr,
                 right
             );
@@ -1133,7 +972,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             var right = ParseBitwiseAnd();
             expr = S(
-                JsSymbols.Operator("^"),
+                Operator("^"),
                 expr,
                 right
             );
@@ -1150,7 +989,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             var right = ParseEquality();
             expr = S(
-                JsSymbols.Operator("&"),
+                Operator("&"),
                 expr,
                 right
             );
@@ -1177,7 +1016,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             };
 
             expr = S(
-                JsSymbols.Operator(op),
+                Operator(op),
                 expr,
                 right
             );
@@ -1195,10 +1034,10 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var right = ParseShift();
             var symbol = op.Type switch
             {
-                TokenType.Greater => JsSymbols.Operator(">"),
-                TokenType.GreaterEqual => JsSymbols.Operator(">="),
-                TokenType.Less => JsSymbols.Operator("<"),
-                TokenType.LessEqual => JsSymbols.Operator("<="),
+                TokenType.Greater => Operator(">"),
+                TokenType.GreaterEqual => Operator(">="),
+                TokenType.Less => Operator("<"),
+                TokenType.LessEqual => Operator("<="),
                 _ => throw new InvalidOperationException("Unexpected comparison operator.")
             };
 
@@ -1217,9 +1056,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var right = ParseTerm();
             var symbol = op.Type switch
             {
-                TokenType.LessLess => JsSymbols.Operator("<<"),
-                TokenType.GreaterGreater => JsSymbols.Operator(">>"),
-                TokenType.GreaterGreaterGreater => JsSymbols.Operator(">>>"),
+                TokenType.LessLess => Operator("<<"),
+                TokenType.GreaterGreater => Operator(">>"),
+                TokenType.GreaterGreaterGreater => Operator(">>>"),
                 _ => throw new InvalidOperationException("Unexpected shift operator.")
             };
 
@@ -1236,7 +1075,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             var op = Previous();
             var right = ParseFactor();
-            var symbol = JsSymbols.Operator(op.Type == TokenType.Plus ? "+" : "-");
+            var symbol = Operator(op.Type == TokenType.Plus ? "+" : "-");
             expr = S(symbol, expr, right);
         }
 
@@ -1252,9 +1091,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var right = ParseExponentiation();
             var symbol = op.Type switch
             {
-                TokenType.Star => JsSymbols.Operator("*"),
-                TokenType.Slash => JsSymbols.Operator("/"),
-                TokenType.Percent => JsSymbols.Operator("%"),
+                TokenType.Star => Operator("*"),
+                TokenType.Slash => Operator("/"),
+                TokenType.Percent => Operator("%"),
                 _ => throw new InvalidOperationException("Unexpected factor operator.")
             };
             expr = S(symbol, expr, right);
@@ -1266,12 +1105,12 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private object? ParseExponentiation()
     {
         var expr = ParseUnary();
-        
+
         // Exponentiation is right-associative in JavaScript
         if (Match(TokenType.StarStar))
         {
             var right = ParseExponentiation(); // Right-associative recursion
-            expr = S(JsSymbols.Operator("**"), expr, right);
+            expr = S(Operator("**"), expr, right);
         }
 
         return expr;
@@ -1279,36 +1118,24 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseUnary()
     {
-        if (Match(TokenType.Bang))
-        {
-            return S(JsSymbols.Not, ParseUnary());
-        }
+        if (Match(TokenType.Bang)) return S(Not, ParseUnary());
 
-        if (Match(TokenType.Minus))
-        {
-            return S(JsSymbols.Negate, ParseUnary());
-        }
+        if (Match(TokenType.Minus)) return S(Negate, ParseUnary());
 
-        if (Match(TokenType.Tilde))
-        {
-            return S(JsSymbols.Operator("~"), ParseUnary());
-        }
+        if (Match(TokenType.Tilde)) return S(Operator("~"), ParseUnary());
 
-        if (Match(TokenType.Typeof))
-        {
-            return S(JsSymbols.Typeof, ParseUnary());
-        }
+        if (Match(TokenType.Typeof)) return S(Typeof, ParseUnary());
 
         if (Match(TokenType.PlusPlus))
         {
             var operand = ParseUnary();
-            return S(JsSymbols.Operator("++prefix"), operand);
+            return S(Operator("++prefix"), operand);
         }
 
         if (Match(TokenType.MinusMinus))
         {
             var operand = ParseUnary();
-            return S(JsSymbols.Operator("--prefix"), operand);
+            return S(Operator("--prefix"), operand);
         }
 
         if (Match(TokenType.Yield))
@@ -1316,14 +1143,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             // yield can be followed by an expression or nothing
             // We'll parse an assignment expression (one level below expression)
             var value = ParseAssignment();
-            return S(JsSymbols.Yield, value);
+            return S(Yield, value);
         }
 
         if (Match(TokenType.Await))
         {
             // await must be followed by an expression
             var value = ParseUnary();
-            return S(JsSymbols.Await, value);
+            return S(Await, value);
         }
 
         return ParsePostfix();
@@ -1333,15 +1160,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var expr = ParseCall();
 
-        if (Match(TokenType.PlusPlus))
-        {
-            return S(JsSymbols.Operator("++postfix"), expr);
-        }
+        if (Match(TokenType.PlusPlus)) return S(Operator("++postfix"), expr);
 
-        if (Match(TokenType.MinusMinus))
-        {
-            return S(JsSymbols.Operator("--postfix"), expr);
-        }
+        if (Match(TokenType.MinusMinus)) return S(Operator("--postfix"), expr);
 
         return expr;
     }
@@ -1370,7 +1191,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 {
                     // obj?.()
                     var arguments = ParseArgumentList();
-                    var items = new List<object?> { JsSymbols.OptionalCall, expr };
+                    var items = new List<object?> { OptionalCall, expr };
                     items.AddRange(arguments);
                     expr = Cons.FromEnumerable(items);
                 }
@@ -1379,13 +1200,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     // obj?.[index]
                     var indexExpression = ParseExpression();
                     Consume(TokenType.RightBracket, "Expected ']' after index expression.");
-                    expr = S(JsSymbols.OptionalGetIndex, expr, indexExpression);
+                    expr = S(OptionalGetIndex, expr, indexExpression);
                 }
                 else
                 {
                     // obj?.prop
                     expr = FinishOptionalGet(expr);
                 }
+
                 continue;
             }
 
@@ -1412,7 +1234,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private object FinishCall(object? callee)
     {
         var arguments = ParseArgumentList();
-        var items = new List<object?> { JsSymbols.Call, callee };
+        var items = new List<object?> { Call, callee };
         items.AddRange(arguments);
         return Cons.FromEnumerable(items);
     }
@@ -1421,21 +1243,19 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var arguments = new List<object?>();
         if (!Check(TokenType.RightParen))
-        {
             do
             {
                 // Check for spread in arguments
                 if (Match(TokenType.DotDotDot))
                 {
                     var expr = ParseExpression();
-                    arguments.Add(S(JsSymbols.Spread, expr));
+                    arguments.Add(S(Spread, expr));
                 }
                 else
                 {
                     arguments.Add(ParseExpression());
                 }
             } while (Match(TokenType.Comma));
-        }
 
         Consume(TokenType.RightParen, "Expected ')' after arguments.");
         return arguments;
@@ -1443,112 +1263,57 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParsePrimary()
     {
-        if (Match(TokenType.New))
-        {
-            return ParseNewExpression();
-        }
+        if (Match(TokenType.New)) return ParseNewExpression();
 
-        if (Match(TokenType.False))
-        {
-            return false;
-        }
+        if (Match(TokenType.False)) return false;
 
-        if (Match(TokenType.True))
-        {
-            return true;
-        }
+        if (Match(TokenType.True)) return true;
 
-        if (Match(TokenType.Null))
-        {
-            return null;
-        }
+        if (Match(TokenType.Null)) return null;
 
-        if (Match(TokenType.Undefined))
-        {
-            return JsSymbols.Undefined;
-        }
+        if (Match(TokenType.Undefined)) return Undefined;
 
-        if (Match(TokenType.Number))
-        {
-            return Previous().Literal is double number ? number : 0d;
-        }
+        if (Match(TokenType.Number)) return Previous().Literal is double number ? number : 0d;
 
-        if (Match(TokenType.BigInt))
-        {
-            return Previous().Literal;
-        }
+        if (Match(TokenType.BigInt)) return Previous().Literal;
 
-        if (Match(TokenType.String))
-        {
-            return Previous().Literal as string ?? string.Empty;
-        }
+        if (Match(TokenType.String)) return Previous().Literal as string ?? string.Empty;
 
-        if (Match(TokenType.TemplateLiteral))
-        {
-            return ParseTemplateLiteralExpression();
-        }
+        if (Match(TokenType.TemplateLiteral)) return ParseTemplateLiteralExpression();
 
-        if (Match(TokenType.RegexLiteral))
-        {
-            return ParseRegexLiteral();
-        }
+        if (Match(TokenType.RegexLiteral)) return ParseRegexLiteral();
 
         if (Match(TokenType.Import))
         {
             // Dynamic import: import(specifier)
             // This is different from the static import statement
             if (Check(TokenType.LeftParen))
-            {
                 // Return a symbol that will be handled as a callable
                 return Symbol.Intern("import");
-            }
             else
-            {
-                throw new ParseException("'import' can only be used as dynamic import with parentheses: import(specifier)");
-            }
+                throw new ParseException(
+                    "'import' can only be used as dynamic import with parentheses: import(specifier)");
         }
 
-        if (Match(TokenType.Identifier))
-        {
-            return Symbol.Intern(Previous().Lexeme);
-        }
+        if (Match(TokenType.Identifier)) return Symbol.Intern(Previous().Lexeme);
 
-        if (Match(TokenType.This))
-        {
-            return JsSymbols.This;
-        }
+        if (Match(TokenType.This)) return This;
 
-        if (Match(TokenType.Super))
-        {
-            return JsSymbols.Super;
-        }
+        if (Match(TokenType.Super)) return Super;
 
         if (Match(TokenType.Async))
         {
             if (Match(TokenType.Function))
-            {
                 return ParseAsyncFunctionExpression();
-            }
             else
-            {
                 throw new ParseException("Expected 'function' after 'async' in expression context.");
-            }
         }
 
-        if (Match(TokenType.Function))
-        {
-            return ParseFunctionExpression();
-        }
+        if (Match(TokenType.Function)) return ParseFunctionExpression();
 
-        if (Match(TokenType.LeftBrace))
-        {
-            return ParseObjectLiteral();
-        }
+        if (Match(TokenType.LeftBrace)) return ParseObjectLiteral();
 
-        if (Match(TokenType.LeftBracket))
-        {
-            return ParseArrayLiteral();
-        }
+        if (Match(TokenType.LeftBracket)) return ParseArrayLiteral();
 
         if (Match(TokenType.LeftParen))
         {
@@ -1564,23 +1329,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var constructor = ParsePrimary();
 
-        while (Match(TokenType.Dot))
-        {
-            constructor = FinishGet(constructor);
-        }
+        while (Match(TokenType.Dot)) constructor = FinishGet(constructor);
 
-        while (Match(TokenType.LeftBracket))
-        {
-            constructor = FinishIndex(constructor);
-        }
+        while (Match(TokenType.LeftBracket)) constructor = FinishIndex(constructor);
 
         var arguments = new List<object?>();
-        if (Match(TokenType.LeftParen))
-        {
-            arguments = ParseArgumentList();
-        }
+        if (Match(TokenType.LeftParen)) arguments = ParseArgumentList();
 
-        var items = new List<object?> { JsSymbols.New, constructor };
+        var items = new List<object?> { New, constructor };
         items.AddRange(arguments);
         return Cons.FromEnumerable(items);
     }
@@ -1589,53 +1345,46 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         // Check if this is a generator function expression (function*)
         var isGenerator = Match(TokenType.Star);
-        
+
         Symbol? name = null;
-        if (Check(TokenType.Identifier))
-        {
-            name = Symbol.Intern(Advance().Lexeme);
-        }
+        if (Check(TokenType.Identifier)) name = Symbol.Intern(Advance().Lexeme);
 
         Consume(TokenType.LeftParen, "Expected '(' after function keyword.");
         var parameters = ParseParameterList();
         Consume(TokenType.RightParen, "Expected ')' after lambda parameters.");
         var body = ParseBlock();
-        
+
         // Use Lambda for both regular and generator function expressions
         // The isGenerator flag would need to be stored separately, but for now
         // we'll use Generator symbol for generator function expressions
-        var functionType = isGenerator ? JsSymbols.Generator : JsSymbols.Lambda;
+        var functionType = isGenerator ? Generator : Lambda;
         return S(functionType, name, parameters, body);
     }
 
     private object ParseAsyncFunctionExpression()
     {
         Symbol? name = null;
-        if (Check(TokenType.Identifier))
-        {
-            name = Symbol.Intern(Advance().Lexeme);
-        }
+        if (Check(TokenType.Identifier)) name = Symbol.Intern(Advance().Lexeme);
 
         Consume(TokenType.LeftParen, "Expected '(' after function keyword.");
         var parameters = ParseParameterList();
         Consume(TokenType.RightParen, "Expected ')' after lambda parameters.");
         var body = ParseBlock();
-        
-        return S(JsSymbols.Async, name, parameters, body);
+
+        return S(Async, name, parameters, body);
     }
 
     private object ParseObjectLiteral()
     {
         var properties = new List<object?>();
         if (!Check(TokenType.RightBrace))
-        {
             do
             {
                 // Check for spread in object literal (for object rest/spread - future feature)
                 if (Match(TokenType.DotDotDot))
                 {
                     var expr = ParseExpression();
-                    properties.Add(S(JsSymbols.Spread, expr));
+                    properties.Add(S(Spread, expr));
                     continue;
                 }
 
@@ -1646,7 +1395,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     Consume(TokenType.LeftParen, "Expected '(' after getter name.");
                     Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
                     var body = ParseBlock();
-                    properties.Add(S(JsSymbols.Getter, name, body));
+                    properties.Add(S(Getter, name, body));
                 }
                 else if (Match(TokenType.Set))
                 {
@@ -1656,7 +1405,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     var param = Symbol.Intern(paramToken.Lexeme);
                     Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
                     var body = ParseBlock();
-                    properties.Add(S(JsSymbols.Setter, name, param, body));
+                    properties.Add(S(Setter, name, param, body));
                 }
                 // Check for computed property name
                 else if (Check(TokenType.LeftBracket))
@@ -1664,7 +1413,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     Advance(); // consume '['
                     var keyExpression = ParseExpression();
                     Consume(TokenType.RightBracket, "Expected ']' after computed property name.");
-                    
+
                     // Check if this is a method
                     if (Check(TokenType.LeftParen))
                     {
@@ -1672,20 +1421,20 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                         var parameters = ParseParameterList();
                         Consume(TokenType.RightParen, "Expected ')' after parameters.");
                         var body = ParseBlock();
-                        var lambda = S(JsSymbols.Lambda, null, parameters, body);
-                        properties.Add(S(JsSymbols.Property, keyExpression, lambda));
+                        var lambda = S(Lambda, null, parameters, body);
+                        properties.Add(S(Property, keyExpression, lambda));
                     }
                     else
                     {
                         Consume(TokenType.Colon, "Expected ':' after computed property name.");
                         var value = ParseExpression();
-                        properties.Add(S(JsSymbols.Property, keyExpression, value));
+                        properties.Add(S(Property, keyExpression, value));
                     }
                 }
                 else
                 {
                     var name = ParseObjectPropertyName();
-                    
+
                     // Check for method shorthand: name() { ... }
                     if (Check(TokenType.LeftParen))
                     {
@@ -1693,28 +1442,27 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                         var parameters = ParseParameterList();
                         Consume(TokenType.RightParen, "Expected ')' after parameters.");
                         var body = ParseBlock();
-                        var lambda = S(JsSymbols.Lambda, null, parameters, body);
-                        properties.Add(S(JsSymbols.Property, name, lambda));
+                        var lambda = S(Lambda, null, parameters, body);
+                        properties.Add(S(Property, name, lambda));
                     }
                     // Check for property shorthand: { name } instead of { name: name }
                     else if (name is string nameStr && !Check(TokenType.Colon))
                     {
                         // Property shorthand: use the identifier as both key and value
                         var symbol = Symbol.Intern(nameStr);
-                        properties.Add(S(JsSymbols.Property, name, symbol));
+                        properties.Add(S(Property, name, symbol));
                     }
                     else
                     {
                         Consume(TokenType.Colon, "Expected ':' after property name.");
                         var value = ParseExpression();
-                        properties.Add(S(JsSymbols.Property, name, value));
+                        properties.Add(S(Property, name, value));
                     }
                 }
             } while (Match(TokenType.Comma));
-        }
 
         Consume(TokenType.RightBrace, "Expected '}' after object literal.");
-        var items = new List<object?> { JsSymbols.ObjectLiteral };
+        var items = new List<object?> { ObjectLiteral };
         items.AddRange(properties);
         return Cons.FromEnumerable(items);
     }
@@ -1723,24 +1471,22 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var elements = new List<object?>();
         if (!Check(TokenType.RightBracket))
-        {
             do
             {
                 // Check for spread in array literal
                 if (Match(TokenType.DotDotDot))
                 {
                     var expr = ParseExpression();
-                    elements.Add(S(JsSymbols.Spread, expr));
+                    elements.Add(S(Spread, expr));
                 }
                 else
                 {
                     elements.Add(ParseExpression());
                 }
             } while (Match(TokenType.Comma));
-        }
 
         Consume(TokenType.RightBracket, "Expected ']' after array literal.");
-        var items = new List<object?> { JsSymbols.ArrayLiteral };
+        var items = new List<object?> { ArrayLiteral };
         items.AddRange(elements);
         return Cons.FromEnumerable(items);
     }
@@ -1749,12 +1495,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var token = Previous();
         var parts = token.Literal as List<object> ?? [];
-        
+
         // (template part1 expr1 part2 expr2 ...)
-        var items = new List<object?> { JsSymbols.TemplateLiteral };
-        
+        var items = new List<object?> { TemplateLiteral };
+
         foreach (var part in parts)
-        {
             if (part is string str)
             {
                 items.Add(str);
@@ -1766,7 +1511,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var exprText = expr.ExpressionText.Trim();
                 var exprLexer = new Lexer(exprText);
                 var exprTokens = exprLexer.Tokenize();
-                
+
                 // Create a parser and directly call internal parsing
                 // Since we can't access ParseExpression directly, we'll use a trick:
                 // Parse it as "exprText;" to make it a valid statement
@@ -1775,26 +1520,21 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var wrappedTokens = wrappedLexer.Tokenize();
                 var exprParser = new Parser(wrappedTokens, wrappedSource);
                 var exprProgram = exprParser.ParseProgram();
-                
+
                 // Extract the expression (skip the 'program' wrapper)
                 if (exprProgram is Cons programCons && !programCons.IsEmpty)
                 {
                     var firstStatement = programCons.Rest.Head;
                     // If it's an expression statement, unwrap it
-                    if (firstStatement is Cons stmtCons && 
-                        stmtCons.Head is Symbol sym && 
-                        ReferenceEquals(sym, JsSymbols.ExpressionStatement))
-                    {
+                    if (firstStatement is Cons stmtCons &&
+                        stmtCons.Head is Symbol sym &&
+                        ReferenceEquals(sym, ExpressionStatement))
                         items.Add(stmtCons.Rest.Head);
-                    }
                     else
-                    {
                         items.Add(firstStatement);
-                    }
                 }
             }
-        }
-        
+
         return Cons.FromEnumerable(items);
     }
 
@@ -1803,14 +1543,13 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         // Parse the template literal that was already consumed
         var token = Previous();
         var parts = token.Literal as List<object> ?? [];
-        
+
         // Build the template object with strings and raw strings
         var strings = new List<object?>();
         var rawStrings = new List<object?>();
         var expressions = new List<object?>();
-        
+
         foreach (var part in parts)
-        {
             if (part is string str)
             {
                 strings.Add(str);
@@ -1825,24 +1564,19 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var wrappedTokens = wrappedLexer.Tokenize();
                 var exprParser = new Parser(wrappedTokens, wrappedSource);
                 var exprProgram = exprParser.ParseProgram();
-                
+
                 if (exprProgram is Cons programCons && !programCons.IsEmpty)
                 {
                     var firstStatement = programCons.Rest.Head;
-                    if (firstStatement is Cons stmtCons && 
-                        stmtCons.Head is Symbol sym && 
-                        ReferenceEquals(sym, JsSymbols.ExpressionStatement))
-                    {
+                    if (firstStatement is Cons stmtCons &&
+                        stmtCons.Head is Symbol sym &&
+                        ReferenceEquals(sym, ExpressionStatement))
                         expressions.Add(stmtCons.Rest.Head);
-                    }
                     else
-                    {
                         expressions.Add(firstStatement);
-                    }
                 }
             }
-        }
-        
+
         // Make sure we have one more string than expressions
         // (template literals always start and end with a string part, even if empty)
         while (strings.Count <= expressions.Count)
@@ -1850,21 +1584,21 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             strings.Add("");
             rawStrings.Add("");
         }
-        
+
         // Create a tagged template call: (taggedTemplate tag strings rawStrings expr1 expr2 ...)
-        var items = new List<object?> { JsSymbols.TaggedTemplate, tag };
-        
+        var items = new List<object?> { TaggedTemplate, tag };
+
         // Add strings array
-        var stringsArray = Cons.FromEnumerable(strings.Prepend(JsSymbols.ArrayLiteral));
+        var stringsArray = Cons.FromEnumerable(strings.Prepend(ArrayLiteral));
         items.Add(stringsArray);
-        
+
         // Add raw strings array
-        var rawStringsArray = Cons.FromEnumerable(rawStrings.Prepend(JsSymbols.ArrayLiteral));
+        var rawStringsArray = Cons.FromEnumerable(rawStrings.Prepend(ArrayLiteral));
         items.Add(rawStringsArray);
-        
+
         // Add expressions
         items.AddRange(expressions);
-        
+
         return Cons.FromEnumerable(items);
     }
 
@@ -1872,37 +1606,28 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var token = Previous();
         var regexValue = token.Literal as RegexLiteralValue;
-        if (regexValue == null)
-        {
-            throw new ParseException("Invalid regex literal.");
-        }
+        if (regexValue == null) throw new ParseException("Invalid regex literal.");
 
         // Create a new RegExp(...) expression
         // (new RegExp pattern flags)
         var pattern = regexValue.Pattern;
         var flags = regexValue.Flags;
-        
-        var items = new List<object?> 
-        { 
-            JsSymbols.New, 
+
+        var items = new List<object?>
+        {
+            New,
             Symbol.Intern("RegExp"),
             pattern
         };
-        
-        if (!string.IsNullOrEmpty(flags))
-        {
-            items.Add(flags);
-        }
-        
+
+        if (!string.IsNullOrEmpty(flags)) items.Add(flags);
+
         return Cons.FromEnumerable(items);
     }
 
     private string ParseObjectPropertyName()
     {
-        if (Match(TokenType.String))
-        {
-            return Previous().Literal as string ?? string.Empty;
-        }
+        if (Match(TokenType.String)) return Previous().Literal as string ?? string.Empty;
 
         var identifier = Consume(TokenType.Identifier, "Expected property name.");
         return identifier.Lexeme;
@@ -1915,29 +1640,25 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             var privateToken = Advance();
             var fieldName = privateToken.Lexeme; // Includes the '#'
-            return S(JsSymbols.GetProperty, target, fieldName);
+            return S(GetProperty, target, fieldName);
         }
-        
+
         // Allow identifiers or keywords as property names (e.g., object.of, object.in, object.for)
         if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
-        {
             throw new ParseException("Expected property name after '.'.");
-        }
         var nameToken = Advance();
         var propertyName = nameToken.Lexeme;
-        return S(JsSymbols.GetProperty, target, propertyName);
+        return S(GetProperty, target, propertyName);
     }
 
     private object FinishOptionalGet(object? target)
     {
         // Allow identifiers or keywords as property names
         if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
-        {
             throw new ParseException("Expected property name after '?.'.");
-        }
         var nameToken = Advance();
         var propertyName = nameToken.Lexeme;
-        return S(JsSymbols.OptionalGetProperty, target, propertyName);
+        return S(OptionalGetProperty, target, propertyName);
     }
 
     private bool IsKeyword(Token token)
@@ -1945,14 +1666,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         return token.Type switch
         {
             TokenType.Let or TokenType.Var or TokenType.Const or TokenType.Function or
-            TokenType.Class or TokenType.Extends or TokenType.If or TokenType.Else or
-            TokenType.For or TokenType.In or TokenType.Of or TokenType.While or TokenType.Do or
-            TokenType.Switch or TokenType.Case or TokenType.Default or TokenType.Break or
-            TokenType.Continue or TokenType.Return or TokenType.Try or TokenType.Catch or
-            TokenType.Finally or TokenType.Throw or TokenType.This or TokenType.Super or
-            TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
-            TokenType.Undefined or TokenType.Typeof or TokenType.Get or TokenType.Set or
-            TokenType.Yield or TokenType.Async or TokenType.Await => true,
+                TokenType.Class or TokenType.Extends or TokenType.If or TokenType.Else or
+                TokenType.For or TokenType.In or TokenType.Of or TokenType.While or TokenType.Do or
+                TokenType.Switch or TokenType.Case or TokenType.Default or TokenType.Break or
+                TokenType.Continue or TokenType.Return or TokenType.Try or TokenType.Catch or
+                TokenType.Finally or TokenType.Throw or TokenType.This or TokenType.Super or
+                TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
+                TokenType.Undefined or TokenType.Typeof or TokenType.Get or TokenType.Set or
+                TokenType.Yield or TokenType.Async or TokenType.Await => true,
             _ => false
         };
     }
@@ -1961,105 +1682,99 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var indexExpression = ParseExpression();
         Consume(TokenType.RightBracket, "Expected ']' after index expression.");
-        return S(JsSymbols.GetIndex, target, indexExpression);
+        return S(GetIndex, target, indexExpression);
     }
 
     private static Cons CreateDefaultConstructor(Symbol name)
     {
-        var body = S(JsSymbols.Block);
-        return S(JsSymbols.Lambda, name, Cons.Empty, body);
+        var body = S(Block);
+        return S(Lambda, name, Cons.Empty, body);
     }
 
     private bool Match(params TokenType[] types)
     {
         foreach (var type in types)
-        {
             if (Check(type))
             {
                 Advance();
                 return true;
             }
-        }
 
         return false;
     }
 
     private bool Check(TokenType type)
     {
-        if (IsAtEnd)
-        {
-            return type == TokenType.Eof;
-        }
+        if (IsAtEnd) return type == TokenType.Eof;
 
         return Peek().Type == type;
     }
 
     private Token Advance()
     {
-        if (!IsAtEnd)
-        {
-            _current++;
-        }
+        if (!IsAtEnd) _current++;
 
         return Previous();
     }
 
     private bool IsAtEnd => Peek().Type == TokenType.Eof;
 
-    private Token Peek() => _tokens[_current];
-    
-    private Token PeekNext() => _current + 1 < _tokens.Count ? _tokens[_current + 1] : _tokens[_current];
+    private Token Peek()
+    {
+        return _tokens[_current];
+    }
 
-    private Token Previous() => _tokens[_current - 1];
+    private Token PeekNext()
+    {
+        return _current + 1 < _tokens.Count ? _tokens[_current + 1] : _tokens[_current];
+    }
+
+    private Token Previous()
+    {
+        return _tokens[_current - 1];
+    }
 
     private Token Consume(TokenType type, string message)
     {
-        if (Check(type))
-        {
-            return Advance();
-        }
+        if (Check(type)) return Advance();
 
         throw new ParseException(message);
     }
 
     private Cons ConvertArrayLiteralToPattern(Cons arrayLiteral)
     {
-        var elements = new List<object?> { JsSymbols.ArrayPattern };
-        
+        var elements = new List<object?> { ArrayPattern };
+
         foreach (var item in arrayLiteral.Rest)
-        {
             if (item is null)
             {
                 elements.Add(null); // hole
             }
-            else if (item is Cons { Head: Symbol spreadHead } spreadCons && ReferenceEquals(spreadHead, JsSymbols.Spread))
+            else if (item is Cons { Head: Symbol spreadHead } spreadCons && ReferenceEquals(spreadHead, Spread))
             {
                 // Spread becomes rest pattern
                 var restTarget = spreadCons.Rest.Head;
-                if (restTarget is not Symbol restSymbol)
-                {
-                    throw new ParseException("Rest element must be an identifier");
-                }
-                elements.Add(S(JsSymbols.PatternRest, restSymbol));
+                if (restTarget is not Symbol restSymbol) throw new ParseException("Rest element must be an identifier");
+                elements.Add(S(PatternRest, restSymbol));
                 break; // Rest must be last
             }
             else if (item is Symbol symbol)
             {
                 // Simple identifier
-                elements.Add(S(JsSymbols.PatternElement, symbol, null));
+                elements.Add(S(PatternElement, symbol, null));
             }
             else if (item is Cons { Head: Symbol itemHead } itemCons)
             {
                 // Check for nested patterns
-                if (ReferenceEquals(itemHead, JsSymbols.ArrayLiteral))
+                if (ReferenceEquals(itemHead, ArrayLiteral))
                 {
                     var nestedPattern = ConvertArrayLiteralToPattern(itemCons);
-                    elements.Add(S(JsSymbols.PatternElement, nestedPattern, null));
+                    elements.Add(S(PatternElement, nestedPattern, null));
                 }
-                else if (ReferenceEquals(itemHead, JsSymbols.ObjectLiteral))
+                else if (ReferenceEquals(itemHead, ObjectLiteral))
                 {
                     var nestedPattern = ConvertObjectLiteralToPattern(itemCons);
-                    elements.Add(S(JsSymbols.PatternElement, nestedPattern, null));
+                    elements.Add(S(PatternElement, nestedPattern, null));
                 }
                 else
                 {
@@ -2070,60 +1785,52 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             {
                 throw new ParseException("Invalid destructuring pattern");
             }
-        }
-        
+
         return Cons.FromEnumerable(elements);
     }
 
     private Cons ConvertObjectLiteralToPattern(Cons objectLiteral)
     {
-        var properties = new List<object?> { JsSymbols.ObjectPattern };
-        
+        var properties = new List<object?> { ObjectPattern };
+
         foreach (var prop in objectLiteral.Rest)
         {
             if (prop is not Cons { Head: Symbol propHead } propCons)
-            {
                 throw new ParseException("Invalid object destructuring pattern");
-            }
-            
-            if (ReferenceEquals(propHead, JsSymbols.Spread))
+
+            if (ReferenceEquals(propHead, Spread))
             {
                 // Spread becomes rest property
                 var restTarget = propCons.Rest.Head;
                 if (restTarget is not Symbol restSymbol)
-                {
                     throw new ParseException("Rest property must be an identifier");
-                }
-                properties.Add(S(JsSymbols.PatternRest, restSymbol));
+                properties.Add(S(PatternRest, restSymbol));
                 break; // Rest must be last
             }
-            else if (ReferenceEquals(propHead, JsSymbols.Property))
+            else if (ReferenceEquals(propHead, Property))
             {
                 var key = propCons.Rest.Head as string;
                 var value = propCons.Rest.Rest.Head;
-                
-                if (key is null)
-                {
-                    throw new ParseException("Property key must be a string");
-                }
-                
+
+                if (key is null) throw new ParseException("Property key must be a string");
+
                 if (value is Symbol targetSymbol)
                 {
                     // Simple property: {x} or {x: y}
-                    properties.Add(S(JsSymbols.PatternProperty, key, targetSymbol, null));
+                    properties.Add(S(PatternProperty, key, targetSymbol, null));
                 }
                 else if (value is Cons { Head: Symbol valueHead } valueCons)
                 {
                     // Nested pattern: {x: [a, b]}
-                    if (ReferenceEquals(valueHead, JsSymbols.ArrayLiteral))
+                    if (ReferenceEquals(valueHead, ArrayLiteral))
                     {
                         var nestedPattern = ConvertArrayLiteralToPattern(valueCons);
-                        properties.Add(S(JsSymbols.PatternProperty, key, nestedPattern, null));
+                        properties.Add(S(PatternProperty, key, nestedPattern, null));
                     }
-                    else if (ReferenceEquals(valueHead, JsSymbols.ObjectLiteral))
+                    else if (ReferenceEquals(valueHead, ObjectLiteral))
                     {
                         var nestedPattern = ConvertObjectLiteralToPattern(valueCons);
-                        properties.Add(S(JsSymbols.PatternProperty, key, nestedPattern, null));
+                        properties.Add(S(PatternProperty, key, nestedPattern, null));
                     }
                     else
                     {
@@ -2140,7 +1847,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 throw new ParseException("Invalid object destructuring pattern");
             }
         }
-        
+
         return Cons.FromEnumerable(properties);
     }
 
@@ -2154,26 +1861,26 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         // import defaultExport, { export1 } from "module-name";
         // import defaultExport, * as name from "module-name";
         // import "module-name"; // side-effects only
-        
+
         if (Check(TokenType.String))
         {
             // Side-effect import: import "module-name";
             var moduleToken = Consume(TokenType.String, "Expected module path.");
             var modulePath = (string)moduleToken.Literal!;
             Consume(TokenType.Semicolon, "Expected ';' after import statement.");
-            return S(JsSymbols.Import, modulePath);
+            return S(Import, modulePath);
         }
-        
+
         object? defaultImport = null;
         Cons? namedImports = null;
         object? namespaceImport = null;
-        
+
         // Check for default import or star import
         if (Check(TokenType.Identifier) && !CheckContextualKeyword("from"))
         {
             var nameToken = Consume(TokenType.Identifier, "Expected identifier.");
             defaultImport = Symbol.Intern(nameToken.Lexeme);
-            
+
             // Check if there's a comma after the default import
             if (Match(TokenType.Comma))
             {
@@ -2205,27 +1912,27 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             namedImports = ParseNamedImports();
             Consume(TokenType.RightBrace, "Expected '}' after named imports.");
         }
-        
+
         ConsumeContextualKeyword("from", "Expected 'from' in import statement.");
         var modulePathToken = Consume(TokenType.String, "Expected module path.");
         var path = (string)modulePathToken.Literal!;
         Consume(TokenType.Semicolon, "Expected ';' after import statement.");
-        
+
         // Build import S-expression
         // (import module-path default-import namespace-import named-imports)
-        return S(JsSymbols.Import, path, defaultImport, namespaceImport, namedImports);
+        return S(Import, path, defaultImport, namespaceImport, namedImports);
     }
-    
+
     private Cons ParseNamedImports()
     {
         var imports = new List<object?>();
-        
+
         do
         {
             var importedToken = Consume(TokenType.Identifier, "Expected identifier in import list.");
             var imported = Symbol.Intern(importedToken.Lexeme);
             Symbol local;
-            
+
             if (MatchContextualKeyword("as"))
             {
                 var localToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
@@ -2235,14 +1942,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             {
                 local = imported;
             }
-            
+
             // (import-named imported local)
-            imports.Add(S(JsSymbols.ImportNamed, imported, local));
+            imports.Add(S(ImportNamed, imported, local));
         } while (Match(TokenType.Comma) && !Check(TokenType.RightBrace));
-        
+
         return Cons.FromEnumerable(imports);
     }
-    
+
     private object ParseExportDeclaration()
     {
         // export { name1, name2 };
@@ -2253,60 +1960,60 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         // export default expression;
         // export default function() { }
         // export default class { }
-        
+
         if (Match(TokenType.Default))
         {
             // export default ...
             object expression;
-            
+
             if (Match(TokenType.Function))
             {
                 // export default function name() {} or export default function() {}
                 var isGenerator = Match(TokenType.Star);
                 Symbol? name = null;
-                
+
                 if (Check(TokenType.Identifier))
                 {
                     var nameToken = Consume(TokenType.Identifier, "Expected function name.");
                     name = Symbol.Intern(nameToken.Lexeme);
                 }
-                
+
                 Consume(TokenType.LeftParen, "Expected '(' after function.");
                 var parameters = ParseParameterList();
                 Consume(TokenType.RightParen, "Expected ')' after function parameters.");
                 var body = ParseBlock();
-                
-                var functionType = isGenerator ? JsSymbols.Generator : JsSymbols.Lambda;
+
+                var functionType = isGenerator ? Generator : Lambda;
                 expression = S(functionType, name, parameters, body);
             }
             else if (Match(TokenType.Class))
             {
                 // export default class Name {} or export default class {}
                 Symbol? name = null;
-                
+
                 if (Check(TokenType.Identifier))
                 {
                     var nameToken = Consume(TokenType.Identifier, "Expected class name.");
                     name = Symbol.Intern(nameToken.Lexeme);
                 }
-                
+
                 Cons? extendsClause = null;
                 if (Match(TokenType.Extends))
                 {
                     var baseExpression = ParseExpression();
-                    extendsClause = S(JsSymbols.Extends, baseExpression);
+                    extendsClause = S(Extends, baseExpression);
                 }
-                
+
                 Consume(TokenType.LeftBrace, "Expected '{' after class name or extends clause.");
-                
+
                 var (constructor, methods, privateFields) = ParseClassBody();
-                
+
                 // If no constructor was defined, create a default one
                 constructor ??= CreateDefaultConstructor(name);
                 var methodList = Cons.FromEnumerable(methods);
                 var privateFieldList = Cons.FromEnumerable(privateFields);
-                
-                expression = S(JsSymbols.Class, name, extendsClause, constructor, methodList, privateFieldList);
+
+                expression = S(Class, name, extendsClause, constructor, methodList, privateFieldList);
             }
             else
             {
@@ -2314,16 +2021,16 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 expression = ParseExpression();
                 Consume(TokenType.Semicolon, "Expected ';' after export default expression.");
             }
-            
-            return S(JsSymbols.ExportDefault, expression);
+
+            return S(ExportDefault, expression);
         }
-        
+
         if (Match(TokenType.LeftBrace))
         {
             // export { name1, name2 as exported };
             var exports = ParseNamedExports();
             Consume(TokenType.RightBrace, "Expected '}' after export list.");
-            
+
             // Optional: export { ... } from "module";
             string? fromModule = null;
             if (MatchContextualKeyword("from"))
@@ -2331,32 +2038,32 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var moduleToken = Consume(TokenType.String, "Expected module path.");
                 fromModule = (string)moduleToken.Literal!;
             }
-            
+
             Consume(TokenType.Semicolon, "Expected ';' after export statement.");
-            return S(JsSymbols.ExportNamed, exports, fromModule);
+            return S(ExportNamed, exports, fromModule);
         }
-        
+
         // Export declaration: export let/const/var/function/class
         if (Check(TokenType.Let) || Check(TokenType.Const) || Check(TokenType.Var) ||
             Check(TokenType.Function) || Check(TokenType.Class) || Check(TokenType.Async))
         {
             var declaration = ParseDeclaration();
-            return S(JsSymbols.ExportDeclaration, declaration);
+            return S(ExportDeclaration, declaration);
         }
-        
+
         throw new ParseException("Invalid export statement.");
     }
-    
+
     private Cons ParseNamedExports()
     {
         var exports = new List<object?>();
-        
+
         do
         {
             var localToken = Consume(TokenType.Identifier, "Expected identifier in export list.");
             var local = Symbol.Intern(localToken.Lexeme);
             Symbol exported;
-            
+
             if (MatchContextualKeyword("as"))
             {
                 var exportedToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
@@ -2366,14 +2073,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             {
                 exported = local;
             }
-            
+
             // (export-named local exported)
-            exports.Add(S(JsSymbols.ExportNamed, local, exported));
+            exports.Add(S(ExportNamed, local, exported));
         } while (Match(TokenType.Comma) && !Check(TokenType.RightBrace));
-        
+
         return Cons.FromEnumerable(exports);
     }
-    
+
     private (Cons? constructor, List<object?> methods, List<object?> privateFields) ParseClassBody()
     {
         Cons? constructor = null;
@@ -2381,63 +2088,50 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var privateFields = new List<object?>();
         var publicFields = new List<object?>();
         var staticFields = new List<object?>(); // Track static fields separately
-        
+
         while (!Check(TokenType.RightBrace))
         {
             // Check for static keyword
-            bool isStatic = false;
-            if (Match(TokenType.Static))
-            {
-                isStatic = true;
-            }
-            
+            var isStatic = false;
+            if (Match(TokenType.Static)) isStatic = true;
+
             // Check for private field declaration
             if (Check(TokenType.PrivateIdentifier))
             {
                 var fieldToken = Advance();
                 var fieldName = fieldToken.Lexeme; // Includes the '#'
-                
+
                 object? initializer = null;
-                if (Match(TokenType.Equal))
-                {
-                    initializer = ParseExpression();
-                }
-                
+                if (Match(TokenType.Equal)) initializer = ParseExpression();
+
                 Match(TokenType.Semicolon); // optional semicolon
-                
+
                 if (isStatic)
-                {
                     // Static private fields - add to static fields list with a special marker
-                    staticFields.Add(S(JsSymbols.StaticField, fieldName, initializer));
-                }
+                    staticFields.Add(S(StaticField, fieldName, initializer));
                 else
-                {
-                    privateFields.Add(S(JsSymbols.PrivateField, fieldName, initializer));
-                }
+                    privateFields.Add(S(PrivateField, fieldName, initializer));
             }
             // Check for getter/setter in class
             else if (Check(TokenType.Get) || Check(TokenType.Set))
             {
-                bool isGetter = Match(TokenType.Get);
+                var isGetter = Match(TokenType.Get);
                 if (!isGetter) Match(TokenType.Set); // Must be setter
-                
-                var methodNameToken = Consume(TokenType.Identifier, isGetter ? "Expected getter name in class body." : "Expected setter name in class body.");
+
+                var methodNameToken = Consume(TokenType.Identifier,
+                    isGetter ? "Expected getter name in class body." : "Expected setter name in class body.");
                 var methodName = methodNameToken.Lexeme;
-                
+
                 if (isGetter)
                 {
                     Consume(TokenType.LeftParen, "Expected '(' after getter name.");
                     Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
                     var body = ParseBlock();
-                    
+
                     if (isStatic)
-                    {
-                        methods.Add(S(JsSymbols.StaticGetter, methodName, body));
-                    }
+                        methods.Add(S(StaticGetter, methodName, body));
                     else
-                    {
-                        methods.Add(S(JsSymbols.Getter, methodName, body));
-                    }
+                        methods.Add(S(Getter, methodName, body));
                 }
                 else
                 {
@@ -2446,58 +2140,45 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     var param = Symbol.Intern(paramToken.Lexeme);
                     Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
                     var body = ParseBlock();
-                    
+
                     if (isStatic)
-                    {
-                        methods.Add(S(JsSymbols.StaticSetter, methodName, param, body));
-                    }
+                        methods.Add(S(StaticSetter, methodName, param, body));
                     else
-                    {
-                        methods.Add(S(JsSymbols.Setter, methodName, param, body));
-                    }
+                        methods.Add(S(Setter, methodName, param, body));
                 }
             }
             else if (Check(TokenType.Identifier))
             {
                 var methodNameToken = Consume(TokenType.Identifier, "Expected method name in class body.");
                 var methodName = methodNameToken.Lexeme;
-                
+
                 // Check if this is a field declaration (public or static)
                 if (Match(TokenType.Equal))
                 {
                     var initializer = ParseExpression();
                     Match(TokenType.Semicolon); // optional semicolon
-                    
+
                     if (isStatic)
-                    {
                         // Static public field
-                        staticFields.Add(S(JsSymbols.StaticField, methodName, initializer));
-                    }
+                        staticFields.Add(S(StaticField, methodName, initializer));
                     else
-                    {
                         // Public instance field
-                        publicFields.Add(S(JsSymbols.PublicField, methodName, initializer));
-                    }
+                        publicFields.Add(S(PublicField, methodName, initializer));
                     continue;
                 }
-                
+
                 // Check for constructor - cannot be static
                 if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
                 {
-                    if (isStatic)
-                    {
-                        throw new ParseException("Constructor cannot be static.");
-                    }
+                    if (isStatic) throw new ParseException("Constructor cannot be static.");
                     if (constructor is not null)
-                    {
                         throw new ParseException("Class cannot declare multiple constructors.");
-                    }
-                    
+
                     Consume(TokenType.LeftParen, "Expected '(' after constructor name.");
                     var parameters = ParseParameterList();
                     Consume(TokenType.RightParen, "Expected ')' after constructor parameters.");
                     var body = ParseBlock();
-                    constructor = S(JsSymbols.Lambda, null, parameters, body);
+                    constructor = S(Lambda, null, parameters, body);
                 }
                 else
                 {
@@ -2506,16 +2187,12 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     var parameters = ParseParameterList();
                     Consume(TokenType.RightParen, "Expected ')' after method parameters.");
                     var body = ParseBlock();
-                    
-                    var lambda = S(JsSymbols.Lambda, null, parameters, body);
+
+                    var lambda = S(Lambda, null, parameters, body);
                     if (isStatic)
-                    {
-                        methods.Add(S(JsSymbols.StaticMethod, methodName, lambda));
-                    }
+                        methods.Add(S(StaticMethod, methodName, lambda));
                     else
-                    {
-                        methods.Add(S(JsSymbols.Method, methodName, lambda));
-                    }
+                        methods.Add(S(Method, methodName, lambda));
                 }
             }
             else
@@ -2523,28 +2200,28 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 throw new ParseException("Expected method, field, getter, or setter in class body.");
             }
         }
-        
+
         Consume(TokenType.RightBrace, "Expected '}' after class body.");
-        
+
         // Merge all fields into private fields list (will handle separately in evaluator)
         privateFields.AddRange(publicFields);
         privateFields.AddRange(staticFields);
-        
+
         return (constructor, methods, privateFields);
     }
-    
+
     private bool CheckAhead(TokenType type)
     {
         if (_current + 1 >= _tokens.Count) return false;
         return _tokens[_current + 1].Type == type;
     }
-    
+
     // Helper methods for contextual keywords
     private bool CheckContextualKeyword(string keyword)
     {
         return Check(TokenType.Identifier) && Peek().Lexeme == keyword;
     }
-    
+
     private bool MatchContextualKeyword(string keyword)
     {
         if (CheckContextualKeyword(keyword))
@@ -2552,18 +2229,16 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             Advance();
             return true;
         }
+
         return false;
     }
-    
+
     private Token ConsumeContextualKeyword(string keyword, string errorMessage)
     {
-        if (!CheckContextualKeyword(keyword))
-        {
-            throw new ParseException(errorMessage);
-        }
+        if (!CheckContextualKeyword(keyword)) throw new ParseException(errorMessage);
         return Advance();
     }
-    
+
     /// <summary>
     /// Checks if the next statement is a "use strict" directive and consumes it if found.
     /// A directive is a string literal expression statement that appears at the beginning of a program or function body.
@@ -2571,16 +2246,13 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private bool CheckForUseStrictDirective()
     {
         // Save current position in case we need to backtrack
-        int savedPosition = _current;
-        
+        var savedPosition = _current;
+
         // Check if next token is a string literal
-        if (!Check(TokenType.String))
-        {
-            return false;
-        }
-        
+        if (!Check(TokenType.String)) return false;
+
         var stringToken = Advance();
-        
+
         // Check if the string is "use strict"
         if (stringToken.Literal as string != "use strict")
         {
@@ -2588,10 +2260,10 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             _current = savedPosition;
             return false;
         }
-        
+
         // Check if followed by a semicolon (optional in JavaScript)
         Match(TokenType.Semicolon);
-        
+
         return true;
     }
 
@@ -2615,6 +2287,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             );
             cons.WithSourceReference(sourceRef);
         }
+
         return cons;
     }
 
@@ -2623,10 +2296,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     /// </summary>
     private Cons MakeCons(IEnumerable<object?> items)
     {
-        if (_current > 0 && _current <= _tokens.Count)
-        {
-            return MakeCons(items, _tokens[_current - 1]);
-        }
+        if (_current > 0 && _current <= _tokens.Count) return MakeCons(items, _tokens[_current - 1]);
         return Cons.FromEnumerable(items);
     }
 }

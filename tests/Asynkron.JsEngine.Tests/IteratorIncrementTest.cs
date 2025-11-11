@@ -3,27 +3,20 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IteratorIncrementTest
+public class IteratorIncrementTest(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public IteratorIncrementTest(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact(Timeout = 2000)]
     public async Task TestIteratorIncrement()
     {
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {msg}");
+            output.WriteLine($"LOG: {msg}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let arr = ["a", "b", "c"];

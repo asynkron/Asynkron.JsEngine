@@ -22,7 +22,7 @@ public class AsyncAwaitTests
                                                }
                                            
                                    """);
-        
+
         Assert.NotNull(program);
     }
 
@@ -33,12 +33,12 @@ public class AsyncAwaitTests
         var engine = new JsEngine();
 
         // Act & Assert - Should not throw
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         async function test() {
-                                                             return 42;
-                                                         }
-                                             """);
+                                                     async function test() {
+                                                         return 42;
+                                                     }
+                                         """);
     }
 
     [Fact(Timeout = 2000)]
@@ -55,7 +55,7 @@ public class AsyncAwaitTests
                                                };
                                            
                                    """);
-        
+
         Assert.NotNull(program);
     }
 
@@ -74,7 +74,7 @@ public class AsyncAwaitTests
                                                }
                                            
                                    """);
-        
+
         Assert.NotNull(program);
     }
 
@@ -87,10 +87,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -121,10 +118,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -155,10 +149,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -190,10 +181,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -254,10 +242,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -291,10 +276,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -334,10 +316,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -364,7 +343,7 @@ public class AsyncAwaitTests
         // Arrange
         var engine = new JsEngine();
         var transformer = new CpsTransformer();
-        
+
         // engine.Parse() already applies CPS transformation, so the result
         // should not need transformation again
         var program = engine.Parse("""
@@ -388,7 +367,7 @@ public class AsyncAwaitTests
         // Arrange
         var engine = new JsEngine();
         var transformer = new CpsTransformer();
-        
+
         // engine.Parse() already applies CPS transformation, so the result
         // should not need transformation again
         var program = engine.Parse("""
@@ -413,7 +392,7 @@ public class AsyncAwaitTests
         // Arrange
         var engine = new JsEngine();
         var transformer = new CpsTransformer();
-        
+
         // engine.Parse() already applies CPS transformation
         var program = engine.Parse("""
 
@@ -440,10 +419,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -536,10 +512,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -575,10 +548,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -622,10 +592,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -666,10 +633,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("addResult", args =>
         {
-            if (args.Count > 0)
-            {
-                results.Add(args[0]?.ToString() ?? "");
-            }
+            if (args.Count > 0) results.Add(args[0]?.ToString() ?? "");
 
             return null;
         });
@@ -713,10 +677,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -763,10 +724,7 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0)
-            {
-                result = args[0]?.ToString() ?? "";
-            }
+            if (args.Count > 0) result = args[0]?.ToString() ?? "";
             return null;
         });
 
@@ -795,27 +753,24 @@ public class AsyncAwaitTests
 
         // Get the debug messages
         var debugMessages = new List<DebugMessage>();
-        for (int i = 0; i < 3; i++)
-        {
-            debugMessages.Add(await engine.DebugMessages().ReadAsync());
-        }
+        for (var i = 0; i < 3; i++) debugMessages.Add(await engine.DebugMessages().ReadAsync());
 
         // Assert - Verify we captured state after each await
         Assert.Equal(3, debugMessages.Count);
-        
+
         // After first await, x1 should be defined
         Assert.True(debugMessages[0].Variables.ContainsKey("x1"));
         Assert.Equal(10d, debugMessages[0].Variables["x1"]);
         Assert.False(debugMessages[0].Variables.ContainsKey("x2"));
         Assert.False(debugMessages[0].Variables.ContainsKey("x3"));
-        
+
         // After second await, x1 and x2 should be defined
         Assert.True(debugMessages[1].Variables.ContainsKey("x1"));
         Assert.Equal(10d, debugMessages[1].Variables["x1"]);
         Assert.True(debugMessages[1].Variables.ContainsKey("x2"));
         Assert.Equal(10d, debugMessages[1].Variables["x2"]);
         Assert.False(debugMessages[1].Variables.ContainsKey("x3"));
-        
+
         // After third await, all three should be defined
         Assert.True(debugMessages[2].Variables.ContainsKey("x1"));
         Assert.Equal(10d, debugMessages[2].Variables["x1"]);
@@ -823,7 +778,7 @@ public class AsyncAwaitTests
         Assert.Equal(10d, debugMessages[2].Variables["x2"]);
         Assert.True(debugMessages[2].Variables.ContainsKey("x3"));
         Assert.Equal(10d, debugMessages[2].Variables["x3"]);
-        
+
         // Final result should be correct
         Assert.Equal("30", result);
     }

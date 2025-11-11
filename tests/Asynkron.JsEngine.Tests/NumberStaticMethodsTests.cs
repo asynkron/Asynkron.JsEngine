@@ -128,23 +128,23 @@ public class NumberStaticMethodsTests
     public async Task Number_Constants_AreAvailable()
     {
         var engine = new JsEngine();
-        
+
         // MAX_SAFE_INTEGER
         var maxSafe = await engine.Evaluate("Number.MAX_SAFE_INTEGER;");
         Assert.Equal(9007199254740991d, maxSafe);
-        
+
         // MIN_SAFE_INTEGER
         var minSafe = await engine.Evaluate("Number.MIN_SAFE_INTEGER;");
         Assert.Equal(-9007199254740991d, minSafe);
-        
+
         // POSITIVE_INFINITY
         var posInf = await engine.Evaluate("Number.POSITIVE_INFINITY;");
         Assert.Equal(double.PositiveInfinity, posInf);
-        
+
         // NEGATIVE_INFINITY
         var negInf = await engine.Evaluate("Number.NEGATIVE_INFINITY;");
         Assert.Equal(double.NegativeInfinity, negInf);
-        
+
         // NaN
         var nan = await engine.Evaluate("Number.NaN;");
         Assert.True(double.IsNaN((double)nan!));
@@ -155,22 +155,22 @@ public class NumberStaticMethodsTests
     {
         // Save current culture
         var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
-        
+
         try
         {
             // Test with a culture that uses comma as decimal separator (e.g., German)
-            System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
-            
+            Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
+
             var engine = new JsEngine();
             var result = await engine.Evaluate("Number.parseFloat('3.14');");
-            
+
             // Should parse 3.14 with a dot, not a comma, regardless of culture
             Assert.Equal(3.14d, result);
         }
         finally
         {
             // Restore original culture
-            System.Threading.Thread.CurrentThread.CurrentCulture = originalCulture;
+            Thread.CurrentThread.CurrentCulture = originalCulture;
         }
     }
 
@@ -179,22 +179,22 @@ public class NumberStaticMethodsTests
     {
         // Save current culture
         var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
-        
+
         try
         {
             // Test with a culture that uses comma as decimal separator (e.g., French)
-            System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("fr-FR");
-            
+            Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("fr-FR");
+
             var engine = new JsEngine();
             var result = await engine.Evaluate("Number('42.5');");
-            
+
             // Should parse 42.5 with a dot, not a comma, regardless of culture
             Assert.Equal(42.5d, result);
         }
         finally
         {
             // Restore original culture
-            System.Threading.Thread.CurrentThread.CurrentCulture = originalCulture;
+            Thread.CurrentThread.CurrentCulture = originalCulture;
         }
     }
 }

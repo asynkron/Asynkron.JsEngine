@@ -25,22 +25,29 @@ public sealed class Symbol : IEquatable<Symbol>
     public static Symbol Intern(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new ArgumentException("Symbol names must contain at least one non-whitespace character.", nameof(name));
-        }
+            throw new ArgumentException("Symbol names must contain at least one non-whitespace character.",
+                nameof(name));
 
         return Cache.GetOrAdd(name, n => new Symbol(n));
     }
 
     public bool Equals(Symbol? other)
-        => other is not null && ReferenceEquals(this, other);
+    {
+        return other is not null && ReferenceEquals(this, other);
+    }
 
     public override bool Equals(object? obj)
-        => Equals(obj as Symbol);
+    {
+        return Equals(obj as Symbol);
+    }
 
     public override int GetHashCode()
-        => Name.GetHashCode(StringComparison.Ordinal);
+    {
+        return Name.GetHashCode(StringComparison.Ordinal);
+    }
 
     public override string ToString()
-        => Name;
+    {
+        return Name;
+    }
 }

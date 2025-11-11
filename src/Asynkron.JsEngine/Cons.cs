@@ -42,10 +42,7 @@ public sealed class Cons : IEnumerable<object?>
     {
         get
         {
-            if (IsEmpty)
-            {
-                throw new InvalidOperationException("The empty list does not have a head.");
-            }
+            if (IsEmpty) throw new InvalidOperationException("The empty list does not have a head.");
 
             return _head;
         }
@@ -58,10 +55,7 @@ public sealed class Cons : IEnumerable<object?>
     {
         get
         {
-            if (IsEmpty)
-            {
-                throw new InvalidOperationException("The empty list does not have a rest.");
-            }
+            if (IsEmpty) throw new InvalidOperationException("The empty list does not have a rest.");
 
             return _tail;
         }
@@ -84,40 +78,37 @@ public sealed class Cons : IEnumerable<object?>
     /// Creates a cons cell from a head and optional rest.
     /// </summary>
     public static Cons Cell(object? head, Cons? rest = null)
-        => new(head, rest);
+    {
+        return new Cons(head, rest);
+    }
 
     /// <summary>
     /// Builds a list from the supplied items.
     /// </summary>
     public static Cons List(params object?[] items)
-        => FromEnumerable(items);
+    {
+        return FromEnumerable(items);
+    }
 
     /// <summary>
     /// Builds a list from the supplied items. Alias for List method.
     /// </summary>
     public static Cons From(params object?[] items)
-        => FromEnumerable(items);
+    {
+        return FromEnumerable(items);
+    }
 
     /// <summary>
     /// Builds a list from an enumerable sequence.
     /// </summary>
     public static Cons FromEnumerable(IEnumerable<object?> items)
     {
-        if (items is null)
-        {
-            throw new ArgumentNullException(nameof(items));
-        }
+        if (items is null) throw new ArgumentNullException(nameof(items));
 
-        if (items is object?[] array)
-        {
-            return FromArray(array);
-        }
+        if (items is object?[] array) return FromArray(array);
 
         var stack = new Stack<object?>();
-        foreach (var item in items)
-        {
-            stack.Push(item);
-        }
+        foreach (var item in items) stack.Push(item);
 
         return FromStack(stack);
     }
@@ -125,10 +116,7 @@ public sealed class Cons : IEnumerable<object?>
     private static Cons FromArray(object?[] array)
     {
         var current = EmptyInstance;
-        for (var i = array.Length - 1; i >= 0; i--)
-        {
-            current = new Cons(array[i], current);
-        }
+        for (var i = array.Length - 1; i >= 0; i--) current = new Cons(array[i], current);
 
         return current;
     }
@@ -136,10 +124,7 @@ public sealed class Cons : IEnumerable<object?>
     private static Cons FromStack(Stack<object?> stack)
     {
         var current = EmptyInstance;
-        while (stack.Count > 0)
-        {
-            current = new Cons(stack.Pop(), current);
-        }
+        while (stack.Count > 0) current = new Cons(stack.Pop(), current);
 
         return current;
     }
@@ -149,19 +134,13 @@ public sealed class Cons : IEnumerable<object?>
     /// </summary>
     public object? ElementAt(int index)
     {
-        if (index < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(index));
-        }
+        if (index < 0) throw new ArgumentOutOfRangeException(nameof(index));
 
         var current = this;
         var position = 0;
         while (!current.IsEmpty)
         {
-            if (position == index)
-            {
-                return current._head;
-            }
+            if (position == index) return current._head;
 
             current = current._tail;
             position++;
@@ -203,23 +182,20 @@ public sealed class Cons : IEnumerable<object?>
         }
     }
 
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
 
     public override string ToString()
     {
-        if (IsEmpty)
-        {
-            return "()";
-        }
+        if (IsEmpty) return "()";
 
         var builder = new StringBuilder("(");
         var first = true;
         foreach (var item in this)
         {
-            if (!first)
-            {
-                builder.Append(' ');
-            }
+            if (!first) builder.Append(' ');
 
             builder.Append(FormatAtom(item));
             first = false;
@@ -229,12 +205,15 @@ public sealed class Cons : IEnumerable<object?>
         return builder.ToString();
     }
 
-    private static string FormatAtom(object? atom) => atom switch
+    private static string FormatAtom(object? atom)
     {
-        null => "null",
-        string s => $"\"{s.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"",
-        bool b => b ? "true" : "false",
-        Cons cons => cons.ToString(),
-        _ => atom.ToString() ?? string.Empty
-    };
+        return atom switch
+        {
+            null => "null",
+            string s => $"\"{s.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"",
+            bool b => b ? "true" : "false",
+            Cons cons => cons.ToString(),
+            _ => atom.ToString() ?? string.Empty
+        };
+    }
 }

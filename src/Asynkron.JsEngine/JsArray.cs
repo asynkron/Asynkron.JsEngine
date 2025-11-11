@@ -16,10 +16,7 @@ internal sealed class JsArray
 
     public JsArray(IEnumerable<object?> items)
     {
-        if (items is not null)
-        {
-            _items.AddRange(items);
-        }
+        if (items is not null) _items.AddRange(items);
 
         UpdateLength();
         SetupIterator();
@@ -27,33 +24,33 @@ internal sealed class JsArray
 
     public IReadOnlyList<object?> Items => _items;
 
-    public void SetPrototype(object? candidate) => _properties.SetPrototype(candidate);
+    public void SetPrototype(object? candidate)
+    {
+        _properties.SetPrototype(candidate);
+    }
 
-    public bool TryGetProperty(string name, out object? value) => _properties.TryGetProperty(name, out value);
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return _properties.TryGetProperty(name, out value);
+    }
 
-    public void SetProperty(string name, object? value) => _properties.SetProperty(name, value);
+    public void SetProperty(string name, object? value)
+    {
+        _properties.SetProperty(name, value);
+    }
 
     public object? GetElement(int index)
     {
-        if (index < 0 || index >= _items.Count)
-        {
-            return null; // mirror JavaScript's undefined for out of range reads
-        }
+        if (index < 0 || index >= _items.Count) return null; // mirror JavaScript's undefined for out of range reads
 
         return _items[index];
     }
 
     public void SetElement(int index, object? value)
     {
-        if (index < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(index));
-        }
+        if (index < 0) throw new ArgumentOutOfRangeException(nameof(index));
 
-        while (_items.Count <= index)
-        {
-            _items.Add(null);
-        }
+        while (_items.Count <= index) _items.Add(null);
 
         _items[index] = value;
         UpdateLength();
@@ -67,10 +64,7 @@ internal sealed class JsArray
 
     public object? Pop()
     {
-        if (_items.Count == 0)
-        {
-            return null;
-        }
+        if (_items.Count == 0) return null;
 
         var lastIndex = _items.Count - 1;
         var value = _items[lastIndex];
@@ -81,10 +75,7 @@ internal sealed class JsArray
 
     public object? Shift()
     {
-        if (_items.Count == 0)
-        {
-            return null;
-        }
+        if (_items.Count == 0) return null;
 
         var value = _items[0];
         _items.RemoveAt(0);
@@ -102,30 +93,23 @@ internal sealed class JsArray
     {
         // Normalize start index
         if (start < 0)
-        {
             start = Math.Max(0, _items.Count + start);
-        }
         else
-        {
             start = Math.Min(start, _items.Count);
-        }
 
         // Normalize delete count
         deleteCount = Math.Max(0, Math.Min(deleteCount, _items.Count - start));
 
         // Create array of deleted items
         var deleted = new JsArray();
-        for (int i = 0; i < deleteCount; i++)
+        for (var i = 0; i < deleteCount; i++)
         {
             deleted.Push(_items[start]);
             _items.RemoveAt(start);
         }
 
         // Insert new items
-        if (itemsToInsert.Length > 0)
-        {
-            _items.InsertRange(start, itemsToInsert);
-        }
+        if (itemsToInsert.Length > 0) _items.InsertRange(start, itemsToInsert);
 
         UpdateLength();
         return deleted;
@@ -146,14 +130,14 @@ internal sealed class JsArray
         // Set up Symbol.iterator
         var iteratorSymbol = JsSymbol.For("Symbol.iterator");
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-        
+
         // Create iterator function that returns an iterator object
         var iteratorFunction = new HostFunction((thisValue, args) =>
         {
             // Use array to hold index so it can be mutated in closure
             var indexHolder = new int[] { 0 };
             var iterator = new JsObject();
-            
+
             // Add next() method to iterator
             iterator.SetProperty("next", new HostFunction((nextThisValue, nextArgs) =>
             {
@@ -169,12 +153,13 @@ internal sealed class JsArray
                     result.SetProperty("value", JsSymbols.Undefined);
                     result.SetProperty("done", true);
                 }
+
                 return result;
             }));
-            
+
             return iterator;
         });
-        
+
         _properties.SetProperty(iteratorKey, iteratorFunction);
     }
 }

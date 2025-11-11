@@ -8,28 +8,21 @@ namespace Asynkron.JsEngine.Tests;
 /// Debug tests to diagnose and fix async iterable test failures.
 /// Following the pattern of adding __debug() calls to understand execution flow.
 /// </summary>
-public class AsyncIterableDebugTests
+public class AsyncIterableDebugTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public AsyncIterableDebugTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString_Debug()
     {
         // Debug version of the failing string test
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -56,23 +49,20 @@ public class AsyncIterableDebugTests
                                      log("After test() call");
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
-        _output.WriteLine($"Final result: '{result}'");
-        
+        output.WriteLine($"Final result: '{result}'");
+
         // Collect debug messages - don't wait forever, just get what's available
         var debugMessages = new List<DebugMessage>();
         while (engine.DebugMessages().TryRead(out var msg))
         {
             debugMessages.Add(msg);
-            _output.WriteLine($"Debug message {debugMessages.Count}: {msg.Variables.Count} variables");
-            foreach (var kvp in msg.Variables)
-            {
-                _output.WriteLine($"  {kvp.Key} = {kvp.Value}");
-            }
+            output.WriteLine($"Debug message {debugMessages.Count}: {msg.Variables.Count} variables");
+            foreach (var kvp in msg.Variables) output.WriteLine($"  {kvp.Key} = {kvp.Value}");
         }
-        
-        _output.WriteLine($"Total debug messages: {debugMessages.Count}");
+
+        output.WriteLine($"Total debug messages: {debugMessages.Count}");
         Assert.Equal("hello", result);
     }
 
@@ -92,17 +82,17 @@ public class AsyncIterableDebugTests
                      """;
 
         var engine = new JsEngine();
-        
+
         // Parse without transformation
         var originalSexpr = engine.ParseWithoutTransformation(source);
-        _output.WriteLine("=== ORIGINAL S-EXPRESSION ===");
-        _output.WriteLine(originalSexpr.ToString());
-        _output.WriteLine("");
+        output.WriteLine("=== ORIGINAL S-EXPRESSION ===");
+        output.WriteLine(originalSexpr.ToString());
+        output.WriteLine("");
 
         // Parse with transformation
         var transformedSexpr = engine.Parse(source);
-        _output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
-        _output.WriteLine(transformedSexpr.ToString());
+        output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
+        output.WriteLine(transformedSexpr.ToString());
     }
 
     [Fact(Timeout = 2000)]
@@ -110,14 +100,14 @@ public class AsyncIterableDebugTests
     {
         // This test PASSES - let's see what's different
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -143,9 +133,9 @@ public class AsyncIterableDebugTests
                                      log("After test() call");
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
-        _output.WriteLine($"Final result: '{result}'");
+        output.WriteLine($"Final result: '{result}'");
         Assert.Equal("hello", result);
     }
 
@@ -154,14 +144,14 @@ public class AsyncIterableDebugTests
     {
         // Test without async function wrapper - as shown in ForAwaitOf_RequiresAsyncFunction
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         var result = await engine.Evaluate("""
 
                                                        let result = "";
@@ -174,8 +164,8 @@ public class AsyncIterableDebugTests
                                                        result;
                                                    
                                            """);
-        
-        _output.WriteLine($"Final result: '{result}'");
+
+        output.WriteLine($"Final result: '{result}'");
         Assert.Equal("hello", result);
     }
 
@@ -184,7 +174,7 @@ public class AsyncIterableDebugTests
     {
         // Test that strings have an iterator in the first place
         var engine = new JsEngine();
-        
+
         var result = await engine.Run("""
 
                                                   let str = "hello";
@@ -192,8 +182,8 @@ public class AsyncIterableDebugTests
                                                   hasIterator;
                                               
                                       """);
-        
-        _output.WriteLine($"String has iterator: {result}");
+
+        output.WriteLine($"String has iterator: {result}");
         Assert.Equal(true, result);
     }
 
@@ -202,7 +192,7 @@ public class AsyncIterableDebugTests
     {
         // Test manual iteration over a string
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let str = "hello";
@@ -216,9 +206,9 @@ public class AsyncIterableDebugTests
                                      }
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
-        _output.WriteLine($"Result: '{result}'");
+        output.WriteLine($"Result: '{result}'");
         Assert.Equal("hello", result);
     }
 
@@ -227,42 +217,42 @@ public class AsyncIterableDebugTests
     {
         // Test to see the parsed S-expression for the OR expression
         var engine = new JsEngine();
-        
+
         // Test simple OR first
         var simpleOr = @"let result = a || b;";
         var simpleSexpr = engine.Parse(simpleOr);
-        _output.WriteLine("=== SIMPLE OR ===");
-        _output.WriteLine(simpleSexpr.ToString());
-        _output.WriteLine("");
-        
+        output.WriteLine("=== SIMPLE OR ===");
+        output.WriteLine(simpleSexpr.ToString());
+        output.WriteLine("");
+
         // Test OR with function call on right
         var orWithCall = @"let result = a || b();";
         var orWithCallSexpr = engine.Parse(orWithCall);
-        _output.WriteLine("=== OR WITH FUNCTION CALL ===");
-        _output.WriteLine(orWithCallSexpr.ToString());
-        _output.WriteLine("");
-        
+        output.WriteLine("=== OR WITH FUNCTION CALL ===");
+        output.WriteLine(orWithCallSexpr.ToString());
+        output.WriteLine("");
+
         // Test the actual problematic expression
         var problematicExpr = @"let iterator = str[Symbol.asyncIterator] || str[Symbol.iterator]();";
         var problematicSexpr = engine.Parse(problematicExpr);
-        _output.WriteLine("=== PROBLEMATIC OR EXPRESSION ===");
-        _output.WriteLine(problematicSexpr.ToString());
-        _output.WriteLine("");
+        output.WriteLine("=== PROBLEMATIC OR EXPRESSION ===");
+        output.WriteLine(problematicSexpr.ToString());
+        output.WriteLine("");
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString_ManualAsyncIteration()
     {
         // Test manual async iteration over a string
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let str = "hello";
@@ -296,9 +286,9 @@ public class AsyncIterableDebugTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
-        _output.WriteLine($"Result: '{result}'");
+        output.WriteLine($"Result: '{result}'");
         Assert.Equal("hello", result);
     }
 
@@ -307,14 +297,14 @@ public class AsyncIterableDebugTests
     {
         // Debug version of the failing break test
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let count = 0;
@@ -340,9 +330,9 @@ public class AsyncIterableDebugTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("count;");
-        _output.WriteLine($"Final count: '{result}'");
+        output.WriteLine($"Final count: '{result}'");
         Assert.Equal(3.0, result);
     }
 
@@ -366,17 +356,17 @@ public class AsyncIterableDebugTests
                      """;
 
         var engine = new JsEngine();
-        
+
         // Parse without transformation
         var originalSexpr = engine.ParseWithoutTransformation(source);
-        _output.WriteLine("=== ORIGINAL S-EXPRESSION ===");
-        _output.WriteLine(originalSexpr.ToString());
-        _output.WriteLine("");
+        output.WriteLine("=== ORIGINAL S-EXPRESSION ===");
+        output.WriteLine(originalSexpr.ToString());
+        output.WriteLine("");
 
         // Parse with transformation
         var transformedSexpr = engine.Parse(source);
-        _output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
-        _output.WriteLine(transformedSexpr.ToString());
+        output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
+        output.WriteLine(transformedSexpr.ToString());
     }
 
     [Fact(Timeout = 2000)]
@@ -384,14 +374,14 @@ public class AsyncIterableDebugTests
     {
         // Debug version of the failing continue test
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let sum = 0;
@@ -415,9 +405,9 @@ public class AsyncIterableDebugTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("sum;");
-        _output.WriteLine($"Final sum: '{result}'");
+        output.WriteLine($"Final sum: '{result}'");
         Assert.Equal(12.0, result); // 1 + 2 + 4 + 5 = 12
     }
 
@@ -426,14 +416,14 @@ public class AsyncIterableDebugTests
     {
         // Debug version of the failing generator test
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let sum = 0;
@@ -461,9 +451,9 @@ public class AsyncIterableDebugTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("sum;");
-        _output.WriteLine($"Final sum: '{result}'");
+        output.WriteLine($"Final sum: '{result}'");
         Assert.Equal(6.0, result);
     }
 
@@ -472,14 +462,14 @@ public class AsyncIterableDebugTests
     {
         // Test for-await-of without any break/continue/conditions to isolate the basic iteration
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let count = 0;
@@ -498,9 +488,9 @@ public class AsyncIterableDebugTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("count;");
-        _output.WriteLine($"Final count: '{result}'");
+        output.WriteLine($"Final count: '{result}'");
         Assert.Equal(3.0, result);
     }
 
@@ -509,14 +499,14 @@ public class AsyncIterableDebugTests
     {
         // Test with an if statement but no break to see if if statements work correctly
         var engine = new JsEngine();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let count = 0;
@@ -538,9 +528,9 @@ public class AsyncIterableDebugTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("count;");
-        _output.WriteLine($"Final count: '{result}'");
+        output.WriteLine($"Final count: '{result}'");
         Assert.Equal(5.0, result);
     }
 
@@ -565,7 +555,7 @@ public class AsyncIterableDebugTests
 
         var engine = new JsEngine();
         var transformedSexpr = engine.Parse(source);
-        _output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
-        _output.WriteLine(transformedSexpr.ToString());
+        output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
+        output.WriteLine(transformedSexpr.ToString());
     }
 }

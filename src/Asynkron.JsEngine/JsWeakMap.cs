@@ -13,9 +13,15 @@ internal sealed class JsWeakMap
     private readonly ConditionalWeakTable<object, object?> _entries = new();
     private readonly JsObject _properties = new();
 
-    public bool TryGetProperty(string name, out object? value) => _properties.TryGetProperty(name, out value);
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return _properties.TryGetProperty(name, out value);
+    }
 
-    public void SetProperty(string name, object? value) => _properties.SetProperty(name, value);
+    public void SetProperty(string name, object? value)
+    {
+        _properties.SetProperty(name, value);
+    }
 
     /// <summary>
     /// Sets the value for the key in the WeakMap. Returns the WeakMap object to allow chaining.
@@ -24,10 +30,7 @@ internal sealed class JsWeakMap
     public JsWeakMap Set(object? key, object? value)
     {
         // WeakMap only accepts objects as keys
-        if (key == null || !IsObject(key))
-        {
-            throw new Exception("Invalid value used as weak map key");
-        }
+        if (key == null || !IsObject(key)) throw new Exception("Invalid value used as weak map key");
 
         // Use AddOrUpdate to set the value
         _entries.Remove(key);
@@ -40,15 +43,9 @@ internal sealed class JsWeakMap
     /// </summary>
     public object? Get(object? key)
     {
-        if (key == null || !IsObject(key))
-        {
-            return JsSymbols.Undefined;
-        }
+        if (key == null || !IsObject(key)) return JsSymbols.Undefined;
 
-        if (_entries.TryGetValue(key, out var value))
-        {
-            return value;
-        }
+        if (_entries.TryGetValue(key, out var value)) return value;
         return JsSymbols.Undefined;
     }
 
@@ -57,10 +54,7 @@ internal sealed class JsWeakMap
     /// </summary>
     public bool Has(object? key)
     {
-        if (key == null || !IsObject(key))
-        {
-            return false;
-        }
+        if (key == null || !IsObject(key)) return false;
 
         return _entries.TryGetValue(key, out _);
     }
@@ -71,10 +65,7 @@ internal sealed class JsWeakMap
     /// </summary>
     public bool Delete(object? key)
     {
-        if (key == null || !IsObject(key))
-        {
-            return false;
-        }
+        if (key == null || !IsObject(key)) return false;
 
         return _entries.Remove(key);
     }
@@ -86,20 +77,20 @@ internal sealed class JsWeakMap
     private static bool IsObject(object? value)
     {
         if (value == null) return false;
-        
+
         // Check for undefined symbol
         if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined)) return false;
-        
+
         // Check if it's a reference type that can be used as a WeakMap key
         // Strings are reference types in .NET but are treated as primitives in JavaScript
         if (value is string) return false;
-        
+
         // Value types (numbers, bools, etc.) are not valid WeakMap keys
         if (value.GetType().IsValueType) return false;
-        
+
         // Symbol is a special case - not allowed as WeakMap key
         if (value is JsSymbol) return false;
-        
+
         return true;
     }
 }

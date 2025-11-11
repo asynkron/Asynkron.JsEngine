@@ -35,7 +35,8 @@ public class ParserTests
         var varStatement = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.Var, varStatement.Head);
         Assert.Equal(Symbol.Intern("counter"), varStatement.Rest.Head);
-        Assert.Same(JsSymbols.Uninitialized, varStatement.Rest.Rest.Head); // Evaluator fills this in with null later on.
+        Assert.Same(JsSymbols.Uninitialized,
+            varStatement.Rest.Rest.Head); // Evaluator fills this in with null later on.
     }
 
     [Fact(Timeout = 2000)]
@@ -223,7 +224,9 @@ public class ParserTests
     public async Task ParseClassDeclarationProducesConstructorAndMethods()
     {
         var engine = new JsEngine();
-        var program = engine.Parse("class Counter { constructor(start) { this.value = start; } increment() { return this.value; } }");
+        var program =
+            engine.Parse(
+                "class Counter { constructor(start) { this.value = start; } increment() { return this.value; } }");
 
         var classStatement = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.Class, classStatement.Head);
@@ -340,7 +343,9 @@ public class ParserTests
     public async Task ParseIfAndLoopStatements()
     {
         var engine = new JsEngine();
-        var program = engine.Parse("if (flag) x = 1; else x = 2; while (x < 10) { x = x + 1; } for (let i = 0; i < 3; i = i + 1) { continue; } do { break; } while (false);");
+        var program =
+            engine.Parse(
+                "if (flag) x = 1; else x = 2; while (x < 10) { x = x + 1; } for (let i = 0; i < 3; i = i + 1) { continue; } do { break; } while (false);");
 
         var ifStatement = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.If, ifStatement.Head);
@@ -354,7 +359,8 @@ public class ParserTests
 
         var whileStatement = Assert.IsType<Cons>(program.Rest.Rest.Head);
         Assert.Same(JsSymbols.While, whileStatement.Head);
-        Assert.Same(Symbol.Intern("x"), Assert.IsType<Cons>(whileStatement.Rest.Head).Rest.Head); // condition is ( < x 10 )
+        Assert.Same(Symbol.Intern("x"),
+            Assert.IsType<Cons>(whileStatement.Rest.Head).Rest.Head); // condition is ( < x 10 )
 
         var forStatement = Assert.IsType<Cons>(program.Rest.Rest.Rest.Head);
         Assert.Same(JsSymbols.For, forStatement.Head);
@@ -379,11 +385,11 @@ public class ParserTests
         Assert.Equal(Symbol.Intern("test"), functionDecl.Rest.Head);
 
         var parameters = Assert.IsType<Cons>(functionDecl.Rest.Rest.Head);
-        
+
         // First two are regular parameters
         Assert.Equal(Symbol.Intern("a"), parameters.Head);
         Assert.Equal(Symbol.Intern("b"), parameters.Rest.Head);
-        
+
         // Third is rest parameter
         var restParam = Assert.IsType<Cons>(parameters.Rest.Rest.Head);
         Assert.Same(JsSymbols.Rest, restParam.Head);
@@ -399,15 +405,15 @@ public class ParserTests
         var letStatement = Assert.IsType<Cons>(program.Rest.Head);
         var arrayLiteral = Assert.IsType<Cons>(letStatement.Rest.Rest.Head);
         Assert.Same(JsSymbols.ArrayLiteral, arrayLiteral.Head);
-        
+
         // First element is literal 1
         Assert.Equal(1d, arrayLiteral.Rest.Head);
-        
+
         // Second element is spread
         var spreadExpr = Assert.IsType<Cons>(arrayLiteral.Rest.Rest.Head);
         Assert.Same(JsSymbols.Spread, spreadExpr.Head);
         Assert.Equal(Symbol.Intern("other"), spreadExpr.Rest.Head);
-        
+
         // Third element is literal 2
         Assert.Equal(2d, arrayLiteral.Rest.Rest.Rest.Head);
     }
@@ -421,18 +427,18 @@ public class ParserTests
         var exprStmt = Assert.IsType<Cons>(program.Rest.Head);
         var callExpr = Assert.IsType<Cons>(exprStmt.Rest.Head);
         Assert.Same(JsSymbols.Call, callExpr.Head);
-        
+
         // Callee is foo
         Assert.Equal(Symbol.Intern("foo"), callExpr.Rest.Head);
-        
+
         // First argument is literal 1
         Assert.Equal(1d, callExpr.Rest.Rest.Head);
-        
+
         // Second argument is spread
         var spreadExpr = Assert.IsType<Cons>(callExpr.Rest.Rest.Rest.Head);
         Assert.Same(JsSymbols.Spread, spreadExpr.Head);
         Assert.Equal(Symbol.Intern("args"), spreadExpr.Rest.Head);
-        
+
         // Third argument is literal 2
         Assert.Equal(2d, callExpr.Rest.Rest.Rest.Rest.Head);
     }

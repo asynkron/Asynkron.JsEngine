@@ -29,7 +29,8 @@ public sealed class DebugMessage
     /// <param name="variables">Dictionary of variable names to their values</param>
     /// <param name="controlFlowState">The current control flow state</param>
     /// <param name="callStack">The call stack at the time of capture</param>
-    internal DebugMessage(Dictionary<string, object?> variables, string controlFlowState, List<CallStackFrame> callStack)
+    internal DebugMessage(Dictionary<string, object?> variables, string controlFlowState,
+        List<CallStackFrame> callStack)
     {
         Variables = variables;
         ControlFlowState = controlFlowState;

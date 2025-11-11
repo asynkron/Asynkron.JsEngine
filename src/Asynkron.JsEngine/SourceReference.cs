@@ -75,9 +75,7 @@ public sealed record SourceReference
     public string GetText()
     {
         if (StartPosition >= 0 && EndPosition <= Source.Length && StartPosition <= EndPosition)
-        {
             return Source[StartPosition..EndPosition];
-        }
         return string.Empty;
     }
 

@@ -29,7 +29,7 @@ var jsCode = """
              // Generator function
              function* fibonacci(n) {
                  let a = 0;
-                 let b = 1;
+                 let b = 1+2+3;
                  let count = 0;
                  while (count < n) {
                      yield a;
@@ -83,8 +83,8 @@ Console.WriteLine("\n\n=== Verification: Execute the Transformed Code ===\n");
 // Verify that the transformed code actually works
 try
 {
-  //  var result = engine.Evaluate(transformedProgram).Result;
-  //  Console.WriteLine($"Execution completed successfully. Result: {result ?? "null"}");
+    //  var result = engine.Evaluate(transformedProgram).Result;
+    //  Console.WriteLine($"Execution completed successfully. Result: {result ?? "null"}");
 }
 catch (Exception ex)
 {

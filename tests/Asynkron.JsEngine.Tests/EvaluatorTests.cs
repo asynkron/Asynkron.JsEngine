@@ -25,7 +25,8 @@ public class EvaluatorTests
     public async Task EvaluateClosureCapturesOuterVariable()
     {
         var engine = new JsEngine();
-        var source = "function makeAdder(x) { function inner(y) { return x + y; } return inner; } let plusTen = makeAdder(10); let fifteen = plusTen(5); fifteen;";
+        var source =
+            "function makeAdder(x) { function inner(y) { return x + y; } return inner; } let plusTen = makeAdder(10); let fifteen = plusTen(5); fifteen;";
         var result = await engine.Evaluate(source);
         Assert.Equal(15d, result);
     }
@@ -109,13 +110,13 @@ public class EvaluatorTests
 
                      """;
 
-        object? temp = await engine.Evaluate(source);
+        var temp = await engine.Evaluate(source);
 
-        Assert.Equal(1d,await  engine.Evaluate("hits;")); // only the nullish coalescing branch invokes record
+        Assert.Equal(1d, await engine.Evaluate("hits;")); // only the nullish coalescing branch invokes record
         Assert.False(Assert.IsType<bool>(await engine.Evaluate("andResult;")));
         Assert.True(Assert.IsType<bool>(await engine.Evaluate("orResult;")));
-        Assert.Equal(3d,await  engine.Evaluate("coalesceResult;"));
-        Assert.Equal(0d,await  engine.Evaluate("coalesceNonNull;"));
+        Assert.Equal(3d, await engine.Evaluate("coalesceResult;"));
+        Assert.Equal(0d, await engine.Evaluate("coalesceNonNull;"));
     }
 
     [Fact(Timeout = 2000)]
@@ -137,7 +138,7 @@ public class EvaluatorTests
 
                      """;
 
-        object? temp = await engine.Evaluate(source);
+        var temp = await engine.Evaluate(source);
 
         Assert.True(Assert.IsType<bool>(await engine.Evaluate("outcomes[0];")));
         Assert.False(Assert.IsType<bool>(await engine.Evaluate("outcomes[1];")));
@@ -173,7 +174,8 @@ public class EvaluatorTests
     {
         var engine = new JsEngine();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("const fixed = 1; fixed = 2;"));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await engine.Evaluate("const fixed = 1; fixed = 2;"));
     }
 
     [Fact(Timeout = 2000)]
@@ -1017,13 +1019,13 @@ public class EvaluatorTests
     public async Task MathObjectProvidesConstants()
     {
         var engine = new JsEngine();
-        
+
         var pi = await engine.Evaluate("Math.PI;");
         Assert.Equal(Math.PI, pi);
-        
+
         var e = await engine.Evaluate("Math.E;");
         Assert.Equal(Math.E, e);
-        
+
         var sqrt2 = await engine.Evaluate("Math.SQRT2;");
         Assert.Equal(Math.Sqrt(2), sqrt2);
     }
@@ -1048,10 +1050,10 @@ public class EvaluatorTests
     public async Task MathAbsReturnsAbsoluteValue()
     {
         var engine = new JsEngine();
-        
+
         var positive = await engine.Evaluate("Math.abs(-5);");
         Assert.Equal(5d, positive);
-        
+
         var alreadyPositive = await engine.Evaluate("Math.abs(3);");
         Assert.Equal(3d, alreadyPositive);
     }
@@ -1060,13 +1062,13 @@ public class EvaluatorTests
     public async Task MathFloorCeilRound()
     {
         var engine = new JsEngine();
-        
+
         var floor = await engine.Evaluate("Math.floor(4.7);");
         Assert.Equal(4d, floor);
-        
+
         var ceil = await engine.Evaluate("Math.ceil(4.3);");
         Assert.Equal(5d, ceil);
-        
+
         var round = await engine.Evaluate("Math.round(4.5);");
         Assert.Equal(5d, round);
     }
@@ -1075,10 +1077,10 @@ public class EvaluatorTests
     public async Task MathMaxMinFunctions()
     {
         var engine = new JsEngine();
-        
+
         var max = await engine.Evaluate("Math.max(1, 5, 3, 9, 2);");
         Assert.Equal(9d, max);
-        
+
         var min = await engine.Evaluate("Math.min(1, 5, 3, 9, 2);");
         Assert.Equal(1d, min);
     }
@@ -1088,7 +1090,7 @@ public class EvaluatorTests
     {
         var engine = new JsEngine();
         var result = await engine.Evaluate("Math.random();");
-        
+
         Assert.IsType<double>(result);
         var value = (double)result;
         Assert.True(value >= 0 && value < 1);
@@ -1098,40 +1100,40 @@ public class EvaluatorTests
     public async Task MathTrigonometricFunctions()
     {
         var engine = new JsEngine();
-        
+
         // Test sin(PI/2) = 1
         var sin = await engine.Evaluate("Math.sin(Math.PI / 2);");
-        Assert.Equal(1d, (double)sin!, precision: 10);
-        
+        Assert.Equal(1d, (double)sin!, 10);
+
         // Test cos(PI) = -1
         var cos = await engine.Evaluate("Math.cos(Math.PI);");
-        Assert.Equal(-1d, (double)cos!, precision: 10);
-        
+        Assert.Equal(-1d, (double)cos!, 10);
+
         // Test tan(PI/4) ≈ 1
         var tan = await engine.Evaluate("Math.tan(Math.PI / 4);");
-        Assert.Equal(1d, (double)tan!, precision: 10);
+        Assert.Equal(1d, (double)tan!, 10);
     }
 
     [Fact(Timeout = 2000)]
     public async Task MathLogarithmicFunctions()
     {
         var engine = new JsEngine();
-        
+
         var log = await engine.Evaluate("Math.log(Math.E);");
-        Assert.Equal(1d, (double)log!, precision: 10);
-        
+        Assert.Equal(1d, (double)log!, 10);
+
         var log10 = await engine.Evaluate("Math.log10(100);");
-        Assert.Equal(2d, (double)log10!, precision: 10);
-        
+        Assert.Equal(2d, (double)log10!, 10);
+
         var exp = await engine.Evaluate("Math.exp(1);");
-        Assert.Equal(Math.E, (double)exp!, precision: 10);
+        Assert.Equal(Math.E, (double)exp!, 10);
     }
 
     [Fact(Timeout = 2000)]
     public async Task MathCanBeUsedInComplexExpressions()
     {
         var engine = new JsEngine();
-        
+
         // Calculate hypotenuse: sqrt(3^2 + 4^2) = 5
         var result = await engine.Evaluate("""
 
@@ -1148,13 +1150,13 @@ public class EvaluatorTests
     public async Task MathSignReturnsSignOfNumber()
     {
         var engine = new JsEngine();
-        
+
         var positive = await engine.Evaluate("Math.sign(10);");
         Assert.Equal(1, positive);
-        
+
         var negative = await engine.Evaluate("Math.sign(-5);");
         Assert.Equal(-1, negative);
-        
+
         var zero = await engine.Evaluate("Math.sign(0);");
         Assert.Equal(0, zero);
     }
@@ -1163,10 +1165,10 @@ public class EvaluatorTests
     public async Task MathTruncRemovesDecimalPart()
     {
         var engine = new JsEngine();
-        
+
         var positive = await engine.Evaluate("Math.trunc(4.9);");
         Assert.Equal(4d, positive);
-        
+
         var negative = await engine.Evaluate("Math.trunc(-4.9);");
         Assert.Equal(-4d, negative);
     }
@@ -1260,7 +1262,7 @@ public class EvaluatorTests
     public async Task ArraySomeReturnsTrueIfAnyMatch()
     {
         var engine = new JsEngine();
-        
+
         var hasLarge = await engine.Evaluate("""
 
                                              let numbers = [1, 3, 5, 6];
@@ -1282,7 +1284,7 @@ public class EvaluatorTests
     public async Task ArrayEveryReturnsTrueIfAllMatch()
     {
         var engine = new JsEngine();
-        
+
         var allPositive = await engine.Evaluate("""
 
                                                 let numbers = [1, 2, 3, 4];
@@ -1304,7 +1306,7 @@ public class EvaluatorTests
     public async Task ArrayJoinConcatenatesElements()
     {
         var engine = new JsEngine();
-        
+
         var withComma = await engine.Evaluate("""
 
                                               let items = ["a", "b", "c"];
@@ -1326,7 +1328,7 @@ public class EvaluatorTests
     public async Task ArrayIncludesChecksForElement()
     {
         var engine = new JsEngine();
-        
+
         var hasTwo = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3];
@@ -1348,7 +1350,7 @@ public class EvaluatorTests
     public async Task ArrayIndexOfFindsElementPosition()
     {
         var engine = new JsEngine();
-        
+
         var index = await engine.Evaluate("""
 
                                           let items = ["a", "b", "c", "b"];
@@ -1370,7 +1372,7 @@ public class EvaluatorTests
     public async Task ArraySliceExtractsSubarray()
     {
         var engine = new JsEngine();
-        
+
         var result = await engine.Evaluate("""
 
                                            let numbers = [0, 1, 2, 3, 4];

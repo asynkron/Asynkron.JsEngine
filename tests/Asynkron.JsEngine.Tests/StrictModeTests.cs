@@ -7,18 +7,18 @@ public class StrictModeTests
     {
         // Verify that "use strict" directive is detected and added to the AST
         var engine = new JsEngine();
-        
+
         var program = engine.Parse("""
 
                                                "use strict";
                                                let x = 10;
                                            
                                    """);
-        
+
         // Check that the program contains a UseStrict directive
         Assert.NotNull(program);
         Assert.NotNull(program.Rest);
-        
+
         // The first statement after Program should be UseStrict
         var firstStmt = program.Rest.Head;
         Assert.IsType<Cons>(firstStmt);
@@ -31,14 +31,14 @@ public class StrictModeTests
     {
         // In strict mode, assigning to an undefined variable should throw a ReferenceError
         var engine = new JsEngine();
-        
+
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("""
 
                             "use strict";
                             undeclaredVariable = 10;
                         
             """));
-        
+
         Assert.Contains("ReferenceError", ex.Message);
         Assert.Contains("is not defined", ex.Message);
     }
@@ -47,7 +47,7 @@ public class StrictModeTests
     public async Task StrictMode_ProperDeclarationsWork()
     {
         var engine = new JsEngine();
-        
+
         var result = await engine.Evaluate("""
 
                                                        "use strict";
@@ -57,7 +57,7 @@ public class StrictModeTests
                                                        a + b + c;
                                                    
                                            """);
-        
+
         Assert.Equal(6.0, result);
     }
 
@@ -65,7 +65,7 @@ public class StrictModeTests
     public async Task StrictMode_DetectedInFunctionBody()
     {
         var engine = new JsEngine();
-        
+
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("""
 
                             function testFunction() {
@@ -75,7 +75,7 @@ public class StrictModeTests
                             testFunction();
                         
             """));
-        
+
         Assert.Contains("is not defined", ex.Message);
     }
 
@@ -83,7 +83,7 @@ public class StrictModeTests
     public async Task StrictMode_NestedFunctions()
     {
         var engine = new JsEngine();
-        
+
         var result = await engine.Evaluate("""
 
                                                        "use strict";
@@ -98,7 +98,7 @@ public class StrictModeTests
                                                        outer();
                                                    
                                            """);
-        
+
         Assert.Equal(30.0, result);
     }
 
@@ -106,7 +106,7 @@ public class StrictModeTests
     public async Task StrictMode_WithClasses()
     {
         var engine = new JsEngine();
-        
+
         var result = await engine.Evaluate("""
 
                                                        "use strict";
@@ -122,7 +122,7 @@ public class StrictModeTests
                                                        obj.getValue();
                                                    
                                            """);
-        
+
         Assert.Equal(42.0, result);
     }
 
@@ -130,7 +130,7 @@ public class StrictModeTests
     public async Task StrictMode_AssignmentToConstFails()
     {
         var engine = new JsEngine();
-        
+
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("""
 
                             "use strict";
@@ -138,7 +138,7 @@ public class StrictModeTests
                             x = 20;
                         
             """));
-        
+
         Assert.Contains("constant", ex.Message);
     }
 
@@ -146,7 +146,7 @@ public class StrictModeTests
     public async Task StrictMode_LetDeclarationsWork()
     {
         var engine = new JsEngine();
-        
+
         var result = await engine.Evaluate("""
 
                                                        "use strict";
@@ -157,7 +157,7 @@ public class StrictModeTests
                                                        }
                                                    
                                            """);
-        
+
         Assert.Equal(15.0, result);
     }
 
@@ -165,7 +165,7 @@ public class StrictModeTests
     public async Task StrictMode_InBlockScope()
     {
         var engine = new JsEngine();
-        
+
         var result = await engine.Evaluate("""
 
                                                        {
@@ -175,7 +175,7 @@ public class StrictModeTests
                                                        }
                                                    
                                            """);
-        
+
         Assert.Equal(100.0, result);
     }
 
@@ -183,7 +183,7 @@ public class StrictModeTests
     public async Task StrictMode_MultipleStatements()
     {
         var engine = new JsEngine();
-        
+
         var result = await engine.Evaluate("""
 
                                                        "use strict";
@@ -196,7 +196,7 @@ public class StrictModeTests
                                                        sum;
                                                    
                                            """);
-        
+
         Assert.Equal(55.0, result);
     }
 
@@ -204,7 +204,7 @@ public class StrictModeTests
     public async Task StrictMode_WithForLoops()
     {
         var engine = new JsEngine();
-        
+
         var result = await engine.Evaluate("""
 
                                                        "use strict";
@@ -215,7 +215,7 @@ public class StrictModeTests
                                                        result;
                                                    
                                            """);
-        
+
         Assert.Equal(10.0, result);
     }
 
@@ -223,7 +223,7 @@ public class StrictModeTests
     public async Task StrictMode_WithObjectLiterals()
     {
         var engine = new JsEngine();
-        
+
         var result = await engine.Evaluate("""
 
                                                        "use strict";
@@ -237,7 +237,7 @@ public class StrictModeTests
                                                        obj.sum();
                                                    
                                            """);
-        
+
         Assert.Equal(30.0, result);
     }
 
@@ -245,7 +245,7 @@ public class StrictModeTests
     public async Task StrictMode_WithArrays()
     {
         var engine = new JsEngine();
-        
+
         var result = await engine.Evaluate("""
 
                                                        "use strict";
@@ -259,7 +259,7 @@ public class StrictModeTests
                                                        sum;
                                                    
                                            """);
-        
+
         Assert.Equal(15.0, result);
     }
 }

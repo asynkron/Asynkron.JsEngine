@@ -24,10 +24,10 @@ public class SignalPatternTests
                                                        count;
                                                    
                                            """);
-        
+
         Assert.Equal(5.0, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task WhileLoop_WithContinue_WorksCorrectly()
     {
@@ -46,11 +46,11 @@ public class SignalPatternTests
                                                        sum;
                                                    
                                            """);
-        
+
         // Sum of odd numbers from 1 to 9: 1+3+5+7+9 = 25
         Assert.Equal(25.0, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task Function_WithReturn_WorksCorrectly()
     {
@@ -64,10 +64,10 @@ public class SignalPatternTests
                                                        test();
                                                    
                                            """);
-        
+
         Assert.Equal(20.0, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task NestedLoops_WithBreakAndContinue_WorkCorrectly()
     {
@@ -85,7 +85,7 @@ public class SignalPatternTests
                                                        result;
                                                    
                                            """);
-        
+
         // i=0: j runs 0,1,3,4 (skip 2) = 4
         // i=1: j runs 0,1,3,4 (skip 2) = 4
         // i=2: j runs 0,1,3,4 (skip 2) = 4
@@ -94,7 +94,7 @@ public class SignalPatternTests
         // Total: 4+4+4+3+4 = 19
         Assert.Equal(19.0, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task TryCatchFinally_WithReturn_WorksCorrectly()
     {
@@ -111,7 +111,7 @@ public class SignalPatternTests
                                                        test();
                                                    
                                            """);
-        
+
         Assert.Equal("from try", result);
     }
 }

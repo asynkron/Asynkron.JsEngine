@@ -7,21 +7,14 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests to debug CPS transformation for loops with await.
 /// These tests help understand what the transformer is producing.
 /// </summary>
-public class CpsTransformDebugTests
+public class CpsTransformDebugTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public CpsTransformDebugTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact(Timeout = 2000)]
     public async Task SimpleForOf_WithAwait_Debug()
     {
         // Simplest possible test case - single iteration
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -37,9 +30,9 @@ public class CpsTransformDebugTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
-        _output.WriteLine($"Result: '{result}'");
+        output.WriteLine($"Result: '{result}'");
         Assert.Equal("x", result);
     }
 
@@ -48,7 +41,7 @@ public class CpsTransformDebugTests
     {
         // Control test - no await in loop body
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -63,9 +56,9 @@ public class CpsTransformDebugTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
-        _output.WriteLine($"Result: '{result}'");
+        output.WriteLine($"Result: '{result}'");
         Assert.Equal("x", result);
     }
 
@@ -74,7 +67,7 @@ public class CpsTransformDebugTests
     {
         // Test await before loop - should work
         var engine = new JsEngine();
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -90,9 +83,9 @@ public class CpsTransformDebugTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
-        _output.WriteLine($"Result: '{result}'");
+        output.WriteLine($"Result: '{result}'");
         Assert.Equal(">x", result);
     }
 
@@ -102,15 +95,15 @@ public class CpsTransformDebugTests
         // Add logging to see if loop executes at all
         var engine = new JsEngine();
         var logMessages = new List<string>();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
             logMessages.Add(message);
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return null;
         });
-        
+
         await engine.Run("""
 
                                      let result = "";
@@ -130,17 +123,14 @@ public class CpsTransformDebugTests
                                      test();
                                  
                          """);
-        
+
         var result = await engine.Evaluate("result;");
-        _output.WriteLine($"Result: '{result}'");
-        _output.WriteLine($"Log messages: {string.Join(", ", logMessages)}");
-        
+        output.WriteLine($"Result: '{result}'");
+        output.WriteLine($"Log messages: {string.Join(", ", logMessages)}");
+
         // Let's see what actually gets logged
-        foreach (var msg in logMessages)
-        {
-            _output.WriteLine($"  - {msg}");
-        }
-        
+        foreach (var msg in logMessages) output.WriteLine($"  - {msg}");
+
         Assert.Equal("ab", result);
     }
 }

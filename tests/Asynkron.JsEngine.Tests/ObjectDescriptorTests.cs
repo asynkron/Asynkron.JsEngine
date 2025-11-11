@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class ObjectDescriptorTests
 {
     // Tests for Object.defineProperty with writable descriptor
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Writable_False_Prevents_Modification()
     {
@@ -23,7 +23,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(42d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Writable_True_Allows_Modification()
     {
@@ -41,7 +41,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(20d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Default_Writable_Is_True()
     {
@@ -56,9 +56,9 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(20d, result);
     }
-    
+
     // Tests for Object.defineProperty with enumerable descriptor
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Enumerable_False_Hides_From_Keys()
     {
@@ -73,7 +73,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(1d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Enumerable_False_Visible_In_GetOwnPropertyNames()
     {
@@ -87,7 +87,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(1d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Enumerable_True_Shows_In_Keys()
     {
@@ -101,7 +101,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal("visible", result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Multiple_Properties_Different_Enumerable()
     {
@@ -117,9 +117,9 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal("a,c", result);
     }
-    
+
     // Tests for Object.defineProperty with configurable descriptor
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Configurable_False_Prevents_Redefinition()
     {
@@ -139,7 +139,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(42d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Configurable_True_Allows_Redefinition()
     {
@@ -159,9 +159,9 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(100d, result);
     }
-    
+
     // Tests for Object.defineProperty with getter/setter
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Getter_Works()
     {
@@ -177,7 +177,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(10d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Setter_Works()
     {
@@ -194,7 +194,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(10d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Getter_And_Setter_Work_Together()
     {
@@ -212,7 +212,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(10d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Getter_Only_Property_Cannot_Be_Set()
     {
@@ -229,9 +229,9 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(42d, result);
     }
-    
+
     // Tests for Object.getOwnPropertyDescriptor
-    
+
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Value()
     {
@@ -245,7 +245,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(42d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Writable_True_For_Normal_Property()
     {
@@ -259,7 +259,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(true, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Writable_False_For_Readonly()
     {
@@ -277,7 +277,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(false, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Enumerable()
     {
@@ -295,7 +295,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(false, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Configurable()
     {
@@ -313,7 +313,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(false, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Undefined_For_Nonexistent()
     {
@@ -326,7 +326,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Getter()
     {
@@ -343,7 +343,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal("function", result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Setter()
     {
@@ -360,7 +360,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal("function", result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Accessor_Has_No_Value_Or_Writable()
     {
@@ -377,9 +377,9 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(true, result);
     }
-    
+
     // Tests for Object.getOwnPropertyNames
-    
+
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyNames_Returns_All_Properties()
     {
@@ -394,7 +394,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(2d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyNames_Includes_Non_Enumerable()
     {
@@ -408,9 +408,9 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(true, result);
     }
-    
+
     // Tests for Object.create with property descriptors
-    
+
     [Fact(Timeout = 2000)]
     public async Task Object_Create_With_Property_Descriptors()
     {
@@ -425,7 +425,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(10d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task Object_Create_Property_Descriptors_Default_Enumerable_False()
     {
@@ -440,7 +440,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(0d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task Object_Create_Property_Descriptors_Can_Be_Enumerable()
     {
@@ -455,7 +455,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(1d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task Object_Create_Multiple_Properties()
     {
@@ -471,7 +471,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(30d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task Object_Create_With_Accessor_Descriptor()
     {
@@ -489,9 +489,9 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(42d, result);
     }
-    
+
     // Tests for interaction with freeze/seal
-    
+
     [Fact(Timeout = 2000)]
     public async Task Frozen_Object_Properties_Become_Non_Writable()
     {
@@ -506,7 +506,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(false, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task Frozen_Object_Properties_Become_Non_Configurable()
     {
@@ -521,7 +521,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(false, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task Sealed_Object_Properties_Become_Non_Configurable()
     {
@@ -536,7 +536,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(false, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task Sealed_Object_Properties_Remain_Writable()
     {
@@ -551,9 +551,9 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(true, result);
     }
-    
+
     // Edge cases and error handling
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Returns_The_Object()
     {
@@ -567,7 +567,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(true, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_On_Frozen_Object_Is_Ignored()
     {
@@ -582,7 +582,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(false, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Modify_Frozen_Property_Is_Ignored()
     {
@@ -597,7 +597,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(10d, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task Object_Keys_Respects_Enumerable_Flag()
     {
@@ -614,7 +614,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(true, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task Object_Values_Respects_Enumerable_Flag()
     {
@@ -631,7 +631,7 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(true, result);
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task Object_Entries_Respects_Enumerable_Flag()
     {

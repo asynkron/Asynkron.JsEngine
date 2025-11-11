@@ -16,11 +16,11 @@ public class JavaScriptComplianceTests
     public async Task TypeCoercion_StringMinusNumber()
     {
         var engine = new JsEngine();
-        
+
         // String coerces to number in subtraction
         var result = await engine.Evaluate("\"10\" - 5;");
         Assert.Equal(5d, result);
-        
+
         // Multiple strings in arithmetic
         var result2 = await engine.Evaluate("\"20\" - \"5\";");
         Assert.Equal(15d, result2);
@@ -30,11 +30,11 @@ public class JavaScriptComplianceTests
     public async Task TypeCoercion_StringMultiplyNumber()
     {
         var engine = new JsEngine();
-        
+
         // String coerces to number in multiplication
         var result = await engine.Evaluate("\"5\" * 3;");
         Assert.Equal(15d, result);
-        
+
         var result2 = await engine.Evaluate("\"10\" * \"2\";");
         Assert.Equal(20d, result2);
     }
@@ -43,14 +43,14 @@ public class JavaScriptComplianceTests
     public async Task TypeCoercion_BooleanArithmetic()
     {
         var engine = new JsEngine();
-        
+
         // true coerces to 1, false coerces to 0
         var result1 = await engine.Evaluate("true + true;");
         Assert.Equal(2d, result1);
-        
+
         var result2 = await engine.Evaluate("true + false;");
         Assert.Equal(1d, result2);
-        
+
         var result3 = await engine.Evaluate("false + false;");
         Assert.Equal(0d, result3);
     }
@@ -59,11 +59,11 @@ public class JavaScriptComplianceTests
     public async Task TypeCoercion_StringPlusNumber()
     {
         var engine = new JsEngine();
-        
+
         // String concatenation takes precedence
         var result = await engine.Evaluate("\"5\" + 3;");
         Assert.Equal("53", result);
-        
+
         // But subtraction coerces to numbers
         var result2 = await engine.Evaluate("\"5\" - 3;");
         Assert.Equal(2d, result2);
@@ -77,7 +77,7 @@ public class JavaScriptComplianceTests
     public async Task NaN_FromMathSqrt()
     {
         var engine = new JsEngine();
-        
+
         // Sqrt of negative number produces NaN
         var result = await engine.Evaluate("Math.sqrt(-1);");
         Assert.True(double.IsNaN((double)result!));
@@ -87,11 +87,11 @@ public class JavaScriptComplianceTests
     public async Task NaN_PropagatesInMathOperations()
     {
         var engine = new JsEngine();
-        
+
         // NaN propagates through calculations
         var result1 = await engine.Evaluate("Math.sqrt(-1) + 5;");
         Assert.True(double.IsNaN((double)result1!));
-        
+
         var result2 = await engine.Evaluate("Math.sqrt(-1) * 10;");
         Assert.True(double.IsNaN((double)result2!));
     }
@@ -100,11 +100,11 @@ public class JavaScriptComplianceTests
     public async Task Math_LargeNumberOperations()
     {
         var engine = new JsEngine();
-        
+
         // Very large numbers
         var result1 = await engine.Evaluate("999999999999999 + 1;");
         Assert.Equal(1000000000000000d, result1);
-        
+
         // Precision limits with very large numbers
         var result2 = await engine.Evaluate("9007199254740992 + 1;"); // 2^53 + 1 (precision limit)
         Assert.IsType<double>(result2);
@@ -114,7 +114,7 @@ public class JavaScriptComplianceTests
     public async Task Math_VerySmallNumbers()
     {
         var engine = new JsEngine();
-        
+
         // Very small decimals
         var result = await engine.Evaluate("0.1 + 0.2;");
         // Famous floating point precision issue
@@ -130,11 +130,11 @@ public class JavaScriptComplianceTests
     public async Task Equality_ZeroComparisons()
     {
         var engine = new JsEngine();
-        
+
         // 0 and -0 are equal
         var result1 = await engine.Evaluate("0 === -0;");
         Assert.True((bool)result1!);
-        
+
         var result2 = await engine.Evaluate("0 == -0;");
         Assert.True((bool)result2!);
     }
@@ -143,11 +143,11 @@ public class JavaScriptComplianceTests
     public async Task Equality_ObjectsNeverEqual()
     {
         var engine = new JsEngine();
-        
+
         // Object literals create different objects
         var result = await engine.Evaluate("let a = {}; let b = {}; a === b;");
         Assert.False((bool)result!);
-        
+
         var result2 = await engine.Evaluate("let c = []; let d = []; c === d;");
         Assert.False((bool)result2!);
     }
@@ -156,21 +156,21 @@ public class JavaScriptComplianceTests
     public async Task Equality_LooseVsStrict()
     {
         var engine = new JsEngine();
-        
+
         // Strict equality does not do type coercion
         var result1 = await engine.Evaluate("0 === false;");
         Assert.False((bool)result1!);
-        
+
         var result2 = await engine.Evaluate("\"\" === false;");
         Assert.False((bool)result2!);
-        
+
         var result3 = await engine.Evaluate("1 === true;");
         Assert.False((bool)result3!);
-        
+
         // But same type comparisons work
         var result4 = await engine.Evaluate("5 === 5;");
         Assert.True((bool)result4!);
-        
+
         var result5 = await engine.Evaluate("\"hello\" === \"hello\";");
         Assert.True((bool)result5!);
     }
@@ -183,7 +183,7 @@ public class JavaScriptComplianceTests
     public async Task Array_SparseArrays()
     {
         var engine = new JsEngine();
-        
+
         // Arrays can have holes
         var result = await engine.Evaluate("""
 
@@ -199,7 +199,7 @@ public class JavaScriptComplianceTests
     public async Task Array_NegativeIndices()
     {
         var engine = new JsEngine();
-        
+
         // Negative indices don't work like Python
         var result = await engine.Evaluate("""
 
@@ -209,7 +209,7 @@ public class JavaScriptComplianceTests
                                                    
                                            """);
         Assert.Equal(99d, result);
-        
+
         // But length is not affected
         var result2 = await engine.Evaluate("""
 
@@ -225,7 +225,7 @@ public class JavaScriptComplianceTests
     public async Task Array_LengthPropertyChanges()
     {
         var engine = new JsEngine();
-        
+
         // Length changes when elements are added
         var result = await engine.Evaluate("""
 
@@ -245,7 +245,7 @@ public class JavaScriptComplianceTests
     public async Task Scope_LetBlockScoping()
     {
         var engine = new JsEngine();
-        
+
         // let has block scope
         var result = await engine.Evaluate("""
 
@@ -263,7 +263,7 @@ public class JavaScriptComplianceTests
     public async Task Scope_VarFunctionScoping()
     {
         var engine = new JsEngine();
-        
+
         // var has function scope (or global if not in function)
         var result = await engine.Evaluate("""
 
@@ -281,7 +281,7 @@ public class JavaScriptComplianceTests
     public async Task Scope_ClosureCapture()
     {
         var engine = new JsEngine();
-        
+
         // Classic closure problem with var in loop
         var result = await engine.Evaluate("""
 
@@ -300,7 +300,7 @@ public class JavaScriptComplianceTests
     public async Task Scope_NestedLetScoping()
     {
         var engine = new JsEngine();
-        
+
         // Nested let declarations shadow outer ones
         var result = await engine.Evaluate("""
 
@@ -325,7 +325,7 @@ public class JavaScriptComplianceTests
     public async Task ThisBinding_MethodCall()
     {
         var engine = new JsEngine();
-        
+
         // 'this' works when method is called normally
         var result = await engine.Evaluate("""
 
@@ -344,7 +344,7 @@ public class JavaScriptComplianceTests
     public async Task ThisBinding_ArrowFunctionLexicalThis()
     {
         var engine = new JsEngine();
-        
+
         // Arrow functions capture 'this' from surrounding scope
         var result = await engine.Evaluate("""
 
@@ -371,11 +371,11 @@ public class JavaScriptComplianceTests
     public async Task StringCoercion_NumberToString()
     {
         var engine = new JsEngine();
-        
+
         // Numbers concatenate as strings
         var result1 = await engine.Evaluate("\"value: \" + 42;");
         Assert.Equal("value: 42", result1);
-        
+
         var result2 = await engine.Evaluate("\"value: \" + 3.14;");
         Assert.Equal("value: 3.14", result2);
     }
@@ -384,11 +384,11 @@ public class JavaScriptComplianceTests
     public async Task StringCoercion_BooleanToString()
     {
         var engine = new JsEngine();
-        
+
         // Booleans concatenate as strings
         var result1 = await engine.Evaluate("\"result: \" + true;");
         Assert.Equal("result: true", result1);
-        
+
         var result2 = await engine.Evaluate("\"result: \" + false;");
         Assert.Equal("result: false", result2);
     }
@@ -401,23 +401,23 @@ public class JavaScriptComplianceTests
     public async Task Truthiness_FalsyValues()
     {
         var engine = new JsEngine();
-        
+
         // All these should be falsy
         var result1 = await engine.Evaluate("false ? 1 : 0;");
         Assert.Equal(0d, result1);
-        
+
         var result2 = await engine.Evaluate("0 ? 1 : 0;");
         Assert.Equal(0d, result2);
-        
+
         var result3 = await engine.Evaluate("\"\" ? 1 : 0;");
         Assert.Equal(0d, result3);
-        
+
         var result4 = await engine.Evaluate("null ? 1 : 0;");
         Assert.Equal(0d, result4);
-        
+
         var result5 = await engine.Evaluate("undefined ? 1 : 0;");
         Assert.Equal(0d, result5);
-        
+
         var result6 = await engine.Evaluate("Math.sqrt(-1) ? 1 : 0;"); // NaN
         Assert.Equal(0d, result6);
     }
@@ -426,18 +426,18 @@ public class JavaScriptComplianceTests
     public async Task Truthiness_TruthyValues()
     {
         var engine = new JsEngine();
-        
+
         // Objects and arrays are truthy (unlike Python)
         var result1 = await engine.Evaluate("let obj = {}; obj ? 1 : 0;");
         Assert.Equal(1d, result1);
-        
+
         var result2 = await engine.Evaluate("let arr = []; arr ? 1 : 0;");
         Assert.Equal(1d, result2);
-        
+
         // Non-empty strings are truthy
         var result3 = await engine.Evaluate("\"0\" ? 1 : 0;");
         Assert.Equal(1d, result3);
-        
+
         var result4 = await engine.Evaluate("\"false\" ? 1 : 0;");
         Assert.Equal(1d, result4);
     }
@@ -450,11 +450,11 @@ public class JavaScriptComplianceTests
     public async Task OperatorPrecedence_LogicalAndOr()
     {
         var engine = new JsEngine();
-        
+
         // && has higher precedence than ||
         var result = await engine.Evaluate("true || false && false;");
         Assert.True((bool)result!);
-        
+
         var result2 = await engine.Evaluate("false && false || true;");
         Assert.True((bool)result2!);
     }
@@ -463,11 +463,11 @@ public class JavaScriptComplianceTests
     public async Task OperatorPrecedence_ComparisonAndLogical()
     {
         var engine = new JsEngine();
-        
+
         // Comparisons before logical operators
         var result = await engine.Evaluate("1 < 2 && 3 > 2;");
         Assert.True((bool)result!);
-        
+
         var result2 = await engine.Evaluate("1 > 2 || 3 > 2;");
         Assert.True((bool)result2!);
     }
@@ -480,11 +480,11 @@ public class JavaScriptComplianceTests
     public async Task Math_MinMaxWithMultipleArgs()
     {
         var engine = new JsEngine();
-        
+
         // Math.max with negative numbers
         var result1 = await engine.Evaluate("Math.max(-1, -5, -3);");
         Assert.Equal(-1d, result1);
-        
+
         // Math.min with positive numbers
         var result2 = await engine.Evaluate("Math.min(5, 2, 8, 3);");
         Assert.Equal(2d, result2);
@@ -494,11 +494,11 @@ public class JavaScriptComplianceTests
     public async Task Math_OperationsWithLargeNumbers()
     {
         var engine = new JsEngine();
-        
+
         // Math operations with large numbers
         var result1 = await engine.Evaluate("Math.max(1000000, 999999, 1000001);");
         Assert.Equal(1000001d, result1);
-        
+
         var result2 = await engine.Evaluate("Math.sqrt(1000000);");
         Assert.Equal(1000d, result2);
     }
@@ -507,11 +507,11 @@ public class JavaScriptComplianceTests
     public async Task Math_TrigonometryEdgeCases()
     {
         var engine = new JsEngine();
-        
+
         // Trig functions at special values
         var result1 = await engine.Evaluate("Math.sin(0);");
         Assert.Equal(0d, result1);
-        
+
         var result2 = await engine.Evaluate("Math.cos(0);");
         Assert.Equal(1d, result2);
     }
@@ -524,7 +524,7 @@ public class JavaScriptComplianceTests
     public async Task ObjectPropertyAccess_NumericKeys()
     {
         var engine = new JsEngine();
-        
+
         // Numeric keys are converted to strings
         var result = await engine.Evaluate("""
 
@@ -540,7 +540,7 @@ public class JavaScriptComplianceTests
     public async Task ObjectPropertyAccess_SpecialProperties()
     {
         var engine = new JsEngine();
-        
+
         // Can access properties with special names
         var result = await engine.Evaluate("""
 
@@ -556,7 +556,7 @@ public class JavaScriptComplianceTests
     public async Task ObjectPropertyAccess_DynamicProperties()
     {
         var engine = new JsEngine();
-        
+
         // Can add properties dynamically
         var result = await engine.Evaluate("""
 
@@ -577,7 +577,7 @@ public class JavaScriptComplianceTests
     public async Task ControlFlow_SwitchFallthrough()
     {
         var engine = new JsEngine();
-        
+
         // Switch falls through without break
         var result = await engine.Evaluate("""
 
@@ -604,7 +604,7 @@ public class JavaScriptComplianceTests
     public async Task ControlFlow_ForLoopEdgeCases()
     {
         var engine = new JsEngine();
-        
+
         // Empty for loop with break
         var result1 = await engine.Evaluate("""
 
@@ -617,7 +617,7 @@ public class JavaScriptComplianceTests
                                                     
                                             """);
         Assert.Equal(3d, result1);
-        
+
         // For loop with complex condition
         var result2 = await engine.Evaluate("""
 
@@ -640,7 +640,7 @@ public class JavaScriptComplianceTests
     public async Task NestedStructures_DeepNesting()
     {
         var engine = new JsEngine();
-        
+
         // Deeply nested object access
         var result = await engine.Evaluate("""
 
@@ -665,7 +665,7 @@ public class JavaScriptComplianceTests
     public async Task NestedStructures_DeepFunctionNesting()
     {
         var engine = new JsEngine();
-        
+
         // Deeply nested function calls
         var result = await engine.Evaluate("""
 
@@ -690,7 +690,7 @@ public class JavaScriptComplianceTests
     public async Task ExpressionEvaluation_ShortCircuitAnd()
     {
         var engine = new JsEngine();
-        
+
         // Second operand should not be evaluated if first is falsy
         var result = await engine.Evaluate("""
 
@@ -710,7 +710,7 @@ public class JavaScriptComplianceTests
     public async Task ExpressionEvaluation_ShortCircuitOr()
     {
         var engine = new JsEngine();
-        
+
         // Second operand should not be evaluated if first is truthy
         var result = await engine.Evaluate("""
 
@@ -730,7 +730,7 @@ public class JavaScriptComplianceTests
     public async Task ExpressionEvaluation_TernaryLazyEvaluation()
     {
         var engine = new JsEngine();
-        
+
         // Only one branch should be evaluated
         var result = await engine.Evaluate("""
 

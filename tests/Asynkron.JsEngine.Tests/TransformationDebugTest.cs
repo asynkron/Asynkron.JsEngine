@@ -6,15 +6,8 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests to see the actual S-expression transformation output.
 /// </summary>
-public class TransformationDebugTest
+public class TransformationDebugTest(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public TransformationDebugTest(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact(Timeout = 2000)]
     public async Task ShowTransformation_ForOfWithAwait()
     {
@@ -31,17 +24,17 @@ public class TransformationDebugTest
                      """;
 
         var engine = new JsEngine();
-        
+
         // Parse without transformation
         var originalSexpr = engine.ParseWithoutTransformation(source);
-        _output.WriteLine("=== ORIGINAL S-EXPRESSION ===");
-        _output.WriteLine(originalSexpr.ToString());
-        _output.WriteLine("");
+        output.WriteLine("=== ORIGINAL S-EXPRESSION ===");
+        output.WriteLine(originalSexpr.ToString());
+        output.WriteLine("");
 
         // Parse with transformation
         var transformedSexpr = engine.Parse(source);
-        _output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
-        _output.WriteLine(transformedSexpr.ToString());
+        output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
+        output.WriteLine(transformedSexpr.ToString());
     }
 
     [Fact(Timeout = 2000)]
@@ -58,16 +51,16 @@ public class TransformationDebugTest
                      """;
 
         var engine = new JsEngine();
-        
+
         // Parse without transformation
         var originalSexpr = engine.ParseWithoutTransformation(source);
-        _output.WriteLine("=== ORIGINAL (works) ===");
-        _output.WriteLine(originalSexpr.ToString());
-        _output.WriteLine("");
+        output.WriteLine("=== ORIGINAL (works) ===");
+        output.WriteLine(originalSexpr.ToString());
+        output.WriteLine("");
 
         // Parse with transformation
         var transformedSexpr = engine.Parse(source);
-        _output.WriteLine("=== TRANSFORMED (works) ===");
-        _output.WriteLine(transformedSexpr.ToString());
+        output.WriteLine("=== TRANSFORMED (works) ===");
+        output.WriteLine(transformedSexpr.ToString());
     }
 }

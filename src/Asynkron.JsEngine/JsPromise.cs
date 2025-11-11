@@ -56,10 +56,7 @@ internal sealed class JsPromise(JsEngine engine)
         var nextPromise = new JsPromise(engine);
         _handlers.Add((onFulfilled, onRejected, nextPromise));
 
-        if (_state != PromiseState.Pending)
-        {
-            ProcessHandlers();
-        }
+        if (_state != PromiseState.Pending) ProcessHandlers();
 
         return nextPromise;
     }
@@ -73,7 +70,6 @@ internal sealed class JsPromise(JsEngine engine)
         _handlers.Clear();
 
         foreach (var (onFulfilled, onRejected, nextPromise) in handlersToProcess)
-        {
             engine.ScheduleTask(async () =>
             {
                 try
@@ -83,10 +79,10 @@ internal sealed class JsPromise(JsEngine engine)
                         if (onFulfilled != null)
                         {
                             var result = onFulfilled.Invoke([_value], null);
-                            
+
                             // If the result is a promise (JsObject with "then" method), chain it
-                            if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable thenCallable)
-                            {
+                            if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
+                                thenMethod is IJsCallable thenCallable)
                                 thenCallable.Invoke([
                                     new HostFunction(args =>
                                     {
@@ -99,11 +95,8 @@ internal sealed class JsPromise(JsEngine engine)
                                         return null;
                                     })
                                 ], resultObj);
-                            }
                             else
-                            {
                                 nextPromise.Resolve(result);
-                            }
                         }
                         else
                         {
@@ -115,10 +108,10 @@ internal sealed class JsPromise(JsEngine engine)
                         if (onRejected != null)
                         {
                             var result = onRejected.Invoke([_value], null);
-                            
+
                             // If the result is a promise (JsObject with "then" method), chain it
-                            if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) && thenMethod is IJsCallable thenCallable)
-                            {
+                            if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
+                                thenMethod is IJsCallable thenCallable)
                                 thenCallable.Invoke([
                                     new HostFunction(args =>
                                     {
@@ -131,12 +124,9 @@ internal sealed class JsPromise(JsEngine engine)
                                         return null;
                                     })
                                 ], resultObj);
-                            }
                             else
-                            {
                                 // Rejection handler executed successfully, resolve next promise
                                 nextPromise.Resolve(result);
-                            }
                         }
                         else
                         {
@@ -152,6 +142,5 @@ internal sealed class JsPromise(JsEngine engine)
 
                 await Task.CompletedTask;
             });
-        }
     }
 }

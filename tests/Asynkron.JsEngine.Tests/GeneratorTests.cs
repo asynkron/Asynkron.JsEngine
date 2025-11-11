@@ -14,13 +14,13 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act & Assert - Should not throw
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* simpleGenerator() {
-                                                             yield 1;
-                                                         }
-                                                     
-                                             """);
+                                                     function* simpleGenerator() {
+                                                         yield 1;
+                                                     }
+                                                 
+                                         """);
     }
 
     [Fact(Timeout = 2000)]
@@ -51,14 +51,14 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 1;
-                                                         }
-                                                         let g = gen();
-                                                     
-                                             """);
+                                                     function* gen() {
+                                                         yield 1;
+                                                     }
+                                                     let g = gen();
+                                                 
+                                         """);
         var hasNext = await engine.Evaluate("g.next;");
 
         // Assert - next should be callable
@@ -72,15 +72,15 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 42;
-                                                         }
-                                                         let g = gen();
-                                                         let result = g.next();
-                                                     
-                                             """);
+                                                     function* gen() {
+                                                         yield 42;
+                                                     }
+                                                     let g = gen();
+                                                     let result = g.next();
+                                                 
+                                         """);
         var value = await engine.Evaluate("result.value;");
         var done = await engine.Evaluate("result.done;");
 
@@ -96,17 +96,17 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 1;
-                                                             yield 2;
-                                                             yield 3;
-                                                         }
-                                                         let g = gen();
-                                                     
-                                             """);
-        
+                                                     function* gen() {
+                                                         yield 1;
+                                                         yield 2;
+                                                         yield 3;
+                                                     }
+                                                     let g = gen();
+                                                 
+                                         """);
+
         var r1Value = await engine.Evaluate("g.next().value;");
         var r2Value = await engine.Evaluate("g.next().value;");
         var r3Value = await engine.Evaluate("g.next().value;");
@@ -124,16 +124,16 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 10;
-                                                         }
-                                                         let g = gen();
-                                                         let result = g.next();
-                                                     
-                                             """);
-        
+                                                     function* gen() {
+                                                         yield 10;
+                                                     }
+                                                     let g = gen();
+                                                     let result = g.next();
+                                                 
+                                         """);
+
         // Assert - result should be an object with value and done properties
         var result = await engine.Evaluate("result;");
         Assert.NotNull(result);
@@ -146,20 +146,20 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 5;
-                                                         }
-                                                         let g = gen();
-                                                         let result = g.next();
-                                                     
-                                             """);
-        
+                                                     function* gen() {
+                                                         yield 5;
+                                                     }
+                                                     let g = gen();
+                                                     let result = g.next();
+                                                 
+                                         """);
+
         // Check the properties exist by accessing them
         var value = await engine.Evaluate("result.value;");
         var done = await engine.Evaluate("result.done;");
-        
+
         // Assert - both properties should exist
         Assert.NotNull(value);
         Assert.NotNull(done);
@@ -172,17 +172,17 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 1;
-                                                         }
-                                                         let g = gen();
-                                                         g.next();  // Get the yielded value
-                                                         let finalResult = g.next();  // Generator is done
-                                                     
-                                             """);
-        
+                                                     function* gen() {
+                                                         yield 1;
+                                                     }
+                                                     let g = gen();
+                                                     g.next();  // Get the yielded value
+                                                     let finalResult = g.next();  // Generator is done
+                                                 
+                                         """);
+
         var done = await engine.Evaluate("finalResult.done;");
         var value = await engine.Evaluate("finalResult.value;");
 
@@ -198,16 +198,16 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 1 + 1;
-                                                             yield 2 * 3;
-                                                         }
-                                                         let g = gen();
-                                                     
-                                             """);
-        
+                                                     function* gen() {
+                                                         yield 1 + 1;
+                                                         yield 2 * 3;
+                                                     }
+                                                     let g = gen();
+                                                 
+                                         """);
+
         var r1 = await engine.Evaluate("g.next().value;");
         var r2 = await engine.Evaluate("g.next().value;");
 
@@ -223,18 +223,18 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             let x = 10;
-                                                             yield x;
-                                                             let y = 20;
-                                                             yield y;
-                                                         }
-                                                         let g = gen();
-                                                     
-                                             """);
-        
+                                                     function* gen() {
+                                                         let x = 10;
+                                                         yield x;
+                                                         let y = 20;
+                                                         yield y;
+                                                     }
+                                                     let g = gen();
+                                                 
+                                         """);
+
         var r1 = await engine.Evaluate("g.next().value;");
         var r2 = await engine.Evaluate("g.next().value;");
 
@@ -250,16 +250,16 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen(start) {
-                                                             yield start;
-                                                             yield start + 1;
-                                                         }
-                                                         let g = gen(100);
-                                                     
-                                             """);
-        
+                                                     function* gen(start) {
+                                                         yield start;
+                                                         yield start + 1;
+                                                     }
+                                                     let g = gen(100);
+                                                 
+                                         """);
+
         var r1 = await engine.Evaluate("g.next().value;");
         var r2 = await engine.Evaluate("g.next().value;");
 
@@ -275,17 +275,17 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 1;
-                                                             yield 2;
-                                                         }
-                                                         let g1 = gen();
-                                                         let g2 = gen();
-                                                     
-                                             """);
-        
+                                                     function* gen() {
+                                                         yield 1;
+                                                         yield 2;
+                                                     }
+                                                     let g1 = gen();
+                                                     let g2 = gen();
+                                                 
+                                         """);
+
         var g1_r1 = await engine.Evaluate("g1.next().value;");
         var g2_r1 = await engine.Evaluate("g2.next().value;");
         var g1_r2 = await engine.Evaluate("g1.next().value;");
@@ -305,15 +305,15 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                         }
-                                                         let g = gen();
-                                                         let result = g.next();
-                                                     
-                                             """);
-        
+                                                     function* gen() {
+                                                     }
+                                                     let g = gen();
+                                                     let result = g.next();
+                                                 
+                                         """);
+
         var done = await engine.Evaluate("result.done;");
 
         // Assert
@@ -327,18 +327,18 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 1;
-                                                             return 99;
-                                                         }
-                                                         let g = gen();
-                                                         let r1 = g.next();
-                                                         let r2 = g.next();
-                                                     
-                                             """);
-        
+                                                     function* gen() {
+                                                         yield 1;
+                                                         return 99;
+                                                     }
+                                                     let g = gen();
+                                                     let r1 = g.next();
+                                                     let r2 = g.next();
+                                                 
+                                         """);
+
         var r1Value = await engine.Evaluate("r1.value;");
         var r1Done = await engine.Evaluate("r1.done;");
         var r2Value = await engine.Evaluate("r2.value;");
@@ -358,16 +358,16 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         let gen = function*() {
-                                                             yield 42;
-                                                         };
-                                                         let g = gen();
-                                                         let result = g.next();
-                                                     
-                                             """);
-        
+                                                     let gen = function*() {
+                                                         yield 42;
+                                                     };
+                                                     let g = gen();
+                                                     let result = g.next();
+                                                 
+                                         """);
+
         var value = await engine.Evaluate("result.value;");
 
         // Assert
@@ -381,15 +381,15 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 1;
-                                                             yield 2;
-                                                         }
-                                                         let g = gen();
-                                                     
-                                             """);
+                                                     function* gen() {
+                                                         yield 1;
+                                                         yield 2;
+                                                     }
+                                                     let g = gen();
+                                                 
+                                         """);
         var hasReturn = await engine.Evaluate("g[\"return\"];");
 
         // Assert - return should be callable
@@ -403,19 +403,19 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 1;
-                                                             yield 2;
-                                                         }
-                                                         let g = gen();
-                                                         g.next();  // Get first value
-                                                         let returnResult = g["return"](99);
-                                                         let nextResult = g.next();  // Should be done
-                                                     
-                                             """);
-        
+                                                     function* gen() {
+                                                         yield 1;
+                                                         yield 2;
+                                                     }
+                                                     let g = gen();
+                                                     g.next();  // Get first value
+                                                     let returnResult = g["return"](99);
+                                                     let nextResult = g.next();  // Should be done
+                                                 
+                                         """);
+
         var returnValue = await engine.Evaluate("returnResult.value;");
         var returnDone = await engine.Evaluate("returnResult.done;");
         var nextDone = await engine.Evaluate("nextResult.done;");
@@ -433,14 +433,14 @@ public class GeneratorTests
         var engine = new JsEngine();
 
         // Act
-        object? temp = await engine.Evaluate("""
+        var temp = await engine.Evaluate("""
 
-                                                         function* gen() {
-                                                             yield 1;
-                                                         }
-                                                         let g = gen();
-                                                     
-                                             """);
+                                                     function* gen() {
+                                                         yield 1;
+                                                     }
+                                                     let g = gen();
+                                                 
+                                         """);
         var hasThrow = await engine.Evaluate("g[\"throw\"];");
 
         // Assert - throw should be callable
@@ -461,7 +461,7 @@ public class GeneratorTests
                                                }
                                            
                                    """);
-        
+
         Assert.NotNull(program);
     }
 
@@ -480,7 +480,7 @@ public class GeneratorTests
                                                }
                                            
                                    """);
-        
+
         Assert.NotNull(program);
     }
 }

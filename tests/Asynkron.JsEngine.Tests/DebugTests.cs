@@ -9,7 +9,7 @@ public class DebugTests
     public async Task DebugFunction_CapturesBasicVariables()
     {
         var engine = new JsEngine();
-        
+
         var source = """
 
                                  let x = 42;
@@ -17,12 +17,12 @@ public class DebugTests
                                  __debug();
                              
                      """;
-        
+
         // Execute and get debug message
-        object? temp = await engine.Evaluate(source);
-        
+        var temp = await engine.Evaluate(source);
+
         var debugMessage = await engine.DebugMessages().ReadAsync();
-        
+
         // Verify variables are captured
         Assert.True(debugMessage.Variables.ContainsKey("x"));
         Assert.Equal(42d, debugMessage.Variables["x"]);
@@ -34,7 +34,7 @@ public class DebugTests
     public async Task DebugFunction_CapturesLoopCounter()
     {
         var engine = new JsEngine();
-        
+
         var source = """
 
                                  for (var i = 0; i < 10; i++) {
@@ -44,11 +44,11 @@ public class DebugTests
                                  }
                              
                      """;
-        
-        object? temp = await engine.Evaluate(source);
-        
+
+        var temp = await engine.Evaluate(source);
+
         var debugMessage = await engine.DebugMessages().ReadAsync();
-        
+
         // Verify loop counter is captured with correct value
         Assert.True(debugMessage.Variables.ContainsKey("i"));
         Assert.Equal(5d, debugMessage.Variables["i"]);
@@ -58,7 +58,7 @@ public class DebugTests
     public async Task DebugFunction_CapturesAllIterationsInLoop()
     {
         var engine = new JsEngine();
-        
+
         var source = """
 
                                  for (var i = 0; i < 3; i++) {
@@ -66,16 +66,16 @@ public class DebugTests
                                  }
                              
                      """;
-        
-        object? temp = await engine.Evaluate(source);
-        
+
+        var temp = await engine.Evaluate(source);
+
         // Should have 3 debug messages
         var msg1 = await engine.DebugMessages().ReadAsync();
         Assert.Equal(0d, msg1.Variables["i"]);
-        
+
         var msg2 = await engine.DebugMessages().ReadAsync();
         Assert.Equal(1d, msg2.Variables["i"]);
-        
+
         var msg3 = await engine.DebugMessages().ReadAsync();
         Assert.Equal(2d, msg3.Variables["i"]);
     }
@@ -84,7 +84,7 @@ public class DebugTests
     public async Task DebugFunction_CapturesFunctionScope()
     {
         var engine = new JsEngine();
-        
+
         var source = """
 
                                  let globalVar = 'global';
@@ -97,17 +97,17 @@ public class DebugTests
                                  testFunc(123);
                              
                      """;
-        
-        object? temp = await engine.Evaluate(source);
-        
+
+        var temp = await engine.Evaluate(source);
+
         var debugMessage = await engine.DebugMessages().ReadAsync();
-        
+
         // Should capture function parameter and local variable
         Assert.True(debugMessage.Variables.ContainsKey("param"));
         Assert.Equal(123d, debugMessage.Variables["param"]);
         Assert.True(debugMessage.Variables.ContainsKey("localVar"));
         Assert.Equal("local", debugMessage.Variables["localVar"]);
-        
+
         // Should also capture global variable due to scope chain
         Assert.True(debugMessage.Variables.ContainsKey("globalVar"));
         Assert.Equal("global", debugMessage.Variables["globalVar"]);
@@ -117,7 +117,7 @@ public class DebugTests
     public async Task DebugFunction_CapturesNestedScopes()
     {
         var engine = new JsEngine();
-        
+
         var source = """
 
                                  let outer = 'outer';
@@ -136,11 +136,11 @@ public class DebugTests
                                  outerFunc();
                              
                      """;
-        
-        object? temp = await engine.Evaluate(source);
-        
+
+        var temp = await engine.Evaluate(source);
+
         var debugMessage = await engine.DebugMessages().ReadAsync();
-        
+
         // Should capture all variables in the scope chain
         Assert.True(debugMessage.Variables.ContainsKey("inner"));
         Assert.Equal("inner", debugMessage.Variables["inner"]);
@@ -154,7 +154,7 @@ public class DebugTests
     public async Task DebugFunction_CapturesCallStack()
     {
         var engine = new JsEngine();
-        
+
         var source = """
 
                                  function outer() {
@@ -167,15 +167,15 @@ public class DebugTests
                                  outer();
                              
                      """;
-        
-        object? temp = await engine.Evaluate(source);
-        
+
+        var temp = await engine.Evaluate(source);
+
         var debugMessage = await engine.DebugMessages().ReadAsync();
-        
+
         // Should have a call stack
         Assert.NotNull(debugMessage.CallStack);
         Assert.NotEmpty(debugMessage.CallStack);
-        
+
         // The call stack should contain function environments (lexical scope chain)
         // Since inner is defined within outer, the call stack will show: inner -> outer
         var callStackDescriptions = debugMessage.CallStack.Select(f => f.Description).ToList();
@@ -187,7 +187,7 @@ public class DebugTests
     public async Task DebugFunction_CapturesLoopInCallStack()
     {
         var engine = new JsEngine();
-        
+
         var source = """
 
                                  for (var i = 0; i < 1; i++) {
@@ -195,15 +195,15 @@ public class DebugTests
                                  }
                              
                      """;
-        
-        object? temp = await engine.Evaluate(source);
-        
+
+        var temp = await engine.Evaluate(source);
+
         var debugMessage = await engine.DebugMessages().ReadAsync();
-        
+
         // Should have a call stack with a for loop frame
         Assert.NotNull(debugMessage.CallStack);
         Assert.NotEmpty(debugMessage.CallStack);
-        
+
         var hasForLoop = debugMessage.CallStack.Any(f => f.OperationType == "for");
         Assert.True(hasForLoop, "Expected to find a 'for' loop in the call stack");
     }
@@ -212,7 +212,7 @@ public class DebugTests
     public async Task DebugFunction_CallStackShowsDepth()
     {
         var engine = new JsEngine();
-        
+
         var source = """
 
                                  function level1() {
@@ -230,20 +230,20 @@ public class DebugTests
                                  level1();
                              
                      """;
-        
-        object? temp = await engine.Evaluate(source);
-        
+
+        var temp = await engine.Evaluate(source);
+
         var debugMessage = await engine.DebugMessages().ReadAsync();
-        
+
         // The innermost frame should have the highest depth
         Assert.NotEmpty(debugMessage.CallStack);
-        
+
         // First frame in the list is the innermost
         var innermostFrame = debugMessage.CallStack.First();
         Assert.True(innermostFrame.Depth >= 0);
-        
+
         // Frames should be ordered from innermost to outermost
-        int previousDepth = int.MaxValue;
+        var previousDepth = int.MaxValue;
         foreach (var frame in debugMessage.CallStack)
         {
             Assert.True(frame.Depth <= previousDepth);
@@ -255,18 +255,18 @@ public class DebugTests
     public async Task DebugFunction_CapturesControlFlowState()
     {
         var engine = new JsEngine();
-        
+
         var source = """
 
                                  let x = 42;
                                  __debug();
                              
                      """;
-        
-        object? temp = await engine.Evaluate(source);
-        
+
+        var temp = await engine.Evaluate(source);
+
         var debugMessage = await engine.DebugMessages().ReadAsync();
-        
+
         // Control flow should be "None" in normal execution
         Assert.Equal("None", debugMessage.ControlFlowState);
     }
@@ -275,7 +275,7 @@ public class DebugTests
     public async Task DebugFunction_WorksInNestedLoops()
     {
         var engine = new JsEngine();
-        
+
         var source = """
 
                                  for (var i = 0; i < 2; i++) {
@@ -285,26 +285,23 @@ public class DebugTests
                                  }
                              
                      """;
-        
-        object? temp = await engine.Evaluate(source);
-        
+
+        var temp = await engine.Evaluate(source);
+
         // Should have 4 debug messages (2x2)
         var messages = new List<DebugMessage>();
-        for (int k = 0; k < 4; k++)
-        {
-            messages.Add(await engine.DebugMessages().ReadAsync());
-        }
-        
+        for (var k = 0; k < 4; k++) messages.Add(await engine.DebugMessages().ReadAsync());
+
         // Verify all combinations are captured
         Assert.Equal(0d, messages[0].Variables["i"]);
         Assert.Equal(0d, messages[0].Variables["j"]);
-        
+
         Assert.Equal(0d, messages[1].Variables["i"]);
         Assert.Equal(1d, messages[1].Variables["j"]);
-        
+
         Assert.Equal(1d, messages[2].Variables["i"]);
         Assert.Equal(0d, messages[2].Variables["j"]);
-        
+
         Assert.Equal(1d, messages[3].Variables["i"]);
         Assert.Equal(1d, messages[3].Variables["j"]);
     }

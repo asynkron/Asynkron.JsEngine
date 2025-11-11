@@ -17,23 +17,15 @@ internal sealed class JsDataView
     /// </summary>
     public JsDataView(JsArrayBuffer buffer, int byteOffset = 0, int? byteLength = null)
     {
-        if (buffer == null)
-        {
-            throw new ArgumentNullException(nameof(buffer));
-        }
-        
-        if (byteOffset < 0 || byteOffset > buffer.ByteLength)
-        {
-            throw new ArgumentOutOfRangeException(nameof(byteOffset));
-        }
-        
-        var length = byteLength ?? (buffer.ByteLength - byteOffset);
-        
+        if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+
+        if (byteOffset < 0 || byteOffset > buffer.ByteLength) throw new ArgumentOutOfRangeException(nameof(byteOffset));
+
+        var length = byteLength ?? buffer.ByteLength - byteOffset;
+
         if (length < 0 || byteOffset + length > buffer.ByteLength)
-        {
             throw new ArgumentOutOfRangeException(nameof(byteLength));
-        }
-        
+
         _buffer = buffer;
         _byteOffset = byteOffset;
         _byteLength = length;
@@ -46,9 +38,7 @@ internal sealed class JsDataView
     private void CheckBounds(int offset, int size)
     {
         if (offset < 0 || offset + size > _byteLength)
-        {
             throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside the bounds of the DataView");
-        }
     }
 
     // Int8
@@ -82,7 +72,7 @@ internal sealed class JsDataView
     {
         CheckBounds(byteOffset, 2);
         var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 2);
-        return littleEndian 
+        return littleEndian
             ? BinaryPrimitives.ReadInt16LittleEndian(span)
             : BinaryPrimitives.ReadInt16BigEndian(span);
     }
@@ -102,7 +92,7 @@ internal sealed class JsDataView
     {
         CheckBounds(byteOffset, 2);
         var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 2);
-        return littleEndian 
+        return littleEndian
             ? BinaryPrimitives.ReadUInt16LittleEndian(span)
             : BinaryPrimitives.ReadUInt16BigEndian(span);
     }
@@ -122,7 +112,7 @@ internal sealed class JsDataView
     {
         CheckBounds(byteOffset, 4);
         var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
-        return littleEndian 
+        return littleEndian
             ? BinaryPrimitives.ReadInt32LittleEndian(span)
             : BinaryPrimitives.ReadInt32BigEndian(span);
     }
@@ -142,7 +132,7 @@ internal sealed class JsDataView
     {
         CheckBounds(byteOffset, 4);
         var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
-        return littleEndian 
+        return littleEndian
             ? BinaryPrimitives.ReadUInt32LittleEndian(span)
             : BinaryPrimitives.ReadUInt32BigEndian(span);
     }
@@ -162,7 +152,7 @@ internal sealed class JsDataView
     {
         CheckBounds(byteOffset, 4);
         var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
-        return littleEndian 
+        return littleEndian
             ? BinaryPrimitives.ReadSingleLittleEndian(span)
             : BinaryPrimitives.ReadSingleBigEndian(span);
     }
@@ -182,7 +172,7 @@ internal sealed class JsDataView
     {
         CheckBounds(byteOffset, 8);
         var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 8);
-        return littleEndian 
+        return littleEndian
             ? BinaryPrimitives.ReadDoubleLittleEndian(span)
             : BinaryPrimitives.ReadDoubleBigEndian(span);
     }

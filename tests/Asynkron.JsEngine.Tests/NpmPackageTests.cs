@@ -20,7 +20,7 @@ public class NpmPackageTests
     public async Task LeftPad_PadsStringWithSpaces()
     {
         var engine = new JsEngine();
-        
+
         // Implementation based on the famous left-pad npm package
         var script = """
 
@@ -38,7 +38,7 @@ public class NpmPackageTests
                                  leftPad('foo', 5, ' ');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("  foo", result);
     }
@@ -47,7 +47,7 @@ public class NpmPackageTests
     public async Task LeftPad_PadsStringWithCustomCharacter()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function leftPad(str, len, ch) {
@@ -64,7 +64,7 @@ public class NpmPackageTests
                                  leftPad('42', 5, '0');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("00042", result);
     }
@@ -73,7 +73,7 @@ public class NpmPackageTests
     public async Task LeftPad_HandlesEmptyString()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function leftPad(str, len, ch) {
@@ -90,7 +90,7 @@ public class NpmPackageTests
                                  leftPad('', 3, 'a');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("aaa", result);
     }
@@ -99,7 +99,7 @@ public class NpmPackageTests
     public async Task LeftPad_NoModificationIfAlreadyLongEnough()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function leftPad(str, len, ch) {
@@ -116,7 +116,7 @@ public class NpmPackageTests
                                  leftPad('hello', 3, '0');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("hello", result);
     }
@@ -129,7 +129,7 @@ public class NpmPackageTests
     public async Task IsOdd_IdentifiesOddNumbers()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function isOdd(num) {
@@ -145,7 +145,7 @@ public class NpmPackageTests
                                  result1 && result2 && !result3 && !result4;
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.True((bool)result!);
     }
@@ -154,7 +154,7 @@ public class NpmPackageTests
     public async Task IsEven_IdentifiesEvenNumbers()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function isEven(num) {
@@ -171,7 +171,7 @@ public class NpmPackageTests
                                  result1 && result2 && result3 && !result4 && !result5;
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.True((bool)result!);
     }
@@ -180,7 +180,7 @@ public class NpmPackageTests
     public async Task IsOdd_HandlesNegativeNumbers()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function isOdd(num) {
@@ -195,7 +195,7 @@ public class NpmPackageTests
                                  result1 && result2 && !result3;
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.True((bool)result!);
     }
@@ -208,7 +208,7 @@ public class NpmPackageTests
     public async Task Clamp_ReturnsNumberWithinRange()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function clamp(value, min, max) {
@@ -218,7 +218,7 @@ public class NpmPackageTests
                                  clamp(5, 0, 10);
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal(5d, result);
     }
@@ -227,7 +227,7 @@ public class NpmPackageTests
     public async Task Clamp_ClampsToMinimum()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function clamp(value, min, max) {
@@ -237,7 +237,7 @@ public class NpmPackageTests
                                  clamp(-5, 0, 10);
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal(0d, result);
     }
@@ -246,7 +246,7 @@ public class NpmPackageTests
     public async Task Clamp_ClampsToMaximum()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function clamp(value, min, max) {
@@ -256,7 +256,7 @@ public class NpmPackageTests
                                  clamp(15, 0, 10);
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal(10d, result);
     }
@@ -269,7 +269,7 @@ public class NpmPackageTests
     public async Task InRange_ReturnsTrueForNumberInRange()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function inRange(value, start, end) {
@@ -283,7 +283,7 @@ public class NpmPackageTests
                                  inRange(5, 0, 10);
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.True((bool)result!);
     }
@@ -292,7 +292,7 @@ public class NpmPackageTests
     public async Task InRange_ReturnsFalseForNumberOutOfRange()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function inRange(value, start, end) {
@@ -306,7 +306,7 @@ public class NpmPackageTests
                                  inRange(15, 0, 10);
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.False((bool)result!);
     }
@@ -315,7 +315,7 @@ public class NpmPackageTests
     public async Task InRange_HandlesSingleArgumentForm()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function inRange(value, start, end) {
@@ -329,7 +329,7 @@ public class NpmPackageTests
                                  inRange(5, 10, undefined);
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.True((bool)result!);
     }
@@ -342,7 +342,7 @@ public class NpmPackageTests
     public async Task Fibonacci_GeneratesCorrectSequence()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function fibonacci(n) {
@@ -358,7 +358,7 @@ public class NpmPackageTests
                                  result.join(',');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("0,1,1,2,3,5,8,13,21,34", result);
     }
@@ -367,7 +367,7 @@ public class NpmPackageTests
     public async Task Fibonacci_IterativeVersion()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function fibonacciIterative(n) {
@@ -388,7 +388,7 @@ public class NpmPackageTests
                                  fibonacciIterative(10);
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal(55d, result);
     }
@@ -401,7 +401,7 @@ public class NpmPackageTests
     public async Task Luhn_ValidatesValidCreditCard()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function luhn(cardNumber) {
@@ -429,7 +429,7 @@ public class NpmPackageTests
                                  luhn('4532015112830366');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.True((bool)result!);
     }
@@ -438,7 +438,7 @@ public class NpmPackageTests
     public async Task Luhn_RejectsInvalidCreditCard()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function luhn(cardNumber) {
@@ -466,7 +466,7 @@ public class NpmPackageTests
                                  luhn('1234567812345678');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.False((bool)result!);
     }
@@ -479,7 +479,7 @@ public class NpmPackageTests
     public async Task ArrayShuffle_MaintainsAllElements()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function shuffle(array) {
@@ -508,7 +508,7 @@ public class NpmPackageTests
                                  sorted.join(',');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("1,2,3,4,5", result);
     }
@@ -521,7 +521,7 @@ public class NpmPackageTests
     public async Task DeepEqual_ComparesSimpleObjects()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function deepEqual(a, b) {
@@ -553,7 +553,7 @@ public class NpmPackageTests
                                  deepEqual(obj1, obj2);
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.True((bool)result!);
     }
@@ -562,7 +562,7 @@ public class NpmPackageTests
     public async Task DeepEqual_DetectsDifferences()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function deepEqual(a, b) {
@@ -594,7 +594,7 @@ public class NpmPackageTests
                                  deepEqual(obj1, obj2);
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.False((bool)result!);
     }
@@ -607,7 +607,7 @@ public class NpmPackageTests
     public async Task CamelCase_ConvertsHyphenatedString()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function camelCase(str) {
@@ -635,7 +635,7 @@ public class NpmPackageTests
                                  camelCase('hello-world-test');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("helloWorldTest", result);
     }
@@ -644,7 +644,7 @@ public class NpmPackageTests
     public async Task CamelCase_HandlesUnderscores()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function camelCase(str) {
@@ -672,7 +672,7 @@ public class NpmPackageTests
                                  camelCase('foo_bar_baz');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("fooBarBaz", result);
     }
@@ -685,7 +685,7 @@ public class NpmPackageTests
     public async Task KebabCase_ConvertsCamelCase()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function kebabCase(str) {
@@ -713,7 +713,7 @@ public class NpmPackageTests
                                  kebabCase('helloWorldTest');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("hello-world-test", result);
     }
@@ -726,7 +726,7 @@ public class NpmPackageTests
     public async Task Capitalize_CapitalizesFirstLetter()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function capitalize(str) {
@@ -737,7 +737,7 @@ public class NpmPackageTests
                                  capitalize('hello world');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("Hello world", result);
     }
@@ -746,7 +746,7 @@ public class NpmPackageTests
     public async Task Capitalize_HandlesEmptyString()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function capitalize(str) {
@@ -757,7 +757,7 @@ public class NpmPackageTests
                                  capitalize('');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("", result);
     }
@@ -770,7 +770,7 @@ public class NpmPackageTests
     public async Task Flatten_FlattensNestedArrays()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function flatten(arr) {
@@ -795,7 +795,7 @@ public class NpmPackageTests
                                  flat.join(',');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("1,2,3,4,5,6", result);
     }
@@ -808,7 +808,7 @@ public class NpmPackageTests
     public async Task Sum_AddsArrayOfNumbers()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function sum(arr) {
@@ -822,7 +822,7 @@ public class NpmPackageTests
                                  sum([1, 2, 3, 4, 5]);
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal(15d, result);
     }
@@ -831,7 +831,7 @@ public class NpmPackageTests
     public async Task Sum_HandlesEmptyArray()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function sum(arr) {
@@ -845,7 +845,7 @@ public class NpmPackageTests
                                  sum([]);
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal(0d, result);
     }
@@ -858,7 +858,7 @@ public class NpmPackageTests
     public async Task Unique_RemovesDuplicates()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function unique(arr) {
@@ -886,7 +886,7 @@ public class NpmPackageTests
                                  uniq.join(',');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("1,2,3,4,5", result);
     }
@@ -899,7 +899,7 @@ public class NpmPackageTests
     public async Task Chunk_SplitsArrayIntoChunks()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function chunk(arr, size) {
@@ -923,7 +923,7 @@ public class NpmPackageTests
                                  chunks.length;
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal(3d, result);
     }
@@ -932,7 +932,7 @@ public class NpmPackageTests
     public async Task Chunk_VerifyChunkContents()
     {
         var engine = new JsEngine();
-        
+
         var script = """
 
                                  function chunk(arr, size) {
@@ -956,7 +956,7 @@ public class NpmPackageTests
                                  chunks[0].join(',') + ';' + chunks[1].join(',') + ';' + chunks[2].join(',');
                              
                      """;
-        
+
         var result = await engine.Evaluate(script);
         Assert.Equal("1,2;3,4;5", result);
     }

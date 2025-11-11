@@ -476,6 +476,19 @@ public sealed class CpsTransformer
             return TransformForOfWithAwaitInBody(forAwaitCons, statements, index, resolveParam, rejectParam);
         }
         
+        // Check if this is a while statement - needs transformation if body contains await
+        if (statement is Cons whileCons && !whileCons.IsEmpty && 
+            whileCons.Head is Symbol whileSymbol && ReferenceEquals(whileSymbol, JsSymbols.While))
+        {
+            // Check if body contains await
+            var parts = ConsList(whileCons);
+            if (parts.Count >= 3 && ContainsAwait(parts[2]))
+            {
+                // Transform while with await in body
+                return TransformWhileWithAwaitInBody(whileCons, statements, index, resolveParam, rejectParam);
+            }
+        }
+        
         // Check if this is an if statement - recursively transform branches when in loop context or contains await
         if (statement is Cons ifCons && !ifCons.IsEmpty && 
             ifCons.Head is Symbol ifSymbol && ReferenceEquals(ifSymbol, JsSymbols.If))
@@ -660,9 +673,29 @@ public sealed class CpsTransformer
 
         if (expr is Cons cons && !cons.IsEmpty)
         {
-            if (cons.Head is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Await))
+            if (cons.Head is Symbol symbol)
             {
-                return true;
+                // Check for await expression
+                if (ReferenceEquals(symbol, JsSymbols.Await))
+                {
+                    return true;
+                }
+                
+                // Check for for-await-of loop
+                if (ReferenceEquals(symbol, JsSymbols.ForAwaitOf))
+                {
+                    return true;
+                }
+                
+                // Check for while loop with await in body
+                if (ReferenceEquals(symbol, JsSymbols.While))
+                {
+                    var parts = ConsList(cons);
+                    if (parts.Count >= 3 && ContainsAwait(parts[2]))
+                    {
+                        return true;
+                    }
+                }
             }
 
             if (ContainsAwait(cons.Head) || ContainsAwait(cons.Rest))
@@ -880,62 +913,133 @@ public sealed class CpsTransformer
             return tryCons;
         }
 
-        // Transform the try block with async context
         var tryBlock = parts[1];
-        var transformedTryBlock = TransformBlockInAsyncContext(tryBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+        var catchClause = parts.Count > 2 ? parts[2] : null;
+        var finallyBlock = parts.Count > 3 ? parts[3] : null;
 
-        object? transformedCatchClause = null;
-        if (parts.Count > 2 && parts[2] != null)
+        // Check if try block contains await - if not, keep the try-catch structure for synchronous errors
+        if (!ContainsAwait(tryBlock))
         {
-            // catchClause is (catch param block)
-            if (parts[2] is Cons catchCons && !catchCons.IsEmpty)
+            // No await in try block - transform blocks but keep try-catch structure
+            var transformedTryBlock = TransformBlockInAsyncContext(tryBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+            
+            object? transformedCatchClause = null;
+            if (catchClause != null && catchClause is Cons catchCons && !catchCons.IsEmpty)
             {
                 var catchParts = ConsList(catchCons);
                 if (catchParts.Count >= 3)
                 {
-                    var catchSymbol = catchParts[0]; // 'catch'
+                    var catchSymbol = catchParts[0];
                     var catchParam = catchParts[1];
                     var catchBlock = catchParts[2];
                     var transformedCatchBlock = TransformBlockInAsyncContext(catchBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
                     
                     transformedCatchClause = Cons.FromEnumerable([
-                        catchSymbol, 
-                        catchParam, 
+                        catchSymbol,
+                        catchParam,
                         transformedCatchBlock
                     ]);
                 }
             }
+            
+            object? transformedFinallyBlock = null;
+            if (finallyBlock != null)
+            {
+                transformedFinallyBlock = TransformBlockInAsyncContext(finallyBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+            }
+            
+            // Keep try-catch structure
+            var transformedTry = Cons.FromEnumerable([
+                JsSymbols.Try,
+                transformedTryBlock,
+                transformedCatchClause,
+                transformedFinallyBlock
+            ]);
+            
+            // Continue with remaining statements
+            var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
+            
+            return Cons.FromEnumerable([
+                JsSymbols.Block,
+                transformedTry,
+                rest
+            ]);
         }
 
-        object? transformedFinallyBlock = null;
-        if (parts.Count > 3 && parts[3] != null)
+        // Try block contains await - need to transform into promise-based error handling
+        // Continue with remaining statements after the try-catch
+        var restAfterTry = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
+
+        // Check if we have a catch clause
+        Symbol? asyncCatchParam = null;
+        object? asyncCatchBlock = null;
+        if (catchClause != null && catchClause is Cons asyncCatchCons && !asyncCatchCons.IsEmpty)
         {
-            transformedFinallyBlock = TransformBlockInAsyncContext(parts[3], resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+            var asyncCatchParts = ConsList(asyncCatchCons);
+            if (asyncCatchParts.Count >= 3)
+            {
+                asyncCatchParam = asyncCatchParts[1] as Symbol;
+                asyncCatchBlock = asyncCatchParts[2];
+            }
         }
-
-        // Continue with remaining statements
-        var rest = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget, addFinalContinuation);
-
-        // Build the transformed try statement
-        var transformedTry = Cons.FromEnumerable([
-            JsSymbols.Try, 
-            transformedTryBlock, 
-            transformedCatchClause, 
-            transformedFinallyBlock
-        ]);
-
-        // If rest is just resolving null, return just the try statement
-        if (IsSimpleResolveCall(rest))
+        
+        // Create a catch handler function that will be used as the reject parameter for the try block
+        // This function will execute the catch block and then continue with rest
+        Symbol tryCatchRejectHandler;
+        object? tryCatchRejectHandlerDecl = null;
+        
+        if (asyncCatchBlock != null && asyncCatchParam != null)
         {
-            return Cons.FromEnumerable([JsSymbols.Block, transformedTry]);
+            tryCatchRejectHandler = Symbol.Intern("__tryCatchReject" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            
+            // Transform the catch block
+            // The catch block's continuation is the rest of the statements
+            var transformedCatchBlock = TransformBlockInAsyncContext(asyncCatchBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+            
+            // Combine catch block with rest
+            var catchWithRest = Cons.FromEnumerable([
+                JsSymbols.Block,
+                transformedCatchBlock,
+                restAfterTry
+            ]);
+            
+            // Create function: function __tryCatchReject(asyncCatchParam) { catchBlock; rest; }
+            tryCatchRejectHandlerDecl = Cons.FromEnumerable([
+                JsSymbols.Function,
+                tryCatchRejectHandler,
+                Cons.FromEnumerable([asyncCatchParam]),
+                catchWithRest
+            ]);
         }
-
-        // Combine with rest
-        return Cons.FromEnumerable([
-            JsSymbols.Block, 
-            transformedTry, 
-            rest
+        else
+        {
+            // No catch clause, use the outer reject handler
+            tryCatchRejectHandler = rejectParam;
+        }
+        
+        // Transform the try block, using the catch handler as the reject parameter
+        var transformedTryBlock2 = TransformBlockInAsyncContext(tryBlock, resolveParam, tryCatchRejectHandler, loopContinueTarget, loopBreakTarget);
+        
+        // If try block completes successfully, execute rest
+        var tryWithRest = Cons.FromEnumerable([
+            JsSymbols.Block,
+            transformedTryBlock2,
+            restAfterTry
         ]);
+        
+        // If we have a catch handler function, define it first
+        if (tryCatchRejectHandlerDecl != null)
+        {
+            return Cons.FromEnumerable([
+                JsSymbols.Block,
+                tryCatchRejectHandlerDecl,
+                tryWithRest
+            ]);
+        }
+        else
+        {
+            return tryWithRest;
+        }
     }
 
     /// <summary>
@@ -1644,12 +1748,40 @@ public sealed class CpsTransformer
             thenCallback
         ]);
 
-        // Return the promise chain
+        // Add .catch() handler to propagate errors: .catch(__reject)
+        var catchCallback = Cons.FromEnumerable([
+            JsSymbols.Lambda,
+            null,
+            Cons.FromEnumerable([Symbol.Intern("__error")]),
+            Cons.FromEnumerable([
+                JsSymbols.Block,
+                Cons.FromEnumerable([
+                    JsSymbols.Return,
+                    Cons.FromEnumerable([
+                        JsSymbols.Call,
+                        rejectParam,
+                        Symbol.Intern("__error")
+                    ])
+                ])
+            ])
+        ]);
+
+        var catchCall = Cons.FromEnumerable([
+            JsSymbols.Call,
+            Cons.FromEnumerable([
+                JsSymbols.GetProperty,
+                thenCall,
+                "catch"
+            ]),
+            catchCallback
+        ]);
+
+        // Return the promise chain with error handling
         return Cons.FromEnumerable([
             JsSymbols.Block,
             Cons.FromEnumerable([
                 JsSymbols.Return,
-                thenCall
+                catchCall
             ])
         ]);
     }
@@ -1707,6 +1839,101 @@ public sealed class CpsTransformer
                 callIteratorMethod
             ]);
         }
+    }
+
+    /// <summary>
+    /// Transforms a while loop with await in the body into a recursive CPS function.
+    /// while (condition) { body with await } becomes:
+    /// function __whileCheck() {
+    ///     if (condition) {
+    ///         body-transformed (with continuation back to __whileCheck)
+    ///     } else {
+    ///         continuation (after loop)
+    ///     }
+    /// }
+    /// __whileCheck();
+    /// </summary>
+    private object? TransformWhileWithAwaitInBody(Cons whileCons, List<object?> statements, int index, Symbol resolveParam, Symbol rejectParam)
+    {
+        // whileCons is (while condition body)
+        var parts = ConsList(whileCons);
+        if (parts.Count < 3)
+        {
+            return whileCons;
+        }
+
+        var condition = parts[1];
+        var body = parts[2];
+
+        // Create unique function name for the while check
+        var whileCheckFunc = Symbol.Intern("__whileCheck" + Guid.NewGuid().ToString("N").Substring(0, 8));
+
+        // Get continuation after loop completes (when condition is false)
+        var afterLoopStatements = statements.Skip(index + 1).ToList();
+        var afterLoopContinuation = ChainStatementsWithAwaits(afterLoopStatements, 0, resolveParam, rejectParam);
+
+        // Extract body statements
+        var bodyStatements = new List<object?>();
+        if (body is Cons bodyCons && !bodyCons.IsEmpty)
+        {
+            if (bodyCons.Head is Symbol sym && ReferenceEquals(sym, JsSymbols.Block))
+            {
+                var current = bodyCons.Rest;
+                while (current is Cons c && !c.IsEmpty)
+                {
+                    bodyStatements.Add(c.Head);
+                    current = c.Rest;
+                }
+            }
+            else
+            {
+                bodyStatements.Add(body);
+            }
+        }
+
+        // Chain the body statements with await handling
+        // Important: Pass whileCheckFunc as both resolve param (for normal completion) 
+        // and as loopContinueTarget (for continue statements)
+        // Pass afterLoopContinuation as loopBreakTarget (for break statements)
+        // The body will call whileCheckFunc at the end to continue the loop
+        var transformedBodyBlock = ChainStatementsWithAwaits(bodyStatements, 0, whileCheckFunc, rejectParam, whileCheckFunc, afterLoopContinuation);
+
+        // Create if statement: if (condition) { transformedBodyBlock } else { afterLoopContinuation }
+        var ifStatement = Cons.FromEnumerable([
+            JsSymbols.If,
+            condition,
+            transformedBodyBlock,
+            afterLoopContinuation
+        ]);
+
+        // Create the while check function: function __whileCheck() { if (condition) {...} else {...} }
+        var whileCheckFuncBody = Cons.FromEnumerable([
+            JsSymbols.Block,
+            ifStatement
+        ]);
+
+        var whileCheckFuncDecl = Cons.FromEnumerable([
+            JsSymbols.Function,
+            whileCheckFunc,
+            Cons.FromEnumerable([]),  // no params
+            whileCheckFuncBody
+        ]);
+
+        // Initial call: __whileCheck()
+        var initialCall = Cons.FromEnumerable([
+            JsSymbols.ExpressionStatement,
+            Cons.FromEnumerable([
+                JsSymbols.Call,
+                whileCheckFunc
+            ])
+        ]);
+
+        // Combine: define function, call it
+        return Cons.FromEnumerable([
+            JsSymbols.Block,
+            whileCheckFuncDecl,
+            initialCall
+        ]);
     }
 
     /// <summary>

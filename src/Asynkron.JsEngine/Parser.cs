@@ -51,7 +51,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             if (Match(TokenType.Function))
                 return ParseAsyncFunctionDeclaration();
             else
-                throw new ParseException("Expected 'function' after 'async'.");
+                throw new ParseException("Expected 'function' after 'async'.", Peek());
         }
 
         if (Match(TokenType.Function)) return ParseFunctionDeclaration();
@@ -200,9 +200,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 // Check for constructor
                 if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
                 {
-                    if (isStatic) throw new ParseException("Constructor cannot be static.");
+                    if (isStatic) throw new ParseException("Constructor cannot be static.", Peek());
                     if (constructor is not null)
-                        throw new ParseException("Class cannot declare multiple constructors.");
+                        throw new ParseException("Class cannot declare multiple constructors.", Peek());
 
                     Consume(TokenType.LeftParen, "Expected '(' after constructor name.");
                     var parameters = ParseParameterList();
@@ -312,10 +312,10 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         }
         else
         {
-            if (kind == TokenType.Const) throw new ParseException("Const declarations require an initializer.");
+            if (kind == TokenType.Const) throw new ParseException("Const declarations require an initializer.", Peek());
 
             if (kind == TokenType.Let)
-                throw new ParseException("Let declarations require an initializer in this interpreter.");
+                throw new ParseException("Let declarations require an initializer in this interpreter.", Peek());
 
             initializer = Uninitialized;
         }
@@ -337,7 +337,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.LeftBracket, "Expected '[' for array destructuring.");
         var pattern = ParseArrayDestructuringPattern();
 
-        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.");
+        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.", Peek());
 
         var initializer = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
@@ -358,7 +358,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.LeftBrace, "Expected '{' for object destructuring.");
         var pattern = ParseObjectDestructuringPattern();
 
-        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.");
+        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.", Peek());
 
         var initializer = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
@@ -1755,7 +1755,8 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return new Token(TokenType.Semicolon, ";", null, Peek().Line, Peek().Column, Peek().StartPosition, Peek().StartPosition);
         }
 
-        throw new ParseException(message);
+        var currentToken = Peek();
+        throw new ParseException(message, currentToken);
     }
 
     /// <summary>
@@ -2298,7 +2299,11 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private Token ConsumeContextualKeyword(string keyword, string errorMessage)
     {
-        if (!CheckContextualKeyword(keyword)) throw new ParseException(errorMessage);
+        if (!CheckContextualKeyword(keyword))
+        {
+            var currentToken = Peek();
+            throw new ParseException(errorMessage, currentToken);
+        }
         return Advance();
     }
 

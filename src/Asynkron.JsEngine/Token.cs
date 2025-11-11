@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine;
 
-internal enum TokenType
+public enum TokenType
 {
     LeftParen,
     RightParen,
@@ -107,7 +107,7 @@ internal enum TokenType
     Eof
 }
 
-internal sealed record Token(
+public sealed record Token(
     TokenType Type,
     string Lexeme,
     object? Literal,

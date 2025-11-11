@@ -917,16 +917,33 @@ public sealed class CpsTransformer
         var catchClause = parts.Count > 2 ? parts[2] : null;
         var finallyBlock = parts.Count > 3 ? parts[3] : null;
 
-        // Check if try block contains await - if not, keep the try-catch structure for synchronous errors
-        if (!ContainsAwait(tryBlock))
+        // Check if try or catch blocks contain await
+        // If catch contains await, we need full promise-based transformation
+        // to ensure code after try-catch waits for async operations in catch
+        // Note: Finally blocks with await are not fully supported in promise-based transformation
+        bool catchContainsAwait = false;
+        
+        if (catchClause != null && catchClause is Cons catchCons && !catchCons.IsEmpty)
         {
-            // No await in try block - transform blocks but keep try-catch structure
+            var catchParts = ConsList(catchCons);
+            if (catchParts.Count >= 3)
+            {
+                var catchBlock = catchParts[2];
+                catchContainsAwait = ContainsAwait(catchBlock);
+            }
+        }
+        
+        // Only keep synchronous try-catch structure if try and catch are both synchronous
+        // Finally blocks are transformed in place regardless
+        if (!ContainsAwait(tryBlock) && !catchContainsAwait)
+        {
+            // No await in try or catch blocks - transform blocks but keep try-catch structure
             var transformedTryBlock = TransformBlockInAsyncContext(tryBlock, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
             
             object? transformedCatchClause = null;
-            if (catchClause != null && catchClause is Cons catchCons && !catchCons.IsEmpty)
+            if (catchClause != null && catchClause is Cons syncCatchCons && !syncCatchCons.IsEmpty)
             {
-                var catchParts = ConsList(catchCons);
+                var catchParts = ConsList(syncCatchCons);
                 if (catchParts.Count >= 3)
                 {
                     var catchSymbol = catchParts[0];
@@ -1016,14 +1033,56 @@ public sealed class CpsTransformer
             // No catch clause, use the outer reject handler
             tryCatchRejectHandler = rejectParam;
         }
-        
         // Transform the try block, using the catch handler as the reject parameter
         var transformedTryBlock2 = TransformBlockInAsyncContext(tryBlock, resolveParam, tryCatchRejectHandler, loopContinueTarget, loopBreakTarget);
         
+        // If the try block doesn't contain await but we're using promise-based transformation
+        // (because catch has await), wrap in try-catch to convert sync throws to reject calls
+        object? wrappedTryBlock;
+        if (!ContainsAwait(tryBlock))
+        {
+            // Synchronous try block - wrap in try-catch to catch sync errors
+            var errorParam = Symbol.Intern("__syncError" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            
+            // Create catch block: { tryCatchRejectHandler(errorParam); }
+            var syncCatchBlock = Cons.FromEnumerable([
+                JsSymbols.Block,
+                Cons.FromEnumerable([
+                    JsSymbols.ExpressionStatement,
+                    Cons.FromEnumerable([
+                        JsSymbols.Call,
+                        tryCatchRejectHandler,
+                        errorParam
+                    ])
+                ])
+            ]);
+            
+            // Create catch clause: (catch errorParam syncCatchBlock)
+            var syncCatchClause = Cons.FromEnumerable([
+                JsSymbols.Catch,
+                errorParam,
+                syncCatchBlock
+            ]);
+            
+            // Wrap: try { transformedTryBlock2 } catch (errorParam) { tryCatchRejectHandler(errorParam); }
+            wrappedTryBlock = Cons.FromEnumerable([
+                JsSymbols.Try,
+                transformedTryBlock2,
+                syncCatchClause,
+                null  // no finally
+            ]);
+        }
+        else
+        {
+            // Async try block - errors are already promise rejections
+            wrappedTryBlock = transformedTryBlock2;
+        }
+        
         // If try block completes successfully, execute rest
+        // Note: If an error occurs in sync try and catch handles it, rest will execute in the catch handler
         var tryWithRest = Cons.FromEnumerable([
             JsSymbols.Block,
-            transformedTryBlock2,
+            wrappedTryBlock,
             restAfterTry
         ]);
         

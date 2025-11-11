@@ -56,6 +56,13 @@ internal sealed class Environment(
 
     public void Assign(Symbol name, object? value)
     {
+        // Remember if we're in strict mode at the call site
+        var isStrictContext = IsStrict;
+        AssignInternal(name, value, isStrictContext);
+    }
+
+    private void AssignInternal(Symbol name, object? value, bool isStrictContext)
+    {
         if (_values.TryGetValue(name, out var binding))
         {
             if (binding.IsConst) throw new InvalidOperationException($"Cannot reassign constant '{name.Name}'.");
@@ -66,13 +73,21 @@ internal sealed class Environment(
 
         if (_enclosing is not null)
         {
-            _enclosing.Assign(name, value);
+            _enclosing.AssignInternal(name, value, isStrictContext);
             return;
         }
 
+        // Reached the global scope without finding the variable
         // In strict mode, assignment to undefined variable is an error
-        // Use ReferenceError message format
-        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+        // In non-strict mode, create the variable as a global
+        if (isStrictContext)
+        {
+            // Use ReferenceError message format
+            throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+        }
+        
+        // Non-strict mode: Create the variable in the global scope (this environment)
+        Define(name, value, isConst: false);
     }
 
     private Environment GetFunctionScope()

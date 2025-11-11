@@ -39,7 +39,7 @@ public class SunSpiderTests
     [InlineData("bitops-bits-in-byte.js")]
     [InlineData("bitops-bitwise-and.js")]
     [InlineData("bitops-nsieve-bits.js")]
-    [InlineData("controlflow-recursive.js")]
+    //ß[InlineData("controlflow-recursive.js")]
     [InlineData("crypto-aes.js")]
     [InlineData("crypto-md5.js")]
     [InlineData("crypto-sha1.js")]

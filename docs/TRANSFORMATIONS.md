@@ -58,10 +58,13 @@ let x = 10;
 ```
 
 **Visual:**
-```
-     let
-    /   \
-   x     10
+```mermaid
+flowchart TB
+    let((let))
+    x((x))
+    num10((10))
+    let --> x
+    let --> num10
 ```
 
 **No CPS transformation needed** (synchronous code)
@@ -84,12 +87,17 @@ let x = 10;
 ```
 
 **Visual:**
-```
-      +
-     / \
-    2   *
-       / \
-      3   4
+```mermaid
+flowchart TB
+    plus((+))
+    num2((2))
+    mult((*))
+    num3((3))
+    num4((4))
+    plus --> num2
+    plus --> mult
+    mult --> num3
+    mult --> num4
 ```
 
 **Evaluation order:**
@@ -115,14 +123,25 @@ let person = {
 ```
 
 **Visual:**
-```
-        let
-       /   \
-   person  object
-           /    \
-       prop      prop
-       / \       / \
-  "name" "Alice" "age" 30
+```mermaid
+flowchart TB
+    let((let))
+    person((person))
+    object((object))
+    prop1((prop))
+    prop2((prop))
+    name(("name"))
+    alice(("Alice"))
+    age(("age"))
+    num30((30))
+    let --> person
+    let --> object
+    object --> prop1
+    object --> prop2
+    prop1 --> name
+    prop1 --> alice
+    prop2 --> age
+    prop2 --> num30
 ```
 
 ---
@@ -152,18 +171,31 @@ if (x > 5) {
 ```
 
 **Visual:**
-```
-           if
-         / | \
-        /  |  \
-       /   |   \
-      >  then else
-     / \    |    |
-    x   5  block block
-            |    |
-         expr  expr
-            |    |
-         call  call
+```mermaid
+flowchart TB
+    if_node((if))
+    gt((>))
+    x((x))
+    num5((5))
+    then_branch((then))
+    else_branch((else))
+    block1((block))
+    block2((block))
+    expr1((expr))
+    expr2((expr))
+    call1((call))
+    call2((call))
+    if_node --> gt
+    if_node --> then_branch
+    if_node --> else_branch
+    gt --> x
+    gt --> num5
+    then_branch --> block1
+    else_branch --> block2
+    block1 --> expr1
+    block2 --> expr2
+    expr1 --> call1
+    expr2 --> call2
 ```
 
 ### Example 5: For Loop
@@ -186,17 +218,45 @@ for (let i = 0; i < 5; i++) {
 ```
 
 **Visual:**
-```
-              for
-           /   |   \   \
-          /    |    \   \
-       init  test  update body
-         |     |     |     |
-       let    <   assign block
-       / \   / \    / \    |
-      i   0 i   5  i  +   expr
-                     / \    |
-                    i   1  call
+```mermaid
+flowchart TB
+    for_node((for))
+    init((init))
+    test((test))
+    update((update))
+    body((body))
+    let((let))
+    i1((i))
+    num0((0))
+    lt((<))
+    i2((i))
+    num5((5))
+    assign((assign))
+    i3((i))
+    plus((+))
+    i4((i))
+    num1((1))
+    block((block))
+    expr((expr))
+    call((call))
+    for_node --> init
+    for_node --> test
+    for_node --> update
+    for_node --> body
+    init --> let
+    test --> lt
+    update --> assign
+    body --> block
+    let --> i1
+    let --> num0
+    lt --> i2
+    lt --> num5
+    assign --> i3
+    assign --> plus
+    plus --> i4
+    plus --> num1
+    block --> expr
+    expr --> call
 ```
 
 ### Example 6: While Loop
@@ -241,19 +301,29 @@ function add(a, b) {
 ```
 
 **Visual:**
-```
-       function
-       /   |   \
-      /    |    \
-   name  params body
-     |     |     |
-   add   (a b) block
-               |
-            return
-               |
-               +
-              / \
-             a   b
+```mermaid
+flowchart TB
+    function((function))
+    name((name))
+    params((params))
+    body((body))
+    add((add))
+    ab(("(a b)"))
+    block((block))
+    return_node((return))
+    plus((+))
+    a((a))
+    b((b))
+    function --> name
+    function --> params
+    function --> body
+    name --> add
+    params --> ab
+    body --> block
+    block --> return_node
+    return_node --> plus
+    plus --> a
+    plus --> b
 ```
 
 ### Example 8: Closure
@@ -282,22 +352,41 @@ function makeCounter() {
 ```
 
 **Visual:**
-```
-         function
-         /    |    \
-   makeCounter ()  block
-                    / \
-                  let  return
-                  / \    |
-              count  0  lambda
-                         |
-                       block
-                       /  \
-                   assign  return
-                     / \     |
-                 count  +  count
-                       / \
-                   count  1
+```mermaid
+flowchart TB
+    function((function))
+    makeCounter((makeCounter))
+    empty(("()"))
+    block1((block))
+    let((let))
+    count1((count))
+    num0((0))
+    return1((return))
+    lambda((lambda))
+    block2((block))
+    assign((assign))
+    count2((count))
+    plus((+))
+    count3((count))
+    num1((1))
+    return2((return))
+    count4((count))
+    function --> makeCounter
+    function --> empty
+    function --> block1
+    block1 --> let
+    block1 --> return1
+    let --> count1
+    let --> num0
+    return1 --> lambda
+    lambda --> block2
+    block2 --> assign
+    block2 --> return2
+    assign --> count2
+    assign --> plus
+    plus --> count3
+    plus --> num1
+    return2 --> count4
 ```
 
 **Key Point:** The inner lambda captures the `count` variable from its parent environment, creating a closure.
@@ -341,26 +430,35 @@ async function fetchData() {
 3. `return value` becomes `__resolve(value)`
 
 **Visual (After CPS):**
-```
-         function
-         /    |    \
-    fetchData ()  block
-                    |
-                  return
-                    |
-                   new
-                  /   \
-             Promise  lambda
-                       / \
-                 (__resolve __reject)
-                       |
-                     block
-                       |
-                    expr-stmt
-                       |
-                      call
-                      / \
-              __resolve  42
+```mermaid
+flowchart TB
+    function((function))
+    fetchData((fetchData))
+    empty(("()"))
+    block1((block))
+    return_node((return))
+    new_node((new))
+    Promise((Promise))
+    lambda((lambda))
+    resolve_reject(("(__resolve __reject)"))
+    block2((block))
+    expr_stmt((expr-stmt))
+    call((call))
+    resolve((__resolve))
+    num42((42))
+    function --> fetchData
+    function --> empty
+    function --> block1
+    block1 --> return_node
+    return_node --> new_node
+    new_node --> Promise
+    new_node --> lambda
+    lambda --> resolve_reject
+    lambda --> block2
+    block2 --> expr_stmt
+    expr_stmt --> call
+    call --> resolve
+    call --> num42
 ```
 
 ### Example 10: Await Expression
@@ -562,19 +660,37 @@ class Person {
 ```
 
 **Visual:**
-```
-           class
-         /   |   \   \
-        /    |    \   \
-    Person null ctor methods
-                 |     |
-              lambda  method
-              /  \     /  \
-         (name age) "greet" lambda
-              |             |
-            block         block
-            / \             |
-        set-prop set-prop return
+```mermaid
+flowchart TB
+    class((class))
+    Person((Person))
+    null_node((null))
+    ctor((ctor))
+    methods((methods))
+    lambda1((lambda))
+    name_age(("(name age)"))
+    block1((block))
+    set_prop1((set-prop))
+    set_prop2((set-prop))
+    method((method))
+    greet(("greet"))
+    lambda2((lambda))
+    block2((block))
+    return_node((return))
+    class --> Person
+    class --> null_node
+    class --> ctor
+    class --> methods
+    ctor --> lambda1
+    methods --> method
+    lambda1 --> name_age
+    lambda1 --> block1
+    block1 --> set_prop1
+    block1 --> set_prop2
+    method --> greet
+    method --> lambda2
+    lambda2 --> block2
+    block2 --> return_node
 ```
 
 ### Example 14: Class with Private Fields

@@ -72,15 +72,23 @@ private static object? EvaluateBlock(Cons block, Environment environment)
 
 For the expression `(1 + 2) * 3`:
 
-```
-EvaluateExpression("(* (+ 1 2) 3)")
-  ├─ EvaluateBinary("*")
-  │   ├─ EvaluateExpression("(+ 1 2)")
-  │   │   └─ EvaluateBinary("+")
-  │   │       ├─ EvaluateExpression("1") → 1
-  │   │       └─ EvaluateExpression("2") → 2
-  │   └─ EvaluateExpression("3") → 3
-  └─ Result: 9
+```mermaid
+flowchart TB
+    eval1((EvaluateExpression<br/>'(* (+ 1 2) 3)'))
+    bin1((EvaluateBinary<br/>'*'))
+    eval2((EvaluateExpression<br/>'(+ 1 2)'))
+    bin2((EvaluateBinary<br/>'+'))
+    eval3((EvaluateExpression<br/>'1' → 1))
+    eval4((EvaluateExpression<br/>'2' → 2))
+    eval5((EvaluateExpression<br/>'3' → 3))
+    result((Result: 9))
+    eval1 --> bin1
+    bin1 --> eval2
+    bin1 --> eval5
+    eval2 --> bin2
+    bin2 --> eval3
+    bin2 --> eval4
+    eval1 --> result
 ```
 
 **Call Stack Depth: 5 levels for this simple expression**

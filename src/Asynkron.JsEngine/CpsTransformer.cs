@@ -889,6 +889,101 @@ public sealed class CpsTransformer
                 var returnValue = parts.Count >= 2 ? parts[1] : null;
                 return CreateResolveCall(returnValue, resolveParam);
             }
+            
+            // Handle: (expr-stmt (assign x (await expr)))
+            // This handles plain assignments like: x = await expr;
+            if (ReferenceEquals(symbol, JsSymbols.ExpressionStatement))
+            {
+                var parts = ConsList(cons);
+                if (parts.Count >= 2 && parts[1] is Cons exprCons && !exprCons.IsEmpty &&
+                    exprCons.Head is Symbol exprSymbol && ReferenceEquals(exprSymbol, JsSymbols.Assign))
+                {
+                    // It's an assignment expression, check if it contains await
+                    var assignParts = ConsList(exprCons);
+                    if (assignParts.Count >= 3)
+                    {
+                        var varName = assignParts[1];    // variable name
+                        var value = assignParts[2];      // value expression
+                        
+                        // Check if value is a simple await expression
+                        if (value is Cons valueCons && !valueCons.IsEmpty && 
+                            valueCons.Head is Symbol awaitSym && ReferenceEquals(awaitSym, JsSymbols.Await))
+                        {
+                            // Extract the promise expression from (await promise-expr)
+                            var promiseExpr = valueCons.Rest.Head;
+                            
+                            // Create continuation for remaining statements
+                            var restStatements = statements.Skip(index + 1).ToList();
+                            var continuation = ChainStatementsWithAwaits(restStatements, 0, resolveParam, rejectParam, loopContinueTarget, loopBreakTarget);
+                            
+                            // Create the .then() callback: function(tempVar) { varName = tempVar; [continuation] }
+                            // We need a temporary variable for the .then() callback parameter
+                            var tempVar = Symbol.Intern("__awaitResult");
+                            
+                            // Create the assignment statement in the callback: varName = tempVar
+                            var assignStatement = Cons.FromEnumerable([
+                                JsSymbols.ExpressionStatement,
+                                Cons.FromEnumerable([
+                                    JsSymbols.Assign,
+                                    varName,
+                                    tempVar
+                                ])
+                            ]);
+                            
+                            // Combine assignment with continuation
+                            object? callbackBody;
+                            if (continuation is Cons contCons && !contCons.IsEmpty &&
+                                contCons.Head is Symbol blockSym && ReferenceEquals(blockSym, JsSymbols.Block))
+                            {
+                                // Continuation is a block, flatten it
+                                var bodyItems = new List<object?> { JsSymbols.Block, assignStatement };
+                                bodyItems.AddRange(ConsList(contCons).Skip(1));
+                                callbackBody = Cons.FromEnumerable(bodyItems);
+                            }
+                            else
+                            {
+                                // Continuation is not a block, wrap together
+                                callbackBody = Cons.FromEnumerable([
+                                    JsSymbols.Block,
+                                    assignStatement,
+                                    continuation
+                                ]);
+                            }
+                            
+                            var thenCallback = Cons.FromEnumerable([
+                                JsSymbols.Lambda, 
+                                null, 
+                                Cons.FromEnumerable([tempVar]), 
+                                callbackBody
+                            ]);
+                            
+                            // Use __awaitHelper to wrap promiseExpr in Promise if needed
+                            var awaitHelperCall = Cons.FromEnumerable([
+                                JsSymbols.Call,
+                                Symbol.Intern("__awaitHelper"),
+                                promiseExpr
+                            ]);
+                            
+                            // Create the .then() call: __awaitHelper(promiseExpr).then(thenCallback)
+                            var thenCall = Cons.FromEnumerable([
+                                JsSymbols.Call, 
+                                Cons.FromEnumerable([
+                                    JsSymbols.GetProperty, 
+                                    awaitHelperCall, 
+                                    "then"
+                                ]), 
+                                thenCallback
+                            ]);
+                            
+                            // Wrap in expression statement and block
+                            return Cons.FromEnumerable([
+                                JsSymbols.Block, 
+                                Cons.FromEnumerable([JsSymbols.ExpressionStatement, thenCall])
+                            ]);
+                        }
+                    }
+                }
+            }
         }
 
         // Default: include the statement as-is and continue

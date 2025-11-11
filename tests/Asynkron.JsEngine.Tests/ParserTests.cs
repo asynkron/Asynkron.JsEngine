@@ -8,7 +8,8 @@ public class ParserTests
     public async Task ParseLetDeclarationProducesExpectedSExpression()
     {
         var engine = new JsEngine();
-        var program = engine.Parse("let answer = 1 + 2; answer;");
+        // Use ParseWithoutTransformation to test parser structure without constant folding
+        var program = engine.ParseWithoutTransformation("let answer = 1 + 2; answer;");
 
         Assert.Same(JsSymbols.Program, program.Head);
         var letStatement = Assert.IsType<Cons>(program.Rest.Head);
@@ -141,7 +142,8 @@ public class ParserTests
     public async Task ParseLogicalOperatorsRespectPrecedence()
     {
         var engine = new JsEngine();
-        var program = engine.Parse("let flag = true || false && true;");
+        // Use ParseWithoutTransformation to test parser structure without constant folding
+        var program = engine.ParseWithoutTransformation("let flag = true || false && true;");
 
         var letStatement = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.Let, letStatement.Head);
@@ -175,7 +177,8 @@ public class ParserTests
     public async Task ParseStrictEqualityOperators()
     {
         var engine = new JsEngine();
-        var program = engine.Parse("let comparisons = 1 === 1; let others = 2 !== 3;");
+        // Use ParseWithoutTransformation to test parser structure without constant folding
+        var program = engine.ParseWithoutTransformation("let comparisons = 1 === 1; let others = 2 !== 3;");
 
         var strictEqual = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.Let, strictEqual.Head);

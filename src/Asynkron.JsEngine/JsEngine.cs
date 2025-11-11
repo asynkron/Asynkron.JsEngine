@@ -9,6 +9,7 @@ namespace Asynkron.JsEngine;
 public sealed class JsEngine
 {
     private readonly Environment _global = new(isFunctionScope: true);
+    private readonly ConstantExpressionTransformer _constantTransformer = new();
     private readonly CpsTransformer _cpsTransformer = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
@@ -158,8 +159,9 @@ public sealed class JsEngine
 
     /// <summary>
     /// Parses JavaScript source code into an S-expression representation.
-    /// Applies CPS (Continuation-Passing Style) transformation if the code contains
-    /// async functions, generators, await expressions, or yield expressions.
+    /// Applies constant expression folding followed by CPS (Continuation-Passing Style) transformation.
+    /// Constant folding runs first to simplify expressions like 1+2*7 to 15 before CPS transformation.
+    /// CPS transformation is applied if the code contains async functions, generators, await expressions, or yield expressions.
     /// </summary>
     public Cons Parse([LanguageInjection("javascript")]string source)
     {
@@ -171,7 +173,11 @@ public sealed class JsEngine
         var parser = new Parser(tokens, source);
         var program = parser.ParseProgram();
         
-        // Step 3: Apply CPS transformation if needed
+        // Step 3: Apply constant expression folding (runs before CPS)
+        // This simplifies constant expressions like (+ 1 (* 2 7)) to 15
+        program = _constantTransformer.Transform(program);
+        
+        // Step 4: Apply CPS transformation if needed
         // This enables support for generators and async/await by converting
         // the S-expression tree to continuation-passing style
         if (_cpsTransformer.NeedsTransformation(program))
@@ -183,8 +189,8 @@ public sealed class JsEngine
     }
 
     /// <summary>
-    /// Parses JavaScript source code into an S-expression representation WITHOUT applying CPS transformation.
-    /// This is useful for debugging and understanding the initial parse tree before transformation.
+    /// Parses JavaScript source code into an S-expression representation WITHOUT applying any transformations.
+    /// This is useful for debugging and understanding the initial parse tree before any transformation.
     /// </summary>
     public Cons ParseWithoutTransformation([LanguageInjection("javascript")]string source)
     {
@@ -192,18 +198,18 @@ public sealed class JsEngine
         var lexer = new Lexer(source);
         var tokens = lexer.Tokenize();
         
-        // Step 2: Parse to S-expressions (without transformation)
+        // Step 2: Parse to S-expressions (without any transformation)
         var parser = new Parser(tokens, source);
         return parser.ParseProgram();
     }
 
     /// <summary>
-    /// Parses JavaScript source code and returns both the pre-transformation and post-transformation
-    /// S-expression representations. This is useful for understanding how CPS transformation affects the code.
+    /// Parses JavaScript source code and returns the S-expression at each transformation stage.
+    /// This is useful for understanding how constant folding and CPS transformation affect the code.
     /// </summary>
     /// <param name="source">JavaScript source code</param>
-    /// <returns>A tuple containing (original, transformed) S-expressions. If no transformation is needed, both will be the same.</returns>
-    public (Cons original, Cons transformed) ParseWithTransformationSteps([LanguageInjection("javascript")]string source)
+    /// <returns>A tuple containing (original, constantFolded, cpsTransformed) S-expressions.</returns>
+    public (Cons original, Cons constantFolded, Cons cpsTransformed) ParseWithTransformationSteps([LanguageInjection("javascript")]string source)
     {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
@@ -213,18 +219,21 @@ public sealed class JsEngine
         var parser = new Parser(tokens, source);
         var original = parser.ParseProgram();
         
-        // Step 3: Apply CPS transformation if needed
-        Cons transformed;
-        if (_cpsTransformer.NeedsTransformation(original))
+        // Step 3: Apply constant expression folding
+        var constantFolded = _constantTransformer.Transform(original);
+        
+        // Step 4: Apply CPS transformation if needed
+        Cons cpsTransformed;
+        if (_cpsTransformer.NeedsTransformation(constantFolded))
         {
-            transformed = _cpsTransformer.Transform(original);
+            cpsTransformed = _cpsTransformer.Transform(constantFolded);
         }
         else
         {
-            transformed = original;
+            cpsTransformed = constantFolded;
         }
         
-        return (original, transformed);
+        return (original, constantFolded, cpsTransformed);
     }
 
     /// <summary>

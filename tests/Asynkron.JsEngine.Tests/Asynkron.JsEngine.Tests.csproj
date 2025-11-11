@@ -24,4 +24,8 @@
         <ProjectReference Include="..\..\src\Asynkron.JsEngine\Asynkron.JsEngine.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <EmbeddedResource Include="Scripts\*.js" />
+    </ItemGroup>
+
 </Project>

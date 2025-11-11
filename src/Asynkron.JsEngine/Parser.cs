@@ -1,3 +1,4 @@
+using System.Globalization;
 using static Asynkron.JsEngine.ConsDsl;
 using static Asynkron.JsEngine.JsSymbols;
 
@@ -1638,6 +1639,25 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private string ParseObjectPropertyName()
     {
         if (Match(TokenType.String)) return Previous().Literal as string ?? string.Empty;
+
+        // Support numeric keys in object literals - JavaScript coerces numbers to strings
+        if (Match(TokenType.Number))
+        {
+            var numToken = Previous();
+            // Convert the numeric literal to a string representation
+            // Use the literal value if available, otherwise use the lexeme
+            if (numToken.Literal != null)
+            {
+                return numToken.Literal switch
+                {
+                    int i => i.ToString(CultureInfo.InvariantCulture),
+                    long l => l.ToString(CultureInfo.InvariantCulture),
+                    double d => d.ToString(CultureInfo.InvariantCulture),
+                    _ => numToken.Lexeme
+                };
+            }
+            return numToken.Lexeme;
+        }
 
         var identifier = Consume(TokenType.Identifier, "Expected property name.");
         return identifier.Lexeme;

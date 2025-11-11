@@ -756,9 +756,12 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object ParseReturnStatement()
     {
+        // Restricted production: [no LineTerminator here] between return and its expression
+        // If there's a line terminator, ASI applies and return has no value
         object? value = null;
         var hasValue = false;
-        if (!Check(TokenType.Semicolon))
+        
+        if (!Check(TokenType.Semicolon) && !Check(TokenType.RightBrace) && !Check(TokenType.Eof) && !HasLineTerminatorBefore())
         {
             value = ParseExpression();
             hasValue = true;
@@ -772,6 +775,13 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object ParseThrowStatement()
     {
+        // Restricted production: [no LineTerminator here] between throw and its expression
+        // Line terminator after throw is a syntax error, not ASI
+        if (HasLineTerminatorBefore())
+        {
+            throw new ParseException("Line terminator is not allowed between 'throw' and its expression.");
+        }
+        
         var value = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after throw statement.");
         return S(Throw, value);
@@ -1738,7 +1748,60 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         if (Check(type)) return Advance();
 
+        // Apply Automatic Semicolon Insertion (ASI) for semicolons
+        if (type == TokenType.Semicolon && CanInsertSemicolon())
+        {
+            // Return a synthetic semicolon token without advancing
+            return new Token(TokenType.Semicolon, ";", null, Peek().Line, Peek().Column, Peek().StartPosition, Peek().StartPosition);
+        }
+
         throw new ParseException(message);
+    }
+
+    /// <summary>
+    /// Determines if a semicolon can be automatically inserted according to ECMAScript ASI rules.
+    /// </summary>
+    private bool CanInsertSemicolon()
+    {
+        // Rule 1: Offending token is separated from previous token by at least one line terminator
+        if (_current > 0 && HasLineTerminatorBefore())
+        {
+            return true;
+        }
+
+        // Rule 2: Offending token is }
+        if (Check(TokenType.RightBrace))
+        {
+            return true;
+        }
+
+        // Rule 3: End of input
+        if (Check(TokenType.Eof))
+        {
+            return true;
+        }
+
+        // Special case: Previous token is ) and this would be the terminating semicolon of a do-while
+        // This is handled separately in ParseDoWhileStatement
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if there is a line terminator between the previous token and the current token.
+    /// </summary>
+    private bool HasLineTerminatorBefore()
+    {
+        if (_current <= 0 || _current >= _tokens.Count)
+        {
+            return false;
+        }
+
+        var previousToken = _tokens[_current - 1];
+        var currentToken = _tokens[_current];
+
+        // Check if current token is on a different line than the previous token
+        return currentToken.Line > previousToken.Line;
     }
 
     private Cons ConvertArrayLiteralToPattern(Cons arrayLiteral)

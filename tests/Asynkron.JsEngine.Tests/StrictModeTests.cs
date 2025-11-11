@@ -262,4 +262,46 @@ public class StrictModeTests
 
         Assert.Equal(15.0, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task NonStrictMode_AllowsUndefinedVariableAssignment()
+    {
+        // In non-strict mode (default), assigning to an undefined variable should create a global variable
+        var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+                            x = 7;
+                            x;
+                        """);
+
+        Assert.Equal(7.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task NonStrictMode_CanReadBackAssignedVariable()
+    {
+        // Verify that the created variable persists and can be read back
+        var engine = new JsEngine();
+
+        await engine.Evaluate("myGlobalVar = 42;");
+        var result = await engine.Evaluate("myGlobalVar + 1;");
+
+        Assert.Equal(43.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task NonStrictMode_MultipleUndefinedAssignments()
+    {
+        // Multiple undefined variable assignments should work
+        var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+                            a = 1;
+                            b = 2;
+                            c = 3;
+                            a + b + c;
+                        """);
+
+        Assert.Equal(6.0, result);
+    }
 }

@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Represents a JavaScript property descriptor.
 /// </summary>
-internal sealed class PropertyDescriptor
+public sealed class PropertyDescriptor
 {
     public object? Value { get; set; }
     public bool Writable { get; set; } = true;
@@ -21,7 +21,7 @@ internal sealed class PropertyDescriptor
 /// <summary>
 /// Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-internal sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal)
+public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal)
 {
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";

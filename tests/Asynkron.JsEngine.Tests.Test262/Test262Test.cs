@@ -32,11 +32,10 @@ public abstract partial class Test262Test
         });
 
         // Create $262 object for Test262 compatibility
-        // We'll use a Dictionary as a placeholder for the object
-        var obj262 = new Dictionary<string, object?>
+        var obj262 = new JsObject
         {
             // evalScript function
-            ["evalScript"] = new Func<IReadOnlyList<object?>, object?>(args =>
+            ["evalScript"] = new HostFunction(args =>
             {
                 if (args.Count > 1)
                 {
@@ -52,23 +51,23 @@ public abstract partial class Test262Test
             }),
 
             // createRealm function - not fully implemented but needed for compatibility
-            ["createRealm"] = new Func<IReadOnlyList<object?>, object?>(args =>
+            ["createRealm"] = new HostFunction(args =>
             {
                 // Return a new global-like object
-                var realmGlobal = new Dictionary<string, object?>();
+                var realmGlobal = new JsObject();
                 realmGlobal["global"] = realmGlobal;
                 return realmGlobal;
             }),
 
             // detachArrayBuffer function - placeholder implementation
-            ["detachArrayBuffer"] = new Func<IReadOnlyList<object?>, object?>(args =>
+            ["detachArrayBuffer"] = new HostFunction(args =>
             {
                 // TODO: Implement proper ArrayBuffer detachment if needed
                 return null;
             }),
 
             // gc function - triggers garbage collection
-            ["gc"] = new Func<IReadOnlyList<object?>, object?>(args =>
+            ["gc"] = new HostFunction(args =>
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();

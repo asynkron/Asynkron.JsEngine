@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class SunSpiderTests
 {
-    private static async Task RunTest(string source)
+    protected static async Task RunTest(string source)
     {
         var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
@@ -25,6 +25,12 @@ public class SunSpiderTests
                 var message = args[1]?.ToString() ?? string.Empty;
                 Assert.True(condition is true, message);
             }
+            return null;
+        });
+        // Add __debug() function for debugging test scripts
+        engine.SetGlobalFunction("__debug", args =>
+        {
+            // No-op function for debug markers in test scripts
             return null;
         });
 

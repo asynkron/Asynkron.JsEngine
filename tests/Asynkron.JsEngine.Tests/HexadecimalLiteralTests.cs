@@ -131,4 +131,62 @@ public class HexadecimalLiteralTests
         var result = await engine.Evaluate("var x = 0b101n; typeof x;");
         Assert.Equal("bigint", result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Hexadecimal_Literal_LargerThanLongMaxValue_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        // 0x8000000000000000 is long.MaxValue + 1
+        var result = await engine.Evaluate("var x = 0x8000000000000000; x;");
+        Assert.Equal(9.223372036854776E+18, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Octal_Literal_LargerThanLongMaxValue_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        // 0o1000000000000000000000 is long.MaxValue + 1 in octal
+        var result = await engine.Evaluate("var x = 0o1000000000000000000000; x;");
+        Assert.Equal(9.223372036854776E+18, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Binary_Literal_64Bit_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        // A 64-bit binary literal
+        var result = await engine.Evaluate("var x = 0b1000000000000000000000000000000000000000000000000000000000000000; x;");
+        Assert.Equal(9.223372036854776E+18, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Hexadecimal_Literal_VeryLarge_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        // 0xFFFFFFFFFFFFFFFF should parse as a very large double value
+        var result = await engine.Evaluate("var x = 0xFFFFFFFFFFFFFFFF; x;");
+        // JavaScript evaluates this to approximately 1.8446744073709552e+19
+        Assert.True(result is double);
+        Assert.True((double)result > 1.8e19);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Octal_Literal_VeryLarge_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        // 0o1777777777777777777777 is max uint64 in octal
+        var result = await engine.Evaluate("var x = 0o1777777777777777777777; x;");
+        Assert.True(result is double);
+        Assert.True((double)result > 1.8e19);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Binary_Literal_64BitAllOnes_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        // All 64 bits set to 1
+        var result = await engine.Evaluate("var x = 0b1111111111111111111111111111111111111111111111111111111111111111; x;");
+        Assert.True(result is double);
+        Assert.True((double)result > 1.8e19);
+    }
 }

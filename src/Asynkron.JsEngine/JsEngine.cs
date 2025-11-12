@@ -549,8 +549,9 @@ public sealed class JsEngine
         // Add promise instance methods (then, catch, finally)
         StandardLibrary.AddPromiseInstanceMethods(promiseObj, promise, this);
 
-        // Schedule loading the module asynchronously
-        _eventQueue.Writer.TryWrite(async () =>
+        // Schedule loading the module asynchronously using ScheduleTask
+        // to properly track pending tasks for the event loop
+        ScheduleTask(async () =>
         {
             try
             {

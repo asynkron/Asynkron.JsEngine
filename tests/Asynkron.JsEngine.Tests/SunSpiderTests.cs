@@ -117,7 +117,7 @@ public class SunSpiderTests
     /// Issue: (k%2)?email=username+"@mac.com":email=username+"(at)mac.com"
     /// Root Cause: Parser doesn't support assignments as expressions in ternary operators
     /// </summary>
-    [Theory(Skip = "Parse error: Invalid assignment in ternary operator - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("string-validate-input.js")]
     public async Task SunSpider_ParseError_TernaryAssignment(string filename)
     {
@@ -130,7 +130,7 @@ public class SunSpiderTests
     /// Context: ... Q.Line[0] = true; };
     /// Root Cause: Parser issue with complex expression / empty statement after closing brace
     /// </summary>
-    [Theory(Skip = "Parse error: Unexpected semicolon - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("3d-cube.js")]
     public async Task SunSpider_ParseError_Semicolon(string filename)
     {
@@ -142,7 +142,7 @@ public class SunSpiderTests
     /// Parse errors: Expected ';' after expression statement
     /// Root Cause: ASI (Automatic Semicolon Insertion) not handling newlines correctly
     /// </summary>
-    [Theory(Skip = "Parse error: ASI issue - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("string-tagcloud.js")]
     [InlineData("regexp-dna.js")]
     public async Task SunSpider_ParseError_ASI(string filename)
@@ -156,7 +156,7 @@ public class SunSpiderTests
     /// Error at line 18, column 268
     /// Root Cause: Complex semicolon placement in minified code
     /// </summary>
-    [Theory(Skip = "Parse error: Minified code issue - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("string-unpack-code.js")]
     public async Task SunSpider_ParseError_MinifiedCode(string filename)
     {
@@ -169,7 +169,7 @@ public class SunSpiderTests
     /// Context: ...his : global || self, factory(global.Bab...
     /// Root Cause: Complex expression parsing issue with ternary operator
     /// </summary>
-    [Theory(Skip = "Parse error: Complex expression - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("babel-standalone.js")]
     public async Task SunSpider_ParseError_ComplexExpression(string filename)
     {
@@ -191,7 +191,7 @@ public class SunSpiderTests
     /// - 32-bit unsigned integer arithmetic
     /// - Proper handling of large numbers
     /// </summary>
-    [Theory(Skip = "Runtime error: Incorrect SHA1 hash - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("crypto-sha1.js")]
     public async Task SunSpider_Crypto_SHA1_Failing(string filename)
     {
@@ -206,7 +206,7 @@ public class SunSpiderTests
     /// - Bit shifting and masking
     /// - S-box lookups
     /// </summary>
-    [Theory(Skip = "Runtime error: Incorrect AES encryption - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("crypto-aes.js")]
     public async Task SunSpider_Crypto_AES_Failing(string filename)
     {
@@ -224,7 +224,7 @@ public class SunSpiderTests
     /// Expected: 22
     /// Root Cause: Array manipulation or integer arithmetic issue
     /// </summary>
-    [Theory(Skip = "Runtime error: Incorrect Fannkuch result - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("access-fannkuch.js")]
     public async Task SunSpider_Access_Fannkuch_Failing(string filename)
     {
@@ -237,7 +237,7 @@ public class SunSpiderTests
     /// Expected: -1.3524862408537381
     /// Root Cause: Floating-point arithmetic or object property handling
     /// </summary>
-    [Theory(Skip = "Runtime error: Incorrect N-body result - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("access-nbody.js")]
     public async Task SunSpider_Access_NBody_Failing(string filename)
     {
@@ -254,7 +254,7 @@ public class SunSpiderTests
     /// Runtime error: Ray-tracing algorithm produces wrong output length
     /// Root Cause: Complex calculations with arrays and objects, likely floating-point or array handling
     /// </summary>
-    [Theory(Skip = "Runtime error: Incorrect raytrace output - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("3d-raytrace.js")]
     public async Task SunSpider_3D_Raytrace_Failing(string filename)
     {
@@ -274,7 +274,7 @@ public class SunSpiderTests
     /// - Character code operations
     /// - Array indexing
     /// </summary>
-    [Theory(Skip = "Runtime error: Incorrect base64 encoding - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("string-base64.js")]
     public async Task SunSpider_String_Base64_Failing(string filename)
     {
@@ -287,7 +287,7 @@ public class SunSpiderTests
     /// Expected: 1456000
     /// Root Cause: String concatenation or array operations, random number generation
     /// </summary>
-    [Theory(Skip = "Runtime error: Incorrect FASTA output - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("string-fasta.js")]
     public async Task SunSpider_String_FASTA_Failing(string filename)
     {
@@ -304,7 +304,7 @@ public class SunSpiderTests
     /// Runtime error: Date formatting functions produce incorrect results
     /// Root Cause: Date object methods, string manipulation, or timezone handling
     /// </summary>
-    [Theory(Skip = "Runtime error: Date formatting issues - see SUNSPIDER_TEST_FINDINGS.md")]
+    [Theory]
     [InlineData("date-format-tofte.js")]
     [InlineData("date-format-xparb.js")]
     public async Task SunSpider_Date_Formatting_Failing(string filename)

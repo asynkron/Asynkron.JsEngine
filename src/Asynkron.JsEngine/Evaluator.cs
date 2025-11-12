@@ -342,7 +342,7 @@ internal static class Evaluator
             foreach (var c in str)
                 values.Add(c.ToString());
         else
-            throw new InvalidOperationException($"Cannot iterate over non-iterable value '{iterable}'.");
+            throw new InvalidOperationException(FormatErrorMessage($"Cannot iterate over non-iterable value '{iterable}'", cons) + ".");
 
         foreach (var value in values)
         {
@@ -511,7 +511,7 @@ internal static class Evaluator
             foreach (var c in str)
                 values.Add(c.ToString());
         else
-            throw new InvalidOperationException($"Cannot iterate over non-iterable value '{iterable}'.");
+            throw new InvalidOperationException(FormatErrorMessage($"Cannot iterate over non-iterable value '{iterable}'", cons) + ".");
 
         // Iterate over collected values
         foreach (var value in values)
@@ -1134,7 +1134,7 @@ internal static class Evaluator
             catch (InvalidOperationException)
             {
                 // No tracker found - yield is outside a generator (shouldn't happen)
-                throw new InvalidOperationException("yield can only be used inside a generator function");
+                throw new InvalidOperationException(FormatErrorMessage("yield can only be used inside a generator function", cons) + ".");
             }
         }
 
@@ -1157,18 +1157,7 @@ internal static class Evaluator
         var (callee, thisValue) = ResolveCallee(calleeExpression, environment, context);
         if (callee is not IJsCallable callable)
         {
-            var errorMessage = "Attempted to call a non-callable value";
-            
-            // Try to get source reference from the cons cell
-            var sourceRef = GetSourceReference(cons);
-            if (sourceRef != null)
-            {
-                errorMessage += $" at {sourceRef}";
-                var sourceText = sourceRef.GetText();
-                if (!string.IsNullOrWhiteSpace(sourceText))
-                    errorMessage += $": {sourceText}";
-            }
-            
+            var errorMessage = FormatErrorMessage("Attempted to call a non-callable value", cons);
             throw new InvalidOperationException(errorMessage + ".");
         }
 
@@ -1183,7 +1172,7 @@ internal static class Evaluator
                     foreach (var element in array.Items)
                         arguments.Add(element);
                 else
-                    throw new InvalidOperationException("Spread operator can only be applied to arrays.");
+                    throw new InvalidOperationException(FormatErrorMessage("Spread operator can only be applied to arrays", spreadCons) + ".");
             }
             else
             {
@@ -1219,7 +1208,8 @@ internal static class Evaluator
         {
             var binding = ExpectSuperBinding(environment, context);
             if (binding.Constructor is null)
-                throw new InvalidOperationException("Super constructor is not available in this context.");
+                throw new InvalidOperationException(FormatErrorMessage("Super constructor is not available in this context", 
+                    calleeExpression as Cons) + ".");
 
             return (binding.Constructor, binding.ThisValue);
         }
@@ -1294,7 +1284,7 @@ internal static class Evaluator
                     foreach (var arrayElement in spreadArray.Items)
                         array.Push(arrayElement);
                 else
-                    throw new InvalidOperationException("Spread operator can only be applied to arrays.");
+                    throw new InvalidOperationException(FormatErrorMessage("Spread operator can only be applied to arrays", spreadCons) + ".");
             }
             else
             {
@@ -1348,14 +1338,15 @@ internal static class Evaluator
         var tagFunction = EvaluateExpression(tagExpr, environment, context);
 
         if (tagFunction is not IJsCallable callable)
-            throw new InvalidOperationException("Tag in tagged template must be a function");
+            throw new InvalidOperationException(FormatErrorMessage("Tag in tagged template must be a function", cons) + ".");
 
         rest = rest.Rest;
 
         // Get the strings array expression
         var stringsArrayExpr = rest.Head;
         var stringsArray = EvaluateExpression(stringsArrayExpr, environment, context) as JsArray;
-        if (stringsArray == null) throw new InvalidOperationException("Tagged template strings array is invalid");
+        if (stringsArray == null) 
+            throw new InvalidOperationException(FormatErrorMessage("Tagged template strings array is invalid", cons) + ".");
 
         rest = rest.Rest;
 
@@ -1363,7 +1354,7 @@ internal static class Evaluator
         var rawStringsArrayExpr = rest.Head;
         var rawStringsArray = EvaluateExpression(rawStringsArrayExpr, environment, context) as JsArray;
         if (rawStringsArray == null)
-            throw new InvalidOperationException("Tagged template raw strings array is invalid");
+            throw new InvalidOperationException(FormatErrorMessage("Tagged template raw strings array is invalid", cons) + ".");
 
         rest = rest.Rest;
 
@@ -1666,7 +1657,7 @@ internal static class Evaluator
         var constructorExpression = cons.Rest.Head;
         var constructor = EvaluateExpression(constructorExpression, environment, context);
         if (constructor is not IJsCallable callable)
-            throw new InvalidOperationException("Attempted to construct with a non-callable value.");
+            throw new InvalidOperationException(FormatErrorMessage("Attempted to construct with a non-callable value", cons) + ".");
 
         var instance = new JsObject();
         if (TryGetPropertyValue(constructor, "prototype", out var prototype) && prototype is JsObject prototypeObject)
@@ -3353,5 +3344,22 @@ internal static class Evaluator
         }
         
         return null;
+    }
+
+    /// <summary>
+    /// Formats an error message with source reference information if available.
+    /// </summary>
+    private static string FormatErrorMessage(string message, Cons? cons)
+    {
+        var sourceRef = GetSourceReference(cons);
+        if (sourceRef != null)
+        {
+            message += $" at {sourceRef}";
+            var sourceText = sourceRef.GetText();
+            if (!string.IsNullOrWhiteSpace(sourceText))
+                message += $": {sourceText}";
+        }
+        
+        return message;
     }
 }

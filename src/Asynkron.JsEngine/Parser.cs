@@ -1714,7 +1714,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                         properties.Add(S(Property, name, value));
                     }
                 }
-            } while (Match(TokenType.Comma));
+            } while (Match(TokenType.Comma) && !Check(TokenType.RightBrace));
 
         Consume(TokenType.RightBrace, "Expected '}' after object literal.");
         var items = new List<object?> { ObjectLiteral };
@@ -1738,7 +1738,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 {
                     elements.Add(ParseExpression());
                 }
-            } while (Match(TokenType.Comma));
+            } while (Match(TokenType.Comma) && !Check(TokenType.RightBracket));
 
         Consume(TokenType.RightBracket, "Expected ']' after array literal.");
         var items = new List<object?> { ArrayLiteral };

@@ -706,7 +706,7 @@ internal static class Evaluator
         var name = ExpectSymbol(target, "Expected identifier in var declaration.");
         var initializer = cons.Rest.Rest.Head;
         var hasInitializer = !ReferenceEquals(initializer, JsSymbols.Uninitialized);
-        var varValue = hasInitializer ? EvaluateExpression(initializer, environment, context) : null;
+        var varValue = hasInitializer ? EvaluateExpression(initializer, environment, context) : JsSymbols.Undefined;
         environment.DefineFunctionScoped(name, varValue, hasInitializer);
         return environment.Get(name);
     }
@@ -1072,7 +1072,24 @@ internal static class Evaluator
 
         if (ReferenceEquals(symbol, JsSymbols.Typeof))
         {
-            var operand = EvaluateExpression(cons.Rest.Head, environment, context);
+            // Special case: typeof can be used on undeclared variables without throwing
+            // Check if the operand is a simple identifier (Symbol) that doesn't exist
+            var operandExpression = cons.Rest.Head;
+            if (operandExpression is Symbol operandSymbol && 
+                !ReferenceEquals(operandSymbol, JsSymbols.Undefined))
+            {
+                // Try to get the value without throwing
+                if (!environment.TryGet(operandSymbol, out var value))
+                {
+                    // Symbol doesn't exist, return "undefined" for typeof
+                    return "undefined";
+                }
+                // Symbol exists, return its typeof
+                return GetTypeofString(value);
+            }
+            
+            // For non-symbol operands (e.g., typeof (x + y)), evaluate normally
+            var operand = EvaluateExpression(operandExpression, environment, context);
             return GetTypeofString(operand);
         }
 

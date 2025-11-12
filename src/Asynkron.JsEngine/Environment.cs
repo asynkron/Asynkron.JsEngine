@@ -54,6 +54,20 @@ internal sealed class Environment(
         throw new InvalidOperationException($"Undefined symbol '{name.Name}'.");
     }
 
+    public bool TryGet(Symbol name, out object? value)
+    {
+        if (_values.TryGetValue(name, out var binding))
+        {
+            value = binding.Value;
+            return true;
+        }
+
+        if (_enclosing is not null) return _enclosing.TryGet(name, out value);
+
+        value = null;
+        return false;
+    }
+
     public void Assign(Symbol name, object? value)
     {
         // Remember if we're in strict mode at the call site

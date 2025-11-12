@@ -849,7 +849,19 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var hasUseStrict = CheckForUseStrictDirective();
         if (hasUseStrict) statements.Add(S(UseStrict));
 
-        while (!Check(TokenType.RightBrace) && !Check(TokenType.Eof)) statements.Add(ParseDeclaration());
+        while (!Check(TokenType.RightBrace) && !Check(TokenType.Eof))
+        {
+            var declaration = ParseDeclaration();
+            if (declaration is MultipleDeclarations multi)
+            {
+                // Expand multiple declarations into separate statements
+                statements.AddRange(multi.Declarations);
+            }
+            else
+            {
+                statements.Add(declaration);
+            }
+        }
 
         Consume(TokenType.RightBrace, "Expected '}' after block.");
         return Cons.FromEnumerable(statements);

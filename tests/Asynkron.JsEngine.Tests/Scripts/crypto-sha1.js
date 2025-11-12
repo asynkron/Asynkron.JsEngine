@@ -17,6 +17,17 @@
  * Similar root cause to crypto-md5.js failure.
  */
 
+// Console object for debugging
+var console = {
+  log: function(msg) {
+    // Store in a global array for later inspection
+    if (typeof consoleLogs === 'undefined') {
+      consoleLogs = [];
+    }
+    consoleLogs.push(String(msg));
+  }
+};
+
 /*
  * Configurable variables. You may need to tweak these to be compatible with
  * the server-side, but the defaults work in most cases.
@@ -53,6 +64,8 @@ function core_sha1(x, len)
   x[len >> 5] |= 0x80 << (24 - len % 32);
   x[((len + 64 >> 9) << 4) + 15] = len;
 
+  console.log(x);
+
   var w = Array(80);
   var a =  1732584193;
   var b = -271733879;
@@ -74,6 +87,10 @@ function core_sha1(x, len)
       else w[j] = rol(w[j-3] ^ w[j-8] ^ w[j-14] ^ w[j-16], 1);
       var t = safe_add(safe_add(rol(a, 5), sha1_ft(j, b, c, d)),
                        safe_add(safe_add(e, w[j]), sha1_kt(j)));
+
+       console.log(w);
+       console.log(t);
+
       e = d;
       d = c;
       c = rol(b, 30);

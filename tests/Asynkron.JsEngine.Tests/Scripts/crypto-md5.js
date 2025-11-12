@@ -17,6 +17,17 @@
  * The algorithm executes but bit manipulations are not working correctly.
  */
 
+// Console object for debugging
+var console = {
+  log: function(msg) {
+    // Store in a global array for later inspection
+    if (typeof consoleLogs === 'undefined') {
+      consoleLogs = [];
+    }
+    consoleLogs.push(String(msg));
+  }
+};
+
 /*
  * Configurable variables. You may need to tweak these to be compatible with
  * the server-side, but the defaults work in most cases.
@@ -53,6 +64,8 @@ function core_md5(x, len)
   x[len >> 5] |= 0x80 << ((len) % 32);
   x[(((len + 64) >>> 9) << 4) + 14] = len;
 
+  console.log(x);
+
   var a =  1732584193;
   var b = -271733879;
   var c = -1732584194;
@@ -64,6 +77,8 @@ function core_md5(x, len)
     var oldb = b;
     var oldc = c;
     var oldd = d;
+
+    console.log("Block " + (i/16) + ", a=" + a + ", b=" + b + ", c=" + c + ", d=" + d);
 
     a = md5_ff(a, b, c, d, x[i+ 0], 7 , -680876936);
     d = md5_ff(d, a, b, c, x[i+ 1], 12, -389564586);

@@ -60,11 +60,18 @@ function md5_vm_test()
  */
 function core_md5(x, len)
 {
+  console.log("core_md5 entry, x.length=" + x.length + ", len=" + len);
+  
   /* append padding */
-  x[len >> 5] |= 0x80 << ((len) % 32);
-  x[(((len + 64) >>> 9) << 4) + 14] = len;
+  var padIndex1 = len >> 5;
+  var padIndex2 = (((len + 64) >>> 9) << 4) + 14;
+  
+  console.log("Setting padding at indices: " + padIndex1 + " and " + padIndex2);
+  
+  x[padIndex1] |= 0x80 << ((len) % 32);
+  x[padIndex2] = len;
 
-  console.log("core_md5 called, x.length=" + x.length);
+  console.log("core_md5 after padding, x.length=" + x.length);
 
   var a =  1732584193;
   var b = -271733879;
@@ -305,12 +312,15 @@ To old Free-town, our common judgment-place.\n\
 Once more, on pain of death, all men depart."
 
 __debug(); // Debug: initial plainText length
+console.log("Initial plainText.length=" + plainText.length);
 for (var i = 0; i <4; i++) {
     plainText += plainText;
+    console.log("After iteration " + i + ", plainText.length=" + plainText.length);
 }
 __debug(); // Debug: after expanding plainText
 
 var md5Output = hex_md5(plainText);
+console.log("Calling hex_md5 with plainText.length=" + plainText.length);
 __debug(); // Debug: after hex_md5, check output
 
 var expected = "a831e91e0f70eddcb70dc61c6f82f6cd";

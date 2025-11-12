@@ -5,6 +5,9 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public sealed class JsArray
 {
+    // Sentinel value to represent holes in sparse arrays (indices that have never been set)
+    private static readonly object ArrayHole = new();
+    
     private readonly JsObject _properties = new();
     private readonly List<object?> _items = [];
 
@@ -51,16 +54,19 @@ public sealed class JsArray
 
     public object? GetElement(int index)
     {
-        if (index < 0 || index >= _items.Count) return null; // mirror JavaScript's undefined for out of range reads
+        if (index < 0 || index >= _items.Count) return JsSymbols.Undefined;
 
-        return _items[index];
+        var item = _items[index];
+        // Return undefined for holes in the array
+        return ReferenceEquals(item, ArrayHole) ? JsSymbols.Undefined : item;
     }
 
     public void SetElement(int index, object? value)
     {
         if (index < 0) throw new ArgumentOutOfRangeException(nameof(index));
 
-        while (_items.Count <= index) _items.Add(null);
+        // Fill gaps with ArrayHole sentinel to represent sparse array holes
+        while (_items.Count <= index) _items.Add(ArrayHole);
 
         _items[index] = value;
         UpdateLength();
@@ -74,23 +80,27 @@ public sealed class JsArray
 
     public object? Pop()
     {
-        if (_items.Count == 0) return null;
+        if (_items.Count == 0) return JsSymbols.Undefined;
 
         var lastIndex = _items.Count - 1;
         var value = _items[lastIndex];
         _items.RemoveAt(lastIndex);
         UpdateLength();
-        return value;
+        
+        // Return undefined for holes
+        return ReferenceEquals(value, ArrayHole) ? JsSymbols.Undefined : value;
     }
 
     public object? Shift()
     {
-        if (_items.Count == 0) return null;
+        if (_items.Count == 0) return JsSymbols.Undefined;
 
         var value = _items[0];
         _items.RemoveAt(0);
         UpdateLength();
-        return value;
+        
+        // Return undefined for holes
+        return ReferenceEquals(value, ArrayHole) ? JsSymbols.Undefined : value;
     }
 
     public void Unshift(params object?[] values)
@@ -154,7 +164,9 @@ public sealed class JsArray
                 var result = new JsObject();
                 if (indexHolder[0] < _items.Count)
                 {
-                    result.SetProperty("value", _items[indexHolder[0]]);
+                    var value = _items[indexHolder[0]];
+                    // Return undefined for holes in the array
+                    result.SetProperty("value", ReferenceEquals(value, ArrayHole) ? JsSymbols.Undefined : value);
                     result.SetProperty("done", false);
                     indexHolder[0]++;
                 }

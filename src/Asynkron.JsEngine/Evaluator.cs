@@ -1675,6 +1675,7 @@ internal static class Evaluator
             var result = callable.Invoke(arguments, instance);
             return result switch
             {
+                JsArray jsArray => jsArray,
                 JsObject jsObject => jsObject,
                 JsMap jsMap => jsMap,
                 JsSet jsSet => jsSet,
@@ -3169,7 +3170,8 @@ internal static class Evaluator
     {
         var num = ToNumber(value);
         if (double.IsNaN(num) || double.IsInfinity(num)) return 0;
-        return (int)num;
+        // JavaScript ToInt32: convert to uint first, then to int to handle values > Int32.MaxValue
+        return unchecked((int)(uint)(long)num);
     }
 
     private static uint ToUInt32(object? value)

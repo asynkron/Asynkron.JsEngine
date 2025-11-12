@@ -83,4 +83,38 @@ public class StringEscapeTests
         var result = await engine.Evaluate(@"function f() { return'\\w+'; } f();");
         Assert.Equal("\\w+", result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task LineContinuationInString()
+    {
+        var engine = new JsEngine();
+        // This is a backslash followed by actual newline in the source - should be removed
+        var result = await engine.Evaluate("let a = \"test\\\nline\"; a;");
+        Assert.Equal("testline", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task LineContinuationWithEscapeSequence()
+    {
+        var engine = new JsEngine();
+        // This has both \n (escape sequence) and \ followed by newline (line continuation)
+        var result = await engine.Evaluate("let a = \"line1\\n\\\nline2\"; a;");
+        Assert.Equal("line1\nline2", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task MultipleLineContinuations()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("let a = \"start\\\n\\\n\\\nend\"; a;");
+        Assert.Equal("startend", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task LineContinuationInSingleQuoteString()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("let a = 'test\\\nline'; a;");
+        Assert.Equal("testline", result);
+    }
 }

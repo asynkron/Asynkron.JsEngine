@@ -338,8 +338,11 @@ internal sealed class Lexer(string source)
                 }
                 
                 var hexDigits2 = _source[digitStart.._current]; // Only the hex digits, not the prefix
-                var hexValue = Convert.ToInt64(hexDigits2, 16);
-                AddToken(TokenType.Number, (double)hexValue);
+                // Use BigInteger to handle values larger than long.MaxValue, then convert to double
+                // Prepend "0" to ensure the value is treated as unsigned (positive)
+                var hexBigInt = System.Numerics.BigInteger.Parse("0" + hexDigits2, System.Globalization.NumberStyles.HexNumber);
+                var hexValue = (double)hexBigInt;
+                AddToken(TokenType.Number, hexValue);
                 return;
             }
             else if (next == 'o' || next == 'O')
@@ -375,8 +378,14 @@ internal sealed class Lexer(string source)
                 }
                 
                 var octalDigits2 = _source[digitStart.._current]; // Only the octal digits, not the prefix
-                var octalValue = Convert.ToInt64(octalDigits2, 8);
-                AddToken(TokenType.Number, (double)octalValue);
+                // Use BigInteger to handle values larger than long.MaxValue, then convert to double
+                var octalBigInt = System.Numerics.BigInteger.Zero;
+                foreach (var c in octalDigits2)
+                {
+                    octalBigInt = octalBigInt * 8 + (c - '0');
+                }
+                var octalValue = (double)octalBigInt;
+                AddToken(TokenType.Number, octalValue);
                 return;
             }
             else if (next == 'b' || next == 'B')
@@ -412,8 +421,14 @@ internal sealed class Lexer(string source)
                 }
                 
                 var binaryDigits2 = _source[digitStart.._current]; // Only the binary digits, not the prefix
-                var binaryValue = Convert.ToInt64(binaryDigits2, 2);
-                AddToken(TokenType.Number, (double)binaryValue);
+                // Use BigInteger to handle values larger than long.MaxValue, then convert to double
+                var binaryBigInt = System.Numerics.BigInteger.Zero;
+                foreach (var c in binaryDigits2)
+                {
+                    binaryBigInt = binaryBigInt * 2 + (c - '0');
+                }
+                var binaryValue = (double)binaryBigInt;
+                AddToken(TokenType.Number, binaryValue);
                 return;
             }
         }

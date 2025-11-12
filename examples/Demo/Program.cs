@@ -1,31 +1,28 @@
 using Asynkron.JsEngine;
 
 var engine = new JsEngine();
+engine.SetGlobalFunction("log", args =>
+{
+    Console.WriteLine(args.Count > 0 ? args[0]?.ToString() : string.Empty);
+    return null;
+});
 
-// Test 1: Simple arrow function
-var script1 = "var f = (x) => x * 2; console.log(f(5));";
-try
-{
-    engine.Evaluate(script1).Wait();
-    Console.WriteLine("Test 1 passed");
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"Test 1 failed: {ex.Message}");
-}
+var script = @"
+// Test Array constructor with size parameter
+var arr = new Array(5);
+log('After new Array(5):');
+log('typeof arr: ' + typeof arr);
+log('arr.length: ' + arr.length);
+log('arr[0]: ' + arr[0]);
+log('arr[1]: ' + arr[1]);
 
-// Test 2: Arrow function in object literal
-var script2 = """
-var x = {
-    trace: () => null
-};
-console.log("Test 2 passed");
-""";
-try
-{
-    engine.Evaluate(script2).Wait();
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"Test 2 failed: {ex.Message}");
-}
+// Test manual array creation
+var arr2 = [null, null, null, null, null];
+log('');
+log('After [null, null, null, null, null]:');
+log('arr2.length: ' + arr2.length);
+log('arr2[0]: ' + arr2[0]);
+";
+
+await engine.Evaluate(script);
+Console.WriteLine("Test completed");

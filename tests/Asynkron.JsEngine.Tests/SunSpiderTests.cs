@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// SunSpider benchmark tests. See SUNSPIDER_TEST_FINDINGS.md for detailed analysis of failures.
-/// Current status: 9 passing / 17 failing
+/// Current status: 10 passing / 16 failing
 /// </summary>
 public class SunSpiderTests
 {
@@ -42,7 +42,7 @@ public class SunSpiderTests
     }
 
     // ====================================================================================
-    // PASSING TESTS (9)
+    // PASSING TESTS (10)
     // ====================================================================================
 
     /// <summary>
@@ -75,6 +75,7 @@ public class SunSpiderTests
     [InlineData("bitops-3bit-bits-in-byte.js")]
     [InlineData("bitops-bits-in-byte.js")]
     [InlineData("bitops-bitwise-and.js")]
+    [InlineData("bitops-nsieve-bits.js")]
     public async Task SunSpider_Bitops_Passing(string filename)
     {
         var content = GetEmbeddedFile(filename);
@@ -214,28 +215,6 @@ public class SunSpiderTests
     [Theory(Skip = "Runtime error: Incorrect AES encryption - see SUNSPIDER_TEST_FINDINGS.md")]
     [InlineData("crypto-aes.js")]
     public async Task SunSpider_Crypto_AES_Failing(string filename)
-    {
-        var content = GetEmbeddedFile(filename);
-        await RunTest(content);
-    }
-
-    // ====================================================================================
-    // FAILING TESTS - RUNTIME ERRORS: BITWISE OPERATIONS (1)
-    // See SUNSPIDER_TEST_FINDINGS.md for detailed analysis
-    // ====================================================================================
-
-    /// <summary>
-    /// Runtime error: Bitwise sieve algorithm produces 0 instead of expected large negative number
-    /// Expected: -1286749544853
-    /// Got: 0
-    /// Root Cause: Bit manipulation not working correctly
-    /// - Uses 1<<(i&31) for bit manipulation
-    /// - Expected negative number suggests signed integer handling issue
-    /// - Bitwise AND/OR operations may not be working on array elements
-    /// </summary>
-    [Theory(Skip = "Runtime error: Incorrect bitwise operations - see SUNSPIDER_TEST_FINDINGS.md")]
-    [InlineData("bitops-nsieve-bits.js")]
-    public async Task SunSpider_Bitops_Failing(string filename)
     {
         var content = GetEmbeddedFile(filename);
         await RunTest(content);

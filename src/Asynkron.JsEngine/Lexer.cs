@@ -315,6 +315,29 @@ internal sealed class Lexer(string source)
             while (IsDigit(Peek())) Advance();
         }
 
+        // Check for exponential notation (e or E followed by optional +/- and digits)
+        if (Peek() == 'e' || Peek() == 'E')
+        {
+            var next = PeekNext();
+            // Check if it's scientific notation: 'e' or 'E' followed by optional sign and digit
+            if (IsDigit(next) || (next == '+' || next == '-'))
+            {
+                Advance(); // consume 'e' or 'E'
+                
+                // Consume optional sign
+                if (Peek() == '+' || Peek() == '-')
+                    Advance();
+                
+                // Must have at least one digit after the exponent
+                if (!IsDigit(Peek()))
+                    throw new ParseException($"Expected digit after exponent on line {_line} column {_column}.");
+                
+                while (IsDigit(Peek())) Advance();
+                
+                hasDecimal = true; // exponential notation makes it a regular number, not BigInt
+            }
+        }
+
         // Check for BigInt suffix 'n'
         if (!hasDecimal && Peek() == 'n')
         {

@@ -1,3 +1,13 @@
+// TEST STATUS: FAILING
+// Error: Date formatting produces incorrect or throws error
+// Root Cause: Custom Date.prototype.formatDate implementation has issues
+// Likely problems with:
+//   - Date object method calls (getMonth, getDate, getHours, etc.)
+//   - String manipulation and padding
+//   - Switch/case logic for format characters
+//   - Timezone or locale handling
+// Date formatting is complex and may have edge case issues.
+
 function arrayExists(array, x) {
     for (var i = 0; i < array.length; i++) {
         if (array[i] == x) return true;

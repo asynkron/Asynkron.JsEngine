@@ -8,6 +8,16 @@
  */
 
 /*
+ * TEST STATUS: FAILING
+ * Error: Expected hash a831e91e0f70eddcb70dc61c6f82f6cd but got 4ebea80adf00ebd69b1e70e54a6f194a
+ * Root Cause: MD5 algorithm produces incorrect hash - likely issue with:
+ *   - Bitwise operations (shifts, rotations, XOR/AND/OR)
+ *   - 32-bit unsigned integer arithmetic
+ *   - Integer overflow/wrap-around behavior
+ * The algorithm executes but bit manipulations are not working correctly.
+ */
+
+/*
  * Configurable variables. You may need to tweak these to be compatible with
  * the server-side, but the defaults work in most cases.
  */

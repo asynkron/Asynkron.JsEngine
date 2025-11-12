@@ -23,6 +23,16 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
+// TEST STATUS: FAILING
+// Error: Expected output length but got incorrect result
+// Root Cause: 3D ray-tracing algorithm produces wrong output
+// Likely issues with:
+//   - Complex floating-point calculations
+//   - Vector and matrix operations
+//   - Object property access in nested loops
+//   - Array manipulation
+// The algorithm involves intensive numerical computations that may have precision issues.
+
 function createVector(x,y,z) {
     return new Array(x,y,z);
 }

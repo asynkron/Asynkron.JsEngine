@@ -2,6 +2,16 @@
 //  http://shootout.alioth.debian.org
 //
 //  Contributed by Ian Osgood
+//
+// TEST STATUS: FAILING
+// Error: Expected 1456000 but got incorrect result
+// Root Cause: FASTA string generation produces wrong total length
+// Likely issues with:
+//   - String concatenation in loops
+//   - Random number generation (linear congruential generator)
+//   - Array operations and indexing
+//   - Integer arithmetic for counting
+// The algorithm builds strings based on probabilities which may not be accumulating correctly.
 
 var last = 42, A = 3877, C = 29573, M = 139968;
 

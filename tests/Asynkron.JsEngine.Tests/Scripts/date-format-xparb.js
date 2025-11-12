@@ -11,6 +11,17 @@
  * details.
  */
 
+// TEST STATUS: FAILING
+// Error: Date formatting produces incorrect or throws error
+// Root Cause: Alternative date formatting library (xparb) has issues
+// Similar to date-format-tofte.js but different implementation
+// Likely problems with:
+//   - Dynamic function generation (Date.createNewFormat)
+//   - Date object method calls
+//   - String manipulation and regex operations
+//   - Function caching and evaluation
+// This is a more complex date library with runtime code generation.
+
 Date.parseFunctions = {count:0};
 Date.parseRegexes = [];
 Date.formatFunctions = {count:0};

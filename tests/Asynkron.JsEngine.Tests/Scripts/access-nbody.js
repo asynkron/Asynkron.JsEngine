@@ -2,6 +2,15 @@
    http://shootout.alioth.debian.org/
    contributed by Isaac Gouy */
 
+// TEST STATUS: FAILING
+// Error: Expected -1.3524862408537381 but got incorrect result
+// Root Cause: N-body physics simulation produces wrong energy calculation
+// Likely issues with:
+//   - Floating-point arithmetic precision
+//   - Object property access and modification
+//   - Math operations (sqrt, multiplication, division)
+// The complex numerical calculations may have precision or rounding issues.
+
 var PI = 3.141592653589793;
 var SOLAR_MASS = 4 * PI * PI;
 var DAYS_PER_YEAR = 365.24;

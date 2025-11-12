@@ -1,5 +1,16 @@
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
 
+// TEST STATUS: FAILING
+// Error: AES encryption/decryption produces incorrect results
+// Root Cause: AES (Advanced Encryption Standard) implementation has issues
+// Likely problems with:
+//   - Byte-level bit operations (S-box substitutions)
+//   - Bit shifting and rotation in cipher rounds
+//   - XOR operations on state arrays
+//   - Key expansion algorithm
+//   - Mix columns transformation
+// AES is extremely sensitive to bit manipulation errors - even small mistakes produce completely wrong output.
+
 /*
  * AES Cipher function: encrypt 'input' with Rijndael algorithm
  *

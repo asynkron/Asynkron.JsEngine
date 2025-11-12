@@ -2,6 +2,14 @@
 //  http://shootout.alioth.debian.org
 //
 //  Contributed by Ian Osgood
+//
+// TEST STATUS: FAILING
+// Error: Expected -1286749544853 but got 0
+// Root Cause: Bitwise sieve algorithm produces wrong result - likely issues with:
+//   - Bit manipulation: isPrime[i>>5] & 1<<(i&31)
+//   - Bitwise AND/OR operations on array elements
+//   - Signed integer handling (result should be large negative number)
+// The algorithm relies heavily on bit-level operations which aren't working correctly.
 
 function pad(n,width) {
   var s = n.toString();

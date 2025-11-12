@@ -51,6 +51,7 @@ public enum TokenType
     Equal,
     EqualEqual,
     EqualEqualEqual,
+    Arrow,
     Bang,
     BangEqual,
     BangEqualEqual,

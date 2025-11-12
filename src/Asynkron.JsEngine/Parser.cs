@@ -864,6 +864,12 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var expr = ParseTernary();
 
+        // Check for arrow function: identifier => ...  or  (...) => ...
+        if (Match(TokenType.Arrow))
+        {
+            return FinishArrowFunction(expr);
+        }
+
         if (Match(TokenType.Equal, TokenType.PlusEqual, TokenType.MinusEqual, TokenType.StarEqual,
                 TokenType.StarStarEqual, TokenType.SlashEqual, TokenType.PercentEqual, TokenType.AmpEqual,
                 TokenType.PipeEqual,
@@ -934,6 +940,114 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         }
 
         return expr;
+    }
+
+    private object FinishArrowFunction(object? paramExpr)
+    {
+        // Convert the parameter expression to a parameter list
+        Cons parameters;
+        
+        if (paramExpr is Cons empty && ReferenceEquals(empty, Cons.Empty))
+        {
+            // Empty parameter list: () => ...
+            parameters = Cons.Empty;
+        }
+        else if (paramExpr is Symbol singleParam)
+        {
+            // Single parameter without parentheses: x => ...
+            parameters = S(singleParam);
+        }
+        else if (paramExpr is Cons paramList)
+        {
+            // Multiple parameters or single with parentheses: (x, y) => ... or (x) => ...
+            // The paramExpr could be a sequence from comma operator or a single expression
+            // We need to extract identifiers from the expression
+            parameters = ConvertArrowParametersToList(paramList);
+        }
+        else
+        {
+            // This shouldn't happen, but default to empty
+            parameters = Cons.Empty;
+        }
+
+        // Parse the body
+        object body;
+        if (Check(TokenType.LeftBrace))
+        {
+            // Block body: () => { ... }
+            body = ParseBlock();
+        }
+        else
+        {
+            // Expression body: () => expr
+            // Wrap in a return statement
+            var expr = ParseAssignment();
+            body = S(Block, S(Return, expr));
+        }
+
+        return S(Lambda, null, parameters, body);
+    }
+
+    private Cons ConvertArrowParametersToList(Cons expr)
+    {
+        // If expr is already a list of symbols (from parsing (a, b, c)), use it directly
+        // Check if all elements are symbols
+        var allSymbols = true;
+        var current = expr;
+        var symbols = new List<object?>();
+        
+        while (current != null && !ReferenceEquals(current, Cons.Empty))
+        {
+            if (current.Head is Symbol sym)
+            {
+                symbols.Add(sym);
+                current = current.Rest as Cons;
+            }
+            else
+            {
+                allSymbols = false;
+                break;
+            }
+        }
+        
+        if (allSymbols && symbols.Count > 0)
+        {
+            // Already a proper parameter list
+            return Cons.FromEnumerable(symbols);
+        }
+        
+        // Otherwise, try to extract parameters using the old logic
+        var parameters = new List<object?>();
+        CollectParameters(expr, parameters);
+        return Cons.FromEnumerable(parameters);
+    }
+
+    private void CollectParameters(object? expr, List<object?> parameters)
+    {
+        if (expr is Symbol sym)
+        {
+            parameters.Add(sym);
+        }
+        else if (expr is Cons { Head: Symbol head } cons)
+        {
+            // Check if this is a comma operator (sequence)
+            if (ReferenceEquals(head, Operator(",")))
+            {
+                // Recursively collect parameters from left and right
+                CollectParameters(cons.Rest.Head, parameters);
+                CollectParameters(cons.Rest.Rest.Head, parameters);
+            }
+            else
+            {
+                // Single symbol wrapped in some structure, extract it
+                parameters.Add(expr);
+            }
+        }
+        else
+        {
+            // For any other expression, treat it as a single parameter
+            parameters.Add(expr);
+        }
     }
 
     private object? ParseTernary()
@@ -1372,12 +1486,86 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         if (Match(TokenType.LeftParen))
         {
+            // This could be a grouped expression or arrow function parameters
+            var startPos = _current;
+            
+            // Try to parse as arrow function parameters first
+            var arrowParams = TryParseArrowParameters();
+            if (arrowParams != null)
+            {
+                return arrowParams;
+            }
+            
+            // Not arrow parameters, parse as normal grouped expression
+            _current = startPos;
             var expr = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after expression.");
             return expr;
         }
 
         throw new ParseException($"Unexpected token {Peek().Type} at line {Peek().Line} column {Peek().Column}.", Peek(), _source);
+    }
+
+    private object? TryParseArrowParameters()
+    {
+        // Try to parse () => or (id1, id2, ...) =>
+        // Returns the parameter expression if successful, null otherwise
+        
+        if (Check(TokenType.RightParen))
+        {
+            Advance(); // consume ')'
+            if (Check(TokenType.Arrow))
+            {
+                // Empty parameters: () =>
+                return Cons.Empty;
+            }
+            // Not arrow function, fail
+            return null;
+        }
+        
+        if (!Check(TokenType.Identifier))
+        {
+            // Not starting with identifier, can't be simple arrow params
+            return null;
+        }
+        
+        // Parse comma-separated identifiers
+        var parameters = new List<object?>();
+        parameters.Add(Symbol.Intern(Advance().Lexeme));
+        
+        while (Match(TokenType.Comma))
+        {
+            if (!Check(TokenType.Identifier))
+            {
+                // Not all identifiers, not arrow params
+                return null;
+            }
+            parameters.Add(Symbol.Intern(Advance().Lexeme));
+        }
+        
+        if (!Check(TokenType.RightParen))
+        {
+            // No closing paren, not arrow params
+            return null;
+        }
+        
+        Advance(); // consume ')'
+        
+        if (!Check(TokenType.Arrow))
+        {
+            // No arrow, not arrow params
+            return null;
+        }
+        
+        // Success! Return the parameters
+        if (parameters.Count == 1)
+        {
+            return parameters[0];
+        }
+        else
+        {
+            return Cons.FromEnumerable(parameters);
+        }
     }
 
     private object ParseNewExpression()

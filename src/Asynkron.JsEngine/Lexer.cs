@@ -182,6 +182,8 @@ internal sealed class Lexer(string source)
             case '=':
                 if (Match('='))
                     AddToken(Match('=') ? TokenType.EqualEqualEqual : TokenType.EqualEqual);
+                else if (Match('>'))
+                    AddToken(TokenType.Arrow);
                 else
                     AddToken(TokenType.Equal);
                 break;

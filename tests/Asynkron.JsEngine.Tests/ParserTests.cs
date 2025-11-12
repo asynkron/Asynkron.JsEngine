@@ -600,4 +600,82 @@ public class ParserTests
         Assert.Equal(Symbol.Intern("z"), const3.Rest.Head);
         Assert.Equal(3d, const3.Rest.Rest.Head);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseArrowFunctionWithSingleParameter()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("var f = x => x * 2; f(5);");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseArrowFunctionWithParenthesizedSingleParameter()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("var f = (x) => x * 3; f(4);");
+        Assert.Equal(12d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseArrowFunctionWithNoParameters()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("var f = () => 42; f();");
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseArrowFunctionWithMultipleParameters()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("var add = (a, b) => a + b; add(3, 7);");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseArrowFunctionWithBlockBody()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("var f = (x) => { var y = x * 2; return y + 1; }; f(5);");
+        Assert.Equal(11d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseArrowFunctionInObjectLiteral()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var obj = {
+                trace: () => null,
+                double: (x) => x * 2,
+                add: (a, b) => a + b
+            };
+            obj.add(obj.double(3), 4);
+            """);
+        Assert.Equal(10d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseArrowFunctionInArrayLiteral()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var arr = [
+                x => x + 1,
+                x => x * 2,
+                x => x - 1
+            ];
+            arr[1](5);
+            """);
+        Assert.Equal(10d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseNestedArrowFunctions()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("var f = x => y => x + y; f(3)(4);");
+        Assert.Equal(7d, result);
+    }
 }

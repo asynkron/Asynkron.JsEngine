@@ -20,6 +20,7 @@ function fannkuch(n) {
    var maxFlipsCount = 0;
    var m = n - 1;
 
+   __debug(); // Debug: start of function
    for (var i = 0; i < n; i++) perm1[i] = i;
    var r = n;
 
@@ -32,12 +33,14 @@ function fannkuch(n) {
       }
 
       while (r != 1) { count[r - 1] = r; r--; }
+      __debug(); // Debug: after first while loop
       if (!(perm1[0] == 0 || perm1[m] == m)) {
          for (var i = 0; i < n; i++) perm[i] = perm1[i];
 
          var flipsCount = 0;
          var k;
 
+         __debug(); // Debug: before inner while loop
          while (!((k = perm[0]) == 0)) {
             var k2 = (k + 1) >> 1;
             for (var i = 0; i < k2; i++) {

@@ -52,7 +52,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             if (Match(TokenType.Function))
                 return ParseAsyncFunctionDeclaration();
             else
-                throw new ParseException("Expected 'function' after 'async'.", Peek());
+                throw new ParseException("Expected 'function' after 'async'.", Peek(), _source);
         }
 
         if (Match(TokenType.Function)) return ParseFunctionDeclaration();
@@ -201,9 +201,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 // Check for constructor
                 if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
                 {
-                    if (isStatic) throw new ParseException("Constructor cannot be static.", Peek());
+                    if (isStatic) throw new ParseException("Constructor cannot be static.", Peek(), _source);
                     if (constructor is not null)
-                        throw new ParseException("Class cannot declare multiple constructors.", Peek());
+                        throw new ParseException("Class cannot declare multiple constructors.", Peek(), _source);
 
                     Consume(TokenType.LeftParen, "Expected '(' after constructor name.");
                     var parameters = ParseParameterList();
@@ -228,7 +228,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             }
             else
             {
-                throw new ParseException("Expected method, field, getter, or setter in class body.");
+                throw new ParseException("Expected method, field, getter, or setter in class body.", Peek(), _source);
             }
         }
 
@@ -313,10 +313,10 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         }
         else
         {
-            if (kind == TokenType.Const) throw new ParseException("Const declarations require an initializer.", Peek());
+            if (kind == TokenType.Const) throw new ParseException("Const declarations require an initializer.", Peek(), _source);
 
             if (kind == TokenType.Let)
-                throw new ParseException("Let declarations require an initializer in this interpreter.", Peek());
+                throw new ParseException("Let declarations require an initializer in this interpreter.", Peek(), _source);
 
             initializer = Uninitialized;
         }
@@ -338,7 +338,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.LeftBracket, "Expected '[' for array destructuring.");
         var pattern = ParseArrayDestructuringPattern();
 
-        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.", Peek());
+        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.", Peek(), _source);
 
         var initializer = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
@@ -359,7 +359,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.LeftBrace, "Expected '{' for object destructuring.");
         var pattern = ParseObjectDestructuringPattern();
 
-        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.", Peek());
+        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.", Peek(), _source);
 
         var initializer = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
@@ -562,7 +562,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
             if (Match(TokenType.Default))
             {
-                if (seenDefault) throw new ParseException("Switch statement can only contain one default clause.");
+                if (seenDefault) throw new ParseException("Switch statement can only contain one default clause.", Peek(), _source);
 
                 seenDefault = true;
                 Consume(TokenType.Colon, "Expected ':' after default keyword.");
@@ -573,7 +573,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 continue;
             }
 
-            throw new ParseException("Unexpected token in switch body.");
+            throw new ParseException("Unexpected token in switch body.", Peek(), _source);
         }
 
         Consume(TokenType.RightBrace, "Expected '}' after switch body.");
@@ -616,7 +616,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         if (Match(TokenType.Finally)) finallyBlock = ParseBlock();
 
         if (catchClause is null && finallyBlock is null)
-            throw new ParseException("Try statement requires at least a catch or finally clause.");
+            throw new ParseException("Try statement requires at least a catch or finally clause.", Peek(), _source);
 
         return S(
             Try,
@@ -699,7 +699,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var isForOf = Previous().Type == TokenType.Of;
 
             // for await requires for...of
-            if (isForAwait && !isForOf) throw new ParseException("'for await' can only be used with 'of', not 'in'");
+            if (isForAwait && !isForOf) throw new ParseException("'for await' can only be used with 'of', not 'in'", Peek(), _source);
 
             var iterableExpression = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after for...in/of clauses.");
@@ -724,7 +724,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         }
 
         // for await without of is an error
-        if (isForAwait) throw new ParseException("'for await' can only be used with 'for await...of' syntax");
+        if (isForAwait) throw new ParseException("'for await' can only be used with 'for await...of' syntax", Peek(), _source);
 
         // Not a for...in/of loop, reset and parse as regular for loop
         _current = checkpointPosition;
@@ -780,7 +780,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         // Line terminator after throw is a syntax error, not ASI
         if (HasLineTerminatorBefore())
         {
-            throw new ParseException("Line terminator is not allowed between 'throw' and its expression.");
+            throw new ParseException("Line terminator is not allowed between 'throw' and its expression.", Peek(), _source);
         }
         
         var value = ParseExpression();
@@ -886,7 +886,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 return S(DestructuringAssignment, pattern, value);
             }
 
-            throw new ParseException($"Invalid assignment target near line {op.Line} column {op.Column}.");
+            throw new ParseException($"Invalid assignment target near line {op.Line} column {op.Column}.", op, _source);
         }
 
         return expr;
@@ -1303,7 +1303,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 return Symbol.Intern("import");
             else
                 throw new ParseException(
-                    "'import' can only be used as dynamic import with parentheses: import(specifier)");
+                    "'import' can only be used as dynamic import with parentheses: import(specifier)", Peek(), _source);
         }
 
         if (Match(TokenType.Identifier)) return Symbol.Intern(Previous().Lexeme);
@@ -1317,7 +1317,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             if (Match(TokenType.Function))
                 return ParseAsyncFunctionExpression();
             else
-                throw new ParseException("Expected 'function' after 'async' in expression context.");
+                throw new ParseException("Expected 'function' after 'async' in expression context.", Peek(), _source);
         }
 
         if (Match(TokenType.Function)) return ParseFunctionExpression();
@@ -1333,7 +1333,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return expr;
         }
 
-        throw new ParseException($"Unexpected token {Peek().Type} at line {Peek().Line} column {Peek().Column}.");
+        throw new ParseException($"Unexpected token {Peek().Type} at line {Peek().Line} column {Peek().Column}.", Peek(), _source);
     }
 
     private object ParseNewExpression()
@@ -1617,7 +1617,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var token = Previous();
         var regexValue = token.Literal as RegexLiteralValue;
-        if (regexValue == null) throw new ParseException("Invalid regex literal.");
+        if (regexValue == null) throw new ParseException("Invalid regex literal.", Peek(), _source);
 
         // Create a new RegExp(...) expression
         // (new RegExp pattern flags)
@@ -1675,7 +1675,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         // Allow identifiers or keywords as property names (e.g., object.of, object.in, object.for)
         if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
-            throw new ParseException("Expected property name after '.'.");
+            throw new ParseException("Expected property name after '.'.", Peek(), _source);
         var nameToken = Advance();
         var propertyName = nameToken.Lexeme;
         return S(GetProperty, target, propertyName);
@@ -1685,7 +1685,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         // Allow identifiers or keywords as property names
         if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
-            throw new ParseException("Expected property name after '?.'.");
+            throw new ParseException("Expected property name after '?.'.", Peek(), _source);
         var nameToken = Advance();
         var propertyName = nameToken.Lexeme;
         return S(OptionalGetProperty, target, propertyName);
@@ -1776,7 +1776,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         }
 
         var currentToken = Peek();
-        throw new ParseException(message, currentToken);
+        throw new ParseException(message, currentToken, _source);
     }
 
     /// <summary>
@@ -1838,7 +1838,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             {
                 // Spread becomes rest pattern
                 var restTarget = spreadCons.Rest.Head;
-                if (restTarget is not Symbol restSymbol) throw new ParseException("Rest element must be an identifier");
+                if (restTarget is not Symbol restSymbol) throw new ParseException("Rest element must be an identifier", Peek(), _source);
                 elements.Add(S(PatternRest, restSymbol));
                 break; // Rest must be last
             }
@@ -1862,12 +1862,12 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 }
                 else
                 {
-                    throw new ParseException("Invalid destructuring pattern");
+                    throw new ParseException("Invalid destructuring pattern", Peek(), _source);
                 }
             }
             else
             {
-                throw new ParseException("Invalid destructuring pattern");
+                throw new ParseException("Invalid destructuring pattern", Peek(), _source);
             }
 
         return Cons.FromEnumerable(elements);
@@ -1880,14 +1880,14 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         foreach (var prop in objectLiteral.Rest)
         {
             if (prop is not Cons { Head: Symbol propHead } propCons)
-                throw new ParseException("Invalid object destructuring pattern");
+                throw new ParseException("Invalid object destructuring pattern", Peek(), _source);
 
             if (ReferenceEquals(propHead, Spread))
             {
                 // Spread becomes rest property
                 var restTarget = propCons.Rest.Head;
                 if (restTarget is not Symbol restSymbol)
-                    throw new ParseException("Rest property must be an identifier");
+                    throw new ParseException("Rest property must be an identifier", Peek(), _source);
                 properties.Add(S(PatternRest, restSymbol));
                 break; // Rest must be last
             }
@@ -1896,7 +1896,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var key = propCons.Rest.Head as string;
                 var value = propCons.Rest.Rest.Head;
 
-                if (key is null) throw new ParseException("Property key must be a string");
+                if (key is null) throw new ParseException("Property key must be a string", Peek(), _source);
 
                 if (value is Symbol targetSymbol)
                 {
@@ -1918,17 +1918,17 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     }
                     else
                     {
-                        throw new ParseException("Invalid nested destructuring pattern");
+                        throw new ParseException("Invalid nested destructuring pattern", Peek(), _source);
                     }
                 }
                 else
                 {
-                    throw new ParseException("Invalid destructuring pattern value");
+                    throw new ParseException("Invalid destructuring pattern value", Peek(), _source);
                 }
             }
             else
             {
-                throw new ParseException("Invalid object destructuring pattern");
+                throw new ParseException("Invalid object destructuring pattern", Peek(), _source);
             }
         }
 
@@ -2135,7 +2135,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return S(ExportDeclaration, declaration);
         }
 
-        throw new ParseException("Invalid export statement.");
+        throw new ParseException("Invalid export statement.", Peek(), _source);
     }
 
     private Cons ParseNamedExports()
@@ -2254,9 +2254,9 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 // Check for constructor - cannot be static
                 if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
                 {
-                    if (isStatic) throw new ParseException("Constructor cannot be static.");
+                    if (isStatic) throw new ParseException("Constructor cannot be static.", Peek(), _source);
                     if (constructor is not null)
-                        throw new ParseException("Class cannot declare multiple constructors.");
+                        throw new ParseException("Class cannot declare multiple constructors.", Peek(), _source);
 
                     Consume(TokenType.LeftParen, "Expected '(' after constructor name.");
                     var parameters = ParseParameterList();
@@ -2281,7 +2281,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             }
             else
             {
-                throw new ParseException("Expected method, field, getter, or setter in class body.");
+                throw new ParseException("Expected method, field, getter, or setter in class body.", Peek(), _source);
             }
         }
 
@@ -2322,7 +2322,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         if (!CheckContextualKeyword(keyword))
         {
             var currentToken = Peek();
-            throw new ParseException(errorMessage, currentToken);
+            throw new ParseException(errorMessage, currentToken, _source);
         }
         return Advance();
     }

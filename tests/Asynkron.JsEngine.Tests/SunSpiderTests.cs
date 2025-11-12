@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// SunSpider benchmark tests. See SUNSPIDER_TEST_FINDINGS.md for detailed analysis of failures.
-/// Current status: 10 passing / 16 failing
+/// Current status: 11 passing / 15 failing
 /// </summary>
 public class SunSpiderTests
 {
@@ -42,7 +42,7 @@ public class SunSpiderTests
     }
 
     // ====================================================================================
-    // PASSING TESTS (10)
+    // PASSING TESTS (11)
     // ====================================================================================
 
     /// <summary>
@@ -90,6 +90,17 @@ public class SunSpiderTests
     [InlineData("math-partial-sums.js")]
     [InlineData("math-spectral-norm.js")]
     public async Task SunSpider_Math_Passing(string filename)
+    {
+        var content = GetEmbeddedFile(filename);
+        await RunTest(content);
+    }
+
+    /// <summary>
+    /// Cryptographic tests that are passing
+    /// </summary>
+    [Theory]
+    [InlineData("crypto-md5.js")]
+    public async Task SunSpider_Crypto_Passing(string filename)
     {
         var content = GetEmbeddedFile(filename);
         await RunTest(content);
@@ -167,26 +178,9 @@ public class SunSpiderTests
     }
 
     // ====================================================================================
-    // FAILING TESTS - RUNTIME ERRORS: CRYPTOGRAPHIC (3)
+    // FAILING TESTS - RUNTIME ERRORS: CRYPTOGRAPHIC (2)
     // See SUNSPIDER_TEST_FINDINGS.md for detailed analysis
     // ====================================================================================
-
-    /// <summary>
-    /// Runtime error: MD5 hash calculation produces incorrect result
-    /// Expected: a831e91e0f70eddcb70dc61c6f82f6cd
-    /// Got: 4ebea80adf00ebd69b1e70e54a6f194a
-    /// Root Cause: Likely bit operation or integer overflow issue
-    /// - Bitwise operations (shifts, rotations)
-    /// - Integer arithmetic (32-bit wrap-around)
-    /// - Endianness handling
-    /// </summary>
-    [Theory(Skip = "Runtime error: Incorrect MD5 hash - see SUNSPIDER_TEST_FINDINGS.md")]
-    [InlineData("crypto-md5.js")]
-    public async Task SunSpider_Crypto_MD5_Failing(string filename)
-    {
-        var content = GetEmbeddedFile(filename);
-        await RunTest(content);
-    }
 
     /// <summary>
     /// Runtime error: SHA1 hash calculation produces incorrect result

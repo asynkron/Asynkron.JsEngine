@@ -895,10 +895,29 @@ public sealed class Lexer(string source)
                         }
                         break;
                     default:
-                        // For any other character after \, just include the character itself
-                        // This handles line continuations and other cases
-                        result.Append(nextChar);
-                        i += 2;
+                        // Handle line continuations: backslash followed by line terminator
+                        // According to ECMAScript spec, this should be removed from the string
+                        if (nextChar == '\n')
+                        {
+                            // Line continuation with LF - skip both backslash and newline
+                            i += 2;
+                        }
+                        else if (nextChar == '\r')
+                        {
+                            // Line continuation with CR or CRLF - skip backslash and line terminator(s)
+                            i += 2;
+                            // Check for CRLF
+                            if (i < rawString.Length && rawString[i] == '\n')
+                            {
+                                i++;
+                            }
+                        }
+                        else
+                        {
+                            // For any other character after \, just include the character itself
+                            result.Append(nextChar);
+                            i += 2;
+                        }
                         break;
                 }
             }

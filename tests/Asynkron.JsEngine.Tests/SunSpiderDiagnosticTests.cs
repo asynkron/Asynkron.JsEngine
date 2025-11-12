@@ -73,6 +73,29 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
             }
             output.WriteLine($"\nTotal debug messages: {debugMessages.Count}");
             
+            // Read console logs
+            try
+            {
+                var consoleLogsExpr = await engine.Evaluate("consoleLogs");
+                if (consoleLogsExpr is JsArray consoleLogsArray)
+                {
+                    output.WriteLine($"\n=== Console Logs ({consoleLogsArray.Length} messages) ===");
+                    for (var i = 0; i < Math.Min(50, consoleLogsArray.Length); i++)  // Limit to first 50 for readability
+                    {
+                        var logEntry = consoleLogsArray.Get(i);
+                        output.WriteLine($"[{i}] {logEntry}");
+                    }
+                    if (consoleLogsArray.Length > 50)
+                    {
+                        output.WriteLine($"... and {consoleLogsArray.Length - 50} more log entries");
+                    }
+                }
+            }
+            catch (Exception logEx)
+            {
+                output.WriteLine($"Could not read console logs: {logEx.Message}");
+            }
+            
             // Re-throw so test fails with details
             throw;
         }
@@ -110,6 +133,29 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
                     if (valueStr.Length > 100) valueStr = valueStr.Substring(0, 100) + "...";
                     output.WriteLine($"    {kvp.Key} = {valueStr}");
                 }
+            }
+            
+            // Read console logs
+            try
+            {
+                var consoleLogsExpr = await engine.Evaluate("consoleLogs");
+                if (consoleLogsExpr is JsArray consoleLogsArray)
+                {
+                    output.WriteLine($"\n=== Console Logs ({consoleLogsArray.Length} messages) ===");
+                    for (var i = 0; i < Math.Min(50, consoleLogsArray.Length); i++)  // Limit to first 50 for readability
+                    {
+                        var logEntry = consoleLogsArray.Get(i);
+                        output.WriteLine($"[{i}] {logEntry}");
+                    }
+                    if (consoleLogsArray.Length > 50)
+                    {
+                        output.WriteLine($"... and {consoleLogsArray.Length - 50} more log entries");
+                    }
+                }
+            }
+            catch (Exception logEx)
+            {
+                output.WriteLine($"Could not read console logs: {logEx.Message}");
             }
             
             throw;

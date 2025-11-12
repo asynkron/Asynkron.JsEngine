@@ -267,7 +267,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
     }
 }
 
-internal sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>
+public sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>
     where T : class
 {
     public static ReferenceEqualityComparer<T> Instance { get; } = new();

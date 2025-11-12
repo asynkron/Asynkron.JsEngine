@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 /// Represents a JavaScript Set collection.
 /// Sets store unique values of any type and remember the original insertion order.
 /// </summary>
-internal sealed class JsSet
+public sealed class JsSet
 {
     // Use List to maintain insertion order
     private readonly List<object?> _values = new();

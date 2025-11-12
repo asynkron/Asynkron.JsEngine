@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Represents a JavaScript regular expression object.
 /// </summary>
-internal class JsRegExp
+public class JsRegExp
 {
     private readonly Regex _regex;
     private readonly string _pattern;

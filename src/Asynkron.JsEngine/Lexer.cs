@@ -7,7 +7,7 @@ internal sealed record TemplateExpression(string ExpressionText);
 
 internal sealed record RegexLiteralValue(string Pattern, string Flags);
 
-internal sealed class Lexer(string source)
+public sealed class Lexer(string source)
 {
     private static readonly Dictionary<string, TokenType> Keywords = new(StringComparer.Ordinal)
     {

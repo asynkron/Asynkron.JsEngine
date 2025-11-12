@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 /// Represents a control flow signal used to manage JavaScript control flow statements
 /// (return, break, continue, yield, throw) as typed result values instead of state machine.
 /// </summary>
-internal interface ISignal
+public interface ISignal
 {
 }
 

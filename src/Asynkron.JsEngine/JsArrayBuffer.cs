@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Represents a JavaScript ArrayBuffer - a fixed-length raw binary data buffer.
 /// </summary>
-internal sealed class JsArrayBuffer
+public sealed class JsArrayBuffer
 {
     private readonly byte[] _buffer;
 

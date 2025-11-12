@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Represents a JavaScript Float64Array - an array of 64-bit floating point numbers.
 /// </summary>
-internal sealed class JsFloat64Array(JsArrayBuffer buffer, int byteOffset, int length)
+public sealed class JsFloat64Array(JsArrayBuffer buffer, int byteOffset, int length)
     : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
 {
     public const int BYTES_PER_ELEMENT = 8;

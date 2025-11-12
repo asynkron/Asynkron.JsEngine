@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine;
 /// WeakSets store unique objects where values are held weakly.
 /// Unlike Set, WeakSet does not prevent garbage collection of values and does not support iteration.
 /// </summary>
-internal sealed class JsWeakSet
+public sealed class JsWeakSet
 {
     // Use ConditionalWeakTable to track object membership
     // We use a dummy value since we only care about key presence

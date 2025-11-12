@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine;
 /// Maps hold key-value pairs and remember the original insertion order of keys.
 /// Unlike objects, Map keys can be any value (including objects and functions).
 /// </summary>
-internal sealed class JsMap
+public sealed class JsMap
 {
     // Use List to maintain insertion order
     private readonly List<KeyValuePair<object?, object?>> _entries = new();

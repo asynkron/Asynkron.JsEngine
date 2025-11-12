@@ -7,12 +7,12 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Wrapper for multiple variable declarations from a single statement with comma-separated declarators.
 /// </summary>
-internal sealed class MultipleDeclarations(List<object> declarations)
+public sealed class MultipleDeclarations(List<object> declarations)
 {
     public List<object> Declarations { get; } = declarations;
 }
 
-internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
+public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 {
     private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
     private readonly string _source = source ?? string.Empty;

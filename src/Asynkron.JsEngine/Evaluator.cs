@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Asynkron.JsEngine;
 
-internal static class Evaluator
+public static class Evaluator
 {
     public static object? EvaluateProgram(Cons program, Environment environment)
     {

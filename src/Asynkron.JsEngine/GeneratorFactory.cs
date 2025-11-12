@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine;
 /// When a generator function is declared (function*), this factory is created.
 /// Calling the factory creates a new generator instance.
 /// </summary>
-internal sealed class GeneratorFactory(Symbol? name, Cons parameters, Cons body, Environment closure)
+public sealed class GeneratorFactory(Symbol? name, Cons parameters, Cons body, Environment closure)
     : IJsCallable
 {
     private readonly Cons _parameters = parameters ?? throw new ArgumentNullException(nameof(parameters));

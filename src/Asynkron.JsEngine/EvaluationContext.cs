@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 /// Tracks the current control flow state during evaluation using typed signals.
 /// Used as an alternative to exception-based control flow.
 /// </summary>
-internal sealed class EvaluationContext
+public sealed class EvaluationContext
 {
     /// <summary>
     /// The current control flow signal, if any.

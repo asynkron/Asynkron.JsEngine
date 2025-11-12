@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine;
 /// Represents a JavaScript DataView - a low-level interface for reading and writing 
 /// multiple number types in a binary ArrayBuffer with control over endianness.
 /// </summary>
-internal sealed class JsDataView
+public sealed class JsDataView
 {
     private readonly JsArrayBuffer _buffer;
     private readonly int _byteOffset;

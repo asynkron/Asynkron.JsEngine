@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Provides standard JavaScript library objects and functions (Math, JSON, etc.)
 /// </summary>
-internal static class StandardLibrary
+public static class StandardLibrary
 {
     /// <summary>
     /// Creates a Math object with common mathematical functions and constants.

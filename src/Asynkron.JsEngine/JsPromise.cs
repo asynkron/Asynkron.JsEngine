@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Represents a JavaScript Promise object that can be resolved or rejected.
 /// </summary>
-internal sealed class JsPromise(JsEngine engine)
+public sealed class JsPromise(JsEngine engine)
 {
     private enum PromiseState
     {

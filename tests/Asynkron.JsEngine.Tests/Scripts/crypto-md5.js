@@ -64,7 +64,7 @@ function core_md5(x, len)
   x[len >> 5] |= 0x80 << ((len) % 32);
   x[(((len + 64) >>> 9) << 4) + 14] = len;
 
-  console.log(x);
+  console.log("core_md5 called, x.length=" + x.length);
 
   var a =  1732584193;
   var b = -271733879;

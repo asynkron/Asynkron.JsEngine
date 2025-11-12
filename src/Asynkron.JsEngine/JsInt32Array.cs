@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Represents a JavaScript Int32Array - an array of 32-bit signed integers.
 /// </summary>
-internal sealed class JsInt32Array(JsArrayBuffer buffer, int byteOffset, int length)
+public sealed class JsInt32Array(JsArrayBuffer buffer, int byteOffset, int length)
     : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
 {
     public const int BYTES_PER_ELEMENT = 4;

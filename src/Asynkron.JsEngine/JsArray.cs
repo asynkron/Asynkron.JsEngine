@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Minimal JavaScript-like array that tracks indexed elements and behaves like an object for property access.
 /// </summary>
-internal sealed class JsArray
+public sealed class JsArray
 {
     private readonly JsObject _properties = new();
     private readonly List<object?> _items = [];
@@ -23,6 +23,16 @@ internal sealed class JsArray
     }
 
     public IReadOnlyList<object?> Items => _items;
+
+    /// <summary>
+    /// Gets the length of the array
+    /// </summary>
+    public int Length => _items.Count;
+
+    /// <summary>
+    /// Gets an element at the specified index (alias for GetElement)
+    /// </summary>
+    public object? Get(int index) => GetElement(index);
 
     public void SetPrototype(object? candidate)
     {

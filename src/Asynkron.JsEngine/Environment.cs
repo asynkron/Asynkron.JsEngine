@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine;
 
-internal sealed class Environment(
+public sealed class Environment(
     Environment? enclosing = null,
     bool isFunctionScope = false,
     bool isStrict = false,

@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine;
 /// Symbols are unique and immutable primitive values that can be used as object property keys.
 /// This is distinct from the internal Symbol class used for S-expression atoms.
 /// </summary>
-internal sealed class JsSymbol
+public sealed class JsSymbol
 {
     private static readonly ConcurrentDictionary<string, JsSymbol> GlobalRegistry = new(StringComparer.Ordinal);
     private static int _nextId = 0;

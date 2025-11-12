@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Represents a JavaScript Int8Array - an array of 8-bit signed integers.
 /// </summary>
-internal sealed class JsInt8Array(JsArrayBuffer buffer, int byteOffset, int length)
+public sealed class JsInt8Array(JsArrayBuffer buffer, int byteOffset, int length)
     : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
 {
     public const int BYTES_PER_ELEMENT = 1;

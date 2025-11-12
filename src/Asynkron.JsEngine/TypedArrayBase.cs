@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Abstract base class for all JavaScript typed arrays.
 /// </summary>
-internal abstract class TypedArrayBase
+public abstract class TypedArrayBase
 {
     protected readonly JsArrayBuffer _buffer;
     protected readonly int _byteOffset;

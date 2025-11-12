@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine;
 /// the generator body and skipping already-yielded values. For full generator support
 /// with complex control flow, the full CPS transformation would be needed.
 /// </summary>
-internal sealed class JsGenerator : IJsCallable
+public sealed class JsGenerator : IJsCallable
 {
     private readonly Cons _body;
     private readonly Cons _parameters;
@@ -209,7 +209,7 @@ internal sealed class JsGenerator : IJsCallable
 /// This is a simplified approach that works for sequential yields by re-executing
 /// the function and skipping yields that have already been processed.
 /// </summary>
-internal sealed class YieldTracker(int skipCount)
+public sealed class YieldTracker(int skipCount)
 {
     private int _currentIndex = 0;
 

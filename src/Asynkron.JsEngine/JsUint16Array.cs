@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Represents a JavaScript Uint16Array - an array of 16-bit unsigned integers.
 /// </summary>
-internal sealed class JsUint16Array(JsArrayBuffer buffer, int byteOffset, int length)
+public sealed class JsUint16Array(JsArrayBuffer buffer, int byteOffset, int length)
     : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
 {
     public const int BYTES_PER_ELEMENT = 2;

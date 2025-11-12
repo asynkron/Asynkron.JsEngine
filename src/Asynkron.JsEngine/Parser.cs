@@ -4,6 +4,14 @@ using static Asynkron.JsEngine.JsSymbols;
 
 namespace Asynkron.JsEngine;
 
+/// <summary>
+/// Wrapper for multiple variable declarations from a single statement with comma-separated declarators.
+/// </summary>
+internal sealed class MultipleDeclarations(List<object> declarations)
+{
+    public List<object> Declarations { get; } = declarations;
+}
+
 internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
 {
     private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
@@ -18,7 +26,19 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var hasUseStrict = CheckForUseStrictDirective();
         if (hasUseStrict) statements.Add(S(UseStrict));
 
-        while (!Check(TokenType.Eof)) statements.Add(ParseDeclaration());
+        while (!Check(TokenType.Eof))
+        {
+            var declaration = ParseDeclaration();
+            if (declaration is MultipleDeclarations multi)
+            {
+                // Expand multiple declarations into separate statements
+                statements.AddRange(multi.Declarations);
+            }
+            else
+            {
+                statements.Add(declaration);
+            }
+        }
 
         return Cons.FromEnumerable(statements);
     }
@@ -298,42 +318,68 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
             _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
         };
 
-        // Check for destructuring patterns
-        if (Check(TokenType.LeftBracket)) return ParseArrayDestructuring(kind, keyword);
+        var declarations = new List<object>();
 
-        if (Check(TokenType.LeftBrace)) return ParseObjectDestructuring(kind, keyword);
-
-        var nameToken = Consume(TokenType.Identifier, $"Expected variable name after '{keyword}'.");
-        var name = Symbol.Intern(nameToken.Lexeme);
-        object? initializer;
-
-        if (Match(TokenType.Equal))
+        // Parse first declaration (and potentially more comma-separated ones)
+        do
         {
-            initializer = ParseExpression();
+            // Check for destructuring patterns
+            if (Check(TokenType.LeftBracket))
+            {
+                declarations.Add(ParseArrayDestructuringDeclarator(kind, keyword));
+            }
+            else if (Check(TokenType.LeftBrace))
+            {
+                declarations.Add(ParseObjectDestructuringDeclarator(kind, keyword));
+            }
+            else
+            {
+                // Regular identifier declaration
+                var nameToken = Consume(TokenType.Identifier, $"Expected variable name after '{keyword}'.");
+                var name = Symbol.Intern(nameToken.Lexeme);
+                object? initializer;
+
+                if (Match(TokenType.Equal))
+                {
+                    initializer = ParseExpression();
+                }
+                else
+                {
+                    if (kind == TokenType.Const) throw new ParseException("Const declarations require an initializer.", Peek(), _source);
+
+                    if (kind == TokenType.Let)
+                        throw new ParseException("Let declarations require an initializer in this interpreter.", Peek(), _source);
+
+                    initializer = Uninitialized;
+                }
+
+                var tag = kind switch
+                {
+                    TokenType.Let => Let,
+                    TokenType.Var => Var,
+                    TokenType.Const => Const,
+                    _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
+                };
+
+                declarations.Add(S(tag, name, initializer));
+            }
+        } while (Match(TokenType.Comma)); // Continue if there's a comma
+
+        Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
+
+        // If there's only one declaration, return it directly
+        // If there are multiple, return them wrapped in MultipleDeclarations
+        if (declarations.Count == 1)
+        {
+            return declarations[0];
         }
         else
         {
-            if (kind == TokenType.Const) throw new ParseException("Const declarations require an initializer.", Peek(), _source);
-
-            if (kind == TokenType.Let)
-                throw new ParseException("Let declarations require an initializer in this interpreter.", Peek(), _source);
-
-            initializer = Uninitialized;
+            return new MultipleDeclarations(declarations);
         }
-
-        Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
-        var tag = kind switch
-        {
-            TokenType.Let => Let,
-            TokenType.Var => Var,
-            TokenType.Const => Const,
-            _ => throw new InvalidOperationException("Unsupported variable declaration keyword.")
-        };
-
-        return S(tag, name, initializer);
     }
 
-    private object ParseArrayDestructuring(TokenType kind, string keyword)
+    private object ParseArrayDestructuringDeclarator(TokenType kind, string keyword)
     {
         Consume(TokenType.LeftBracket, "Expected '[' for array destructuring.");
         var pattern = ParseArrayDestructuringPattern();
@@ -341,7 +387,6 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.", Peek(), _source);
 
         var initializer = ParseExpression();
-        Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
 
         var tag = kind switch
         {
@@ -354,7 +399,7 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         return S(tag, pattern, initializer);
     }
 
-    private object ParseObjectDestructuring(TokenType kind, string keyword)
+    private object ParseObjectDestructuringDeclarator(TokenType kind, string keyword)
     {
         Consume(TokenType.LeftBrace, "Expected '{' for object destructuring.");
         var pattern = ParseObjectDestructuringPattern();
@@ -362,7 +407,6 @@ internal sealed class Parser(IReadOnlyList<Token> tokens, string source)
         if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.", Peek(), _source);
 
         var initializer = ParseExpression();
-        Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
 
         var tag = kind switch
         {

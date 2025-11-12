@@ -442,4 +442,162 @@ public class ParserTests
         // Third argument is literal 2
         Assert.Equal(2d, callExpr.Rest.Rest.Rest.Rest.Head);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseCommaSeparatedVarDeclarations()
+    {
+        var engine = new JsEngine();
+        var program = JsEngine.ParseWithoutTransformation("var last = 42, A = 3877, C = 2957;");
+
+        Assert.Same(JsSymbols.Program, program.Head);
+        
+        // First var declaration
+        var var1 = Assert.IsType<Cons>(program.Rest.Head);
+        Assert.Same(JsSymbols.Var, var1.Head);
+        Assert.Equal(Symbol.Intern("last"), var1.Rest.Head);
+        Assert.Equal(42d, var1.Rest.Rest.Head);
+
+        // Second var declaration
+        var var2 = Assert.IsType<Cons>(program.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Var, var2.Head);
+        Assert.Equal(Symbol.Intern("A"), var2.Rest.Head);
+        Assert.Equal(3877d, var2.Rest.Rest.Head);
+
+        // Third var declaration
+        var var3 = Assert.IsType<Cons>(program.Rest.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Var, var3.Head);
+        Assert.Equal(Symbol.Intern("C"), var3.Rest.Head);
+        Assert.Equal(2957d, var3.Rest.Rest.Head);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseCommaSeparatedVarDeclarationsWithUninitializedVars()
+    {
+        var engine = new JsEngine();
+        var program = JsEngine.ParseWithoutTransformation("var a = [], i, l = 5, v;");
+
+        Assert.Same(JsSymbols.Program, program.Head);
+        
+        // First var declaration: a = []
+        var var1 = Assert.IsType<Cons>(program.Rest.Head);
+        Assert.Same(JsSymbols.Var, var1.Head);
+        Assert.Equal(Symbol.Intern("a"), var1.Rest.Head);
+        var arrayLiteral = Assert.IsType<Cons>(var1.Rest.Rest.Head);
+        Assert.Same(JsSymbols.ArrayLiteral, arrayLiteral.Head);
+
+        // Second var declaration: i (uninitialized)
+        var var2 = Assert.IsType<Cons>(program.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Var, var2.Head);
+        Assert.Equal(Symbol.Intern("i"), var2.Rest.Head);
+        Assert.Same(JsSymbols.Uninitialized, var2.Rest.Rest.Head);
+
+        // Third var declaration: l = 5
+        var var3 = Assert.IsType<Cons>(program.Rest.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Var, var3.Head);
+        Assert.Equal(Symbol.Intern("l"), var3.Rest.Head);
+        Assert.Equal(5d, var3.Rest.Rest.Head);
+
+        // Fourth var declaration: v (uninitialized)
+        var var4 = Assert.IsType<Cons>(program.Rest.Rest.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Var, var4.Head);
+        Assert.Equal(Symbol.Intern("v"), var4.Rest.Head);
+        Assert.Same(JsSymbols.Uninitialized, var4.Rest.Rest.Head);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task EvaluateCommaSeparatedVarDeclarations()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("var last = 42, A = 3877, C = 2957; last + A + C;");
+        Assert.Equal(6876d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task EvaluateCommaSeparatedVarDeclarationsWithUninitialized()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("var a = [], i, l = 5, v; a.push(l); a[0];");
+        Assert.Equal(5d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseCommaSeparatedVarDeclarationsWithComments()
+    {
+        var engine = new JsEngine();
+        var code = @"var a = [],     // The array holding the partial texts.
+            i,          // Loop counter.
+            l = 10,
+            v;          // The value to be stringified.";
+        
+        var program = JsEngine.ParseWithoutTransformation(code);
+
+        Assert.Same(JsSymbols.Program, program.Head);
+        
+        // Should have 4 var declarations
+        var var1 = Assert.IsType<Cons>(program.Rest.Head);
+        Assert.Same(JsSymbols.Var, var1.Head);
+        Assert.Equal(Symbol.Intern("a"), var1.Rest.Head);
+
+        var var2 = Assert.IsType<Cons>(program.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Var, var2.Head);
+        Assert.Equal(Symbol.Intern("i"), var2.Rest.Head);
+
+        var var3 = Assert.IsType<Cons>(program.Rest.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Var, var3.Head);
+        Assert.Equal(Symbol.Intern("l"), var3.Rest.Head);
+        Assert.Equal(10d, var3.Rest.Rest.Head);
+
+        var var4 = Assert.IsType<Cons>(program.Rest.Rest.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Var, var4.Head);
+        Assert.Equal(Symbol.Intern("v"), var4.Rest.Head);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseCommaSeparatedLetDeclarations()
+    {
+        var engine = new JsEngine();
+        // Note: Let declarations require initializers in this interpreter
+        var program = JsEngine.ParseWithoutTransformation("let x = 1, y = 2, z = 3;");
+
+        Assert.Same(JsSymbols.Program, program.Head);
+        
+        var let1 = Assert.IsType<Cons>(program.Rest.Head);
+        Assert.Same(JsSymbols.Let, let1.Head);
+        Assert.Equal(Symbol.Intern("x"), let1.Rest.Head);
+        Assert.Equal(1d, let1.Rest.Rest.Head);
+
+        var let2 = Assert.IsType<Cons>(program.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Let, let2.Head);
+        Assert.Equal(Symbol.Intern("y"), let2.Rest.Head);
+        Assert.Equal(2d, let2.Rest.Rest.Head);
+
+        var let3 = Assert.IsType<Cons>(program.Rest.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Let, let3.Head);
+        Assert.Equal(Symbol.Intern("z"), let3.Rest.Head);
+        Assert.Equal(3d, let3.Rest.Rest.Head);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseCommaSeparatedConstDeclarations()
+    {
+        var engine = new JsEngine();
+        var program = JsEngine.ParseWithoutTransformation("const x = 1, y = 2, z = 3;");
+
+        Assert.Same(JsSymbols.Program, program.Head);
+        
+        var const1 = Assert.IsType<Cons>(program.Rest.Head);
+        Assert.Same(JsSymbols.Const, const1.Head);
+        Assert.Equal(Symbol.Intern("x"), const1.Rest.Head);
+        Assert.Equal(1d, const1.Rest.Rest.Head);
+
+        var const2 = Assert.IsType<Cons>(program.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Const, const2.Head);
+        Assert.Equal(Symbol.Intern("y"), const2.Rest.Head);
+        Assert.Equal(2d, const2.Rest.Rest.Head);
+
+        var const3 = Assert.IsType<Cons>(program.Rest.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Const, const3.Head);
+        Assert.Equal(Symbol.Intern("z"), const3.Rest.Head);
+        Assert.Equal(3d, const3.Rest.Rest.Head);
+    }
 }

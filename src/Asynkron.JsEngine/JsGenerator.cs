@@ -144,7 +144,7 @@ internal sealed class JsGenerator : IJsCallable
     {
         _state = GeneratorState.Completed;
         _done = true;
-        throw new ThrowSignal();
+        throw new ThrowSignal(error);
     }
 
     private void BindParameters(Environment env)

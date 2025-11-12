@@ -1,5 +1,16 @@
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
 
+// TEST STATUS: FAILING
+// Error: AES encryption/decryption produces incorrect results
+// Root Cause: AES (Advanced Encryption Standard) implementation has issues
+// Likely problems with:
+//   - Byte-level bit operations (S-box substitutions)
+//   - Bit shifting and rotation in cipher rounds
+//   - XOR operations on state arrays
+//   - Key expansion algorithm
+//   - Mix columns transformation
+// AES is extremely sensitive to bit manipulation errors - even small mistakes produce completely wrong output.
+
 /*
  * AES Cipher function: encrypt 'input' with Rijndael algorithm
  *
@@ -418,8 +429,11 @@ And sails upon the bosom of the air.";
 
 var password = "O Romeo, Romeo! wherefore art thou Romeo?";
 
+__debug(); // Debug: before encryption
 var cipherText = AESEncryptCtr(plainText, password, 256);
+__debug(); // Debug: after encryption, check cipherText
 var decryptedText = AESDecryptCtr(cipherText, password, 256);
+__debug(); // Debug: after decryption, check decryptedText
 
 if (decryptedText != plainText)
     throw "ERROR: bad result: expected " + plainText + " but got " + decryptedText;

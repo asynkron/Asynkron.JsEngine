@@ -2,6 +2,16 @@
 //  http://shootout.alioth.debian.org
 //
 //  Contributed by Ian Osgood
+//
+// TEST STATUS: FAILING
+// Error: Expected 1456000 but got incorrect result
+// Root Cause: FASTA string generation produces wrong total length
+// Likely issues with:
+//   - String concatenation in loops
+//   - Random number generation (linear congruential generator)
+//   - Array operations and indexing
+//   - Integer arithmetic for counting
+// The algorithm builds strings based on probabilities which may not be accumulating correctly.
 
 var last = 42, A = 3877, C = 29573, M = 139968;
 
@@ -79,9 +89,13 @@ function fastaRandom(n, table) {
 var ret = 0;
 
 var count = 7;
+__debug(); // Debug: before fasta operations
 fastaRepeat(2*count*100000, ALU);
+__debug(); // Debug: after fastaRepeat
 fastaRandom(3*count*1000, IUB);
+__debug(); // Debug: after first fastaRandom
 fastaRandom(5*count*1000, HomoSap);
+__debug(); // Debug: after second fastaRandom, check ret
 
 var expected = 1456000;
 

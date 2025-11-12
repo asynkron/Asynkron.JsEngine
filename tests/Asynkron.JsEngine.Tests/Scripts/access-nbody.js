@@ -2,6 +2,15 @@
    http://shootout.alioth.debian.org/
    contributed by Isaac Gouy */
 
+// TEST STATUS: FAILING
+// Error: Expected -1.3524862408537381 but got incorrect result
+// Root Cause: N-body physics simulation produces wrong energy calculation
+// Likely issues with:
+//   - Floating-point arithmetic precision
+//   - Object property access and modification
+//   - Math operations (sqrt, multiplication, division)
+// The complex numerical calculations may have precision or rounding issues.
+
 var PI = 3.141592653589793;
 var SOLAR_MASS = 4 * PI * PI;
 var DAYS_PER_YEAR = 365.24;
@@ -153,20 +162,24 @@ NBodySystem.prototype.energy = function(){
 
 var ret = 0;
 
+__debug(); // Debug: before main loop
 for ( var n = 3; n <= 24; n *= 2 ) {
     (function(){
         var bodies = new NBodySystem( Array(
            Sun(),Jupiter(),Saturn(),Uranus(),Neptune()
         ));
         var max = n * 100;
+        __debug(); // Debug: in loop iteration, check n and max
         
         ret += bodies.energy();
         for (var i=0; i<max; i++){
             bodies.advance(0.01);
         }
         ret += bodies.energy();
+        __debug(); // Debug: after energy calculations, check ret
     })();
 }
+__debug(); // Debug: after all iterations, final ret
 
 var expected = -1.3524862408537381;
 if (ret != expected)

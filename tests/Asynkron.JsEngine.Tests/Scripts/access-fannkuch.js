@@ -2,6 +2,15 @@
    http://shootout.alioth.debian.org/
    contributed by Isaac Gouy */
 
+// TEST STATUS: FAILING
+// Error: Expected 22 but got incorrect result
+// Root Cause: Fannkuch algorithm (array permutation benchmark) produces wrong result
+// Likely issues with:
+//   - Array manipulation and copying
+//   - Integer arithmetic in counting flips
+//   - Loop iteration logic
+// The algorithm involves heavy array operations that may not be working correctly.
+
 function fannkuch(n) {
    var check = 0;
    var perm = Array(n);
@@ -62,7 +71,9 @@ function fannkuch(n) {
 }
 
 var n = 8;
+__debug(); // Debug: before fannkuch call
 var ret = fannkuch(n);
+__debug(); // Debug: after fannkuch, check ret
 
 var expected = 22;
 if (ret != expected)

@@ -8,6 +8,16 @@
  */
 
 /*
+ * TEST STATUS: FAILING
+ * Error: Expected hash a831e91e0f70eddcb70dc61c6f82f6cd but got 4ebea80adf00ebd69b1e70e54a6f194a
+ * Root Cause: MD5 algorithm produces incorrect hash - likely issue with:
+ *   - Bitwise operations (shifts, rotations, XOR/AND/OR)
+ *   - 32-bit unsigned integer arithmetic
+ *   - Integer overflow/wrap-around behavior
+ * The algorithm executes but bit manipulations are not working correctly.
+ */
+
+/*
  * Configurable variables. You may need to tweak these to be compatible with
  * the server-side, but the defaults work in most cases.
  */
@@ -279,11 +289,14 @@ To know our further pleasure in this case,\n\
 To old Free-town, our common judgment-place.\n\
 Once more, on pain of death, all men depart."
 
+__debug(); // Debug: initial plainText length
 for (var i = 0; i <4; i++) {
     plainText += plainText;
 }
+__debug(); // Debug: after expanding plainText
 
 var md5Output = hex_md5(plainText);
+__debug(); // Debug: after hex_md5, check output
 
 var expected = "a831e91e0f70eddcb70dc61c6f82f6cd";
 

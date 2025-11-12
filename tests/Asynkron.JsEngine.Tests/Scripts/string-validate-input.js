@@ -1,3 +1,11 @@
+// TEST STATUS: FAILING - PARSE ERROR
+// Error: ParseException: Invalid assignment target near line 15 column 44
+// Root Cause: Line 15 has ternary operator with assignments in both branches:
+//   (k%2)?email=username+"@mac.com":email=username+"(at)mac.com";
+// The parser doesn't support assignments as expressions within ternary operators.
+// This is valid JavaScript but requires parser enhancement to support.
+// Fix: Parser needs to allow assignment expressions in ternary branches.
+
 letters = new Array("a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z");
 numbers = new Array(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26);
 colors  = new Array("FF","CC","99","66","33","00");

@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine;
 /// Within the evaluator, throws are managed via EvaluationContext state machine.
 /// This exception is thrown when a throw escapes a function boundary or reaches the top level.
 /// </summary>
-internal sealed class ThrowSignal(object? thrownValue = null) : Exception(FormatThrowMessage(thrownValue))
+public sealed class ThrowSignal(object? thrownValue = null) : Exception(FormatThrowMessage(thrownValue))
 {
     public object? ThrownValue { get; } = thrownValue;
 

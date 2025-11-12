@@ -24,7 +24,17 @@ public class SunSpiderTests
             return null;
         });
 
-        await engine.Evaluate(source);
+        try
+        {
+            await engine.Evaluate(source);
+        }
+        catch (ThrowSignal ex)
+        {
+            // Re-throw with the actual thrown value as the message
+            var thrownValue = ex.ThrownValue;
+            var message = thrownValue != null ? thrownValue.ToString() : "null";
+            throw new Exception($"JavaScript error: {message}", ex);
+        }
     }
 
     [Theory]

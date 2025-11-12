@@ -1079,6 +1079,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseLogicalOr()
     {
+        var startToken = _tokens[_current];
         var expr = ParseLogicalAnd();
 
         while (Match(TokenType.PipePipe))
@@ -1089,6 +1090,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 expr,
                 right
             );
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;
@@ -1096,6 +1102,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseLogicalAnd()
     {
+        var startToken = _tokens[_current];
         var expr = ParseNullishCoalescing();
 
         while (Match(TokenType.AmpAmp))
@@ -1106,6 +1113,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 expr,
                 right
             );
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;
@@ -1113,6 +1125,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseNullishCoalescing()
     {
+        var startToken = _tokens[_current];
         var expr = ParseBitwiseOr();
 
         while (Match(TokenType.QuestionQuestion))
@@ -1123,6 +1136,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 expr,
                 right
             );
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;
@@ -1130,6 +1148,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseBitwiseOr()
     {
+        var startToken = _tokens[_current];
         var expr = ParseBitwiseXor();
 
         while (Match(TokenType.Pipe))
@@ -1140,6 +1159,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 expr,
                 right
             );
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;
@@ -1147,6 +1171,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseBitwiseXor()
     {
+        var startToken = _tokens[_current];
         var expr = ParseBitwiseAnd();
 
         while (Match(TokenType.Caret))
@@ -1157,6 +1182,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 expr,
                 right
             );
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;
@@ -1164,6 +1194,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseBitwiseAnd()
     {
+        var startToken = _tokens[_current];
         var expr = ParseEquality();
 
         while (Match(TokenType.Amp))
@@ -1174,6 +1205,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 expr,
                 right
             );
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;
@@ -1181,6 +1217,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseEquality()
     {
+        var startToken = _tokens[_current];
         var expr = ParseComparison();
 
         while (Match(TokenType.BangEqual, TokenType.EqualEqual, TokenType.EqualEqualEqual, TokenType.BangEqualEqual))
@@ -1201,6 +1238,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 expr,
                 right
             );
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;
@@ -1208,6 +1250,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseComparison()
     {
+        var startToken = _tokens[_current];
         var expr = ParseShift();
         while (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual))
         {
@@ -1223,6 +1266,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             };
 
             expr = S(symbol, expr, right);
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;
@@ -1230,6 +1278,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseShift()
     {
+        var startToken = _tokens[_current];
         var expr = ParseTerm();
         while (Match(TokenType.LessLess, TokenType.GreaterGreater, TokenType.GreaterGreaterGreater))
         {
@@ -1244,6 +1293,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             };
 
             expr = S(symbol, expr, right);
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;
@@ -1251,6 +1305,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseTerm()
     {
+        var startToken = _tokens[_current];
         var expr = ParseFactor();
         while (Match(TokenType.Plus, TokenType.Minus))
         {
@@ -1258,6 +1313,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var right = ParseFactor();
             var symbol = Operator(op.Type == TokenType.Plus ? "+" : "-");
             expr = S(symbol, expr, right);
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;
@@ -1265,6 +1325,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseFactor()
     {
+        var startToken = _tokens[_current];
         var expr = ParseExponentiation();
         while (Match(TokenType.Star, TokenType.Slash, TokenType.Percent))
         {
@@ -1278,6 +1339,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 _ => throw new InvalidOperationException("Unexpected factor operator.")
             };
             expr = S(symbol, expr, right);
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;
@@ -1285,6 +1351,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseExponentiation()
     {
+        var startToken = _tokens[_current];
         var expr = ParseUnary();
 
         // Exponentiation is right-associative in JavaScript
@@ -1292,6 +1359,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             var right = ParseExponentiation(); // Right-associative recursion
             expr = S(Operator("**"), expr, right);
+            // Set SourceReference for the binary operation
+            var endToken = _tokens[_current - 1];
+            var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
+                startToken.Line, startToken.Column, endToken.Line, endToken.Column);
+            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
         }
 
         return expr;

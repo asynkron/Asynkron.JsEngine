@@ -12,6 +12,11 @@ public sealed class EvaluationContext
     public ISignal? CurrentSignal { get; private set; }
 
     /// <summary>
+    /// The current source reference for error reporting.
+    /// </summary>
+    public SourceReference? SourceReference { get; set; }
+
+    /// <summary>
     /// The value associated with the control flow (for Return, Throw, and Yield signals).
     /// </summary>
     public object? FlowValue => CurrentSignal switch

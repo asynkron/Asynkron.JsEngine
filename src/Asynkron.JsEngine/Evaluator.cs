@@ -11,8 +11,10 @@ public static class Evaluator
 
     internal static object? EvaluateProgram(Cons program, Environment environment, EvaluationContext context)
     {
+        context.SourceReference = program.SourceReference;
+
         if (program.IsEmpty || program.Head is not Symbol { } tag || !ReferenceEquals(tag, JsSymbols.Program))
-            throw new InvalidOperationException("Program S-expression must start with the 'program' symbol.");
+            throw new InvalidOperationException($"Program S-expression must start with the 'program' symbol.{GetSourceInfo(context)}");
 
         // Check if program has "use strict" directive
         var hasUseStrict = false;
@@ -49,8 +51,10 @@ public static class Evaluator
 
     internal static object? EvaluateBlock(Cons block, Environment environment, EvaluationContext context)
     {
+        context.SourceReference = block.SourceReference;
+
         if (block.IsEmpty || block.Head is not Symbol { } tag || !ReferenceEquals(tag, JsSymbols.Block))
-            throw new InvalidOperationException("Block S-expression must start with the 'block' symbol.");
+            throw new InvalidOperationException($"Block S-expression must start with the 'block' symbol.{GetSourceInfo(context)}");
 
         // Check if block has "use strict" directive
         var isStrict = false;
@@ -78,7 +82,9 @@ public static class Evaluator
     {
         if (statement is not Cons cons) return statement;
 
-        if (cons.Head is not Symbol symbol) throw new InvalidOperationException("Statement must start with a symbol.");
+        context.SourceReference = cons.SourceReference;
+
+        if (cons.Head is not Symbol symbol) throw new InvalidOperationException($"Statement must start with a symbol.{GetSourceInfo(context)}");
 
         if (ReferenceEquals(symbol, JsSymbols.Let)) return EvaluateLet(cons, environment, context);
 
@@ -264,12 +270,12 @@ public static class Evaluator
     private static object? EvaluateForIn(Cons cons, Environment environment, EvaluationContext context)
     {
         // (for-in (let/var/const variable) iterable body)
-        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for...in loop.");
+        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for...in loop.", context);
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
 
         // Extract variable name from declaration
-        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...in loop.");
+        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...in loop.", context);
 
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
@@ -320,12 +326,12 @@ public static class Evaluator
     private static object? EvaluateForOf(Cons cons, Environment environment, EvaluationContext context)
     {
         // (for-of (let/var/const variable) iterable body)
-        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for...of loop.");
+        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for...of loop.", context);
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
 
         // Extract variable name from declaration
-        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...of loop.");
+        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...of loop.", context);
 
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
@@ -379,12 +385,12 @@ public static class Evaluator
         // 1. Symbol.asyncIterator protocol
         // 2. Fallback to Symbol.iterator
         // 3. Built-in iterables (arrays, strings, generators)
-        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for await...of loop.");
+        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for await...of loop.", context);
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
 
         // Extract variable name from declaration
-        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for await...of loop.");
+        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for await...of loop.", context);
 
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
@@ -545,20 +551,20 @@ public static class Evaluator
     private static object? EvaluateSwitch(Cons cons, Environment environment, EvaluationContext context)
     {
         var discriminantExpression = cons.Rest.Head;
-        var clauses = ExpectCons(cons.Rest.Rest.Head, "Expected switch clause list.");
+        var clauses = ExpectCons(cons.Rest.Rest.Head, "Expected switch clause list.", context);
         var discriminant = EvaluateExpression(discriminantExpression, environment, context);
         var hasMatched = false; // Once a clause matches, we keep executing subsequent clauses to model fallthrough.
         object? result = null;
 
         foreach (var clauseEntry in clauses)
         {
-            var clause = ExpectCons(clauseEntry, "Expected switch clause.");
-            var tag = ExpectSymbol(clause.Head, "Expected switch clause tag.");
+            var clause = ExpectCons(clauseEntry, "Expected switch clause.", context);
+            var tag = ExpectSymbol(clause.Head, "Expected switch clause tag.", context);
 
             if (ReferenceEquals(tag, JsSymbols.Case))
             {
                 var testExpression = clause.Rest.Head;
-                var body = ExpectCons(clause.Rest.Rest.Head, "Expected case body block.");
+                var body = ExpectCons(clause.Rest.Rest.Head, "Expected case body block.", context);
 
                 if (!hasMatched)
                 {
@@ -583,7 +589,7 @@ public static class Evaluator
 
             if (ReferenceEquals(tag, JsSymbols.Default))
             {
-                var body = ExpectCons(clause.Rest.Head, "Expected default body block.");
+                var body = ExpectCons(clause.Rest.Head, "Expected default body block.", context);
 
                 if (!hasMatched) hasMatched = true;
 
@@ -599,7 +605,7 @@ public static class Evaluator
                 continue;
             }
 
-            throw new InvalidOperationException("Unknown switch clause.");
+            throw new InvalidOperationException($"Unknown switch clause.{GetSourceInfo(context)}");
         }
 
         return result;
@@ -680,7 +686,7 @@ public static class Evaluator
         }
 
         // Simple identifier case
-        var name = ExpectSymbol(target, "Expected identifier in let declaration.");
+        var name = ExpectSymbol(target, "Expected identifier in let declaration.", context);
         var initializer = cons.Rest.Rest.Head;
         var simpleValue = EvaluateExpression(initializer, environment, context);
         environment.Define(name, simpleValue);
@@ -703,7 +709,7 @@ public static class Evaluator
         }
 
         // Simple identifier case
-        var name = ExpectSymbol(target, "Expected identifier in var declaration.");
+        var name = ExpectSymbol(target, "Expected identifier in var declaration.", context);
         var initializer = cons.Rest.Rest.Head;
         var hasInitializer = !ReferenceEquals(initializer, JsSymbols.Uninitialized);
         var varValue = hasInitializer ? EvaluateExpression(initializer, environment, context) : JsSymbols.Undefined;
@@ -727,7 +733,7 @@ public static class Evaluator
         }
 
         // Simple identifier case
-        var name = ExpectSymbol(target, "Expected identifier in const declaration.");
+        var name = ExpectSymbol(target, "Expected identifier in const declaration.", context);
         var constValueExpression = cons.Rest.Rest.Head;
         var constValue = EvaluateExpression(constValueExpression, environment, context);
         environment.Define(name, constValue, true);
@@ -736,10 +742,10 @@ public static class Evaluator
 
     private static object? EvaluateFunctionDeclaration(Cons cons, Environment environment, EvaluationContext context)
     {
-        var name = ExpectSymbol(cons.Rest.Head, "Expected function name.");
-        var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected parameter list for function.");
-        var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected function body block.");
-        var (regularParams, restParam) = ParseParameterList(parameters);
+        var name = ExpectSymbol(cons.Rest.Head, "Expected function name.", context);
+        var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected parameter list for function.", context);
+        var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected function body block.", context);
+        var (regularParams, restParam) = ParseParameterList(parameters, context);
         var function = new JsFunction(name, regularParams, restParam, body, environment);
         environment.Define(name, function);
         return function;
@@ -747,9 +753,9 @@ public static class Evaluator
 
     private static object? EvaluateGeneratorDeclaration(Cons cons, Environment environment, EvaluationContext context)
     {
-        var name = ExpectSymbol(cons.Rest.Head, "Expected generator function name.");
-        var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected parameter list for generator function.");
-        var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected generator function body block.");
+        var name = ExpectSymbol(cons.Rest.Head, "Expected generator function name.", context);
+        var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected parameter list for generator function.", context);
+        var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected generator function body block.", context);
 
         // Create a generator factory function that returns a new generator instance when called
         var generatorFactory = new GeneratorFactory(name, parameters, body, environment);
@@ -759,17 +765,17 @@ public static class Evaluator
 
     private static object? EvaluateClass(Cons cons, Environment environment, EvaluationContext context)
     {
-        var name = ExpectSymbol(cons.Rest.Head, "Expected class name symbol.");
+        var name = ExpectSymbol(cons.Rest.Head, "Expected class name symbol.", context);
         var extendsEntry = cons.Rest.Rest.Head;
         var constructorExpression = cons.Rest.Rest.Rest.Head;
-        var methodsList = ExpectCons(cons.Rest.Rest.Rest.Rest.Head, "Expected class body list.");
+        var methodsList = ExpectCons(cons.Rest.Rest.Rest.Rest.Head, "Expected class body list.", context);
         var privateFieldsList = cons.Rest.Rest.Rest.Rest.Rest?.Head as Cons;
 
         var (superConstructor, superPrototype) = ResolveSuperclass(extendsEntry, environment, context);
 
         var constructorValue = EvaluateExpression(constructorExpression, environment, context);
         if (constructorValue is not JsFunction constructor)
-            throw new InvalidOperationException("Class constructor must be a function.");
+            throw new InvalidOperationException($"Class constructor must be a function.{GetSourceInfo(context)}");
 
         // Store private field definitions on the constructor for later initialization
         if (privateFieldsList is not null) constructor.SetProperty("__privateFields__", privateFieldsList);
@@ -795,18 +801,18 @@ public static class Evaluator
 
         foreach (var methodExpression in methodsList)
         {
-            var methodCons = ExpectCons(methodExpression, "Expected method definition.");
-            var tag = ExpectSymbol(methodCons.Head, "Expected method tag.");
+            var methodCons = ExpectCons(methodExpression, "Expected method definition.", context);
+            var tag = ExpectSymbol(methodCons.Head, "Expected method tag.", context);
 
             if (ReferenceEquals(tag, JsSymbols.Method))
             {
                 var methodName = methodCons.Rest.Head as string
-                                 ?? throw new InvalidOperationException("Expected method name.");
+                                 ?? throw new InvalidOperationException($"Expected method name.{GetSourceInfo(context)}");
                 var functionExpression = methodCons.Rest.Rest.Head;
                 var methodValue = EvaluateExpression(functionExpression, environment, context);
 
                 if (methodValue is not IJsCallable)
-                    throw new InvalidOperationException($"Class method '{methodName}' must be callable.");
+                    throw new InvalidOperationException($"Class method '{methodName}' must be callable.{GetSourceInfo(context)}");
 
                 if (methodValue is JsFunction methodFunction)
                     methodFunction.SetSuperBinding(superConstructor, superPrototype);
@@ -817,12 +823,12 @@ public static class Evaluator
             {
                 // Static method - add to constructor, not prototype
                 var methodName = methodCons.Rest.Head as string
-                                 ?? throw new InvalidOperationException("Expected static method name.");
+                                 ?? throw new InvalidOperationException($"Expected static method name.{GetSourceInfo(context)}");
                 var functionExpression = methodCons.Rest.Rest.Head;
                 var methodValue = EvaluateExpression(functionExpression, environment, context);
 
                 if (methodValue is not IJsCallable)
-                    throw new InvalidOperationException($"Static method '{methodName}' must be callable.");
+                    throw new InvalidOperationException($"Static method '{methodName}' must be callable.{GetSourceInfo(context)}");
 
                 constructor.SetProperty(methodName, methodValue);
             }
@@ -830,8 +836,8 @@ public static class Evaluator
             {
                 // (getter "name" (block ...))
                 var methodName = methodCons.Rest.Head as string
-                                 ?? throw new InvalidOperationException("Expected getter name.");
-                var body = ExpectCons(methodCons.Rest.Rest.Head, "Expected getter body.");
+                                 ?? throw new InvalidOperationException($"Expected getter name.{GetSourceInfo(context)}");
+                var body = ExpectCons(methodCons.Rest.Rest.Head, "Expected getter body.", context);
                 var getter = new JsFunction(null, [], null, body, environment);
 
                 if (superConstructor is not null || superPrototype is not null)
@@ -843,8 +849,8 @@ public static class Evaluator
             {
                 // Static getter - add to constructor's properties
                 var methodName = methodCons.Rest.Head as string
-                                 ?? throw new InvalidOperationException("Expected static getter name.");
-                var body = ExpectCons(methodCons.Rest.Rest.Head, "Expected static getter body.");
+                                 ?? throw new InvalidOperationException($"Expected static getter name.{GetSourceInfo(context)}");
+                var body = ExpectCons(methodCons.Rest.Rest.Head, "Expected static getter body.", context);
                 var getter = new JsFunction(null, [], null, body, environment);
 
                 if (constructor.TryGetProperty("__properties__", out var propsValue) && propsValue is JsObject props)
@@ -857,9 +863,9 @@ public static class Evaluator
             {
                 // (setter "name" param (block ...))
                 var methodName = methodCons.Rest.Head as string
-                                 ?? throw new InvalidOperationException("Expected setter name.");
-                var param = ExpectSymbol(methodCons.Rest.Rest.Head, "Expected setter parameter.");
-                var body = ExpectCons(methodCons.Rest.Rest.Rest.Head, "Expected setter body.");
+                                 ?? throw new InvalidOperationException($"Expected setter name.{GetSourceInfo(context)}");
+                var param = ExpectSymbol(methodCons.Rest.Rest.Head, "Expected setter parameter.", context);
+                var body = ExpectCons(methodCons.Rest.Rest.Rest.Head, "Expected setter body.", context);
                 var paramList = new[] { param };
                 var setter = new JsFunction(null, paramList, null, body, environment);
 
@@ -872,9 +878,9 @@ public static class Evaluator
             {
                 // Static setter - add to constructor's properties
                 var methodName = methodCons.Rest.Head as string
-                                 ?? throw new InvalidOperationException("Expected static setter name.");
-                var param = ExpectSymbol(methodCons.Rest.Rest.Head, "Expected static setter parameter.");
-                var body = ExpectCons(methodCons.Rest.Rest.Rest.Head, "Expected static setter body.");
+                                 ?? throw new InvalidOperationException($"Expected static setter name.{GetSourceInfo(context)}");
+                var param = ExpectSymbol(methodCons.Rest.Rest.Head, "Expected static setter parameter.", context);
+                var body = ExpectCons(methodCons.Rest.Rest.Rest.Head, "Expected static setter body.", context);
                 var paramList = new[] { param };
                 var setter = new JsFunction(null, paramList, null, body, environment);
 
@@ -886,7 +892,7 @@ public static class Evaluator
             }
             else
             {
-                throw new InvalidOperationException("Invalid entry in class body.");
+                throw new InvalidOperationException($"Invalid entry in class body.{GetSourceInfo(context)}");
             }
         }
 
@@ -904,7 +910,7 @@ public static class Evaluator
                 {
                     // (static-field "name" initializer)
                     var fieldName = fieldCons.Rest.Head as string
-                                    ?? throw new InvalidOperationException("Expected static field name.");
+                                    ?? throw new InvalidOperationException($"Expected static field name.{GetSourceInfo(context)}");
                     var initializer = fieldCons.Rest.Rest.Head;
 
                     var initialValue = initializer is not null
@@ -923,9 +929,9 @@ public static class Evaluator
     {
         if (extendsEntry is null) return (null, null);
 
-        var extendsCons = ExpectCons(extendsEntry, "Expected extends clause structure.");
-        var tag = ExpectSymbol(extendsCons.Head, "Expected extends tag.");
-        if (!ReferenceEquals(tag, JsSymbols.Extends)) throw new InvalidOperationException("Malformed extends clause.");
+        var extendsCons = ExpectCons(extendsEntry, "Expected extends clause structure.", context);
+        var tag = ExpectSymbol(extendsCons.Head, "Expected extends tag.", context);
+        if (!ReferenceEquals(tag, JsSymbols.Extends)) throw new InvalidOperationException($"Malformed extends clause.{GetSourceInfo(context)}");
 
         var baseExpression = extendsCons.Rest.Head;
         var baseValue = EvaluateExpression(baseExpression, environment, context);
@@ -933,7 +939,7 @@ public static class Evaluator
         if (baseValue is null) return (null, null);
 
         if (baseValue is not JsFunction baseConstructor)
-            throw new InvalidOperationException("Classes can only extend other constructors (or null).");
+            throw new InvalidOperationException($"Classes can only extend other constructors (or null).{GetSourceInfo(context)}");
 
         if (!baseConstructor.TryGetProperty("prototype", out var prototypeValue) ||
             prototypeValue is not JsObject basePrototype)
@@ -969,11 +975,11 @@ public static class Evaluator
     private static object? ExecuteCatchClause(Cons catchClause, object? thrownValue, Environment environment,
         EvaluationContext context)
     {
-        var tag = ExpectSymbol(catchClause.Head, "Expected catch clause tag.");
-        if (!ReferenceEquals(tag, JsSymbols.Catch)) throw new InvalidOperationException("Malformed catch clause.");
+        var tag = ExpectSymbol(catchClause.Head, "Expected catch clause tag.", context);
+        if (!ReferenceEquals(tag, JsSymbols.Catch)) throw new InvalidOperationException($"Malformed catch clause.{GetSourceInfo(context)}");
 
-        var binding = ExpectSymbol(catchClause.Rest.Head, "Expected catch binding symbol.");
-        var body = ExpectCons(catchClause.Rest.Rest.Head, "Expected catch block.");
+        var binding = ExpectSymbol(catchClause.Rest.Head, "Expected catch binding symbol.", context);
+        var body = ExpectCons(catchClause.Rest.Rest.Head, "Expected catch block.", context);
 
         var catchEnvironment = new Environment(environment);
         catchEnvironment.Define(binding, thrownValue);
@@ -1005,12 +1011,16 @@ public static class Evaluator
 
     private static object? EvaluateCompositeExpression(Cons cons, Environment environment, EvaluationContext context)
     {
+        // Set source reference for error reporting
+        context.SourceReference = cons.SourceReference;
+        // Debug: Console.WriteLine($"Setting SourceReference: {context.SourceReference} for {cons.Head}");
+
         if (cons.Head is not Symbol symbol)
-            throw new InvalidOperationException("Composite expression must begin with a symbol.");
+            throw new InvalidOperationException($"Composite expression must begin with a symbol.{GetSourceInfo(context)}");
 
         if (ReferenceEquals(symbol, JsSymbols.Assign))
         {
-            var target = ExpectSymbol(cons.Rest.Head, "Expected assignment target.");
+            var target = ExpectSymbol(cons.Rest.Head, "Expected assignment target.", context);
             var valueExpression = cons.Rest.Rest.Head;
             var value = EvaluateExpression(valueExpression, environment, context);
             environment.Assign(target, value);
@@ -1019,7 +1029,7 @@ public static class Evaluator
 
         if (ReferenceEquals(symbol, JsSymbols.DestructuringAssignment))
         {
-            var pattern = ExpectCons(cons.Rest.Head, "Expected destructuring pattern.");
+            var pattern = ExpectCons(cons.Rest.Head, "Expected destructuring pattern.", context);
             var valueExpression = cons.Rest.Rest.Head;
             var value = EvaluateExpression(valueExpression, environment, context);
             DestructureAssignment(pattern, value, environment, context);
@@ -1096,9 +1106,9 @@ public static class Evaluator
         if (ReferenceEquals(symbol, JsSymbols.Lambda))
         {
             var maybeName = cons.Rest.Head as Symbol;
-            var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected lambda parameters list.");
-            var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected lambda body block.");
-            var (regularParams, restParam) = ParseParameterList(parameters);
+            var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected lambda parameters list.", context);
+            var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected lambda body block.", context);
+        var (regularParams, restParam) = ParseParameterList(parameters, context);
             return new JsFunction(maybeName, regularParams, restParam, body, environment);
         }
 
@@ -1106,8 +1116,8 @@ public static class Evaluator
         {
             // Handle generator expressions like: function*() { yield 1; }
             var maybeName = cons.Rest.Head as Symbol;
-            var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected generator parameters list.");
-            var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected generator body block.");
+            var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected generator parameters list.", context);
+            var body = ExpectCons(cons.Rest.Rest.Rest.Head, "Expected generator body block.", context);
             return new GeneratorFactory(maybeName, parameters, body, environment);
         }
 
@@ -1393,7 +1403,7 @@ public static class Evaluator
         var result = new JsObject();
         foreach (var propertyExpression in cons.Rest)
         {
-            var propertyCons = ExpectCons(propertyExpression, "Expected property description in object literal.");
+            var propertyCons = ExpectCons(propertyExpression, "Expected property description in object literal.", context);
             var propertyTag = propertyCons.Head as Symbol
                               ?? throw new InvalidOperationException(
                                   "Object literal entries must start with a symbol.");
@@ -1435,22 +1445,22 @@ public static class Evaluator
             else if (ReferenceEquals(propertyTag, JsSymbols.Getter))
             {
                 // (getter "name" (block ...))
-                var body = ExpectCons(propertyCons.Rest.Rest.Head, "Expected getter body.");
+                var body = ExpectCons(propertyCons.Rest.Rest.Head, "Expected getter body.", context);
                 var getter = new JsFunction(null, [], null, body, environment);
                 result.SetGetter(propertyName, getter);
             }
             else if (ReferenceEquals(propertyTag, JsSymbols.Setter))
             {
                 // (setter "name" param (block ...))
-                var param = ExpectSymbol(propertyCons.Rest.Rest.Head, "Expected setter parameter.");
-                var body = ExpectCons(propertyCons.Rest.Rest.Rest.Head, "Expected setter body.");
+                var param = ExpectSymbol(propertyCons.Rest.Rest.Head, "Expected setter parameter.", context);
+                var body = ExpectCons(propertyCons.Rest.Rest.Rest.Head, "Expected setter body.", context);
                 var paramList = new[] { param };
                 var setter = new JsFunction(null, paramList, null, body, environment);
                 result.SetSetter(propertyName, setter);
             }
             else
             {
-                throw new InvalidOperationException($"Unknown property type: {propertyTag}");
+                throw new InvalidOperationException($"Unknown property type: {propertyTag}{GetSourceInfo(context)}");
             }
         }
 
@@ -1468,7 +1478,7 @@ public static class Evaluator
             var binding = ExpectSuperBinding(environment, context);
             if (binding.TryGetProperty(propertyName, out var superValue)) return superValue;
 
-            throw new InvalidOperationException($"Cannot read property '{propertyName}' from super prototype.");
+            throw new InvalidOperationException($"Cannot read property '{propertyName}' from super prototype.{GetSourceInfo(context)}");
         }
 
         var target = EvaluateExpression(targetExpression, environment, context);
@@ -1482,12 +1492,12 @@ public static class Evaluator
     {
         var targetExpression = cons.Rest.Head;
         var propertyName = cons.Rest.Rest.Head as string
-                           ?? throw new InvalidOperationException("Property assignment requires a string name.");
+                           ?? throw new InvalidOperationException($"Property assignment requires a string name.{GetSourceInfo(context)}");
 
-        if (targetExpression is Symbol { } superSymbol && ReferenceEquals(superSymbol, JsSymbols.Super))
-            throw new InvalidOperationException("Assigning through super is not supported in this interpreter.");
+         if (targetExpression is Symbol { } superSymbol && ReferenceEquals(superSymbol, JsSymbols.Super))
+             throw new InvalidOperationException($"Assigning through super is not supported in this interpreter.{GetSourceInfo(context)}");
 
-        var valueExpression = cons.Rest.Rest.Rest.Head;
+         var valueExpression = cons.Rest.Rest.Rest.Head;
         var target = EvaluateExpression(targetExpression, environment, context);
         var value = EvaluateExpression(valueExpression, environment, context);
         AssignPropertyValue(target, propertyName, value);
@@ -1498,7 +1508,7 @@ public static class Evaluator
     {
         var targetExpression = cons.Rest.Head;
         var propertyName = cons.Rest.Rest.Head as string
-                           ?? throw new InvalidOperationException("Property access requires a string name.");
+                           ?? throw new InvalidOperationException($"Property access requires a string name.{GetSourceInfo(context)}");
 
         var target = EvaluateExpression(targetExpression, environment, context);
 
@@ -1553,7 +1563,7 @@ public static class Evaluator
                     foreach (var element in array.Items)
                         arguments.Add(element);
                 else
-                    throw new InvalidOperationException("Spread operator can only be applied to arrays.");
+                    throw new InvalidOperationException($"Spread operator can only be applied to arrays.{GetSourceInfo(context)}");
             }
             else
             {
@@ -1589,11 +1599,11 @@ public static class Evaluator
             var superIndexValue = EvaluateExpression(indexExpression, environment, context);
             var superPropertyName = ToPropertyName(superIndexValue)
                                     ?? throw new InvalidOperationException(
-                                        $"Unsupported index value '{superIndexValue}'.");
+                                        $"Unsupported index value '{superIndexValue}'.{GetSourceInfo(context)}");
 
             if (binding.TryGetProperty(superPropertyName, out var superPropertyValue)) return superPropertyValue;
 
-            throw new InvalidOperationException($"Cannot read property '{superPropertyName}' from super prototype.");
+            throw new InvalidOperationException($"Cannot read property '{superPropertyName}' from super prototype.{GetSourceInfo(context)}");
         }
 
         var target = EvaluateExpression(targetExpression, environment, context);
@@ -1606,7 +1616,7 @@ public static class Evaluator
             return typedArray.GetElement(typedIndex);
 
         var propertyName = ToPropertyName(indexValue)
-                           ?? throw new InvalidOperationException($"Unsupported index value '{indexValue}'.");
+                           ?? throw new InvalidOperationException($"Unsupported index value '{indexValue}'.{GetSourceInfo(context)}");
 
         if (TryGetPropertyValue(target, propertyName, out var propertyValue)) return propertyValue;
 
@@ -1621,7 +1631,7 @@ public static class Evaluator
         var valueExpression = cons.Rest.Rest.Rest.Head;
 
         if (targetExpression is Symbol { } superSymbol && ReferenceEquals(superSymbol, JsSymbols.Super))
-            throw new InvalidOperationException("Assigning through super is not supported in this interpreter.");
+            throw new InvalidOperationException($"Assigning through super is not supported in this interpreter.{GetSourceInfo(context)}");
 
         var target = EvaluateExpression(targetExpression, environment, context);
         var indexValue = EvaluateExpression(indexExpression, environment, context);
@@ -1646,7 +1656,7 @@ public static class Evaluator
         }
 
         var propertyName = ToPropertyName(indexValue)
-                           ?? throw new InvalidOperationException($"Unsupported index value '{indexValue}'.");
+                           ?? throw new InvalidOperationException($"Unsupported index value '{indexValue}'.{GetSourceInfo(context)}");
 
         AssignPropertyValue(target, propertyName, value);
         return value;
@@ -1707,13 +1717,13 @@ public static class Evaluator
             privateFieldsValue is Cons privateFieldsList)
             foreach (var fieldExpression in privateFieldsList)
             {
-                var fieldCons = ExpectCons(fieldExpression, "Expected field definition.");
-                var tag = ExpectSymbol(fieldCons.Head, "Expected field tag.");
+                var fieldCons = ExpectCons(fieldExpression, "Expected field definition.", context);
+                var tag = ExpectSymbol(fieldCons.Head, "Expected field tag.", context);
 
                 if (ReferenceEquals(tag, JsSymbols.PrivateField) || ReferenceEquals(tag, JsSymbols.PublicField))
                 {
                     var fieldName = fieldCons.Rest.Head as string
-                                    ?? throw new InvalidOperationException("Expected field name.");
+                                    ?? throw new InvalidOperationException($"Expected field name.{GetSourceInfo(context)}");
                     var initializer = fieldCons.Rest.Rest.Head;
 
                     object? initialValue = null;
@@ -1742,7 +1752,14 @@ public static class Evaluator
             case "~":
             {
                 var operand = EvaluateExpression(leftExpression, environment, context);
-                return BitwiseNot(operand);
+                try
+                {
+                    return BitwiseNot(operand);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    throw new InvalidOperationException(ex.Message + GetSourceInfo(context), ex);
+                }
             }
             case "++prefix":
                 return IncrementPrefix(leftExpression, environment, context);
@@ -1783,39 +1800,46 @@ public static class Evaluator
 
         var right = EvaluateExpression(rightExpression, environment, context);
 
-        return operatorName switch
+        try
         {
-            "+" => Add(left, right),
-            "-" => Subtract(left, right),
-            "*" => Multiply(left, right),
-            "**" => Power(left, right),
-            "/" => Divide(left, right),
-            "%" => Modulo(left, right),
-            "&" => BitwiseAnd(left, right),
-            "|" => BitwiseOr(left, right),
-            "^" => BitwiseXor(left, right),
-            "<<" => LeftShift(left, right),
-            ">>" => RightShift(left, right),
-            ">>>" => UnsignedRightShift(left, right),
-            "==" => LooseEquals(left, right),
-            "!=" => !LooseEquals(left, right),
-            ">" => GreaterThan(left, right),
-            ">=" => GreaterThanOrEqual(left, right),
-            "<" => LessThan(left, right),
-            "<=" => LessThanOrEqual(left, right),
-            _ => throw new InvalidOperationException($"Unsupported operator '{operatorName}'.")
-        };
+            return operatorName switch
+            {
+                "+" => Add(left, right),
+                "-" => Subtract(left, right),
+                "*" => Multiply(left, right),
+                "**" => Power(left, right),
+                "/" => Divide(left, right),
+                "%" => Modulo(left, right),
+                "&" => BitwiseAnd(left, right),
+                "|" => BitwiseOr(left, right),
+                "^" => BitwiseXor(left, right),
+                "<<" => LeftShift(left, right),
+                ">>" => RightShift(left, right),
+                ">>>" => UnsignedRightShift(left, right),
+                "==" => LooseEquals(left, right),
+                "!=" => !LooseEquals(left, right),
+                ">" => GreaterThan(left, right),
+                ">=" => GreaterThanOrEqual(left, right),
+                "<" => LessThan(left, right),
+                "<=" => LessThanOrEqual(left, right),
+                _ => throw new InvalidOperationException($"Unsupported operator '{operatorName}'.{GetSourceInfo(context)}")
+            };
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new InvalidOperationException(ex.Message + GetSourceInfo(context), ex);
+        }
     }
 
-    private static IReadOnlyList<Symbol> ToSymbolList(Cons list)
+    private static IReadOnlyList<Symbol> ToSymbolList(Cons list, EvaluationContext context)
     {
         var result = new List<Symbol>();
-        foreach (var item in list) result.Add(ExpectSymbol(item, "Expected symbol in parameter list."));
+        foreach (var item in list) result.Add(ExpectSymbol(item, "Expected symbol in parameter list.", context));
 
         return result;
     }
 
-    private static (IReadOnlyList<object> regularParams, Symbol? restParam) ParseParameterList(Cons list)
+    private static (IReadOnlyList<object> regularParams, Symbol? restParam) ParseParameterList(Cons list, EvaluationContext context)
     {
         var regularParams = new List<object>();
         Symbol? restParam = null;
@@ -1825,7 +1849,7 @@ public static class Evaluator
             // Check if this is a rest parameter (rest symbol paramName)
             if (item is Cons { Head: Symbol head } restCons && ReferenceEquals(head, JsSymbols.Rest))
             {
-                restParam = ExpectSymbol(restCons.Rest.Head, "Expected rest parameter name.");
+                restParam = ExpectSymbol(restCons.Rest.Head, "Expected rest parameter name.", context);
                 break; // Rest parameter must be last
             }
 
@@ -1835,20 +1859,20 @@ public static class Evaluator
                  ReferenceEquals(patternType, JsSymbols.ObjectPattern)))
                 regularParams.Add(pattern);
             else
-                regularParams.Add(ExpectSymbol(item, "Expected symbol or pattern in parameter list."));
+                regularParams.Add(ExpectSymbol(item, "Expected symbol or pattern in parameter list.", context));
         }
 
         return (regularParams, restParam);
     }
 
-    private static Symbol ExpectSymbol(object? value, string message)
+    private static Symbol ExpectSymbol(object? value, string message, EvaluationContext context)
     {
-        return value is Symbol symbol ? symbol : throw new InvalidOperationException(message);
+        return value is Symbol symbol ? symbol : throw new InvalidOperationException($"{message}{GetSourceInfo(context)}");
     }
 
-    private static Cons ExpectCons(object? value, string message)
+    private static Cons ExpectCons(object? value, string message, EvaluationContext context)
     {
-        return value is Cons cons ? cons : throw new InvalidOperationException(message);
+        return value is Cons cons ? cons : throw new InvalidOperationException($"{message}{GetSourceInfo(context)}");
     }
 
     private static SuperBinding ExpectSuperBinding(Environment environment, EvaluationContext context)
@@ -2656,14 +2680,14 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
-            throw new InvalidOperationException("Pattern must start with a symbol.");
+            throw new InvalidOperationException($"Pattern must start with a symbol.{GetSourceInfo(context)}");
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
             DestructureArray(pattern, value, environment, isConst, context);
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
             DestructureObject(pattern, value, environment, isConst, context);
         else
-            throw new InvalidOperationException($"Unknown pattern type: {patternType}");
+            throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
     }
 
     private static void DestructureAndDefineFunctionScoped(Cons pattern, object? value, Environment environment,
@@ -2684,7 +2708,7 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (value is not JsArray array)
-            throw new InvalidOperationException($"Cannot destructure non-array value in array pattern.");
+            throw new InvalidOperationException($"Cannot destructure non-array value in array pattern.{GetSourceInfo(context)}");
 
         var index = 0;
         foreach (var element in pattern.Rest)
@@ -2705,7 +2729,7 @@ public static class Evaluator
             // Handle rest element
             if (ReferenceEquals(elementType, JsSymbols.PatternRest))
             {
-                var restName = ExpectSymbol(elementCons.Rest.Head, "Expected identifier for rest element.");
+                var restName = ExpectSymbol(elementCons.Rest.Head, "Expected identifier for rest element.", context);
                 var restArray = new JsArray();
                 for (var i = index; i < array.Items.Count; i++) restArray.Push(array.Items[i]);
                 environment.Define(restName, restArray, isConst);
@@ -2764,7 +2788,7 @@ public static class Evaluator
             // Handle rest element
             if (ReferenceEquals(elementType, JsSymbols.PatternRest))
             {
-                var restName = ExpectSymbol(elementCons.Rest.Head, "Expected identifier for rest element.");
+                var restName = ExpectSymbol(elementCons.Rest.Head, "Expected identifier for rest element.", context);
                 var restArray = new JsArray();
                 for (var i = index; i < array.Items.Count; i++) restArray.Push(array.Items[i]);
                 environment.DefineFunctionScoped(restName, restArray, true);
@@ -2817,7 +2841,7 @@ public static class Evaluator
             // Handle rest property
             if (ReferenceEquals(propertyType, JsSymbols.PatternRest))
             {
-                var restName = ExpectSymbol(propertyCons.Rest.Head, "Expected identifier for rest property.");
+                var restName = ExpectSymbol(propertyCons.Rest.Head, "Expected identifier for rest property.", context);
                 var restObject = new JsObject();
                 foreach (var kvp in obj)
                     if (!usedKeys.Contains(kvp.Key))
@@ -2876,7 +2900,7 @@ public static class Evaluator
             // Handle rest property
             if (ReferenceEquals(propertyType, JsSymbols.PatternRest))
             {
-                var restName = ExpectSymbol(propertyCons.Rest.Head, "Expected identifier for rest property.");
+                var restName = ExpectSymbol(propertyCons.Rest.Head, "Expected identifier for rest property.", context);
                 var restObject = new JsObject();
                 foreach (var kvp in obj)
                     if (!usedKeys.Contains(kvp.Key))
@@ -2935,14 +2959,14 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
-            throw new InvalidOperationException("Pattern must start with a symbol.");
+            throw new InvalidOperationException($"Pattern must start with a symbol.{GetSourceInfo(context)}");
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
-            DestructureArrayAssignment(pattern, value, environment, context);
+            DestructureArrayFunctionScoped(pattern, value, environment, context);
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
-            DestructureObjectAssignment(pattern, value, environment, context);
+            DestructureObjectFunctionScoped(pattern, value, environment, context);
         else
-            throw new InvalidOperationException($"Unknown pattern type: {patternType}");
+            throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
     }
 
     private static void DestructureArrayAssignment(Cons pattern, object? value, Environment environment,
@@ -2970,7 +2994,7 @@ public static class Evaluator
             // Handle rest element
             if (ReferenceEquals(elementType, JsSymbols.PatternRest))
             {
-                var restName = ExpectSymbol(elementCons.Rest.Head, "Expected identifier for rest element.");
+                var restName = ExpectSymbol(elementCons.Rest.Head, "Expected identifier for rest element.", context);
                 var restArray = new JsArray();
                 for (var i = index; i < array.Items.Count; i++) restArray.Push(array.Items[i]);
                 environment.Assign(restName, restArray);
@@ -3023,7 +3047,7 @@ public static class Evaluator
             // Handle rest property
             if (ReferenceEquals(propertyType, JsSymbols.PatternRest))
             {
-                var restName = ExpectSymbol(propertyCons.Rest.Head, "Expected identifier for rest property.");
+                var restName = ExpectSymbol(propertyCons.Rest.Head, "Expected identifier for rest property.", context);
                 var restObject = new JsObject();
                 foreach (var kvp in obj)
                     if (!usedKeys.Contains(kvp.Key))
@@ -3061,6 +3085,19 @@ public static class Evaluator
                         "Expected identifier or nested pattern in object pattern property.");
             }
         }
+    }
+
+    // Helper for exceptions with source info
+    private static string GetSourceInfo(EvaluationContext context)
+    {
+        if (context.SourceReference is not null)
+        {
+            var src = context.SourceReference;
+            var snippet = src.GetText();
+            if (snippet.Length > 50) snippet = snippet[..47] + "...";
+            return $" at {src} (snippet: '{snippet}') Source: '{src.Source}' Start: {src.StartPosition} End: {src.EndPosition}";
+        }
+        return " (no source reference)";
     }
 
     // Bitwise operations
@@ -3270,8 +3307,8 @@ public static class Evaluator
             if (ReferenceEquals(head, JsSymbols.GetProperty))
             {
                 var target = EvaluateExpression(cons.Rest.Head, environment, context);
-                var propertyName = cons.Rest.Rest.Head as string
-                                   ?? throw new InvalidOperationException("Property access requires a string name.");
+        var propertyName = cons.Rest.Rest.Head as string
+                           ?? throw new InvalidOperationException($"Property access requires a string name.{GetSourceInfo(context)}");
                 AssignPropertyValue(target, propertyName, newValue);
             }
             else if (ReferenceEquals(head, JsSymbols.GetIndex))

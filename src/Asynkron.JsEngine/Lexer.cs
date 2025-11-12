@@ -306,6 +306,119 @@ internal sealed class Lexer(string source)
 
     private void ReadNumber()
     {
+        // Check for special numeric literals: 0x (hex), 0o (octal), 0b (binary)
+        if (_source[_start] == '0' && _current < _source.Length)
+        {
+            var next = Peek();
+            if (next == 'x' || next == 'X')
+            {
+                // Hexadecimal literal
+                var prefixStart = _start; // Remember where '0' started
+                Advance(); // consume 'x' or 'X'
+                if (!IsHexDigit(Peek()))
+                    throw new ParseException($"Expected hexadecimal digit after '0x' on line {_line} column {_column}.");
+                
+                var digitStart = _current; // Remember where hex digits start
+                while (IsHexDigit(Peek())) Advance();
+                
+                // Check for BigInt suffix 'n'
+                if (Peek() == 'n')
+                {
+                    var nextChar = PeekNext();
+                    var isEndOrNonAlphaNum = nextChar == '\0' || (!IsAlpha(nextChar) && !IsDigit(nextChar));
+                    if (isEndOrNonAlphaNum)
+                    {
+                        Advance(); // consume 'n'
+                        var hexDigits = _source[digitStart..(_current - 1)]; // Only the hex digits, not the 'n'
+                        var bigIntValue = System.Numerics.BigInteger.Parse(hexDigits, System.Globalization.NumberStyles.HexNumber);
+                        var value = new JsBigInt(bigIntValue);
+                        AddToken(TokenType.BigInt, value);
+                        return;
+                    }
+                }
+                
+                var hexDigits2 = _source[digitStart.._current]; // Only the hex digits, not the prefix
+                var hexValue = Convert.ToInt64(hexDigits2, 16);
+                AddToken(TokenType.Number, (double)hexValue);
+                return;
+            }
+            else if (next == 'o' || next == 'O')
+            {
+                // Octal literal
+                var prefixStart = _start; // Remember where '0' started
+                Advance(); // consume 'o' or 'O'
+                if (!IsOctalDigit(Peek()))
+                    throw new ParseException($"Expected octal digit after '0o' on line {_line} column {_column}.");
+                
+                var digitStart = _current; // Remember where octal digits start
+                while (IsOctalDigit(Peek())) Advance();
+                
+                // Check for BigInt suffix 'n'
+                if (Peek() == 'n')
+                {
+                    var nextChar = PeekNext();
+                    var isEndOrNonAlphaNum = nextChar == '\0' || (!IsAlpha(nextChar) && !IsDigit(nextChar));
+                    if (isEndOrNonAlphaNum)
+                    {
+                        Advance(); // consume 'n'
+                        var octalDigits = _source[digitStart..(_current - 1)]; // Only the octal digits, not the 'n'
+                        // Convert octal string to BigInteger by parsing each digit
+                        var bigIntValue = System.Numerics.BigInteger.Zero;
+                        foreach (var c in octalDigits)
+                        {
+                            bigIntValue = bigIntValue * 8 + (c - '0');
+                        }
+                        var value = new JsBigInt(bigIntValue);
+                        AddToken(TokenType.BigInt, value);
+                        return;
+                    }
+                }
+                
+                var octalDigits2 = _source[digitStart.._current]; // Only the octal digits, not the prefix
+                var octalValue = Convert.ToInt64(octalDigits2, 8);
+                AddToken(TokenType.Number, (double)octalValue);
+                return;
+            }
+            else if (next == 'b' || next == 'B')
+            {
+                // Binary literal
+                var prefixStart = _start; // Remember where '0' started
+                Advance(); // consume 'b' or 'B'
+                if (!IsBinaryDigit(Peek()))
+                    throw new ParseException($"Expected binary digit after '0b' on line {_line} column {_column}.");
+                
+                var digitStart = _current; // Remember where binary digits start
+                while (IsBinaryDigit(Peek())) Advance();
+                
+                // Check for BigInt suffix 'n'
+                if (Peek() == 'n')
+                {
+                    var nextChar = PeekNext();
+                    var isEndOrNonAlphaNum = nextChar == '\0' || (!IsAlpha(nextChar) && !IsDigit(nextChar));
+                    if (isEndOrNonAlphaNum)
+                    {
+                        Advance(); // consume 'n'
+                        var binaryDigits = _source[digitStart..(_current - 1)]; // Only the binary digits, not the 'n'
+                        // Convert binary string to BigInteger by parsing each digit
+                        var bigIntValue = System.Numerics.BigInteger.Zero;
+                        foreach (var c in binaryDigits)
+                        {
+                            bigIntValue = bigIntValue * 2 + (c - '0');
+                        }
+                        var value = new JsBigInt(bigIntValue);
+                        AddToken(TokenType.BigInt, value);
+                        return;
+                    }
+                }
+                
+                var binaryDigits2 = _source[digitStart.._current]; // Only the binary digits, not the prefix
+                var binaryValue = Convert.ToInt64(binaryDigits2, 2);
+                AddToken(TokenType.Number, (double)binaryValue);
+                return;
+            }
+        }
+
+        // Regular decimal number
         while (IsDigit(Peek())) Advance();
 
         // Check for decimal point (makes it a regular number, not BigInt)
@@ -553,6 +666,21 @@ internal sealed class Lexer(string source)
     private static bool IsAlphaNumeric(char c)
     {
         return IsAlpha(c) || IsDigit(c);
+    }
+
+    private static bool IsHexDigit(char c)
+    {
+        return c is >= '0' and <= '9' || c is >= 'a' and <= 'f' || c is >= 'A' and <= 'F';
+    }
+
+    private static bool IsOctalDigit(char c)
+    {
+        return c is >= '0' and <= '7';
+    }
+
+    private static bool IsBinaryDigit(char c)
+    {
+        return c is '0' or '1';
     }
 
     private void AddToken(TokenType type)

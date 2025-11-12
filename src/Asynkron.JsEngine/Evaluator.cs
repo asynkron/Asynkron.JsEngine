@@ -1139,7 +1139,21 @@ internal static class Evaluator
         var calleeExpression = cons.Rest.Head;
         var (callee, thisValue) = ResolveCallee(calleeExpression, environment, context);
         if (callee is not IJsCallable callable)
-            throw new InvalidOperationException("Attempted to call a non-callable value.");
+        {
+            var errorMessage = "Attempted to call a non-callable value";
+            
+            // Try to get source reference from the cons cell
+            var sourceRef = GetSourceReference(cons);
+            if (sourceRef != null)
+            {
+                errorMessage += $" at {sourceRef}";
+                var sourceText = sourceRef.GetText();
+                if (!string.IsNullOrWhiteSpace(sourceText))
+                    errorMessage += $": {sourceText}";
+            }
+            
+            throw new InvalidOperationException(errorMessage + ".");
+        }
 
         var arguments = new List<object?>();
         foreach (var argumentExpression in cons.Rest.Rest)
@@ -3298,5 +3312,29 @@ internal static class Evaluator
                 _ => throw new InvalidOperationException($"Unknown typed array type: {typedArray.GetType()}")
             };
         });
+    }
+
+    /// <summary>
+    /// Gets the source reference from a cons cell or its origin chain.
+    /// </summary>
+    private static SourceReference? GetSourceReference(Cons? cons)
+    {
+        if (cons == null)
+            return null;
+        
+        // Check the current cons for a source reference
+        if (cons.SourceReference != null)
+            return cons.SourceReference;
+        
+        // Walk the origin chain to find a source reference
+        var current = cons.Origin;
+        while (current != null)
+        {
+            if (current.SourceReference != null)
+                return current.SourceReference;
+            current = current.Origin;
+        }
+        
+        return null;
     }
 }

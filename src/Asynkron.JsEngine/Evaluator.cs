@@ -1657,7 +1657,7 @@ internal static class Evaluator
         var constructorExpression = cons.Rest.Head;
         var constructor = EvaluateExpression(constructorExpression, environment, context);
         if (constructor is not IJsCallable callable)
-            throw new InvalidOperationException("Attempted to construct with a non-callable value.");
+            throw new InvalidOperationException(FormatErrorMessage("Attempted to construct with a non-callable value", cons) + ".");
 
         var instance = new JsObject();
         if (TryGetPropertyValue(constructor, "prototype", out var prototype) && prototype is JsObject prototypeObject)

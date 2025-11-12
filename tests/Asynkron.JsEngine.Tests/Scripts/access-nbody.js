@@ -153,20 +153,24 @@ NBodySystem.prototype.energy = function(){
 
 var ret = 0;
 
+__debug(); // Debug: before main loop
 for ( var n = 3; n <= 24; n *= 2 ) {
     (function(){
         var bodies = new NBodySystem( Array(
            Sun(),Jupiter(),Saturn(),Uranus(),Neptune()
         ));
         var max = n * 100;
+        __debug(); // Debug: in loop iteration, check n and max
         
         ret += bodies.energy();
         for (var i=0; i<max; i++){
             bodies.advance(0.01);
         }
         ret += bodies.energy();
+        __debug(); // Debug: after energy calculations, check ret
     })();
 }
+__debug(); // Debug: after all iterations, final ret
 
 var expected = -1.3524862408537381;
 if (ret != expected)

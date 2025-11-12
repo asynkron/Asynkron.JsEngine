@@ -410,11 +410,13 @@ Date.patterns = {
 
 var date = new Date("1/1/2007 1:11:11");
 
+__debug(); // Debug: before loop, check date
 for (i = 0; i < 4000; ++i) {
     var shortFormat = date.dateFormat("Y-m-d");
     var longFormat = date.dateFormat("l, F d, Y g:i:s A");
     date.setTime(date.getTime() + 84266956);
 }
+__debug(); // Debug: after loop, check final date and formats
 
 // FIXME: Find a way to validate this test.
 // https://bugs.webkit.org/show_bug.cgi?id=114849

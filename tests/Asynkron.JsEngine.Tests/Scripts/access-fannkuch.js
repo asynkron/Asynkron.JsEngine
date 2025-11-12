@@ -62,7 +62,9 @@ function fannkuch(n) {
 }
 
 var n = 8;
+__debug(); // Debug: before fannkuch call
 var ret = fannkuch(n);
+__debug(); // Debug: after fannkuch, check ret
 
 var expected = 22;
 if (ret != expected)

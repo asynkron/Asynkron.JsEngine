@@ -217,11 +217,14 @@ Is now the two hours' traffic of our stage;\n\
 The which if you with patient ears attend,\n\
 What here shall miss, our toil shall strive to mend.";
 
+__debug(); // Debug: initial plainText length
 for (var i = 0; i <4; i++) {
     plainText += plainText;
 }
+__debug(); // Debug: after expanding plainText
 
 var sha1Output = hex_sha1(plainText);
+__debug(); // Debug: after hex_sha1, check output
 
 var expected = "2524d264def74cce2498bf112bedf00e6c0b796d";
 if (sha1Output != expected)

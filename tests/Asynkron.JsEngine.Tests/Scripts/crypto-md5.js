@@ -279,11 +279,14 @@ To know our further pleasure in this case,\n\
 To old Free-town, our common judgment-place.\n\
 Once more, on pain of death, all men depart."
 
+__debug(); // Debug: initial plainText length
 for (var i = 0; i <4; i++) {
     plainText += plainText;
 }
+__debug(); // Debug: after expanding plainText
 
 var md5Output = hex_md5(plainText);
+__debug(); // Debug: after hex_md5, check output
 
 var expected = "a831e91e0f70eddcb70dc61c6f82f6cd";
 

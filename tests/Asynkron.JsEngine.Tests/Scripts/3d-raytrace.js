@@ -438,7 +438,9 @@ for (var y = 0; y < size; y++) {\n\
     return s;
 }
 
+__debug(); // Debug: before raytraceScene
 testOutput = arrayToCanvasCommands(raytraceScene());
+__debug(); // Debug: after raytraceScene, check testOutput
 
 var expectedLength = 20970;
 

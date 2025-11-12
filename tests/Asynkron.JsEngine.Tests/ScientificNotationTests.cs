@@ -1,0 +1,118 @@
+using Xunit;
+
+namespace Asynkron.JsEngine.Tests;
+
+public class ScientificNotationTests
+{
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_PositiveExponent_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("1e5");
+        Assert.Equal(100000d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_NegativeExponent_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("1e-13");
+        Assert.Equal(1e-13, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_ExplicitPositiveExponent_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("1e+5");
+        Assert.Equal(1e+5, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_WithDecimalPart_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("4.84143144246472090e+00");
+        Assert.Equal(4.84143144246472090e+00, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_SmallDecimal_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("2.5e-3");
+        Assert.Equal(0.0025, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_LargeNumber_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("3.14e10");
+        Assert.Equal(3.14e10, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_UppercaseE_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("5E3");
+        Assert.Equal(5000d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_UppercaseEWithSign_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("1.5E-2");
+        Assert.Equal(0.015, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_InVariableDeclaration_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("var epsilon = 1e-13; epsilon;");
+        Assert.Equal(1e-13, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_InExpression_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("2e3 + 3e2");
+        Assert.Equal(2300d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_ZeroExponent_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("5e0");
+        Assert.Equal(5d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_MultipleDigitsInExponent_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("1e123");
+        Assert.Equal(1e123, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_VerySmallNumber_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("9.99e-308");
+        Assert.Equal(9.99e-308, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ScientificNotation_InArithmeticOperation_ParsesCorrectly()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("1e2 * 5");
+        Assert.Equal(500d, result);
+    }
+}

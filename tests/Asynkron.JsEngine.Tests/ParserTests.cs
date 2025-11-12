@@ -678,4 +678,52 @@ public class ParserTests
         var result = await engine.Evaluate("var f = x => y => x + y; f(3)(4);");
         Assert.Equal(7d, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseObjectLiteralWithTrailingComma()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var obj = {
+                a: 1,
+                b: 2,
+                c: 3,
+            };
+            obj.a + obj.b + obj.c;
+            """);
+        Assert.Equal(6d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseArrayLiteralWithTrailingComma()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var arr = [
+                1,
+                2,
+                3,
+            ];
+            arr[0] + arr[1] + arr[2];
+            """);
+        Assert.Equal(6d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ParseObjectLiteralWithArrowFunctionsAndTrailingComma()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var console = {
+                trace: () => null,
+                log: () => null,
+                warn: () => null,
+                error: () => null,
+                info: () => null,
+                debug: () => null,
+            };
+            console.log;
+            """);
+        Assert.NotNull(result);
+    }
 }

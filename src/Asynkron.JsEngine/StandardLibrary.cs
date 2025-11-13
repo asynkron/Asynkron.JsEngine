@@ -369,6 +369,16 @@ public static class StandardLibrary
                 return double.NaN;
             });
 
+            dateInstance["setTime"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && methodArgs.Count > 0 && methodArgs[0] is double ms)
+                {
+                    obj.SetProperty("_internalDate", ms);
+                    return ms;
+                }
+                return double.NaN;
+            });
+
             dateInstance["getFullYear"] = new HostFunction((thisVal, methodArgs) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
@@ -452,6 +462,19 @@ public static class StandardLibrary
                 {
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return (double)dt.Millisecond;
+                }
+
+                return double.NaN;
+            });
+
+            dateInstance["getTimezoneOffset"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    // JavaScript returns offset in minutes, positive for west of UTC
+                    // .NET Offset is positive for east of UTC, so we negate it
+                    return (double)(-dt.Offset.TotalMinutes);
                 }
 
                 return double.NaN;

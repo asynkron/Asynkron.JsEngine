@@ -1186,6 +1186,14 @@ public static class Evaluator
             return GetTypeofString(operand);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.Void))
+        {
+            // The void operator evaluates its operand and returns undefined
+            var operandExpression = cons.Rest.Head;
+            EvaluateExpression(operandExpression, environment, context);
+            return JsSymbols.Undefined;
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.Lambda))
         {
             var maybeName = cons.Rest.Head as Symbol;

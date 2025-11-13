@@ -37,6 +37,7 @@ public static class JsSymbols
     public static readonly Symbol Negate = Symbol.Intern("negate");
     public static readonly Symbol Not = Symbol.Intern("not");
     public static readonly Symbol Typeof = Symbol.Intern("typeof");
+    public static readonly Symbol Void = Symbol.Intern("void");
     public static readonly Symbol Undefined = Symbol.Intern("undefined");
     public static readonly Symbol Lambda = Symbol.Intern("lambda");
     public static readonly Symbol ObjectLiteral = Symbol.Intern("object");

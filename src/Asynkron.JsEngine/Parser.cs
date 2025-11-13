@@ -1440,6 +1440,8 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         if (Match(TokenType.Typeof)) return S(Typeof, ParseUnary());
 
+        if (Match(TokenType.Void)) return S(JsSymbols.Void, ParseUnary());
+
         if (Match(TokenType.PlusPlus))
         {
             var operand = ParseUnary();

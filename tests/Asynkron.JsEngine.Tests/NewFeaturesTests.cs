@@ -320,4 +320,42 @@ public class NewFeaturesTests
         var result = await engine.Evaluate("5 ** 0;");
         Assert.Equal(1d, result);
     }
+
+    [Fact]
+    public async Task VariableHoisting_ConditionalDeclaration()
+    {
+        var engine = new JsEngine();
+        var script = @"
+function test(condition) {
+    if (condition) {
+        var x = 5;
+    }
+    return typeof x;
+}
+test(false);
+";
+        var result = await engine.Evaluate(script);
+        Assert.Equal("undefined", result);
+    }
+
+    [Fact]
+    public async Task VariableHoisting_ConditionalAccess()
+    {
+        var engine = new JsEngine();
+        var script = @"
+function test(condition) {
+    if (condition) {
+        var x = 5;
+    }
+    if (x) {
+        return 'truthy';
+    } else {
+        return 'falsy';
+    }
+}
+test(false);
+";
+        var result = await engine.Evaluate(script);
+        Assert.Equal("falsy", result);
+    }
 }

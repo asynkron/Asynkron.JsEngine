@@ -41,6 +41,12 @@ public sealed class JsEngine
         SetGlobal("NaN", double.NaN);
         SetGlobal("undefined", JsSymbols.Undefined);
 
+        // Register global functions
+        SetGlobal("parseInt", StandardLibrary.CreateParseIntFunction());
+        SetGlobal("parseFloat", StandardLibrary.CreateParseFloatFunction());
+        SetGlobal("isNaN", StandardLibrary.CreateIsNaNFunction());
+        SetGlobal("isFinite", StandardLibrary.CreateIsFiniteFunction());
+
         // Register Date constructor as a callable object with static methods
         var dateConstructor = StandardLibrary.CreateDateConstructor();
         var dateObj = StandardLibrary.CreateDateObject();

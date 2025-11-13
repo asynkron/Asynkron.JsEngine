@@ -829,7 +829,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.Semicolon, "Expected ';' after for loop condition.");
 
         object? increment = null;
-        if (!Check(TokenType.RightParen)) increment = ParseExpression();
+        if (!Check(TokenType.RightParen)) increment = ParseSequenceExpression();
 
         Consume(TokenType.RightParen, "Expected ')' after for clauses.");
         var body2 = ParseStatement();

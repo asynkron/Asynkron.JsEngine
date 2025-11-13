@@ -1258,7 +1258,9 @@ public static class Evaluator
         var (callee, thisValue) = ResolveCallee(calleeExpression, environment, context);
         if (callee is not IJsCallable callable)
         {
-            var errorMessage = FormatErrorMessage("Attempted to call a non-callable value", cons);
+            var calleeType = callee?.GetType().Name ?? "null";
+            var calleeValue = callee?.ToString() ?? "null";
+            var errorMessage = FormatErrorMessage($"Attempted to call a non-callable value of type {calleeType}: {calleeValue}", cons);
             throw new InvalidOperationException(errorMessage + ".");
         }
 

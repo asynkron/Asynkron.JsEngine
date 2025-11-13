@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// SunSpider benchmark tests. See SUNSPIDER_TEST_FINDINGS.md for detailed analysis of failures.
-/// Current status: 11 passing / 15 failing
+/// Current status: 17 passing / 8 failing
 /// </summary>
 public class SunSpiderTests
 {
@@ -48,7 +48,7 @@ public class SunSpiderTests
     }
 
     // ====================================================================================
-    // PASSING TESTS (11)
+    // PASSING TESTS (17)
     // ====================================================================================
 
     /// <summary>
@@ -68,6 +68,7 @@ public class SunSpiderTests
     [Theory]
     [InlineData("access-binary-trees.js")]
     [InlineData("access-nsieve.js")]
+    [InlineData("access-fannkuch.js")]
     public async Task SunSpider_Access_Passing(string filename)
     {
         var content = GetEmbeddedFile(filename);
@@ -106,14 +107,26 @@ public class SunSpiderTests
     /// </summary>
     [Theory]
     [InlineData("crypto-md5.js")]
+    [InlineData("crypto-sha1.js")]
     public async Task SunSpider_Crypto_Passing(string filename)
     {
         var content = GetEmbeddedFile(filename);
         await RunTest(content);
     }
 
+    /// <summary>
+    /// String operation tests that are passing
+    /// </summary>
+    [Theory]
+    [InlineData("string-fasta.js")]
+    public async Task SunSpider_String_Passing(string filename)
+    {
+        var content = GetEmbeddedFile(filename);
+        await RunTest(content);
+    }
+
     // ====================================================================================
-    // FAILING TESTS - PARSE ERRORS (6)
+    // FAILING TESTS - PARSE ERRORS (5)
     // See SUNSPIDER_TEST_FINDINGS.md for detailed analysis
     // ====================================================================================
 
@@ -184,26 +197,9 @@ public class SunSpiderTests
     }
 
     // ====================================================================================
-    // FAILING TESTS - RUNTIME ERRORS: CRYPTOGRAPHIC (2)
+    // FAILING TESTS - RUNTIME ERRORS: CRYPTOGRAPHIC (1)
     // See SUNSPIDER_TEST_FINDINGS.md for detailed analysis
     // ====================================================================================
-
-    /// <summary>
-    /// Runtime error: SHA1 hash calculation produces incorrect result
-    /// Expected: 2524d264def74cce2498bf112bedf00e6c0b796d
-    /// Got: 85634b6b67255134eeb5fd1c9b02f4bf0481b7c4
-    /// Root Cause: Similar to MD5 - bit operations or integer handling
-    /// - Bitwise rotations (rol operations)
-    /// - 32-bit unsigned integer arithmetic
-    /// - Proper handling of large numbers
-    /// </summary>
-    [Theory]
-    [InlineData("crypto-sha1.js")]
-    public async Task SunSpider_Crypto_SHA1_Failing(string filename)
-    {
-        var content = GetEmbeddedFile(filename);
-        await RunTest(content);
-    }
 
     /// <summary>
     /// Runtime error: AES encryption/decryption produces incorrect results
@@ -221,22 +217,9 @@ public class SunSpiderTests
     }
 
     // ====================================================================================
-    // FAILING TESTS - RUNTIME ERRORS: NUMERICAL CALCULATIONS (2)
+    // FAILING TESTS - RUNTIME ERRORS: NUMERICAL CALCULATIONS (1)
     // See SUNSPIDER_TEST_FINDINGS.md for detailed analysis
     // ====================================================================================
-
-    /// <summary>
-    /// Runtime error: Fannkuch algorithm (array permutation) produces wrong result
-    /// Expected: 22
-    /// Root Cause: Array manipulation or integer arithmetic issue
-    /// </summary>
-    [Theory]
-    [InlineData("access-fannkuch.js")]
-    public async Task SunSpider_Access_Fannkuch_Failing(string filename)
-    {
-        var content = GetEmbeddedFile(filename);
-        await RunTest(content);
-    }
 
     /// <summary>
     /// Runtime error: N-body physics simulation produces wrong result
@@ -269,7 +252,7 @@ public class SunSpiderTests
     }
 
     // ====================================================================================
-    // FAILING TESTS - RUNTIME ERRORS: STRING OPERATIONS (2)
+    // FAILING TESTS - RUNTIME ERRORS: STRING OPERATIONS (1)
     // See SUNSPIDER_TEST_FINDINGS.md for detailed analysis
     // ====================================================================================
 
@@ -283,19 +266,6 @@ public class SunSpiderTests
     [Theory]
     [InlineData("string-base64.js")]
     public async Task SunSpider_String_Base64_Failing(string filename)
-    {
-        var content = GetEmbeddedFile(filename);
-        await RunTest(content);
-    }
-
-    /// <summary>
-    /// Runtime error: FASTA string generation produces wrong length
-    /// Expected: 1456000
-    /// Root Cause: String concatenation or array operations, random number generation
-    /// </summary>
-    [Theory]
-    [InlineData("string-fasta.js")]
-    public async Task SunSpider_String_FASTA_Failing(string filename)
     {
         var content = GetEmbeddedFile(filename);
         await RunTest(content);

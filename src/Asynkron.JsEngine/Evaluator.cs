@@ -1673,7 +1673,13 @@ public static class Evaluator
         var constructorExpression = cons.Rest.Head;
         var constructor = EvaluateExpression(constructorExpression, environment, context);
         if (constructor is not IJsCallable callable)
-            throw new InvalidOperationException(FormatErrorMessage("Attempted to construct with a non-callable value", cons) + ".");
+        {
+            var constructorType = constructor?.GetType().Name ?? "null";
+            var constructorValue = constructor?.ToString() ?? "null";
+            var expressionStr = constructorExpression?.ToString() ?? "null";
+            throw new InvalidOperationException(
+                FormatErrorMessage($"Attempted to construct with a non-callable value (expression: {expressionStr}, type: {constructorType}, value: {constructorValue})", cons) + ".");
+        }
 
         var instance = new JsObject();
         if (TryGetPropertyValue(constructor, "prototype", out var prototype) && prototype is JsObject prototypeObject)

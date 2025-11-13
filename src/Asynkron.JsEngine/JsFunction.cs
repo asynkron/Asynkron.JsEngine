@@ -77,7 +77,11 @@ public sealed class JsFunction : IEnvironmentAwareCallable
             environment.Define(_restParameter, restArray);
         }
 
-        environment.Define(JsSymbols.This, thisValue);
+        // In non-strict mode JavaScript, when this is null or undefined, it should reference the global object.
+        // For simplicity, we create a new empty object when this is null.
+        // This handles cases where constructor functions are called without 'new'.
+        var effectiveThis = thisValue ?? new JsObject();
+        environment.Define(JsSymbols.This, effectiveThis);
 
         if (_name is not null) environment.Define(_name, this);
 

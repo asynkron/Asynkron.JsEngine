@@ -2107,12 +2107,27 @@ public static class StandardLibrary
     /// <summary>
     /// Creates the Object constructor with static methods.
     /// </summary>
-    public static JsObject CreateObjectConstructor()
+    public static HostFunction CreateObjectConstructor()
     {
-        var objectConstructor = new JsObject();
+        // Object constructor function
+        var objectConstructor = new HostFunction(args =>
+        {
+            // Object() or Object(value) - creates a new object or wraps the value
+            if (args.Count == 0 || args[0] == null || args[0] == JsSymbols.Undefined)
+            {
+                return new JsObject();
+            }
+            // If value is already an object, return it as-is
+            if (args[0] is JsObject jsObj)
+            {
+                return jsObj;
+            }
+            // For primitives, wrap in an object (simplified - just return a new object)
+            return new JsObject();
+        });
 
         // Object.keys(obj)
-        objectConstructor["keys"] = new HostFunction(args =>
+        objectConstructor.SetProperty("keys", new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
 
@@ -2120,10 +2135,10 @@ public static class StandardLibrary
             foreach (var key in obj.GetEnumerablePropertyNames()) keys.Push(key);
             AddArrayMethods(keys);
             return keys;
-        });
+        }));
 
         // Object.values(obj)
-        objectConstructor["values"] = new HostFunction(args =>
+        objectConstructor.SetProperty("values", new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
 
@@ -2134,10 +2149,10 @@ public static class StandardLibrary
 
             AddArrayMethods(values);
             return values;
-        });
+        }));
 
         // Object.entries(obj)
-        objectConstructor["entries"] = new HostFunction(args =>
+        objectConstructor.SetProperty("entries", new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
 
@@ -2152,10 +2167,10 @@ public static class StandardLibrary
 
             AddArrayMethods(entries);
             return entries;
-        });
+        }));
 
         // Object.assign(target, ...sources)
-        objectConstructor["assign"] = new HostFunction(args =>
+        objectConstructor.SetProperty("assign", new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject target) return null;
 
@@ -2166,10 +2181,10 @@ public static class StandardLibrary
                             target[key] = value;
 
             return target;
-        });
+        }));
 
         // Object.fromEntries(entries)
-        objectConstructor["fromEntries"] = new HostFunction(args =>
+        objectConstructor.SetProperty("fromEntries", new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsArray entries) return new JsObject();
 
@@ -2183,48 +2198,48 @@ public static class StandardLibrary
                 }
 
             return result;
-        });
+        }));
 
         // Object.hasOwn(obj, prop)
-        objectConstructor["hasOwn"] = new HostFunction(args =>
+        objectConstructor.SetProperty("hasOwn", new HostFunction(args =>
         {
             if (args.Count < 2 || args[0] is not JsObject obj) return false;
             var propName = args[1]?.ToString() ?? "";
             return obj.ContainsKey(propName);
-        });
+        }));
 
         // Object.freeze(obj)
-        objectConstructor["freeze"] = new HostFunction(args =>
+        objectConstructor.SetProperty("freeze", new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return args.Count > 0 ? args[0] : null;
             obj.Freeze();
             return obj;
-        });
+        }));
 
         // Object.seal(obj)
-        objectConstructor["seal"] = new HostFunction(args =>
+        objectConstructor.SetProperty("seal", new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return args.Count > 0 ? args[0] : null;
             obj.Seal();
             return obj;
-        });
+        }));
 
         // Object.isFrozen(obj)
-        objectConstructor["isFrozen"] = new HostFunction(args =>
+        objectConstructor.SetProperty("isFrozen", new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return true; // Non-objects are considered frozen
             return obj.IsFrozen;
-        });
+        }));
 
         // Object.isSealed(obj)
-        objectConstructor["isSealed"] = new HostFunction(args =>
+        objectConstructor.SetProperty("isSealed", new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return true; // Non-objects are considered sealed
             return obj.IsSealed;
-        });
+        }));
 
         // Object.create(proto, propertiesObject)
-        objectConstructor["create"] = new HostFunction(args =>
+        objectConstructor.SetProperty("create", new HostFunction(args =>
         {
             var obj = new JsObject();
             if (args.Count > 0 && args[0] != null) obj.SetPrototype(args[0]);
@@ -2270,10 +2285,10 @@ public static class StandardLibrary
                     }
 
             return obj;
-        });
+        }));
 
         // Object.getOwnPropertyNames(obj)
-        objectConstructor["getOwnPropertyNames"] = new HostFunction(args =>
+        objectConstructor.SetProperty("getOwnPropertyNames", new HostFunction(args =>
         {
             if (args.Count == 0 || args[0] is not JsObject obj) return new JsArray();
 
@@ -2281,10 +2296,10 @@ public static class StandardLibrary
             foreach (var name in obj.GetOwnPropertyNames()) names.Push(name);
             AddArrayMethods(names);
             return names;
-        });
+        }));
 
         // Object.getOwnPropertyDescriptor(obj, prop)
-        objectConstructor["getOwnPropertyDescriptor"] = new HostFunction(args =>
+        objectConstructor.SetProperty("getOwnPropertyDescriptor", new HostFunction(args =>
         {
             if (args.Count < 2 || args[0] is not JsObject obj) return JsSymbols.Undefined;
             var propName = args[1]?.ToString() ?? "";
@@ -2308,10 +2323,10 @@ public static class StandardLibrary
             resultDesc["configurable"] = desc.Configurable;
 
             return resultDesc;
-        });
+        }));
 
         // Object.defineProperty(obj, prop, descriptor)
-        objectConstructor["defineProperty"] = new HostFunction(args =>
+        objectConstructor.SetProperty("defineProperty", new HostFunction(args =>
         {
             if (args.Count < 3 || args[0] is not JsObject obj) return args.Count > 0 ? args[0] : null;
             var propName = args[1]?.ToString() ?? "";
@@ -2350,7 +2365,7 @@ public static class StandardLibrary
             }
 
             return obj;
-        });
+        }));
 
         return objectConstructor;
     }

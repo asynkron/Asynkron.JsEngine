@@ -437,7 +437,7 @@ public static class Evaluator
                 // Call next() on the iterator
                 if (!iteratorObj.TryGetProperty("next", out var nextMethod) ||
                     nextMethod is not IJsCallable nextCallable)
-                    throw new InvalidOperationException("Iterator must have a 'next' method.");
+                    throw new InvalidOperationException($"Iterator must have a 'next' method.{GetSourceInfo(context)}");
 
                 var nextResult = nextCallable.Invoke([], iteratorObj);
 
@@ -451,7 +451,7 @@ public static class Evaluator
                         // For testing purposes, if it's a resolved promise, we try to extract the value
                         // This is a limitation - proper async iteration requires CPS transformation
                         throw new InvalidOperationException(
-                            "Async iteration with promises requires async function context. Use for await...of inside an async function.");
+                            $"Async iteration with promises requires async function context. Use for await...of inside an async function.{GetSourceInfo(context)}");
 
                     // Check if iteration is done
                     var done = resultObj.TryGetProperty("done", out var doneValue) && doneValue is bool b && b;
@@ -1229,7 +1229,7 @@ public static class Evaluator
         {
             var targetExpression = propertyCons.Rest.Head;
             var propertyName = propertyCons.Rest.Rest.Head as string
-                               ?? throw new InvalidOperationException("Property access requires a string name.");
+                               ?? throw new InvalidOperationException($"Property access requires a string name.{GetSourceInfo(context)}");
 
             if (targetExpression is Symbol { } targetSymbol && ReferenceEquals(targetSymbol, JsSymbols.Super))
             {
@@ -1257,7 +1257,7 @@ public static class Evaluator
                 var superIndex = EvaluateExpression(indexExpression, environment, context);
                 var superPropertyName = ToPropertyName(superIndex)
                                         ?? throw new InvalidOperationException(
-                                            $"Unsupported index value '{superIndex}'.");
+                                            $"Unsupported index value '{superIndex}'.{GetSourceInfo(context)}");
 
                 if (binding.TryGetProperty(superPropertyName, out var superValue))
                     return (superValue, binding.ThisValue);
@@ -1406,7 +1406,7 @@ public static class Evaluator
             var propertyCons = ExpectCons(propertyExpression, "Expected property description in object literal.", context);
             var propertyTag = propertyCons.Head as Symbol
                               ?? throw new InvalidOperationException(
-                                  "Object literal entries must start with a symbol.");
+                                  $"Object literal entries must start with a symbol.{GetSourceInfo(context)}");
 
             // Handle spread operator (future feature for object rest/spread)
             if (ReferenceEquals(propertyTag, JsSymbols.Spread))
@@ -1433,7 +1433,7 @@ public static class Evaluator
                 var propertyNameValue = EvaluateExpression(propertyNameOrExpression, environment, context);
                 propertyName = ToPropertyName(propertyNameValue)
                                ?? throw new InvalidOperationException(
-                                   $"Cannot convert '{propertyNameValue}' to property name.");
+                                   $"Cannot convert '{propertyNameValue}' to property name.{GetSourceInfo(context)}");
             }
 
             if (ReferenceEquals(propertyTag, JsSymbols.Property))
@@ -1471,7 +1471,7 @@ public static class Evaluator
     {
         var targetExpression = cons.Rest.Head;
         var propertyName = cons.Rest.Rest.Head as string
-                           ?? throw new InvalidOperationException("Property access requires a string name.");
+                           ?? throw new InvalidOperationException($"Property access requires a string name.{GetSourceInfo(context)}");
 
         if (targetExpression is Symbol { } superSymbol && ReferenceEquals(superSymbol, JsSymbols.Super))
         {
@@ -1884,11 +1884,11 @@ public static class Evaluator
         }
         catch (InvalidOperationException ex)
         {
-            throw new InvalidOperationException("Super is not available in this context.", ex);
+            throw new InvalidOperationException($"Super is not available in this context.{GetSourceInfo(context)}", ex);
         }
 
         if (value is not SuperBinding binding)
-            throw new InvalidOperationException("Super is not available in this context.");
+            throw new InvalidOperationException($"Super is not available in this context.{GetSourceInfo(context)}");
 
         return binding;
     }
@@ -2694,14 +2694,14 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
-            throw new InvalidOperationException("Pattern must start with a symbol.");
+            throw new InvalidOperationException($"Pattern must start with a symbol.{GetSourceInfo(context)}");
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
             DestructureArrayFunctionScoped(pattern, value, environment, context);
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
             DestructureObjectFunctionScoped(pattern, value, environment, context);
         else
-            throw new InvalidOperationException($"Unknown pattern type: {patternType}");
+            throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
     }
 
     private static void DestructureArray(Cons pattern, object? value, Environment environment, bool isConst,
@@ -2721,10 +2721,10 @@ public static class Evaluator
             }
 
             if (element is not Cons elementCons)
-                throw new InvalidOperationException("Expected pattern element to be a cons.");
+                throw new InvalidOperationException($"Expected pattern element to be a cons.{GetSourceInfo(context)}");
 
             if (elementCons.Head is not Symbol elementType)
-                throw new InvalidOperationException("Pattern element must start with a symbol.");
+                throw new InvalidOperationException($"Pattern element must start with a symbol.{GetSourceInfo(context)}");
 
             // Handle rest element
             if (ReferenceEquals(elementType, JsSymbols.PatternRest))
@@ -2756,7 +2756,7 @@ public static class Evaluator
                     environment.Define(identifier, elementValue, isConst);
                 else
                     throw new InvalidOperationException(
-                        "Expected identifier or nested pattern in array pattern element.");
+                        $"Expected identifier or nested pattern in array pattern element.{GetSourceInfo(context)}");
 
                 index++;
             }
@@ -2767,7 +2767,7 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (value is not JsArray array)
-            throw new InvalidOperationException($"Cannot destructure non-array value in array pattern.");
+            throw new InvalidOperationException($"Cannot destructure non-array value in array pattern.{GetSourceInfo(context)}");
 
         var index = 0;
         foreach (var element in pattern.Rest)
@@ -2780,10 +2780,10 @@ public static class Evaluator
             }
 
             if (element is not Cons elementCons)
-                throw new InvalidOperationException("Expected pattern element to be a cons.");
+                throw new InvalidOperationException($"Expected pattern element to be a cons.{GetSourceInfo(context)}");
 
             if (elementCons.Head is not Symbol elementType)
-                throw new InvalidOperationException("Pattern element must start with a symbol.");
+                throw new InvalidOperationException($"Pattern element must start with a symbol.{GetSourceInfo(context)}");
 
             // Handle rest element
             if (ReferenceEquals(elementType, JsSymbols.PatternRest))
@@ -2815,7 +2815,7 @@ public static class Evaluator
                     environment.DefineFunctionScoped(identifier, elementValue, true);
                 else
                     throw new InvalidOperationException(
-                        "Expected identifier or nested pattern in array pattern element.");
+                        $"Expected identifier or nested pattern in array pattern element.{GetSourceInfo(context)}");
 
                 index++;
             }
@@ -2826,17 +2826,17 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (value is not JsObject obj)
-            throw new InvalidOperationException($"Cannot destructure non-object value in object pattern.");
+            throw new InvalidOperationException($"Cannot destructure non-object value in object pattern.{GetSourceInfo(context)}");
 
         var usedKeys = new HashSet<string>();
 
         foreach (var property in pattern.Rest)
         {
             if (property is not Cons propertyCons)
-                throw new InvalidOperationException("Expected pattern property to be a cons.");
+                throw new InvalidOperationException($"Expected pattern property to be a cons.{GetSourceInfo(context)}");
 
             if (propertyCons.Head is not Symbol propertyType)
-                throw new InvalidOperationException("Pattern property must start with a symbol.");
+                throw new InvalidOperationException($"Pattern property must start with a symbol.{GetSourceInfo(context)}");
 
             // Handle rest property
             if (ReferenceEquals(propertyType, JsSymbols.PatternRest))
@@ -2855,7 +2855,7 @@ public static class Evaluator
             if (ReferenceEquals(propertyType, JsSymbols.PatternProperty))
             {
                 var sourceName = propertyCons.Rest.Head as string ??
-                                 throw new InvalidOperationException("Expected property name in object pattern.");
+                                 throw new InvalidOperationException($"Expected property name in object pattern.{GetSourceInfo(context)}");
                 var target = propertyCons.Rest.Rest.Head;
                 var defaultValue = propertyCons.Rest.Rest.Rest.Head;
 
@@ -2876,7 +2876,7 @@ public static class Evaluator
                     environment.Define(identifier, propertyValue, isConst);
                 else
                     throw new InvalidOperationException(
-                        "Expected identifier or nested pattern in object pattern property.");
+                        $"Expected identifier or nested pattern in object pattern property.{GetSourceInfo(context)}");
             }
         }
     }
@@ -2885,17 +2885,17 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (value is not JsObject obj)
-            throw new InvalidOperationException($"Cannot destructure non-object value in object pattern.");
+            throw new InvalidOperationException($"Cannot destructure non-object value in object pattern.{GetSourceInfo(context)}");
 
         var usedKeys = new HashSet<string>();
 
         foreach (var property in pattern.Rest)
         {
             if (property is not Cons propertyCons)
-                throw new InvalidOperationException("Expected pattern property to be a cons.");
+                throw new InvalidOperationException($"Expected pattern property to be a cons.{GetSourceInfo(context)}");
 
             if (propertyCons.Head is not Symbol propertyType)
-                throw new InvalidOperationException("Pattern property must start with a symbol.");
+                throw new InvalidOperationException($"Pattern property must start with a symbol.{GetSourceInfo(context)}");
 
             // Handle rest property
             if (ReferenceEquals(propertyType, JsSymbols.PatternRest))
@@ -2914,7 +2914,7 @@ public static class Evaluator
             if (ReferenceEquals(propertyType, JsSymbols.PatternProperty))
             {
                 var sourceName = propertyCons.Rest.Head as string ??
-                                 throw new InvalidOperationException("Expected property name in object pattern.");
+                                 throw new InvalidOperationException($"Expected property name in object pattern.{GetSourceInfo(context)}");
                 var target = propertyCons.Rest.Rest.Head;
                 var defaultValue = propertyCons.Rest.Rest.Rest.Head;
 
@@ -2935,7 +2935,7 @@ public static class Evaluator
                     environment.DefineFunctionScoped(identifier, propertyValue, true);
                 else
                     throw new InvalidOperationException(
-                        "Expected identifier or nested pattern in object pattern property.");
+                        $"Expected identifier or nested pattern in object pattern property.{GetSourceInfo(context)}");
             }
         }
     }
@@ -2945,14 +2945,14 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
-            throw new InvalidOperationException("Pattern must start with a symbol.");
+            throw new InvalidOperationException($"Pattern must start with a symbol.{GetSourceInfo(context)}");
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
             DestructureArrayFunctionScoped(pattern, value, environment, context);
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
             DestructureObjectFunctionScoped(pattern, value, environment, context);
         else
-            throw new InvalidOperationException($"Unknown pattern type: {patternType}");
+            throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
     }
 
     private static void DestructureAssignment(Cons pattern, object? value, Environment environment,
@@ -2973,7 +2973,7 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (value is not JsArray array)
-            throw new InvalidOperationException($"Cannot destructure non-array value in array pattern.");
+            throw new InvalidOperationException($"Cannot destructure non-array value in array pattern.{GetSourceInfo(context)}");
 
         var index = 0;
         foreach (var element in pattern.Rest)
@@ -2986,10 +2986,10 @@ public static class Evaluator
             }
 
             if (element is not Cons elementCons)
-                throw new InvalidOperationException("Expected pattern element to be a cons.");
+                throw new InvalidOperationException($"Expected pattern element to be a cons.{GetSourceInfo(context)}");
 
             if (elementCons.Head is not Symbol elementType)
-                throw new InvalidOperationException("Pattern element must start with a symbol.");
+                throw new InvalidOperationException($"Pattern element must start with a symbol.{GetSourceInfo(context)}");
 
             // Handle rest element
             if (ReferenceEquals(elementType, JsSymbols.PatternRest))
@@ -3021,7 +3021,7 @@ public static class Evaluator
                     environment.Assign(identifier, elementValue);
                 else
                     throw new InvalidOperationException(
-                        "Expected identifier or nested pattern in array pattern element.");
+                        $"Expected identifier or nested pattern in array pattern element.{GetSourceInfo(context)}");
 
                 index++;
             }
@@ -3032,17 +3032,17 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (value is not JsObject obj)
-            throw new InvalidOperationException($"Cannot destructure non-object value in object pattern.");
+            throw new InvalidOperationException($"Cannot destructure non-object value in object pattern.{GetSourceInfo(context)}");
 
         var usedKeys = new HashSet<string>();
 
         foreach (var property in pattern.Rest)
         {
             if (property is not Cons propertyCons)
-                throw new InvalidOperationException("Expected pattern property to be a cons.");
+                throw new InvalidOperationException($"Expected pattern property to be a cons.{GetSourceInfo(context)}");
 
             if (propertyCons.Head is not Symbol propertyType)
-                throw new InvalidOperationException("Pattern property must start with a symbol.");
+                throw new InvalidOperationException($"Pattern property must start with a symbol.{GetSourceInfo(context)}");
 
             // Handle rest property
             if (ReferenceEquals(propertyType, JsSymbols.PatternRest))
@@ -3061,7 +3061,7 @@ public static class Evaluator
             if (ReferenceEquals(propertyType, JsSymbols.PatternProperty))
             {
                 var sourceName = propertyCons.Rest.Head as string ??
-                                 throw new InvalidOperationException("Expected property name in object pattern.");
+                                 throw new InvalidOperationException($"Expected property name in object pattern.{GetSourceInfo(context)}");
                 var target = propertyCons.Rest.Rest.Head;
                 var defaultValue = propertyCons.Rest.Rest.Rest.Head;
 
@@ -3082,7 +3082,7 @@ public static class Evaluator
                     environment.Assign(identifier, propertyValue);
                 else
                     throw new InvalidOperationException(
-                        "Expected identifier or nested pattern in object pattern property.");
+                        $"Expected identifier or nested pattern in object pattern property.{GetSourceInfo(context)}");
             }
         }
     }
@@ -3327,14 +3327,14 @@ public static class Evaluator
                 else if (target is JsObject jsObject)
                 {
                     var propertyName = ToPropertyName(index)
-                                       ?? throw new InvalidOperationException($"Invalid property name: {index}");
+                                       ?? throw new InvalidOperationException($"Invalid property name: {index}{GetSourceInfo(context)}");
                     jsObject.SetProperty(propertyName, newValue);
                 }
             }
         }
         else
         {
-            throw new InvalidOperationException("Invalid operand for increment/decrement operator.");
+            throw new InvalidOperationException($"Invalid operand for increment/decrement operator.{GetSourceInfo(context)}");
         }
     }
 

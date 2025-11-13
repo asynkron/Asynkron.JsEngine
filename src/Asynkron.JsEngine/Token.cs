@@ -102,6 +102,7 @@ public enum TokenType
     Null,
     Undefined,
     Typeof,
+    Void,
     Import,
     Export,
     RegexLiteral,

@@ -31,22 +31,10 @@ public sealed class JsFunction : IEnvironmentAwareCallable
 
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
     {
-        // With rest parameters, we accept variable arguments
-        if (_restParameter is null)
-        {
-            // JavaScript allows passing more arguments than parameters
-            // Only check for too few arguments
-            if (arguments.Count < _parameters.Count)
-                throw new InvalidOperationException(
-                    $"Function expected {_parameters.Count} arguments but received {arguments.Count}.");
-        }
-        else
-        {
-            if (arguments.Count < _parameters.Count)
-                throw new InvalidOperationException(
-                    $"Function expected at least {_parameters.Count} arguments but received {arguments.Count}.");
-        }
-
+        // JavaScript allows both more and fewer arguments than parameters
+        // Missing arguments become undefined (null in our implementation)
+        // Extra arguments are accessible via the arguments object
+        
         var context = new EvaluationContext();
         var functionDescription = _name != null ? $"function {_name.Name}" : "anonymous function";
         var environment = new Environment(_closure, true, creatingExpression: _body, description: functionDescription);

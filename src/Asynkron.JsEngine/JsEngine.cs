@@ -47,8 +47,14 @@ public sealed class JsEngine
 
         // Add static methods to constructor
         if (dateConstructor is HostFunction hf)
+        {
             foreach (var prop in dateObj)
                 hf.SetProperty(prop.Key, prop.Value);
+            
+            // Create and set Date.prototype
+            var datePrototype = new JsObject();
+            hf.SetProperty("prototype", datePrototype);
+        }
 
         SetGlobal("Date", dateConstructor);
         SetGlobal("JSON", StandardLibrary.CreateJsonObject());

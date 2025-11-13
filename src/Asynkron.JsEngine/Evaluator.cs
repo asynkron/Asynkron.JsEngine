@@ -275,13 +275,28 @@ public static class Evaluator
 
     private static object? EvaluateForIn(Cons cons, Environment environment, EvaluationContext context)
     {
-        // (for-in (let/var/const variable) iterable body)
-        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for...in loop.", context);
+        // (for-in (let/var/const variable) iterable body) OR (for-in identifier iterable body)
+        var firstArg = cons.Rest.Head;
+        Symbol variableName;
+        
+        // Check if first argument is a variable declaration or just an identifier
+        if (firstArg is Cons variableDecl)
+        {
+            // Extract variable name from declaration
+            variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...in loop.", context);
+        }
+        else if (firstArg is Symbol identifier)
+        {
+            // Using existing variable
+            variableName = identifier;
+        }
+        else
+        {
+            throw new InvalidOperationException($"Expected variable declaration or identifier in for...in loop.{GetSourceInfo(context)}");
+        }
+        
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
-
-        // Extract variable name from declaration
-        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...in loop.", context);
 
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
@@ -307,7 +322,15 @@ public static class Evaluator
                 break;
 
             // Set loop variable
-            loopEnvironment.Define(variableName, key);
+            // If using existing variable, update in parent scope, otherwise define in loop scope
+            if (firstArg is Symbol)
+            {
+                environment.Assign(variableName, key);
+            }
+            else
+            {
+                loopEnvironment.Define(variableName, key);
+            }
 
             lastResult = EvaluateStatement(body, loopEnvironment, context);
 
@@ -331,13 +354,28 @@ public static class Evaluator
 
     private static object? EvaluateForOf(Cons cons, Environment environment, EvaluationContext context)
     {
-        // (for-of (let/var/const variable) iterable body)
-        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for...of loop.", context);
+        // (for-of (let/var/const variable) iterable body) OR (for-of identifier iterable body)
+        var firstArg = cons.Rest.Head;
+        Symbol variableName;
+        
+        // Check if first argument is a variable declaration or just an identifier
+        if (firstArg is Cons variableDecl)
+        {
+            // Extract variable name from declaration
+            variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...of loop.", context);
+        }
+        else if (firstArg is Symbol identifier)
+        {
+            // Using existing variable
+            variableName = identifier;
+        }
+        else
+        {
+            throw new InvalidOperationException($"Expected variable declaration or identifier in for...of loop.{GetSourceInfo(context)}");
+        }
+        
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
-
-        // Extract variable name from declaration
-        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...of loop.", context);
 
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
@@ -362,7 +400,15 @@ public static class Evaluator
                 break;
 
             // Set loop variable
-            loopEnvironment.Define(variableName, value);
+            // If using existing variable, update in parent scope, otherwise define in loop scope
+            if (firstArg is Symbol)
+            {
+                environment.Assign(variableName, value);
+            }
+            else
+            {
+                loopEnvironment.Define(variableName, value);
+            }
 
             lastResult = EvaluateStatement(body, loopEnvironment, context);
 
@@ -386,17 +432,32 @@ public static class Evaluator
 
     private static object? EvaluateForAwaitOf(Cons cons, Environment environment, EvaluationContext context)
     {
-        // (for-await-of (let/var/const variable) iterable body)
+        // (for-await-of (let/var/const variable) iterable body) OR (for-await-of identifier iterable body)
         // This implements async iteration with support for:
         // 1. Symbol.asyncIterator protocol
         // 2. Fallback to Symbol.iterator
         // 3. Built-in iterables (arrays, strings, generators)
-        var variableDecl = ExpectCons(cons.Rest.Head, "Expected variable declaration in for await...of loop.", context);
+        var firstArg = cons.Rest.Head;
+        Symbol variableName;
+        
+        // Check if first argument is a variable declaration or just an identifier
+        if (firstArg is Cons variableDecl)
+        {
+            // Extract variable name from declaration
+            variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for await...of loop.", context);
+        }
+        else if (firstArg is Symbol identifier)
+        {
+            // Using existing variable
+            variableName = identifier;
+        }
+        else
+        {
+            throw new InvalidOperationException($"Expected variable declaration or identifier in for await...of loop.{GetSourceInfo(context)}");
+        }
+        
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
-
-        // Extract variable name from declaration
-        var variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for await...of loop.", context);
 
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
@@ -468,7 +529,15 @@ public static class Evaluator
                     if (resultObj.TryGetProperty("value", out var value))
                     {
                         // Set loop variable
-                        loopEnvironment.Define(variableName, value);
+                        // If using existing variable, update in parent scope, otherwise define in loop scope
+                        if (firstArg is Symbol)
+                        {
+                            environment.Assign(variableName, value);
+                        }
+                        else
+                        {
+                            loopEnvironment.Define(variableName, value);
+                        }
 
                         lastResult = EvaluateStatement(body, loopEnvironment, context);
 
@@ -532,7 +601,15 @@ public static class Evaluator
                 break;
 
             // Set loop variable
-            loopEnvironment.Define(variableName, value);
+            // If using existing variable, update in parent scope, otherwise define in loop scope
+            if (firstArg is Symbol)
+            {
+                environment.Assign(variableName, value);
+            }
+            else
+            {
+                loopEnvironment.Define(variableName, value);
+            }
 
             lastResult = EvaluateStatement(body, loopEnvironment, context);
 

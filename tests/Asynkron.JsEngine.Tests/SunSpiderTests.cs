@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// SunSpider benchmark tests. See SUNSPIDER_TEST_FINDINGS.md for detailed analysis of failures.
-/// Current status: 16 passing / 9 failing
+/// Current status: 17 passing / 8 failing
 /// </summary>
 public class SunSpiderTests
 {
@@ -48,7 +48,7 @@ public class SunSpiderTests
     }
 
     // ====================================================================================
-    // PASSING TESTS (16)
+    // PASSING TESTS (17)
     // ====================================================================================
 
     /// <summary>
@@ -120,6 +120,7 @@ public class SunSpiderTests
     [Theory]
     [InlineData("string-fasta.js")]
     [InlineData("string-unpack-code.js")]
+    [InlineData("string-validate-input.js")]
     public async Task SunSpider_String_Passing(string filename)
     {
         var content = GetEmbeddedFile(filename);
@@ -138,37 +139,9 @@ public class SunSpiderTests
     }
 
     // ====================================================================================
-    // FAILING TESTS - PARSE ERRORS (2)
+    // FAILING TESTS - PARSE ERRORS (1)
     // See SUNSPIDER_TEST_FINDINGS.md for detailed analysis
     // ====================================================================================
-
-    /// <summary>
-    /// Parse error: Ternary operator with assignments in both branches
-    /// Error: Invalid assignment target near line 15 column 44
-    /// Issue: (k%2)?email=username+"@mac.com":email=username+"(at)mac.com"
-    /// Root Cause: Parser doesn't support assignments as expressions in ternary operators
-    /// </summary>
-    [Theory]
-    [InlineData("string-validate-input.js")]
-    public async Task SunSpider_ParseError_TernaryAssignment(string filename)
-    {
-        var content = GetEmbeddedFile(filename);
-        await RunTest(content);
-    }
-
-    /// <summary>
-    /// Parse error: Unexpected token Semicolon at line 200, column 64
-    /// Context: ... Q.Line[0] = true; };
-    /// Root Cause: Parser issue with complex expression / empty statement after closing brace
-    /// NOW: This test parses successfully but produces NaN at runtime - it's a runtime error, not parse error
-    /// </summary>
-    [Theory]
-    [InlineData("3d-cube.js")]
-    public async Task SunSpider_ParseError_Semicolon(string filename)
-    {
-        var content = GetEmbeddedFile(filename);
-        await RunTest(content);
-    }
 
     /// <summary>
     /// Parse error: Expected ')' after expression at line 62, column 78
@@ -222,9 +195,21 @@ public class SunSpiderTests
     }
 
     // ====================================================================================
-    // FAILING TESTS - RUNTIME ERRORS: 3D GRAPHICS (1)
+    // FAILING TESTS - RUNTIME ERRORS: 3D GRAPHICS (2)
     // See SUNSPIDER_TEST_FINDINGS.md for detailed analysis
     // ====================================================================================
+
+    /// <summary>
+    /// Runtime error: 3D cube rendering produces NaN in vector calculations
+    /// Root Cause: Missing or incorrect Math function, or calculation issue
+    /// </summary>
+    [Theory]
+    [InlineData("3d-cube.js")]
+    public async Task SunSpider_3D_Cube_Failing(string filename)
+    {
+        var content = GetEmbeddedFile(filename);
+        await RunTest(content);
+    }
 
     /// <summary>
     /// Runtime error: Ray-tracing algorithm produces wrong output length

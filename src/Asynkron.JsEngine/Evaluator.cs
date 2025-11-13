@@ -129,6 +129,12 @@ public static class Evaluator
             return null;
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.EmptyStatement))
+        {
+            // Empty statement does nothing, just return null
+            return null;
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.Return)) return EvaluateReturn(cons, environment, context);
 
         if (ReferenceEquals(symbol, JsSymbols.Throw)) return EvaluateThrow(cons, environment, context);
@@ -1822,6 +1828,7 @@ public static class Evaluator
                 ">=" => GreaterThanOrEqual(left, right),
                 "<" => LessThan(left, right),
                 "<=" => LessThanOrEqual(left, right),
+                "in" => InOperator(left, right),
                 _ => throw new InvalidOperationException($"Unsupported operator '{operatorName}'.{GetSourceInfo(context)}")
             };
         }
@@ -3406,5 +3413,23 @@ public static class Evaluator
         }
         
         return message;
+    }
+
+    /// <summary>
+    /// Implements the 'in' operator, which checks if a property exists in an object.
+    /// </summary>
+    private static bool InOperator(object? left, object? right)
+    {
+        // Convert left operand to string (property name)
+        var propertyName = left?.ToString() ?? "";
+        
+        // Right operand must be an object
+        if (right is JsObject jsObj)
+        {
+            return jsObj.ContainsKey(propertyName);
+        }
+        
+        // For non-objects, 'in' returns false
+        return false;
     }
 }

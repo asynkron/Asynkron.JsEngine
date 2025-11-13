@@ -2014,7 +2014,7 @@ public static class StandardLibrary
             {
                 // Convert to string with proper handling of integers vs floats
                 if (Math.Abs(num % 1) < double.Epsilon)
-                    return ((long)num).ToString();
+                    return ((long)num).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
             
@@ -3050,6 +3050,42 @@ public static class StandardLibrary
                 }
             }
 
+            return result.ToString();
+        }));
+
+        // String.escape(string) - deprecated but used in some old code
+        // Escapes special characters for use in URIs or HTML
+        stringConstructor.SetProperty("escape", new HostFunction(args =>
+        {
+            if (args.Count == 0) return "";
+            var str = args[0]?.ToString() ?? "";
+            
+            var result = new System.Text.StringBuilder();
+            foreach (var ch in str)
+            {
+                // Characters that don't need escaping
+                if ((ch >= 'A' && ch <= 'Z') || 
+                    (ch >= 'a' && ch <= 'z') || 
+                    (ch >= '0' && ch <= '9') ||
+                    ch == '@' || ch == '*' || ch == '_' || 
+                    ch == '+' || ch == '-' || ch == '.' || ch == '/')
+                {
+                    result.Append(ch);
+                }
+                // Characters that need hex escaping
+                else if (ch < 256)
+                {
+                    result.Append('%');
+                    result.Append(((int)ch).ToString("X2"));
+                }
+                // Unicode characters use %uXXXX format
+                else
+                {
+                    result.Append("%u");
+                    result.Append(((int)ch).ToString("X4"));
+                }
+            }
+            
             return result.ToString();
         }));
 

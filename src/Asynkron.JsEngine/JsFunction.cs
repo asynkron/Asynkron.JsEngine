@@ -71,7 +71,12 @@ public sealed class JsFunction : IEnvironmentAwareCallable
         var effectiveThis = thisValue ?? new JsObject();
         environment.Define(JsSymbols.This, effectiveThis);
 
-        if (_name is not null) environment.Define(_name, this);
+        // Only define the function name if it's not already defined as a parameter
+        // Parameters should shadow the function name
+        if (_name is not null && !environment.TryGet(_name, out _))
+        {
+            environment.Define(_name, this);
+        }
 
         if (_superConstructor is not null || _superPrototype is not null)
         {

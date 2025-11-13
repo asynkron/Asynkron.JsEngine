@@ -1,42 +1,29 @@
 using Asynkron.JsEngine;
 
 var engine = new JsEngine();
-engine.SetGlobalFunction("__debug", args => null);
 
 var script = @"
-var SOLAR_MASS = 4 * 3.14 * 3.14;
-
-function Body(vx){
-   this.vx = vx;
+function Container(obj){
+   this.obj = obj;
 }
 
-Body.prototype.offsetMomentum = function(px) {
-   this.vx = -px / SOLAR_MASS;
-   return this;
-}
+var proto = {};
+proto.test = function(){
+    var o = this.obj;
+    return o.x;
+};
+Container.prototype = proto;
 
-function Sun(){
-   return new Body(0.0);
-}
-
-function NBodySystem(bodies){
-   this.bodies = bodies;
-   var px = 10.0;
-   __debug();
-   this.bodies[0].offsetMomentum(px);
-}
-
-var bodies = new NBodySystem( Array(Sun()) );
-bodies.bodies[0].vx;
+var c = new Container( {x: 42} );
+c.test();
 ";
 
 try 
 {
     var result = await engine.Evaluate(script);
-    Console.WriteLine($"Success! Result: {result}");
+    Console.WriteLine($"Result: {result}");
 }
 catch (Exception ex)
 {
     Console.WriteLine($"Error: {ex.Message}");
-    Console.WriteLine($"Stack: {ex.StackTrace}");
 }

@@ -1260,6 +1260,10 @@ public static class Evaluator
         {
             var calleeType = callee?.GetType().Name ?? "null";
             var calleeValue = callee?.ToString() ?? "null";
+            // DEBUG: Log what we're trying to call
+            Console.WriteLine($"[DEBUG] Trying to call: {calleeExpression}");
+            Console.WriteLine($"[DEBUG] Callee is: {calleeType} = {calleeValue}");
+            Console.WriteLine($"[DEBUG] ThisValue is: {thisValue?.GetType().Name} = {thisValue}");
             var errorMessage = FormatErrorMessage($"Attempted to call a non-callable value of type {calleeType}: {calleeValue}", cons);
             throw new InvalidOperationException(errorMessage + ".");
         }
@@ -1333,8 +1337,19 @@ public static class Evaluator
             }
 
             var target = EvaluateExpression(targetExpression, environment, context);
-            if (TryGetPropertyValue(target, propertyName, out var value)) return (value, target);
-
+            // DEBUG: Log property lookup
+            Console.WriteLine($"[DEBUG RESOLVE] Looking for property '{propertyName}' on {target?.GetType().Name}");
+            if (target is JsObject jsObj)
+            {
+                Console.WriteLine($"[DEBUG RESOLVE] Target is JsObject, prototype: {jsObj.Prototype?.GetType().Name}");
+            }
+            if (TryGetPropertyValue(target, propertyName, out var value))
+            {
+                Console.WriteLine($"[DEBUG RESOLVE] Found: {value?.GetType().Name}");
+                return (value, target);
+            }
+            
+            Console.WriteLine($"[DEBUG RESOLVE] NOT FOUND!");
             return (null, target);
         }
 
@@ -1769,8 +1784,18 @@ public static class Evaluator
         }
 
         var instance = new JsObject();
-        if (TryGetPropertyValue(constructor, "prototype", out var prototype) && prototype is JsObject prototypeObject)
+        Console.WriteLine($"[DEBUG NEW] Constructor: {constructor?.GetType().Name}");
+        var hasProto = TryGetPropertyValue(constructor, "prototype", out var prototype);
+        Console.WriteLine($"[DEBUG NEW] Has prototype property: {hasProto}, prototype type: {prototype?.GetType().Name}");
+        if (hasProto && prototype is JsObject prototypeObject)
+        {
+            Console.WriteLine($"[DEBUG NEW] Setting prototype on instance");
             instance.SetPrototype(prototypeObject);
+        }
+        else
+        {
+            Console.WriteLine($"[DEBUG NEW] NOT setting prototype!");
+        }
 
         // Initialize private fields from this class and all parent classes
         InitializePrivateFields(constructor, instance, environment, context);
@@ -1782,6 +1807,7 @@ public static class Evaluator
         try
         {
             var result = callable.Invoke(arguments, instance);
+            Console.WriteLine($"[DEBUG NEW] Constructor returned: {result?.GetType().Name} (is same as instance: {ReferenceEquals(result, instance)})");
             return result switch
             {
                 JsArray jsArray => jsArray,

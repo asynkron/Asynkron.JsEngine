@@ -314,7 +314,9 @@ public static class StandardLibrary
     /// </summary>
     public static IJsCallable CreateDateConstructor()
     {
-        return new HostFunction((thisValue, args) =>
+        HostFunction? dateConstructor = null;
+        
+        dateConstructor = new HostFunction((thisValue, args) =>
         {
             var dateInstance = new JsObject();
 
@@ -477,8 +479,23 @@ public static class StandardLibrary
                 return "Invalid Date";
             });
 
+            // Copy methods from Date.prototype to this instance
+            // This allows Date.prototype.methodName = function() {...} to work
+            if (dateConstructor != null && dateConstructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue is JsObject prototype)
+            {
+                foreach (var propName in prototype.GetOwnPropertyNames())
+                {
+                    if (prototype.TryGetProperty(propName, out var propValue))
+                    {
+                        dateInstance.SetProperty(propName, propValue);
+                    }
+                }
+            }
+
             return dateInstance;
         });
+        
+        return dateConstructor;
     }
 
     /// <summary>

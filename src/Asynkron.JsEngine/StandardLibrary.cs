@@ -1962,6 +1962,123 @@ public static class StandardLibrary
         stringObj.SetProperty(iteratorKey, iteratorFunction);
     }
 
+    /// <summary>
+    /// Creates a wrapper object for a number primitive, providing access to Number.prototype methods.
+    /// </summary>
+    public static JsObject CreateNumberWrapper(double num)
+    {
+        var numberObj = new JsObject();
+        numberObj["__value__"] = num;
+        AddNumberMethods(numberObj, num);
+        return numberObj;
+    }
+
+    /// <summary>
+    /// Adds number methods to a number wrapper object.
+    /// </summary>
+    private static void AddNumberMethods(JsObject numberObj, double num)
+    {
+        // toString(radix?)
+        numberObj.SetProperty("toString", new HostFunction(args =>
+        {
+            var radix = args.Count > 0 && args[0] is double d ? (int)d : 10;
+            
+            // Validate radix (must be between 2 and 36)
+            if (radix < 2 || radix > 36)
+                throw new ArgumentException("radix must be an integer at least 2 and no greater than 36");
+            
+            // Handle special cases
+            if (double.IsNaN(num)) return "NaN";
+            if (double.IsPositiveInfinity(num)) return "Infinity";
+            if (double.IsNegativeInfinity(num)) return "-Infinity";
+            
+            // For radix 10, use standard conversion
+            if (radix == 10)
+            {
+                // Convert to string with proper handling of integers vs floats
+                if (Math.Abs(num % 1) < double.Epsilon)
+                    return ((long)num).ToString();
+                return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+            
+            // For other radices, only works on integers
+            var intValue = (long)num;
+            if (radix == 2) return Convert.ToString(intValue, 2);
+            if (radix == 8) return Convert.ToString(intValue, 8);
+            if (radix == 16) return Convert.ToString(intValue, 16);
+            
+            // For other radices, implement manual conversion
+            if (intValue == 0) return "0";
+            
+            var isNegative = intValue < 0;
+            intValue = Math.Abs(intValue);
+            
+            var digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+            var result = "";
+            while (intValue > 0)
+            {
+                result = digits[(int)(intValue % radix)] + result;
+                intValue /= radix;
+            }
+            
+            return isNegative ? "-" + result : result;
+        }));
+
+        // toFixed(fractionDigits?)
+        numberObj.SetProperty("toFixed", new HostFunction(args =>
+        {
+            var fractionDigits = args.Count > 0 && args[0] is double d ? (int)d : 0;
+            if (fractionDigits < 0 || fractionDigits > 100)
+                throw new ArgumentException("toFixed() digits argument must be between 0 and 100");
+            
+            if (double.IsNaN(num)) return "NaN";
+            if (double.IsInfinity(num)) return num > 0 ? "Infinity" : "-Infinity";
+            
+            return num.ToString("F" + fractionDigits, System.Globalization.CultureInfo.InvariantCulture);
+        }));
+
+        // toExponential(fractionDigits?)
+        numberObj.SetProperty("toExponential", new HostFunction(args =>
+        {
+            if (double.IsNaN(num)) return "NaN";
+            if (double.IsInfinity(num)) return num > 0 ? "Infinity" : "-Infinity";
+            
+            if (args.Count > 0 && args[0] is double d)
+            {
+                var fractionDigits = (int)d;
+                if (fractionDigits < 0 || fractionDigits > 100)
+                    throw new ArgumentException("toExponential() digits argument must be between 0 and 100");
+                return num.ToString("e" + fractionDigits, System.Globalization.CultureInfo.InvariantCulture);
+            }
+            
+            return num.ToString("e", System.Globalization.CultureInfo.InvariantCulture);
+        }));
+
+        // toPrecision(precision?)
+        numberObj.SetProperty("toPrecision", new HostFunction(args =>
+        {
+            if (args.Count == 0) return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            
+            if (double.IsNaN(num)) return "NaN";
+            if (double.IsInfinity(num)) return num > 0 ? "Infinity" : "-Infinity";
+            
+            if (args[0] is double d)
+            {
+                var precision = (int)d;
+                if (precision < 1 || precision > 100)
+                    throw new ArgumentException("toPrecision() precision argument must be between 1 and 100");
+                
+                // Format with specified precision
+                return num.ToString("G" + precision, System.Globalization.CultureInfo.InvariantCulture);
+            }
+            
+            return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }));
+
+        // valueOf()
+        numberObj.SetProperty("valueOf", new HostFunction(args => num));
+    }
+
     private static JsArray CreateArrayFromStrings(string[] strings)
     {
         var array = new JsArray();

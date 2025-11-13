@@ -2583,6 +2583,12 @@ public static class Evaluator
                 return true;
             case IDictionary<string, object?> dictionary when dictionary.TryGetValue(propertyName, out value):
                 return true;
+            case double num:
+                // Handle number properties (Number.prototype methods)
+                var numberWrapper = StandardLibrary.CreateNumberWrapper(num);
+                if (numberWrapper.TryGetProperty(propertyName, out value)) return true;
+                value = null;
+                return false;
             case string str:
                 // Handle string properties
                 if (propertyName == "length")

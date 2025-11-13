@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// SunSpider benchmark tests. See SUNSPIDER_TEST_FINDINGS.md for detailed analysis of failures.
-/// Current status: 17 passing / 8 failing
+/// Current status: 16 passing / 9 failing
 /// </summary>
 public class SunSpiderTests
 {
@@ -48,7 +48,7 @@ public class SunSpiderTests
     }
 
     // ====================================================================================
-    // PASSING TESTS (17)
+    // PASSING TESTS (16)
     // ====================================================================================
 
     /// <summary>
@@ -119,14 +119,26 @@ public class SunSpiderTests
     /// </summary>
     [Theory]
     [InlineData("string-fasta.js")]
+    [InlineData("string-unpack-code.js")]
     public async Task SunSpider_String_Passing(string filename)
     {
         var content = GetEmbeddedFile(filename);
         await RunTest(content);
     }
 
+    /// <summary>
+    /// RegExp tests that are passing
+    /// </summary>
+    [Theory]
+    [InlineData("regexp-dna.js")]
+    public async Task SunSpider_RegExp_Passing(string filename)
+    {
+        var content = GetEmbeddedFile(filename);
+        await RunTest(content);
+    }
+
     // ====================================================================================
-    // FAILING TESTS - PARSE ERRORS (5)
+    // FAILING TESTS - PARSE ERRORS (2)
     // See SUNSPIDER_TEST_FINDINGS.md for detailed analysis
     // ====================================================================================
 
@@ -148,36 +160,11 @@ public class SunSpiderTests
     /// Parse error: Unexpected token Semicolon at line 200, column 64
     /// Context: ... Q.Line[0] = true; };
     /// Root Cause: Parser issue with complex expression / empty statement after closing brace
+    /// NOW: This test parses successfully but produces NaN at runtime - it's a runtime error, not parse error
     /// </summary>
     [Theory]
     [InlineData("3d-cube.js")]
     public async Task SunSpider_ParseError_Semicolon(string filename)
-    {
-        var content = GetEmbeddedFile(filename);
-        await RunTest(content);
-    }
-
-    /// <summary>
-    /// Parse errors: Expected ';' after expression statement
-    /// Root Cause: ASI (Automatic Semicolon Insertion) not handling newlines correctly
-    /// </summary>
-    [Theory(Timeout = 3000)]
-   // [InlineData("string-tagcloud.js")]
-    [InlineData("regexp-dna.js")]
-    public async Task SunSpider_ParseError_ASI(string filename)
-    {
-        var content = GetEmbeddedFile(filename);
-        await RunTest(content);
-    }
-
-    /// <summary>
-    /// Parse error: Unexpected token Semicolon in minified/packed code
-    /// Error at line 18, column 268
-    /// Root Cause: Complex semicolon placement in minified code
-    /// </summary>
-    [Theory]
-    [InlineData("string-unpack-code.js")]
-    public async Task SunSpider_ParseError_MinifiedCode(string filename)
     {
         var content = GetEmbeddedFile(filename);
         await RunTest(content);

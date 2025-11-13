@@ -542,6 +542,13 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object ParseStatement()
     {
+        // Handle empty statement (just a semicolon)
+        // This is valid JavaScript: while(condition); or if(x) {}; etc.
+        if (Match(TokenType.Semicolon))
+        {
+            return S(EmptyStatement);
+        }
+
         if (Match(TokenType.Try)) return ParseTryStatement();
 
         if (Match(TokenType.Switch)) return ParseSwitchStatement();
@@ -736,9 +743,40 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var identifier = Consume(TokenType.Identifier, "Expected identifier in for loop.");
             loopVariable = Symbol.Intern(identifier.Lexeme);
         }
+        else if (Check(TokenType.Identifier))
+        {
+            // Check if this might be for...in/of without variable declaration
+            var identifier = Advance();
+            if (Match(TokenType.In) || Match(TokenType.Of))
+            {
+                var isForOf = Previous().Type == TokenType.Of;
+                
+                // for await requires for...of
+                if (isForAwait && !isForOf) throw new ParseException("'for await' can only be used with 'of', not 'in'", Peek(), _source);
 
-        // Check if this is for...in or for...of
-        if (loopVariable != null && (Match(TokenType.In) || Match(TokenType.Of)))
+                var iterableExpression = ParseExpression();
+                Consume(TokenType.RightParen, "Expected ')' after for...in/of clauses.");
+                var body = ParseStatement();
+
+                // Use the identifier directly (no variable declaration needed)
+                loopVariable = Symbol.Intern(identifier.Lexeme);
+
+                if (isForAwait)
+                    return MakeCons([ForAwaitOf, loopVariable, iterableExpression, body], startToken);
+                else if (isForOf)
+                    return MakeCons([ForOf, loopVariable, iterableExpression, body], startToken);
+                else
+                    return MakeCons([ForIn, loopVariable, iterableExpression, body], startToken);
+            }
+            else
+            {
+                // Not for...in/of, reset to checkpoint
+                _current = checkpointPosition;
+            }
+        }
+
+        // Check if this is for...in or for...of with variable declaration
+        if (loopVariable != null && varKind != null && (Match(TokenType.In) || Match(TokenType.Of)))
         {
             var isForOf = Previous().Type == TokenType.Of;
 
@@ -791,7 +829,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.Semicolon, "Expected ';' after for loop condition.");
 
         object? increment = null;
-        if (!Check(TokenType.RightParen)) increment = ParseExpression();
+        if (!Check(TokenType.RightParen)) increment = ParseSequenceExpression();
 
         Consume(TokenType.RightParen, "Expected ')' after for clauses.");
         var body2 = ParseStatement();
@@ -870,6 +908,25 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private object? ParseExpression()
     {
         return ParseAssignment();
+    }
+
+    /// <summary>
+    /// Parse a sequence expression (comma operator).
+    /// This is used in contexts where the comma operator is allowed, such as inside parentheses.
+    /// </summary>
+    private object? ParseSequenceExpression()
+    {
+        var left = ParseAssignment();
+        
+        // Handle comma operator (sequence expressions)
+        // The comma operator has the lowest precedence
+        while (Match(TokenType.Comma))
+        {
+            var right = ParseAssignment();
+            left = S(Operator(","), left, right);
+        }
+        
+        return left;
     }
 
     private object? ParseAssignment()
@@ -1070,7 +1127,9 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             var thenBranch = ParseExpression();
             Consume(TokenType.Colon, "Expected ':' after then branch of ternary expression.");
-            var elseBranch = ParseTernary();
+            // Both branches of ternary should be AssignmentExpression per ECMAScript spec
+            // This allows assignments in both branches and maintains right-associativity for nested ternaries
+            var elseBranch = ParseAssignment();
             return S(Ternary, expr, thenBranch, elseBranch);
         }
 
@@ -1252,7 +1311,8 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var startToken = _tokens[_current];
         var expr = ParseShift();
-        while (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual))
+        while (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual, 
+                     TokenType.In))
         {
             var op = Previous();
             var right = ParseShift();
@@ -1262,6 +1322,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 TokenType.GreaterEqual => Operator(">="),
                 TokenType.Less => Operator("<"),
                 TokenType.LessEqual => Operator("<="),
+                TokenType.In => Operator("in"),
                 _ => throw new InvalidOperationException("Unexpected comparison operator.")
             };
 
@@ -1581,8 +1642,9 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             }
             
             // Not arrow parameters, parse as normal grouped expression
+            // Inside parentheses, we need to handle the comma operator (sequence expressions)
             _current = startPos;
-            var expr = ParseExpression();
+            var expr = ParseSequenceExpression();
             Consume(TokenType.RightParen, "Expected ')' after expression.");
             return expr;
         }

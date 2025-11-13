@@ -1,31 +1,42 @@
 using Asynkron.JsEngine;
 
 var engine = new JsEngine();
+engine.SetGlobalFunction("__debug", args => null);
 
-// Setup console object with log method
-var consoleObj = new JsObject();
-consoleObj.Set("log", new Action<object?[]>(args =>
-{
-    Console.WriteLine(string.Join(" ", args.Select(a => a?.ToString() ?? "null")));
-}));
-engine.SetGlobalVariable("console", consoleObj);
+var script = @"
+var SOLAR_MASS = 4 * 3.14 * 3.14;
 
-// Read the test script
-var script = File.ReadAllText("/tmp/nbody_debug.js");
+function Body(vx){
+   this.vx = vx;
+}
 
-try
+Body.prototype.offsetMomentum = function(px) {
+   this.vx = -px / SOLAR_MASS;
+   return this;
+}
+
+function Sun(){
+   return new Body(0.0);
+}
+
+function NBodySystem(bodies){
+   this.bodies = bodies;
+   var px = 10.0;
+   __debug();
+   this.bodies[0].offsetMomentum(px);
+}
+
+var bodies = new NBodySystem( Array(Sun()) );
+bodies.bodies[0].vx;
+";
+
+try 
 {
     var result = await engine.Evaluate(script);
-    Console.WriteLine($"\n=== Script executed successfully! ===");
-    Console.WriteLine($"Result: {result}");
+    Console.WriteLine($"Success! Result: {result}");
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"\n=== Error occurred! ===");
     Console.WriteLine($"Error: {ex.Message}");
-    Console.WriteLine($"Type: {ex.GetType().Name}");
-    if (ex.InnerException != null)
-    {
-        Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
-    }
+    Console.WriteLine($"Stack: {ex.StackTrace}");
 }

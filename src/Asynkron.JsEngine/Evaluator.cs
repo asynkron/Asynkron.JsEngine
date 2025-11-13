@@ -2687,6 +2687,14 @@ public static class Evaluator
                     return true;
                 }
 
+                // Handle numeric indices (bracket notation: str[0], str[1], etc.)
+                if (int.TryParse(propertyName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) && 
+                    index >= 0 && index < str.Length)
+                {
+                    value = str[index].ToString();
+                    return true;
+                }
+
                 // For string methods, create a wrapper object with methods
                 var stringWrapper = StandardLibrary.CreateStringWrapper(str);
                 if (stringWrapper.TryGetProperty(propertyName, out value)) return true;

@@ -1650,6 +1650,17 @@ public static class StandardLibrary
             return str.Substring(start, end - start);
         }));
 
+        // concat(...strings)
+        stringObj.SetProperty("concat", new HostFunction(args =>
+        {
+            var result = str;
+            foreach (var arg in args)
+            {
+                result += arg?.ToString() ?? "";
+            }
+            return result;
+        }));
+
         // toLowerCase()
         stringObj.SetProperty("toLowerCase", new HostFunction(args => str.ToLowerInvariant()));
 

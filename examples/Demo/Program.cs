@@ -1,31 +1,38 @@
 using Asynkron.JsEngine;
 
 var engine = new JsEngine();
+var script = @"
+function Body(x) {
+    this.x = x;
+}
 
-// Setup console object with log method
-var consoleObj = new JsObject();
-consoleObj.Set("log", new Action<object?[]>(args =>
-{
-    Console.WriteLine(string.Join(" ", args.Select(a => a?.ToString() ?? "null")));
-}));
-engine.SetGlobalVariable("console", consoleObj);
+Body.prototype.double = function() {
+    return this.x * 2;
+};
 
-// Read the test script
-var script = File.ReadAllText("/tmp/nbody_debug.js");
+function Container(bodies){
+   this.bodies = bodies;
+}
 
-try
+Container.prototype.sum = function(){
+    var total = 0;
+    for (var i = 0; i < this.bodies.length; i++) {
+       var b = this.bodies[i];
+       total += b.double();
+    }
+    return total;
+}
+
+var c = new Container( Array(new Body(5), new Body(10), new Body(15)) );
+c.sum();
+";
+
+try 
 {
     var result = await engine.Evaluate(script);
-    Console.WriteLine($"\n=== Script executed successfully! ===");
-    Console.WriteLine($"Result: {result}");
+    Console.WriteLine($"Success! Result: {result} (expected: 60)");
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"\n=== Error occurred! ===");
     Console.WriteLine($"Error: {ex.Message}");
-    Console.WriteLine($"Type: {ex.GetType().Name}");
-    if (ex.InnerException != null)
-    {
-        Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
-    }
 }

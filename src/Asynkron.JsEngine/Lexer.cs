@@ -49,6 +49,7 @@ public sealed class Lexer(string source)
         ["undefined"] = TokenType.Undefined,
         ["typeof"] = TokenType.Typeof,
         ["void"] = TokenType.Void,
+        ["delete"] = TokenType.Delete,
         ["import"] = TokenType.Import,
         ["export"] = TokenType.Export
     };

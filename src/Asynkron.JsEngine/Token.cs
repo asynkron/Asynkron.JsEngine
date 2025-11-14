@@ -103,6 +103,7 @@ public enum TokenType
     Undefined,
     Typeof,
     Void,
+    Delete,
     Import,
     Export,
     RegexLiteral,

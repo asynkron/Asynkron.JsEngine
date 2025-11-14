@@ -489,7 +489,7 @@ public sealed class CpsTransformer
 
                     var transformedIf = transformedElse != null
                         ? Cons.FromEnumerable([JsSymbols.If, condition, transformedThen, transformedElse])
-                        : Cons.FromEnumerable([JsSymbols.If, condition, transformedThen]);
+                        : Cons.FromEnumerable([JsSymbols.If, condition, transformedThen, null]);
 
                     // Only add continuation if not all branches return early
                     if (!allBranchesReturnEarly)

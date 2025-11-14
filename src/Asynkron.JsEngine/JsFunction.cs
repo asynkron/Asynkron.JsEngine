@@ -160,10 +160,14 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
             var thenBranch = cons.Rest.Rest.Head;
             HoistFromStatement(thenBranch, environment);
             
-            var elseBranch = cons.Rest.Rest.Rest.Head;
-            if (elseBranch != null)
+            // Check if we have an else branch
+            if (cons.Rest.Rest.Rest is Cons elseCons && !elseCons.IsEmpty)
             {
-                HoistFromStatement(elseBranch, environment);
+                var elseBranch = elseCons.Head;
+                if (elseBranch != null)
+                {
+                    HoistFromStatement(elseBranch, environment);
+                }
             }
         }
         else if (ReferenceEquals(symbol, JsSymbols.For))

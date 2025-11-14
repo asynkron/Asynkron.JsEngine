@@ -31,6 +31,7 @@ public sealed class JsEngine
     public JsEngine()
     {
         // Register standard library objects
+        SetGlobal("console", StandardLibrary.CreateConsoleObject());
         SetGlobal("Math", StandardLibrary.CreateMathObject());
         SetGlobal("Number", StandardLibrary.CreateNumberConstructor());
         SetGlobal("String", StandardLibrary.CreateStringConstructor());

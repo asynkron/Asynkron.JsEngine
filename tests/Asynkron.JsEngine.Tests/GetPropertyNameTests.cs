@@ -55,4 +55,40 @@ public class GetPropertyNameTests
         """);
         Assert.Equal(1.0, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Real_Getter_Still_Works()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var obj = {
+                _value: 100,
+                get value() {
+                    return this._value;
+                }
+            };
+            obj.value;
+        """);
+        Assert.Equal(100.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Real_Setter_Still_Works()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var obj = {
+                _value: 0,
+                set value(v) {
+                    this._value = v * 2;
+                },
+                get value() {
+                    return this._value;
+                }
+            };
+            obj.value = 50;
+            obj.value;
+        """);
+        Assert.Equal(100.0, result);
+    }
 }

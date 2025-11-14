@@ -1007,7 +1007,10 @@ public static class StandardLibrary
             var separator = args.Count > 0 && args[0] is string sep ? sep : ",";
 
             var parts = new List<string>();
-            foreach (var item in jsArray.Items) parts.Add(item?.ToString() ?? "");
+            foreach (var item in jsArray.Items)
+            {
+                parts.Add(Evaluator.ToStringForArray(item));
+            }
 
             return string.Join(separator, parts);
         }));

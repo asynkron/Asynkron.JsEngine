@@ -93,7 +93,8 @@ public sealed class JsFunction : IEnvironmentAwareCallable
 
         if (context.IsThrow) throw new ThrowSignal(context.FlowValue);
 
-        return result;
+        // In JavaScript, functions without an explicit return statement return undefined
+        return JsSymbols.Undefined;
     }
 
     /// <summary>

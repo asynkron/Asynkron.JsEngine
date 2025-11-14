@@ -12,3 +12,11 @@ xUnit tests covering the JavaScript execution engine. The suite exercises:
 - Variable declaration semantics for `let`, `var`, and `const`, covering function-scoped hoisting for `var` and
   reassignment guards for `const`.
 - Function declarations, closures, and host interop registered through `JsEngine.SetGlobalFunction`.
+
+## Known async iterator regressions
+
+- Global `for await...of` scenarios using `syncIterable`/`globalIterable` are isolated under the `AsyncForOfGlobalKnownFailure` trait. Run only those diagnostics with:
+
+  ```bash
+  dotnet test --filter Category=AsyncForOfGlobalKnownFailure
+  ```

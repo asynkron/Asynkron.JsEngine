@@ -6,6 +6,22 @@ namespace Asynkron.JsEngine;
 public static class StandardLibrary
 {
     /// <summary>
+    /// Converts a JavaScript value to its string representation, handling functions appropriately.
+    /// </summary>
+    private static string JsValueToString(object? value)
+    {
+        return value switch
+        {
+            null => "null",
+            string s => s,
+            bool b => b ? "true" : "false",
+            double d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            IJsCallable => "function() { [native code] }",
+            _ => value.ToString() ?? ""
+        };
+    }
+
+    /// <summary>
     /// Creates a Math object with common mathematical functions and constants.
     /// </summary>
     public static JsObject CreateMathObject()
@@ -331,7 +347,7 @@ public static class StandardLibrary
                 else if (arg is IJsCallable)
                     parts.Add("[Function]");
                 else
-                    parts.Add(arg.ToString() ?? "");
+                    parts.Add(JsValueToString(arg));
             }
             return string.Join(" ", parts);
         }
@@ -1147,8 +1163,8 @@ public static class StandardLibrary
                 // Default sort: convert to strings and sort lexicographically
                 items.Sort((a, b) =>
                 {
-                    var aStr = a?.ToString() ?? "";
-                    var bStr = b?.ToString() ?? "";
+                    var aStr = JsValueToString(a);
+                    var bStr = JsValueToString(b);
                     return string.Compare(aStr, bStr, StringComparison.Ordinal);
                 });
 
@@ -1318,8 +1334,8 @@ public static class StandardLibrary
                 // Default sort: convert to strings and sort lexicographically
                 items.Sort((a, b) =>
                 {
-                    var aStr = a?.ToString() ?? "";
-                    var bStr = b?.ToString() ?? "";
+                    var aStr = JsValueToString(a);
+                    var bStr = JsValueToString(b);
                     return string.Compare(aStr, bStr, StringComparison.Ordinal);
                 });
 
@@ -1831,7 +1847,7 @@ public static class StandardLibrary
             var result = str;
             foreach (var arg in args)
             {
-                result += arg?.ToString() ?? "";
+                result += JsValueToString(arg);
             }
             return result;
         }));

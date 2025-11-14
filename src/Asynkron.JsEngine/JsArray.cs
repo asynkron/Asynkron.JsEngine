@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Asynkron.JsEngine;
 
 /// <summary>
@@ -44,11 +46,48 @@ public sealed class JsArray
 
     public bool TryGetProperty(string name, out object? value)
     {
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            value = (double)_items.Count;
+            return true;
+        }
+
+        if (TryParseArrayIndex(name, out var index))
+        {
+            value = GetElement(index);
+            return true;
+        }
+
         return _properties.TryGetProperty(name, out value);
     }
 
     public void SetProperty(string name, object? value)
     {
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            if (!TryCoerceLength(value, out var newLength))
+                throw new InvalidOperationException("RangeError: Invalid array length");
+
+            if (newLength < _items.Count)
+            {
+                _items.RemoveRange(newLength, _items.Count - newLength);
+            }
+            else if (newLength > _items.Count)
+            {
+                while (_items.Count < newLength)
+                    _items.Add(ArrayHole);
+            }
+
+            UpdateLength();
+            return;
+        }
+
+        if (TryParseArrayIndex(name, out var index))
+        {
+            SetElement(index, value);
+            return;
+        }
+
         _properties.SetProperty(name, value);
     }
 
@@ -183,5 +222,69 @@ public sealed class JsArray
         });
 
         _properties.SetProperty(iteratorKey, iteratorFunction);
+    }
+
+    private static bool TryParseArrayIndex(string propertyName, out int index)
+    {
+        index = 0;
+
+        if (string.IsNullOrEmpty(propertyName))
+            return false;
+
+        if (!uint.TryParse(propertyName, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
+            return false;
+
+        if (parsed == uint.MaxValue)
+            return false;
+
+        if (!string.Equals(parsed.ToString(CultureInfo.InvariantCulture), propertyName, StringComparison.Ordinal))
+            return false;
+
+        if (parsed > int.MaxValue)
+            return false;
+
+        index = (int)parsed;
+        return true;
+    }
+
+    private static bool TryCoerceLength(object? value, out int length)
+    {
+        length = 0;
+
+        double numericValue = value switch
+        {
+            null => 0d,
+            double d => d,
+            float f => f,
+            decimal m => (double)m,
+            int i => i,
+            uint ui => ui,
+            long l => l,
+            ulong ul => ul,
+            short s => s,
+            ushort us => us,
+            byte b => b,
+            sbyte sb => sb,
+            bool flag => flag ? 1d : 0d,
+            string str when double.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) => parsed,
+            _ => double.NaN
+        };
+
+        if (double.IsNaN(numericValue) || double.IsInfinity(numericValue) || numericValue < 0)
+            return false;
+
+        var truncated = Math.Truncate(numericValue);
+        if (Math.Abs(numericValue - truncated) > double.Epsilon)
+            return false;
+
+        if (truncated > uint.MaxValue - 1)
+            return false;
+
+        var coerced = (uint)truncated;
+        if (coerced > int.MaxValue)
+            return false;
+
+        length = (int)coerced;
+        return true;
     }
 }

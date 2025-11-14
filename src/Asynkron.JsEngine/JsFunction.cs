@@ -22,7 +22,7 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
         _name = name;
         _parameters = parameters;
         _restParameter = restParameter;
-        _body = body;
+        _body = body.CloneDeep();
         _closure = closure;
 
         // Every function in JavaScript exposes a prototype object so instances created via `new` can inherit from it.

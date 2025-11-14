@@ -113,6 +113,36 @@ public sealed class Cons : IEnumerable<object?>
         return FromStack(stack);
     }
 
+    /// <summary>
+    /// Creates a deep copy of the current cons list.
+    /// Atoms (non-cons items) are reused, while nested cons lists are cloned recursively.
+    /// Source references and origin metadata are preserved on the cloned list.
+    /// </summary>
+    public Cons CloneDeep()
+    {
+        if (IsEmpty) return EmptyInstance;
+
+        var clonedItems = new List<object?>();
+        foreach (var item in this)
+        {
+            if (item is Cons consItem)
+            {
+                clonedItems.Add(consItem.CloneDeep());
+            }
+            else
+            {
+                clonedItems.Add(item);
+            }
+        }
+
+        var clone = FromEnumerable(clonedItems);
+
+        if (SourceReference != null) clone.WithSourceReference(SourceReference);
+        if (Origin != null) clone.WithOrigin(Origin);
+
+        return clone;
+    }
+
     private static Cons FromArray(object?[] array)
     {
         var current = EmptyInstance;

@@ -260,4 +260,34 @@ public class AutomaticSemicolonInsertionTests
 
         Assert.Equal(19d, result); // 7 + 12
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task ReturnWithCommaOperator()
+    {
+        // Test return statement with comma operator (sequences multiple expressions)
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            function createCommonjsModule(fn, basedir, module) {
+                return module = {
+                    path: basedir,
+                    exports: {},
+                    require: function (path, base) {
+                        return 'inner';
+                    }
+                }, fn(module, module.exports), module.exports;
+            }
+            
+            let capturedModule = null;
+            let capturedExports = null;
+            function testFn(mod, exp) {
+                capturedModule = mod;
+                capturedExports = exp;
+            }
+            
+            let result = createCommonjsModule(testFn, '/base', null);
+            result.path
+        ");
+
+        Assert.Equal("/base", result);
+    }
 }

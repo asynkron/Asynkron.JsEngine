@@ -2117,6 +2117,19 @@ public static class Evaluator
         return double.NaN;
     }
 
+    // Helper method for converting values to strings in array context (join/toString)
+    // where null and undefined become empty strings
+    internal static string ToStringForArray(object? value)
+    {
+        // null and undefined convert to empty string in array toString/join
+        if (value is null || (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined)))
+        {
+            return "";
+        }
+        
+        return ToString(value);
+    }
+
     private static string ToString(object? value)
     {
         return value switch
@@ -2134,8 +2147,12 @@ public static class Evaluator
     private static string ArrayToString(JsArray arr)
     {
         // Convert each element to string and join with comma
+        // Per ECMAScript spec: null and undefined are converted to empty strings
         var elements = new List<string>();
-        foreach (var element in arr.Items) elements.Add(ToString(element));
+        foreach (var element in arr.Items)
+        {
+            elements.Add(ToStringForArray(element));
+        }
         return string.Join(",", elements);
     }
 

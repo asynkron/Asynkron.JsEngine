@@ -128,6 +128,29 @@ public sealed class JsEngine
         // Register dynamic import function
         SetGlobalFunction("import", args => DynamicImport(args));
 
+        // Provide a minimal document stub for browser-oriented benchmarks
+        var documentStub = new JsObject();
+        documentStub.SetProperty("write", new HostFunction((_, _) => null));
+        documentStub.SetProperty("addEventListener", new HostFunction((_, _) => null));
+        documentStub.SetProperty("removeEventListener", new HostFunction((_, _) => null));
+        documentStub.SetProperty("createElement", new HostFunction((_, _) =>
+        {
+            var element = new JsObject();
+            element.SetProperty("setAttribute", new HostFunction((_, _) => null));
+            element.SetProperty("appendChild", new HostFunction((_, _) => null));
+            element.SetProperty("addEventListener", new HostFunction((_, _) => null));
+            element.SetProperty("removeEventListener", new HostFunction((_, _) => null));
+            element.SetProperty("style", new JsObject());
+            return element;
+        }));
+        documentStub.SetProperty("getElementsByTagName", new HostFunction((_, _) => new JsArray()));
+        documentStub.SetProperty("getElementById", new HostFunction((_, _) => new JsObject()));
+        var documentElement = new JsObject();
+        documentElement.SetProperty("style", new JsObject());
+        documentStub.SetProperty("documentElement", documentElement);
+        documentStub.SetProperty("head", new JsObject());
+        SetGlobal("document", documentStub);
+
         // Register debug function as a debug-aware host function
         _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));
 

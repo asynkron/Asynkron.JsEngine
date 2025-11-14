@@ -131,7 +131,7 @@ public class AutomaticSemicolonInsertionTests
         var result = await engine.Evaluate(@"
             function test() {
                 let x = 5
-                x + 10
+                return x + 10
             }
             test()
         ");

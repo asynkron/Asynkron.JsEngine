@@ -1,7 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using Xunit;
 using Xunit.Abstractions;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -9,7 +11,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests to compare behavior of for-await-of with iterables in different scopes.
 /// This helps diagnose why global scope iterables fail while local scope iterables work.
 /// 
-/// DETAILED FINDINGS: See ../../ASYNC_ITERABLE_SCOPE_COMPARISON.md
+/// DETAILED FINDINGS: See docs/investigations/ASYNC_ITERABLE_SCOPE_DEBUG_NOTES.md
 /// 
 /// Key Discovery: The for-await-of loop works correctly when the iterable is declared
 /// in LOCAL scope (inside the async function), but FAILS when the iterable is declared
@@ -96,6 +98,12 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         output.WriteLine("3. The __loopCheck function and variable capture");
     }
 
+    /// <summary>
+    /// Captures debug snapshots for both scope variants and asserts that the runtime maintains the same iterator scaffolding.
+    /// </summary>
+    /// <remarks>
+    /// Detailed parity findings live in docs/investigations/ASYNC_ITERABLE_SCOPE_DEBUG_NOTES.md.
+    /// </remarks>
     [Fact(Timeout = 5000)]
     public async Task CompareGlobalVsLocalScope_WithDebug()
     {
@@ -155,11 +163,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         ");
 
         // Collect debug messages from local scope test
-        var localDebugMessages = new List<DebugMessage>();
-        while (engine1.DebugMessages().TryRead(out var msg))
-        {
-            localDebugMessages.Add(msg);
-        }
+        var localDebugMessages = DrainDebugMessages(engine1);
 
         await System.Threading.Tasks.Task.Delay(1000);
         var localFinalResult = await engine1.Evaluate("test()");
@@ -219,11 +223,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         ");
 
         // Collect debug messages from global scope test
-        var globalDebugMessages = new List<DebugMessage>();
-        while (engine2.DebugMessages().TryRead(out var msg))
-        {
-            globalDebugMessages.Add(msg);
-        }
+        var globalDebugMessages = DrainDebugMessages(engine2);
 
         await System.Threading.Tasks.Task.Delay(1000);
         var globalFinalResult = await engine2.Evaluate("test()");
@@ -232,47 +232,154 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
 
         // Compare debug messages
         output.WriteLine("");
-        output.WriteLine("=== DEBUG MESSAGE COMPARISON ===");
-        output.WriteLine($"Local scope debug messages: {localDebugMessages.Count}");
-        output.WriteLine($"Global scope debug messages: {globalDebugMessages.Count}");
+        var localSnapshots = MaterializeSnapshots(localDebugMessages, "local");
+        var globalSnapshots = MaterializeSnapshots(globalDebugMessages, "global");
 
-        if (localDebugMessages.Count > 0)
-        {
-            output.WriteLine("");
-            output.WriteLine("LOCAL SCOPE DEBUG MESSAGES:");
-            for (int i = 0; i < localDebugMessages.Count; i++)
-            {
-                output.WriteLine($"  Message {i + 1}:");
-                foreach (var kvp in localDebugMessages[i].Variables)
-                {
-                    output.WriteLine($"    {kvp.Key} = {kvp.Value}");
-                }
-            }
-        }
+        LogSnapshotSummary(output, "LOCAL", localSnapshots);
+        LogSnapshotSummary(output, "GLOBAL", globalSnapshots);
 
-        if (globalDebugMessages.Count > 0)
-        {
-            output.WriteLine("");
-            output.WriteLine("GLOBAL SCOPE DEBUG MESSAGES:");
-            for (int i = 0; i < globalDebugMessages.Count; i++)
-            {
-                output.WriteLine($"  Message {i + 1}:");
-                foreach (var kvp in globalDebugMessages[i].Variables)
-                {
-                    output.WriteLine($"    {kvp.Key} = {kvp.Value}");
-                }
-            }
-        }
-
-        // Write summary
-        output.WriteLine("");
-        output.WriteLine("=== SUMMARY ===");
-        output.WriteLine($"Local scope works: {localFinalResult?.ToString() == "xyz"}");
-        output.WriteLine($"Global scope works: {globalFinalResult?.ToString() == "xyz"}");
-        
-        // This test documents the difference - we expect local to work and global to fail
-        // So we don't assert, we just document the behavior
+        // We expect both executions to expose comparable iterator scaffolding.
+        // The current bug manifests as missing iterator temporaries + loop state for the global run.
+        var parityFailure = AnalyzeSnapshotParity(localSnapshots, globalSnapshots);
+        Assert.True(parityFailure is null, parityFailure);
     }
+
+    private static List<DebugMessage> DrainDebugMessages(JsEngine engine)
+    {
+        var messages = new List<DebugMessage>();
+        while (engine.DebugMessages().TryRead(out var message))
+        {
+            messages.Add(message);
+        }
+
+        return messages;
+    }
+
+    private static IReadOnlyList<DebugSnapshot> MaterializeSnapshots(IReadOnlyList<DebugMessage> messages, string scenario)
+    {
+        var snapshots = new List<DebugSnapshot>(messages.Count);
+
+        for (var i = 0; i < messages.Count; i++)
+        {
+            var message = messages[i];
+            var materializedVariables = message.Variables.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value?.ToString(),
+                StringComparer.Ordinal);
+
+            snapshots.Add(new DebugSnapshot(
+                Scenario: scenario,
+                Index: i,
+                ControlFlowState: message.ControlFlowState,
+                Variables: materializedVariables,
+                CallStack: message.CallStack.Select(frame => frame.ToString()).ToArray(),
+                HasLocalIterable: materializedVariables.ContainsKey("localIterable"),
+                HasGlobalIterable: materializedVariables.ContainsKey("globalIterable"),
+                IteratorIdentifiers: ExtractIdentifiers(materializedVariables.Keys, "__iterator"),
+                LoopCheckIdentifiers: ExtractIdentifiers(materializedVariables.Keys, "__loopCheck"),
+                LoopResolverIdentifiers: ExtractIdentifiers(materializedVariables.Keys, "__loopResolve"),
+                ItemValue: materializedVariables.TryGetValue("item", out var item) ? item : null,
+                ResultValue: materializedVariables.TryGetValue("result", out var result) ? result : null));
+        }
+
+        return snapshots;
+    }
+
+    private static IReadOnlyList<string> ExtractIdentifiers(IEnumerable<string> keys, string prefix)
+    {
+        return keys
+            .Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static void LogSnapshotSummary(ITestOutputHelper output, string scope, IReadOnlyList<DebugSnapshot> snapshots)
+    {
+        output.WriteLine(string.Empty);
+        output.WriteLine($"=== {scope} SNAPSHOTS ===");
+        output.WriteLine($"Total messages: {snapshots.Count}");
+
+        foreach (var snapshot in snapshots)
+        {
+            output.WriteLine($"[{scope}] Snapshot #{snapshot.Index} :: ControlFlow={snapshot.ControlFlowState}");
+            output.WriteLine($"[{scope}]   Iterator identifiers: {string.Join(", ", snapshot.IteratorIdentifiers.DefaultIfEmpty("<none>"))}");
+            output.WriteLine($"[{scope}]   Loop checks: {string.Join(", ", snapshot.LoopCheckIdentifiers.DefaultIfEmpty("<none>"))}");
+            output.WriteLine($"[{scope}]   Loop resolvers: {string.Join(", ", snapshot.LoopResolverIdentifiers.DefaultIfEmpty("<none>"))}");
+            if (snapshot.ItemValue is not null)
+            {
+                output.WriteLine($"[{scope}]   item = {snapshot.ItemValue}");
+            }
+
+            if (snapshot.ResultValue is not null)
+            {
+                output.WriteLine($"[{scope}]   result = {snapshot.ResultValue}");
+            }
+        }
+    }
+
+    private static string? AnalyzeSnapshotParity(IReadOnlyList<DebugSnapshot> localSnapshots, IReadOnlyList<DebugSnapshot> globalSnapshots)
+    {
+        var sb = new StringBuilder();
+
+        if (localSnapshots.Count == 0)
+        {
+            sb.AppendLine("Local scenario failed to capture any debug snapshots.");
+        }
+
+        if (globalSnapshots.Count == 0)
+        {
+            sb.AppendLine("Global scenario failed to capture any debug snapshots.");
+        }
+
+        if (localSnapshots.Count != globalSnapshots.Count)
+        {
+            sb.AppendLine($"Snapshot count mismatch (local={localSnapshots.Count}, global={globalSnapshots.Count}).");
+        }
+
+        var localIteratorBindings = localSnapshots.Any(snapshot => snapshot.IteratorIdentifiers.Count > 0);
+        var globalIteratorBindings = globalSnapshots.Any(snapshot => snapshot.IteratorIdentifiers.Count > 0);
+
+        if (!globalIteratorBindings && localIteratorBindings)
+        {
+            sb.AppendLine("Global execution never exposed iterator temporaries (prefix '__iterator').");
+        }
+
+        var localLoopState = localSnapshots.Count(snapshot => snapshot.ItemValue is not null);
+        var globalLoopState = globalSnapshots.Count(snapshot => snapshot.ItemValue is not null);
+
+        if (localLoopState > 0 && globalLoopState == 0)
+        {
+            sb.AppendLine("Global execution never surfaced 'item' loop variables, indicating the for-await-of body did not run.");
+        }
+
+        var missingGlobalBinding = globalSnapshots.Any(snapshot => !snapshot.HasGlobalIterable);
+        if (missingGlobalBinding)
+        {
+            sb.AppendLine("One or more global snapshots lost the 'globalIterable' binding.");
+        }
+
+        if (sb.Length > 0)
+        {
+            sb.AppendLine("See docs/investigations/ASYNC_ITERABLE_SCOPE_DEBUG_NOTES.md for the captured environment diff.");
+            return sb.ToString();
+        }
+
+        return null;
+    }
+
+    private sealed record DebugSnapshot(
+        string Scenario,
+        int Index,
+        string ControlFlowState,
+        IReadOnlyDictionary<string, string?> Variables,
+        IReadOnlyList<string> CallStack,
+        bool HasLocalIterable,
+        bool HasGlobalIterable,
+        IReadOnlyList<string> IteratorIdentifiers,
+        IReadOnlyList<string> LoopCheckIdentifiers,
+        IReadOnlyList<string> LoopResolverIdentifiers,
+        string? ItemValue,
+        string? ResultValue);
 
     [Fact(Timeout = 5000)]
     public async Task InspectIteratorObject_GlobalVsLocal()

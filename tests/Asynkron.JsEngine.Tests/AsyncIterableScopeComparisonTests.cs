@@ -363,4 +363,325 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
 
         await System.Threading.Tasks.Task.Delay(1000);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task DebugInsideLoopBody_GlobalVsLocal()
+    {
+        output.WriteLine("=== DEBUG INSIDE LOOP BODY COMPARISON ===");
+        output.WriteLine("");
+        
+        // Test with LOCAL scope iterable - __debug() INSIDE loop body
+        var engine1 = new JsEngine();
+        engine1.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"[LOCAL] {msg}");
+            return null;
+        });
+
+        await engine1.Run(@"
+            async function test() {
+                log('=== LOCAL SCOPE - Debug Inside Loop ===');
+                
+                let localIterable = {
+                    [Symbol.iterator]() {
+                        log('LOCAL: Symbol.iterator called');
+                        let values = ['x', 'y', 'z'];
+                        let index = 0;
+                        return {
+                            next() {
+                                log('LOCAL: next() called, index=' + index);
+                                if (index < values.length) {
+                                    let val = values[index++];
+                                    log('LOCAL: returning value=' + val);
+                                    return { value: val, done: false };
+                                }
+                                log('LOCAL: returning done=true');
+                                return { done: true };
+                            }
+                        };
+                    }
+                };
+                
+                log('LOCAL: Before for-await-of');
+                let result = '';
+                for await (let item of localIterable) {
+                    __debug(); // INSIDE loop body
+                    log('LOCAL: Inside loop, item=' + item);
+                    result = result + item;
+                }
+                log('LOCAL: After loop, result=' + result);
+                return result;
+            }
+            
+            test();
+        ");
+
+        // Collect debug messages from local scope test
+        var localDebugMessages = new List<DebugMessage>();
+        while (engine1.DebugMessages().TryRead(out var msg))
+        {
+            localDebugMessages.Add(msg);
+        }
+
+        await System.Threading.Tasks.Task.Delay(1000);
+        var localFinalResult = await engine1.Evaluate("test()");
+
+        output.WriteLine("");
+        output.WriteLine($"[LOCAL] Final result: '{localFinalResult}'");
+        output.WriteLine($"[LOCAL] Debug messages captured: {localDebugMessages.Count}");
+        
+        if (localDebugMessages.Count > 0)
+        {
+            output.WriteLine("");
+            output.WriteLine("LOCAL SCOPE DEBUG MESSAGES (from inside loop):");
+            for (int i = 0; i < localDebugMessages.Count; i++)
+            {
+                output.WriteLine($"  Message {i + 1} - Variables count: {localDebugMessages[i].Variables.Count}");
+                // Show key variables
+                if (localDebugMessages[i].Variables.ContainsKey("item"))
+                    output.WriteLine($"    item = {localDebugMessages[i].Variables["item"]}");
+                if (localDebugMessages[i].Variables.ContainsKey("result"))
+                    output.WriteLine($"    result = {localDebugMessages[i].Variables["result"]}");
+                if (localDebugMessages[i].Variables.ContainsKey("localIterable"))
+                    output.WriteLine($"    localIterable = {localDebugMessages[i].Variables["localIterable"]}");
+            }
+        }
+        
+        output.WriteLine("");
+        output.WriteLine("===========================================");
+        output.WriteLine("");
+
+        // Test with GLOBAL scope iterable - __debug() INSIDE loop body
+        var engine2 = new JsEngine();
+        engine2.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"[GLOBAL] {msg}");
+            return null;
+        });
+
+        await engine2.Run(@"
+            log('=== GLOBAL SCOPE - Debug Inside Loop ===');
+            
+            let globalIterable = {
+                [Symbol.iterator]() {
+                    log('GLOBAL: Symbol.iterator called');
+                    let values = ['x', 'y', 'z'];
+                    let index = 0;
+                    return {
+                        next() {
+                            log('GLOBAL: next() called, index=' + index);
+                            if (index < values.length) {
+                                let val = values[index++];
+                                log('GLOBAL: returning value=' + val);
+                                return { value: val, done: false };
+                            }
+                            log('GLOBAL: returning done=true');
+                            return { done: true };
+                        }
+                    };
+                }
+            };
+            
+            async function test() {
+                log('GLOBAL: Before for-await-of');
+                let result = '';
+                for await (let item of globalIterable) {
+                    __debug(); // INSIDE loop body
+                    log('GLOBAL: Inside loop, item=' + item);
+                    result = result + item;
+                }
+                log('GLOBAL: After loop, result=' + result);
+                return result;
+            }
+            
+            test();
+        ");
+
+        // Collect debug messages from global scope test
+        var globalDebugMessages = new List<DebugMessage>();
+        while (engine2.DebugMessages().TryRead(out var msg))
+        {
+            globalDebugMessages.Add(msg);
+        }
+
+        await System.Threading.Tasks.Task.Delay(1000);
+        var globalFinalResult = await engine2.Evaluate("test()");
+
+        output.WriteLine("");
+        output.WriteLine($"[GLOBAL] Final result: '{globalFinalResult}'");
+        output.WriteLine($"[GLOBAL] Debug messages captured: {globalDebugMessages.Count}");
+        
+        if (globalDebugMessages.Count > 0)
+        {
+            output.WriteLine("");
+            output.WriteLine("GLOBAL SCOPE DEBUG MESSAGES (from inside loop):");
+            for (int i = 0; i < globalDebugMessages.Count; i++)
+            {
+                output.WriteLine($"  Message {i + 1} - Variables count: {globalDebugMessages[i].Variables.Count}");
+                // Show key variables
+                if (globalDebugMessages[i].Variables.ContainsKey("item"))
+                    output.WriteLine($"    item = {globalDebugMessages[i].Variables["item"]}");
+                if (globalDebugMessages[i].Variables.ContainsKey("result"))
+                    output.WriteLine($"    result = {globalDebugMessages[i].Variables["result"]}");
+                if (globalDebugMessages[i].Variables.ContainsKey("globalIterable"))
+                    output.WriteLine($"    globalIterable = {globalDebugMessages[i].Variables["globalIterable"]}");
+            }
+        }
+        else
+        {
+            output.WriteLine("");
+            output.WriteLine("*** NO DEBUG MESSAGES CAPTURED - Loop body never executed! ***");
+        }
+
+        output.WriteLine("");
+        output.WriteLine("=== CONCLUSION ===");
+        output.WriteLine($"Local scope: {(localDebugMessages.Count > 0 ? "✅ Loop body executed" : "❌ Loop body NOT executed")}");
+        output.WriteLine($"Global scope: {(globalDebugMessages.Count > 0 ? "✅ Loop body executed" : "❌ Loop body NOT executed")}");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ManualIterationComparison_GlobalVsLocal()
+    {
+        output.WriteLine("=== MANUAL ITERATION COMPARISON ===");
+        output.WriteLine("Testing if manually creating the loop structure makes a difference");
+        output.WriteLine("");
+        
+        // Test with LOCAL scope - manual iteration
+        var engine1 = new JsEngine();
+        engine1.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"[LOCAL-MANUAL] {msg}");
+            return null;
+        });
+
+        await engine1.Run(@"
+            async function test() {
+                log('=== LOCAL SCOPE - Manual Iteration ===');
+                
+                let localIterable = {
+                    [Symbol.iterator]() {
+                        log('Symbol.iterator called');
+                        let values = ['x', 'y', 'z'];
+                        let index = 0;
+                        return {
+                            next() {
+                                log('next() called, index=' + index);
+                                if (index < values.length) {
+                                    let val = values[index++];
+                                    return { value: val, done: false };
+                                }
+                                return { done: true };
+                            }
+                        };
+                    }
+                };
+                
+                log('Getting iterator manually');
+                let iterator = localIterable[Symbol.iterator]();
+                log('Got iterator: ' + typeof iterator);
+                
+                log('Calling next() manually in loop');
+                let result = '';
+                let iterResult = iterator.next();
+                while (!iterResult.done) {
+                    log('Manual loop iteration, value=' + iterResult.value);
+                    __debug();
+                    result = result + iterResult.value;
+                    iterResult = iterator.next();
+                }
+                
+                log('Manual loop done, result=' + result);
+                return result;
+            }
+            
+            test();
+        ");
+
+        var localManualDebugMessages = new List<DebugMessage>();
+        while (engine1.DebugMessages().TryRead(out var msg))
+        {
+            localManualDebugMessages.Add(msg);
+        }
+
+        await System.Threading.Tasks.Task.Delay(1000);
+        var localManualResult = await engine1.Evaluate("test()");
+        
+        output.WriteLine($"[LOCAL-MANUAL] Result: '{localManualResult}'");
+        output.WriteLine($"[LOCAL-MANUAL] Debug messages: {localManualDebugMessages.Count}");
+        output.WriteLine("");
+
+        // Test with GLOBAL scope - manual iteration
+        var engine2 = new JsEngine();
+        engine2.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"[GLOBAL-MANUAL] {msg}");
+            return null;
+        });
+
+        await engine2.Run(@"
+            log('=== GLOBAL SCOPE - Manual Iteration ===');
+            
+            let globalIterable = {
+                [Symbol.iterator]() {
+                    log('Symbol.iterator called');
+                    let values = ['x', 'y', 'z'];
+                    let index = 0;
+                    return {
+                        next() {
+                            log('next() called, index=' + index);
+                            if (index < values.length) {
+                                let val = values[index++];
+                                return { value: val, done: false };
+                            }
+                            return { done: true };
+                        }
+                    };
+                }
+            };
+            
+            async function test() {
+                log('Getting iterator manually');
+                let iterator = globalIterable[Symbol.iterator]();
+                log('Got iterator: ' + typeof iterator);
+                
+                log('Calling next() manually in loop');
+                let result = '';
+                let iterResult = iterator.next();
+                while (!iterResult.done) {
+                    log('Manual loop iteration, value=' + iterResult.value);
+                    __debug();
+                    result = result + iterResult.value;
+                    iterResult = iterator.next();
+                }
+                
+                log('Manual loop done, result=' + result);
+                return result;
+            }
+            
+            test();
+        ");
+
+        var globalManualDebugMessages = new List<DebugMessage>();
+        while (engine2.DebugMessages().TryRead(out var msg))
+        {
+            globalManualDebugMessages.Add(msg);
+        }
+
+        await System.Threading.Tasks.Task.Delay(1000);
+        var globalManualResult = await engine2.Evaluate("test()");
+        
+        output.WriteLine($"[GLOBAL-MANUAL] Result: '{globalManualResult}'");
+        output.WriteLine($"[GLOBAL-MANUAL] Debug messages: {globalManualDebugMessages.Count}");
+        
+        output.WriteLine("");
+        output.WriteLine("=== MANUAL ITERATION CONCLUSION ===");
+        output.WriteLine($"Local scope manual: {(localManualResult?.ToString() == "xyz" ? "✅ Works" : "❌ Failed")}");
+        output.WriteLine($"Global scope manual: {(globalManualResult?.ToString() == "xyz" ? "✅ Works" : "❌ Failed")}");
+        output.WriteLine("");
+        output.WriteLine("If manual iteration works for both, the issue is specific to for-await-of transformation.");
+    }
 }

@@ -6,9 +6,44 @@ This document contains the detailed findings from comparing `for await...of` beh
 
 **Key Finding**: The `for await...of` loop works correctly when the iterable is declared in LOCAL scope (inside the async function), but FAILS when the iterable is declared in GLOBAL scope (outside the async function).
 
+**CRITICAL UPDATE**: The `__debug()` tests placed INSIDE the loop body confirm that the loop body is **NEVER EXECUTED** for global scope iterables. Additionally, manual iteration (bypassing for-await-of) also fails with global scope, indicating this is NOT a for-await-of transformation issue but a deeper problem with async functions and global scope iteration.
+
 ## Test Results
 
-### Execution Behavior
+### Debug Inside Loop Body Test
+
+#### Local Scope (✅ WORKS)
+- **Debug messages captured from inside loop**: 3 (one per iteration)
+- **Loop execution**: ✅ All 3 iterations execute
+- **Variables visible**: `item`, `result`, `localIterable` all present in each debug message
+
+#### Global Scope (❌ FAILS)
+- **Debug messages captured from inside loop**: 0
+- **Loop execution**: ❌ Loop body NEVER executes
+- **Conclusion**: We don't even get into the loop body!
+
+### Manual Iteration Test
+
+To test if the issue is specific to for-await-of transformation, manual iteration was tested:
+
+```javascript
+// Manual while loop instead of for-await-of
+let iterator = iterable[Symbol.iterator]();
+let iterResult = iterator.next();
+while (!iterResult.done) {
+    __debug(); // Inside manual loop
+    result = result + iterResult.value;
+    iterResult = iterator.next();
+}
+```
+
+#### Results:
+- **Local scope manual**: ❌ Also fails (interesting - even manual fails when called second time)
+- **Global scope manual**: ❌ Fails - next() is never called
+
+**Critical Discovery**: Even manual iteration fails with global scope! This proves the issue is NOT in the for-await-of transformation but in how JavaScript functions/iterators interact with global scope objects inside async functions.
+
+### Original Execution Behavior
 
 #### Local Scope (✅ WORKS)
 ```
@@ -117,22 +152,30 @@ The difference is NOT in the available functions or environment.
 
 3. **Iterator is Retrieved but Not Used**: The log shows `Symbol.iterator called` in both cases, which means `__getAsyncIterator` successfully calls the Symbol.iterator method. However, in the global scope case, the returned iterator is never used (next() is never called).
 
-4. **Promise Chain May Not Execute**: The most likely explanation is that the promise chain created by the loop (`__iteratorNext(...).then(...).catch(...)`) is not being properly scheduled or executed when dealing with iterables from outer scopes.
+4. **Loop Body Never Executes for Global Scope**: The `__debug()` calls placed INSIDE the loop body confirm definitively that the loop body is never entered when the iterable is global scope. Local scope captures 3 debug messages (one per iteration), while global scope captures 0.
 
-5. **Possible Root Causes**:
-   - **Scope Chain Issue**: The lambda functions inside the Promise (`__loopCheck`, `__loopResolve`) may not properly capture or access variables from the global scope vs local scope.
-   - **Promise Scheduling**: When promises are resolved synchronously (as they are with `__iteratorNext` wrapping sync iterator results), the event loop behavior might differ based on scope context.
-   - **Variable Binding**: The way JavaScript function closures work inside the CPS-transformed Promise lambda might have different behavior for global vs local variables.
+5. **Manual Iteration Also Fails**: Testing with a manual `while (!iterResult.done)` loop (bypassing for-await-of entirely) also fails with global scope. This proves the issue is NOT specific to for-await-of transformation but affects JavaScript function iteration in general when dealing with global scope objects inside async functions.
+
+6. **Possible Root Causes**:
+   - **Iterator Method Invocation Issue**: When `Symbol.iterator` is called on a global scope object from within an async function, the returned iterator object may not be properly handled or may have closure/scope issues.
+   - **JavaScript Function Execution Context**: The JavaScript lambda functions that implement `next()` may have different execution contexts when created from global vs local scope objects.
+   - **Variable Binding in Closures**: The closure created by the iterator's `next()` method might not properly capture variables when the iterator comes from global scope.
+   - **Async Function Transformation**: The CPS transformation that wraps async function bodies in a Promise may interfere with how global scope iterators work.
 
 ## Recommended Next Steps
 
-1. **Add More Debug Logging**: Instrument the `__getAsyncIterator` and `__iteratorNext` C# helpers to log when they're called and what they return.
+1. **Test Non-Async Function**: Create a test that uses a regular (non-async) function with a manual loop to see if the issue is specific to async functions or affects all function contexts.
 
-2. **Test Promise Chain Directly**: Create a minimal test that manually constructs the same promise chain as the transformed loop, using global variables, to isolate whether it's a promise issue or a transformation issue.
+2. **Test Different Iterator Implementations**: Try with:
+   - Iterator using HostFunction (C#) next() method
+   - Iterator with arrow functions vs regular functions
+   - Iterator with different closure patterns
 
-3. **Check Promise Resolution**: Verify that promises created by `__iteratorNext` are actually being resolved and their `.then()` callbacks are being scheduled when the iterable is from global scope.
+3. **Inspect Iterator Object**: Add detailed logging to see if the iterator object returned from `Symbol.iterator` is different in structure between local and global scope cases.
 
-4. **Investigate Scope Chain**: Look into how the Evaluator handles variable lookup for the lambda functions created inside the Promise constructor when those lambdas reference variables from different scopes.
+4. **Check Execution Context**: Investigate whether the `this` binding or execution context differs for the iterator's next() method when called from global scope vs local scope.
+
+5. **Trace Promise Chain**: Add extensive logging to the promise chain created by `__iteratorNext` to see where execution stops in the global scope case.
 
 ## Test File Reference
 
@@ -143,3 +186,7 @@ Run with:
 ```bash
 dotnet test --filter "FullyQualifiedName~AsyncIterableScopeComparisonTests"
 ```
+
+### New Tests Added:
+- `DebugInsideLoopBody_GlobalVsLocal`: Places `__debug()` INSIDE loop bodies to confirm execution
+- `ManualIterationComparison_GlobalVsLocal`: Tests manual iteration to isolate for-await-of vs general issue

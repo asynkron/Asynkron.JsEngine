@@ -1223,6 +1223,14 @@ public static class Evaluator
                     // delete obj[key]
                     var target = EvaluateExpression(operandCons.Rest.Head, environment, context);
                     var key = EvaluateExpression(operandCons.Rest.Rest.Head, environment, context);
+                    
+                    // Handle array deletion - set element to undefined to create a hole
+                    if (target is JsArray jsArray && TryConvertToIndex(key, out var arrayIndex))
+                    {
+                        jsArray.SetElement(arrayIndex, JsSymbols.Undefined);
+                        return true;
+                    }
+                    
                     if (target is JsObject jsObj)
                     {
                         var keyStr = ToString(key);

@@ -347,9 +347,6 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 {
                     if (kind == TokenType.Const) throw new ParseException("Const declarations require an initializer.", Peek(), _source);
 
-                    if (kind == TokenType.Let)
-                        throw new ParseException("Let declarations require an initializer in this interpreter.", Peek(), _source);
-
                     initializer = Uninitialized;
                 }
 

@@ -771,7 +771,8 @@ public static class Evaluator
         // Simple identifier case
         var name = ExpectSymbol(target, "Expected identifier in let declaration.", context);
         var initializer = cons.Rest.Rest.Head;
-        var simpleValue = EvaluateExpression(initializer, environment, context);
+        var hasInitializer = !ReferenceEquals(initializer, JsSymbols.Uninitialized);
+        var simpleValue = hasInitializer ? EvaluateExpression(initializer, environment, context) : JsSymbols.Undefined;
         environment.Define(name, simpleValue);
         return simpleValue;
     }

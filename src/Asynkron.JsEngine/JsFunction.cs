@@ -1,12 +1,12 @@
 namespace Asynkron.JsEngine;
 
-public sealed class JsFunction : IEnvironmentAwareCallable
+public sealed class JsFunction : IJsEnvironmentAwareCallable
 {
     private readonly Symbol? _name;
     private readonly IReadOnlyList<object> _parameters; // Can be Symbol or Cons (for destructuring patterns)
     private readonly Symbol? _restParameter;
     private readonly Cons _body;
-    private readonly Environment _closure;
+    private readonly JsEnvironment _closure;
     private readonly JsObject _properties = new();
     private JsFunction? _superConstructor;
     private JsObject? _superPrototype;
@@ -14,10 +14,10 @@ public sealed class JsFunction : IEnvironmentAwareCallable
     /// <summary>
     /// The environment that is calling this function. Used for building call stacks.
     /// </summary>
-    public Environment? CallingEnvironment { get; set; }
+    public JsEnvironment? CallingJsEnvironment { get; set; }
 
     public JsFunction(Symbol? name, IReadOnlyList<object> parameters, Symbol? restParameter, Cons body,
-        Environment closure)
+        JsEnvironment closure)
     {
         _name = name;
         _parameters = parameters;
@@ -37,7 +37,7 @@ public sealed class JsFunction : IEnvironmentAwareCallable
         
         var context = new EvaluationContext();
         var functionDescription = _name != null ? $"function {_name.Name}" : "anonymous function";
-        var environment = new Environment(_closure, true, creatingExpression: _body, description: functionDescription);
+        var environment = new JsEnvironment(_closure, true, creatingExpression: _body, description: functionDescription);
 
         // Bind regular parameters (could be symbols or destructuring patterns)
         for (var i = 0; i < _parameters.Count; i++)
@@ -102,7 +102,7 @@ public sealed class JsFunction : IEnvironmentAwareCallable
     /// This implements JavaScript's variable hoisting behavior where var declarations
     /// are moved to the top of the function scope (initialized to undefined).
     /// </summary>
-    private static void HoistVariableDeclarations(Cons body, Environment environment)
+    private static void HoistVariableDeclarations(Cons body, JsEnvironment environment)
     {
         // body is a Block: (Block statement1 statement2 ...)
         if (body.Head is not Symbol blockSymbol || !ReferenceEquals(blockSymbol, JsSymbols.Block))
@@ -112,7 +112,7 @@ public sealed class JsFunction : IEnvironmentAwareCallable
         HoistFromStatementList(statements, environment);
     }
 
-    private static void HoistFromStatementList(object? statements, Environment environment)
+    private static void HoistFromStatementList(object? statements, JsEnvironment environment)
     {
         while (statements is Cons cons && !cons.IsEmpty)
         {
@@ -121,7 +121,7 @@ public sealed class JsFunction : IEnvironmentAwareCallable
         }
     }
 
-    private static void HoistFromStatement(object? statement, Environment environment)
+    private static void HoistFromStatement(object? statement, JsEnvironment environment)
     {
         if (statement is not Cons cons) return;
         if (cons.Head is not Symbol symbol) return;
@@ -218,7 +218,7 @@ public sealed class JsFunction : IEnvironmentAwareCallable
         }
     }
 
-    private static void HoistFromDestructuringPattern(Cons pattern, Environment environment)
+    private static void HoistFromDestructuringPattern(Cons pattern, JsEnvironment environment)
     {
         // Extract identifiers from destructuring patterns and pre-declare them
         if (pattern.Head is Symbol patternSymbol)

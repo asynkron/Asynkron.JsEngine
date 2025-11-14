@@ -4,12 +4,12 @@ namespace Asynkron.JsEngine;
 
 public static class Evaluator
 {
-    public static object? EvaluateProgram(Cons program, Environment environment)
+    public static object? EvaluateProgram(Cons program, JsEnvironment environment)
     {
         return EvaluateProgram(program, environment, new EvaluationContext());
     }
 
-    internal static object? EvaluateProgram(Cons program, Environment environment, EvaluationContext context)
+    internal static object? EvaluateProgram(Cons program, JsEnvironment environment, EvaluationContext context)
     {
         context.SourceReference = program.SourceReference;
 
@@ -28,7 +28,7 @@ public static class Evaluator
 
         // For global programs with strict mode, we need a wrapper environment
         // to enable strict mode checking without modifying the global environment
-        var evalEnv = hasUseStrict ? new Environment(environment, true, true) : environment;
+        var evalEnv = hasUseStrict ? new JsEnvironment(environment, true, true) : environment;
 
         object? result = null;
         foreach (var statement in statements)
@@ -44,12 +44,12 @@ public static class Evaluator
         return result;
     }
 
-    public static object? EvaluateBlock(Cons block, Environment environment)
+    public static object? EvaluateBlock(Cons block, JsEnvironment environment)
     {
         return EvaluateBlock(block, environment, new EvaluationContext());
     }
 
-    internal static object? EvaluateBlock(Cons block, Environment environment, EvaluationContext context)
+    internal static object? EvaluateBlock(Cons block, JsEnvironment environment, EvaluationContext context)
     {
         context.SourceReference = block.SourceReference;
 
@@ -66,7 +66,7 @@ public static class Evaluator
             statements = statements.Rest; // Skip the use strict directive
         }
 
-        var scope = new Environment(environment, false, isStrict);
+        var scope = new JsEnvironment(environment, false, isStrict);
         object? result = null;
         foreach (var statement in statements)
         {
@@ -78,7 +78,7 @@ public static class Evaluator
         return result;
     }
 
-    private static object? EvaluateStatement(object? statement, Environment environment, EvaluationContext context)
+    private static object? EvaluateStatement(object? statement, JsEnvironment environment, EvaluationContext context)
     {
         if (statement is not Cons cons) return statement;
 
@@ -150,7 +150,7 @@ public static class Evaluator
         return EvaluateExpression(cons, environment, context);
     }
 
-    private static object? EvaluateIf(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateIf(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var conditionExpression = cons.Rest.Head;
         var thenBranch = cons.Rest.Rest.Head;
@@ -165,7 +165,7 @@ public static class Evaluator
         return null;
     }
 
-    private static object? EvaluateWhile(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateWhile(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var conditionExpression = cons.Rest.Head;
         var body = cons.Rest.Rest.Head;
@@ -200,7 +200,7 @@ public static class Evaluator
         return lastResult;
     }
 
-    private static object? EvaluateDoWhile(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateDoWhile(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var conditionExpression = cons.Rest.Head;
         var body = cons.Rest.Rest.Head;
@@ -231,7 +231,7 @@ public static class Evaluator
         return lastResult;
     }
 
-    private static object? EvaluateFor(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateFor(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var initializer = cons.Rest.Head;
         var conditionExpression = cons.Rest.Rest.Head;
@@ -239,23 +239,23 @@ public static class Evaluator
         var body = cons.Rest.Rest.Rest.Rest.Head;
 
         // Create environment for the loop, passing the for loop S-expression
-        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for loop");
+        var loopJsEnvironment = new JsEnvironment(environment, creatingExpression: cons, description: "for loop");
 
-        if (initializer is not null) EvaluateStatement(initializer, loopEnvironment, context);
+        if (initializer is not null) EvaluateStatement(initializer, loopJsEnvironment, context);
 
         object? lastResult = null;
         while (conditionExpression is null ||
-               IsTruthy(EvaluateExpression(conditionExpression, loopEnvironment, context)))
+               IsTruthy(EvaluateExpression(conditionExpression, loopJsEnvironment, context)))
         {
             if (context.ShouldStopEvaluation)
                 break;
 
-            lastResult = EvaluateStatement(body, loopEnvironment, context);
+            lastResult = EvaluateStatement(body, loopJsEnvironment, context);
 
             if (context.IsContinue)
             {
                 context.ClearContinue();
-                if (incrementExpression is not null) EvaluateExpression(incrementExpression, loopEnvironment, context);
+                if (incrementExpression is not null) EvaluateExpression(incrementExpression, loopJsEnvironment, context);
                 continue;
             }
 
@@ -267,13 +267,13 @@ public static class Evaluator
 
             if (context.IsReturn || context.IsThrow) break; // Propagate return/throw
 
-            if (incrementExpression is not null) EvaluateExpression(incrementExpression, loopEnvironment, context);
+            if (incrementExpression is not null) EvaluateExpression(incrementExpression, loopJsEnvironment, context);
         }
 
         return lastResult;
     }
 
-    private static object? EvaluateForIn(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateForIn(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         // (for-in (let/var/const variable) iterable body) OR (for-in identifier iterable body)
         var firstArg = cons.Rest.Head;
@@ -301,7 +301,7 @@ public static class Evaluator
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
 
-        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for-in loop");
+        var loopJsEnvironment = new JsEnvironment(environment, creatingExpression: cons, description: "for-in loop");
         object? lastResult = null;
 
         // Get keys to iterate over
@@ -329,10 +329,10 @@ public static class Evaluator
             }
             else
             {
-                loopEnvironment.Define(variableName, key);
+                loopJsEnvironment.Define(variableName, key);
             }
 
-            lastResult = EvaluateStatement(body, loopEnvironment, context);
+            lastResult = EvaluateStatement(body, loopJsEnvironment, context);
 
             if (context.IsContinue)
             {
@@ -352,7 +352,7 @@ public static class Evaluator
         return lastResult;
     }
 
-    private static object? EvaluateForOf(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateForOf(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         // (for-of (let/var/const variable) iterable body) OR (for-of identifier iterable body)
         var firstArg = cons.Rest.Head;
@@ -380,7 +380,7 @@ public static class Evaluator
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
 
-        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for-of loop");
+        var loopJsEnvironment = new JsEnvironment(environment, creatingExpression: cons, description: "for-of loop");
         object? lastResult = null;
 
         // Get values to iterate over
@@ -407,10 +407,10 @@ public static class Evaluator
             }
             else
             {
-                loopEnvironment.Define(variableName, value);
+                loopJsEnvironment.Define(variableName, value);
             }
 
-            lastResult = EvaluateStatement(body, loopEnvironment, context);
+            lastResult = EvaluateStatement(body, loopJsEnvironment, context);
 
             if (context.IsContinue)
             {
@@ -430,7 +430,7 @@ public static class Evaluator
         return lastResult;
     }
 
-    private static object? EvaluateForAwaitOf(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateForAwaitOf(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         // (for-await-of (let/var/const variable) iterable body) OR (for-await-of identifier iterable body)
         // This implements async iteration with support for:
@@ -462,7 +462,7 @@ public static class Evaluator
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
 
-        var loopEnvironment = new Environment(environment, creatingExpression: cons, description: "for-await-of loop");
+        var loopJsEnvironment = new JsEnvironment(environment, creatingExpression: cons, description: "for-await-of loop");
         object? lastResult = null;
 
         // Try to get an iterator using the async iterator protocol
@@ -536,10 +536,10 @@ public static class Evaluator
                         }
                         else
                         {
-                            loopEnvironment.Define(variableName, value);
+                            loopJsEnvironment.Define(variableName, value);
                         }
 
-                        lastResult = EvaluateStatement(body, loopEnvironment, context);
+                        lastResult = EvaluateStatement(body, loopJsEnvironment, context);
 
                         if (context.IsContinue)
                         {
@@ -608,10 +608,10 @@ public static class Evaluator
             }
             else
             {
-                loopEnvironment.Define(variableName, value);
+                loopJsEnvironment.Define(variableName, value);
             }
 
-            lastResult = EvaluateStatement(body, loopEnvironment, context);
+            lastResult = EvaluateStatement(body, loopJsEnvironment, context);
 
             if (context.IsContinue)
             {
@@ -631,7 +631,7 @@ public static class Evaluator
         return lastResult;
     }
 
-    private static object? EvaluateSwitch(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateSwitch(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var discriminantExpression = cons.Rest.Head;
         var clauses = ExpectCons(cons.Rest.Rest.Head, "Expected switch clause list.", context);
@@ -694,7 +694,7 @@ public static class Evaluator
         return result;
     }
 
-    private static object? ExecuteSwitchBody(Cons body, Environment environment, object? currentResult,
+    private static object? ExecuteSwitchBody(Cons body, JsEnvironment environment, object? currentResult,
         EvaluationContext context)
     {
         var result = currentResult;
@@ -708,7 +708,7 @@ public static class Evaluator
         return result;
     }
 
-    private static object? EvaluateTry(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateTry(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var tryStatement = cons.Rest.Head;
         var catchClause = cons.Rest.Rest.Head;
@@ -753,7 +753,7 @@ public static class Evaluator
         return result;
     }
 
-    private static object? EvaluateLet(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateLet(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var target = cons.Rest.Head;
 
@@ -776,7 +776,7 @@ public static class Evaluator
         return simpleValue;
     }
 
-    private static object? EvaluateVar(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateVar(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var target = cons.Rest.Head;
 
@@ -800,7 +800,7 @@ public static class Evaluator
         return environment.Get(name);
     }
 
-    private static object? EvaluateConst(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateConst(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var target = cons.Rest.Head;
 
@@ -823,7 +823,7 @@ public static class Evaluator
         return constValue;
     }
 
-    private static object? EvaluateFunctionDeclaration(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateFunctionDeclaration(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var name = ExpectSymbol(cons.Rest.Head, "Expected function name.", context);
         var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected parameter list for function.", context);
@@ -834,7 +834,7 @@ public static class Evaluator
         return function;
     }
 
-    private static object? EvaluateGeneratorDeclaration(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateGeneratorDeclaration(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var name = ExpectSymbol(cons.Rest.Head, "Expected generator function name.", context);
         var parameters = ExpectCons(cons.Rest.Rest.Head, "Expected parameter list for generator function.", context);
@@ -846,7 +846,7 @@ public static class Evaluator
         return generatorFactory;
     }
 
-    private static object? EvaluateClass(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateClass(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var name = ExpectSymbol(cons.Rest.Head, "Expected class name symbol.", context);
         var extendsEntry = cons.Rest.Rest.Head;
@@ -1008,7 +1008,7 @@ public static class Evaluator
     }
 
     private static (JsFunction? Constructor, JsObject? Prototype) ResolveSuperclass(object? extendsEntry,
-        Environment environment, EvaluationContext context)
+        JsEnvironment environment, EvaluationContext context)
     {
         if (extendsEntry is null) return (null, null);
 
@@ -1034,7 +1034,7 @@ public static class Evaluator
         return (baseConstructor, basePrototype);
     }
 
-    private static object? EvaluateReturn(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateReturn(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         if (cons.Rest.IsEmpty)
         {
@@ -1047,7 +1047,7 @@ public static class Evaluator
         return value;
     }
 
-    private static object? EvaluateThrow(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateThrow(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var valueExpression = cons.Rest.Head;
         var value = EvaluateExpression(valueExpression, environment, context);
@@ -1055,7 +1055,7 @@ public static class Evaluator
         return value;
     }
 
-    private static object? ExecuteCatchClause(Cons catchClause, object? thrownValue, Environment environment,
+    private static object? ExecuteCatchClause(Cons catchClause, object? thrownValue, JsEnvironment environment,
         EvaluationContext context)
     {
         var tag = ExpectSymbol(catchClause.Head, "Expected catch clause tag.", context);
@@ -1064,12 +1064,12 @@ public static class Evaluator
         var binding = ExpectSymbol(catchClause.Rest.Head, "Expected catch binding symbol.", context);
         var body = ExpectCons(catchClause.Rest.Rest.Head, "Expected catch block.", context);
 
-        var catchEnvironment = new Environment(environment);
-        catchEnvironment.Define(binding, thrownValue);
-        return EvaluateStatement(body, catchEnvironment, context);
+        var catchJsEnvironment = new JsEnvironment(environment);
+        catchJsEnvironment.Define(binding, thrownValue);
+        return EvaluateStatement(body, catchJsEnvironment, context);
     }
 
-    private static object? EvaluateExpression(object? expression, Environment environment, EvaluationContext context)
+    private static object? EvaluateExpression(object? expression, JsEnvironment environment, EvaluationContext context)
     {
         switch (expression)
         {
@@ -1092,7 +1092,7 @@ public static class Evaluator
         }
     }
 
-    private static object? EvaluateCompositeExpression(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateCompositeExpression(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         // Set source reference for error reporting
         context.SourceReference = cons.SourceReference;
@@ -1252,7 +1252,7 @@ public static class Evaluator
         return EvaluateBinary(cons, environment, symbol, context);
     }
 
-    private static object? EvaluateCall(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateCall(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var calleeExpression = cons.Rest.Head;
         var (callee, thisValue) = ResolveCallee(calleeExpression, environment, context);
@@ -1285,12 +1285,12 @@ public static class Evaluator
         try
         {
             // If this is an environment-aware callable, set the calling environment
-            if (callable is IEnvironmentAwareCallable envAware) envAware.CallingEnvironment = environment;
+            if (callable is IJsEnvironmentAwareCallable envAware) envAware.CallingJsEnvironment = environment;
 
             // If this is a debug-aware function, set the environment and context
             if (callable is DebugAwareHostFunction debugFunc)
             {
-                debugFunc.CurrentEnvironment = environment;
+                debugFunc.CurrentJsEnvironment = environment;
                 debugFunc.CurrentContext = context;
             }
 
@@ -1304,7 +1304,7 @@ public static class Evaluator
         }
     }
 
-    private static (object? Callee, object? ThisValue) ResolveCallee(object? calleeExpression, Environment environment,
+    private static (object? Callee, object? ThisValue) ResolveCallee(object? calleeExpression, JsEnvironment environment,
         EvaluationContext context)
     {
         if (calleeExpression is Symbol { } superSymbol && ReferenceEquals(superSymbol, JsSymbols.Super))
@@ -1374,7 +1374,7 @@ public static class Evaluator
         return (EvaluateExpression(calleeExpression, environment, context), null);
     }
 
-    private static object EvaluateArrayLiteral(Cons cons, Environment environment, EvaluationContext context)
+    private static object EvaluateArrayLiteral(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var array = new JsArray();
         foreach (var elementExpression in cons.Rest)
@@ -1400,7 +1400,7 @@ public static class Evaluator
         return array;
     }
 
-    private static object EvaluateTemplateLiteral(Cons cons, Environment environment, EvaluationContext context)
+    private static object EvaluateTemplateLiteral(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var result = new System.Text.StringBuilder();
 
@@ -1431,7 +1431,7 @@ public static class Evaluator
         };
     }
 
-    private static object EvaluateTaggedTemplate(Cons cons, Environment environment, EvaluationContext context)
+    private static object EvaluateTaggedTemplate(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         // Format: (taggedTemplate tag stringsArray rawStringsArray expr1 expr2 ...)
         var rest = cons.Rest;
@@ -1491,7 +1491,7 @@ public static class Evaluator
         }
     }
 
-    private static object EvaluateObjectLiteral(Cons cons, Environment environment, EvaluationContext context)
+    private static object EvaluateObjectLiteral(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var result = new JsObject();
         foreach (var propertyExpression in cons.Rest)
@@ -1560,7 +1560,7 @@ public static class Evaluator
         return result;
     }
 
-    private static object? EvaluateGetProperty(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateGetProperty(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var targetExpression = cons.Rest.Head;
         var propertyName = cons.Rest.Rest.Head as string
@@ -1581,7 +1581,7 @@ public static class Evaluator
         return JsSymbols.Undefined;
     }
 
-    private static object? EvaluateSetProperty(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateSetProperty(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var targetExpression = cons.Rest.Head;
         var propertyName = cons.Rest.Rest.Head as string
@@ -1597,7 +1597,7 @@ public static class Evaluator
         return value;
     }
 
-    private static object? EvaluateOptionalGetProperty(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateOptionalGetProperty(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var targetExpression = cons.Rest.Head;
         var propertyName = cons.Rest.Rest.Head as string
@@ -1613,7 +1613,7 @@ public static class Evaluator
         return JsSymbols.Undefined;
     }
 
-    private static object? EvaluateOptionalGetIndex(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateOptionalGetIndex(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var targetExpression = cons.Rest.Head;
         var indexExpression = cons.Rest.Rest.Head;
@@ -1637,7 +1637,7 @@ public static class Evaluator
         return JsSymbols.Undefined;
     }
 
-    private static object? EvaluateOptionalCall(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateOptionalCall(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var calleeExpression = cons.Rest.Head;
 
@@ -1681,7 +1681,7 @@ public static class Evaluator
         return value is null || (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined));
     }
 
-    private static object? EvaluateGetIndex(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateGetIndex(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var targetExpression = cons.Rest.Head;
         var indexExpression = cons.Rest.Rest.Head;
@@ -1717,7 +1717,7 @@ public static class Evaluator
         return JsSymbols.Undefined;
     }
 
-    private static object? EvaluateSetIndex(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateSetIndex(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var targetExpression = cons.Rest.Head;
         var indexExpression = cons.Rest.Rest.Head;
@@ -1755,7 +1755,7 @@ public static class Evaluator
         return value;
     }
 
-    private static object? EvaluateNew(Cons cons, Environment environment, EvaluationContext context)
+    private static object? EvaluateNew(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
         var constructorExpression = cons.Rest.Head;
         var constructor = EvaluateExpression(constructorExpression, environment, context);
@@ -1804,7 +1804,7 @@ public static class Evaluator
         }
     }
 
-    private static void InitializePrivateFields(object? constructor, JsObject instance, Environment environment,
+    private static void InitializePrivateFields(object? constructor, JsObject instance, JsEnvironment environment,
         EvaluationContext context)
     {
         // First, initialize parent class private and public fields (if any)
@@ -1829,7 +1829,7 @@ public static class Evaluator
                     if (initializer is not null)
                     {
                         // Create a temporary environment with 'this' bound to the instance
-                        var initEnv = new Environment(environment);
+                        var initEnv = new JsEnvironment(environment);
                         initEnv.Define(JsSymbols.This, instance);
                         initialValue = EvaluateExpression(initializer, initEnv, context);
                     }
@@ -1839,7 +1839,7 @@ public static class Evaluator
             }
     }
 
-    private static object? EvaluateBinary(Cons cons, Environment environment, Symbol operatorSymbol,
+    private static object? EvaluateBinary(Cons cons, JsEnvironment environment, Symbol operatorSymbol,
         EvaluationContext context)
     {
         var leftExpression = cons.Rest.Head;
@@ -1975,7 +1975,7 @@ public static class Evaluator
         return value is Cons cons ? cons : throw new InvalidOperationException($"{message}{GetSourceInfo(context)}");
     }
 
-    private static SuperBinding ExpectSuperBinding(Environment environment, EvaluationContext context)
+    private static SuperBinding ExpectSuperBinding(JsEnvironment environment, EvaluationContext context)
     {
         object? value;
         try
@@ -2790,7 +2790,7 @@ public static class Evaluator
         };
     }
 
-    private static void DestructureAndDefine(Cons pattern, object? value, Environment environment, bool isConst,
+    private static void DestructureAndDefine(Cons pattern, object? value, JsEnvironment environment, bool isConst,
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
@@ -2804,7 +2804,7 @@ public static class Evaluator
             throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
     }
 
-    private static void DestructureAndDefineFunctionScoped(Cons pattern, object? value, Environment environment,
+    private static void DestructureAndDefineFunctionScoped(Cons pattern, object? value, JsEnvironment environment,
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
@@ -2818,7 +2818,7 @@ public static class Evaluator
             throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
     }
 
-    private static void DestructureArray(Cons pattern, object? value, Environment environment, bool isConst,
+    private static void DestructureArray(Cons pattern, object? value, JsEnvironment environment, bool isConst,
         EvaluationContext context)
     {
         if (value is not JsArray array)
@@ -2877,7 +2877,7 @@ public static class Evaluator
         }
     }
 
-    private static void DestructureArrayFunctionScoped(Cons pattern, object? value, Environment environment,
+    private static void DestructureArrayFunctionScoped(Cons pattern, object? value, JsEnvironment environment,
         EvaluationContext context)
     {
         if (value is not JsArray array)
@@ -2936,7 +2936,7 @@ public static class Evaluator
         }
     }
 
-    private static void DestructureObject(Cons pattern, object? value, Environment environment, bool isConst,
+    private static void DestructureObject(Cons pattern, object? value, JsEnvironment environment, bool isConst,
         EvaluationContext context)
     {
         if (value is not JsObject obj)
@@ -2995,7 +2995,7 @@ public static class Evaluator
         }
     }
 
-    private static void DestructureObjectFunctionScoped(Cons pattern, object? value, Environment environment,
+    private static void DestructureObjectFunctionScoped(Cons pattern, object? value, JsEnvironment environment,
         EvaluationContext context)
     {
         if (value is not JsObject obj)
@@ -3055,7 +3055,7 @@ public static class Evaluator
     }
 
     // Public method to destructure function parameters (called from JsFunction)
-    public static void DestructureParameter(Cons pattern, object? value, Environment environment,
+    public static void DestructureParameter(Cons pattern, object? value, JsEnvironment environment,
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
@@ -3069,7 +3069,7 @@ public static class Evaluator
             throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
     }
 
-    private static void DestructureAssignment(Cons pattern, object? value, Environment environment,
+    private static void DestructureAssignment(Cons pattern, object? value, JsEnvironment environment,
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
@@ -3083,7 +3083,7 @@ public static class Evaluator
             throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
     }
 
-    private static void DestructureArrayAssignment(Cons pattern, object? value, Environment environment,
+    private static void DestructureArrayAssignment(Cons pattern, object? value, JsEnvironment environment,
         EvaluationContext context)
     {
         if (value is not JsArray array)
@@ -3142,7 +3142,7 @@ public static class Evaluator
         }
     }
 
-    private static void DestructureObjectAssignment(Cons pattern, object? value, Environment environment,
+    private static void DestructureObjectAssignment(Cons pattern, object? value, JsEnvironment environment,
         EvaluationContext context)
     {
         if (value is not JsObject obj)
@@ -3333,7 +3333,7 @@ public static class Evaluator
     }
 
     // Increment/Decrement operations
-    private static object IncrementPrefix(object? operandExpression, Environment environment, EvaluationContext context)
+    private static object IncrementPrefix(object? operandExpression, JsEnvironment environment, EvaluationContext context)
     {
         // Get current value
         var currentValue = EvaluateExpression(operandExpression, environment, context);
@@ -3351,7 +3351,7 @@ public static class Evaluator
         return numValue;
     }
 
-    private static object DecrementPrefix(object? operandExpression, Environment environment, EvaluationContext context)
+    private static object DecrementPrefix(object? operandExpression, JsEnvironment environment, EvaluationContext context)
     {
         // Get current value
         var currentValue = EvaluateExpression(operandExpression, environment, context);
@@ -3369,7 +3369,7 @@ public static class Evaluator
         return numValue;
     }
 
-    private static object IncrementPostfix(object? operandExpression, Environment environment,
+    private static object IncrementPostfix(object? operandExpression, JsEnvironment environment,
         EvaluationContext context)
     {
         // Get current value
@@ -3389,7 +3389,7 @@ public static class Evaluator
         return oldValue; // Return the old value
     }
 
-    private static object DecrementPostfix(object? operandExpression, Environment environment,
+    private static object DecrementPostfix(object? operandExpression, JsEnvironment environment,
         EvaluationContext context)
     {
         // Get current value
@@ -3409,7 +3409,7 @@ public static class Evaluator
         return oldValue; // Return the old value
     }
 
-    private static void UpdateVariable(object? operandExpression, object? newValue, Environment environment,
+    private static void UpdateVariable(object? operandExpression, object? newValue, JsEnvironment environment,
         EvaluationContext context)
     {
         if (operandExpression is Symbol symbol)

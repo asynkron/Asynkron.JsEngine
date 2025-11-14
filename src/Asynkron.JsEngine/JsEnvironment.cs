@@ -1,7 +1,7 @@
 namespace Asynkron.JsEngine;
 
-public sealed class Environment(
-    Environment? enclosing = null,
+public sealed class JsEnvironment(
+    JsEnvironment? enclosing = null,
     bool isFunctionScope = false,
     bool isStrict = false,
     Cons? creatingExpression = null,
@@ -15,7 +15,7 @@ public sealed class Environment(
     }
 
     private readonly Dictionary<Symbol, Binding> _values = new();
-    private readonly Environment? _enclosing = enclosing;
+    private readonly JsEnvironment? _enclosing = enclosing;
     private readonly bool _isFunctionScope = isFunctionScope;
     private readonly bool _isStrict = isStrict;
     private readonly Cons? _creatingExpression = creatingExpression;
@@ -104,7 +104,7 @@ public sealed class Environment(
         Define(name, value, isConst: false);
     }
 
-    private Environment GetFunctionScope()
+    private JsEnvironment GetFunctionScope()
     {
         var current = this;
         while (!current._isFunctionScope)

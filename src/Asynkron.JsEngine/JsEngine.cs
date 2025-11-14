@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public sealed class JsEngine
 {
-    private readonly Environment _global = new(isFunctionScope: true);
+    private readonly JsEnvironment _global = new(isFunctionScope: true);
     private readonly ConstantExpressionTransformer _constantTransformer = new();
     private readonly CpsTransformer _cpsTransformer = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
@@ -150,7 +150,7 @@ public sealed class JsEngine
     /// <summary>
     /// Logs an exception to the exception channel.
     /// </summary>
-    internal void LogException(Exception exception, string context, Environment? environment = null)
+    internal void LogException(Exception exception, string context, JsEnvironment? environment = null)
     {
         var callStack = environment?.BuildCallStack() ?? new List<CallStackFrame>();
         var exceptionInfo = new ExceptionInfo(exception, context, callStack);
@@ -160,7 +160,7 @@ public sealed class JsEngine
     /// <summary>
     /// Captures the current execution state and writes a debug message to the debug channel.
     /// </summary>
-    private object? CaptureDebugMessage(Environment environment, EvaluationContext context, IReadOnlyList<object?> args)
+    private object? CaptureDebugMessage(JsEnvironment environment, EvaluationContext context, IReadOnlyList<object?> args)
     {
         // Get all variables from the current environment and parent scopes
         var variables = environment.GetAllVariables();
@@ -635,7 +635,7 @@ public sealed class JsEngine
         var exports = new JsObject();
 
         // Create a module environment (inherits from global)
-        var moduleEnv = new Environment(_global, false);
+        var moduleEnv = new JsEnvironment(_global, false);
 
         // Evaluate the module with export tracking
         EvaluateModule(program, moduleEnv, exports);
@@ -650,7 +650,7 @@ public sealed class JsEngine
     /// Evaluates a module program and populates the exports object.
     /// Returns the last evaluated value.
     /// </summary>
-    private object? EvaluateModule(Cons program, Environment moduleEnv, JsObject exports)
+    private object? EvaluateModule(Cons program, JsEnvironment moduleEnv, JsObject exports)
     {
         if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
             throw new InvalidOperationException("Expected program node");
@@ -838,7 +838,7 @@ public sealed class JsEngine
     /// <summary>
     /// Processes an import statement and brings imported values into the module environment.
     /// </summary>
-    private void EvaluateImport(Cons importCons, Environment moduleEnv)
+    private void EvaluateImport(Cons importCons, JsEnvironment moduleEnv)
     {
         // (import module-path) for side-effect imports
         // (import module-path default-import namespace-import named-imports) for regular imports

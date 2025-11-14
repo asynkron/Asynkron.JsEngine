@@ -13,11 +13,11 @@ public sealed class JsGenerator : IJsCallable
 {
     private readonly Cons _body;
     private readonly Cons _parameters;
-    private readonly Environment _closure;
+    private readonly JsEnvironment _closure;
     private readonly IReadOnlyList<object?> _arguments;
     private GeneratorState _state;
     private bool _done;
-    private Environment? _executionEnv;
+    private JsEnvironment? _executionEnv;
     private int _currentYieldIndex;
 
     private enum GeneratorState
@@ -35,7 +35,7 @@ public sealed class JsGenerator : IJsCallable
     /// <param name="body">The body of the generator function</param>
     /// <param name="closure">The lexical environment where the generator was defined</param>
     /// <param name="arguments">The arguments passed when creating the generator</param>
-    public JsGenerator(Cons parameters, Cons body, Environment closure, IReadOnlyList<object?> arguments)
+    public JsGenerator(Cons parameters, Cons body, JsEnvironment closure, IReadOnlyList<object?> arguments)
     {
         _parameters = parameters ?? throw new ArgumentNullException(nameof(parameters));
         _body = body ?? throw new ArgumentNullException(nameof(body));
@@ -82,7 +82,7 @@ public sealed class JsGenerator : IJsCallable
             // Create execution environment if this is the first call
             if (_executionEnv == null)
             {
-                _executionEnv = new Environment(_closure);
+                _executionEnv = new JsEnvironment(_closure);
                 BindParameters(_executionEnv);
             }
 
@@ -147,7 +147,7 @@ public sealed class JsGenerator : IJsCallable
         throw new ThrowSignal(error);
     }
 
-    private void BindParameters(Environment env)
+    private void BindParameters(JsEnvironment env)
     {
         var (regularParams, restParam) = ParseParameterList(_parameters);
 

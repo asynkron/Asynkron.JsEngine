@@ -2043,9 +2043,12 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return numToken.Lexeme;
         }
 
-        // Allow 'get' and 'set' as property names in object literals
-        if (Match(TokenType.Get)) return "get";
-        if (Match(TokenType.Set)) return "set";
+        // Allow keywords as property names in object literals
+        if (IsKeyword(Peek()))
+        {
+            var keywordToken = Advance();
+            return keywordToken.Lexeme;
+        }
 
         var identifier = Consume(TokenType.Identifier, "Expected property name.");
         return identifier.Lexeme;
@@ -2090,8 +2093,9 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 TokenType.Continue or TokenType.Return or TokenType.Try or TokenType.Catch or
                 TokenType.Finally or TokenType.Throw or TokenType.This or TokenType.Super or
                 TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
-                TokenType.Undefined or TokenType.Typeof or TokenType.Get or TokenType.Set or
-                TokenType.Yield or TokenType.Async or TokenType.Await => true,
+                TokenType.Undefined or TokenType.Typeof or TokenType.Void or TokenType.Delete or
+                TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or 
+                TokenType.Await => true,
             _ => false
         };
     }

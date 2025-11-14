@@ -888,5 +888,190 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             output.WriteLine("⚠️ No exceptions captured - exception may be swallowed elsewhere");
         }
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task TestH_CheckPromiseRejectionHandling()
+    {
+        output.WriteLine("=== Test H: Check if Promise Rejections are Handled ===");
+        
+        var engine = new JsEngine();
+        var rejectionsCaught = new List<string>();
+        
+        engine.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"LOG: {msg}");
+            return null;
+        });
+
+        engine.SetGlobalFunction("onRejection", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"REJECTION: {msg}");
+            rejectionsCaught.Add(msg);
+            return null;
+        });
+
+        await engine.Run(@"
+            log('Creating global iterable that will cause error');
+            let globalIterable = {
+                [Symbol.iterator]() {
+                    log('Symbol.iterator called');
+                    return {
+                        next: function() {
+                            log('next() will be called and should throw');
+                            // This function body will be empty, causing exception
+                        }
+                    };
+                }
+            };
+            
+            async function test() {
+                log('Starting test with explicit rejection handler');
+                try {
+                    for await (let item of globalIterable) {
+                        log('In loop (should not reach here)');
+                    }
+                    log('Loop completed normally');
+                } catch (e) {
+                    log('Caught in try-catch: ' + e);
+                    onRejection('try-catch: ' + e);
+                }
+                return 'done';
+            }
+            
+            log('Calling test with .catch handler');
+            test()
+                .then(r => log('Resolved: ' + r))
+                .catch(e => {
+                    log('Caught in .catch: ' + e);
+                    onRejection('promise-catch: ' + e);
+                });
+        ");
+
+        await System.Threading.Tasks.Task.Delay(1000);
+
+        output.WriteLine("");
+        output.WriteLine($"=== REJECTIONS CAUGHT: {rejectionsCaught.Count} ===");
+        foreach (var rejection in rejectionsCaught)
+        {
+            output.WriteLine($"  - {rejection}");
+        }
+
+        // Check exceptions
+        var exceptions = new List<ExceptionInfo>();
+        while (engine.Exceptions().TryRead(out var ex))
+        {
+            exceptions.Add(ex);
+        }
+
+        output.WriteLine("");
+        output.WriteLine($"=== EXCEPTIONS LOGGED: {exceptions.Count} ===");
+        foreach (var ex in exceptions)
+        {
+            output.WriteLine($"  - {ex.Message} (Context: {ex.Context})");
+        }
+
+        output.WriteLine("");
+        if (rejectionsCaught.Count > 0)
+        {
+            output.WriteLine("✅ Promise rejections ARE being caught by handlers!");
+        }
+        else
+        {
+            output.WriteLine("❌ Promise rejections are NOT being caught - this is the problem!");
+            output.WriteLine("   The rejection is converted to a rejected promise but never bubbles up.");
+        }
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TestI_InvestigateFunctionBodyCorruption()
+    {
+        output.WriteLine("=== Test I: Investigate Why Function Bodies Are Empty ===");
+        
+        var engine = new JsEngine();
+        engine.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"LOG: {msg}");
+            return null;
+        });
+
+        await engine.Run(@"
+            log('=== Test 1: Regular function in global object ===');
+            let obj1 = {
+                method: function() {
+                    log('Regular function called');
+                    return 'result1';
+                }
+            };
+            log('Calling obj1.method: ' + obj1.method());
+            
+            log('');
+            log('=== Test 2: Arrow function in global object ===');
+            let obj2 = {
+                method: () => {
+                    log('Arrow function called');
+                    return 'result2';
+                }
+            };
+            log('Calling obj2.method: ' + obj2.method());
+            
+            log('');
+            log('=== Test 3: Method shorthand in global object ===');
+            let obj3 = {
+                method() {
+                    log('Method shorthand called');
+                    return 'result3';
+                }
+            };
+            log('Calling obj3.method: ' + obj3.method());
+            
+            log('');
+            log('=== Test 4: Function in global object accessed from async ===');
+            let obj4 = {
+                method: function() {
+                    log('Function called from async');
+                    return 'result4';
+                }
+            };
+            
+            async function testAsync() {
+                log('Inside async function, calling obj4.method');
+                try {
+                    let result = obj4.method();
+                    log('Result: ' + result);
+                    return result;
+                } catch (e) {
+                    log('ERROR: ' + e);
+                    return 'error: ' + e;
+                }
+            }
+            
+            testAsync().then(r => log('Async result: ' + r));
+        ");
+
+        await System.Threading.Tasks.Task.Delay(1000);
+
+        // Check exceptions
+        var exceptions = new List<ExceptionInfo>();
+        while (engine.Exceptions().TryRead(out var ex))
+        {
+            exceptions.Add(ex);
+        }
+
+        output.WriteLine("");
+        output.WriteLine($"=== EXCEPTIONS: {exceptions.Count} ===");
+        foreach (var ex in exceptions)
+        {
+            output.WriteLine($"  - {ex.Message}");
+        }
+
+        output.WriteLine("");
+        output.WriteLine("This test checks if the issue is specific to:");
+        output.WriteLine("  1. How functions are defined (regular/arrow/shorthand)");
+        output.WriteLine("  2. Calling from async context");
+        output.WriteLine("  3. Something about Symbol.iterator specifically");
+    }
 }
 

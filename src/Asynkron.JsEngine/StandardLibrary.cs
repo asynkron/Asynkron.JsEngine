@@ -194,18 +194,18 @@ public static class StandardLibrary
 
         math["clz32"] = new HostFunction(args =>
         {
-            if (args.Count == 0) return 32d;
-            if (args[0] is not double d) return 32d;
-            var n = (int)d;
-            if (n == 0) return 32d;
-            return (double)System.Numerics.BitOperations.LeadingZeroCount((uint)n);
+            var number = args.Count > 0 ? Evaluator.ToNumber(args[0]) : 0d;
+            var value = JsNumericConversions.ToUInt32(number);
+            if (value == 0) return 32d;
+            return (double)System.Numerics.BitOperations.LeadingZeroCount(value);
         });
 
         math["imul"] = new HostFunction(args =>
         {
-            if (args.Count < 2) return 0d;
-            var a = args[0] is double d1 ? (int)d1 : 0;
-            var b = args[1] is double d2 ? (int)d2 : 0;
+            var left = args.Count > 0 ? Evaluator.ToNumber(args[0]) : 0d;
+            var right = args.Count > 1 ? Evaluator.ToNumber(args[1]) : 0d;
+            var a = JsNumericConversions.ToInt32(left);
+            var b = JsNumericConversions.ToInt32(right);
             return (double)(a * b);
         });
 
@@ -473,6 +473,18 @@ public static class StandardLibrary
                 {
                     var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
                     return (double)dt.Year;
+                }
+
+                return double.NaN;
+            });
+
+            dateInstance["getYear"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    var year = dt.Year;
+                    return (double)(year >= 1900 ? year - 1900 : year);
                 }
 
                 return double.NaN;

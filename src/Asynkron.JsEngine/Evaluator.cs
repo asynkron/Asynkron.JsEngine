@@ -2062,7 +2062,7 @@ public static class Evaluator
         };
     }
 
-    private static double ToNumber(object? value)
+    internal static double ToNumber(object? value)
     {
         return value switch
         {
@@ -3376,16 +3376,13 @@ public static class Evaluator
     private static int ToInt32(object? value)
     {
         var num = ToNumber(value);
-        if (double.IsNaN(num) || double.IsInfinity(num)) return 0;
-        // JavaScript ToInt32: convert to uint first, then to int to handle values > Int32.MaxValue
-        return unchecked((int)(uint)(long)num);
+        return JsNumericConversions.ToInt32(num);
     }
 
     private static uint ToUInt32(object? value)
     {
         var num = ToNumber(value);
-        if (double.IsNaN(num) || double.IsInfinity(num)) return 0;
-        return (uint)(long)num;
+        return JsNumericConversions.ToUInt32(num);
     }
 
     // Increment/Decrement operations

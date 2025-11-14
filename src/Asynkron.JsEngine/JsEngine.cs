@@ -13,6 +13,7 @@ public sealed class JsEngine
     private readonly CpsTransformer _cpsTransformer = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
+    private readonly Channel<ExceptionInfo> _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly HashSet<Task> _activeTimerTasks = [];
     private int _nextTimerId = 1;
@@ -136,6 +137,24 @@ public sealed class JsEngine
     public ChannelReader<DebugMessage> DebugMessages()
     {
         return _debugChannel.Reader;
+    }
+
+    /// <summary>
+    /// Returns a channel reader that can be used to read exceptions that occurred during execution.
+    /// </summary>
+    public ChannelReader<ExceptionInfo> Exceptions()
+    {
+        return _exceptionChannel.Reader;
+    }
+
+    /// <summary>
+    /// Logs an exception to the exception channel.
+    /// </summary>
+    internal void LogException(Exception exception, string context, Environment? environment = null)
+    {
+        var callStack = environment?.BuildCallStack() ?? new List<CallStackFrame>();
+        var exceptionInfo = new ExceptionInfo(exception, context, callStack);
+        _exceptionChannel.Writer.TryWrite(exceptionInfo);
     }
 
     /// <summary>

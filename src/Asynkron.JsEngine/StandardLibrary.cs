@@ -3483,6 +3483,9 @@ public static class StandardLibrary
             }
             catch (Exception ex)
             {
+                // Log the exception for debugging
+                engine.LogException(ex, "Iterator.next() invocation");
+                
                 // If next() throws an error, wrap it in a rejected promise
                 var rejectedPromise = new JsPromise(engine);
                 AddPromiseInstanceMethods(rejectedPromise.JsObject, rejectedPromise, engine);

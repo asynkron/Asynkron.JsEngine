@@ -4,7 +4,7 @@ A lightweight JavaScript interpreter written in C# that parses and evaluates Jav
 
 ## 📚 Documentation
 
-This is the main entry point for all documentation. Please refer to the sections below:
+All documentation is organized in the `docs/` folder. This is the main entry point for all documentation.
 
 ### Getting Started
 - **[Quick Start Guide](docs/GETTING_STARTED.md)** - Installation, basic usage, and first steps
@@ -17,18 +17,22 @@ This is the main entry point for all documentation. Please refer to the sections
 ### Architecture & Design
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - System design, components, and design decisions
 - **[Transformation Pipeline](docs/TRANSFORMATIONS.md)** - How JavaScript code transforms through the pipeline (JS → S-Expr → CPS)
+- **[Documentation Index](docs/README.md)** - Complete documentation index with all implementation details
 
 ### Implementation Details
 - **[CPS Transformation Plan](docs/CPS_TRANSFORMATION_PLAN.md)** - Async/await implementation strategy
-- **[Destructuring Implementation](docs/DESTRUCTURING_IMPLEMENTATION_PLAN.md)** - Destructuring design and implementation
+- **[ASI Implementation](docs/ASI_IMPLEMENTATION.md)** - Automatic Semicolon Insertion
+- **[Signal Pattern](docs/SIGNAL_PATTERN.md)** - Control flow signal pattern
 - **[Control Flow Alternatives](docs/CONTROL_FLOW_ALTERNATIVES.md)** - Alternative approaches for control flow
-- **[Bytecode Compilation](docs/BYTECODE_COMPILATION.md)** - Educational: Transform to bytecode VM (alternative approach)
-- **[Iterative Evaluation](docs/ITERATIVE_EVALUATION.md)** - Educational: Transform from recursive to iterative evaluation
+
+### Investigations & Debugging
+- **[Investigations](docs/investigations/)** - Investigation notes and debugging documentation
+- Key investigations: Parser vs CPS analysis, promise rejection investigation, exception channel results
 
 ### Status & Planning
 - **[Feature Status](docs/FEATURE_STATUS_SUMMARY.md)** - Current implementation status
+- **[Completed Features](docs/COMPLETED_FEATURES.md)** - Catalog of implemented features
 - **[Remaining Tasks](docs/REMAINING_TASKS.md)** - What's left to implement
-- **[Large Features Not Implemented](docs/LARGE_FEATURES_NOT_IMPLEMENTED.md)** - Analysis of specialized features not yet implemented
 
 ---
 

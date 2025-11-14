@@ -2,6 +2,12 @@
 
 This directory contains comprehensive documentation about the Asynkron.JsEngine architecture and various implementation approaches.
 
+## 📁 Documentation Organization
+
+- **[investigations/](investigations/)** - Investigation notes, debugging plans, and analysis from development work
+- **[archive/](archive/)** - Historical documentation from completed implementation efforts
+- **Current docs** - Active documentation for architecture, features, and implementation details
+
 ## Core Implementation Documentation
 
 ### [CPS_TRANSFORMATION_PLAN.md](CPS_TRANSFORMATION_PLAN.md)
@@ -15,6 +21,76 @@ Detailed plan for implementing Continuation-Passing Style (CPS) transformation t
 - Generator implementation (`function*`, `yield`)
 - Async/await implementation
 - Phase-by-phase implementation guide
+
+### [ASI_IMPLEMENTATION.md](ASI_IMPLEMENTATION.md)
+**Status: Implemented**
+
+Implementation of Automatic Semicolon Insertion (ASI) following ECMAScript specification (Section 11.9).
+
+**Key Topics:**
+- ECMAScript ASI rules (offending token, end of input, restricted productions)
+- Modified parser methods for ASI handling
+- Test coverage for various ASI scenarios
+
+### [DYNAMIC_IMPORT_IMPLEMENTATION.md](DYNAMIC_IMPORT_IMPLEMENTATION.md)
+**Status: Implemented**
+
+Implementation of dynamic import (`import()`) functionality.
+
+**Key Topics:**
+- Parser support for dynamic imports
+- Promise-based module loading
+- Integration with existing module system
+
+### [SOURCE_REFERENCE_IMPLEMENTATION.md](SOURCE_REFERENCE_IMPLEMENTATION.md)
+**Status: Implemented**
+
+Implementation of source reference tracking for better error messages and debugging.
+
+### [PARSER_FIXES_SUMMARY.md](PARSER_FIXES_SUMMARY.md)
+**Status: Implementation Summary**
+
+Summary of parser fixes for ASI handling, ternary operators, and minified code parsing.
+
+**Results:** 5 of 6 SunSpider tests fixed - parse errors converted to runtime errors.
+
+### [SIGNAL_PATTERN_IMPLEMENTATION.md](SIGNAL_PATTERN_IMPLEMENTATION.md)
+**Status: Implemented**
+
+Implementation summary of typed signal objects replacing enum-based state machine for control flow.
+
+**Test Results:** 1,064 passing tests, clean build, 0 CodeQL alerts.
+
+---
+
+## 🔍 Investigations & Debugging
+
+For detailed investigation notes and debugging documentation, see **[investigations/README.md](investigations/README.md)**.
+
+**Key Investigations:**
+- [PARSER_VS_CPS_ANALYSIS.md](investigations/PARSER_VS_CPS_ANALYSIS.md) - Analysis of parser vs CPS transformer issues with method shorthand
+- [PROMISE_REJECTION_INVESTIGATION.md](investigations/PROMISE_REJECTION_INVESTIGATION.md) - Promise rejection handling in async loops
+- [EXCEPTION_CHANNEL_RESULTS.md](investigations/EXCEPTION_CHANNEL_RESULTS.md) - Exception channel implementation for debugging
+- [CPS_ASYNC_ITERATION_STATUS.md](investigations/CPS_ASYNC_ITERATION_STATUS.md) - Status of async iteration in CPS transformer
+- [ASYNC_ITERABLE_SCOPE_COMPARISON.md](investigations/ASYNC_ITERABLE_SCOPE_COMPARISON.md) - Global vs local scope behavior
+- [DEBUGGING_PLAN.md](investigations/DEBUGGING_PLAN.md) - Global scope iterator failure debugging
+- SunSpider test suite analysis documents
+
+---
+
+## 📦 Archived Documentation
+
+For historical documentation from completed implementation efforts, see **[archive/README.md](archive/README.md)**.
+
+**Archived Documents:**
+- [IMPLEMENTATION_COMPLETE.md](archive/IMPLEMENTATION_COMPLETE.md) - November 2025 milestone snapshot (96% compatibility achieved)
+- [IMPLEMENTATION_SUMMARY.md](archive/IMPLEMENTATION_SUMMARY.md) - Earlier implementation summary
+- [DYNAMIC_IMPORT_ASYNC_ITERATION_SUMMARY.md](archive/DYNAMIC_IMPORT_ASYNC_ITERATION_SUMMARY.md) - Dynamic import + async iteration implementation
+- [FEATURE_IMPLEMENTATION_ANALYSIS.md](archive/FEATURE_IMPLEMENTATION_ANALYSIS.md) - Feasibility analysis for multiple features
+
+---
+
+## Control Flow & Signal Pattern Documentation
 
 ### [CONTROL_FLOW_ALTERNATIVES.md](CONTROL_FLOW_ALTERNATIVES.md)
 **Status: Analysis & Recommendations**
@@ -33,6 +109,23 @@ Comprehensive analysis of six different approaches to implementing control flow 
 - Performance comparison matrix
 - Implementation complexity analysis
 - Migration strategies
+
+### [SIGNAL_PATTERN.md](SIGNAL_PATTERN.md)
+**Status: Documentation**
+
+Usage guide for the typed signal pattern used for control flow management.
+
+**Key Topics:**
+- Signal types (ReturnSignal, BreakSignal, ContinueSignal, YieldSignal, ThrowFlowSignal)
+- Pattern matching with switch expressions
+- Usage examples
+
+### [SIGNAL_PATTERN_ANALYSIS.md](SIGNAL_PATTERN_ANALYSIS.md)
+**Status: Analysis**
+
+Detailed analysis comparing signal pattern vs state machine approach for control flow.
+
+**Conclusion:** Typed signal approach is significantly better than enum-based state machine.
 
 ### [ASYNC_AWAIT_IMPLEMENTATION.md](ASYNC_AWAIT_IMPLEMENTATION.md)
 **Status: Implementation Details**
@@ -152,6 +245,15 @@ Comprehensive catalog of JavaScript features that have been successfully impleme
 → Read [COMPLETED_FEATURES.md](COMPLETED_FEATURES.md) for complete list of implemented features  
 → Check [FEATURE_STATUS_SUMMARY.md](FEATURE_STATUS_SUMMARY.md) for overall compatibility status
 
+### "I'm debugging async iteration issues"
+→ Check [investigations/CPS_ASYNC_ITERATION_STATUS.md](investigations/CPS_ASYNC_ITERATION_STATUS.md) for known issues  
+→ See [investigations/DEBUGGING_PLAN.md](investigations/DEBUGGING_PLAN.md) for debugging approach  
+→ Review [investigations/PARSER_VS_CPS_ANALYSIS.md](investigations/PARSER_VS_CPS_ANALYSIS.md) for parser vs CPS analysis
+
+### "I want to understand historical implementation decisions"
+→ See [archive/README.md](archive/README.md) for archived implementation documents  
+→ Check [archive/IMPLEMENTATION_COMPLETE.md](archive/IMPLEMENTATION_COMPLETE.md) for milestone snapshot
+
 ---
 
 ## Document Status Legend
@@ -186,4 +288,4 @@ When documenting implementation approaches:
 
 ---
 
-**Last Updated**: 2025-11-08
+**Last Updated**: 2025-11-14

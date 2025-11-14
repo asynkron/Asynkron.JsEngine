@@ -2504,17 +2504,14 @@ public static class StandardLibrary
             if (args.Count == 1 && args[0] is double length)
             {
                 var arr = new JsArray();
-                var len = (int)length;
-                for (var i = 0; i < len; i++) arr.Push(null);
+                arr.SetProperty("length", length);
                 AddArrayMethods(arr);
                 return arr;
             }
-            else
-            {
-                var arr = new JsArray(args);
-                AddArrayMethods(arr);
-                return arr;
-            }
+
+            var array = new JsArray(args);
+            AddArrayMethods(array);
+            return array;
         });
 
         // Array.isArray(value)

@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 /// A special host function for eval() that has access to the calling environment
 /// and can evaluate code synchronously in that context.
 /// </summary>
-public sealed class EvalHostFunction : IEnvironmentAwareCallable
+public sealed class EvalHostFunction : IJsEnvironmentAwareCallable
 {
     private readonly JsEngine _engine;
     private readonly JsObject _properties = new();
@@ -19,7 +19,7 @@ public sealed class EvalHostFunction : IEnvironmentAwareCallable
     /// The environment that is calling this function.
     /// This allows eval to execute code in the caller's scope.
     /// </summary>
-    public Environment? CallingEnvironment { get; set; }
+    public JsEnvironment? CallingJsEnvironment { get; set; }
 
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
     {
@@ -27,7 +27,7 @@ public sealed class EvalHostFunction : IEnvironmentAwareCallable
             return arguments.Count > 0 ? arguments[0] : JsSymbols.Undefined;
 
         // Use the calling environment if available, otherwise use global
-        var environment = CallingEnvironment ?? throw new InvalidOperationException(
+        var environment = CallingJsEnvironment ?? throw new InvalidOperationException(
             "eval() called without a calling environment");
 
         // Parse the code

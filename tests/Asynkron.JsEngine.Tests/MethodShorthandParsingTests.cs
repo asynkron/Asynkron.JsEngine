@@ -183,7 +183,6 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
         output.WriteLine("");
         output.WriteLine("This tests method shorthand in progressively complex scenarios");
     }
-}
 
     [Fact(Timeout = 5000)]
     public async Task TestL_MethodShorthandInForAwaitOf()

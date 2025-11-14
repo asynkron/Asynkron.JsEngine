@@ -1439,6 +1439,8 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         if (Match(TokenType.Void)) return S(JsSymbols.Void, ParseUnary());
 
+        if (Match(TokenType.Delete)) return S(JsSymbols.Delete, ParseUnary());
+
         if (Match(TokenType.PlusPlus))
         {
             var operand = ParseUnary();

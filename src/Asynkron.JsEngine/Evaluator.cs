@@ -1195,6 +1195,50 @@ public static class Evaluator
             return JsSymbols.Undefined;
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.Delete))
+        {
+            // The delete operator deletes a property from an object
+            var operandExpression = cons.Rest.Head;
+            
+            // Check if operand is a property access or index access
+            if (operandExpression is Cons operandCons && operandCons.Head is Symbol operandSymbol)
+            {
+                // delete obj.prop or delete obj[key]
+                if (ReferenceEquals(operandSymbol, JsSymbols.GetProperty))
+                {
+                    // delete obj.prop
+                    var target = EvaluateExpression(operandCons.Rest.Head, environment, context);
+                    var propertyNameObj = operandCons.Rest.Rest.Head;
+                    if (target is JsObject jsObj)
+                    {
+                        // Property name can be a string or Symbol
+                        var propertyName = propertyNameObj is Symbol sym ? sym.Name : propertyNameObj?.ToString() ?? "";
+                        jsObj.Remove(propertyName);
+                        return true;
+                    }
+                    return true;
+                }
+                else if (ReferenceEquals(operandSymbol, JsSymbols.GetIndex))
+                {
+                    // delete obj[key]
+                    var target = EvaluateExpression(operandCons.Rest.Head, environment, context);
+                    var key = EvaluateExpression(operandCons.Rest.Rest.Head, environment, context);
+                    if (target is JsObject jsObj)
+                    {
+                        var keyStr = ToString(key);
+                        jsObj.Remove(keyStr);
+                        return true;
+                    }
+                    return true;
+                }
+            }
+            
+            // For other cases (like delete of a variable or non-property access), evaluate and return true
+            // In non-strict mode, delete always returns true for non-property-references
+            EvaluateExpression(operandExpression, environment, context);
+            return true;
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.Lambda))
         {
             var maybeName = cons.Rest.Head as Symbol;

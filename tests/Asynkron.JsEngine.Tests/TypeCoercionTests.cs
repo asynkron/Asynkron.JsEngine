@@ -47,11 +47,13 @@ public class TypeCoercionTests
     public async Task ArrayToString_WithNullUndefined()
     {
         var engine = new JsEngine();
+        // Per ECMAScript spec Section 22.1.3.28 (Array.prototype.toString):
+        // null and undefined elements are converted to empty strings
         var result1 = await engine.Evaluate("\"value: \" + [1, null, 3];");
-        Assert.Equal("value: 1,null,3", result1);
+        Assert.Equal("value: 1,,3", result1);
 
         var result2 = await engine.Evaluate("\"value: \" + [1, undefined, 3];");
-        Assert.Equal("value: 1,undefined,3", result2);
+        Assert.Equal("value: 1,,3", result2);
     }
 
     // ========================================

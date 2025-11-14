@@ -846,7 +846,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         
         if (!Check(TokenType.Semicolon) && !Check(TokenType.RightBrace) && !Check(TokenType.Eof) && !HasLineTerminatorBefore())
         {
-            value = ParseExpression();
+            value = ParseSequenceExpression();
             hasValue = true;
         }
 

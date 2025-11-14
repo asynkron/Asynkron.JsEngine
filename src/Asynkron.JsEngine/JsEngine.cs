@@ -13,11 +13,13 @@ public sealed class JsEngine
     private readonly CpsTransformer _cpsTransformer = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
+    private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
     private readonly Channel<ExceptionInfo> _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly HashSet<Task> _activeTimerTasks = [];
     private int _nextTimerId = 1;
     private int _pendingTaskCount = 0; // Track pending tasks in the event queue
+    private bool _asyncIteratorTracingEnabled;
 
     // Module registry: maps module paths to their exported values
     private readonly Dictionary<string, JsObject> _moduleRegistry = new();
@@ -113,7 +115,7 @@ public sealed class JsEngine
         SetGlobal("eval", new EvalHostFunction(this));
 
         // Register internal helpers for async iteration
-        SetGlobal("__getAsyncIterator", StandardLibrary.CreateGetAsyncIteratorHelper());
+        SetGlobal("__getAsyncIterator", StandardLibrary.CreateGetAsyncIteratorHelper(this));
         SetGlobal("__iteratorNext", StandardLibrary.CreateIteratorNextHelper(this));
         SetGlobal("__awaitHelper", StandardLibrary.CreateAwaitHelper(this));
 
@@ -138,6 +140,15 @@ public sealed class JsEngine
     public ChannelReader<DebugMessage> DebugMessages()
     {
         return _debugChannel.Reader;
+    }
+
+    /// <summary>
+    /// Returns a channel reader for async iterator trace messages written by tracing hooks.
+    /// Consumers can toggle tracing with <see cref="EnableAsyncIteratorTracing"/>.
+    /// </summary>
+    public ChannelReader<string> AsyncIteratorTraceMessages()
+    {
+        return _asyncIteratorTraceChannel.Reader;
     }
 
     /// <summary>
@@ -186,6 +197,27 @@ public sealed class JsEngine
         _debugChannel.Writer.TryWrite(debugMessage);
 
         return null;
+    }
+
+    /// <summary>
+    /// Enables or disables lightweight tracing for async iterator helpers.
+    /// </summary>
+    public void EnableAsyncIteratorTracing(bool enable)
+    {
+        _asyncIteratorTracingEnabled = enable;
+    }
+
+    /// <summary>
+    /// Writes a trace message to the async iterator trace channel when tracing is enabled.
+    /// Internal helpers use this to surface branch decisions for testing and diagnostics.
+    /// </summary>
+    /// <param name="message">Human readable trace message.</param>
+    internal void WriteAsyncIteratorTrace(string message)
+    {
+        if (!_asyncIteratorTracingEnabled)
+            return;
+
+        _asyncIteratorTraceChannel.Writer.TryWrite(message);
     }
 
     /// <summary>

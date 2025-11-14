@@ -1885,6 +1885,9 @@ public static class Evaluator
                 var leftIsNullish = left is null || (left is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined));
                 return leftIsNullish ? EvaluateExpression(rightExpression, environment, context) : left;
             }
+            case ",":
+                // Comma operator: evaluate left (discard result), then evaluate and return right
+                return EvaluateExpression(rightExpression, environment, context);
             case "===":
             {
                 var rightStrict = EvaluateExpression(rightExpression, environment, context);

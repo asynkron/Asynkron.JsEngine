@@ -264,6 +264,21 @@ public class AutomaticSemicolonInsertionTests
     [Fact(Timeout = 2000)]
     public async Task ReturnWithCommaOperator()
     {
+        // Simple test: comma operator returns last value
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            function test() {
+                return 1, 2, 3;
+            }
+            test()
+        ");
+
+        Assert.Equal(3d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ReturnWithCommaOperatorComplex()
+    {
         // Test return statement with comma operator (sequences multiple expressions)
         var engine = new JsEngine();
         var result = await engine.Evaluate(@"
@@ -285,7 +300,9 @@ public class AutomaticSemicolonInsertionTests
             }
             
             let result = createCommonjsModule(testFn, '/base', null);
-            result.path
+            // The comma operator returns the last value, which is module.exports (an empty object)
+            // So result should be an empty object, not the module itself
+            capturedModule.path
         ");
 
         Assert.Equal("/base", result);

@@ -801,4 +801,92 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await System.Threading.Tasks.Task.Delay(1000);
         output.WriteLine("Actual for-await-of test with extensive logging to pinpoint failure");
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task TestG_CaptureExceptionsWithChannel()
+    {
+        output.WriteLine("=== Test G: Capture Exceptions via Exception Channel ===");
+        
+        var engine = new JsEngine();
+        engine.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"LOG: {msg}");
+            return null;
+        });
+
+        await engine.Run(@"
+            log('Creating global iterable with iterator');
+            let globalIterable = {
+                [Symbol.iterator]() {
+                    log('Symbol.iterator called');
+                    let index = 0;
+                    return {
+                        next: function() {
+                            log('next() called, index=' + index);
+                            if (index < 2) {
+                                return { value: index++, done: false };
+                            }
+                            return { done: true };
+                        }
+                    };
+                }
+            };
+            
+            async function test() {
+                log('Starting test');
+                let result = [];
+                
+                try {
+                    log('Entering for-await-of');
+                    for await (let item of globalIterable) {
+                        log('Got item: ' + item);
+                        result.push(item);
+                    }
+                    log('Loop completed, result: ' + JSON.stringify(result));
+                } catch (e) {
+                    log('Caught exception: ' + e);
+                }
+                
+                return result;
+            }
+            
+            test().then(r => log('Done: ' + JSON.stringify(r)))
+                .catch(e => log('Failed: ' + e));
+        ");
+
+        await System.Threading.Tasks.Task.Delay(1000);
+
+        // Check for exceptions in the exception channel
+        var exceptions = new List<ExceptionInfo>();
+        while (engine.Exceptions().TryRead(out var ex))
+        {
+            exceptions.Add(ex);
+        }
+
+        output.WriteLine("");
+        output.WriteLine($"=== EXCEPTIONS CAPTURED: {exceptions.Count} ===");
+        foreach (var ex in exceptions)
+        {
+            output.WriteLine($"Exception: {ex.ExceptionType}");
+            output.WriteLine($"Message: {ex.Message}");
+            output.WriteLine($"Context: {ex.Context}");
+            output.WriteLine($"Call Stack:");
+            foreach (var frame in ex.CallStack)
+            {
+                output.WriteLine($"  - {frame.Description}");
+            }
+            output.WriteLine("");
+        }
+
+        if (exceptions.Count > 0)
+        {
+            output.WriteLine("✅ SUCCESS: Captured exceptions that explain the failure!");
+        }
+        else
+        {
+            output.WriteLine("⚠️ No exceptions captured - exception may be swallowed elsewhere");
+        }
+    }
 }
+

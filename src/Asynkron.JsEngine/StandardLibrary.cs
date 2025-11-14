@@ -3454,7 +3454,7 @@ public static class StandardLibrary
     /// Helper method for async iteration: gets an async iterator from an iterable.
     /// For for-await-of: tries Symbol.asyncIterator first, falls back to Symbol.iterator.
     /// </summary>
-    public static HostFunction CreateGetAsyncIteratorHelper()
+    public static HostFunction CreateGetAsyncIteratorHelper(JsEngine engine)
     {
         return new HostFunction(args =>
         {
@@ -3463,6 +3463,13 @@ public static class StandardLibrary
                 throw new InvalidOperationException("__getAsyncIterator requires an iterable");
 
             var iterable = args[0];
+
+            static bool HasCallableNext(object? candidate)
+            {
+                return candidate is JsObject obj &&
+                       obj.TryGetProperty("next", out var nextProp) &&
+                       nextProp is IJsCallable;
+            }
 
             // Handle generators - they are already iterators
             if (iterable is JsGenerator generator)
@@ -3480,6 +3487,8 @@ public static class StandardLibrary
                     var error = args.Count > 0 ? args[0] : null;
                     return generator.Throw(error);
                 }));
+                engine.WriteAsyncIteratorTrace(
+                    $"getAsyncIterator: branch=generator hasCallableNext={HasCallableNext(iteratorObj)}");
                 return iteratorObj;
             }
 
@@ -3506,6 +3515,8 @@ public static class StandardLibrary
                         return result;
                     }
                 }));
+                engine.WriteAsyncIteratorTrace(
+                    $"getAsyncIterator: branch=string hasCallableNext={HasCallableNext(iteratorObj)} length={str.Length}");
                 return iteratorObj;
             }
 
@@ -3515,21 +3526,36 @@ public static class StandardLibrary
             {
                 // Check if it's already an iterator (has a "next" method)
                 if (jsObj.TryGetProperty("next", out var nextMethod) && nextMethod is IJsCallable)
+                {
+                    engine.WriteAsyncIteratorTrace(
+                        $"getAsyncIterator: branch=next-property hasCallableNext={HasCallableNext(jsObj)}");
                     // It's already an iterator, return it as-is
                     return jsObj;
+                }
 
                 // Try Symbol.asyncIterator
                 var asyncIteratorSymbol = JsSymbol.For("Symbol.asyncIterator");
                 var asyncIteratorKey = $"@@symbol:{asyncIteratorSymbol.GetHashCode()}";
                 if (jsObj.TryGetProperty(asyncIteratorKey, out var asyncIteratorMethod) &&
                     asyncIteratorMethod is IJsCallable asyncIteratorCallable)
-                    return asyncIteratorCallable.Invoke([], jsObj);
+                {
+                    var iterator = asyncIteratorCallable.Invoke([], jsObj);
+                    engine.WriteAsyncIteratorTrace(
+                        $"getAsyncIterator: branch=symbol-asyncIterator hasCallableNext={HasCallableNext(iterator)}");
+                    return iterator;
+                }
 
                 // Fall back to Symbol.iterator
                 var iteratorSymbol = JsSymbol.For("Symbol.iterator");
                 var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
                 if (jsObj.TryGetProperty(iteratorKey, out var iteratorMethod) &&
-                    iteratorMethod is IJsCallable iteratorCallable) return iteratorCallable.Invoke([], jsObj);
+                    iteratorMethod is IJsCallable iteratorCallable)
+                {
+                    var iterator = iteratorCallable.Invoke([], jsObj);
+                    engine.WriteAsyncIteratorTrace(
+                        $"getAsyncIterator: branch=symbol-iterator hasCallableNext={HasCallableNext(iterator)} source=object");
+                    return iterator;
+                }
 
                 throw new InvalidOperationException(
                     "Object is not iterable (no Symbol.asyncIterator or Symbol.iterator method)");
@@ -3541,7 +3567,13 @@ public static class StandardLibrary
                 var iteratorSymbol = JsSymbol.For("Symbol.iterator");
                 var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
                 if (jsArray.TryGetProperty(iteratorKey, out var iteratorMethod) &&
-                    iteratorMethod is IJsCallable iteratorCallable) return iteratorCallable.Invoke([], jsArray);
+                    iteratorMethod is IJsCallable iteratorCallable)
+                {
+                    var iterator = iteratorCallable.Invoke([], jsArray);
+                    engine.WriteAsyncIteratorTrace(
+                        $"getAsyncIterator: branch=symbol-iterator hasCallableNext={HasCallableNext(iterator)} source=array length={jsArray.Length}");
+                    return iterator;
+                }
             }
 
             throw new InvalidOperationException($"Value is not iterable: {iterable?.GetType().Name}");
@@ -3564,33 +3596,42 @@ public static class StandardLibrary
             if (!iterator.TryGetProperty("next", out var nextMethod) || nextMethod is not IJsCallable nextCallable)
                 throw new InvalidOperationException("Iterator must have a 'next' method");
 
+            engine.WriteAsyncIteratorTrace("iteratorNext: invoking next() on iterator");
             object? result;
             try
             {
                 result = nextCallable.Invoke([], iterator);
+                engine.WriteAsyncIteratorTrace("iteratorNext: next() invocation succeeded");
             }
             catch (Exception ex)
             {
                 // Log the exception for debugging
                 engine.LogException(ex, "Iterator.next() invocation");
-                
+
+                engine.WriteAsyncIteratorTrace($"iteratorNext: next() threw exception='{ex.Message}'");
+
                 // If next() throws an error, wrap it in a rejected promise
                 var rejectedPromise = new JsPromise(engine);
                 AddPromiseInstanceMethods(rejectedPromise.JsObject, rejectedPromise, engine);
                 rejectedPromise.Reject(ex.Message);
+                engine.WriteAsyncIteratorTrace("iteratorNext: returning rejected promise due to exception");
                 return rejectedPromise.JsObject;
             }
 
             // Check if result is already a promise (has a "then" method)
             if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod is IJsCallable)
+            {
+                engine.WriteAsyncIteratorTrace("iteratorNext: result already promise-like, returning as-is");
                 // Already a promise, return as-is
                 return result;
+            }
 
             // Not a promise, wrap in Promise.resolve()
             var promise = new JsPromise(engine);
             AddPromiseInstanceMethods(promise.JsObject, promise, engine);
             promise.Resolve(result);
+            engine.WriteAsyncIteratorTrace("iteratorNext: wrapped result in resolved promise");
             return promise.JsObject;
         });
     }

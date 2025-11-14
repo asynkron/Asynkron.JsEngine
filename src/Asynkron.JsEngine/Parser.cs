@@ -1780,16 +1780,21 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 }
 
                 // Check for getter/setter
-                if (Match(TokenType.Get))
+                // We need to distinguish between:
+                // - `get foo() {}` (getter)
+                // - `get: 10` or `get: function() {}` (regular property named "get")
+                if (Check(TokenType.Get) && !IsGetOrSetPropertyName())
                 {
+                    Advance(); // consume 'get'
                     var name = ParseObjectPropertyName();
                     Consume(TokenType.LeftParen, "Expected '(' after getter name.");
                     Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
                     var body = ParseBlock();
                     properties.Add(S(Getter, name, body));
                 }
-                else if (Match(TokenType.Set))
+                else if (Check(TokenType.Set) && !IsGetOrSetPropertyName())
                 {
+                    Advance(); // consume 'set'
                     var name = ParseObjectPropertyName();
                     Consume(TokenType.LeftParen, "Expected '(' after setter name.");
                     var paramToken = Consume(TokenType.Identifier, "Expected parameter name in setter.");
@@ -2039,6 +2044,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return numToken.Lexeme;
         }
 
+        // Allow 'get' and 'set' as property names in object literals
+        if (Match(TokenType.Get)) return "get";
+        if (Match(TokenType.Set)) return "set";
+
         var identifier = Consume(TokenType.Identifier, "Expected property name.");
         return identifier.Lexeme;
     }
@@ -2086,6 +2095,16 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 TokenType.Yield or TokenType.Async or TokenType.Await => true,
             _ => false
         };
+    }
+
+    /// <summary>
+    /// Determines if 'get' or 'set' should be treated as a property name rather than a getter/setter.
+    /// Returns true if it's followed by a colon (indicating a regular property like `get: value`).
+    /// </summary>
+    private bool IsGetOrSetPropertyName()
+    {
+        // If the next token is a colon, then 'get' or 'set' is a property name
+        return PeekNext().Type == TokenType.Colon;
     }
 
     private object FinishIndex(object? target)

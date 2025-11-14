@@ -463,11 +463,29 @@ public sealed class CpsTransformer
                     // Check if both branches (or the single then-branch with no else) return early
                     // If so, we shouldn't add the continuation after the if statement
                     var allBranchesReturnEarly = false;
+                    var thenReturnsEarly = BlockAlwaysReturnsEarly(transformedThen);
+                    
                     if (transformedElse != null)
                         // Both branches exist - check if both return early
-                        allBranchesReturnEarly = BlockAlwaysReturnsEarly(transformedThen) &&
+                        allBranchesReturnEarly = thenReturnsEarly &&
                                                  BlockAlwaysReturnsEarly(transformedElse);
                     // If there's no else branch, it can't guarantee early return since execution falls through when condition is false
+
+                    // Special case: In loop context, if the then branch returns early but there's no else,
+                    // we need to add the continuation as an else branch instead of after the if statement.
+                    // This prevents the continuation from being executed unconditionally.
+                    if (inLoopContext && thenReturnsEarly && transformedElse == null)
+                    {
+                        // Get the continuation for the rest of the statements
+                        var elseContinuation = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam,
+                            loopContinueTarget, loopBreakTarget, addFinalContinuation);
+                        
+                        // Add the continuation as the else branch
+                        var ifWithElse = Cons.FromEnumerable([JsSymbols.If, condition, transformedThen, elseContinuation]);
+                        
+                        // Both branches now return, so no continuation needed after the if
+                        return Cons.FromEnumerable([JsSymbols.Block, ifWithElse]);
+                    }
 
                     var transformedIf = transformedElse != null
                         ? Cons.FromEnumerable([JsSymbols.If, condition, transformedThen, transformedElse])

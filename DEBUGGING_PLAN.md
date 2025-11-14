@@ -3,159 +3,114 @@
 ## Problem Statement
 When `for await...of` loops iterate over sync iterators from global scope objects, the iterator's `next()` method is never called. The loop body never executes.
 
-## Investigation Strategy
+## CRITICAL BREAKTHROUGH ✅
 
-### Phase 1: Isolate the Failure Point ✅
+**Error Found**: "The empty list does not have a head."
 
-Created `AsyncIteratorDebuggingTests.cs` with 8 progressive tests:
+This error occurs when:
+1. Calling `next()` on an iterator created from a global scope object
+2. Even when calling directly (not just in for-await-of)
+3. Happens inside async functions when invoking methods on iterators from global scope
 
-1. **DirectIteratorCall_GlobalScope**: Direct call to global iterator (baseline)
-2. **IteratorCallFromAsyncFunction_NoPromiseWrapper**: Call from async function
-3. **IteratorCallFromPromiseCallback**: Call from Promise executor
-4. **IteratorCallFromNestedPromiseChain**: Call from nested Promise.then() chain
-5. **IteratorWithClosureVariables_GlobalScope**: Iterator with closure variables
-6. **UseActualHelpers_GlobalIterator**: Using `__getAsyncIterator` and `__iteratorNext`
-7. **CompareLocalVsGlobal_MinimalCase**: Side-by-side comparison
-8. **InstrumentedIteratorNext_DetailedLogging**: Using built-in `__iteratorNext` with logging
+### Test Results
 
-### Initial Test Results
-
-**Test 7 (CompareLocalVsGlobal_MinimalCase)**: ❓ **BOTH LOCAL AND GLOBAL WORK!**
-
-This is surprising and important:
-```javascript
-// This WORKS for both local and global scope:
-let iterator = { next: () => ({ value: 1, done: false }) };
-async function test() {
-  return new Promise(resolve => {
-    Promise.resolve().then(() => {
-      let result = iterator.next();  // WORKS!
-      resolve(result);
-    });
-  });
-}
+**Test F (Actual for-await-of with logging)**:
 ```
-
-**Conclusion from Phase 1**: The issue is NOT simply "global scope iterators don't work in Promise chains". Simple iterator calls DO work. The problem must be more specific to the for-await-of loop structure.
-
-## Phase 2: Analyze the Difference
-
-### What's Different in For-Await-Of?
-
-The CPS-transformed for-await-of creates a more complex structure:
-
-1. **Multiple nested functions**: `__loopCheck`, `__loopResolve`
-2. **Recursive calls**: The loop continuation calls `__loopCheck` again
-3. **Helper function involvement**: Uses `__getAsyncIterator` and `__iteratorNext`
-4. **Iterator creation**: The iterator is created via `Symbol.iterator()` call
-
-### Hypotheses to Test
-
-**Hypothesis 1: Symbol.iterator() Call Issue**
-- Maybe calling `Symbol.iterator()` on a global object returns an iterator with broken closure
-- The iterator object itself might be malformed
-
-**Hypothesis 2: __getAsyncIterator Wrapper Issue**
-- The helper might not properly handle iterators from global scope objects
-- Something about how it invokes `Symbol.iterator` breaks the iterator
-
-**Hypothesis 3: Recursive Function Call Issue**
-- The `__loopCheck` → `__loopResolve` → `__loopCheck` recursion might lose context
-- Deep nesting of promises in the recursive structure might cause issues
-
-**Hypothesis 4: Iterator State Corruption**
-- The iterator object might be passed through too many contexts
-- Closure variables (like `index`) might not be accessible after being passed around
-
-## Phase 3: Targeted Tests (TODO)
-
-### Test A: Symbol.iterator() Direct Call
-```javascript
-let globalIterable = { [Symbol.iterator]() { /* ... */ } };
-async function test() {
-  let iter = globalIterable[Symbol.iterator]();
-  // Does calling next() on this iter work?
-  return iter.next();
-}
+LOG: !!! Symbol.iterator called !!!
+LOG: !!! Returning iterator object !!!
+LOG: >>> Exception in loop: The empty list does not have a head.
 ```
+- Symbol.iterator IS called ✅
+- Iterator object IS returned ✅  
+- But calling `next()` throws "The empty list does not have a head" ❌
 
-### Test B: __getAsyncIterator Direct Test
-```javascript
-let globalIterable = { [Symbol.iterator]() { /* ... */ } };
-async function test() {
-  let iter = __getAsyncIterator(globalIterable);
-  // Does this iter work in Promise chain?
-  return new Promise(resolve => {
-    Promise.resolve().then(() => resolve(iter.next()));
-  });
-}
+**Test A (Symbol.iterator direct call)**:
 ```
-
-### Test C: Recursive Promise Chain
-```javascript
-let globalIter = { next: () => ({ value: 1, done: false }) };
-async function test() {
-  function loop() {
-    return new Promise(resolve => {
-      Promise.resolve().then(() => {
-        let result = globalIter.next();
-        if (result.done) resolve();
-        else loop();  // Recursive
-      });
-    });
-  }
-  return loop();
-}
+LOG: Symbol.iterator method called
+LOG: Got iterator: object
+LOG: Iterator has next: function
+LOG: Calling next() on iterator
+LOG: Error: The empty list does not have a head.
 ```
+- Same error even without for-await-of ✅
+- Issue is with calling methods on objects created from global scope
 
-### Test D: Compare Iterator Creation Methods
-```javascript
-// Method 1: Direct object with next
-let iter1 = { next: () => ({}) };
+## Root Cause Analysis
 
-// Method 2: Via Symbol.iterator
-let iterable = { [Symbol.iterator]() { return { next: () => ({}) }; } };
-let iter2 = iterable[Symbol.iterator]();
+"The empty list does not have a head" is a Cons-related error from the S-expression evaluator. This suggests:
 
-// Do both work the same in async/Promise contexts?
-```
+1. **The iterator's `next()` function has malformed S-expression body**
+2. **The function body is an empty Cons list somehow**
+3. **Global scope function definitions are being corrupted or not properly stored**
 
-## Phase 4: Deep Instrumentation (TODO)
+### Where This Error Comes From
 
-### Option A: Modify StandardLibrary.cs
-Add detailed logging to:
-- `CreateGetAsyncIteratorHelper()` at lines 3420-3460
-- `CreateIteratorNextHelper()` at lines 3467-3505
+The error "The empty list does not have a head" comes from `Cons.cs` when trying to access `.Head` on an empty Cons list. This happens during evaluation when:
+- The evaluator tries to execute a function body
+- The body is expected to be a non-empty Cons
+- But it's actually an empty Cons
 
-Track:
-- When methods are called
-- What objects are passed
-- What gets returned
-- Any exceptions thrown
+### Why Global Scope Is Different
 
-### Option B: Environment Chain Inspector
-Create tool to dump the full environment chain when `next()` is about to be invoked:
-- What variables are in scope?
-- What's the closure chain?
-- Is the iterator object still valid?
+When a function (like `next()`) is defined in global scope:
+- It's parsed and stored with its body as S-expression
+- When accessed from within an async function context
+- Something corrupts or loses the function body
+- Resulting in an empty Cons when the function tries to execute
 
-### Option C: Promise Scheduling Tracer
-Log every promise creation, resolution, and callback scheduling:
-- When are `.then()` callbacks queued?
-- When do they actually execute?
-- Are any being dropped/skipped?
+## Investigation Status: FAILURE POINT IDENTIFIED ✅
 
-## Expected Outcomes
-
-By the end of this investigation, we should know:
-1. **Exactly where** execution stops (which function call fails)
-2. **Why** it fails (exception? silent return? lost reference?)
-3. **What's different** between working (local scope) and failing (global scope) cases
-4. **How to fix** it (environment injection? closure fixing? different invocation pattern?)
+We now know:
+1. **When it fails**: When calling any method on an object created in global scope from within an async function
+2. **What error**: "The empty list does not have a head"
+3. **Why**: The function body S-expression is empty/corrupted
+4. **Where to look**: Function storage/retrieval mechanism and how it interacts with scope
 
 ## Next Steps
 
-1. Run tests A, B, C, D from Phase 3
-2. Based on results, implement deep instrumentation from Phase 4
-3. Document the exact failure point and mechanism
-4. Propose and test a fix
+1. **Find where function bodies are stored** - JsFunction class, closure handling
+2. **Trace function body retrieval** - When `next()` is invoked, how is its body retrieved?
+3. **Check if global functions lose their bodies** - Is this specific to certain types of function definitions?
+4. **Test with different function types**:
+   - Regular function: `function next() {}`
+   - Arrow function: `next: () => {}`
+   - Method shorthand: `next() {}`
+
+## Implementation Status
+
+### Phase 1: Isolate the Failure Point ✅ COMPLETE
+
+Created `AsyncIteratorDebuggingTests.cs` with comprehensive tests.
+
+**Key Test Results**:
+- Test 7 (CompareLocalVsGlobal_MinimalCase): Both work ✅
+- Test F (ActualForAwaitOf_WithLogging): Found exception! ✅
+- Test A (SymbolIteratorDirectCall): Exception confirmed! ✅
+
+### Phase 2: Analyze the Difference ✅ COMPLETE
+
+**Confirmed**: The issue is NOT about Promise chains or scope access. It's about **function body corruption/loss** for functions defined in global scope objects.
+
+### Phase 3: Targeted Tests ✅ COMPLETE
+
+Added tests A-F:
+- ✅ Test A: Symbol.iterator() Direct Call - **EXCEPTION FOUND**
+- ✅ Test B: __getAsyncIterator Direct Test
+- ✅ Test C: Recursive Promise Chain  
+- ✅ Test D: Compare Iterator Creation Methods
+- ✅ Test E: Exception Capture
+- ✅ Test F: Actual for-await-of - **EXCEPTION FOUND**
+
+### Phase 4: Deep Investigation (IN PROGRESS)
+
+Now that we know it's "The empty list does not have a head", we need to:
+1. Find why function bodies become empty Cons
+2. Check if it's related to how JsFunction stores/retrieves the body
+3. Investigate if closures are being incorrectly captured or lost
+
+## Expected Resolution
+
+The fix will likely involve:
+1. Ensuring function bodies are properly retained when functions are stored in global scope objects
+2. Fixing how function closures capture their environment
+3. Possibly related to how the parser/evaluator handles function expressions in object literals at global scope

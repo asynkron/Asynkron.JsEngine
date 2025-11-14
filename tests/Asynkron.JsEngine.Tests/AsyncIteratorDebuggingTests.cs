@@ -424,4 +424,381 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await System.Threading.Tasks.Task.Delay(1000);
         output.WriteLine("Instrumented test complete - check logs for exact failure point");
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task TestA_SymbolIteratorDirectCall()
+    {
+        output.WriteLine("=== Test A: Symbol.iterator() Direct Call on Global Object ===");
+        
+        var engine = new JsEngine();
+        engine.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"LOG: {msg}");
+            return null;
+        });
+
+        await engine.Run(@"
+            log('Creating global iterable with Symbol.iterator');
+            let globalIterable = {
+                [Symbol.iterator]() {
+                    log('Symbol.iterator method called');
+                    let index = 0;
+                    return {
+                        next: function() {
+                            log('Iterator next() called, index=' + index);
+                            if (index < 3) {
+                                return { value: index++, done: false };
+                            }
+                            return { done: true };
+                        }
+                    };
+                }
+            };
+            
+            async function test() {
+                log('Inside async function');
+                log('Calling Symbol.iterator directly');
+                let iter = globalIterable[Symbol.iterator]();
+                log('Got iterator: ' + typeof iter);
+                log('Iterator has next: ' + (typeof iter.next));
+                
+                log('Calling next() on iterator');
+                let result = iter.next();
+                log('Result: ' + JSON.stringify(result));
+                
+                return result;
+            }
+            
+            test().then(r => log('Done: ' + JSON.stringify(r)))
+                .catch(e => log('Error: ' + e));
+        ");
+
+        await System.Threading.Tasks.Task.Delay(1000);
+        output.WriteLine("Test if Symbol.iterator() creates valid iterator from global object");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TestB_GetAsyncIteratorDirectTest()
+    {
+        output.WriteLine("=== Test B: __getAsyncIterator on Global Object ===");
+        
+        var engine = new JsEngine();
+        engine.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"LOG: {msg}");
+            return null;
+        });
+
+        await engine.Run(@"
+            log('Creating global iterable');
+            let globalIterable = {
+                [Symbol.iterator]() {
+                    log('Symbol.iterator called');
+                    let index = 0;
+                    return {
+                        next: function() {
+                            log('next() called, index=' + index);
+                            if (index < 3) {
+                                return { value: index++, done: false };
+                            }
+                            return { done: true };
+                        }
+                    };
+                }
+            };
+            
+            async function test() {
+                log('Calling __getAsyncIterator');
+                let iter = __getAsyncIterator(globalIterable);
+                log('Got iterator: ' + typeof iter);
+                log('Iterator has next: ' + (typeof iter.next));
+                
+                return new Promise((resolve) => {
+                    log('Inside Promise, calling next()');
+                    Promise.resolve().then(() => {
+                        log('Inside Promise.then, calling next()');
+                        let result = iter.next();
+                        log('Result: ' + JSON.stringify(result));
+                        resolve(result);
+                    });
+                });
+            }
+            
+            test().then(r => log('Done: ' + JSON.stringify(r)))
+                .catch(e => log('Error: ' + e));
+        ");
+
+        await System.Threading.Tasks.Task.Delay(1000);
+        output.WriteLine("Test if __getAsyncIterator wrapper causes issues");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TestC_RecursivePromiseChain()
+    {
+        output.WriteLine("=== Test C: Recursive Promise Chain (matching CPS loop) ===");
+        
+        var engine = new JsEngine();
+        engine.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"LOG: {msg}");
+            return null;
+        });
+
+        await engine.Run(@"
+            log('Creating global iterator with state');
+            let globalIter = (function() {
+                let index = 0;
+                return {
+                    next: function() {
+                        log('next() called, index=' + index);
+                        if (index < 3) {
+                            return { value: index++, done: false };
+                        }
+                        return { done: true };
+                    }
+                };
+            })();
+            
+            async function test() {
+                log('Starting recursive loop');
+                let result = [];
+                
+                function loopCheck() {
+                    log('loopCheck called');
+                    return new Promise((resolve) => {
+                        log('Promise executor');
+                        Promise.resolve().then(() => {
+                            log('In Promise.then, calling next()');
+                            let iterResult = globalIter.next();
+                            log('Got result: ' + JSON.stringify(iterResult));
+                            
+                            if (iterResult.done) {
+                                log('Done, resolving');
+                                resolve(result);
+                            } else {
+                                result.push(iterResult.value);
+                                log('Recursing, result so far: ' + JSON.stringify(result));
+                                loopCheck().then(resolve);
+                            }
+                        }).catch(e => log('Error in then: ' + e));
+                    });
+                }
+                
+                return loopCheck();
+            }
+            
+            test().then(r => log('Final: ' + JSON.stringify(r)))
+                .catch(e => log('Error: ' + e));
+        ");
+
+        await System.Threading.Tasks.Task.Delay(1000);
+        output.WriteLine("Test if recursive Promise pattern (like CPS loop) works");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TestD_CompareIteratorCreationMethods()
+    {
+        output.WriteLine("=== Test D: Compare Different Iterator Creation Methods ===");
+        
+        var engine = new JsEngine();
+        engine.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"LOG: {msg}");
+            return null;
+        });
+
+        await engine.Run(@"
+            log('=== Method 1: Direct object with next ===');
+            let iter1 = {
+                next: function() {
+                    log('iter1.next() called');
+                    return { value: 1, done: false };
+                }
+            };
+            
+            log('=== Method 2: Via Symbol.iterator ===');
+            let iterable2 = {
+                [Symbol.iterator]() {
+                    log('Symbol.iterator called for iter2');
+                    return {
+                        next: function() {
+                            log('iter2.next() called');
+                            return { value: 2, done: false };
+                        }
+                    };
+                }
+            };
+            let iter2 = iterable2[Symbol.iterator]();
+            
+            log('=== Method 3: Via __getAsyncIterator ===');
+            let iterable3 = {
+                [Symbol.iterator]() {
+                    log('Symbol.iterator called for iter3');
+                    return {
+                        next: function() {
+                            log('iter3.next() called');
+                            return { value: 3, done: false };
+                        }
+                    };
+                }
+            };
+            let iter3 = __getAsyncIterator(iterable3);
+            
+            async function test() {
+                log('Testing all three methods in Promise chain');
+                
+                return new Promise((resolve) => {
+                    Promise.resolve().then(() => {
+                        log('Calling iter1.next()');
+                        let r1 = iter1.next();
+                        log('iter1 result: ' + JSON.stringify(r1));
+                        
+                        log('Calling iter2.next()');
+                        let r2 = iter2.next();
+                        log('iter2 result: ' + JSON.stringify(r2));
+                        
+                        log('Calling iter3.next()');
+                        let r3 = iter3.next();
+                        log('iter3 result: ' + JSON.stringify(r3));
+                        
+                        resolve([r1, r2, r3]);
+                    });
+                });
+            }
+            
+            test().then(r => log('All results: ' + JSON.stringify(r)))
+                .catch(e => log('Error: ' + e));
+        ");
+
+        await System.Threading.Tasks.Task.Delay(1000);
+        output.WriteLine("Compare if different iterator creation methods behave differently");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TestE_ExceptionCaptureInIteratorNext()
+    {
+        output.WriteLine("=== Test E: Exception Capture - Does next() throw? ===");
+        
+        var engine = new JsEngine();
+        engine.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"LOG: {msg}");
+            return null;
+        });
+
+        await engine.Run(@"
+            let globalIter = {
+                next: function() {
+                    log('next() called');
+                    try {
+                        log('Inside next(), about to return');
+                        let result = { value: 1, done: false };
+                        log('Created result object');
+                        return result;
+                    } catch (e) {
+                        log('CAUGHT EXCEPTION in next(): ' + e);
+                        throw e;
+                    }
+                }
+            };
+            
+            async function test() {
+                return new Promise((resolve, reject) => {
+                    log('About to call __iteratorNext');
+                    try {
+                        let promise = __iteratorNext(globalIter);
+                        log('__iteratorNext returned promise');
+                        
+                        promise.then(result => {
+                            log('Promise resolved: ' + JSON.stringify(result));
+                            resolve(result);
+                        }).catch(error => {
+                            log('Promise rejected: ' + error);
+                            reject(error);
+                        });
+                    } catch (e) {
+                        log('Exception calling __iteratorNext: ' + e);
+                        reject(e);
+                    }
+                });
+            }
+            
+            test().then(r => log('Success: ' + JSON.stringify(r)))
+                .catch(e => log('Failed: ' + e));
+        ");
+
+        await System.Threading.Tasks.Task.Delay(1000);
+        output.WriteLine("Check if exceptions are being thrown and caught");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TestF_ActualForAwaitOf_WithLogging()
+    {
+        output.WriteLine("=== Test F: Actual for-await-of with extensive logging ===");
+        
+        var engine = new JsEngine();
+        engine.SetGlobalFunction("log", args =>
+        {
+            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            output.WriteLine($"LOG: {msg}");
+            return null;
+        });
+
+        await engine.Run(@"
+            log('Creating global iterable');
+            let globalIterable = {
+                [Symbol.iterator]() {
+                    log('!!! Symbol.iterator called !!!');
+                    let index = 0;
+                    let iterObj = {
+                        next: function() {
+                            log('!!! next() called, index=' + index + ' !!!');
+                            if (index < 2) {
+                                let val = index++;
+                                log('!!! Returning value=' + val + ' !!!');
+                                return { value: val, done: false };
+                            }
+                            log('!!! Returning done=true !!!');
+                            return { done: true };
+                        }
+                    };
+                    log('!!! Returning iterator object !!!');
+                    return iterObj;
+                }
+            };
+            
+            async function test() {
+                log('>>> Starting test function');
+                let result = [];
+                
+                log('>>> About to enter for-await-of');
+                try {
+                    for await (let item of globalIterable) {
+                        log('>>> INSIDE LOOP, item=' + item);
+                        result.push(item);
+                    }
+                    log('>>> After loop, result=' + JSON.stringify(result));
+                } catch (e) {
+                    log('>>> Exception in loop: ' + e);
+                    throw e;
+                }
+                
+                log('>>> Returning result');
+                return result;
+            }
+            
+            log('Calling test()');
+            test()
+                .then(r => log('FINAL: ' + JSON.stringify(r)))
+                .catch(e => log('ERROR: ' + e));
+        ");
+
+        await System.Threading.Tasks.Task.Delay(1000);
+        output.WriteLine("Actual for-await-of test with extensive logging to pinpoint failure");
+    }
 }

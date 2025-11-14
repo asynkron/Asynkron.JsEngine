@@ -404,6 +404,54 @@ public static class StandardLibrary
     {
         HostFunction? dateConstructor = null;
         
+        static DateTimeOffset ConvertMillisecondsToUtc(double milliseconds)
+        {
+            // JavaScript stores Date values as milliseconds since Unix epoch in UTC.
+            // The input can be fractional, but DateTimeOffset only accepts long, so
+            // truncate toward zero like ECMAScript's ToIntegerOrInfinity.
+            var truncated = (long)Math.Truncate(milliseconds);
+            return DateTimeOffset.FromUnixTimeMilliseconds(truncated);
+        }
+
+        static DateTimeOffset GetLocalTimeFromInternalDate(JsObject obj)
+        {
+            var utc = GetUtcTimeFromInternalDate(obj);
+            return utc.ToLocalTime();
+        }
+
+        static DateTimeOffset GetUtcTimeFromInternalDate(JsObject obj)
+        {
+            if (obj.TryGetProperty("_internalDate", out var stored) && stored is double storedMs)
+                return ConvertMillisecondsToUtc(storedMs);
+
+            return ConvertMillisecondsToUtc(0);
+        }
+
+        static void StoreInternalDate(JsObject obj, DateTimeOffset dateTime)
+        {
+            obj.SetProperty("_internalDate", (double)dateTime.ToUnixTimeMilliseconds());
+        }
+
+        static string FormatDateToJsString(DateTimeOffset localTime)
+        {
+            // Match the typical "Wed Jan 02 2008 00:00:00 GMT+0100 (Central European Standard Time)" output.
+            var culture = System.Globalization.CultureInfo.InvariantCulture;
+            var weekday = localTime.ToString("ddd", culture);
+            var month = localTime.ToString("MMM", culture);
+            var day = localTime.ToString("dd", culture);
+            var time = localTime.ToString("HH:mm:ss", culture);
+            var year = localTime.ToString("yyyy", culture);
+
+            // ECMAScript requires the GMT offset in the form GMT+HHMM.
+            var offset = localTime.ToString("zzz", culture).Replace(":", string.Empty);
+
+            var timeZone = TimeZoneInfo.Local.IsDaylightSavingTime(localTime.DateTime)
+                ? TimeZoneInfo.Local.DaylightName
+                : TimeZoneInfo.Local.StandardName;
+
+            return $"{weekday} {month} {day} {year} {time} GMT{offset} ({timeZone})";
+        }
+
         dateConstructor = new HostFunction((thisValue, args) =>
         {
             var dateInstance = new JsObject();
@@ -419,7 +467,7 @@ public static class StandardLibrary
             {
                 // Single argument: milliseconds since epoch or date string
                 if (args[0] is double ms)
-                    dateTime = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    dateTime = ConvertMillisecondsToUtc(ms);
                 else if (args[0] is string dateStr && DateTimeOffset.TryParse(dateStr, out var parsed))
                     dateTime = parsed;
                 else
@@ -438,7 +486,9 @@ public static class StandardLibrary
 
                 try
                 {
-                    dateTime = new DateTimeOffset(year, month, day, hour, minute, second, millisecond, TimeSpan.Zero);
+                    var localDate = new DateTime(year, month, day, hour, minute, second, millisecond,
+                        DateTimeKind.Local);
+                    dateTime = new DateTimeOffset(localDate).ToUniversalTime();
                 }
                 catch
                 {
@@ -447,7 +497,7 @@ public static class StandardLibrary
             }
 
             // Store the internal date value
-            dateInstance["_internalDate"] = (double)dateTime.ToUnixTimeMilliseconds();
+            StoreInternalDate(dateInstance, dateTime);
 
             // Add instance methods
             dateInstance["getTime"] = new HostFunction((thisVal, methodArgs) =>
@@ -461,18 +511,19 @@ public static class StandardLibrary
             {
                 if (thisVal is JsObject obj && methodArgs.Count > 0 && methodArgs[0] is double ms)
                 {
-                    obj.SetProperty("_internalDate", ms);
-                    return ms;
+                    var utc = ConvertMillisecondsToUtc(ms);
+                    StoreInternalDate(obj, utc);
+                    return (double)utc.ToUnixTimeMilliseconds();
                 }
                 return double.NaN;
             });
 
             dateInstance["getFullYear"] = new HostFunction((thisVal, methodArgs) =>
             {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                if (thisVal is JsObject obj)
                 {
-                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
-                    return (double)dt.Year;
+                    var local = GetLocalTimeFromInternalDate(obj);
+                    return (double)local.Year;
                 }
 
                 return double.NaN;
@@ -480,10 +531,10 @@ public static class StandardLibrary
 
             dateInstance["getMonth"] = new HostFunction((thisVal, methodArgs) =>
             {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                if (thisVal is JsObject obj)
                 {
-                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
-                    return (double)(dt.Month - 1); // JS months are 0-indexed
+                    var local = GetLocalTimeFromInternalDate(obj);
+                    return (double)(local.Month - 1); // JS months are 0-indexed
                 }
 
                 return double.NaN;
@@ -491,10 +542,10 @@ public static class StandardLibrary
 
             dateInstance["getDate"] = new HostFunction((thisVal, methodArgs) =>
             {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                if (thisVal is JsObject obj)
                 {
-                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
-                    return (double)dt.Day;
+                    var local = GetLocalTimeFromInternalDate(obj);
+                    return (double)local.Day;
                 }
 
                 return double.NaN;
@@ -502,10 +553,10 @@ public static class StandardLibrary
 
             dateInstance["getDay"] = new HostFunction((thisVal, methodArgs) =>
             {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                if (thisVal is JsObject obj)
                 {
-                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
-                    return (double)dt.DayOfWeek;
+                    var local = GetLocalTimeFromInternalDate(obj);
+                    return (double)local.DayOfWeek;
                 }
 
                 return double.NaN;
@@ -513,10 +564,10 @@ public static class StandardLibrary
 
             dateInstance["getHours"] = new HostFunction((thisVal, methodArgs) =>
             {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                if (thisVal is JsObject obj)
                 {
-                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
-                    return (double)dt.Hour;
+                    var local = GetLocalTimeFromInternalDate(obj);
+                    return (double)local.Hour;
                 }
 
                 return double.NaN;
@@ -524,10 +575,10 @@ public static class StandardLibrary
 
             dateInstance["getMinutes"] = new HostFunction((thisVal, methodArgs) =>
             {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                if (thisVal is JsObject obj)
                 {
-                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
-                    return (double)dt.Minute;
+                    var local = GetLocalTimeFromInternalDate(obj);
+                    return (double)local.Minute;
                 }
 
                 return double.NaN;
@@ -535,10 +586,10 @@ public static class StandardLibrary
 
             dateInstance["getSeconds"] = new HostFunction((thisVal, methodArgs) =>
             {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                if (thisVal is JsObject obj)
                 {
-                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
-                    return (double)dt.Second;
+                    var local = GetLocalTimeFromInternalDate(obj);
+                    return (double)local.Second;
                 }
 
                 return double.NaN;
@@ -546,10 +597,10 @@ public static class StandardLibrary
 
             dateInstance["getMilliseconds"] = new HostFunction((thisVal, methodArgs) =>
             {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                if (thisVal is JsObject obj)
                 {
-                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
-                    return (double)dt.Millisecond;
+                    var local = GetLocalTimeFromInternalDate(obj);
+                    return (double)local.Millisecond;
                 }
 
                 return double.NaN;
@@ -557,12 +608,10 @@ public static class StandardLibrary
 
             dateInstance["getTimezoneOffset"] = new HostFunction((thisVal, methodArgs) =>
             {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                if (thisVal is JsObject obj)
                 {
-                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
-                    // JavaScript returns offset in minutes, positive for west of UTC
-                    // .NET Offset is positive for east of UTC, so we negate it
-                    return (double)(-dt.Offset.TotalMinutes);
+                    var local = GetLocalTimeFromInternalDate(obj);
+                    return (double)(-local.Offset.TotalMinutes);
                 }
 
                 return double.NaN;
@@ -572,7 +621,7 @@ public static class StandardLibrary
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
                 {
-                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+                    var dt = ConvertMillisecondsToUtc(ms);
                     return dt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
                 }
 
@@ -581,10 +630,10 @@ public static class StandardLibrary
 
             dateInstance["toString"] = new HostFunction((thisVal, methodArgs) =>
             {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                if (thisVal is JsObject obj)
                 {
-                    var dt = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
-                    return dt.ToString();
+                    var local = GetLocalTimeFromInternalDate(obj);
+                    return FormatDateToJsString(local);
                 }
 
                 return "Invalid Date";

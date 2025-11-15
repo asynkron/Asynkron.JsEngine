@@ -16,7 +16,7 @@ public class ArrayConstructorTests
     public async Task Array_Constructor_WithLength_ElementsAreNull()
     {
         var engine = new JsEngine();
-        var result = await engine.Evaluate("var arr = Array(3); arr[0] === null && arr[1] === null && arr[2] === null;");
+        var result = await engine.Evaluate("var arr = Array(3); arr[0] === undefined && arr[1] === undefined && arr[2] === undefined;");
         Assert.True((bool)result!);
     }
 

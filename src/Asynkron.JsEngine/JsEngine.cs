@@ -8,6 +8,7 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public sealed class JsEngine : IAsyncDisposable
 {
+    private readonly TaskCompletionSource _doneTcs = new();
     private readonly JsEnvironment _global = new(isFunctionScope: true);
     private readonly ConstantExpressionTransformer _constantTransformer = new();
     private readonly CpsTransformer _cpsTransformer = new();
@@ -497,8 +498,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
         }
         
-        //TODO: set task completion source when channel is closed
-        //make DisposeAsync close the channel and wait for TCS?
+        _doneTcs.SetResult();
     }
 
     /// <summary>
@@ -941,10 +941,9 @@ public sealed class JsEngine : IAsyncDisposable
                 }
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _eventQueue.Writer.Complete();
-        //TODO: Wait for event queue to finish processing
-        return ValueTask.CompletedTask;
+        await _doneTcs.Task;
     }
 }

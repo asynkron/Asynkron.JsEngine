@@ -23,17 +23,6 @@
  *   Samuel Sieb <samuel@sieb.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
-
-// TEST STATUS: FAILING
-// Error: Base64 encoding/decoding produces incorrect results
-// Root Cause: Character code and bit manipulation issues
-// Likely problems with:
-//   - Bit shifting operations in encoding (>> and <<)
-//   - Character code operations (charCodeAt, fromCharCode)
-//   - Bitwise AND operations for masking
-//   - String.fromCharCode with calculated values
-// Base64 encoding requires precise bit manipulation which isn't working correctly.
-
  * either the GNU General Public License Version 2 or later (the "GPL"), or
  * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
@@ -129,19 +118,15 @@ function base64ToString(data) {
 
 var str = "";
 
-__debug(); // Debug: before building random string
 for ( var i = 0; i < 8192; i++ )
         str += String.fromCharCode( (25 * Math.random()) + 97 );
 
-__debug(); // Debug: after building initial string
 for ( var i = 8192; i <= 16384; i *= 2 ) {
 
     var base64;
-    __debug(); // Debug: in outer loop, check i and str length
 
     base64 = toBase64(str);
     var encoded = base64ToString(base64);
-    __debug(); // Debug: after encoding/decoding
     if (encoded != str)
         throw "ERROR: bad result: expected " + str + " but got " + encoded;
 

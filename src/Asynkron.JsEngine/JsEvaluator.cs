@@ -2567,6 +2567,28 @@ public static class JsEvaluator
         };
     }
 
+    // Helper method to handle common BigInt binary operation pattern
+    private static object PerformBigIntOrNumericOperation(
+        object? left, 
+        object? right,
+        Func<JsBigInt, JsBigInt, object> bigIntOp,
+        Func<double, double, object> numericOp)
+    {
+        // Handle BigInt op BigInt
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return bigIntOp(leftBigInt, rightBigInt);
+        }
+
+        // Cannot mix BigInt with Number
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
+        return numericOp(ToNumber(left), ToNumber(right));
+    }
+
     private static object Add(object? left, object? right)
     {
         // If either operand is a string, perform string concatenation
@@ -2599,235 +2621,112 @@ public static class JsEvaluator
 
     private static object Subtract(object? left, object? right)
     {
-        // Handle BigInt - BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
-        {
-            return leftBigInt - rightBigInt;
-        }
-
-        // Cannot mix BigInt with Number
-        if (left is JsBigInt || right is JsBigInt)
-        {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
-        }
-
-        return ToNumber(left) - ToNumber(right);
+        return PerformBigIntOrNumericOperation(left, right,
+            (l, r) => l - r,
+            (l, r) => l - r);
     }
 
     private static object Multiply(object? left, object? right)
     {
-        // Handle BigInt * BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
-        {
-            return leftBigInt * rightBigInt;
-        }
-
-        // Cannot mix BigInt with Number
-        if (left is JsBigInt || right is JsBigInt)
-        {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
-        }
-
-        return ToNumber(left) * ToNumber(right);
+        return PerformBigIntOrNumericOperation(left, right,
+            (l, r) => l * r,
+            (l, r) => l * r);
     }
 
     private static object Power(object? left, object? right)
     {
-        // Handle BigInt ** BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
-        {
-            return JsBigInt.Pow(leftBigInt, rightBigInt);
-        }
-
-        // Cannot mix BigInt with Number
-        if (left is JsBigInt || right is JsBigInt)
-        {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
-        }
-
-        return Math.Pow(ToNumber(left), ToNumber(right));
+        return PerformBigIntOrNumericOperation(left, right,
+            (l, r) => JsBigInt.Pow(l, r),
+            (l, r) => Math.Pow(l, r));
     }
 
     private static object Divide(object? left, object? right)
     {
-        // Handle BigInt / BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
-        {
-            return leftBigInt / rightBigInt;
-        }
-
-        // Cannot mix BigInt with Number
-        if (left is JsBigInt || right is JsBigInt)
-        {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
-        }
-
-        return ToNumber(left) / ToNumber(right);
+        return PerformBigIntOrNumericOperation(left, right,
+            (l, r) => l / r,
+            (l, r) => l / r);
     }
 
     private static object Modulo(object? left, object? right)
     {
-        // Handle BigInt % BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        return PerformBigIntOrNumericOperation(left, right,
+            (l, r) => l % r,
+            (l, r) => l % r);
+    }
+
+    // Helper for comparison operations with BigInt/Number mixed comparisons
+    private static bool PerformComparisonOperation(
+        object? left,
+        object? right,
+        Func<JsBigInt, JsBigInt, bool> bigIntOp,
+        Func<System.Numerics.BigInteger, System.Numerics.BigInteger, bool> mixedOp,
+        Func<double, double, bool> numericOp)
+    {
+        switch (left)
         {
-            return leftBigInt % rightBigInt;
+            // Handle BigInt comparisons
+            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
+                return bigIntOp(leftBigInt, rightBigInt);
+            // BigInt can be compared with Number in relational operators
+            case JsBigInt lbi:
+            {
+                var rightNum = ToNumber(right);
+                if (double.IsNaN(rightNum))
+                {
+                    return false;
+                }
+
+                return mixedOp(lbi.Value, new System.Numerics.BigInteger(rightNum));
+            }
         }
 
-        // Cannot mix BigInt with Number
-        if (left is JsBigInt || right is JsBigInt)
+        switch (right)
         {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
-        }
+            case JsBigInt rbi:
+            {
+                var leftNum = ToNumber(left);
+                if (double.IsNaN(leftNum))
+                {
+                    return false;
+                }
 
-        return ToNumber(left) % ToNumber(right);
+                return mixedOp(new System.Numerics.BigInteger(leftNum), rbi.Value);
+            }
+            default:
+                return numericOp(ToNumber(left), ToNumber(right));
+        }
     }
 
     private static bool GreaterThan(object? left, object? right)
     {
-        switch (left)
-        {
-            // Handle BigInt comparisons
-            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
-                return leftBigInt > rightBigInt;
-            // BigInt can be compared with Number in relational operators
-            case JsBigInt lbi:
-            {
-                var rightNum = ToNumber(right);
-                if (double.IsNaN(rightNum))
-                {
-                    return false;
-                }
-
-                return lbi.Value > new System.Numerics.BigInteger(rightNum);
-            }
-        }
-
-        switch (right)
-        {
-            case JsBigInt rbi:
-            {
-                var leftNum = ToNumber(left);
-                if (double.IsNaN(leftNum))
-                {
-                    return false;
-                }
-
-                return new System.Numerics.BigInteger(leftNum) > rbi.Value;
-            }
-            default:
-                return ToNumber(left) > ToNumber(right);
-        }
+        return PerformComparisonOperation(left, right,
+            (l, r) => l > r,
+            (l, r) => l > r,
+            (l, r) => l > r);
     }
 
     private static bool GreaterThanOrEqual(object? left, object? right)
     {
-        switch (left)
-        {
-            // Handle BigInt comparisons
-            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
-                return leftBigInt >= rightBigInt;
-            // BigInt can be compared with Number in relational operators
-            case JsBigInt lbi:
-            {
-                var rightNum = ToNumber(right);
-                if (double.IsNaN(rightNum))
-                {
-                    return false;
-                }
-
-                return lbi.Value >= new System.Numerics.BigInteger(rightNum);
-            }
-        }
-
-        switch (right)
-        {
-            case JsBigInt rbi:
-            {
-                var leftNum = ToNumber(left);
-                if (double.IsNaN(leftNum))
-                {
-                    return false;
-                }
-
-                return new System.Numerics.BigInteger(leftNum) >= rbi.Value;
-            }
-            default:
-                return ToNumber(left) >= ToNumber(right);
-        }
+        return PerformComparisonOperation(left, right,
+            (l, r) => l >= r,
+            (l, r) => l >= r,
+            (l, r) => l >= r);
     }
 
     private static bool LessThan(object? left, object? right)
     {
-        switch (left)
-        {
-            // Handle BigInt comparisons
-            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
-                return leftBigInt < rightBigInt;
-            // BigInt can be compared with Number in relational operators
-            case JsBigInt lbi:
-            {
-                var rightNum = ToNumber(right);
-                if (double.IsNaN(rightNum))
-                {
-                    return false;
-                }
-
-                return lbi.Value < new System.Numerics.BigInteger(rightNum);
-            }
-        }
-
-        switch (right)
-        {
-            case JsBigInt rbi:
-            {
-                var leftNum = ToNumber(left);
-                if (double.IsNaN(leftNum))
-                {
-                    return false;
-                }
-
-                return new System.Numerics.BigInteger(leftNum) < rbi.Value;
-            }
-            default:
-                return ToNumber(left) < ToNumber(right);
-        }
+        return PerformComparisonOperation(left, right,
+            (l, r) => l < r,
+            (l, r) => l < r,
+            (l, r) => l < r);
     }
 
     private static bool LessThanOrEqual(object? left, object? right)
     {
-        switch (left)
-        {
-            // Handle BigInt comparisons
-            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
-                return leftBigInt <= rightBigInt;
-            // BigInt can be compared with Number in relational operators
-            case JsBigInt lbi:
-            {
-                var rightNum = ToNumber(right);
-                if (double.IsNaN(rightNum))
-                {
-                    return false;
-                }
-
-                return lbi.Value <= new System.Numerics.BigInteger(rightNum);
-            }
-        }
-
-        switch (right)
-        {
-            case JsBigInt rbi:
-            {
-                var leftNum = ToNumber(left);
-                if (double.IsNaN(leftNum))
-                {
-                    return false;
-                }
-
-                return new System.Numerics.BigInteger(leftNum) <= rbi.Value;
-            }
-            default:
-                return ToNumber(left) <= ToNumber(right);
-        }
+        return PerformComparisonOperation(left, right,
+            (l, r) => l <= r,
+            (l, r) => l <= r,
+            (l, r) => l <= r);
     }
 
     private static bool StrictEquals(object? left, object? right)
@@ -3814,12 +3713,17 @@ public static class JsEvaluator
     }
 
     // Bitwise operations
-    private static object BitwiseAnd(object? left, object? right)
+    // Helper for bitwise operations that work on int32
+    private static object PerformBigIntOrInt32Operation(
+        object? left, 
+        object? right,
+        Func<JsBigInt, JsBigInt, object> bigIntOp,
+        Func<int, int, int> int32Op)
     {
-        // Handle BigInt & BigInt
+        // Handle BigInt op BigInt
         if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
         {
-            return leftBigInt & rightBigInt;
+            return bigIntOp(leftBigInt, rightBigInt);
         }
 
         // Cannot mix BigInt with Number
@@ -3830,45 +3734,28 @@ public static class JsEvaluator
 
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right);
-        return (double)(leftInt & rightInt);
+        return (double)int32Op(leftInt, rightInt);
+    }
+
+    private static object BitwiseAnd(object? left, object? right)
+    {
+        return PerformBigIntOrInt32Operation(left, right,
+            (l, r) => l & r,
+            (l, r) => l & r);
     }
 
     private static object BitwiseOr(object? left, object? right)
     {
-        // Handle BigInt | BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
-        {
-            return leftBigInt | rightBigInt;
-        }
-
-        // Cannot mix BigInt with Number
-        if (left is JsBigInt || right is JsBigInt)
-        {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
-        }
-
-        var leftInt = ToInt32(left);
-        var rightInt = ToInt32(right);
-        return (double)(leftInt | rightInt);
+        return PerformBigIntOrInt32Operation(left, right,
+            (l, r) => l | r,
+            (l, r) => l | r);
     }
 
     private static object BitwiseXor(object? left, object? right)
     {
-        // Handle BigInt ^ BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
-        {
-            return leftBigInt ^ rightBigInt;
-        }
-
-        // Cannot mix BigInt with Number
-        if (left is JsBigInt || right is JsBigInt)
-        {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
-        }
-
-        var leftInt = ToInt32(left);
-        var rightInt = ToInt32(right);
-        return (double)(leftInt ^ rightInt);
+        return PerformBigIntOrInt32Operation(left, right,
+            (l, r) => l ^ r,
+            (l, r) => l ^ r);
     }
 
     private static object BitwiseNot(object? operand)

@@ -9,7 +9,7 @@ public class ManualTransformTest(ITestOutputHelper output)
     public async Task ManualCpsLoop()
     {
         // Manually write what the CPS transformer should create
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var logs = new List<string>();
 
         engine.SetGlobalFunction("log", args =>
@@ -25,16 +25,16 @@ public class ManualTransformTest(ITestOutputHelper output)
 
                                      let result = "";
                                      let arr = ["x"];
-                                     
+
                                      function test() {
                                          return new Promise(function(__resolve, __reject) {
                                              try {
                                                  log("A: before loop");
-                                                 
+
                                                  // Get iterator
                                                  let __iterator = arr[Symbol.iterator]();
                                                  log("got iterator");
-                                                 
+
                                                  // Define loop check function
                                                  function __loopCheck() {
                                                      log("in __loopCheck");
@@ -47,7 +47,7 @@ public class ManualTransformTest(ITestOutputHelper output)
                                                          function __loopResolve() {
                                                              return __loopCheck();
                                                          }
-                                                         
+
                                                          let item = __result.value;
                                                          // Body with await
                                                          Promise.resolve(item).then(function(value) {
@@ -57,7 +57,7 @@ public class ManualTransformTest(ITestOutputHelper output)
                                                          });
                                                      }
                                                  }
-                                                 
+
                                                  log("calling __loopCheck");
                                                  __loopCheck();
                                                  log("after calling __loopCheck");
@@ -66,9 +66,9 @@ public class ManualTransformTest(ITestOutputHelper output)
                                              }
                                          });
                                      }
-                                     
+
                                      test();
-                                 
+
                          """);
 
         var result = await engine.Evaluate("result;");

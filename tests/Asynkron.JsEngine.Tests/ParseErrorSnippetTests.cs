@@ -7,7 +7,7 @@ public class ParseErrorSnippetTests
     [Fact(Timeout = 2000)]
     public async Task ParseError_IncludesSourceSnippet()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = @"let x = 10;
 let y = 20;
 let z = ;";
@@ -26,7 +26,7 @@ let z = ;";
     [Fact(Timeout = 2000)]
     public async Task ParseError_ShowsContextAroundError()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = "let a = 1; let b = 2; let c = 3; let d = 4; let e = 5; let f let g = 7;"; // Missing = after f
 
         var ex = await Assert.ThrowsAsync<ParseException>(async () =>
@@ -44,7 +44,7 @@ let z = ;";
     [Fact(Timeout = 2000)]
     public async Task ParseError_WithShortSource_ShowsFullLine()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = "let x = ;"; // Missing initializer
 
         var ex = await Assert.ThrowsAsync<ParseException>(async () =>
@@ -61,7 +61,7 @@ let z = ;";
     [Fact(Timeout = 2000)]
     public async Task ParseError_AtBeginning_ShowsFromStart()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = "class { }"; // Missing class name
 
         var ex = await Assert.ThrowsAsync<ParseException>(async () =>
@@ -78,7 +78,7 @@ let z = ;";
     [Fact(Timeout = 2000)]
     public async Task ParseError_LongSource_ShowsSnippet()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = "let a = 1; let b = 2; let c = 3; let d = 4; let e = 5; let f = 6; let g let h = 8;"; // Missing = after g
 
         var ex = await Assert.ThrowsAsync<ParseException>(async () =>
@@ -97,7 +97,7 @@ let z = ;";
     [Fact(Timeout = 2000)]
     public async Task ParseError_HasLineAndColumnInfo()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = @"let x = 10;
 let y = 20;
 let z = ;";
@@ -120,7 +120,7 @@ let z = ;";
     [Fact(Timeout = 2000)]
     public async Task ParseError_MarkerPointsToCorrectPosition()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = "let x = ;"; // Error at semicolon
 
         var ex = await Assert.ThrowsAsync<ParseException>(async () =>

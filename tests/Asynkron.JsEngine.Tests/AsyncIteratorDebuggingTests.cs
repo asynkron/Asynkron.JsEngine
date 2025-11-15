@@ -14,8 +14,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task DirectIteratorCall_GlobalScope()
     {
         output.WriteLine("=== Test 1: Direct call to global iterator (no async, no promises) ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -31,7 +31,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     return { value: 1, done: false };
                 }
             };
-            
+
             log('Calling next() directly from global scope');
             let result = globalIter.next();
             log('Result: ' + JSON.stringify(result));
@@ -45,8 +45,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task IteratorCallFromAsyncFunction_NoPromiseWrapper()
     {
         output.WriteLine("=== Test 2: Call iterator from inside async function (but not in Promise chain) ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -62,14 +62,14 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     return { value: 2, done: false };
                 }
             };
-            
+
             async function test() {
                 log('Inside async function, calling next()');
                 let result = globalIter.next();
                 log('Result: ' + JSON.stringify(result));
                 return result;
             }
-            
+
             test().then(r => log('Promise resolved: ' + JSON.stringify(r)));
         ");
 
@@ -81,8 +81,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task IteratorCallFromPromiseCallback()
     {
         output.WriteLine("=== Test 3: Call iterator from inside Promise.then() callback ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -98,7 +98,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     return { value: 3, done: false };
                 }
             };
-            
+
             async function test() {
                 log('Creating a Promise');
                 return new Promise((resolve) => {
@@ -108,7 +108,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     resolve(result);
                 });
             }
-            
+
             test().then(r => log('Final result: ' + JSON.stringify(r)));
         ");
 
@@ -120,8 +120,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task IteratorCallFromNestedPromiseChain()
     {
         output.WriteLine("=== Test 4: Call iterator from nested Promise.then() chain (mimics CPS) ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -137,7 +137,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     return { value: 4, done: false };
                 }
             };
-            
+
             async function test() {
                 log('Starting nested Promise chain');
                 return new Promise((resolve1) => {
@@ -152,7 +152,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     });
                 });
             }
-            
+
             test().then(r => log('Final: ' + JSON.stringify(r))).catch(e => log('ERROR: ' + e));
         ");
 
@@ -164,8 +164,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task IteratorWithClosureVariables_GlobalScope()
     {
         output.WriteLine("=== Test 5: Iterator with closure variables (like real iterator) ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -186,24 +186,24 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     }
                 };
             })();
-            
+
             async function test() {
                 return new Promise((resolve) => {
                     Promise.resolve().then(() => {
                         log('About to call next()');
                         let result = globalIter.next();
                         log('Result: ' + JSON.stringify(result));
-                        
+
                         // Try calling again
                         log('Calling next() second time');
                         let result2 = globalIter.next();
                         log('Result2: ' + JSON.stringify(result2));
-                        
+
                         resolve([result, result2]);
                     });
                 });
             }
-            
+
             test().then(r => log('Done: ' + JSON.stringify(r)));
         ");
 
@@ -215,8 +215,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task UseActualHelpers_GlobalIterator()
     {
         output.WriteLine("=== Test 6: Use actual __getAsyncIterator and __iteratorNext ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -244,18 +244,18 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     };
                 }
             };
-            
+
             async function test() {
                 log('Getting iterator with __getAsyncIterator');
                 let iterator = __getAsyncIterator(globalIterable);
                 log('Got iterator: ' + typeof iterator);
-                
+
                 return new Promise((resolve, reject) => {
                     log('About to call __iteratorNext');
                     try {
                         let promise = __iteratorNext(iterator);
                         log('Got promise: ' + typeof promise);
-                        
+
                         promise.then(result => {
                             log('Promise resolved with: ' + JSON.stringify(result));
                             resolve(result);
@@ -269,7 +269,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     }
                 });
             }
-            
+
             test().then(r => log('Test completed: ' + JSON.stringify(r)))
                 .catch(e => log('Test failed: ' + e));
         ");
@@ -282,10 +282,10 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task CompareLocalVsGlobal_MinimalCase()
     {
         output.WriteLine("=== Test 7: Minimal comparison - local vs global ===");
-        
+
         var localLogs = new StringBuilder();
         var globalLogs = new StringBuilder();
-        
+
         // Test LOCAL scope
         var engine1 = new JsEngine();
         engine1.SetGlobalFunction("log", args =>
@@ -304,7 +304,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                         return { value: 1, done: false };
                     }
                 };
-                
+
                 return new Promise(resolve => {
                     Promise.resolve().then(() => {
                         log('LOCAL: In nested Promise, calling next()');
@@ -318,12 +318,12 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     });
                 });
             }
-            
+
             test();
         ");
 
         await Task.Delay(1000);
-        
+
         // Test GLOBAL scope
         var engine2 = new JsEngine();
         engine2.SetGlobalFunction("log", args =>
@@ -341,7 +341,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     return { value: 1, done: false };
                 }
             };
-            
+
             async function test() {
                 return new Promise(resolve => {
                     Promise.resolve().then(() => {
@@ -356,17 +356,17 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     });
                 });
             }
-            
+
             test();
         ");
 
         await Task.Delay(1000);
-        
+
         output.WriteLine("");
         output.WriteLine("=== COMPARISON ===");
         output.WriteLine($"Local logs: {localLogs.Length} chars");
         output.WriteLine($"Global logs: {globalLogs.Length} chars");
-        
+
         if (localLogs.ToString().Contains("next() called") && !globalLogs.ToString().Contains("next() called"))
         {
             output.WriteLine("❌ CONFIRMED: Global scope iterator's next() is NOT being called!");
@@ -378,8 +378,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task InstrumentedIteratorNext_DetailedLogging()
     {
         output.WriteLine("=== Test 8: Create instrumented version of __iteratorNext ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -394,17 +394,17 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     return { value: 99, done: false };
                 }
             };
-            
+
             async function test() {
                 log('TEST: Creating local reference to global next method');
                 let iter = { next: globalIter.next };
-                
+
                 return new Promise((resolve) => {
                     log('TEST: About to call __iteratorNext');
                     try {
                         let promise = __iteratorNext(iter);
                         log('TEST: Got promise back from __iteratorNext');
-                        
+
                         promise.then(result => {
                             log('TEST: Promise resolved: ' + JSON.stringify(result));
                             resolve(result);
@@ -416,7 +416,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     }
                 });
             }
-            
+
             test().then(r => log('DONE: ' + JSON.stringify(r)))
                 .catch(e => log('FAILED: ' + e));
         ");
@@ -429,8 +429,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task TestA_SymbolIteratorDirectCall()
     {
         output.WriteLine("=== Test A: Symbol.iterator() Direct Call on Global Object ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -455,21 +455,21 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     };
                 }
             };
-            
+
             async function test() {
                 log('Inside async function');
                 log('Calling Symbol.iterator directly');
                 let iter = globalIterable[Symbol.iterator]();
                 log('Got iterator: ' + typeof iter);
                 log('Iterator has next: ' + (typeof iter.next));
-                
+
                 log('Calling next() on iterator');
                 let result = iter.next();
                 log('Result: ' + JSON.stringify(result));
-                
+
                 return result;
             }
-            
+
             test().then(r => log('Done: ' + JSON.stringify(r)))
                 .catch(e => log('Error: ' + e));
         ");
@@ -482,8 +482,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task TestB_GetAsyncIteratorDirectTest()
     {
         output.WriteLine("=== Test B: __getAsyncIterator on Global Object ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -508,13 +508,13 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     };
                 }
             };
-            
+
             async function test() {
                 log('Calling __getAsyncIterator');
                 let iter = __getAsyncIterator(globalIterable);
                 log('Got iterator: ' + typeof iter);
                 log('Iterator has next: ' + (typeof iter.next));
-                
+
                 return new Promise((resolve) => {
                     log('Inside Promise, calling next()');
                     Promise.resolve().then(() => {
@@ -525,7 +525,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     });
                 });
             }
-            
+
             test().then(r => log('Done: ' + JSON.stringify(r)))
                 .catch(e => log('Error: ' + e));
         ");
@@ -538,8 +538,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task TestC_RecursivePromiseChain()
     {
         output.WriteLine("=== Test C: Recursive Promise Chain (matching CPS loop) ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -561,11 +561,11 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     }
                 };
             })();
-            
+
             async function test() {
                 log('Starting recursive loop');
                 let result = [];
-                
+
                 function loopCheck() {
                     log('loopCheck called');
                     return new Promise((resolve) => {
@@ -574,7 +574,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                             log('In Promise.then, calling next()');
                             let iterResult = globalIter.next();
                             log('Got result: ' + JSON.stringify(iterResult));
-                            
+
                             if (iterResult.done) {
                                 log('Done, resolving');
                                 resolve(result);
@@ -586,10 +586,10 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                         }).catch(e => log('Error in then: ' + e));
                     });
                 }
-                
+
                 return loopCheck();
             }
-            
+
             test().then(r => log('Final: ' + JSON.stringify(r)))
                 .catch(e => log('Error: ' + e));
         ");
@@ -602,8 +602,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task TestD_CompareIteratorCreationMethods()
     {
         output.WriteLine("=== Test D: Compare Different Iterator Creation Methods ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -619,7 +619,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     return { value: 1, done: false };
                 }
             };
-            
+
             log('=== Method 2: Via Symbol.iterator ===');
             let iterable2 = {
                 [Symbol.iterator]() {
@@ -633,7 +633,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 }
             };
             let iter2 = iterable2[Symbol.iterator]();
-            
+
             log('=== Method 3: Via __getAsyncIterator ===');
             let iterable3 = {
                 [Symbol.iterator]() {
@@ -647,29 +647,29 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 }
             };
             let iter3 = __getAsyncIterator(iterable3);
-            
+
             async function test() {
                 log('Testing all three methods in Promise chain');
-                
+
                 return new Promise((resolve) => {
                     Promise.resolve().then(() => {
                         log('Calling iter1.next()');
                         let r1 = iter1.next();
                         log('iter1 result: ' + JSON.stringify(r1));
-                        
+
                         log('Calling iter2.next()');
                         let r2 = iter2.next();
                         log('iter2 result: ' + JSON.stringify(r2));
-                        
+
                         log('Calling iter3.next()');
                         let r3 = iter3.next();
                         log('iter3 result: ' + JSON.stringify(r3));
-                        
+
                         resolve([r1, r2, r3]);
                     });
                 });
             }
-            
+
             test().then(r => log('All results: ' + JSON.stringify(r)))
                 .catch(e => log('Error: ' + e));
         ");
@@ -682,8 +682,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task TestE_ExceptionCaptureInIteratorNext()
     {
         output.WriteLine("=== Test E: Exception Capture - Does next() throw? ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -706,14 +706,14 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     }
                 }
             };
-            
+
             async function test() {
                 return new Promise((resolve, reject) => {
                     log('About to call __iteratorNext');
                     try {
                         let promise = __iteratorNext(globalIter);
                         log('__iteratorNext returned promise');
-                        
+
                         promise.then(result => {
                             log('Promise resolved: ' + JSON.stringify(result));
                             resolve(result);
@@ -727,7 +727,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     }
                 });
             }
-            
+
             test().then(r => log('Success: ' + JSON.stringify(r)))
                 .catch(e => log('Failed: ' + e));
         ");
@@ -740,10 +740,10 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task TestH_CheckPromiseRejectionHandling()
     {
         output.WriteLine("=== Test H: Check if Promise Rejections are Handled ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         var rejectionsCaught = new List<string>();
-        
+
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -772,7 +772,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     };
                 }
             };
-            
+
             async function test() {
                 log('Starting test with explicit rejection handler');
                 try {
@@ -786,7 +786,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 }
                 return 'done';
             }
-            
+
             log('Calling test with .catch handler');
             test()
                 .then(r => log('Resolved: ' + r))
@@ -835,8 +835,8 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     public async Task TestI_InvestigateFunctionBodyCorruption()
     {
         output.WriteLine("=== Test I: Investigate Why Function Bodies Are Empty ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -853,7 +853,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 }
             };
             log('Calling obj1.method: ' + obj1.method());
-            
+
             log('');
             log('=== Test 2: Arrow function in global object ===');
             let obj2 = {
@@ -863,7 +863,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 }
             };
             log('Calling obj2.method: ' + obj2.method());
-            
+
             log('');
             log('=== Test 3: Method shorthand in global object ===');
             let obj3 = {
@@ -873,7 +873,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 }
             };
             log('Calling obj3.method: ' + obj3.method());
-            
+
             log('');
             log('=== Test 4: Function in global object accessed from async ===');
             let obj4 = {
@@ -882,7 +882,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     return 'result4';
                 }
             };
-            
+
             async function testAsync() {
                 log('Inside async function, calling obj4.method');
                 try {
@@ -894,7 +894,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                     return 'error: ' + e;
                 }
             }
-            
+
             testAsync().then(r => log('Async result: ' + r));
         ");
 

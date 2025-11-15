@@ -11,7 +11,7 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
     [Fact(Timeout = 5000)]
     public async Task SimpleThrow_WithStringConcatenation()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         try
         {
@@ -38,7 +38,7 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
     [Fact(Timeout = 10000)]
     public async Task CryptoMd5_Diagnose()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var content = SunSpiderTests.GetEmbeddedFile("crypto-md5.js");
         output.WriteLine($"Script length: {content.Length}");
@@ -107,7 +107,7 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
     [Fact(Timeout = 10000)]
     public async Task CryptoSha1_Diagnose()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var content = SunSpiderTests.GetEmbeddedFile("crypto-sha1.js");
         output.WriteLine($"Script length: {content.Length}");

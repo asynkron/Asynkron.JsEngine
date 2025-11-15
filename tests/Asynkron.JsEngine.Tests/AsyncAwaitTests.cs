@@ -9,10 +9,10 @@ namespace Asynkron.JsEngine.Tests;
 public class AsyncAwaitTests
 {
     [Fact(Timeout = 2000)]
-    public Task AsyncFunction_CanBeParsed()
+    public async Task AsyncFunction_CanBeParsed()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act & Assert - Should not throw
         var program = engine.Parse("""
@@ -20,18 +20,17 @@ public class AsyncAwaitTests
                                                async function test() {
                                                    return 42;
                                                }
-                                           
+
                                    """);
 
         Assert.NotNull(program);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_CanBeDeclared()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act & Assert - Should not throw
         var temp = await engine.Evaluate("""
@@ -43,10 +42,10 @@ public class AsyncAwaitTests
     }
 
     [Fact(Timeout = 2000)]
-    public Task AsyncFunctionExpression_CanBeParsed()
+    public async Task AsyncFunctionExpression_CanBeParsed()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act & Assert - Should not throw
         var program = engine.Parse("""
@@ -54,18 +53,17 @@ public class AsyncAwaitTests
                                                let test = async function() {
                                                    return 42;
                                                };
-                                           
+
                                    """);
 
         Assert.NotNull(program);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public Task AwaitExpression_CanBeParsed()
+    public async Task AwaitExpression_CanBeParsed()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act & Assert - Should not throw
         var program = engine.Parse("""
@@ -74,18 +72,17 @@ public class AsyncAwaitTests
                                                    let result = await Promise.resolve(42);
                                                    return result;
                                                }
-                                           
+
                                    """);
 
         Assert.NotNull(program);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_ReturnsPromise()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -104,12 +101,12 @@ public class AsyncAwaitTests
                                      async function test() {
                                          return 42;
                                      }
-                                     
+
                                      let p = test();
                                      p.then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -122,7 +119,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithAwait_ReturnsValue()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -142,11 +139,11 @@ public class AsyncAwaitTests
                                          let value = await Promise.resolve(42);
                                          return value;
                                      }
-                                     
+
                                      test().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -157,7 +154,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithMultipleAwaits()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -178,11 +175,11 @@ public class AsyncAwaitTests
                                          let b = await Promise.resolve(20);
                                          return a + b;
                                      }
-                                     
+
                                      test().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -193,7 +190,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithAwaitInExpression()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -213,11 +210,11 @@ public class AsyncAwaitTests
                                          let value = (await Promise.resolve(10)) + (await Promise.resolve(20));
                                          return value;
                                      }
-                                     
+
                                      test().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -228,7 +225,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_HandlesRejection()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var caught = false;
 
         engine.SetGlobalFunction("markCaught", args =>
@@ -243,11 +240,11 @@ public class AsyncAwaitTests
                                      async function test() {
                                          throw "error";
                                      }
-                                     
+
                                      test()["catch"](function(err) {
                                          markCaught();
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -258,7 +255,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithTryCatch()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -281,11 +278,11 @@ public class AsyncAwaitTests
                                              return "caught";
                                          }
                                      }
-                                     
+
                                      test().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -296,7 +293,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_ChainedCalls()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -315,21 +312,21 @@ public class AsyncAwaitTests
                                      async function getNumber() {
                                          return 10;
                                      }
-                                     
+
                                      async function doubleNumber(n) {
                                          return n * 2;
                                      }
-                                     
+
                                      async function test() {
                                          let n = await getNumber();
                                          let doubled = await doubleNumber(n);
                                          return doubled;
                                      }
-                                     
+
                                      test().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -340,7 +337,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunctionExpression_Works()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -359,11 +356,11 @@ public class AsyncAwaitTests
                                      let test = async function() {
                                          return 42;
                                      };
-                                     
+
                                      test().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -371,10 +368,10 @@ public class AsyncAwaitTests
     }
 
     [Fact(Timeout = 2000)]
-    public Task CpsTransformer_AlreadyTransformedCodeDoesNotNeedTransformation()
+    public async Task CpsTransformer_AlreadyTransformedCodeDoesNotNeedTransformation()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var transformer = new CpsTransformer();
 
         // engine.Parse() already applies CPS transformation, so the result
@@ -384,7 +381,7 @@ public class AsyncAwaitTests
                                                async function test() {
                                                    return 42;
                                                }
-                                           
+
                                    """);
 
         // Act
@@ -392,14 +389,13 @@ public class AsyncAwaitTests
 
         // Assert - Already transformed code should not need transformation
         Assert.False(needsTransform);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public Task CpsTransformer_AlreadyTransformedAwaitDoesNotNeedTransformation()
+    public async Task CpsTransformer_AlreadyTransformedAwaitDoesNotNeedTransformation()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var transformer = new CpsTransformer();
 
         // engine.Parse() already applies CPS transformation, so the result
@@ -410,7 +406,7 @@ public class AsyncAwaitTests
                                                    let value = await Promise.resolve(42);
                                                    return value;
                                                }
-                                           
+
                                    """);
 
         // Act
@@ -418,14 +414,13 @@ public class AsyncAwaitTests
 
         // Assert - Already transformed code should not need transformation
         Assert.False(needsTransform);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public Task CpsTransformer_TransformIsIdempotent()
+    public async Task CpsTransformer_TransformIsIdempotent()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var transformer = new CpsTransformer();
 
         // engine.Parse() already applies CPS transformation
@@ -434,7 +429,7 @@ public class AsyncAwaitTests
                                                async function test() {
                                                    return 42;
                                                }
-                                           
+
                                    """);
 
         // Act - Transform already-transformed code
@@ -443,14 +438,13 @@ public class AsyncAwaitTests
         // Assert - Should return the same program unchanged since it doesn't need transformation
         Assert.NotNull(transformed);
         Assert.Same(program, transformed); // Should be the same instance
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_SequentialAwaits()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -472,11 +466,11 @@ public class AsyncAwaitTests
                                          let c = await Promise.resolve(b * 2);
                                          return c;
                                      }
-                                     
+
                                      test().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -487,7 +481,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_ReturnsNull()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var wasCalled = false;
 
         engine.SetGlobalFunction("markCalled", args =>
@@ -502,11 +496,11 @@ public class AsyncAwaitTests
                                      async function test() {
                                          return null;
                                      }
-                                     
+
                                      test().then(function(value) {
                                          markCalled();
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -517,7 +511,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_NoReturn()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var wasCalled = false;
 
         engine.SetGlobalFunction("markCalled", args =>
@@ -532,11 +526,11 @@ public class AsyncAwaitTests
                                      async function test() {
                                          // No return statement
                                      }
-                                     
+
                                      test().then(function(value) {
                                          markCalled();
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -547,7 +541,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithSetTimeoutDelay_ReturnsValue()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -572,11 +566,11 @@ public class AsyncAwaitTests
                                          let value = await p;
                                          return value;
                                      }
-                                     
+
                                      test().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -587,7 +581,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithMultipleSetTimeoutDelays()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -609,22 +603,22 @@ public class AsyncAwaitTests
                                                  resolve(10);
                                              }, 50);
                                          });
-                                         
+
                                          let p2 = new Promise(function(resolve) {
                                              setTimeout(function() {
                                                  resolve(20);
                                              }, 50);
                                          });
-                                         
+
                                          let a = await p1;
                                          let b = await p2;
                                          return a + b;
                                      }
-                                     
+
                                      test().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -635,7 +629,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithDelayAndComputation()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -658,18 +652,18 @@ public class AsyncAwaitTests
                                              }, delay);
                                          });
                                      }
-                                     
+
                                      async function test() {
                                          let a = await delayedValue(5, 30);
                                          let b = await delayedValue(3, 30);
                                          let c = await delayedValue(2, 30);
                                          return (a + b) * c;
                                      }
-                                     
+
                                      test().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -680,7 +674,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithParallelDelays()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var results = new List<string>();
 
         engine.SetGlobalFunction("addResult", args =>
@@ -703,20 +697,20 @@ public class AsyncAwaitTests
                                              }, delay);
                                          });
                                      }
-                                     
+
                                      async function test() {
                                          let p1 = delayedValue("first", 30);
                                          let p2 = delayedValue("second", 30);
                                          let p3 = delayedValue("third", 30);
-                                         
+
                                          let values = await Promise.all([p1, p2, p3]);
                                          addResult(values[0]);
                                          addResult(values[1]);
                                          addResult(values[2]);
                                      }
-                                     
+
                                      test();
-                                 
+
                          """);
 
         // Assert
@@ -727,7 +721,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithNestedDelays()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -750,23 +744,23 @@ public class AsyncAwaitTests
                                              }, ms);
                                          });
                                      }
-                                     
+
                                      async function inner() {
                                          let x = await delay(5, 20);
                                          let y = await delay(10, 20);
                                          return x + y;
                                      }
-                                     
+
                                      async function outer() {
                                          let result = await inner();
                                          let bonus = await delay(3, 20);
                                          return result + bonus;
                                      }
-                                     
+
                                      outer().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Assert
@@ -778,7 +772,7 @@ public class AsyncAwaitTests
     {
         // This test proves that a single straight block of awaits actually work
         // by using __debug() to capture state between each await
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -797,21 +791,21 @@ public class AsyncAwaitTests
                                      function bar() {
                                          return Promise.resolve(10);
                                      }
-                                     
+
                                      async function foo() {
                                          let x1 = await bar();
-                                         __debug(); 
+                                         __debug();
                                          let x2 = await bar();
                                          __debug();
                                          let x3 = await bar();
                                          __debug();
                                          return x1 + x2 + x3;
                                      }
-                                     
+
                                      foo().then(function(value) {
                                          captureResult(value);
                                      });
-                                 
+
                          """);
 
         // Get the debug messages

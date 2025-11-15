@@ -9,14 +9,14 @@ public class NBodyEnergyTest(ITestOutputHelper output)
     [Fact]
     public async Task Energy_MethodCall_Works()
     {
-        var engine = new JsEngine();
-        
+        await using var engine = new JsEngine();
+
         engine.SetGlobalFunction("__log", args =>
         {
             output.WriteLine(string.Join(" ", args.Select(a => a?.ToString() ?? "null")));
             return null;
         });
-        
+
         var result = await engine.Evaluate(@"
             var PI = 3.141592653589793;
             var SOLAR_MASS = 4 * PI * PI;
@@ -102,7 +102,7 @@ public class NBodyEnergyTest(ITestOutputHelper output)
             __log('Calling energy()...');
             bodies.energy();
         ");
-        
+
         Assert.IsType<double>(result);
         output.WriteLine($"Energy result: {result}");
     }

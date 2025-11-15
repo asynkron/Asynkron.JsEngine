@@ -8,7 +8,7 @@ public class InstanceofTests
     [Fact(Timeout = 2000)]
     public async Task Instanceof_WithClass_ReturnsTrue()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             class MyClass {}
             let obj = new MyClass();
@@ -20,7 +20,7 @@ public class InstanceofTests
     [Fact(Timeout = 2000)]
     public async Task Instanceof_WithDifferentClass_ReturnsFalse()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             class MyClass {}
             class OtherClass {}
@@ -33,7 +33,7 @@ public class InstanceofTests
     [Fact(Timeout = 2000)]
     public async Task Instanceof_WithFunction_ReturnsTrue()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             function MyConstructor() {}
             let obj = new MyConstructor();
@@ -45,7 +45,7 @@ public class InstanceofTests
     [Fact(Timeout = 2000)]
     public async Task Instanceof_WithInheritance_ReturnsTrue()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             class Base {}
             class Derived extends Base {}
@@ -58,7 +58,7 @@ public class InstanceofTests
     [Fact(Timeout = 2000)]
     public async Task Instanceof_WithNonObject_ReturnsFalse()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             class MyClass {}
             42 instanceof MyClass;
@@ -69,7 +69,7 @@ public class InstanceofTests
     [Fact(Timeout = 2000)]
     public async Task Instanceof_ErrorInIfCondition_Works()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             class TypeError {
                 constructor(msg) {

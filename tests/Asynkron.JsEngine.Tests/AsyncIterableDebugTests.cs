@@ -14,7 +14,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithString_Debug()
     {
         // Debug version of the failing string test
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -70,7 +70,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 2000)]
-    public Task ForAwaitOf_WithString_ShowTransformation()
+    public async Task ForAwaitOf_WithString_ShowTransformation()
     {
         // Show the transformation of the for-await-of with string
         var source = """
@@ -84,7 +84,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
 
                      """;
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Parse without transformation
         var originalSexpr = JsEngine.ParseWithoutTransformation(source);
@@ -96,14 +96,13 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
         output.WriteLine(transformedSexpr.ToString());
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithArray_CompareWithString()
     {
         // This test PASSES - let's see what's different
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -147,7 +146,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithString_NoAsync()
     {
         // Test without async function wrapper - as shown in ForAwaitOf_RequiresAsyncFunction
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -179,7 +178,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task SimpleString_Iterator_Test()
     {
         // Test that strings have an iterator in the first place
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var result = await engine.Run("""
 
@@ -197,7 +196,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task SimpleString_ManualIteration_Test()
     {
         // Test manual iteration over a string
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         await engine.Run("""
 
@@ -219,10 +218,10 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 2000)]
-    public Task Test_OR_Expression_Parsing()
+    public async Task Test_OR_Expression_Parsing()
     {
         // Test to see the parsed S-expression for the OR expression
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Test simple OR first
         var simpleOr = @"let result = a || b;";
@@ -244,14 +243,13 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         output.WriteLine("=== PROBLEMATIC OR EXPRESSION ===");
         output.WriteLine(problematicSexpr.ToString());
         output.WriteLine("");
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString_ManualAsyncIteration()
     {
         // Test manual async iteration over a string
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -303,7 +301,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithBreak_Debug()
     {
         // Debug version of the failing break test
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -344,7 +342,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 2000)]
-    public Task ForAwaitOf_WithBreak_ShowTransformation()
+    public async Task ForAwaitOf_WithBreak_ShowTransformation()
     {
         // Show the transformation of for-await-of with break
         var source = """
@@ -362,7 +360,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
 
                      """;
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Parse without transformation
         var originalSexpr = JsEngine.ParseWithoutTransformation(source);
@@ -374,14 +372,13 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
         output.WriteLine(transformedSexpr.ToString());
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithContinue_Debug()
     {
         // Debug version of the failing continue test
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -423,7 +420,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithGenerator_Debug()
     {
         // Debug version of the failing generator test
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -469,7 +466,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_SimpleNoConditions_Debug()
     {
         // Test for-await-of without any break/continue/conditions to isolate the basic iteration
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -506,7 +503,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithIfNoBreak_Debug()
     {
         // Test with an if statement but no break to see if if statements work correctly
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -543,7 +540,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 2000)]
-    public Task ForAwaitOf_WithIfNoBreak_ShowTransformation()
+    public async Task ForAwaitOf_WithIfNoBreak_ShowTransformation()
     {
         // Show the transformation for if without break
         var source = """
@@ -561,10 +558,9 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
 
                      """;
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
         output.WriteLine(transformedSexpr.ToString());
-        return Task.CompletedTask;
     }
 }

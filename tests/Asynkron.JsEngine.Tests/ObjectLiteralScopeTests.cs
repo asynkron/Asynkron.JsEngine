@@ -12,8 +12,8 @@ public class ObjectLiteralScopeTests(ITestOutputHelper output)
     public async Task ObjectMethodCanAccessGlobalVariable()
     {
         output.WriteLine("=== Test: Object method accessing global variable ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -23,14 +23,14 @@ public class ObjectLiteralScopeTests(ITestOutputHelper output)
 
         await engine.Run(@"
             let globalVar = 'from-global';
-            
+
             let obj = {
                 next() {
                     log('next() called, globalVar = ' + globalVar);
                     return { value: 42, done: false };
                 }
             };
-            
+
             log('Calling obj.next():');
             let result = obj.next();
             log('Result: ' + JSON.stringify(result));
@@ -44,8 +44,8 @@ public class ObjectLiteralScopeTests(ITestOutputHelper output)
     public async Task ObjectMethodInAsyncFunction()
     {
         output.WriteLine("=== Test: Object method in async function ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -55,21 +55,21 @@ public class ObjectLiteralScopeTests(ITestOutputHelper output)
 
         await engine.Run(@"
             let globalVar = 'from-global';
-            
+
             let obj = {
                 next() {
                     log('next() in async context, globalVar = ' + globalVar);
                     return { value: 99, done: false };
                 }
             };
-            
+
             async function test() {
                 log('In async function, calling obj.next()');
                 let result = obj.next();
                 log('Result: ' + JSON.stringify(result));
                 return result;
             }
-            
+
             test().then(r => log('Done: ' + JSON.stringify(r)));
         ");
 

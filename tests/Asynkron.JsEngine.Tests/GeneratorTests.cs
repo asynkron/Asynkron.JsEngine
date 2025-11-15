@@ -14,7 +14,7 @@ public class GeneratorTests
     public async Task GeneratorFunction_CanBeDeclared()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act & Assert - Should not throw
         var temp = await engine.Evaluate("""
@@ -22,7 +22,7 @@ public class GeneratorTests
                                                      function* simpleGenerator() {
                                                          yield 1;
                                                      }
-                                                 
+
                                          """);
     }
 
@@ -30,7 +30,7 @@ public class GeneratorTests
     public async Task GeneratorFunction_ReturnsIteratorObject()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var result = await engine.Evaluate("""
@@ -39,7 +39,7 @@ public class GeneratorTests
                                                            yield 1;
                                                        }
                                                        gen();
-                                                   
+
                                            """);
 
         // Assert
@@ -51,7 +51,7 @@ public class GeneratorTests
     public async Task Generator_HasNextMethod()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -60,7 +60,7 @@ public class GeneratorTests
                                                          yield 1;
                                                      }
                                                      let g = gen();
-                                                 
+
                                          """);
         var hasNext = await engine.Evaluate("g.next;");
 
@@ -72,7 +72,7 @@ public class GeneratorTests
     public async Task Generator_YieldsSingleValue()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -82,7 +82,7 @@ public class GeneratorTests
                                                      }
                                                      let g = gen();
                                                      let result = g.next();
-                                                 
+
                                          """);
         var value = await engine.Evaluate("result.value;");
         var done = await engine.Evaluate("result.done;");
@@ -96,7 +96,7 @@ public class GeneratorTests
     public async Task Generator_YieldsMultipleValues()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -107,7 +107,7 @@ public class GeneratorTests
                                                          yield 3;
                                                      }
                                                      let g = gen();
-                                                 
+
                                          """);
 
         var r1Value = await engine.Evaluate("g.next().value;");
@@ -124,7 +124,7 @@ public class GeneratorTests
     public async Task Generator_ReturnsIteratorResult()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -134,7 +134,7 @@ public class GeneratorTests
                                                      }
                                                      let g = gen();
                                                      let result = g.next();
-                                                 
+
                                          """);
 
         // Assert - result should be an object with value and done properties
@@ -146,7 +146,7 @@ public class GeneratorTests
     public async Task Generator_IteratorResultHasValueAndDone()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -156,7 +156,7 @@ public class GeneratorTests
                                                      }
                                                      let g = gen();
                                                      let result = g.next();
-                                                 
+
                                          """);
 
         // Check the properties exist by accessing them
@@ -172,7 +172,7 @@ public class GeneratorTests
     public async Task Generator_CompletesWithDoneTrue()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -183,7 +183,7 @@ public class GeneratorTests
                                                      let g = gen();
                                                      g.next();  // Get the yielded value
                                                      let finalResult = g.next();  // Generator is done
-                                                 
+
                                          """);
 
         var done = await engine.Evaluate("finalResult.done;");
@@ -198,7 +198,7 @@ public class GeneratorTests
     public async Task Generator_YieldsExpressions()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -208,7 +208,7 @@ public class GeneratorTests
                                                          yield 2 * 3;
                                                      }
                                                      let g = gen();
-                                                 
+
                                          """);
 
         var r1 = await engine.Evaluate("g.next().value;");
@@ -223,7 +223,7 @@ public class GeneratorTests
     public async Task Generator_YieldsVariables()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -235,7 +235,7 @@ public class GeneratorTests
                                                          yield y;
                                                      }
                                                      let g = gen();
-                                                 
+
                                          """);
 
         var r1 = await engine.Evaluate("g.next().value;");
@@ -250,7 +250,7 @@ public class GeneratorTests
     public async Task Generator_WithParameters()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -260,7 +260,7 @@ public class GeneratorTests
                                                          yield start + 1;
                                                      }
                                                      let g = gen(100);
-                                                 
+
                                          """);
 
         var r1 = await engine.Evaluate("g.next().value;");
@@ -275,7 +275,7 @@ public class GeneratorTests
     public async Task Generator_CanBeCalledMultipleTimes()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -286,7 +286,7 @@ public class GeneratorTests
                                                      }
                                                      let g1 = gen();
                                                      let g2 = gen();
-                                                 
+
                                          """);
 
         var g1_r1 = await engine.Evaluate("g1.next().value;");
@@ -305,7 +305,7 @@ public class GeneratorTests
     public async Task Generator_EmptyGenerator()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -314,7 +314,7 @@ public class GeneratorTests
                                                      }
                                                      let g = gen();
                                                      let result = g.next();
-                                                 
+
                                          """);
 
         var done = await engine.Evaluate("result.done;");
@@ -327,7 +327,7 @@ public class GeneratorTests
     public async Task Generator_WithReturn()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -339,7 +339,7 @@ public class GeneratorTests
                                                      let g = gen();
                                                      let r1 = g.next();
                                                      let r2 = g.next();
-                                                 
+
                                          """);
 
         var r1Value = await engine.Evaluate("r1.value;");
@@ -358,7 +358,7 @@ public class GeneratorTests
     public async Task GeneratorExpression_CanBeAssigned()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -368,7 +368,7 @@ public class GeneratorTests
                                                      };
                                                      let g = gen();
                                                      let result = g.next();
-                                                 
+
                                          """);
 
         var value = await engine.Evaluate("result.value;");
@@ -381,7 +381,7 @@ public class GeneratorTests
     public async Task Generator_HasReturnMethod()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -391,7 +391,7 @@ public class GeneratorTests
                                                          yield 2;
                                                      }
                                                      let g = gen();
-                                                 
+
                                          """);
         var hasReturn = await engine.Evaluate("g[\"return\"];");
 
@@ -403,7 +403,7 @@ public class GeneratorTests
     public async Task Generator_ReturnMethodCompletesGenerator()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -416,7 +416,7 @@ public class GeneratorTests
                                                      g.next();  // Get first value
                                                      let returnResult = g["return"](99);
                                                      let nextResult = g.next();  // Should be done
-                                                 
+
                                          """);
 
         var returnValue = await engine.Evaluate("returnResult.value;");
@@ -433,7 +433,7 @@ public class GeneratorTests
     public async Task Generator_HasThrowMethod()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -442,7 +442,7 @@ public class GeneratorTests
                                                          yield 1;
                                                      }
                                                      let g = gen();
-                                                 
+
                                          """);
         var hasThrow = await engine.Evaluate("g[\"throw\"];");
 
@@ -451,10 +451,10 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public Task ParseGeneratorSyntax_FunctionStar()
+    public async Task ParseGeneratorSyntax_FunctionStar()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act & Assert - Should parse without error
         var program = engine.Parse("""
@@ -462,18 +462,17 @@ public class GeneratorTests
                                                function* myGenerator() {
                                                    yield 1;
                                                }
-                                           
+
                                    """);
 
         Assert.NotNull(program);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public Task ParseYieldExpression()
+    public async Task ParseYieldExpression()
     {
         // Arrange
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Act & Assert - Should parse without error
         var program = engine.Parse("""
@@ -482,10 +481,9 @@ public class GeneratorTests
                                                    let x = 5;
                                                    yield x + 1;
                                                }
-                                           
+
                                    """);
 
         Assert.NotNull(program);
-        return Task.CompletedTask;
     }
 }

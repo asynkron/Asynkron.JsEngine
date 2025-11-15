@@ -7,7 +7,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Get_As_Property_Name_In_Object_Literal()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 get: function () {
@@ -22,7 +22,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Get_And_Set_As_Property_Names()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 get: 10,
@@ -36,11 +36,11 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Object_DefineProperty_With_Get_As_Property_Name()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var n = { x: 1, y: 2 };
             var a = {};
-            
+
             Object.keys(n).forEach(function (k) {
                 var d = Object.getOwnPropertyDescriptor(n, k);
                 Object.defineProperty(a, k, d.get ? d : {
@@ -50,7 +50,7 @@ public class GetPropertyNameTests
                     }
                 });
             });
-            
+
             a.x;
         """);
         Assert.Equal(1.0, result);
@@ -59,7 +59,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Real_Getter_Still_Works()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 _value: 100,
@@ -75,7 +75,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Real_Setter_Still_Works()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 _value: 0,
@@ -95,7 +95,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Get_As_Named_Function_Expression()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 get: function get() {
@@ -110,7 +110,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Set_As_Named_Function_Expression()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 set: function set(val) {
@@ -125,7 +125,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Get_As_Function_Name_With_Different_Property_Name()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 foo: function get() {
@@ -140,7 +140,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Set_As_Function_Name_With_Different_Property_Name()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 bar: function set() {
@@ -155,15 +155,15 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Async_Function_With_Get_As_Name()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
-        
+
         engine.SetGlobalFunction("capture", args =>
         {
             result = args[0]?.ToString() ?? "";
             return null;
         });
-        
+
         await engine.Run("""
             var obj = {
                 get: async function get() {
@@ -178,15 +178,15 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Async_Function_With_Set_As_Name()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = "";
-        
+
         engine.SetGlobalFunction("capture", args =>
         {
             result = args[0]?.ToString() ?? "";
             return null;
         });
-        
+
         await engine.Run("""
             var obj = {
                 set: async function set(val) {

@@ -11,7 +11,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Async_CanBeUsedAsParameterName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             function functionDeclaration(id, params, body, generator, async) {
                 return async;
@@ -24,7 +24,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Await_CanBeUsedAsParameterName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             function test(await) {
                 return await;
@@ -37,7 +37,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Yield_CanBeUsedAsParameterName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             function test(yield) {
                 return yield;
@@ -50,7 +50,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Get_CanBeUsedAsParameterName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             function test(get) {
                 return get;
@@ -63,7 +63,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Set_CanBeUsedAsParameterName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             function test(set) {
                 return set;
@@ -76,7 +76,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Async_CanBeUsedAsVariableName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var async = 123;
             async;
@@ -87,7 +87,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Await_CanBeUsedAsVariableName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var await = 456;
             await;
@@ -98,7 +98,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Yield_CanBeUsedAsVariableName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var yield = 789;
             yield;
@@ -109,7 +109,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Async_CanBeUsedAsObjectPropertyName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var obj = { async: 111 };
             obj.async;
@@ -120,7 +120,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Await_CanBeUsedAsObjectPropertyName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var obj = { await: 222 };
             obj.await;
@@ -131,7 +131,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Yield_CanBeUsedAsObjectPropertyName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var obj = { yield: 333 };
             obj.yield;
@@ -142,7 +142,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task MultipleContextualKeywords_CanBeUsedAsParameters()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         // Test with 3 contextual keywords (limitation: 4+ causes evaluator issues)
         var result = await engine.Evaluate("""
             function test(async, await, yield) {
@@ -156,7 +156,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Async_CanBeUsedInArrowFunctionParameters()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             const fn = (async) => async * 2;
             fn(10);
@@ -167,7 +167,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Await_CanBeUsedInArrowFunctionParameters()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             const fn = (await) => await * 3;
             fn(10);
@@ -178,7 +178,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Yield_CanBeUsedInArrowFunctionParameters()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             const fn = (yield) => yield * 4;
             fn(10);

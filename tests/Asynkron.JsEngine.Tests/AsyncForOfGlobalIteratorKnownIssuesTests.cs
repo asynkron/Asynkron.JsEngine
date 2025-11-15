@@ -13,7 +13,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
     [Trait("Category", "AsyncForOfGlobalKnownFailure")]
     public async Task ForAwaitOf_FallbackToSyncIterator()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -73,7 +73,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
     [Trait("Category", "AsyncForOfGlobalKnownFailure")]
     public async Task ForAwaitOf_WithSyncIteratorNoAsync()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         output.WriteLine("=== ForAwaitOf_WithSyncIteratorNoAsync ===");
 
@@ -118,7 +118,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test L: Method Shorthand in for-await-of ===");
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -190,7 +190,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test F: Actual for-await-of with extensive logging ===");
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -260,7 +260,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test G: Capture Exceptions via Exception Channel ===");
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";

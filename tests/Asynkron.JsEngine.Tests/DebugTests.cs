@@ -8,14 +8,14 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesBasicVariables()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var source = """
 
                                  let x = 42;
                                  let y = 'hello';
                                  __debug();
-                             
+
                      """;
 
         // Execute and get debug message
@@ -33,7 +33,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesLoopCounter()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var source = """
 
@@ -42,7 +42,7 @@ public class DebugTests
                                          __debug();
                                      }
                                  }
-                             
+
                      """;
 
         var temp = await engine.Evaluate(source);
@@ -57,14 +57,14 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesAllIterationsInLoop()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var source = """
 
                                  for (var i = 0; i < 3; i++) {
                                      __debug();
                                  }
-                             
+
                      """;
 
         var temp = await engine.Evaluate(source);
@@ -83,19 +83,19 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesFunctionScope()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var source = """
 
                                  let globalVar = 'global';
-                                 
+
                                  function testFunc(param) {
                                      let localVar = 'local';
                                      __debug();
                                  }
-                                 
+
                                  testFunc(123);
-                             
+
                      """;
 
         var temp = await engine.Evaluate(source);
@@ -118,25 +118,25 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesNestedScopes()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var source = """
 
                                  let outer = 'outer';
-                                 
+
                                  function outerFunc() {
                                      let middle = 'middle';
-                                     
+
                                      function innerFunc() {
                                          let inner = 'inner';
                                          __debug();
                                      }
-                                     
+
                                      innerFunc();
                                  }
-                                 
+
                                  outerFunc();
-                             
+
                      """;
 
         var temp = await engine.Evaluate(source);
@@ -155,7 +155,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesCallStack()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var source = """
 
@@ -165,9 +165,9 @@ public class DebugTests
                                      }
                                      inner();
                                  }
-                                 
+
                                  outer();
-                             
+
                      """;
 
         var temp = await engine.Evaluate(source);
@@ -188,14 +188,14 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesLoopInCallStack()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var source = """
 
                                  for (var i = 0; i < 1; i++) {
                                      __debug();
                                  }
-                             
+
                      """;
 
         var temp = await engine.Evaluate(source);
@@ -213,24 +213,24 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CallStackShowsDepth()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var source = """
 
                                  function level1() {
                                      level2();
                                  }
-                                 
+
                                  function level2() {
                                      level3();
                                  }
-                                 
+
                                  function level3() {
                                      __debug();
                                  }
-                                 
+
                                  level1();
-                             
+
                      """;
 
         var temp = await engine.Evaluate(source);
@@ -256,13 +256,13 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesControlFlowState()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var source = """
 
                                  let x = 42;
                                  __debug();
-                             
+
                      """;
 
         var temp = await engine.Evaluate(source);
@@ -276,7 +276,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_WorksInNestedLoops()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var source = """
 
@@ -285,7 +285,7 @@ public class DebugTests
                                          __debug();
                                      }
                                  }
-                             
+
                      """;
 
         var temp = await engine.Evaluate(source);

@@ -23,9 +23,9 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(source);
-        
+
         // Should be: 00, 01, 02, 10, 11 (breaks at i=1, j=1)
         Assert.Equal("00,01,02,10,11,", result);
     }
@@ -46,9 +46,9 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(source);
-        
+
         // Should be: 00, (skips 01, 02), 10, (skips 11, 12)
         Assert.Equal("00,10,", result);
     }
@@ -70,9 +70,9 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(source);
-        
+
         // Should be: 00, X, 10, X (break only exits inner loop)
         Assert.Equal("00,X,10,X,", result);
     }
@@ -97,9 +97,9 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(source);
-        
+
         // Should break out of outer loop at i=1, j=1
         Assert.Equal("00,01,02,10,11,", result);
     }
@@ -125,9 +125,9 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(source);
-        
+
         // Should continue outer loop when j=1
         Assert.Equal("00,10,", result);
     }
@@ -150,9 +150,9 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(source);
-        
+
         // Should break out of outer block
         Assert.Equal("a,b,e,", result);
     }
@@ -178,9 +178,9 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(source);
-        
+
         // 000, 001, 010 (break b), 100, 101 (break a)
         Assert.Equal("000,001,010,100,101,", result);
     }
@@ -202,9 +202,9 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(source);
-        
+
         // a0, a1, b0 (break outer)
         Assert.Equal("a0,a1,b0,", result);
     }
@@ -226,9 +226,9 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(source);
-        
+
         // x0, y0, z0 (skips i=1 each time)
         Assert.Equal("x0,y0,z0,", result);
     }
@@ -253,9 +253,9 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(source);
-        
+
         // 00, 01, 02, 10, 11 (break outer)
         Assert.Equal("00,01,02,10,11,", result);
     }

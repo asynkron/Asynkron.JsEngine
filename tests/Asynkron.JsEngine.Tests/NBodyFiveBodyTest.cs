@@ -8,22 +8,22 @@ public class NBodyFiveBodyTest
     [Fact]
     public async Task FiveBodies_Energy_Works()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("__debug", args => null);
-        
+
         var content = SunSpiderTests.GetEmbeddedFile("access-nbody.js");
-        
+
         await engine.Evaluate(content);
     }
-    
+
     [Fact]
     public async Task FiveBodies_FullTest_Works()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("__debug", args => null);
-        
+
         var content = SunSpiderTests.GetEmbeddedFile("access-nbody.js");
-        
+
         // Run the script - should throw a ThrowSignal with the expected error
         try
         {

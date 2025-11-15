@@ -8,11 +8,11 @@ namespace Asynkron.JsEngine.Tests;
 public class CpsTransformerTests
 {
     [Fact(Timeout = 2000)]
-    public Task NeedsTransformation_WithRegularCode_ReturnsFalse()
+    public async Task NeedsTransformation_WithRegularCode_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var program = engine.Parse("let x = 1 + 2;");
 
         // Act
@@ -20,7 +20,6 @@ public class CpsTransformerTests
 
         // Assert
         Assert.False(needsTransform);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
@@ -53,11 +52,11 @@ public class CpsTransformerTests
     }
 
     [Fact(Timeout = 2000)]
-    public Task Transform_ReturnsInputUnchanged()
+    public async Task Transform_ReturnsInputUnchanged()
     {
         // Arrange
         var transformer = new CpsTransformer();
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var program = engine.Parse("let x = 1 + 2;");
 
         // Act
@@ -66,7 +65,6 @@ public class CpsTransformerTests
         // Assert
         // For now, the transformer returns the input unchanged
         Assert.Same(program, transformed);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
@@ -81,11 +79,11 @@ public class CpsTransformerTests
     }
 
     [Fact(Timeout = 2000)]
-    public Task NeedsTransformation_WithFunctionDeclaration_ReturnsFalse()
+    public async Task NeedsTransformation_WithFunctionDeclaration_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var program = engine.Parse("function test() { return 42; }");
 
         // Act
@@ -94,15 +92,14 @@ public class CpsTransformerTests
         // Assert
         // Regular functions don't need CPS transformation
         Assert.False(needsTransform);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public Task NeedsTransformation_WithComplexCode_ReturnsFalse()
+    public async Task NeedsTransformation_WithComplexCode_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var program = engine.Parse("""
 
                                                function fibonacci(n) {
@@ -119,6 +116,5 @@ public class CpsTransformerTests
         // Assert
         // Regular recursive functions don't need CPS transformation
         Assert.False(needsTransform);
-        return Task.CompletedTask;
     }
 }

@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 public class TransformationDebugTest(ITestOutputHelper output)
 {
     [Fact(Timeout = 2000)]
-    public Task ShowTransformation_ForOfWithAwait()
+    public async Task ShowTransformation_ForOfWithAwait()
     {
         var source = """
 
@@ -20,10 +20,10 @@ public class TransformationDebugTest(ITestOutputHelper output)
                                          result = result + value;
                                      }
                                  }
-                             
+
                      """;
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Parse without transformation
         var originalSexpr = JsEngine.ParseWithoutTransformation(source);
@@ -35,11 +35,10 @@ public class TransformationDebugTest(ITestOutputHelper output)
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
         output.WriteLine(transformedSexpr.ToString());
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public Task ShowTransformation_SimpleAsyncAwait()
+    public async Task ShowTransformation_SimpleAsyncAwait()
     {
         // Simpler case that works
         var source = """
@@ -48,10 +47,10 @@ public class TransformationDebugTest(ITestOutputHelper output)
                                      let x = await Promise.resolve(5);
                                      return x;
                                  }
-                             
+
                      """;
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Parse without transformation
         var originalSexpr = JsEngine.ParseWithoutTransformation(source);
@@ -63,6 +62,5 @@ public class TransformationDebugTest(ITestOutputHelper output)
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED (works) ===");
         output.WriteLine(transformedSexpr.ToString());
-        return Task.CompletedTask;
     }
 }

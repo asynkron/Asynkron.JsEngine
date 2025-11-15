@@ -19,7 +19,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task LeftPad_PadsStringWithSpaces()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Implementation based on the famous left-pad npm package
         var script = """
@@ -34,9 +34,9 @@ public class NpmPackageTests
                                      }
                                      return str;
                                  }
-                                 
+
                                  leftPad('foo', 5, ' ');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -46,7 +46,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task LeftPad_PadsStringWithCustomCharacter()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -60,9 +60,9 @@ public class NpmPackageTests
                                      }
                                      return str;
                                  }
-                                 
+
                                  leftPad('42', 5, '0');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -72,7 +72,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task LeftPad_HandlesEmptyString()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -86,9 +86,9 @@ public class NpmPackageTests
                                      }
                                      return str;
                                  }
-                                 
+
                                  leftPad('', 3, 'a');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -98,7 +98,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task LeftPad_NoModificationIfAlreadyLongEnough()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -112,9 +112,9 @@ public class NpmPackageTests
                                      }
                                      return str;
                                  }
-                                 
+
                                  leftPad('hello', 3, '0');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -128,7 +128,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task IsOdd_IdentifiesOddNumbers()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -136,14 +136,14 @@ public class NpmPackageTests
                                      let i = Math.abs(num);
                                      return !!(i & 1);
                                  }
-                                 
+
                                  let result1 = isOdd(1);
                                  let result2 = isOdd(3);
                                  let result3 = isOdd(2);
                                  let result4 = isOdd(0);
-                                 
+
                                  result1 && result2 && !result3 && !result4;
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -153,7 +153,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task IsEven_IdentifiesEvenNumbers()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -161,15 +161,15 @@ public class NpmPackageTests
                                      let i = Math.abs(num);
                                      return !(i & 1);
                                  }
-                                 
+
                                  let result1 = isEven(0);
                                  let result2 = isEven(2);
                                  let result3 = isEven(4);
                                  let result4 = isEven(1);
                                  let result5 = isEven(3);
-                                 
+
                                  result1 && result2 && result3 && !result4 && !result5;
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -179,7 +179,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task IsOdd_HandlesNegativeNumbers()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -187,13 +187,13 @@ public class NpmPackageTests
                                      let i = Math.abs(num);
                                      return !!(i & 1);
                                  }
-                                 
+
                                  let result1 = isOdd(-1);
                                  let result2 = isOdd(-3);
                                  let result3 = isOdd(-2);
-                                 
+
                                  result1 && result2 && !result3;
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -207,16 +207,16 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Clamp_ReturnsNumberWithinRange()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function clamp(value, min, max) {
                                      return Math.min(Math.max(value, min), max);
                                  }
-                                 
+
                                  clamp(5, 0, 10);
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -226,16 +226,16 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Clamp_ClampsToMinimum()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function clamp(value, min, max) {
                                      return Math.min(Math.max(value, min), max);
                                  }
-                                 
+
                                  clamp(-5, 0, 10);
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -245,16 +245,16 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Clamp_ClampsToMaximum()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function clamp(value, min, max) {
                                      return Math.min(Math.max(value, min), max);
                                  }
-                                 
+
                                  clamp(15, 0, 10);
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -268,7 +268,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task InRange_ReturnsTrueForNumberInRange()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -279,9 +279,9 @@ public class NpmPackageTests
                                      }
                                      return value >= start && value < end;
                                  }
-                                 
+
                                  inRange(5, 0, 10);
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -291,7 +291,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task InRange_ReturnsFalseForNumberOutOfRange()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -302,9 +302,9 @@ public class NpmPackageTests
                                      }
                                      return value >= start && value < end;
                                  }
-                                 
+
                                  inRange(15, 0, 10);
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -314,7 +314,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task InRange_HandlesSingleArgumentForm()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -325,9 +325,9 @@ public class NpmPackageTests
                                      }
                                      return value >= start && value < end;
                                  }
-                                 
+
                                  inRange(5, 10, undefined);
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -341,7 +341,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Fibonacci_GeneratesCorrectSequence()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -349,14 +349,14 @@ public class NpmPackageTests
                                      if (n <= 1) return n;
                                      return fibonacci(n - 1) + fibonacci(n - 2);
                                  }
-                                 
+
                                  let result = [];
                                  for (let i = 0; i < 10; i = i + 1) {
                                      result.push(fibonacci(i));
                                  }
-                                 
+
                                  result.join(',');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -366,27 +366,27 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Fibonacci_IterativeVersion()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function fibonacciIterative(n) {
                                      if (n <= 1) return n;
-                                     
+
                                      let a = 0;
                                      let b = 1;
-                                     
+
                                      for (let i = 2; i <= n; i = i + 1) {
                                          let temp = a + b;
                                          a = b;
                                          b = temp;
                                      }
-                                     
+
                                      return b;
                                  }
-                                 
+
                                  fibonacciIterative(10);
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -400,7 +400,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Luhn_ValidatesValidCreditCard()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -408,26 +408,26 @@ public class NpmPackageTests
                                      let str = cardNumber + '';
                                      let sum = 0;
                                      let isEven = false;
-                                     
+
                                      for (let i = str.length - 1; i >= 0; i = i - 1) {
                                          let digit = str.charCodeAt(i) - 48;
-                                         
+
                                          if (isEven) {
                                              digit = digit * 2;
                                              if (digit > 9) {
                                                  digit = digit - 9;
                                              }
                                          }
-                                         
+
                                          sum = sum + digit;
                                          isEven = !isEven;
                                      }
-                                     
+
                                      return sum % 10 === 0;
                                  }
-                                 
+
                                  luhn('4532015112830366');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -437,7 +437,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Luhn_RejectsInvalidCreditCard()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -445,26 +445,26 @@ public class NpmPackageTests
                                      let str = cardNumber + '';
                                      let sum = 0;
                                      let isEven = false;
-                                     
+
                                      for (let i = str.length - 1; i >= 0; i = i - 1) {
                                          let digit = str.charCodeAt(i) - 48;
-                                         
+
                                          if (isEven) {
                                              digit = digit * 2;
                                              if (digit > 9) {
                                                  digit = digit - 9;
                                              }
                                          }
-                                         
+
                                          sum = sum + digit;
                                          isEven = !isEven;
                                      }
-                                     
+
                                      return sum % 10 === 0;
                                  }
-                                 
+
                                  luhn('1234567812345678');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -478,35 +478,35 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task ArrayShuffle_MaintainsAllElements()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function shuffle(array) {
                                      let currentIndex = array.length;
                                      let randomIndex = 0;
-                                     
+
                                      while (currentIndex !== 0) {
                                          // Use a deterministic 'random' for testing
                                          randomIndex = Math.floor(Math.abs(Math.sin(currentIndex) * 10000) * currentIndex);
                                          randomIndex = randomIndex % currentIndex;
                                          currentIndex = currentIndex - 1;
-                                         
+
                                          let temp = array[currentIndex];
                                          array[currentIndex] = array[randomIndex];
                                          array[randomIndex] = temp;
                                      }
-                                     
+
                                      return array;
                                  }
-                                 
+
                                  let arr = [1, 2, 3, 4, 5];
                                  let shuffled = shuffle(arr);
-                                 
+
                                  // Verify all elements are still present
                                  let sorted = shuffled.sort(function(a, b) { return a - b; });
                                  sorted.join(',');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -520,38 +520,38 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task DeepEqual_ComparesSimpleObjects()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function deepEqual(a, b) {
                                      if (a === b) return true;
-                                     
+
                                      if (a === null || b === null) return false;
                                      if (a === undefined || b === undefined) return false;
-                                     
+
                                      if (typeof a !== typeof b) return false;
-                                     
+
                                      if (typeof a !== 'object') return false;
-                                     
+
                                      let keysA = Object.keys(a);
                                      let keysB = Object.keys(b);
-                                     
+
                                      if (keysA.length !== keysB.length) return false;
-                                     
+
                                      for (let i = 0; i < keysA.length; i = i + 1) {
                                          let key = keysA[i];
                                          if (!deepEqual(a[key], b[key])) return false;
                                      }
-                                     
+
                                      return true;
                                  }
-                                 
+
                                  let obj1 = { a: 1, b: 2, c: { d: 3 } };
                                  let obj2 = { a: 1, b: 2, c: { d: 3 } };
-                                 
+
                                  deepEqual(obj1, obj2);
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -561,38 +561,38 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task DeepEqual_DetectsDifferences()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function deepEqual(a, b) {
                                      if (a === b) return true;
-                                     
+
                                      if (a === null || b === null) return false;
                                      if (a === undefined || b === undefined) return false;
-                                     
+
                                      if (typeof a !== typeof b) return false;
-                                     
+
                                      if (typeof a !== 'object') return false;
-                                     
+
                                      let keysA = Object.keys(a);
                                      let keysB = Object.keys(b);
-                                     
+
                                      if (keysA.length !== keysB.length) return false;
-                                     
+
                                      for (let i = 0; i < keysA.length; i = i + 1) {
                                          let key = keysA[i];
                                          if (!deepEqual(a[key], b[key])) return false;
                                      }
-                                     
+
                                      return true;
                                  }
-                                 
+
                                  let obj1 = { a: 1, b: 2, c: { d: 3 } };
                                  let obj2 = { a: 1, b: 2, c: { d: 4 } };
-                                 
+
                                  deepEqual(obj1, obj2);
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -608,17 +608,17 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task CamelCase_ConvertsHyphenatedString()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function camelCase(str) {
                                      let result = '';
                                      let capitalizeNext = false;
-                                     
+
                                      for (let i = 0; i < str.length; i = i + 1) {
                                          let char = str.charAt(i);
-                                         
+
                                          if (char === '-' || char === '_' || char === ' ') {
                                              capitalizeNext = true;
                                          } else {
@@ -630,12 +630,12 @@ public class NpmPackageTests
                                              }
                                          }
                                      }
-                                     
+
                                      return result;
                                  }
-                                 
+
                                  camelCase('hello-world-test');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -645,17 +645,17 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task CamelCase_HandlesUnderscores()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function camelCase(str) {
                                      let result = '';
                                      let capitalizeNext = false;
-                                     
+
                                      for (let i = 0; i < str.length; i = i + 1) {
                                          let char = str.charAt(i);
-                                         
+
                                          if (char === '-' || char === '_' || char === ' ') {
                                              capitalizeNext = true;
                                          } else {
@@ -667,12 +667,12 @@ public class NpmPackageTests
                                              }
                                          }
                                      }
-                                     
+
                                      return result;
                                  }
-                                 
+
                                  camelCase('foo_bar_baz');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -686,17 +686,17 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task KebabCase_ConvertsCamelCase()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function kebabCase(str) {
                                      let result = '';
-                                     
+
                                      for (let i = 0; i < str.length; i = i + 1) {
                                          let char = str.charAt(i);
                                          let code = str.charCodeAt(i);
-                                         
+
                                          if (code >= 65 && code <= 90) {
                                              if (i > 0) {
                                                  result = result + '-';
@@ -708,12 +708,12 @@ public class NpmPackageTests
                                              result = result + char;
                                          }
                                      }
-                                     
+
                                      return result;
                                  }
-                                 
+
                                  kebabCase('helloWorldTest');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -727,7 +727,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Capitalize_CapitalizesFirstLetter()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -735,9 +735,9 @@ public class NpmPackageTests
                                      if (str.length === 0) return str;
                                      return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
                                  }
-                                 
+
                                  capitalize('hello world');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -747,7 +747,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Capitalize_HandlesEmptyString()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -755,9 +755,9 @@ public class NpmPackageTests
                                      if (str.length === 0) return str;
                                      return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
                                  }
-                                 
+
                                  capitalize('');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -771,13 +771,13 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Flatten_FlattensNestedArrays()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function flatten(arr) {
                                      let result = [];
-                                     
+
                                      for (let i = 0; i < arr.length; i = i + 1) {
                                          let item = arr[i];
                                          if (typeof item === 'object' && item.length !== undefined) {
@@ -788,14 +788,14 @@ public class NpmPackageTests
                                              result.push(item);
                                          }
                                      }
-                                     
+
                                      return result;
                                  }
-                                 
+
                                  let nested = [1, [2, 3], 4, [5, 6]];
                                  let flat = flatten(nested);
                                  flat.join(',');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -809,7 +809,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Sum_AddsArrayOfNumbers()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -820,9 +820,9 @@ public class NpmPackageTests
                                      }
                                      return total;
                                  }
-                                 
+
                                  sum([1, 2, 3, 4, 5]);
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -832,7 +832,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Sum_HandlesEmptyArray()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
@@ -843,9 +843,9 @@ public class NpmPackageTests
                                      }
                                      return total;
                                  }
-                                 
+
                                  sum([]);
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -859,34 +859,34 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Unique_RemovesDuplicates()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function unique(arr) {
                                      let result = [];
-                                     
+
                                      for (let i = 0; i < arr.length; i = i + 1) {
                                          let found = false;
-                                         
+
                                          for (let j = 0; j < result.length; j = j + 1) {
                                              if (result[j] === arr[i]) {
                                                  found = true;
                                              }
                                          }
-                                         
+
                                          if (!found) {
                                              result.push(arr[i]);
                                          }
                                      }
-                                     
+
                                      return result;
                                  }
-                                 
+
                                  let arr = [1, 2, 2, 3, 3, 3, 4, 5, 5];
                                  let uniq = unique(arr);
                                  uniq.join(',');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -900,30 +900,30 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Chunk_SplitsArrayIntoChunks()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function chunk(arr, size) {
                                      let result = [];
-                                     
+
                                      for (let i = 0; i < arr.length; i = i + size) {
                                          let chunk = [];
-                                         
+
                                          for (let j = 0; j < size && i + j < arr.length; j = j + 1) {
                                              chunk.push(arr[i + j]);
                                          }
-                                         
+
                                          result.push(chunk);
                                      }
-                                     
+
                                      return result;
                                  }
-                                 
+
                                  let arr = [1, 2, 3, 4, 5, 6, 7, 8];
                                  let chunks = chunk(arr, 3);
                                  chunks.length;
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);
@@ -933,30 +933,30 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Chunk_VerifyChunkContents()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var script = """
 
                                  function chunk(arr, size) {
                                      let result = [];
-                                     
+
                                      for (let i = 0; i < arr.length; i = i + size) {
                                          let chunk = [];
-                                         
+
                                          for (let j = 0; j < size && i + j < arr.length; j = j + 1) {
                                              chunk.push(arr[i + j]);
                                          }
-                                         
+
                                          result.push(chunk);
                                      }
-                                     
+
                                      return result;
                                  }
-                                 
+
                                  let arr = [1, 2, 3, 4, 5];
                                  let chunks = chunk(arr, 2);
                                  chunks[0].join(',') + ';' + chunks[1].join(',') + ';' + chunks[2].join(',');
-                             
+
                      """;
 
         var result = await engine.Evaluate(script);

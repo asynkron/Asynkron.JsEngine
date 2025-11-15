@@ -10,12 +10,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Length_Property()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
                                                        str.length;
-                                                   
+
                                            """);
         Assert.Equal(5d, result);
     }
@@ -23,12 +23,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_CharAt()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
                                                        str.charAt(1);
-                                                   
+
                                            """);
         Assert.Equal("e", result);
     }
@@ -36,12 +36,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_CharAt_OutOfBounds()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
                                                        str.charAt(10);
-                                                   
+
                                            """);
         Assert.Equal("", result);
     }
@@ -49,12 +49,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_CharCodeAt()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
                                                        str.charCodeAt(0);
-                                                   
+
                                            """);
         Assert.Equal(104d, result); // 'h' = 104
     }
@@ -62,12 +62,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_IndexOf()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
                                                        str.indexOf("world");
-                                                   
+
                                            """);
         Assert.Equal(6d, result);
     }
@@ -75,12 +75,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_IndexOf_NotFound()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
                                                        str.indexOf("xyz");
-                                                   
+
                                            """);
         Assert.Equal(-1d, result);
     }
@@ -88,12 +88,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_IndexOf_WithPosition()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello hello";
                                                        str.indexOf("hello", 1);
-                                                   
+
                                            """);
         Assert.Equal(6d, result);
     }
@@ -101,12 +101,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_LastIndexOf()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world hello";
                                                        str.lastIndexOf("hello");
-                                                   
+
                                            """);
         Assert.Equal(12d, result);
     }
@@ -114,12 +114,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Substring()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
                                                        str.substring(0, 5);
-                                                   
+
                                            """);
         Assert.Equal("hello", result);
     }
@@ -127,12 +127,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Substring_OneArg()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
                                                        str.substring(6);
-                                                   
+
                                            """);
         Assert.Equal("world", result);
     }
@@ -140,12 +140,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Substring_SwapsIfStartGreaterThanEnd()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
                                                        str.substring(3, 1);
-                                                   
+
                                            """);
         Assert.Equal("el", result);
     }
@@ -153,12 +153,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Slice()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
                                                        str.slice(0, 5);
-                                                   
+
                                            """);
         Assert.Equal("hello", result);
     }
@@ -166,12 +166,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Slice_NegativeIndices()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
                                                        str.slice(-5, -1);
-                                                   
+
                                            """);
         Assert.Equal("worl", result);
     }
@@ -179,12 +179,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_ToLowerCase()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "HELLO World";
                                                        str.toLowerCase();
-                                                   
+
                                            """);
         Assert.Equal("hello world", result);
     }
@@ -192,12 +192,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_ToUpperCase()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello World";
                                                        str.toUpperCase();
-                                                   
+
                                            """);
         Assert.Equal("HELLO WORLD", result);
     }
@@ -205,12 +205,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Trim()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "  hello world  ";
                                                        str.trim();
-                                                   
+
                                            """);
         Assert.Equal("hello world", result);
     }
@@ -218,12 +218,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_TrimStart()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "  hello  ";
                                                        str.trimStart();
-                                                   
+
                                            """);
         Assert.Equal("hello  ", result);
     }
@@ -231,12 +231,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_TrimEnd()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "  hello  ";
                                                        str.trimEnd();
-                                                   
+
                                            """);
         Assert.Equal("  hello", result);
     }
@@ -244,13 +244,13 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Split()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "a,b,c";
                                                        let parts = str.split(",");
                                                        parts[1];
-                                                   
+
                                            """);
         Assert.Equal("b", result);
     }
@@ -258,13 +258,13 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Split_WithLimit()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "a,b,c,d";
                                                        let parts = str.split(",", 2);
                                                        parts.length;
-                                                   
+
                                            """);
         Assert.Equal(2d, result);
     }
@@ -272,13 +272,13 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Split_EmptySeparator()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "abc";
                                                        let parts = str.split("");
                                                        parts.length;
-                                                   
+
                                            """);
         Assert.Equal(3d, result);
     }
@@ -286,12 +286,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Replace()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
                                                        str.replace("world", "there");
-                                                   
+
                                            """);
         Assert.Equal("hello there", result);
     }
@@ -299,12 +299,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Replace_OnlyFirstOccurrence()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello hello";
                                                        str.replace("hello", "hi");
-                                                   
+
                                            """);
         Assert.Equal("hi hello", result);
     }
@@ -312,12 +312,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_StartsWith()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
                                                        str.startsWith("hello");
-                                                   
+
                                            """);
         Assert.True((bool)result!);
     }
@@ -325,12 +325,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_StartsWith_WithPosition()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
                                                        str.startsWith("world", 6);
-                                                   
+
                                            """);
         Assert.True((bool)result!);
     }
@@ -338,12 +338,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_EndsWith()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
                                                        str.endsWith("world");
-                                                   
+
                                            """);
         Assert.True((bool)result!);
     }
@@ -351,12 +351,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_EndsWith_WithLength()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
                                                        str.endsWith("hello", 5);
-                                                   
+
                                            """);
         Assert.True((bool)result!);
     }
@@ -364,12 +364,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Includes()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
                                                        str.includes("lo wo");
-                                                   
+
                                            """);
         Assert.True((bool)result!);
     }
@@ -379,12 +379,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Includes_NotFound()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
                                                        str.includes("xyz");
-                                                   
+
                                            """);
         Assert.False((bool)result!);
     }
@@ -392,12 +392,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Repeat()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "abc";
                                                        str.repeat(3);
-                                                   
+
                                            """);
         Assert.Equal("abcabcabc", result);
     }
@@ -405,12 +405,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_PadStart()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "5";
                                                        str.padStart(3, "0");
-                                                   
+
                                            """);
         Assert.Equal("005", result);
     }
@@ -418,12 +418,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_PadEnd()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "5";
                                                        str.padEnd(3, "0");
-                                                   
+
                                            """);
         Assert.Equal("500", result);
     }
@@ -431,12 +431,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Chaining()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "  HELLO WORLD  ";
                                                        str.trim().toLowerCase().replace("world", "there");
-                                                   
+
                                            """);
         Assert.Equal("hello there", result);
     }
@@ -444,7 +444,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Methods_InLoop()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let words = "apple,banana,cherry".split(",");
@@ -458,7 +458,7 @@ public class StringMethodsTests
                                                            i = i + 1;
                                                        }
                                                        upperWords;
-                                                   
+
                                            """);
         Assert.Equal("APPLE,BANANA,CHERRY", result);
     }
@@ -466,12 +466,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_CodePointAt()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
                                                        str.codePointAt(0);
-                                                   
+
                                            """);
         Assert.Equal(104d, result); // 'h' = 104
     }
@@ -479,12 +479,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_CodePointAt_WithSurrogatePair()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "𝟘𝟙𝟚"; // Mathematical bold digits
                                                        str.codePointAt(0);
-                                                   
+
                                            """);
         Assert.Equal(120792d, result); // U+1D7D8
     }
@@ -492,13 +492,13 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_LocaleCompare()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let a = "apple";
                                                        let b = "banana";
                                                        a.localeCompare(b) < 0;
-                                                   
+
                                            """);
         Assert.True((bool)result!);
     }
@@ -506,12 +506,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Normalize()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "café";
                                                        str.normalize("NFC").length;
-                                                   
+
                                            """);
         Assert.Equal(4d, result);
     }
@@ -519,14 +519,14 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_MatchAll()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "test1test2test3";
                                                        let regex = /test\d/g;
                                                        let matches = str.matchAll(regex);
                                                        matches.length;
-                                                   
+
                                            """);
         Assert.Equal(3d, result);
     }
@@ -534,12 +534,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Anchor()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
                                                        str.anchor("greeting");
-                                                   
+
                                            """);
         Assert.Equal("<a name=\"greeting\">hello</a>", result);
     }
@@ -547,12 +547,12 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Link()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "click here";
                                                        str.link("https://example.com");
-                                                   
+
                                            """);
         Assert.Equal("<a href=\"https://example.com\">click here</a>", result);
     }
@@ -560,11 +560,11 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_FromCodePoint()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        String.fromCodePoint(65, 66, 67);
-                                                   
+
                                            """);
         Assert.Equal("ABC", result);
     }
@@ -572,11 +572,11 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_FromCodePoint_WithSurrogatePairs()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        String.fromCodePoint(128512); // Grinning face emoji (0x1F600)
-                                                   
+
                                            """);
         Assert.Equal("😀", result);
     }
@@ -584,11 +584,11 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_FromCharCode()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        String.fromCharCode(72, 101, 108, 108, 111);
-                                                   
+
                                            """);
         Assert.Equal("Hello", result);
     }
@@ -596,11 +596,11 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Constructor()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        String(123);
-                                                   
+
                                            """);
         Assert.Equal("123", result);
     }
@@ -608,11 +608,11 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Constructor_WithBoolean()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        String(true);
-                                                   
+
                                            """);
         Assert.Equal("true", result);
     }

@@ -8,7 +8,7 @@ public class PrototypeChainBugTest
     [Fact]
     public async Task PrototypeMethod_CanAccessObjectPropertyOnThis()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             function Container(obj){
                this.obj = obj;
@@ -22,14 +22,14 @@ public class PrototypeChainBugTest
             var c = new Container( {x: 42} );
             c.test();
         ");
-        
+
         Assert.Equal(42.0, result);
     }
-    
+
     [Fact]
     public async Task PrototypeMethod_CanAccessArrayPropertyOnThis()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             function Container(arr){
                this.arr = arr;
@@ -42,7 +42,7 @@ public class PrototypeChainBugTest
             var c = new Container( [1, 2, 3] );
             c.test();
         ");
-        
+
         Assert.Equal(1.0, result);
     }
 }

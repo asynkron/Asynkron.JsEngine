@@ -7,7 +7,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task EvaluateArithmeticAndVariableLookup()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("let answer = 1 + 2 * 3; answer;");
         Assert.Equal(7d, result);
     }
@@ -15,7 +15,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task EvaluateFunctionDeclarationAndInvocation()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = "function add(a, b) { return a + b; } let result = add(2, 3); result;";
         var result = await engine.Evaluate(source);
         Assert.Equal(5d, result);
@@ -24,7 +24,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task EvaluateClosureCapturesOuterVariable()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source =
             "function makeAdder(x) { function inner(y) { return x + y; } return inner; } let plusTen = makeAdder(10); let fifteen = plusTen(5); fifteen;";
         var result = await engine.Evaluate(source);
@@ -34,7 +34,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task EvaluateFunctionExpression()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = "let add = function(a, b) { return a + b; }; add(4, 5);";
         var result = await engine.Evaluate(source);
         Assert.Equal(9d, result);
@@ -44,7 +44,7 @@ public class JsEvaluatorTests
     public async Task HostFunctionInterop()
     {
         var captured = new List<object?>();
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("collect", args =>
         {
             captured.AddRange(args);
@@ -63,7 +63,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task EvaluateObjectLiteralAndPropertyUsage()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = "let obj = { a: 10, x: function () { return 5; } }; let total = obj.a + obj.x(); total;";
 
         var result = await engine.Evaluate(source);
@@ -74,7 +74,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task EvaluateArrayLiteralSupportsIndexing()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let values = [1, 2];
@@ -94,7 +94,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task LogicalOperatorsShortCircuitAndReturnOperands()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let hits = 0;
@@ -122,7 +122,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task StrictEqualityRequiresMatchingTypes()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("getInt", _ => 1);
 
         var source = """
@@ -150,7 +150,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task VarDeclarationHoistsToFunctionScope()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      function sample() {
@@ -172,7 +172,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ConstAssignmentThrows()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await engine.Evaluate("const fixed = 1; fixed = 2;"));
@@ -181,7 +181,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TryCatchFinallyBindsThrownValueAndRunsCleanup()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let captured = 0;
@@ -204,7 +204,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task FinallyRunsForUnhandledThrow()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let cleanup = 0;
@@ -225,7 +225,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task FinallyReturnOverridesTryReturn()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      function sample() {
@@ -247,7 +247,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MethodInvocationBindsThis()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = "let obj = { x: 10, f: function () { return this.x; } }; obj.f();";
 
         var result = await engine.Evaluate(source);
@@ -258,7 +258,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task IndexedMethodInvocationBindsThis()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let obj = { value: 10, getter: function() { return this.value; } };
@@ -274,7 +274,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task HostFunctionReceivesThisBinding()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("reflectThis", (self, _) => self);
 
         var result = await engine.Evaluate("let obj = { value: 42, reflect: reflectThis }; obj.reflect();");
@@ -286,7 +286,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task PrototypeLookupResolvesInheritedMethods()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let base = {
@@ -306,7 +306,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task PrototypeAssignmentLinksObjectsAfterCreation()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let base = { greet: function() { return "hi " + this.name; } };
@@ -324,7 +324,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task NewCreatesInstancesWithConstructorPrototypes()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      function Person(name) {
@@ -344,7 +344,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MethodClosuresCanReachThisViaCapturedReference()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let obj = {
@@ -369,7 +369,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task DistinctMethodCallsProvideIndependentThisBindings()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let factory = {
@@ -394,7 +394,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ClassDeclarationSupportsConstructorsAndMethods()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      class Counter {
@@ -420,7 +420,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ClassWithoutExplicitConstructorFallsBackToDefault()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      class Widget {
@@ -439,7 +439,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ClassInheritanceSupportsSuperConstructorAndMethodCalls()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      class Base {
@@ -476,7 +476,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task EvaluateIfElseAndBlockScopes()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let value = 0;
@@ -496,7 +496,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task EvaluateWhileLoopUpdatesValues()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let total = 0;
@@ -516,7 +516,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task EvaluateForLoopHonoursBreakAndContinue()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let sum = 0;
@@ -542,7 +542,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task SwitchStatementSupportsFallthrough()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      function describe(value) {
@@ -568,7 +568,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task SwitchBreakRemainsInsideLoop()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let total = 0;
@@ -594,7 +594,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task EvaluateDoWhileRunsBodyAtLeastOnce()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let attempts = 0;
@@ -612,7 +612,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TernaryOperatorReturnsThenBranchWhenConditionIsTrue()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("true ? 10 : 20;");
         Assert.Equal(10d, result);
     }
@@ -620,7 +620,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TernaryOperatorReturnsElseBranchWhenConditionIsFalse()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("false ? 10 : 20;");
         Assert.Equal(20d, result);
     }
@@ -628,7 +628,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TernaryOperatorEvaluatesConditionForTruthiness()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let x = 5;
@@ -643,7 +643,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TernaryOperatorWithZeroAsFalsyCondition()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""0 ? "yes" : "no";""");
         Assert.Equal("no", result);
     }
@@ -651,7 +651,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TernaryOperatorWithNullAsFalsyCondition()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("null ? 1 : 2;");
         Assert.Equal(2d, result);
     }
@@ -659,7 +659,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TernaryOperatorCanBeNested()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let score = 85;
@@ -674,7 +674,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TernaryOperatorOnlyEvaluatesSelectedBranch()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let sideEffect = 0;
@@ -693,7 +693,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TernaryOperatorWorksInComplexExpressions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let a = 5;
@@ -710,7 +710,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TernaryOperatorInFunctionReturn()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      function absoluteValue(x) {
@@ -726,7 +726,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithSimpleString()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("`hello world`;");
         Assert.Equal("hello world", result);
     }
@@ -734,7 +734,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithSingleExpression()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("let x = 42; `The answer is ${x}`;");
         Assert.Equal("The answer is 42", result);
     }
@@ -742,7 +742,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithMultipleExpressions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("let a = 10; let b = 20; `${a} + ${b} = ${a + b}`;");
         Assert.Equal("10 + 20 = 30", result);
     }
@@ -750,7 +750,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithStringInterpolation()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let name = "Alice";
@@ -764,7 +764,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithComplexExpressions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            function greet(name) { return "Hello, " + name; }
@@ -778,7 +778,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task TemplateLiteralWithBooleanAndNull()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("`true: ${true}, false: ${false}, null: ${null}`;");
         Assert.Equal("true: true, false: false, null: null", result);
     }
@@ -786,7 +786,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task GetterInObjectLiteral()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let obj = {
@@ -802,7 +802,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task SetterInObjectLiteral()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let obj = {
@@ -819,7 +819,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task GetterAndSetterTogether()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let obj = {
@@ -839,7 +839,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task GetterInClass()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            class Rectangle {
@@ -861,7 +861,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task SetterInClass()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            class Person {
@@ -888,7 +888,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task RestParameterCollectsRemainingArguments()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      function sum(first, ...rest) {
@@ -910,7 +910,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task RestParameterWithNoExtraArgumentsCreatesEmptyArray()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      function test(a, ...rest) {
@@ -926,7 +926,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task SpreadOperatorInArrayLiteral()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let arr1 = [1, 2, 3];
@@ -942,7 +942,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task SpreadOperatorInFunctionCall()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      function add(a, b, c) {
@@ -959,7 +959,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task SpreadOperatorWithMixedArguments()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      function greet(greeting, name1, name2) {
@@ -976,7 +976,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task RestParameterWithSpreadInCall()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      function joinAll(...items) {
@@ -1002,7 +1002,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task SpreadInNestedArrays()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var source = """
 
                      let inner = [2, 3];
@@ -1018,7 +1018,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathObjectProvidesConstants()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var pi = await engine.Evaluate("Math.PI;");
         Assert.Equal(Math.PI, pi);
@@ -1033,7 +1033,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathSqrtCalculatesSquareRoot()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Math.sqrt(16);");
         Assert.Equal(4d, result);
     }
@@ -1041,7 +1041,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathPowCalculatesPower()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Math.pow(2, 3);");
         Assert.Equal(8d, result);
     }
@@ -1049,7 +1049,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathAbsReturnsAbsoluteValue()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var positive = await engine.Evaluate("Math.abs(-5);");
         Assert.Equal(5d, positive);
@@ -1061,7 +1061,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathFloorCeilRound()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var floor = await engine.Evaluate("Math.floor(4.7);");
         Assert.Equal(4d, floor);
@@ -1076,7 +1076,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathMaxMinFunctions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var max = await engine.Evaluate("Math.max(1, 5, 3, 9, 2);");
         Assert.Equal(9d, max);
@@ -1088,7 +1088,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathRandomReturnsBetweenZeroAndOne()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Math.random();");
 
         Assert.IsType<double>(result);
@@ -1099,7 +1099,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathTrigonometricFunctions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Test sin(PI/2) = 1
         var sin = await engine.Evaluate("Math.sin(Math.PI / 2);");
@@ -1117,7 +1117,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathLogarithmicFunctions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var log = await engine.Evaluate("Math.log(Math.E);");
         Assert.Equal(1d, (double)log!, 10);
@@ -1132,7 +1132,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathCanBeUsedInComplexExpressions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Calculate hypotenuse: sqrt(3^2 + 4^2) = 5
         var result = await engine.Evaluate("""
@@ -1149,7 +1149,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathSignReturnsSignOfNumber()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var positive = await engine.Evaluate("Math.sign(10);");
         Assert.Equal(1, positive);
@@ -1164,7 +1164,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task MathTruncRemovesDecimalPart()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var positive = await engine.Evaluate("Math.trunc(4.9);");
         Assert.Equal(4d, positive);
@@ -1176,7 +1176,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayMapTransformsElements()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3, 4];
@@ -1190,7 +1190,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayFilterSelectsElements()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3, 4, 5, 6];
@@ -1204,7 +1204,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayReduceAccumulatesValues()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3, 4, 5];
@@ -1218,7 +1218,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayForEachIteratesElements()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3];
@@ -1233,7 +1233,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayFindReturnsFirstMatch()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3, 4, 5];
@@ -1247,7 +1247,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayFindIndexReturnsIndexOfFirstMatch()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3, 4, 5];
@@ -1261,7 +1261,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArraySomeReturnsTrueIfAnyMatch()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var hasLarge = await engine.Evaluate("""
 
@@ -1285,7 +1285,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayEveryReturnsTrueIfAllMatch()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var allPositive = await engine.Evaluate("""
 
@@ -1307,7 +1307,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayJoinConcatenatesElements()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var withComma = await engine.Evaluate("""
 
@@ -1329,7 +1329,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayIncludesChecksForElement()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var hasTwo = await engine.Evaluate("""
 
@@ -1351,7 +1351,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayIndexOfFindsElementPosition()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var index = await engine.Evaluate("""
 
@@ -1373,7 +1373,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArraySliceExtractsSubarray()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var result = await engine.Evaluate("""
 
@@ -1388,7 +1388,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayMethodsCanBeChained()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3, 4, 5, 6];
@@ -1405,7 +1405,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayPushAddsElements()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3];
@@ -1420,7 +1420,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayPopRemovesLastElement()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3, 4];
@@ -1434,7 +1434,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayShiftRemovesFirstElement()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [10, 20, 30];
@@ -1448,7 +1448,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayUnshiftAddsToBeginning()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [3, 4];
@@ -1462,7 +1462,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArraySpliceRemovesAndInserts()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3, 4, 5];
@@ -1476,7 +1476,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayConcatCombinesArrays()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let arr1 = [1, 2];
@@ -1491,7 +1491,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArrayReverseReversesInPlace()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [1, 2, 3, 4];
@@ -1505,7 +1505,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task ArraySortSortsElements()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let numbers = [3, 1, 4, 1, 5, 9, 2, 6];
@@ -1519,7 +1519,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task DateNowReturnsMilliseconds()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Date.now();");
         Assert.IsType<double>(result);
         Assert.True((double)result > 0);
@@ -1528,7 +1528,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task DateConstructorCreatesInstance()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let d = new Date(2024, 0, 15);
@@ -1541,7 +1541,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task DateGetMonthReturnsZeroIndexed()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let d = new Date(2024, 5, 15);
@@ -1558,7 +1558,7 @@ public class JsEvaluatorTests
         //you may only touch the JsEngine and related types .
         //I suspect this is a GMT+1 issue, that on my local machine, we get 2023-12-31T23:00:00.000Z instead of 2024-01-01T00:00:00.000Z
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let d = new Date(2024, 0, 1);
@@ -1572,7 +1572,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task JsonParseHandlesObject()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let jsonStr = `{"name":"Alice","age":30}`;
@@ -1586,7 +1586,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task JsonParseHandlesArray()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let jsonStr = `[1,2,3,4]`;
@@ -1600,7 +1600,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task JsonStringifyHandlesObject()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let obj = { name: "Bob", age: 25 };
@@ -1614,7 +1614,7 @@ public class JsEvaluatorTests
     [Fact(Timeout = 2000)]
     public async Task JsonStringifyHandlesArray()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                            let arr = [1, 2, 3];

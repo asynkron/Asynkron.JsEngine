@@ -10,7 +10,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_BasicFunction()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        function myTag(strings, ...values) {
@@ -18,7 +18,7 @@ public class TaggedTemplateTests
                                                        }
                                                        let name = "World";
                                                        myTag`Hello ${name}!`;
-                                                   
+
                                            """);
         Assert.Equal("Hello World!", result);
     }
@@ -26,7 +26,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_MultipleSubstitutions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings, ...values) {
@@ -42,7 +42,7 @@ public class TaggedTemplateTests
                                                            return result;
                                                        }
                                                        tag`a${1}b${2}c${3}d`;
-                                                   
+
                                            """);
         Assert.Equal("a[1]b[2]c[3]d", result);
     }
@@ -50,14 +50,14 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_StringsArray()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings) {
                                                            return strings.length;
                                                        }
                                                        tag`a${1}b${2}c`;
-                                                   
+
                                            """);
         Assert.Equal(3d, result); // ["a", "b", "c"]
     }
@@ -65,14 +65,14 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_NoSubstitutions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings) {
                                                            return strings[0];
                                                        }
                                                        tag`Hello, World!`;
-                                                   
+
                                            """);
         Assert.Equal("Hello, World!", result);
     }
@@ -80,14 +80,14 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_WithExpressions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings, ...values) {
                                                            return values[0] + values[1];
                                                        }
                                                        tag`Sum: ${5 + 3} and ${10 * 2}`;
-                                                   
+
                                            """);
         Assert.Equal(28d, result);
     }
@@ -95,11 +95,11 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task String_Raw_Basic()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        String.raw`Hello\nWorld`;
-                                                   
+
                                            """);
         Assert.Equal("Hello\\nWorld", result);
     }
@@ -107,12 +107,12 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task String_Raw_WithSubstitutions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let name = "Alice";
                                                        String.raw`Line1\n${name}\tLine2`;
-                                                   
+
                                            """);
         Assert.Equal("Line1\\nAlice\\tLine2", result);
     }
@@ -120,11 +120,11 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task String_Raw_MultipleLines()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        String.raw`First\nSecond\rThird\tFourth`;
-                                                   
+
                                            """);
         Assert.Equal("First\\nSecond\\rThird\\tFourth", result);
     }
@@ -132,14 +132,14 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_RawProperty()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings) {
                                                            return strings.raw[0];
                                                        }
                                                        tag`Hello\nWorld`;
-                                                   
+
                                            """);
         Assert.Equal("Hello\\nWorld", result);
     }
@@ -147,14 +147,14 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_CompareRawAndCooked()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings) {
                                                            return strings[0] === strings.raw[0];
                                                        }
                                                        tag`Hello World`;
-                                                   
+
                                            """);
         Assert.True((bool)result!);
     }
@@ -162,7 +162,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_AsMethodCall()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {
@@ -171,7 +171,7 @@ public class TaggedTemplateTests
                                                            }
                                                        };
                                                        obj.tag`Count: ${42}!`;
-                                                   
+
                                            """);
         Assert.Equal("Count: 42!", result);
     }
@@ -181,7 +181,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_ChainedAccess()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        function createTagFunction() {
@@ -190,7 +190,7 @@ public class TaggedTemplateTests
                                                            };
                                                        }
                                                        createTagFunction()`Value: ${21}`;
-                                                   
+
                                            """);
         Assert.Equal(42d, result);
     }

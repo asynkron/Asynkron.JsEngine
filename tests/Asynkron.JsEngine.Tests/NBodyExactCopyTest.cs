@@ -7,7 +7,7 @@ public class NBodyExactCopyTest
 {
     protected static async Task RunTest(string source)
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             Console.WriteLine(args.Count > 0 ? args[0]?.ToString() : string.Empty);
@@ -42,7 +42,7 @@ public class NBodyExactCopyTest
             throw new Exception($"JavaScript error: {message}", ex);
         }
     }
-    
+
     [Theory]
     [InlineData("access-nbody.js")]
     public async Task AccessNBody_ExactCopy(string filename)

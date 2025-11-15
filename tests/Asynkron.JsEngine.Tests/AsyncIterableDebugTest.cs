@@ -13,7 +13,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
     [Fact(Timeout = 5000)]
     public async Task GlobalIterable_CatchRejections()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -23,7 +23,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
 
         await engine.Run(@"
             log('=== TEST START ===');
-            
+
             let globalIterable = {
                 [Symbol.iterator]() {
                     log('Symbol.iterator called');
@@ -43,22 +43,22 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
                     };
                 }
             };
-            
+
             async function test() {
                 log('About to start for-await-of');
                 log('typeof globalIterable: ' + typeof globalIterable);
                 log('globalIterable is: ' + globalIterable);
-                
+
                 let result = '';
                 for await (let item of globalIterable) {
                     log('In loop, item=' + item);
                     result = result + item;
                 }
-                
+
                 log('After loop, result=' + result);
                 return result;
             }
-            
+
             // Call test() and explicitly catch rejections
             test().then(function(result) {
                 log('Promise resolved with: ' + result);
@@ -72,10 +72,10 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 5000)]
-    public Task GlobalIterable_ParsedCode()
+    public async Task GlobalIterable_ParsedCode()
     {
-        var engine = new JsEngine();
-        
+        await using var engine = new JsEngine();
+
         var code = @"
             let globalIterable = {
                 [Symbol.iterator]() {
@@ -86,7 +86,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
                     };
                 }
             };
-            
+
             async function test() {
                 let result = '';
                 for await (let item of globalIterable) {
@@ -99,13 +99,12 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
         var parsed = engine.Parse(code);
         output.WriteLine("=== PARSED S-EXPRESSION ===");
         output.WriteLine(parsed.ToString());
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 5000)]
     public async Task GlobalIterable_WithLocalVariable()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -115,7 +114,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
 
         await engine.Run(@"
             log('=== TEST WITH LOCAL COPY ===');
-            
+
             let globalIterable = {
                 [Symbol.iterator]() {
                     log('Symbol.iterator called');
@@ -135,22 +134,22 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
                     };
                 }
             };
-            
+
             async function test() {
                 log('About to start - creating local copy');
                 let localCopy = globalIterable;
                 log('typeof localCopy: ' + typeof localCopy);
-                
+
                 let result = '';
                 for await (let item of localCopy) {
                     log('In loop, item=' + item);
                     result = result + item;
                 }
-                
+
                 log('After loop, result=' + result);
                 return result;
             }
-            
+
             // Call test() and explicitly catch rejections
             test().then(function(result) {
                 log('Promise resolved with: ' + result);

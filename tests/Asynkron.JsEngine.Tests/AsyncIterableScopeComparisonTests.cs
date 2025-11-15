@@ -335,7 +335,11 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
 
         if (localSnapshots.Count != globalSnapshots.Count)
         {
-            sb.Append($"Snapshot count mismatch (local={localSnapshots.Count}, global={globalSnapshots.Count}).");
+            sb.Append("Snapshot count mismatch (local=")
+                .Append(localSnapshots.Count)
+                .Append(", global=")
+                .Append(globalSnapshots.Count)
+                .Append(").");
             sb.AppendLine();
         }
 

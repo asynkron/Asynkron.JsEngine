@@ -7,7 +7,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_ExecutesCodeAndReturnsResult()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Run("2 + 3;");
         Assert.Equal(5d, result);
     }
@@ -15,7 +15,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_ProcessesScheduledTasks()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var executed = false;
 
         // Schedule a task before running code
@@ -35,7 +35,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_ProcessesMultipleScheduledTasks()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var executionOrder = new List<int>();
 
         engine.ScheduleTask(() =>
@@ -64,7 +64,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_ProcessesTasksScheduledDuringExecution()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var executionOrder = new List<int>();
 
         // Schedule a task that schedules another task
@@ -87,7 +87,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_HandlesAsyncTasks()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var executed = false;
 
         engine.ScheduleTask(async () =>
@@ -104,7 +104,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_CompletesWhenQueueIsEmpty()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Run with no scheduled tasks - should complete immediately
         var result = await engine.Run("5 + 5;");
@@ -115,7 +115,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task ScheduleTask_CanBeCalledMultipleTimes()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var count = 0;
 
         for (var i = 0; i < 10; i++)
@@ -133,7 +133,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_AllowsInteractionWithHostFunctions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var capturedValues = new List<object?>();
 
         engine.SetGlobalFunction("capture", args =>

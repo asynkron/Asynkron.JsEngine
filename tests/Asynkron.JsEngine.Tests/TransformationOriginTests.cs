@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 public class TransformationOriginTests
 {
     [Fact(Timeout = 2000)]
-    public Task Origin_AsyncFunction_TracksBackToOriginal()
+    public async Task Origin_AsyncFunction_TracksBackToOriginal()
     {
         var source = """
 
@@ -17,7 +17,7 @@ public class TransformationOriginTests
                      }
                      """;
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Get transformation stages
         var (original, constantFolded, cpsTransformed) = engine.ParseWithTransformationSteps(source);
@@ -32,11 +32,10 @@ public class TransformationOriginTests
 
         // The transformed function should have an Origin pointing back
         Assert.NotNull(transformedFunc!.Origin);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public Task Origin_UntransformedCode_HasNullOrigin()
+    public async Task Origin_UntransformedCode_HasNullOrigin()
     {
         var source = """
 
@@ -45,7 +44,7 @@ public class TransformationOriginTests
                      }
                      """;
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var parsed = engine.Parse(source);
 
         // Regular function should not be transformed
@@ -54,11 +53,10 @@ public class TransformationOriginTests
 
         // Origin should be null for untransformed code
         Assert.Null(func!.Origin);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public Task Origin_ChainedTransformations_CanTraceBack()
+    public async Task Origin_ChainedTransformations_CanTraceBack()
     {
         var source = """
 
@@ -68,7 +66,7 @@ public class TransformationOriginTests
                      }
                      """;
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var (original, constantFolded, cpsTransformed) = engine.ParseWithTransformationSteps(source);
 
         // The CPS transformed tree should have nodes with Origin set
@@ -77,15 +75,14 @@ public class TransformationOriginTests
 
         // Verify we can trace back
         Assert.NotNull(transformedFunc!.Origin);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public Task Origin_WithSourceReference_BothPropertiesWork()
+    public async Task Origin_WithSourceReference_BothPropertiesWork()
     {
         var source = @"async function test() { return 42; }";
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var (original, constantFolded, cpsTransformed) = engine.ParseWithTransformationSteps(source);
 
         var originalFunc = original.Rest.Head as Cons;
@@ -122,11 +119,10 @@ public class TransformationOriginTests
         var sourceText = sourceRef!.GetText();
         Assert.NotNull(sourceText);
         Assert.Contains("async", sourceText);
-        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public Task Origin_OnlyTransformedNodes_HaveOriginSet()
+    public async Task Origin_OnlyTransformedNodes_HaveOriginSet()
     {
         var source = """
 
@@ -136,7 +132,7 @@ public class TransformationOriginTests
                      }
                      """;
 
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var (original, constantFolded, cpsTransformed) = engine.ParseWithTransformationSteps(source);
 
         // The let statement should not be transformed (Origin = null for constant folding)
@@ -148,6 +144,5 @@ public class TransformationOriginTests
         var asyncFunc = cpsTransformed.Rest.Rest.Head as Cons;
         Assert.NotNull(asyncFunc);
         Assert.NotNull(asyncFunc!.Origin);
-        return Task.CompletedTask;
     }
 }

@@ -7,7 +7,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Support_Numeric_Keys_In_Object_Literals()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             var validation = {
                 20: 2889.0000000000045,
@@ -23,7 +23,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Access_Numeric_Keys_With_String()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             var obj = { 42: 'hello' };
             obj['42'];
@@ -34,7 +34,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Access_Numeric_Keys_With_Number()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             var obj = { 42: 'hello' };
             obj[42];
@@ -45,7 +45,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Object_Keys_Should_Return_Numeric_Keys_As_Strings()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             var validation = {
                 20: 1,
@@ -62,7 +62,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Support_Mixed_String_And_Numeric_Keys()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             var obj = {
                 name: 'test',
@@ -78,7 +78,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Support_Floating_Point_Keys()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             var obj = { 3.14: 'pi' };
             obj[3.14];
@@ -89,7 +89,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Support_Zero_As_Key()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             var obj = { 0: 'zero' };
             obj[0];
@@ -102,7 +102,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Support_Negative_Number_Keys_With_Computed_Property()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             var obj = { [-5]: 'negative' };
             obj[-5];

@@ -11,7 +11,7 @@ public class SignalPatternTests
     [Fact(Timeout = 2000)]
     public async Task WhileLoop_WithBreak_WorksCorrectly()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let count = 0;
@@ -22,7 +22,7 @@ public class SignalPatternTests
                                                            }
                                                        }
                                                        count;
-                                                   
+
                                            """);
 
         Assert.Equal(5.0, result);
@@ -33,7 +33,7 @@ public class SignalPatternTests
     [Fact(Timeout = 2000)]
     public async Task WhileLoop_WithContinue_WorksCorrectly()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let sum = 0;
@@ -46,7 +46,7 @@ public class SignalPatternTests
                                                            sum += i;
                                                        }
                                                        sum;
-                                                   
+
                                            """);
 
         // Sum of odd numbers from 1 to 9: 1+3+5+7+9 = 25
@@ -56,7 +56,7 @@ public class SignalPatternTests
     [Fact(Timeout = 2000)]
     public async Task Function_WithReturn_WorksCorrectly()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        function test() {
@@ -64,7 +64,7 @@ public class SignalPatternTests
                                                            return x * 2;
                                                        }
                                                        test();
-                                                   
+
                                            """);
 
         Assert.Equal(20.0, result);
@@ -73,7 +73,7 @@ public class SignalPatternTests
     [Fact(Timeout = 2000)]
     public async Task NestedLoops_WithBreakAndContinue_WorkCorrectly()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let result = 0;
@@ -85,7 +85,7 @@ public class SignalPatternTests
                                                            }
                                                        }
                                                        result;
-                                                   
+
                                            """);
 
         // i=0: j runs 0,1,3,4 (skip 2) = 4
@@ -100,7 +100,7 @@ public class SignalPatternTests
     [Fact(Timeout = 2000)]
     public async Task TryCatchFinally_WithReturn_WorksCorrectly()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        function test() {
@@ -111,7 +111,7 @@ public class SignalPatternTests
                                                            }
                                                        }
                                                        test();
-                                                   
+
                                            """);
 
         Assert.Equal("from try", result);

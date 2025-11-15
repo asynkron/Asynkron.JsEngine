@@ -9,8 +9,8 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
     public async Task TestJ_ParseMethodShorthandVsRegularFunction()
     {
         output.WriteLine("=== Test J: Parse and Compare S-Expressions ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -20,7 +20,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
 
         await engine.Run(@"
             log('=== Comparing method shorthand vs regular function ===');
-            
+
             // Test 1: Regular function syntax
             let obj1 = {
                 [Symbol.iterator]() {
@@ -31,7 +31,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
                     };
                 }
             };
-            
+
             // Test 2: Method shorthand syntax
             let obj2 = {
                 [Symbol.iterator]() {
@@ -42,14 +42,14 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
                     };
                 }
             };
-            
+
             log('Getting iterators...');
             let iter1 = obj1[Symbol.iterator]();
             let iter2 = obj2[Symbol.iterator]();
-            
+
             log('iter1.next type: ' + typeof iter1.next);
             log('iter2.next type: ' + typeof iter2.next);
-            
+
             log('Calling iter1.next()...');
             try {
                 let result1 = iter1.next();
@@ -57,7 +57,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
             } catch (e) {
                 log('iter1.next() ERROR: ' + e);
             }
-            
+
             log('Calling iter2.next()...');
             try {
                 let result2 = iter2.next();
@@ -91,8 +91,8 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
     public async Task TestK_MethodShorthandInDifferentContexts()
     {
         output.WriteLine("=== Test K: Method Shorthand in Different Contexts ===");
-        
-        var engine = new JsEngine();
+
+        await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
@@ -108,7 +108,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
                 }
             };
             log('Result: ' + simple.method());
-            
+
             log('');
             log('=== Test 2: Method shorthand in object returned from function ===');
             function getObject() {
@@ -120,7 +120,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
             }
             let returned = getObject();
             log('Result: ' + returned.method());
-            
+
             log('');
             log('=== Test 3: Method shorthand in object returned from computed property ===');
             let obj3 = {
@@ -134,7 +134,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
             };
             let fromComputed = obj3[Symbol.iterator]();
             log('Result: ' + fromComputed.method());
-            
+
             log('');
             log('=== Test 4: Method shorthand as next() in iterator ===');
             let obj4 = {

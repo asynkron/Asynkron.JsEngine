@@ -7,7 +7,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportDefaultFunction()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Set up a module loader
         engine.SetModuleLoader(modulePath =>
@@ -19,7 +19,7 @@ public class ModuleTests
                                            export default function add(a, b) {
                                                return a + b;
                                            }
-                                       
+
                        """;
             }
 
@@ -30,7 +30,7 @@ public class ModuleTests
 
                                                        import add from "math.js";
                                                        add(2, 3);
-                                                   
+
                                            """);
 
         Assert.Equal(5.0, result);
@@ -39,7 +39,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportDefaultValue()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -49,7 +49,7 @@ public class ModuleTests
 
                                            let config = { name: "MyApp", version: "1.0" };
                                            export default config;
-                                       
+
                        """;
             }
 
@@ -60,7 +60,7 @@ public class ModuleTests
 
                                                        import config from "config.js";
                                                        config.name;
-                                                   
+
                                            """);
 
         Assert.Equal("MyApp", result);
@@ -69,7 +69,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportNamedValues()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -79,7 +79,7 @@ public class ModuleTests
 
                                            export let x = 10;
                                            export let y = 20;
-                                       
+
                        """;
             }
 
@@ -90,7 +90,7 @@ public class ModuleTests
 
                                                        import { x, y } from "utils.js";
                                                        x + y;
-                                                   
+
                                            """);
 
         Assert.Equal(30.0, result);
@@ -99,7 +99,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportNamedFunctions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -110,11 +110,11 @@ public class ModuleTests
                                            export function add(a, b) {
                                                return a + b;
                                            }
-                                           
+
                                            export function multiply(a, b) {
                                                return a * b;
                                            }
-                                       
+
                        """;
             }
 
@@ -125,7 +125,7 @@ public class ModuleTests
 
                                                        import { add, multiply } from "math.js";
                                                        add(2, 3) + multiply(4, 5);
-                                                   
+
                                            """);
 
         Assert.Equal(25.0, result);
@@ -134,7 +134,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ImportWithAlias()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -145,7 +145,7 @@ public class ModuleTests
                                            export function add(a, b) {
                                                return a + b;
                                            }
-                                       
+
                        """;
             }
 
@@ -156,7 +156,7 @@ public class ModuleTests
 
                                                        import { add as sum } from "math.js";
                                                        sum(10, 20);
-                                                   
+
                                            """);
 
         Assert.Equal(30.0, result);
@@ -165,7 +165,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ImportNamespace()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -176,11 +176,11 @@ public class ModuleTests
                                            export function add(a, b) {
                                                return a + b;
                                            }
-                                           
+
                                            export function subtract(a, b) {
                                                return a - b;
                                            }
-                                       
+
                        """;
             }
 
@@ -191,7 +191,7 @@ public class ModuleTests
 
                                                        import * as math from "math.js";
                                                        math.add(10, 5) + math.subtract(10, 5);
-                                                   
+
                                            """);
 
         Assert.Equal(20.0, result);
@@ -200,7 +200,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportList()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -212,7 +212,7 @@ public class ModuleTests
                                            let y = 2;
                                            let z = 3;
                                            export { x, y };
-                                       
+
                        """;
             }
 
@@ -223,7 +223,7 @@ public class ModuleTests
 
                                                        import { x, y } from "utils.js";
                                                        x + y;
-                                                   
+
                                            """);
 
         Assert.Equal(3.0, result);
@@ -232,7 +232,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportWithAlias()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -242,7 +242,7 @@ public class ModuleTests
 
                                            let privateValue = 42;
                                            export { privateValue as value };
-                                       
+
                        """;
             }
 
@@ -253,7 +253,7 @@ public class ModuleTests
 
                                                        import { value } from "utils.js";
                                                        value;
-                                                   
+
                                            """);
 
         Assert.Equal(42.0, result);
@@ -262,7 +262,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ModuleCaching()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var loadCount = 0;
 
         engine.SetModuleLoader(modulePath =>
@@ -276,7 +276,7 @@ public class ModuleTests
                                            export function increment() {
                                                count = count + 1;
                                            }
-                                       
+
                        """;
             }
 
@@ -288,14 +288,14 @@ public class ModuleTests
 
                                                      import { count, increment } from "counter.js";
                                                      increment();
-                                                 
+
                                          """);
 
         var temp1 = await engine.Evaluate("""
 
                                                       import { count } from "counter.js";
                                                       count;
-                                                  
+
                                           """);
 
         // Module should only be loaded once
@@ -307,7 +307,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportConst()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -317,7 +317,7 @@ public class ModuleTests
 
                                            export const PI = 3.14159;
                                            export const E = 2.71828;
-                                       
+
                        """;
             }
 
@@ -328,7 +328,7 @@ public class ModuleTests
 
                                                        import { PI, E } from "constants.js";
                                                        PI + E;
-                                                   
+
                                            """);
 
         Assert.Equal(5.85987, result);
@@ -337,7 +337,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportClass()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -350,12 +350,12 @@ public class ModuleTests
                                                    this.x = x;
                                                    this.y = y;
                                                }
-                                               
+
                                                distance() {
                                                    return Math.sqrt(this.x * this.x + this.y * this.y);
                                                }
                                            }
-                                       
+
                        """;
             }
 
@@ -367,7 +367,7 @@ public class ModuleTests
                                                        import { Point } from "point.js";
                                                        let p = new Point(3, 4);
                                                        p.distance();
-                                                   
+
                                            """);
 
         Assert.Equal(5.0, result);
@@ -376,7 +376,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DefaultAndNamedImports()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -387,11 +387,11 @@ public class ModuleTests
                                            export default function main() {
                                                return "main";
                                            }
-                                           
+
                                            export function helper() {
                                                return "helper";
                                            }
-                                       
+
                        """;
             }
 
@@ -402,7 +402,7 @@ public class ModuleTests
 
                                                        import main, { helper } from "module.js";
                                                        main() + "-" + helper();
-                                                   
+
                                            """);
 
         Assert.Equal("main-helper", result);
@@ -411,7 +411,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task SideEffectImport()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -420,7 +420,7 @@ public class ModuleTests
                 return """
 
                                            let loaded = true;
-                                       
+
                        """;
             }
 
@@ -431,7 +431,7 @@ public class ModuleTests
         var temp = await engine.Evaluate("""
 
                                                      import "side-effect.js";
-                                                 
+
                                          """);
 
         // The side effect should have run, but since it's in a module scope,
@@ -442,7 +442,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportDefaultClass()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -455,12 +455,12 @@ public class ModuleTests
                                                    this.width = width;
                                                    this.height = height;
                                                }
-                                               
+
                                                area() {
                                                    return this.width * this.height;
                                                }
                                            }
-                                       
+
                        """;
             }
 
@@ -472,7 +472,7 @@ public class ModuleTests
                                                        import Rectangle from "Rectangle.js";
                                                        let rect = new Rectangle(5, 10);
                                                        rect.area();
-                                                   
+
                                            """);
 
         Assert.Equal(50.0, result);
@@ -481,7 +481,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task MultipleImportsFromSameModule()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -493,7 +493,7 @@ public class ModuleTests
                                            export function sub(a, b) { return a - b; }
                                            export function mul(a, b) { return a * b; }
                                            export function div(a, b) { return a / b; }
-                                       
+
                        """;
             }
 
@@ -504,7 +504,7 @@ public class ModuleTests
 
                                                        import { add, sub, mul, div } from "math.js";
                                                        add(10, 5) + sub(10, 5) + mul(10, 5) + div(10, 5);
-                                                   
+
                                            """);
 
         Assert.Equal(72.0, result);
@@ -513,7 +513,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DynamicImport_LoadsModuleAsynchronously()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -524,7 +524,7 @@ public class ModuleTests
                                            export function greet(name) {
                                                return "Hello, " + name;
                                            }
-                                       
+
                        """;
             }
 
@@ -537,7 +537,7 @@ public class ModuleTests
                                      import("dynamic.js").then(function(module) {
                                          result = module.greet("World");
                                      });
-                                 
+
                          """);
 
         var result = await engine.Evaluate("result;");
@@ -547,7 +547,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DynamicImport_WithAsyncAwait()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -561,7 +561,7 @@ public class ModuleTests
                                            export function divide(a, b) {
                                                return a / b;
                                            }
-                                       
+
                        """;
             }
 
@@ -574,12 +574,12 @@ public class ModuleTests
                                          let calc = await import("calculator.js");
                                          return calc.multiply(10, 5) + calc.divide(100, 2);
                                      }
-                                     
+
                                      let finalResult = 0;
                                      calculate().then(function(result) {
                                          finalResult = result;
                                      });
-                                 
+
                          """);
 
         var result = await engine.Evaluate("finalResult;");
@@ -589,7 +589,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DynamicImport_DefaultExport()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -600,7 +600,7 @@ public class ModuleTests
                                            export default function count() {
                                                return 42;
                                            }
-                                       
+
                        """;
             }
 
@@ -613,7 +613,7 @@ public class ModuleTests
                                      import("counter.js").then(function(module) {
                                          value = module.default();
                                      });
-                                 
+
                          """);
 
         var result = await engine.Evaluate("value;");
@@ -623,7 +623,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DynamicImport_ModuleIsCached()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var loadCount = 0;
         engine.SetModuleLoader(modulePath =>
@@ -633,10 +633,10 @@ public class ModuleTests
                 loadCount++;
                 return """
 
-                                           export let counter = 
+                                           export let counter =
                        """ + loadCount + """
                                          ;
-                                                         
+
                                          """;
             }
 
@@ -647,7 +647,7 @@ public class ModuleTests
 
                                      let first = 0;
                                      let second = 0;
-                                     
+
                                      import("cached.js").then(function(module) {
                                          first = module.counter;
                                      }).then(function() {
@@ -655,7 +655,7 @@ public class ModuleTests
                                      }).then(function(module) {
                                          second = module.counter;
                                      });
-                                 
+
                          """);
 
         var first = await engine.Evaluate("first;");
@@ -669,7 +669,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DynamicImport_ErrorHandling()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         engine.SetModuleLoader(modulePath => { throw new FileNotFoundException($"Module not found: {modulePath}"); });
 
@@ -679,7 +679,7 @@ public class ModuleTests
                                      import("nonexistent.js")["catch"](function(error) {
                                          errorCaught = true;
                                      });
-                                 
+
                          """);
 
         var result = await engine.Evaluate("errorCaught;");

@@ -7,7 +7,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task SetTimeout_ExecutesCallbackAfterDelay()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var executed = false;
 
         engine.SetGlobalFunction("callback", args =>
@@ -19,7 +19,7 @@ public class TimerTests
         await engine.Run("""
 
                                      setTimeout(callback, 10);
-                                 
+
                          """);
 
         Assert.True(executed, "setTimeout callback should have been executed");
@@ -28,13 +28,13 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task SetTimeout_ReturnsTimerId()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         var result = await engine.Run("""
 
                                                   let timerId = setTimeout(function() {}, 100);
                                                   timerId;
-                                              
+
                                       """);
 
         Assert.IsType<double>(result);
@@ -44,7 +44,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task ClearTimeout_PreventsExecution()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var executed = false;
 
         engine.SetGlobalFunction("callback", args =>
@@ -57,7 +57,7 @@ public class TimerTests
 
                                      let timerId = setTimeout(callback, 10);
                                      clearTimeout(timerId);
-                                 
+
                          """);
 
         // Wait a bit to ensure callback would have executed if not cleared
@@ -69,7 +69,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task SetInterval_ExecutesCallbackRepeatedly()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var count = 0;
 
         engine.SetGlobalFunction("callback", args =>
@@ -87,7 +87,7 @@ public class TimerTests
                                                       clearInterval(timerId);
                                                   }, 100);
                                                   getCount();
-                                              
+
                                       """);
 
         // Should have executed multiple times
@@ -97,7 +97,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task ClearInterval_StopsExecution()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var count = 0;
 
         engine.SetGlobalFunction("callback", args =>
@@ -110,7 +110,7 @@ public class TimerTests
 
                                      let timerId = setInterval(callback, 10);
                                      clearInterval(timerId);
-                                 
+
                          """);
 
         // Wait a bit
@@ -124,7 +124,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task SetTimeout_WithZeroDelay_ExecutesAsynchronously()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var order = new List<string>();
 
         engine.SetGlobalFunction("addToOrder", args =>
@@ -144,7 +144,7 @@ public class TimerTests
                                          addToOrder("timeout");
                                      }, 0);
                                      addToOrder("end");
-                                 
+
                          """);
 
         Assert.Equal(new[] { "start", "end", "timeout" }, order);
@@ -153,7 +153,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task SetTimeout_CanAccessClosureVariables()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var capturedValue = "";
 
         engine.SetGlobalFunction("capture", args =>
@@ -172,7 +172,7 @@ public class TimerTests
                                      setTimeout(function() {
                                          capture(message);
                                      }, 10);
-                                 
+
                          """);
 
         Assert.Equal("Hello from closure", capturedValue);

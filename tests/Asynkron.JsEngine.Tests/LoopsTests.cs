@@ -8,7 +8,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForLoopWithCommaInInitializer()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4, 5];
@@ -17,7 +17,7 @@ public class LoopsTests
                                                            sum = sum + arr[i];
                                                        }
                                                        sum;
-                                                   
+
                                                    """);
         Assert.Equal(15d, result);
     }
@@ -25,7 +25,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForLoopWithMultipleCommaExpressionsInInitializer()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let result = '';
@@ -33,7 +33,7 @@ public class LoopsTests
                                                            result = result + a + b + c;
                                                        }
                                                        result;
-                                                   
+
                                                    """);
         Assert.Equal("123223", result);
     }
@@ -41,7 +41,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForLoopWithCommaExpressionAndComplexInitializer()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30, 40];
@@ -50,7 +50,7 @@ public class LoopsTests
                                                            total = total + (arr[i] * multiplier);
                                                        }
                                                        total;
-                                                   
+
                                                    """);
         Assert.Equal(200d, result);
     }
@@ -58,7 +58,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForLoopWithCommaInCondition()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let sum = 0;
@@ -66,7 +66,7 @@ public class LoopsTests
                                                            sum = sum + i;
                                                        }
                                                        sum;
-                                                   
+
                                                    """);
         Assert.Equal(10d, result);
     }
@@ -74,7 +74,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForLoopWithCommaInIncrement()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let sum = 0;
@@ -84,7 +84,7 @@ public class LoopsTests
                                                            sum = sum + i + j;
                                                        }
                                                        sum;
-                                                   
+
                                                    """);
         Assert.Equal(9d, result);
     }
@@ -93,7 +93,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForInLoopBasic()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 1, b: 2, c: 3 };
@@ -102,7 +102,7 @@ public class LoopsTests
                                                            keys = keys + key;
                                                        }
                                                        keys;
-                                                   
+
                                            """);
         Assert.Equal("abc", result);
     }
@@ -110,7 +110,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForInLoopWithValues()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 10, y: 20, z: 30 };
@@ -119,7 +119,7 @@ public class LoopsTests
                                                            sum = sum + obj[key];
                                                        }
                                                        sum;
-                                                   
+
                                            """);
         Assert.Equal(60d, result);
     }
@@ -129,7 +129,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForInLoopArray()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
@@ -138,7 +138,7 @@ public class LoopsTests
                                                            indices = indices + i;
                                                        }
                                                        indices;
-                                                   
+
                                            """);
         Assert.Equal("012", result);
     }
@@ -146,7 +146,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForInLoopWithBreak()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 1, b: 2, c: 3, d: 4 };
@@ -158,7 +158,7 @@ public class LoopsTests
                                                            }
                                                        }
                                                        result;
-                                                   
+
                                            """);
         Assert.Equal("ab", result);
     }
@@ -166,7 +166,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForInLoopWithContinue()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 1, b: 2, c: 3, d: 4 };
@@ -178,7 +178,7 @@ public class LoopsTests
                                                            result = result + key;
                                                        }
                                                        result;
-                                                   
+
                                            """);
         Assert.Equal("acd", result);
     }
@@ -187,7 +187,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForOfLoopArray()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
@@ -196,7 +196,7 @@ public class LoopsTests
                                                            sum = sum + value;
                                                        }
                                                        sum;
-                                                   
+
                                            """);
         Assert.Equal(60d, result);
     }
@@ -204,7 +204,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForOfLoopString()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = 'abc';
@@ -213,7 +213,7 @@ public class LoopsTests
                                                            result = result + char;
                                                        }
                                                        result;
-                                                   
+
                                            """);
         Assert.Equal("abc", result);
     }
@@ -221,7 +221,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForOfLoopWithBreak()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4, 5];
@@ -233,7 +233,7 @@ public class LoopsTests
                                                            sum = sum + value;
                                                        }
                                                        sum;
-                                                   
+
                                            """);
         Assert.Equal(6d, result);
     }
@@ -241,7 +241,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForOfLoopWithContinue()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4, 5];
@@ -253,7 +253,7 @@ public class LoopsTests
                                                            sum = sum + value;
                                                        }
                                                        sum;
-                                                   
+
                                            """);
         Assert.Equal(12d, result);
     }
@@ -261,7 +261,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForOfLoopNested()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
                                                        let matrix = [[1, 2], [3, 4]];
@@ -272,7 +272,7 @@ public class LoopsTests
                                                            }
                                                        }
                                                        sum;
-                                                   
+
                                            """);
         Assert.Equal(10d, result);
     }

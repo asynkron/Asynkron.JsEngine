@@ -7,7 +7,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_IsInteger_ReturnsTrueForIntegers()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.isInteger(5);");
         Assert.True((bool)result!);
     }
@@ -15,7 +15,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_IsInteger_ReturnsFalseForDecimals()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.isInteger(5.5);");
         Assert.False((bool)result!);
     }
@@ -23,7 +23,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_IsInteger_ReturnsFalseForNaN()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.isInteger(0 / 0);");
         Assert.False((bool)result!);
     }
@@ -31,7 +31,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_IsFinite_ReturnsTrueForFiniteNumbers()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.isFinite(100);");
         Assert.True((bool)result!);
     }
@@ -39,7 +39,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_IsFinite_ReturnsFalseForInfinity()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.isFinite(1 / 0);");
         Assert.False((bool)result!);
     }
@@ -47,7 +47,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_IsNaN_ReturnsTrueForNaN()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.isNaN(0 / 0);");
         Assert.True((bool)result!);
     }
@@ -55,7 +55,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_IsNaN_ReturnsFalseForNumbers()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.isNaN(5);");
         Assert.False((bool)result!);
     }
@@ -63,7 +63,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_IsSafeInteger_ReturnsTrueForSafeIntegers()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.isSafeInteger(100);");
         Assert.True((bool)result!);
     }
@@ -71,7 +71,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_IsSafeInteger_ReturnsFalseForLargeNumbers()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.isSafeInteger(9007199254740992);"); // MAX_SAFE_INTEGER + 1
         Assert.False((bool)result!);
     }
@@ -79,7 +79,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_ParseFloat_ParsesDecimalNumbers()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.parseFloat('3.14');");
         Assert.Equal(3.14d, result);
     }
@@ -87,7 +87,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_ParseFloat_HandlesLeadingWhitespace()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.parseFloat('  42.5');");
         Assert.Equal(42.5d, result);
     }
@@ -95,7 +95,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_ParseFloat_StopsAtNonNumeric()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.parseFloat('3.14abc');");
         Assert.Equal(3.14d, result);
     }
@@ -105,7 +105,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_ParseInt_ParsesIntegers()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.parseInt('42');");
         Assert.Equal(42d, result);
     }
@@ -113,7 +113,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_ParseInt_WithRadix()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.parseInt('1010', 2);");
         Assert.Equal(10d, result);
     }
@@ -121,7 +121,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_ParseInt_WithHexRadix()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("Number.parseInt('FF', 16);");
         Assert.Equal(255d, result);
     }
@@ -129,7 +129,7 @@ public class NumberStaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Number_Constants_AreAvailable()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // MAX_SAFE_INTEGER
         var maxSafe = await engine.Evaluate("Number.MAX_SAFE_INTEGER;");
@@ -163,7 +163,7 @@ public class NumberStaticMethodsTests
             // Test with a culture that uses comma as decimal separator (e.g., German)
             Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
 
-            var engine = new JsEngine();
+            await using var engine = new JsEngine();
             var result = await engine.Evaluate("Number.parseFloat('3.14');");
 
             // Should parse 3.14 with a dot, not a comma, regardless of culture
@@ -187,7 +187,7 @@ public class NumberStaticMethodsTests
             // Test with a culture that uses comma as decimal separator (e.g., French)
             Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("fr-FR");
 
-            var engine = new JsEngine();
+            await using var engine = new JsEngine();
             var result = await engine.Evaluate("Number('42.5');");
 
             // Should parse 42.5 with a dot, not a comma, regardless of culture

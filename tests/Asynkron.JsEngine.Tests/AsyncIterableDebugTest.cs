@@ -72,7 +72,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 5000)]
-    public async Task GlobalIterable_ParsedCode()
+    public Task GlobalIterable_ParsedCode()
     {
         var engine = new JsEngine();
         
@@ -99,6 +99,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
         var parsed = engine.Parse(code);
         output.WriteLine("=== PARSED S-EXPRESSION ===");
         output.WriteLine(parsed.ToString());
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 5000)]

@@ -66,7 +66,7 @@ public class ConstantFoldingTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ConstantFolding_ShowsTransformation()
+    public Task ConstantFolding_ShowsTransformation()
     {
         var engine = new JsEngine();
         var source = "let x = 1 + 2 * 7;";
@@ -92,5 +92,6 @@ public class ConstantFoldingTests(ITestOutputHelper output)
         output.WriteLine(original.ToString());
         output.WriteLine("\nAfter constant folding:");
         output.WriteLine(constantFolded.ToString());
+        return Task.CompletedTask;
     }
 }

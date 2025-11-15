@@ -112,7 +112,7 @@ let z = ;";
         Assert.NotNull(ex.Column);
         Assert.True(ex.Line > 0);
         Assert.True(ex.Column > 0);
-        
+
         // Verify the line/column in the message
         Assert.Contains($"at line {ex.Line}, column {ex.Column}", ex.Message);
     }
@@ -131,7 +131,7 @@ let z = ;";
         // The marker should be roughly at the position of the semicolon
         // Since the context includes the full line, the marker should be visible
         var lines = ex.Message.Split('\n');
-        var hasMarkerLine = lines.Any(l => l.Contains("^"));
+        var hasMarkerLine = lines.Any(l => l.Contains('^'));
         Assert.True(hasMarkerLine, "Error message should contain a marker line with ^");
     }
 }

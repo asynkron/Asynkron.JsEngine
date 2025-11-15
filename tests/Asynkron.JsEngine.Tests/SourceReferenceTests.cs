@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 public class SourceReferenceTests
 {
     [Fact(Timeout = 2000)]
-    public async Task SourceReference_ForLoop_CapturesSourceRange()
+    public Task SourceReference_ForLoop_CapturesSourceRange()
     {
         var source = """
 
@@ -31,10 +31,11 @@ public class SourceReferenceTests
         var capturedText = forStatement.SourceReference!.GetText();
         Assert.Contains("for", capturedText);
         Assert.Contains("console.log", capturedText);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task SourceReference_MultipleStatements_EachHasOwnReference()
+    public Task SourceReference_MultipleStatements_EachHasOwnReference()
     {
         var source = """
 
@@ -62,10 +63,11 @@ public class SourceReferenceTests
 
         Assert.Contains("i < 5", firstText);
         Assert.Contains("j < 3", secondText);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task SourceReference_GetText_ReturnsCorrectSourceText()
+    public Task SourceReference_GetText_ReturnsCorrectSourceText()
     {
         var source = @"for (let i = 0; i < 5; i++) { }";
 
@@ -84,10 +86,11 @@ public class SourceReferenceTests
         Assert.Contains("let i = 0", text);
         Assert.Contains("i < 5", text);
         Assert.Contains("i++", text);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task SourceReference_LineAndColumn_TrackCorrectly()
+    public Task SourceReference_LineAndColumn_TrackCorrectly()
     {
         var source = """
                      let x = 1;
@@ -109,5 +112,6 @@ public class SourceReferenceTests
         // Verify line numbers (line 2 is where 'for' starts)
         // Note: Line numbers are 1-based
         Assert.True(sourceRef!.StartLine >= 2);
+        return Task.CompletedTask;
     }
 }

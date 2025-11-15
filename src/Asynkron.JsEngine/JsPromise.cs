@@ -140,7 +140,7 @@ public sealed class JsPromise(JsEngine engine)
                     nextPromise.Reject(ex.Message);
                 }
 
-                await Task.CompletedTask;
+                await Task.CompletedTask.ConfigureAwait(false);
             });
     }
 }

@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class ParserTests
 {
     [Fact(Timeout = 2000)]
-    public async Task ParseLetDeclarationProducesExpectedSExpression()
+    public Task ParseLetDeclarationProducesExpectedSExpression()
     {
         var engine = new JsEngine();
         // Use ParseWithoutTransformation to test parser structure without constant folding
@@ -24,10 +24,11 @@ public class ParserTests
         var expressionStatement = Assert.IsType<Cons>(program.Rest.Rest.Head);
         Assert.Same(JsSymbols.ExpressionStatement, expressionStatement.Head);
         Assert.Equal(Symbol.Intern("answer"), expressionStatement.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseVarDeclarationWithoutInitializerUsesSentinel()
+    public Task ParseVarDeclarationWithoutInitializerUsesSentinel()
     {
         var engine = new JsEngine();
         var program = engine.Parse("var counter; counter;");
@@ -37,10 +38,11 @@ public class ParserTests
         Assert.Equal(Symbol.Intern("counter"), varStatement.Rest.Head);
         Assert.Same(JsSymbols.Uninitialized,
             varStatement.Rest.Rest.Head); // Evaluator fills this in with null later on.
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseConstDeclarationProducesConstSymbol()
+    public Task ParseConstDeclarationProducesConstSymbol()
     {
         var engine = new JsEngine();
         var program = engine.Parse("const answer = 42; answer;");
@@ -49,10 +51,11 @@ public class ParserTests
         Assert.Same(JsSymbols.Const, constStatement.Head);
         Assert.Equal(Symbol.Intern("answer"), constStatement.Rest.Head);
         Assert.Equal(42d, constStatement.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseObjectLiteralAndPropertyAccess()
+    public Task ParseObjectLiteralAndPropertyAccess()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let obj = { a: 10, x: function () { return this.x; } }; obj.a;");
@@ -91,10 +94,11 @@ public class ParserTests
         Assert.Same(JsSymbols.GetProperty, propertyAccess.Head);
         Assert.Equal(Symbol.Intern("obj"), propertyAccess.Rest.Head);
         Assert.Equal("a", propertyAccess.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParsePropertyAssignment()
+    public Task ParsePropertyAssignment()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let obj = {}; obj.value = 5;");
@@ -107,10 +111,11 @@ public class ParserTests
         Assert.Equal(Symbol.Intern("obj"), assignment.Rest.Head);
         Assert.Equal("value", assignment.Rest.Rest.Head);
         Assert.Equal(5d, assignment.Rest.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseArrayLiteralAndIndexedAssignment()
+    public Task ParseArrayLiteralAndIndexedAssignment()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let numbers = [1, 2, 3]; numbers[1] = numbers[0];");
@@ -137,10 +142,11 @@ public class ParserTests
         Assert.Same(JsSymbols.GetIndex, valueExpression.Head); // ensure RHS preserves the index expression form
         Assert.Equal(Symbol.Intern("numbers"), valueExpression.Rest.Head);
         Assert.Equal(0d, valueExpression.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseLogicalOperatorsRespectPrecedence()
+    public Task ParseLogicalOperatorsRespectPrecedence()
     {
         var engine = new JsEngine();
         // Use ParseWithoutTransformation to test parser structure without constant folding
@@ -157,10 +163,11 @@ public class ParserTests
         Assert.Equal(Symbol.Intern("&&"), logicalAnd.Head);
         Assert.Equal(false, logicalAnd.Rest.Head);
         Assert.Equal(true, logicalAnd.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseNullishCoalescingProducesOperatorSymbol()
+    public Task ParseNullishCoalescingProducesOperatorSymbol()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let value = null ?? 42;");
@@ -172,10 +179,11 @@ public class ParserTests
         Assert.Equal(Symbol.Intern("??"), coalesce.Head);
         Assert.Null(coalesce.Rest.Head);
         Assert.Equal(42d, coalesce.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseStrictEqualityOperators()
+    public Task ParseStrictEqualityOperators()
     {
         var engine = new JsEngine();
         // Use ParseWithoutTransformation to test parser structure without constant folding
@@ -196,10 +204,11 @@ public class ParserTests
         Assert.Equal(Symbol.Intern("!=="), inequalityExpression.Head);
         Assert.Equal(2d, inequalityExpression.Rest.Head);
         Assert.Equal(3d, inequalityExpression.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseNewExpression()
+    public Task ParseNewExpression()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let instance = new Factory.Builder(1, 2); instance;");
@@ -218,10 +227,11 @@ public class ParserTests
 
         Assert.Equal(1d, newExpression.Rest.Rest.Head);
         Assert.Equal(2d, newExpression.Rest.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseClassDeclarationProducesConstructorAndMethods()
+    public Task ParseClassDeclarationProducesConstructorAndMethods()
     {
         var engine = new JsEngine();
         var program =
@@ -252,10 +262,11 @@ public class ParserTests
         var methodLambda = Assert.IsType<Cons>(methodEntry.Rest.Rest.Head);
         Assert.Same(JsSymbols.Lambda, methodLambda.Head);
         Assert.Null(methodLambda.Rest.Head); // class methods stay anonymous like standard method syntax
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseClassDeclarationCapturesExtendsClause()
+    public Task ParseClassDeclarationCapturesExtendsClause()
     {
         var engine = new JsEngine();
         var program = engine.Parse("class Derived extends Base.Type { method() { return super.method(); } }");
@@ -270,10 +281,11 @@ public class ParserTests
         Assert.Same(JsSymbols.GetProperty, baseReference.Head);
         Assert.Equal(Symbol.Intern("Base"), baseReference.Rest.Head);
         Assert.Equal("Type", baseReference.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseSwitchStatementKeepsClauseOrder()
+    public Task ParseSwitchStatementKeepsClauseOrder()
     {
         var engine = new JsEngine();
         var program = engine.Parse("switch (value) { case 1: foo(); case 2: break; default: bar(); }");
@@ -299,10 +311,11 @@ public class ParserTests
         Assert.Same(JsSymbols.Default, thirdClause.Head);
         var defaultBody = Assert.IsType<Cons>(thirdClause.Rest.Head);
         Assert.Same(JsSymbols.Block, defaultBody.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseTryCatchFinallyStatement()
+    public Task ParseTryCatchFinallyStatement()
     {
         var engine = new JsEngine();
         var program = engine.Parse("try { action(); } catch (err) { handle(err); } finally { cleanup(); }");
@@ -322,10 +335,11 @@ public class ParserTests
 
         var finallyBlock = Assert.IsType<Cons>(tryStatement.Rest.Rest.Rest.Head);
         Assert.Same(JsSymbols.Block, finallyBlock.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseTryFinallyWithoutCatchStoresNullCatch()
+    public Task ParseTryFinallyWithoutCatchStoresNullCatch()
     {
         var engine = new JsEngine();
         var program = engine.Parse("try { work(); } finally { tidy(); }");
@@ -337,10 +351,11 @@ public class ParserTests
 
         var finallyBlock = Assert.IsType<Cons>(tryStatement.Rest.Rest.Rest.Head);
         Assert.Same(JsSymbols.Block, finallyBlock.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseIfAndLoopStatements()
+    public Task ParseIfAndLoopStatements()
     {
         var engine = new JsEngine();
         var program =
@@ -372,10 +387,11 @@ public class ParserTests
         var doWhileStatement = Assert.IsType<Cons>(program.Rest.Rest.Rest.Rest.Head);
         Assert.Same(JsSymbols.DoWhile, doWhileStatement.Head);
         Assert.Equal(false, doWhileStatement.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseRestParameterInFunction()
+    public Task ParseRestParameterInFunction()
     {
         var engine = new JsEngine();
         var program = engine.Parse("function test(a, b, ...rest) { return rest; }");
@@ -394,10 +410,11 @@ public class ParserTests
         var restParam = Assert.IsType<Cons>(parameters.Rest.Rest.Head);
         Assert.Same(JsSymbols.Rest, restParam.Head);
         Assert.Equal(Symbol.Intern("rest"), restParam.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseSpreadInArrayLiteral()
+    public Task ParseSpreadInArrayLiteral()
     {
         var engine = new JsEngine();
         var program = engine.Parse("let arr = [1, ...other, 2];");
@@ -416,10 +433,11 @@ public class ParserTests
 
         // Third element is literal 2
         Assert.Equal(2d, arrayLiteral.Rest.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseSpreadInFunctionCall()
+    public Task ParseSpreadInFunctionCall()
     {
         var engine = new JsEngine();
         var program = engine.Parse("foo(1, ...args, 2);");
@@ -441,16 +459,17 @@ public class ParserTests
 
         // Third argument is literal 2
         Assert.Equal(2d, callExpr.Rest.Rest.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseCommaSeparatedVarDeclarations()
+    public Task ParseCommaSeparatedVarDeclarations()
     {
         var engine = new JsEngine();
         var program = JsEngine.ParseWithoutTransformation("var last = 42, A = 3877, C = 2957;");
 
         Assert.Same(JsSymbols.Program, program.Head);
-        
+
         // First var declaration
         var var1 = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.Var, var1.Head);
@@ -468,16 +487,17 @@ public class ParserTests
         Assert.Same(JsSymbols.Var, var3.Head);
         Assert.Equal(Symbol.Intern("C"), var3.Rest.Head);
         Assert.Equal(2957d, var3.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseCommaSeparatedVarDeclarationsWithUninitializedVars()
+    public Task ParseCommaSeparatedVarDeclarationsWithUninitializedVars()
     {
         var engine = new JsEngine();
         var program = JsEngine.ParseWithoutTransformation("var a = [], i, l = 5, v;");
 
         Assert.Same(JsSymbols.Program, program.Head);
-        
+
         // First var declaration: a = []
         var var1 = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.Var, var1.Head);
@@ -502,6 +522,7 @@ public class ParserTests
         Assert.Same(JsSymbols.Var, var4.Head);
         Assert.Equal(Symbol.Intern("v"), var4.Rest.Head);
         Assert.Same(JsSymbols.Uninitialized, var4.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
@@ -521,18 +542,18 @@ public class ParserTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseCommaSeparatedVarDeclarationsWithComments()
+    public Task ParseCommaSeparatedVarDeclarationsWithComments()
     {
         var engine = new JsEngine();
         var code = @"var a = [],     // The array holding the partial texts.
             i,          // Loop counter.
             l = 10,
             v;          // The value to be stringified.";
-        
+
         var program = JsEngine.ParseWithoutTransformation(code);
 
         Assert.Same(JsSymbols.Program, program.Head);
-        
+
         // Should have 4 var declarations
         var var1 = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.Var, var1.Head);
@@ -550,17 +571,18 @@ public class ParserTests
         var var4 = Assert.IsType<Cons>(program.Rest.Rest.Rest.Rest.Head);
         Assert.Same(JsSymbols.Var, var4.Head);
         Assert.Equal(Symbol.Intern("v"), var4.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseCommaSeparatedLetDeclarations()
+    public Task ParseCommaSeparatedLetDeclarations()
     {
         var engine = new JsEngine();
         // Note: Let declarations require initializers in this interpreter
         var program = JsEngine.ParseWithoutTransformation("let x = 1, y = 2, z = 3;");
 
         Assert.Same(JsSymbols.Program, program.Head);
-        
+
         var let1 = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.Let, let1.Head);
         Assert.Equal(Symbol.Intern("x"), let1.Rest.Head);
@@ -575,16 +597,17 @@ public class ParserTests
         Assert.Same(JsSymbols.Let, let3.Head);
         Assert.Equal(Symbol.Intern("z"), let3.Rest.Head);
         Assert.Equal(3d, let3.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseCommaSeparatedConstDeclarations()
+    public Task ParseCommaSeparatedConstDeclarations()
     {
         var engine = new JsEngine();
         var program = JsEngine.ParseWithoutTransformation("const x = 1, y = 2, z = 3;");
 
         Assert.Same(JsSymbols.Program, program.Head);
-        
+
         var const1 = Assert.IsType<Cons>(program.Rest.Head);
         Assert.Same(JsSymbols.Const, const1.Head);
         Assert.Equal(Symbol.Intern("x"), const1.Rest.Head);
@@ -599,6 +622,7 @@ public class ParserTests
         Assert.Same(JsSymbols.Const, const3.Head);
         Assert.Equal(Symbol.Intern("z"), const3.Rest.Head);
         Assert.Equal(3d, const3.Rest.Rest.Head);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
@@ -733,13 +757,13 @@ public class ParserTests
     public async Task ExceptionMessagesIncludeSourceReferences()
     {
         var engine = new JsEngine();
-        
+
         // Test that error messages include source references
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
             await engine.Evaluate("var x = 5; x();");
         });
-        
+
         // The error message should contain "at" followed by source reference or just verify it's enhanced
         // After transformation, source references may or may not be preserved
         // The key improvement is the FormatErrorMessage helper is in place for when they are

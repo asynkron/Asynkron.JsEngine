@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 public class AsyncAwaitTests
 {
     [Fact(Timeout = 2000)]
-    public async Task AsyncFunction_CanBeParsed()
+    public Task AsyncFunction_CanBeParsed()
     {
         // Arrange
         var engine = new JsEngine();
@@ -24,6 +24,7 @@ public class AsyncAwaitTests
                                    """);
 
         Assert.NotNull(program);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
@@ -42,7 +43,7 @@ public class AsyncAwaitTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncFunctionExpression_CanBeParsed()
+    public Task AsyncFunctionExpression_CanBeParsed()
     {
         // Arrange
         var engine = new JsEngine();
@@ -57,10 +58,11 @@ public class AsyncAwaitTests
                                    """);
 
         Assert.NotNull(program);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AwaitExpression_CanBeParsed()
+    public Task AwaitExpression_CanBeParsed()
     {
         // Arrange
         var engine = new JsEngine();
@@ -76,6 +78,7 @@ public class AsyncAwaitTests
                                    """);
 
         Assert.NotNull(program);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
@@ -340,7 +343,7 @@ public class AsyncAwaitTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task CpsTransformer_AlreadyTransformedCodeDoesNotNeedTransformation()
+    public Task CpsTransformer_AlreadyTransformedCodeDoesNotNeedTransformation()
     {
         // Arrange
         var engine = new JsEngine();
@@ -361,10 +364,11 @@ public class AsyncAwaitTests
 
         // Assert - Already transformed code should not need transformation
         Assert.False(needsTransform);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task CpsTransformer_AlreadyTransformedAwaitDoesNotNeedTransformation()
+    public Task CpsTransformer_AlreadyTransformedAwaitDoesNotNeedTransformation()
     {
         // Arrange
         var engine = new JsEngine();
@@ -386,10 +390,11 @@ public class AsyncAwaitTests
 
         // Assert - Already transformed code should not need transformation
         Assert.False(needsTransform);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task CpsTransformer_TransformIsIdempotent()
+    public Task CpsTransformer_TransformIsIdempotent()
     {
         // Arrange
         var engine = new JsEngine();
@@ -410,6 +415,7 @@ public class AsyncAwaitTests
         // Assert - Should return the same program unchanged since it doesn't need transformation
         Assert.NotNull(transformed);
         Assert.Same(program, transformed); // Should be the same instance
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]

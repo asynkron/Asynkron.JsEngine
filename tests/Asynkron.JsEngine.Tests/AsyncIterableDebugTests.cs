@@ -26,28 +26,28 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         await engine.Run("""
 
                                      let result = "";
-                                     
+
                                      log("Before async function");
-                                     
+
                                      async function test() {
                                          log("Inside test function");
                                          log("About to start for-await-of");
-                                         
+
                                          for await (let char of "hello") {
                                              log("In loop, char: " + char);
                                              __debug();
                                              result = result + char;
                                              log("After append, result: " + result);
                                          }
-                                         
+
                                          log("After loop, final result: " + result);
                                          __debug();
                                      }
-                                     
+
                                      log("About to call test()");
                                      test();
                                      log("After test() call");
-                                 
+
                          """);
 
         var result = await engine.Evaluate("result;");
@@ -67,7 +67,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ForAwaitOf_WithString_ShowTransformation()
+    public Task ForAwaitOf_WithString_ShowTransformation()
     {
         // Show the transformation of the for-await-of with string
         var source = """
@@ -78,7 +78,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                          result = result + char;
                                      }
                                  }
-                             
+
                      """;
 
         var engine = new JsEngine();
@@ -93,6 +93,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
         output.WriteLine(transformedSexpr.ToString());
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
@@ -112,26 +113,26 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
 
                                      let result = "";
                                      let arr = ["h", "e", "l", "l", "o"];
-                                     
+
                                      log("Before async function");
-                                     
+
                                      async function test() {
                                          log("Inside test function");
                                          log("About to start for-await-of");
-                                         
+
                                          for await (let char of arr) {
                                              log("In loop, char: " + char);
                                              result = result + char;
                                              log("After append, result: " + result);
                                          }
-                                         
+
                                          log("After loop, final result: " + result);
                                      }
-                                     
+
                                      log("About to call test()");
                                      test();
                                      log("After test() call");
-                                 
+
                          """);
 
         var result = await engine.Evaluate("result;");
@@ -162,7 +163,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                                        }
                                                        log("After for-await");
                                                        result;
-                                                   
+
                                            """);
 
         output.WriteLine($"Final result: '{result}'");
@@ -182,7 +183,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                                   let str = "hello";
                                                   let hasIterator = typeof str[Symbol.iterator] === "function";
                                                   hasIterator;
-                                              
+
                                       """);
 
         output.WriteLine($"String has iterator: {result}");
@@ -200,13 +201,13 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                      let str = "hello";
                                      let result = "";
                                      let iterator = str[Symbol.iterator]();
-                                     
+
                                      let iterResult = iterator.next();
                                      while (!iterResult.done) {
                                          result = result + iterResult.value;
                                          iterResult = iterator.next();
                                      }
-                                 
+
                          """);
 
         var result = await engine.Evaluate("result;");
@@ -215,7 +216,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Test_OR_Expression_Parsing()
+    public Task Test_OR_Expression_Parsing()
     {
         // Test to see the parsed S-expression for the OR expression
         var engine = new JsEngine();
@@ -240,6 +241,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         output.WriteLine("=== PROBLEMATIC OR EXPRESSION ===");
         output.WriteLine(problematicSexpr.ToString());
         output.WriteLine("");
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
@@ -259,21 +261,21 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
 
                                      let str = "hello";
                                      let result = "";
-                                     
+
                                      async function test() {
                                          log("Getting iterator");
                                          let iterator = str[Symbol.asyncIterator] || str[Symbol.iterator]();
                                          log("Got iterator: " + (typeof iterator));
-                                         
+
                                          if (typeof iterator === "function") {
                                              log("iterator is a function, calling it");
                                              iterator = iterator();
                                          }
-                                         
+
                                          log("Calling next()");
                                          let iterResult = await iterator.next();
                                          log("First next result: " + JSON.stringify(iterResult));
-                                         
+
                                          while (!iterResult.done) {
                                              log("Value: " + iterResult.value);
                                              result = result + iterResult.value;
@@ -281,12 +283,12 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                              iterResult = await iterator.next();
                                              log("Next result: " + JSON.stringify(iterResult));
                                          }
-                                         
+
                                          log("Done iterating");
                                      }
-                                     
+
                                      test();
-                                 
+
                          """);
 
         var result = await engine.Evaluate("result;");
@@ -311,7 +313,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
 
                                      let count = 0;
                                      let arr = [1, 2, 3, 4, 5];
-                                     
+
                                      async function test() {
                                          log("Starting loop");
                                          for await (let item of arr) {
@@ -328,9 +330,9 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                          }
                                          log("After loop, count: " + count);
                                      }
-                                     
+
                                      test();
-                                 
+
                          """);
 
         var result = await engine.Evaluate("count;");
@@ -339,7 +341,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ForAwaitOf_WithBreak_ShowTransformation()
+    public Task ForAwaitOf_WithBreak_ShowTransformation()
     {
         // Show the transformation of for-await-of with break
         var source = """
@@ -354,7 +356,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                          }
                                      }
                                  }
-                             
+
                      """;
 
         var engine = new JsEngine();
@@ -369,6 +371,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
         output.WriteLine(transformedSexpr.ToString());
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
@@ -388,7 +391,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
 
                                      let sum = 0;
                                      let arr = [1, 2, 3, 4, 5];
-                                     
+
                                      async function test() {
                                          log("Starting loop");
                                          for await (let item of arr) {
@@ -403,9 +406,9 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                          }
                                          log("After loop, sum: " + sum);
                                      }
-                                     
+
                                      test();
-                                 
+
                          """);
 
         var result = await engine.Evaluate("sum;");
@@ -429,7 +432,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         await engine.Run("""
 
                                      let sum = 0;
-                                     
+
                                      function* generator() {
                                          log("Generator: yielding 1");
                                          yield 1;
@@ -439,7 +442,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                          yield 3;
                                          log("Generator: done");
                                      }
-                                     
+
                                      async function test() {
                                          log("Starting loop");
                                          for await (let num of generator()) {
@@ -449,9 +452,9 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                          }
                                          log("After loop, sum: " + sum);
                                      }
-                                     
+
                                      test();
-                                 
+
                          """);
 
         var result = await engine.Evaluate("sum;");
@@ -476,7 +479,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
 
                                      let count = 0;
                                      let arr = ["a", "b", "c"];
-                                     
+
                                      async function test() {
                                          log("Starting loop");
                                          for await (let item of arr) {
@@ -486,9 +489,9 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                          }
                                          log("After loop, count: " + count);
                                      }
-                                     
+
                                      test();
-                                 
+
                          """);
 
         var result = await engine.Evaluate("count;");
@@ -513,7 +516,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
 
                                      let count = 0;
                                      let arr = [1, 2, 3, 4, 5];
-                                     
+
                                      async function test() {
                                          log("Starting loop");
                                          for await (let item of arr) {
@@ -526,9 +529,9 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                          }
                                          log("After loop, count: " + count);
                                      }
-                                     
+
                                      test();
-                                 
+
                          """);
 
         var result = await engine.Evaluate("count;");
@@ -537,7 +540,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ForAwaitOf_WithIfNoBreak_ShowTransformation()
+    public Task ForAwaitOf_WithIfNoBreak_ShowTransformation()
     {
         // Show the transformation for if without break
         var source = """
@@ -552,12 +555,13 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
                                          count = count + 1;
                                      }
                                  }
-                             
+
                      """;
 
         var engine = new JsEngine();
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
         output.WriteLine(transformedSexpr.ToString());
+        return Task.CompletedTask;
     }
 }

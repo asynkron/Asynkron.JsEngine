@@ -61,7 +61,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             foreach (var prop in dateObj)
                 hf.SetProperty(prop.Key, prop.Value);
-            
+
             // Create and set Date.prototype
             var datePrototype = new JsObject();
             hf.SetProperty("prototype", datePrototype);
@@ -365,7 +365,7 @@ public sealed class JsEngine : IAsyncDisposable
             return Task.CompletedTask;
         });
 
-        var res = await tcs.Task;
+        var res = await tcs.Task.ConfigureAwait(false);
 
         return res;
     }
@@ -426,7 +426,7 @@ public sealed class JsEngine : IAsyncDisposable
         var evaluateTask = Evaluate(source);
 
         // Get the result from evaluation
-        var result = await evaluateTask;
+        var result = await evaluateTask.ConfigureAwait(false);
 
         // Wait for all pending work to complete:
         // - Event queue to drain (no pending tasks)
@@ -452,7 +452,7 @@ public sealed class JsEngine : IAsyncDisposable
                 break;
 
             // Wait a bit for timer tasks and event queue to process
-            await Task.Delay(20);
+            await Task.Delay(20).ConfigureAwait(false);
         }
 
         return result;
@@ -477,11 +477,11 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     private async Task ProcessEventQueue()
     {
-        await foreach (var x in _eventQueue.Reader.ReadAllAsync())
+        await foreach (var x in _eventQueue.Reader.ReadAllAsync().ConfigureAwait(false))
         {
             try
             {
-                await x();
+                await x().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -497,7 +497,7 @@ public sealed class JsEngine : IAsyncDisposable
                 Interlocked.Decrement(ref _pendingTaskCount);
             }
         }
-        
+
         _doneTcs.SetResult();
     }
 
@@ -520,7 +520,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             try
             {
-                await Task.Delay(delay, cts.Token);
+                await Task.Delay(delay, cts.Token).ConfigureAwait(false);
 
                 if (!cts.Token.IsCancellationRequested)
                     ScheduleTask(() =>
@@ -573,7 +573,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 while (!cts.Token.IsCancellationRequested)
                 {
-                    await Task.Delay(interval, cts.Token);
+                    await Task.Delay(interval, cts.Token).ConfigureAwait(false);
 
                     if (!cts.Token.IsCancellationRequested)
                         ScheduleTask(() =>
@@ -656,7 +656,7 @@ public sealed class JsEngine : IAsyncDisposable
                 promise.Reject(ex.Message);
             }
 
-            await Task.CompletedTask;
+            await Task.CompletedTask.ConfigureAwait(false);
         });
 
         return promiseObj;
@@ -944,6 +944,6 @@ public sealed class JsEngine : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _eventQueue.Writer.Complete();
-        await _doneTcs.Task;
+        await _doneTcs.Task.ConfigureAwait(false);
     }
 }

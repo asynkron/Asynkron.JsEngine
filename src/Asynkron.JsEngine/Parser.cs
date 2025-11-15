@@ -277,7 +277,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 // Check for rest parameter
                 if (Match(TokenType.DotDotDot))
                 {
-                    var restIdentifier = Consume(TokenType.Identifier, "Expected parameter name after '...'.");
+                    var restIdentifier = ConsumeParameterIdentifier("Expected parameter name after '...'.");
                     var restParam = Symbol.Intern(restIdentifier.Lexeme);
                     parameters.Add(S(Rest, restParam));
                     // Rest parameter must be last
@@ -300,7 +300,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 }
                 else
                 {
-                    var identifier = Consume(TokenType.Identifier, "Expected parameter name.");
+                    var identifier = ConsumeParameterIdentifier("Expected parameter name.");
                     parameters.Add(Symbol.Intern(identifier.Lexeme));
                 }
             } while (Match(TokenType.Comma));
@@ -1612,6 +1612,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         if (Match(TokenType.Identifier)) return Symbol.Intern(Previous().Lexeme);
 
+        // In JavaScript, 'get' and 'set' are contextual keywords that can be used as identifiers
+        // in most contexts (not just in class methods or object literals)
+        if (Match(TokenType.Get, TokenType.Set)) return Symbol.Intern(Previous().Lexeme);
+
         if (Match(TokenType.This)) return This;
 
         if (Match(TokenType.Super)) return Super;
@@ -1670,7 +1674,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return null;
         }
         
-        if (!Check(TokenType.Identifier))
+        if (!CheckParameterIdentifier())
         {
             // Not starting with identifier, can't be simple arrow params
             return null;
@@ -1682,7 +1686,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         
         while (Match(TokenType.Comma))
         {
-            if (!Check(TokenType.Identifier))
+            if (!CheckParameterIdentifier())
             {
                 // Not all identifiers, not arrow params
                 return null;
@@ -2108,6 +2112,28 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         // If the next token is a colon, then 'get' or 'set' is a property name
         return PeekNext().Type == TokenType.Colon;
+    }
+
+    /// <summary>
+    /// Checks if the current token can be used as an identifier in a parameter context.
+    /// In JavaScript, 'get' and 'set' are contextual keywords that can be used as parameter names.
+    /// </summary>
+    private bool CheckParameterIdentifier()
+    {
+        return Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set);
+    }
+
+    /// <summary>
+    /// Consumes a token that can be used as an identifier in a parameter context.
+    /// Returns the token so its lexeme can be used as the parameter name.
+    /// </summary>
+    private Token ConsumeParameterIdentifier(string errorMessage)
+    {
+        if (Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set))
+        {
+            return Advance();
+        }
+        throw new ParseException(errorMessage, Peek(), _source);
     }
 
     private object FinishIndex(object? target)

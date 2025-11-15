@@ -24,7 +24,7 @@ public class SunSpiderTests
     [InlineData("bitops-bits-in-byte.js", true)]
     [InlineData("bitops-bitwise-and.js", true)]
     [InlineData("bitops-nsieve-bits.js", true)]
-  //  [InlineData("controlflow-recursive.js", true)]
+    //[InlineData("controlflow-recursive.js", false)]
     [InlineData("crypto-md5.js", true)]
     [InlineData("crypto-sha1.js", true)]
     [InlineData("date-format-tofte.js", true)]

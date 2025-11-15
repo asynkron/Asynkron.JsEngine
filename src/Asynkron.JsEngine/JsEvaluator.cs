@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 
 namespace Asynkron.JsEngine;
 
@@ -6,7 +7,15 @@ public static class JsEvaluator
 {
     public static object? EvaluateProgram(Cons program, JsEnvironment environment)
     {
-        return EvaluateProgram(program, environment, new EvaluationContext());
+        try
+        {
+            return EvaluateProgram(program, environment, new EvaluationContext());
+        }
+        catch (StackOverflowException)
+        {
+            Console.WriteLine("Stack overflow during evaluation. Possible infinite recursion detected.");
+            throw;
+        }
     }
 
     private static object? EvaluateProgram(Cons program, JsEnvironment environment, EvaluationContext context)
@@ -1909,7 +1918,7 @@ public static class JsEvaluator
                     ? (value, target)
                     : (null, target);
             }
-            case Cons { Head: Symbol { } indexHead } indexCons when
+            case Cons { Head: Symbol indexHead } indexCons when
                 ReferenceEquals(indexHead, JsSymbols.GetIndex):
             {
                 var targetExpression = indexCons.Rest.Head;
@@ -2499,6 +2508,7 @@ public static class JsEvaluator
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static object? EvaluateBinary(Cons cons, JsEnvironment environment, Symbol operatorSymbol,
         EvaluationContext context)
     {
@@ -2803,7 +2813,7 @@ public static class JsEvaluator
 
     // Helper method to handle common BigInt binary operation pattern
     private static object PerformBigIntOrNumericOperation(
-        object? left, 
+        object? left,
         object? right,
         Func<JsBigInt, JsBigInt, object> bigIntOp,
         Func<double, double, object> numericOp)
@@ -3899,7 +3909,7 @@ public static class JsEvaluator
     // Bitwise operations
     // Helper for bitwise operations that work on int32
     private static object PerformBigIntOrInt32Operation(
-        object? left, 
+        object? left,
         object? right,
         Func<JsBigInt, JsBigInt, object> bigIntOp,
         Func<int, int, int> int32Op)

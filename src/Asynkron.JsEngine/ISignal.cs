@@ -16,12 +16,12 @@ internal sealed record ReturnSignal(object? Value) : ISignal;
 /// <summary>
 /// Signal indicating a break statement was encountered.
 /// </summary>
-internal sealed record BreakSignal() : ISignal;
+internal sealed record BreakSignal(Symbol? Label = null) : ISignal;
 
 /// <summary>
 /// Signal indicating a continue statement was encountered.
 /// </summary>
-internal sealed record ContinueSignal() : ISignal;
+internal sealed record ContinueSignal(Symbol? Label = null) : ISignal;
 
 /// <summary>
 /// Signal indicating a yield expression was encountered (in generator context).

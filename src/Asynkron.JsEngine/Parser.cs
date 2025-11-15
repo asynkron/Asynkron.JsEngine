@@ -672,14 +672,28 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         if (Match(TokenType.Break))
         {
+            // Break can optionally have a label: break labelName;
+            Symbol? label = null;
+            if (Check(TokenType.Identifier) && !HasLineTerminatorBefore())
+            {
+                var labelToken = Advance();
+                label = Symbol.Intern(labelToken.Lexeme);
+            }
             Consume(TokenType.Semicolon, "Expected ';' after break statement.");
-            return S(Break);
+            return label != null ? S(Break, label) : S(Break);
         }
 
         if (Match(TokenType.Continue))
         {
+            // Continue can optionally have a label: continue labelName;
+            Symbol? label = null;
+            if (Check(TokenType.Identifier) && !HasLineTerminatorBefore())
+            {
+                var labelToken = Advance();
+                label = Symbol.Intern(labelToken.Lexeme);
+            }
             Consume(TokenType.Semicolon, "Expected ';' after continue statement.");
-            return S(Continue);
+            return label != null ? S(Continue, label) : S(Continue);
         }
 
         if (Match(TokenType.Return))
@@ -695,6 +709,26 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         if (Match(TokenType.LeftBrace))
         {
             return ParseBlock(true);
+        }
+
+        // Check for labeled statement: identifier : statement
+        // We need to look ahead to see if this is a label before parsing as expression
+        // Important: Labels can only be followed by statements, not declarations or bare expressions
+        if (Check(TokenType.Identifier))
+        {
+            var nextToken = PeekNext();
+            if (nextToken.Type == TokenType.Colon)
+            {
+                // This is a labeled statement
+                var labelToken = Advance(); // consume identifier
+                var labelName = Symbol.Intern(labelToken.Lexeme);
+                Advance(); // consume ':'
+                
+                // Parse the labeled statement (recursively, as labels can be nested)
+                // This will call ParseStatement() again, which handles all statement types
+                var statement = ParseStatement();
+                return S(Label, labelName, statement);
+            }
         }
 
         return ParseExpressionStatement();

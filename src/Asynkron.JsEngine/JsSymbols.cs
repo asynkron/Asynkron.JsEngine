@@ -30,6 +30,7 @@ public static class JsSymbols
     public static readonly Symbol Throw = Symbol.Intern("throw");
     public static readonly Symbol Break = Symbol.Intern("break");
     public static readonly Symbol Continue = Symbol.Intern("continue");
+    public static readonly Symbol Label = Symbol.Intern("label");
     public static readonly Symbol EmptyStatement = Symbol.Intern("empty-stmt");
     public static readonly Symbol Assign = Symbol.Intern("assign");
     public static readonly Symbol Call = Symbol.Intern("call");

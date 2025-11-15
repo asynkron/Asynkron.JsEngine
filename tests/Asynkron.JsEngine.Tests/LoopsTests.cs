@@ -4,6 +4,91 @@ namespace Asynkron.JsEngine.Tests;
 
 public class LoopsTests
 {
+    // Traditional for loop tests with comma expressions
+    [Fact(Timeout = 2000)]
+    public async Task ForLoopWithCommaInInitializer()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let arr = [1, 2, 3, 4, 5];
+                                                       let sum = 0;
+                                                       for (i = 0, len = arr.length; i < len; i++) {
+                                                           sum = sum + arr[i];
+                                                       }
+                                                       sum;
+                                                   
+                                                   """);
+        Assert.Equal(15d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ForLoopWithMultipleCommaExpressionsInInitializer()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let result = '';
+                                                       for (a = 1, b = 2, c = 3; a < 3; a++) {
+                                                           result = result + a + b + c;
+                                                       }
+                                                       result;
+                                                   
+                                                   """);
+        Assert.Equal("123223", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ForLoopWithCommaExpressionAndComplexInitializer()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let arr = [10, 20, 30, 40];
+                                                       let total = 0;
+                                                       for (i = 0, len = arr.length, multiplier = 2; i < len; i++) {
+                                                           total = total + (arr[i] * multiplier);
+                                                       }
+                                                       total;
+                                                   
+                                                   """);
+        Assert.Equal(200d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ForLoopWithCommaInCondition()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let sum = 0;
+                                                       for (let i = 0; i < 3, i < 5; i++) {
+                                                           sum = sum + i;
+                                                       }
+                                                       sum;
+                                                   
+                                                   """);
+        Assert.Equal(10d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ForLoopWithCommaInIncrement()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let sum = 0;
+                                                       let i = 0;
+                                                       let j = 0;
+                                                       for (; i < 3; i++, j += 2) {
+                                                           sum = sum + i + j;
+                                                       }
+                                                       sum;
+                                                   
+                                                   """);
+        Assert.Equal(9d, result);
+    }
+
     // for...in loop tests
     [Fact(Timeout = 2000)]
     public async Task ForInLoopBasic()

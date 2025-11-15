@@ -1647,6 +1647,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return S(Negate, ParseUnary());
         }
 
+        if (Match(TokenType.Plus))
+        {
+            return S(UnaryPlus, ParseUnary());
+        }
+
         if (Match(TokenType.Tilde))
         {
             return S(Operator("~"), ParseUnary());

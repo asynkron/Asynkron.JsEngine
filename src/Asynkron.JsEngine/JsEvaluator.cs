@@ -1424,6 +1424,19 @@ public static class JsEvaluator
             return -ToNumber(operand);
         }
 
+        if (ReferenceEquals(symbol, JsSymbols.UnaryPlus))
+        {
+            var operand = EvaluateExpression(cons.Rest.Head, environment, context);
+            // Handle BigInt conversion
+            if (operand is JsBigInt)
+            {
+                // Unary plus on BigInt throws TypeError in JavaScript
+                throw new Exception("Cannot convert a BigInt value to a number");
+            }
+
+            return ToNumber(operand);
+        }
+
         if (ReferenceEquals(symbol, JsSymbols.Not))
         {
             var operand = EvaluateExpression(cons.Rest.Head, environment, context);

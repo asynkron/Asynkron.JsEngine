@@ -1,4 +1,5 @@
 using System.Globalization;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine;
 

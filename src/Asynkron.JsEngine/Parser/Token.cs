@@ -1,4 +1,4 @@
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Parser;
 
 public enum TokenType
 {

@@ -1,4 +1,6 @@
 using System.Threading.Channels;
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 using JetBrains.Annotations;
 
 namespace Asynkron.JsEngine;
@@ -146,15 +148,6 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Returns a channel reader for async iterator trace messages written by tracing hooks.
-    /// Consumers can toggle tracing with <see cref="EnableAsyncIteratorTracing"/>.
-    /// </summary>
-    public ChannelReader<string> AsyncIteratorTraceMessages()
-    {
-        return _asyncIteratorTraceChannel.Reader;
-    }
-
-    /// <summary>
     /// Returns a channel reader that can be used to read exceptions that occurred during execution.
     /// </summary>
     public ChannelReader<ExceptionInfo> Exceptions()
@@ -238,7 +231,7 @@ public sealed class JsEngine : IAsyncDisposable
         var tokens = lexer.Tokenize();
 
         // Step 2: Parse to S-expressions
-        var parser = new Parser(tokens, source);
+        var parser = new Parser.Parser(tokens, source);
         var program = parser.ParseProgram();
 
         // Step 3: Apply constant expression folding (runs before CPS)
@@ -267,7 +260,7 @@ public sealed class JsEngine : IAsyncDisposable
         var tokens = lexer.Tokenize();
 
         // Step 2: Parse to S-expressions (without any transformation)
-        var parser = new Parser(tokens, source);
+        var parser = new Parser.Parser(tokens, source);
         return parser.ParseProgram();
     }
 
@@ -285,7 +278,7 @@ public sealed class JsEngine : IAsyncDisposable
         var tokens = lexer.Tokenize();
 
         // Step 2: Parse to S-expressions
-        var parser = new Parser(tokens, source);
+        var parser = new Parser.Parser(tokens, source);
         var original = parser.ParseProgram();
 
         // Step 3: Apply constant expression folding
@@ -703,7 +696,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// Loads and evaluates a module, returning its exports object.
     /// If the module has already been loaded, returns the cached exports.
     /// </summary>
-    internal JsObject LoadModule(string modulePath)
+    private JsObject LoadModule(string modulePath)
     {
         // Check if module is already loaded
         if (_moduleRegistry.TryGetValue(modulePath, out var cachedExports))
@@ -786,8 +779,7 @@ public sealed class JsEngine : IAsyncDisposable
                             JsEvaluator.EvaluateProgram(declProgram, moduleEnv);
 
                             // Get the defined value from the environment
-                            var name = exprCons.Rest.Head as Symbol;
-                            if (name != null)
+                            if (exprCons.Rest.Head is Symbol name)
                             {
                                 value = moduleEnv.Get(name);
                             }
@@ -823,9 +815,8 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     // export { name1, name2 }
                     var exportList = stmtCons.Rest.Head as Cons;
-                    var fromModule = stmtCons.Rest.Rest.Head as string;
 
-                    if (fromModule != null)
+                    if (stmtCons.Rest.Rest.Head is string fromModule)
                     {
                         // Re-export from another module
                         var sourceExports = LoadModule(fromModule);
@@ -837,10 +828,7 @@ public sealed class JsEngine : IAsyncDisposable
                                 if (exportItem is Cons { Head: Symbol exportHead } exportCons &&
                                     ReferenceEquals(exportHead, JsSymbols.ExportNamed))
                                 {
-                                    var local = exportCons.Rest.Head as Symbol;
-                                    var exported = exportCons.Rest.Rest.Head as Symbol;
-
-                                    if (local != null && exported != null)
+                                    if (exportCons.Rest.Head is Symbol local && exportCons.Rest.Rest.Head is Symbol exported)
                                     {
                                         var localName = local.Name;
                                         var exportedName = exported.Name;
@@ -862,10 +850,7 @@ public sealed class JsEngine : IAsyncDisposable
                             if (exportItem is Cons { Head: Symbol exportHead } exportCons &&
                                 ReferenceEquals(exportHead, JsSymbols.ExportNamed))
                             {
-                                var local = exportCons.Rest.Head as Symbol;
-                                var exported = exportCons.Rest.Rest.Head as Symbol;
-
-                                if (local != null && exported != null)
+                                if (exportCons.Rest.Head is Symbol local && exportCons.Rest.Rest.Head is Symbol exported)
                                 {
                                     var localName = local.Name;
                                     var exportedName = exported.Name;
@@ -893,8 +878,7 @@ public sealed class JsEngine : IAsyncDisposable
                             ReferenceEquals(declHead, JsSymbols.Var))
                         {
                             // Variable declaration: (let name value) or (let name)
-                            var name = declCons.Rest.Head as Symbol;
-                            if (name != null)
+                            if (declCons.Rest.Head is Symbol name)
                             {
                                 var value = moduleEnv.Get(name);
                                 exports[name.Name] = value;
@@ -905,8 +889,7 @@ public sealed class JsEngine : IAsyncDisposable
                                  ReferenceEquals(declHead, JsSymbols.Generator))
                         {
                             // Function declaration: (function name params body)
-                            var name = declCons.Rest.Head as Symbol;
-                            if (name != null)
+                            if (declCons.Rest.Head is Symbol name)
                             {
                                 var value = moduleEnv.Get(name);
                                 exports[name.Name] = value;
@@ -915,8 +898,7 @@ public sealed class JsEngine : IAsyncDisposable
                         else if (ReferenceEquals(declHead, JsSymbols.Class))
                         {
                             // Class declaration: (class name ...)
-                            var name = declCons.Rest.Head as Symbol;
-                            if (name != null)
+                            if (declCons.Rest.Head is Symbol name)
                             {
                                 var value = moduleEnv.Get(name);
                                 exports[name.Name] = value;
@@ -951,9 +933,8 @@ public sealed class JsEngine : IAsyncDisposable
     {
         // (import module-path) for side-effect imports
         // (import module-path default-import namespace-import named-imports) for regular imports
-        var modulePath = importCons.Rest.Head as string;
 
-        if (modulePath == null)
+        if (importCons.Rest.Head is not string modulePath)
         {
             return; // Invalid import
         }
@@ -993,10 +974,7 @@ public sealed class JsEngine : IAsyncDisposable
                 if (importItem is Cons { Head: Symbol importHead } importItemCons &&
                     ReferenceEquals(importHead, JsSymbols.ImportNamed))
                 {
-                    var imported = importItemCons.Rest.Head as Symbol;
-                    var local = importItemCons.Rest.Rest.Head as Symbol;
-
-                    if (imported != null && local != null)
+                    if (importItemCons.Rest.Head is Symbol imported && importItemCons.Rest.Rest.Head is Symbol local)
                     {
                         if (exports.TryGetValue(imported.Name, out var value))
                         {

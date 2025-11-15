@@ -1,22 +1,20 @@
-using System.Buffers.Binary;
-
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript Float32Array - an array of 32-bit floating point numbers.
+/// Represents a JavaScript Uint8Array - an array of 8-bit unsigned integers.
 /// </summary>
-public sealed class JsFloat32Array(JsArrayBuffer buffer, int byteOffset, int length)
+public sealed class JsUint8Array(JsArrayBuffer buffer, int byteOffset, int length)
     : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
 {
-    public const int BYTES_PER_ELEMENT = 4;
+    public const int BYTES_PER_ELEMENT = 1;
 
-    public static JsFloat32Array FromLength(int length)
+    public static JsUint8Array FromLength(int length)
     {
         var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT);
-        return new JsFloat32Array(buffer, 0, length);
+        return new JsUint8Array(buffer, 0, length);
     }
 
-    public static JsFloat32Array FromArray(JsArray array)
+    public static JsUint8Array FromArray(JsArray array)
     {
         var length = array.Items.Count;
         var typedArray = FromLength(length);
@@ -27,16 +25,14 @@ public sealed class JsFloat32Array(JsArrayBuffer buffer, int byteOffset, int len
     public override double GetElement(int index)
     {
         CheckBounds(index);
-        var span = new ReadOnlySpan<byte>(_buffer.Buffer, GetByteIndex(index), BYTES_PER_ELEMENT);
-        return BinaryPrimitives.ReadSingleLittleEndian(span);
+        return _buffer.Buffer[GetByteIndex(index)];
     }
 
     public override void SetElement(int index, double value)
     {
         CheckBounds(index);
-        var floatValue = (float)value;
-        var span = new Span<byte>(_buffer.Buffer, GetByteIndex(index), BYTES_PER_ELEMENT);
-        BinaryPrimitives.WriteSingleLittleEndian(span, floatValue);
+        var intValue = double.IsNaN(value) ? 0 : (int)value;
+        _buffer.Buffer[GetByteIndex(index)] = (byte)intValue;
     }
 
     public override TypedArrayBase Subarray(int begin, int end)
@@ -44,10 +40,10 @@ public sealed class JsFloat32Array(JsArrayBuffer buffer, int byteOffset, int len
         var (start, finalEnd) = NormalizeSliceIndices(begin, end);
         var newLength = Math.Max(finalEnd - start, 0);
         var newByteOffset = _byteOffset + start * BYTES_PER_ELEMENT;
-        return new JsFloat32Array(_buffer, newByteOffset, newLength);
+        return new JsUint8Array(_buffer, newByteOffset, newLength);
     }
 
-    public JsFloat32Array Slice(int begin, int end)
+    public JsUint8Array Slice(int begin, int end)
     {
         var (start, finalEnd) = NormalizeSliceIndices(begin, end);
         var newLength = Math.Max(finalEnd - start, 0);

@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine;
 
@@ -1414,14 +1416,12 @@ public static class JsEvaluator
         {
             foreach (var fieldExpression in privateFieldsList)
             {
-                var fieldCons = fieldExpression as Cons;
-                if (fieldCons is null)
+                if (fieldExpression is not Cons fieldCons)
                 {
                     continue;
                 }
 
-                var fieldTag = fieldCons.Head as Symbol;
-                if (fieldTag is null)
+                if (fieldCons.Head is not Symbol fieldTag)
                 {
                     continue;
                 }
@@ -2045,8 +2045,7 @@ public static class JsEvaluator
 
         // Get the strings array expression
         var stringsArrayExpr = rest.Head;
-        var stringsArray = EvaluateExpression(stringsArrayExpr, environment, context) as JsArray;
-        if (stringsArray == null)
+        if (EvaluateExpression(stringsArrayExpr, environment, context) is not JsArray stringsArray)
         {
             throw new InvalidOperationException(FormatErrorMessage("Tagged template strings array is invalid", cons) + ".");
         }
@@ -2055,8 +2054,7 @@ public static class JsEvaluator
 
         // Get the raw strings array expression
         var rawStringsArrayExpr = rest.Head;
-        var rawStringsArray = EvaluateExpression(rawStringsArrayExpr, environment, context) as JsArray;
-        if (rawStringsArray == null)
+        if (EvaluateExpression(rawStringsArrayExpr, environment, context) is not JsArray rawStringsArray)
         {
             throw new InvalidOperationException(FormatErrorMessage("Tagged template raw strings array is invalid", cons) + ".");
         }

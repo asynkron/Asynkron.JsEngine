@@ -1,4 +1,4 @@
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Parser;
 
 public sealed class ParseException : Exception
 {
@@ -9,14 +9,14 @@ public sealed class ParseException : Exception
     {
     }
 
-    public ParseException(string message, int line, int column) 
+    public ParseException(string message, int line, int column)
         : base($"{message} at line {line}, column {column}")
     {
         Line = line;
         Column = column;
     }
 
-    public ParseException(string message, Token token) 
+    public ParseException(string message, Token token)
         : base($"{message} at line {token.Line}, column {token.Column}")
     {
         Line = token.Line;
@@ -33,11 +33,11 @@ public sealed class ParseException : Exception
     private static string FormatMessageWithSnippet(string message, Token token, string source)
     {
         var snippet = ExtractSourceSnippet(source, token.StartPosition, 20);
-        
+
         // Check if message already contains position info
         var posPattern = $"at line {token.Line} column {token.Column}";
         var posPattern2 = $"at line {token.Line}, column {token.Column}";
-        
+
         // Remove duplicate position info if present
         if (message.Contains(posPattern))
         {
@@ -55,7 +55,7 @@ public sealed class ParseException : Exception
                 message = message[..^1];
             }
         }
-        
+
         return $"{message} at line {token.Line}, column {token.Column}\n{snippet}";
     }
 

@@ -1,4 +1,4 @@
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Abstract base class for all JavaScript typed arrays.

@@ -1,4 +1,4 @@
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 public sealed class JsFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
 {

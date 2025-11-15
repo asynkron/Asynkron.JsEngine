@@ -1,4 +1,4 @@
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Represents a JavaScript generator object that implements the iterator protocol.

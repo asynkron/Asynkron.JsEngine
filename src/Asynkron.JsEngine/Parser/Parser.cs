@@ -2,7 +2,7 @@ using System.Globalization;
 using static Asynkron.JsEngine.ConsDsl;
 using static Asynkron.JsEngine.JsSymbols;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Parser;
 
 /// <summary>
 /// Wrapper for multiple variable declarations from a single statement with comma-separated declarators.
@@ -407,7 +407,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 {
                     throw new ParseException($"Expected variable name after '{keyword}'.", Peek(), _source);
                 }
-                
+
                 var name = Symbol.Intern(nameToken.Lexeme);
                 object? initializer;
 
@@ -723,7 +723,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var labelToken = Advance(); // consume identifier
                 var labelName = Symbol.Intern(labelToken.Lexeme);
                 Advance(); // consume ':'
-                
+
                 // Parse the labeled statement (recursively, as labels can be nested)
                 // This will call ParseStatement() again, which handles all statement types
                 var statement = ParseStatement();
@@ -1730,7 +1730,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 // where 'yield' will be treated as an identifier
                 return ParsePostfix();
             }
-            
+
             // Otherwise, treat it as a yield expression
             Advance(); // consume 'yield'
             // yield can be followed by an expression or nothing
@@ -1748,7 +1748,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 // where 'await' will be treated as an identifier
                 return ParsePostfix();
             }
-            
+
             // Otherwise, treat it as an await expression
             Advance(); // consume 'await'
             // await must be followed by an expression
@@ -2399,8 +2399,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private object ParseRegexLiteral()
     {
         var token = Previous();
-        var regexValue = token.Literal as RegexLiteralValue;
-        if (regexValue == null)
+        if (token.Literal is not RegexLiteralValue regexValue)
         {
             throw new ParseException("Invalid regex literal.", Peek(), _source);
         }
@@ -2530,7 +2529,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     /// </summary>
     private bool CheckParameterIdentifier()
     {
-        return Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set) 
+        return Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set)
             || Check(TokenType.Async) || Check(TokenType.Await) || Check(TokenType.Yield);
     }
 
@@ -2555,7 +2554,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private bool IsYieldOrAwaitUsedAsIdentifier()
     {
         var nextToken = PeekNext().Type;
-        
+
         // If followed by tokens that can follow an identifier in expression position,
         // treat it as an identifier
         return nextToken is

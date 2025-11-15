@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Represents a JavaScript property descriptor.

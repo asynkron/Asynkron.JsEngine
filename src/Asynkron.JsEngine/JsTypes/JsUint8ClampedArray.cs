@@ -1,20 +1,20 @@
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript Uint8Array - an array of 8-bit unsigned integers.
+/// Represents a JavaScript Uint8ClampedArray - an array of 8-bit unsigned integers clamped to 0-255.
 /// </summary>
-public sealed class JsUint8Array(JsArrayBuffer buffer, int byteOffset, int length)
+public sealed class JsUint8ClampedArray(JsArrayBuffer buffer, int byteOffset, int length)
     : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
 {
     public const int BYTES_PER_ELEMENT = 1;
 
-    public static JsUint8Array FromLength(int length)
+    public static JsUint8ClampedArray FromLength(int length)
     {
         var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT);
-        return new JsUint8Array(buffer, 0, length);
+        return new JsUint8ClampedArray(buffer, 0, length);
     }
 
-    public static JsUint8Array FromArray(JsArray array)
+    public static JsUint8ClampedArray FromArray(JsArray array)
     {
         var length = array.Items.Count;
         var typedArray = FromLength(length);
@@ -31,8 +31,27 @@ public sealed class JsUint8Array(JsArrayBuffer buffer, int byteOffset, int lengt
     public override void SetElement(int index, double value)
     {
         CheckBounds(index);
-        var intValue = double.IsNaN(value) ? 0 : (int)value;
-        _buffer.Buffer[GetByteIndex(index)] = (byte)intValue;
+        // Clamp to 0-255 range, with proper rounding
+        byte clampedValue;
+        if (double.IsNaN(value))
+        {
+            clampedValue = 0;
+        }
+        else if (value <= 0)
+        {
+            clampedValue = 0;
+        }
+        else if (value >= 255)
+        {
+            clampedValue = 255;
+        }
+        else
+            // Round to nearest, ties to even (matches JavaScript spec)
+        {
+            clampedValue = (byte)Math.Round(value, MidpointRounding.ToEven);
+        }
+
+        _buffer.Buffer[GetByteIndex(index)] = clampedValue;
     }
 
     public override TypedArrayBase Subarray(int begin, int end)
@@ -40,10 +59,10 @@ public sealed class JsUint8Array(JsArrayBuffer buffer, int byteOffset, int lengt
         var (start, finalEnd) = NormalizeSliceIndices(begin, end);
         var newLength = Math.Max(finalEnd - start, 0);
         var newByteOffset = _byteOffset + start * BYTES_PER_ELEMENT;
-        return new JsUint8Array(_buffer, newByteOffset, newLength);
+        return new JsUint8ClampedArray(_buffer, newByteOffset, newLength);
     }
 
-    public JsUint8Array Slice(int begin, int end)
+    public JsUint8ClampedArray Slice(int begin, int end)
     {
         var (start, finalEnd) = NormalizeSliceIndices(begin, end);
         var newLength = Math.Max(finalEnd - start, 0);

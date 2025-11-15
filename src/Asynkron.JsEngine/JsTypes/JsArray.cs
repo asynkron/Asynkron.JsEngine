@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Minimal JavaScript-like array that tracks indexed elements and behaves like an object for property access.
@@ -9,7 +9,7 @@ public sealed class JsArray : IJsPropertyAccessor
 {
     // Sentinel value to represent holes in sparse arrays (indices that have never been set)
     private static readonly object ArrayHole = new();
-    
+
     private readonly JsObject _properties = new();
     private readonly List<object?> _items = [];
 
@@ -136,7 +136,7 @@ public sealed class JsArray : IJsPropertyAccessor
         var value = _items[lastIndex];
         _items.RemoveAt(lastIndex);
         UpdateLength();
-        
+
         // Return undefined for holes
         return ReferenceEquals(value, ArrayHole) ? JsSymbols.Undefined : value;
     }
@@ -151,7 +151,7 @@ public sealed class JsArray : IJsPropertyAccessor
         var value = _items[0];
         _items.RemoveAt(0);
         UpdateLength();
-        
+
         // Return undefined for holes
         return ReferenceEquals(value, ArrayHole) ? JsSymbols.Undefined : value;
     }

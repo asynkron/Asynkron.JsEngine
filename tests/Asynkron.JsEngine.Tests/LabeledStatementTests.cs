@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Parser;
 using Xunit;
 
 namespace Asynkron.JsEngine.Tests;

@@ -1,4 +1,4 @@
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Parser;
 
 /// <summary>
 /// Represents a reference to a range in the original JavaScript source code.

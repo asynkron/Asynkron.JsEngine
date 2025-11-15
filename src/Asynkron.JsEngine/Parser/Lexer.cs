@@ -1,7 +1,8 @@
 using System.Globalization;
 using System.Text;
+using Asynkron.JsEngine.JsTypes;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Parser;
 
 internal sealed record TemplateExpression(string ExpressionText);
 

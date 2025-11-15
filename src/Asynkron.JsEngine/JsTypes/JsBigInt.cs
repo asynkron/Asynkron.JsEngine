@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Represents a JavaScript BigInt primitive type.

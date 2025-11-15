@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Represents a JavaScript DataView - a low-level interface for reading and writing 

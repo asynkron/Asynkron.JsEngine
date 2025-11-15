@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Represents a JavaScript regular expression object.

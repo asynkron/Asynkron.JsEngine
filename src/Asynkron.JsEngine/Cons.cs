@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Text;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine;
 
@@ -79,22 +80,6 @@ public sealed class Cons : IEnumerable<object?>
     /// Multiple transformations can be chained: cons.Origin.Origin.Origin...
     /// </summary>
     public Cons? Origin { get; private set; }
-
-    /// <summary>
-    /// Creates a cons cell from a head and optional rest.
-    /// </summary>
-    public static Cons Cell(object? head, Cons? rest = null)
-    {
-        return new Cons(head, rest);
-    }
-
-    /// <summary>
-    /// Builds a list from the supplied items.
-    /// </summary>
-    public static Cons List(params object?[] items)
-    {
-        return FromEnumerable(items);
-    }
 
     /// <summary>
     /// Builds a list from the supplied items. Alias for List method.
@@ -182,29 +167,6 @@ public sealed class Cons : IEnumerable<object?>
     }
 
     /// <summary>
-    /// Returns the element at the specified index.
-    /// </summary>
-    public object? ElementAt(int index)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(index);
-
-        var current = this;
-        var position = 0;
-        while (!current.IsEmpty)
-        {
-            if (position == index)
-            {
-                return current._head;
-            }
-
-            current = current._tail;
-            position++;
-        }
-
-        throw new ArgumentOutOfRangeException(nameof(index));
-    }
-
-    /// <summary>
     /// Sets the source reference for this s-expression.
     /// Returns this instance for method chaining.
     /// </summary>
@@ -271,7 +233,7 @@ public sealed class Cons : IEnumerable<object?>
         return atom switch
         {
             null => "null",
-            string s => $"\"{s.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"",
+            string s => $"\"{s.Replace("\\", @"\\").Replace("\"", "\\\"")}\"",
             bool b => b ? "true" : "false",
             Cons cons => cons.ToString(),
             _ => atom.ToString() ?? string.Empty

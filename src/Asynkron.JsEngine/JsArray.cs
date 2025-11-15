@@ -104,8 +104,8 @@ public sealed class JsArray
         }
 
         var item = _items[index];
-        // Return undefined for holes in the array
-        return ReferenceEquals(item, ArrayHole) ? JsSymbols.Undefined : item;
+        // Return null (representing undefined) for holes in the array
+        return ReferenceEquals(item, ArrayHole) ? null : item;
     }
 
     public void SetElement(int index, object? value)

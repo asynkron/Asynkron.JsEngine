@@ -1497,6 +1497,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 TokenType.Less => Operator("<"),
                 TokenType.LessEqual => Operator("<="),
                 TokenType.In => Operator("in"),
+                TokenType.Instanceof => Operator("instanceof"),
                 _ => throw new InvalidOperationException("Unexpected comparison operator.")
             };
 

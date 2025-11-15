@@ -35,6 +35,7 @@ public static class JsSymbols
     public static readonly Symbol Call = Symbol.Intern("call");
     public static readonly Symbol OptionalCall = Symbol.Intern("optional-call");
     public static readonly Symbol Negate = Symbol.Intern("negate");
+    public static readonly Symbol UnaryPlus = Symbol.Intern("unary-plus");
     public static readonly Symbol Not = Symbol.Intern("not");
     public static readonly Symbol Typeof = Symbol.Intern("typeof");
     public static readonly Symbol Void = Symbol.Intern("void");

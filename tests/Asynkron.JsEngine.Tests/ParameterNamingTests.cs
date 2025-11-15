@@ -49,4 +49,68 @@ public class ParameterNamingTests
         var result = await engine.Evaluate(code);
         Assert.Equal(42.0, result);
     }
+
+    // Additional tests to ensure getter/setter functionality still works
+    [Fact]
+    public async Task GetterSetter_InObjectLiteral_StillWorks()
+    {
+        var engine = new JsEngine();
+        var code = @"
+            var obj = {
+                _value: 0,
+                get value() { return this._value; },
+                set value(v) { this._value = v; }
+            };
+            obj.value = 42;
+            obj.value;
+        ";
+        
+        var result = await engine.Evaluate(code);
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact]
+    public async Task GetterSetter_InClass_StillWorks()
+    {
+        var engine = new JsEngine();
+        var code = @"
+            class MyClass {
+                constructor() { this._value = 0; }
+                get value() { return this._value; }
+                set value(v) { this._value = v; }
+            }
+            var obj = new MyClass();
+            obj.value = 100;
+            obj.value;
+        ";
+        
+        var result = await engine.Evaluate(code);
+        Assert.Equal(100.0, result);
+    }
+
+    [Fact]
+    public async Task MixedUsage_GetSetAsParametersAndGetters()
+    {
+        var engine = new JsEngine();
+        var code = @"
+            // Function with 'set' as parameter name
+            function processData(get, set) {
+                return get + set;
+            }
+            
+            // Object with getter/setter
+            var obj = {
+                _value: 0,
+                get data() { return this._value; },
+                set data(v) { this._value = v; }
+            };
+            
+            // Use both
+            obj.data = 10;
+            processData(obj.data, 20);
+        ";
+        
+        var result = await engine.Evaluate(code);
+        Assert.Equal(30.0, result);
+    }
 }

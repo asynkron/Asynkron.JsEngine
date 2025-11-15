@@ -1557,7 +1557,7 @@ public class EvaluatorTests
         var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
-                                           let d = new Date(2024, 0, 1);
+                                           let d = new Date("2024-01-01T00:00:00.000Z");
                                            d.toISOString();
 
                                            """);

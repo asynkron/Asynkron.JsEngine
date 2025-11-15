@@ -113,4 +113,27 @@ public class ParameterNamingTests
         var result = await engine.Evaluate(code);
         Assert.Equal(30.0, result);
     }
+
+    /// <summary>
+    /// Test the exact example from the problem statement (simplified)
+    /// </summary>
+    [Fact]
+    public async Task IsInAstralSet_ExactExample_FromProblemStatement()
+    {
+        var engine = new JsEngine();
+        var code = @"
+            // This is the function from the problem statement that was failing to parse
+            function isInAstralSet(code, set) {
+                // Simplified test - just return the first element of set
+                return set.length > 0 ? set[0] : null;
+            }
+            
+            // If this parses and runs, the fix is working
+            var testSet = [42, 20, 30, 40];
+            isInAstralSet(0x10015, testSet);
+        ";
+        
+        var result = await engine.Evaluate(code);
+        Assert.Equal(42.0, result);
+    }
 }

@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 public class CpsTransformerTests
 {
     [Fact(Timeout = 2000)]
-    public async Task NeedsTransformation_WithRegularCode_ReturnsFalse()
+    public Task NeedsTransformation_WithRegularCode_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
@@ -20,10 +20,11 @@ public class CpsTransformerTests
 
         // Assert
         Assert.False(needsTransform);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task NeedsTransformation_WithNullProgram_ReturnsFalse()
+    public Task NeedsTransformation_WithNullProgram_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
@@ -33,10 +34,11 @@ public class CpsTransformerTests
 
         // Assert
         Assert.False(needsTransform);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task NeedsTransformation_WithEmptyProgram_ReturnsFalse()
+    public Task NeedsTransformation_WithEmptyProgram_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
@@ -47,10 +49,11 @@ public class CpsTransformerTests
 
         // Assert
         Assert.False(needsTransform);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Transform_ReturnsInputUnchanged()
+    public Task Transform_ReturnsInputUnchanged()
     {
         // Arrange
         var transformer = new CpsTransformer();
@@ -63,20 +66,22 @@ public class CpsTransformerTests
         // Assert
         // For now, the transformer returns the input unchanged
         Assert.Same(program, transformed);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task TransformerCanBeInstantiated()
+    public Task TransformerCanBeInstantiated()
     {
         // Arrange & Act
         var transformer = new CpsTransformer();
 
         // Assert
         Assert.NotNull(transformer);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task NeedsTransformation_WithFunctionDeclaration_ReturnsFalse()
+    public Task NeedsTransformation_WithFunctionDeclaration_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
@@ -89,10 +94,11 @@ public class CpsTransformerTests
         // Assert
         // Regular functions don't need CPS transformation
         Assert.False(needsTransform);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task NeedsTransformation_WithComplexCode_ReturnsFalse()
+    public Task NeedsTransformation_WithComplexCode_ReturnsFalse()
     {
         // Arrange
         var transformer = new CpsTransformer();
@@ -104,7 +110,7 @@ public class CpsTransformerTests
                                                    return fibonacci(n - 1) + fibonacci(n - 2);
                                                }
                                                let result = fibonacci(10);
-                                           
+
                                    """);
 
         // Act
@@ -113,5 +119,6 @@ public class CpsTransformerTests
         // Assert
         // Regular recursive functions don't need CPS transformation
         Assert.False(needsTransform);
+        return Task.CompletedTask;
     }
 }

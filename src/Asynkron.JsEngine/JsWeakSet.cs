@@ -31,10 +31,17 @@ public sealed class JsWeakSet
     public JsWeakSet Add(object? value)
     {
         // WeakSet only accepts objects as values
-        if (value == null || !IsObject(value)) throw new Exception("Invalid value used in weak set");
+        if (value == null || !IsObject(value))
+        {
+            throw new Exception("Invalid value used in weak set");
+        }
 
         // If already present, do nothing; otherwise add it
-        if (!_values.TryGetValue(value, out _)) _values.Add(value, null);
+        if (!_values.TryGetValue(value, out _))
+        {
+            _values.Add(value, null);
+        }
+
         return this;
     }
 
@@ -43,7 +50,10 @@ public sealed class JsWeakSet
     /// </summary>
     public bool Has(object? value)
     {
-        if (value == null || !IsObject(value)) return false;
+        if (value == null || !IsObject(value))
+        {
+            return false;
+        }
 
         return _values.TryGetValue(value, out _);
     }
@@ -54,7 +64,10 @@ public sealed class JsWeakSet
     /// </summary>
     public bool Delete(object? value)
     {
-        if (value == null || !IsObject(value)) return false;
+        if (value == null || !IsObject(value))
+        {
+            return false;
+        }
 
         return _values.Remove(value);
     }
@@ -65,20 +78,35 @@ public sealed class JsWeakSet
     /// </summary>
     private static bool IsObject(object? value)
     {
-        if (value == null) return false;
+        if (value == null)
+        {
+            return false;
+        }
 
         // Check for undefined symbol
-        if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined)) return false;
+        if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined))
+        {
+            return false;
+        }
 
         // Check if it's a reference type that can be used as a WeakSet value
         // Strings are reference types in .NET but are treated as primitives in JavaScript
-        if (value is string) return false;
+        if (value is string)
+        {
+            return false;
+        }
 
         // Value types (numbers, bools, etc.) are not valid WeakSet values
-        if (value.GetType().IsValueType) return false;
+        if (value.GetType().IsValueType)
+        {
+            return false;
+        }
 
         // Symbol is a special case - not allowed as WeakSet value
-        if (value is JsSymbol) return false;
+        if (value is JsSymbol)
+        {
+            return false;
+        }
 
         return true;
     }

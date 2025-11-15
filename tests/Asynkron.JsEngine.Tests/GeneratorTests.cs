@@ -451,7 +451,7 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseGeneratorSyntax_FunctionStar()
+    public Task ParseGeneratorSyntax_FunctionStar()
     {
         // Arrange
         var engine = new JsEngine();
@@ -466,10 +466,11 @@ public class GeneratorTests
                                    """);
 
         Assert.NotNull(program);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ParseYieldExpression()
+    public Task ParseYieldExpression()
     {
         // Arrange
         var engine = new JsEngine();
@@ -485,5 +486,6 @@ public class GeneratorTests
                                    """);
 
         Assert.NotNull(program);
+        return Task.CompletedTask;
     }
 }

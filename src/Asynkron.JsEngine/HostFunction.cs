@@ -10,7 +10,7 @@ public sealed class HostFunction : IJsCallable
 
     public HostFunction(Func<IReadOnlyList<object?>, object?> handler)
     {
-        if (handler is null) throw new ArgumentNullException(nameof(handler));
+        ArgumentNullException.ThrowIfNull(handler);
 
         _handler = (_, args) => handler(args);
         _properties.SetProperty("prototype", new JsObject());

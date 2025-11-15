@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 public class TransformationDebugTest(ITestOutputHelper output)
 {
     [Fact(Timeout = 2000)]
-    public async Task ShowTransformation_ForOfWithAwait()
+    public Task ShowTransformation_ForOfWithAwait()
     {
         var source = """
 
@@ -35,10 +35,11 @@ public class TransformationDebugTest(ITestOutputHelper output)
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
         output.WriteLine(transformedSexpr.ToString());
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ShowTransformation_SimpleAsyncAwait()
+    public Task ShowTransformation_SimpleAsyncAwait()
     {
         // Simpler case that works
         var source = """
@@ -62,5 +63,6 @@ public class TransformationDebugTest(ITestOutputHelper output)
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED (works) ===");
         output.WriteLine(transformedSexpr.ToString());
+        return Task.CompletedTask;
     }
 }

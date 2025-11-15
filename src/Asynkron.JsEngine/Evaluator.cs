@@ -9,12 +9,14 @@ public static class Evaluator
         return EvaluateProgram(program, environment, new EvaluationContext());
     }
 
-    internal static object? EvaluateProgram(Cons program, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateProgram(Cons program, JsEnvironment environment, EvaluationContext context)
     {
         context.SourceReference = program.SourceReference;
 
         if (program.IsEmpty || program.Head is not Symbol { } tag || !ReferenceEquals(tag, JsSymbols.Program))
+        {
             throw new InvalidOperationException($"Program S-expression must start with the 'program' symbol.{GetSourceInfo(context)}");
+        }
 
         // Check if program has "use strict" directive
         var hasUseStrict = false;
@@ -35,11 +37,16 @@ public static class Evaluator
         {
             result = EvaluateStatement(statement, evalEnv, context);
             if (context.ShouldStopEvaluation)
+            {
                 break;
+            }
         }
 
         // If there's an unhandled throw, convert it to an exception
-        if (context.IsThrow) throw new ThrowSignal(context.FlowValue);
+        if (context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
 
         return result;
     }
@@ -54,7 +61,9 @@ public static class Evaluator
         context.SourceReference = block.SourceReference;
 
         if (block.IsEmpty || block.Head is not Symbol { } tag || !ReferenceEquals(tag, JsSymbols.Block))
+        {
             throw new InvalidOperationException($"Block S-expression must start with the 'block' symbol.{GetSourceInfo(context)}");
+        }
 
         // Check if block has "use strict" directive
         var isStrict = false;
@@ -72,7 +81,9 @@ public static class Evaluator
         {
             result = EvaluateStatement(statement, scope, context);
             if (context.ShouldStopEvaluation)
+            {
                 break;
+            }
         }
 
         return result;
@@ -80,42 +91,92 @@ public static class Evaluator
 
     private static object? EvaluateStatement(object? statement, JsEnvironment environment, EvaluationContext context)
     {
-        if (statement is not Cons cons) return statement;
+        if (statement is not Cons cons)
+        {
+            return statement;
+        }
 
         context.SourceReference = cons.SourceReference;
 
-        if (cons.Head is not Symbol symbol) throw new InvalidOperationException($"Statement must start with a symbol.{GetSourceInfo(context)}");
+        if (cons.Head is not Symbol symbol)
+        {
+            throw new InvalidOperationException($"Statement must start with a symbol.{GetSourceInfo(context)}");
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.Let)) return EvaluateLet(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.Let))
+        {
+            return EvaluateLet(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.Var)) return EvaluateVar(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.Var))
+        {
+            return EvaluateVar(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.Const)) return EvaluateConst(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.Const))
+        {
+            return EvaluateConst(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.Function)) return EvaluateFunctionDeclaration(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.Function))
+        {
+            return EvaluateFunctionDeclaration(cons, environment, context);
+        }
 
         if (ReferenceEquals(symbol, JsSymbols.Generator))
+        {
             return EvaluateGeneratorDeclaration(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.Class)) return EvaluateClass(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.Class))
+        {
+            return EvaluateClass(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.If)) return EvaluateIf(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.If))
+        {
+            return EvaluateIf(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.For)) return EvaluateFor(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.For))
+        {
+            return EvaluateFor(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.ForIn)) return EvaluateForIn(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.ForIn))
+        {
+            return EvaluateForIn(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.ForOf)) return EvaluateForOf(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.ForOf))
+        {
+            return EvaluateForOf(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.ForAwaitOf)) return EvaluateForAwaitOf(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.ForAwaitOf))
+        {
+            return EvaluateForAwaitOf(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.Switch)) return EvaluateSwitch(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.Switch))
+        {
+            return EvaluateSwitch(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.Try)) return EvaluateTry(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.Try))
+        {
+            return EvaluateTry(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.While)) return EvaluateWhile(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.While))
+        {
+            return EvaluateWhile(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.DoWhile)) return EvaluateDoWhile(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.DoWhile))
+        {
+            return EvaluateDoWhile(cons, environment, context);
+        }
 
         if (ReferenceEquals(symbol, JsSymbols.Break))
         {
@@ -135,9 +196,15 @@ public static class Evaluator
             return null;
         }
 
-        if (ReferenceEquals(symbol, JsSymbols.Return)) return EvaluateReturn(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.Return))
+        {
+            return EvaluateReturn(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.Throw)) return EvaluateThrow(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.Throw))
+        {
+            return EvaluateThrow(cons, environment, context);
+        }
 
         if (ReferenceEquals(symbol, JsSymbols.ExpressionStatement))
         {
@@ -145,7 +212,10 @@ public static class Evaluator
             return EvaluateExpression(expression, environment, context);
         }
 
-        if (ReferenceEquals(symbol, JsSymbols.Block)) return EvaluateBlock(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.Block))
+        {
+            return EvaluateBlock(cons, environment, context);
+        }
 
         return EvaluateExpression(cons, environment, context);
     }
@@ -158,9 +228,15 @@ public static class Evaluator
         var elseBranch = elseBranchCons.IsEmpty ? null : elseBranchCons.Head;
 
         var condition = EvaluateExpression(conditionExpression, environment, context);
-        if (IsTruthy(condition)) return EvaluateStatement(thenBranch, environment, context);
+        if (IsTruthy(condition))
+        {
+            return EvaluateStatement(thenBranch, environment, context);
+        }
 
-        if (elseBranch is not null) return EvaluateStatement(elseBranch, environment, context);
+        if (elseBranch is not null)
+        {
+            return EvaluateStatement(elseBranch, environment, context);
+        }
 
         return null;
     }
@@ -174,7 +250,9 @@ public static class Evaluator
         while (IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
         {
             if (context.ShouldStopEvaluation)
+            {
                 break;
+            }
 
             lastResult = EvaluateStatement(body, environment, context);
 
@@ -194,7 +272,9 @@ public static class Evaluator
 
             if (context.CurrentSignal is ReturnSignal or ThrowFlowSignal)
                 // Propagate return/throw signals up the call stack
+            {
                 break;
+            }
         }
 
         return lastResult;
@@ -225,7 +305,10 @@ public static class Evaluator
                 break; // Propagate return/throw
             }
 
-            if (!IsTruthy(EvaluateExpression(conditionExpression, environment, context))) break;
+            if (!IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
+            {
+                break;
+            }
         }
 
         return lastResult;
@@ -241,21 +324,30 @@ public static class Evaluator
         // Create environment for the loop, passing the for loop S-expression
         var loopJsEnvironment = new JsEnvironment(environment, creatingExpression: cons, description: "for loop");
 
-        if (initializer is not null) EvaluateStatement(initializer, loopJsEnvironment, context);
+        if (initializer is not null)
+        {
+            EvaluateStatement(initializer, loopJsEnvironment, context);
+        }
 
         object? lastResult = null;
         while (conditionExpression is null ||
                IsTruthy(EvaluateExpression(conditionExpression, loopJsEnvironment, context)))
         {
             if (context.ShouldStopEvaluation)
+            {
                 break;
+            }
 
             lastResult = EvaluateStatement(body, loopJsEnvironment, context);
 
             if (context.IsContinue)
             {
                 context.ClearContinue();
-                if (incrementExpression is not null) EvaluateExpression(incrementExpression, loopJsEnvironment, context);
+                if (incrementExpression is not null)
+                {
+                    EvaluateExpression(incrementExpression, loopJsEnvironment, context);
+                }
+
                 continue;
             }
 
@@ -265,9 +357,15 @@ public static class Evaluator
                 break;
             }
 
-            if (context.IsReturn || context.IsThrow) break; // Propagate return/throw
+            if (context.IsReturn || context.IsThrow)
+            {
+                break; // Propagate return/throw
+            }
 
-            if (incrementExpression is not null) EvaluateExpression(incrementExpression, loopJsEnvironment, context);
+            if (incrementExpression is not null)
+            {
+                EvaluateExpression(incrementExpression, loopJsEnvironment, context);
+            }
         }
 
         return lastResult;
@@ -278,7 +376,7 @@ public static class Evaluator
         // (for-in (let/var/const variable) iterable body) OR (for-in identifier iterable body)
         var firstArg = cons.Rest.Head;
         Symbol variableName;
-        
+
         // Check if first argument is a variable declaration or just an identifier
         if (firstArg is Cons variableDecl)
         {
@@ -294,7 +392,7 @@ public static class Evaluator
         {
             throw new InvalidOperationException($"Expected variable declaration or identifier in for...in loop.{GetSourceInfo(context)}");
         }
-        
+
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
 
@@ -305,21 +403,35 @@ public static class Evaluator
         object? lastResult = null;
 
         // Get keys to iterate over
-        List<string> keys = new();
-        if (iterable is JsObject jsObject)
-            foreach (var key in jsObject.GetOwnPropertyNames())
-                keys.Add(key);
-        else if (iterable is JsArray jsArray)
-            for (var i = 0; i < jsArray.Items.Count; i++)
-                keys.Add(i.ToString());
-        else if (iterable is string str)
-            for (var i = 0; i < str.Length; i++)
-                keys.Add(i.ToString());
+        List<string> keys = [];
+        switch (iterable)
+        {
+            case JsObject jsObject:
+            {
+                keys.AddRange(jsObject.GetOwnPropertyNames());
+
+                break;
+            }
+            case JsArray jsArray:
+            {
+                for (var i = 0; i < jsArray.Items.Count; i++)
+                    keys.Add(i.ToString(CultureInfo.InvariantCulture));
+                break;
+            }
+            case string str:
+            {
+                for (var i = 0; i < str.Length; i++)
+                    keys.Add(i.ToString(CultureInfo.InvariantCulture));
+                break;
+            }
+        }
 
         foreach (var key in keys)
         {
             if (context.ShouldStopEvaluation)
+            {
                 break;
+            }
 
             // Set loop variable
             // If using existing variable, update in parent scope, otherwise define in loop scope
@@ -346,7 +458,10 @@ public static class Evaluator
                 break;
             }
 
-            if (context.IsReturn || context.IsThrow) break; // Propagate return/throw
+            if (context.IsReturn || context.IsThrow)
+            {
+                break; // Propagate return/throw
+            }
         }
 
         return lastResult;
@@ -356,24 +471,17 @@ public static class Evaluator
     {
         // (for-of (let/var/const variable) iterable body) OR (for-of identifier iterable body)
         var firstArg = cons.Rest.Head;
-        Symbol variableName;
-        
-        // Check if first argument is a variable declaration or just an identifier
-        if (firstArg is Cons variableDecl)
+
+        var variableName = firstArg switch
         {
-            // Extract variable name from declaration
-            variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...of loop.", context);
-        }
-        else if (firstArg is Symbol identifier)
-        {
-            // Using existing variable
-            variableName = identifier;
-        }
-        else
-        {
-            throw new InvalidOperationException($"Expected variable declaration or identifier in for...of loop.{GetSourceInfo(context)}");
-        }
-        
+            // Check if first argument is a variable declaration or just an identifier
+            Cons variableDecl => ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...of loop.",
+                context),
+            Symbol identifier => identifier,
+            _ => throw new InvalidOperationException(
+                $"Expected variable declaration or identifier in for...of loop.{GetSourceInfo(context)}")
+        };
+
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
 
@@ -384,21 +492,30 @@ public static class Evaluator
         object? lastResult = null;
 
         // Get values to iterate over
-        List<object?> values = new();
-        if (iterable is JsArray jsArray)
-            for (var i = 0; i < jsArray.Items.Count; i++)
-                values.Add(jsArray.GetElement(i));
-        else if (iterable is string str)
-            foreach (var c in str)
-                values.Add(c.ToString());
-        else
-            throw new InvalidOperationException(FormatErrorMessage($"Cannot iterate over non-iterable value '{iterable}'", cons) + ".");
-
-        foreach (var value in values)
+        List<object?> values = [];
+        switch (iterable)
         {
-            if (context.ShouldStopEvaluation)
+            case JsArray jsArray:
+            {
+                for (var i = 0; i < jsArray.Items.Count; i++)
+                    values.Add(jsArray.GetElement(i));
                 break;
+            }
+            case string str:
+            {
+                foreach (var c in str)
+                {
+                    values.Add(c.ToString());
+                }
 
+                break;
+            }
+            default:
+                throw new InvalidOperationException(FormatErrorMessage($"Cannot iterate over non-iterable value '{iterable}'", cons) + ".");
+        }
+
+        foreach (var value in values.TakeWhile(_ => !context.ShouldStopEvaluation))
+        {
             // Set loop variable
             // If using existing variable, update in parent scope, otherwise define in loop scope
             if (firstArg is Symbol)
@@ -424,7 +541,10 @@ public static class Evaluator
                 break;
             }
 
-            if (context.IsReturn || context.IsThrow) break; // Propagate return/throw
+            if (context.IsReturn || context.IsThrow)
+            {
+                break; // Propagate return/throw
+            }
         }
 
         return lastResult;
@@ -438,24 +558,17 @@ public static class Evaluator
         // 2. Fallback to Symbol.iterator
         // 3. Built-in iterables (arrays, strings, generators)
         var firstArg = cons.Rest.Head;
-        Symbol variableName;
-        
-        // Check if first argument is a variable declaration or just an identifier
-        if (firstArg is Cons variableDecl)
+
+        var variableName = firstArg switch
         {
-            // Extract variable name from declaration
-            variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for await...of loop.", context);
-        }
-        else if (firstArg is Symbol identifier)
-        {
-            // Using existing variable
-            variableName = identifier;
-        }
-        else
-        {
-            throw new InvalidOperationException($"Expected variable declaration or identifier in for await...of loop.{GetSourceInfo(context)}");
-        }
-        
+            // Check if first argument is a variable declaration or just an identifier
+            Cons variableDecl => ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for await...of loop.",
+                context),
+            Symbol identifier => identifier,
+            _ => throw new InvalidOperationException(
+                $"Expected variable declaration or identifier in for await...of loop.{GetSourceInfo(context)}")
+        };
+
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
 
@@ -488,7 +601,9 @@ public static class Evaluator
                 if (jsObj.TryGetProperty(iteratorKey, out var iteratorMethod) &&
                     iteratorMethod is IJsCallable iteratorCallable)
                     // Call the iterator method to get the iterator
+                {
                     iterator = iteratorCallable.Invoke([], jsObj);
+                }
             }
         }
 
@@ -499,12 +614,16 @@ public static class Evaluator
             while (true)
             {
                 if (context.ShouldStopEvaluation)
+                {
                     break;
+                }
 
                 // Call next() on the iterator
                 if (!iteratorObj.TryGetProperty("next", out var nextMethod) ||
                     nextMethod is not IJsCallable nextCallable)
+                {
                     throw new InvalidOperationException($"Iterator must have a 'next' method.{GetSourceInfo(context)}");
+                }
 
                 var nextResult = nextCallable.Invoke([], iteratorObj);
 
@@ -517,43 +636,52 @@ public static class Evaluator
                         // The CPS transformation should handle this for async functions
                         // For testing purposes, if it's a resolved promise, we try to extract the value
                         // This is a limitation - proper async iteration requires CPS transformation
+                    {
                         throw new InvalidOperationException(
                             $"Async iteration with promises requires async function context. Use for await...of inside an async function.{GetSourceInfo(context)}");
+                    }
 
                     // Check if iteration is done
                     var done = resultObj.TryGetProperty("done", out var doneValue) && doneValue is bool b && b;
                     if (done)
+                    {
                         break;
+                    }
 
                     // Get the value
-                    if (resultObj.TryGetProperty("value", out var value))
+                    if (!resultObj.TryGetProperty("value", out var value))
                     {
-                        // Set loop variable
-                        // If using existing variable, update in parent scope, otherwise define in loop scope
-                        if (firstArg is Symbol)
-                        {
-                            environment.Assign(variableName, value);
-                        }
-                        else
-                        {
-                            loopJsEnvironment.Define(variableName, value);
-                        }
+                        continue;
+                    }
 
-                        lastResult = EvaluateStatement(body, loopJsEnvironment, context);
+                    // Set loop variable
+                    // If using existing variable, update in parent scope, otherwise define in loop scope
+                    if (firstArg is Symbol)
+                    {
+                        environment.Assign(variableName, value);
+                    }
+                    else
+                    {
+                        loopJsEnvironment.Define(variableName, value);
+                    }
 
-                        if (context.IsContinue)
-                        {
-                            context.ClearContinue();
-                            continue;
-                        }
+                    lastResult = EvaluateStatement(body, loopJsEnvironment, context);
 
-                        if (context.IsBreak)
-                        {
-                            context.ClearBreak();
-                            break;
-                        }
+                    if (context.IsContinue)
+                    {
+                        context.ClearContinue();
+                        continue;
+                    }
 
-                        if (context.IsReturn || context.IsThrow) break; // Propagate return/throw
+                    if (context.IsBreak)
+                    {
+                        context.ClearBreak();
+                        break;
+                    }
+
+                    if (context.IsReturn || context.IsThrow)
+                    {
+                        break; // Propagate return/throw
                     }
                 }
                 else
@@ -566,40 +694,59 @@ public static class Evaluator
         }
 
         // Fallback to built-in iterable handling
-        List<object?> values = new();
-        if (iterable is JsArray jsArray)
+        List<object?> values = [];
+        switch (iterable)
+        {
             // Regular array - collect values
-            for (var i = 0; i < jsArray.Items.Count; i++)
-                values.Add(jsArray.GetElement(i));
-        else if (iterable is JsGenerator generator)
-            // Generator - iterate through its values
-            while (true)
+            case JsArray jsArray:
             {
-                var nextResult = generator.Next(null);
-                if (nextResult is JsObject resultObj)
-                {
-                    var done = resultObj.TryGetProperty("done", out var doneValue) && doneValue is bool b && b;
-                    if (done) break;
-
-                    if (resultObj.TryGetProperty("value", out var value)) values.Add(value);
-                }
-                else
-                {
-                    break;
-                }
+                for (var i = 0; i < jsArray.Items.Count; i++)
+                    values.Add(jsArray.GetElement(i));
+                break;
             }
-        else if (iterable is string str)
-            foreach (var c in str)
-                values.Add(c.ToString());
-        else
-            throw new InvalidOperationException(FormatErrorMessage($"Cannot iterate over non-iterable value '{iterable}'", cons) + ".");
+            // Generator - iterate through its values
+            case JsGenerator generator:
+            {
+                while (true)
+                {
+                    var nextResult = generator.Next(null);
+                    if (nextResult is JsObject resultObj)
+                    {
+                        var done = resultObj.TryGetProperty("done", out var doneValue) && doneValue is bool b && b;
+                        if (done)
+                        {
+                            break;
+                        }
+
+                        if (resultObj.TryGetProperty("value", out var value))
+                        {
+                            values.Add(value);
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                break;
+            }
+            case string str:
+            {
+                foreach (var c in str)
+                {
+                    values.Add(c.ToString());
+                }
+
+                break;
+            }
+            default:
+                throw new InvalidOperationException(FormatErrorMessage($"Cannot iterate over non-iterable value '{iterable}'", cons) + ".");
+        }
 
         // Iterate over collected values
-        foreach (var value in values)
+        foreach (var value in values.TakeWhile(_ => !context.ShouldStopEvaluation))
         {
-            if (context.ShouldStopEvaluation)
-                break;
-
             // Set loop variable
             // If using existing variable, update in parent scope, otherwise define in loop scope
             if (firstArg is Symbol)
@@ -625,7 +772,10 @@ public static class Evaluator
                 break;
             }
 
-            if (context.IsReturn || context.IsThrow) break; // Propagate return/throw
+            if (context.IsReturn || context.IsThrow)
+            {
+                break; // Propagate return/throw
+            }
         }
 
         return lastResult;
@@ -664,7 +814,10 @@ public static class Evaluator
                         return result;
                     }
 
-                    if (context.IsReturn || context.IsThrow) return result; // Propagate
+                    if (context.IsReturn || context.IsThrow)
+                    {
+                        return result; // Propagate
+                    }
                 }
 
                 continue;
@@ -674,7 +827,10 @@ public static class Evaluator
             {
                 var body = ExpectCons(clause.Rest.Head, "Expected default body block.", context);
 
-                if (!hasMatched) hasMatched = true;
+                if (!hasMatched)
+                {
+                    hasMatched = true;
+                }
 
                 result = ExecuteSwitchBody(body, environment, result, context);
                 if (context.IsBreak)
@@ -683,7 +839,10 @@ public static class Evaluator
                     return result;
                 }
 
-                if (context.IsReturn || context.IsThrow) return result; // Propagate
+                if (context.IsReturn || context.IsThrow)
+                {
+                    return result; // Propagate
+                }
 
                 continue;
             }
@@ -702,7 +861,9 @@ public static class Evaluator
         {
             result = EvaluateStatement(statement, environment, context);
             if (context.ShouldStopEvaluation)
+            {
                 break;
+            }
         }
 
         return result;
@@ -733,7 +894,10 @@ public static class Evaluator
                 context.Clear();
                 result = ExecuteCatchClause(catchCons, thrownValue, environment, context);
                 // If catch handled it successfully, don't re-throw
-                if (!context.IsThrow) hasThrow = false;
+                if (!context.IsThrow)
+                {
+                    hasThrow = false;
+                }
             }
             // If no catch clause or catch didn't handle it, keep the throw state
         }
@@ -747,7 +911,10 @@ public static class Evaluator
             EvaluateStatement(finallyCons, environment, context);
 
             // If finally didn't set a new signal, restore the previous one
-            if (context.CurrentSignal is null && hasThrow) context.SetThrow(thrownValue);
+            if (context.CurrentSignal is null && hasThrow)
+            {
+                context.SetThrow(thrownValue);
+            }
         }
 
         return result;
@@ -859,10 +1026,15 @@ public static class Evaluator
 
         var constructorValue = EvaluateExpression(constructorExpression, environment, context);
         if (constructorValue is not JsFunction constructor)
+        {
             throw new InvalidOperationException($"Class constructor must be a function.{GetSourceInfo(context)}");
+        }
 
         // Store private field definitions on the constructor for later initialization
-        if (privateFieldsList is not null) constructor.SetProperty("__privateFields__", privateFieldsList);
+        if (privateFieldsList is not null)
+        {
+            constructor.SetProperty("__privateFields__", privateFieldsList);
+        }
 
         environment.Define(name, constructor);
 
@@ -873,12 +1045,18 @@ public static class Evaluator
             constructor.SetProperty("prototype", prototype);
         }
 
-        if (superPrototype is not null) prototype.SetPrototype(superPrototype);
+        if (superPrototype is not null)
+        {
+            prototype.SetPrototype(superPrototype);
+        }
 
         if (superConstructor is not null || superPrototype is not null)
         {
             constructor.SetSuperBinding(superConstructor, superPrototype);
-            if (superConstructor is not null) constructor.SetProperty("__proto__", superConstructor);
+            if (superConstructor is not null)
+            {
+                constructor.SetProperty("__proto__", superConstructor);
+            }
         }
 
         prototype.SetProperty("constructor", constructor);
@@ -896,10 +1074,14 @@ public static class Evaluator
                 var methodValue = EvaluateExpression(functionExpression, environment, context);
 
                 if (methodValue is not IJsCallable)
+                {
                     throw new InvalidOperationException($"Class method '{methodName}' must be callable.{GetSourceInfo(context)}");
+                }
 
                 if (methodValue is JsFunction methodFunction)
+                {
                     methodFunction.SetSuperBinding(superConstructor, superPrototype);
+                }
 
                 prototype.SetProperty(methodName, methodValue);
             }
@@ -912,7 +1094,9 @@ public static class Evaluator
                 var methodValue = EvaluateExpression(functionExpression, environment, context);
 
                 if (methodValue is not IJsCallable)
+                {
                     throw new InvalidOperationException($"Static method '{methodName}' must be callable.{GetSourceInfo(context)}");
+                }
 
                 constructor.SetProperty(methodName, methodValue);
             }
@@ -925,7 +1109,9 @@ public static class Evaluator
                 var getter = new JsFunction(null, [], null, body, environment);
 
                 if (superConstructor is not null || superPrototype is not null)
+                {
                     getter.SetSuperBinding(superConstructor, superPrototype);
+                }
 
                 prototype.SetGetter(methodName, getter);
             }
@@ -938,10 +1124,14 @@ public static class Evaluator
                 var getter = new JsFunction(null, [], null, body, environment);
 
                 if (constructor.TryGetProperty("__properties__", out var propsValue) && propsValue is JsObject props)
+                {
                     props.SetGetter(methodName, getter);
+                }
                 else
                     // Fall back to setting as a regular property
+                {
                     constructor.SetProperty(methodName, getter);
+                }
             }
             else if (ReferenceEquals(tag, JsSymbols.Setter))
             {
@@ -954,7 +1144,9 @@ public static class Evaluator
                 var setter = new JsFunction(null, paramList, null, body, environment);
 
                 if (superConstructor is not null || superPrototype is not null)
+                {
                     setter.SetSuperBinding(superConstructor, superPrototype);
+                }
 
                 prototype.SetSetter(methodName, setter);
             }
@@ -969,10 +1161,14 @@ public static class Evaluator
                 var setter = new JsFunction(null, paramList, null, body, environment);
 
                 if (constructor.TryGetProperty("__properties__", out var propsValue) && propsValue is JsObject props)
+                {
                     props.SetSetter(methodName, setter);
+                }
                 else
                     // Fall back to setting as a regular property
+                {
                     constructor.SetProperty(methodName, setter);
+                }
             }
             else
             {
@@ -982,13 +1178,20 @@ public static class Evaluator
 
         // Handle static fields from private fields list
         if (privateFieldsList is not null)
+        {
             foreach (var fieldExpression in privateFieldsList)
             {
                 var fieldCons = fieldExpression as Cons;
-                if (fieldCons is null) continue;
+                if (fieldCons is null)
+                {
+                    continue;
+                }
 
                 var fieldTag = fieldCons.Head as Symbol;
-                if (fieldTag is null) continue;
+                if (fieldTag is null)
+                {
+                    continue;
+                }
 
                 if (ReferenceEquals(fieldTag, JsSymbols.StaticField))
                 {
@@ -1004,6 +1207,7 @@ public static class Evaluator
                     constructor.SetProperty(fieldName, initialValue);
                 }
             }
+        }
 
         return constructor;
     }
@@ -1011,19 +1215,30 @@ public static class Evaluator
     private static (JsFunction? Constructor, JsObject? Prototype) ResolveSuperclass(object? extendsEntry,
         JsEnvironment environment, EvaluationContext context)
     {
-        if (extendsEntry is null) return (null, null);
+        if (extendsEntry is null)
+        {
+            return (null, null);
+        }
 
         var extendsCons = ExpectCons(extendsEntry, "Expected extends clause structure.", context);
         var tag = ExpectSymbol(extendsCons.Head, "Expected extends tag.", context);
-        if (!ReferenceEquals(tag, JsSymbols.Extends)) throw new InvalidOperationException($"Malformed extends clause.{GetSourceInfo(context)}");
+        if (!ReferenceEquals(tag, JsSymbols.Extends))
+        {
+            throw new InvalidOperationException($"Malformed extends clause.{GetSourceInfo(context)}");
+        }
 
         var baseExpression = extendsCons.Rest.Head;
         var baseValue = EvaluateExpression(baseExpression, environment, context);
 
-        if (baseValue is null) return (null, null);
+        if (baseValue is null)
+        {
+            return (null, null);
+        }
 
         if (baseValue is not JsFunction baseConstructor)
+        {
             throw new InvalidOperationException($"Classes can only extend other constructors (or null).{GetSourceInfo(context)}");
+        }
 
         if (!baseConstructor.TryGetProperty("prototype", out var prototypeValue) ||
             prototypeValue is not JsObject basePrototype)
@@ -1060,7 +1275,10 @@ public static class Evaluator
         EvaluationContext context)
     {
         var tag = ExpectSymbol(catchClause.Head, "Expected catch clause tag.", context);
-        if (!ReferenceEquals(tag, JsSymbols.Catch)) throw new InvalidOperationException($"Malformed catch clause.{GetSourceInfo(context)}");
+        if (!ReferenceEquals(tag, JsSymbols.Catch))
+        {
+            throw new InvalidOperationException($"Malformed catch clause.{GetSourceInfo(context)}");
+        }
 
         var binding = ExpectSymbol(catchClause.Rest.Head, "Expected catch binding symbol.", context);
         var body = ExpectCons(catchClause.Rest.Rest.Head, "Expected catch block.", context);
@@ -1084,7 +1302,11 @@ public static class Evaluator
                 return d;
             case Symbol symbol:
                 // Special case: undefined is a reserved symbol that evaluates to itself
-                if (ReferenceEquals(symbol, JsSymbols.Undefined)) return symbol;
+                if (ReferenceEquals(symbol, JsSymbols.Undefined))
+                {
+                    return symbol;
+                }
+
                 return environment.Get(symbol);
             case Cons cons:
                 return EvaluateCompositeExpression(cons, environment, context);
@@ -1100,7 +1322,9 @@ public static class Evaluator
         // Debug: Console.WriteLine($"Setting SourceReference: {context.SourceReference} for {cons.Head}");
 
         if (cons.Head is not Symbol symbol)
+        {
             throw new InvalidOperationException($"Composite expression must begin with a symbol.{GetSourceInfo(context)}");
+        }
 
         if (ReferenceEquals(symbol, JsSymbols.Assign))
         {
@@ -1120,41 +1344,80 @@ public static class Evaluator
             return value;
         }
 
-        if (ReferenceEquals(symbol, JsSymbols.Call)) return EvaluateCall(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.Call))
+        {
+            return EvaluateCall(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.OptionalCall)) return EvaluateOptionalCall(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.OptionalCall))
+        {
+            return EvaluateOptionalCall(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.ArrayLiteral)) return EvaluateArrayLiteral(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.ArrayLiteral))
+        {
+            return EvaluateArrayLiteral(cons, environment, context);
+        }
 
         if (ReferenceEquals(symbol, JsSymbols.TemplateLiteral))
+        {
             return EvaluateTemplateLiteral(cons, environment, context);
+        }
 
         if (ReferenceEquals(symbol, JsSymbols.TaggedTemplate))
+        {
             return EvaluateTaggedTemplate(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.ObjectLiteral)) return EvaluateObjectLiteral(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.ObjectLiteral))
+        {
+            return EvaluateObjectLiteral(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.GetIndex)) return EvaluateGetIndex(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.GetIndex))
+        {
+            return EvaluateGetIndex(cons, environment, context);
+        }
 
         if (ReferenceEquals(symbol, JsSymbols.OptionalGetIndex))
+        {
             return EvaluateOptionalGetIndex(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.SetIndex)) return EvaluateSetIndex(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.SetIndex))
+        {
+            return EvaluateSetIndex(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.GetProperty)) return EvaluateGetProperty(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.GetProperty))
+        {
+            return EvaluateGetProperty(cons, environment, context);
+        }
 
         if (ReferenceEquals(symbol, JsSymbols.OptionalGetProperty))
+        {
             return EvaluateOptionalGetProperty(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.SetProperty)) return EvaluateSetProperty(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.SetProperty))
+        {
+            return EvaluateSetProperty(cons, environment, context);
+        }
 
-        if (ReferenceEquals(symbol, JsSymbols.New)) return EvaluateNew(cons, environment, context);
+        if (ReferenceEquals(symbol, JsSymbols.New))
+        {
+            return EvaluateNew(cons, environment, context);
+        }
 
         if (ReferenceEquals(symbol, JsSymbols.Negate))
         {
             var operand = EvaluateExpression(cons.Rest.Head, environment, context);
             // Handle BigInt negation
-            if (operand is JsBigInt bigInt) return -bigInt;
+            if (operand is JsBigInt bigInt)
+            {
+                return -bigInt;
+            }
+
             return -ToNumber(operand);
         }
 
@@ -1169,7 +1432,7 @@ public static class Evaluator
             // Special case: typeof can be used on undeclared variables without throwing
             // Check if the operand is a simple identifier (Symbol) that doesn't exist
             var operandExpression = cons.Rest.Head;
-            if (operandExpression is Symbol operandSymbol && 
+            if (operandExpression is Symbol operandSymbol &&
                 !ReferenceEquals(operandSymbol, JsSymbols.Undefined))
             {
                 // Try to get the value without throwing
@@ -1181,7 +1444,7 @@ public static class Evaluator
                 // Symbol exists, return its typeof
                 return GetTypeofString(value);
             }
-            
+
             // For non-symbol operands (e.g., typeof (x + y)), evaluate normally
             var operand = EvaluateExpression(operandExpression, environment, context);
             return GetTypeofString(operand);
@@ -1199,7 +1462,7 @@ public static class Evaluator
         {
             // The delete operator deletes a property from an object
             var operandExpression = cons.Rest.Head;
-            
+
             // Check if operand is a property access or index access
             if (operandExpression is Cons operandCons && operandCons.Head is Symbol operandSymbol)
             {
@@ -1218,19 +1481,20 @@ public static class Evaluator
                     }
                     return true;
                 }
-                else if (ReferenceEquals(operandSymbol, JsSymbols.GetIndex))
+
+                if (ReferenceEquals(operandSymbol, JsSymbols.GetIndex))
                 {
                     // delete obj[key]
                     var target = EvaluateExpression(operandCons.Rest.Head, environment, context);
                     var key = EvaluateExpression(operandCons.Rest.Rest.Head, environment, context);
-                    
+
                     // Handle array deletion - set element to undefined to create a hole
                     if (target is JsArray jsArray && TryConvertToIndex(key, out var arrayIndex))
                     {
                         jsArray.SetElement(arrayIndex, JsSymbols.Undefined);
                         return true;
                     }
-                    
+
                     if (target is JsObject jsObj)
                     {
                         var keyStr = ToString(key);
@@ -1240,7 +1504,7 @@ public static class Evaluator
                     return true;
                 }
             }
-            
+
             // For other cases (like delete of a variable or non-property access), evaluate and return true
             // In non-strict mode, delete always returns true for non-property-references
             EvaluateExpression(operandExpression, environment, context);
@@ -1320,25 +1584,36 @@ public static class Evaluator
         var arguments = new List<object?>();
         foreach (var argumentExpression in cons.Rest.Rest)
             // Check if this is a spread argument
+        {
             if (argumentExpression is Cons { Head: Symbol head } spreadCons && ReferenceEquals(head, JsSymbols.Spread))
             {
                 var spreadValue = EvaluateExpression(spreadCons.Rest.Head, environment, context);
                 // Spread arrays
                 if (spreadValue is JsArray array)
+                {
                     foreach (var element in array.Items)
+                    {
                         arguments.Add(element);
+                    }
+                }
                 else
+                {
                     throw new InvalidOperationException(FormatErrorMessage("Spread operator can only be applied to arrays", spreadCons) + ".");
+                }
             }
             else
             {
                 arguments.Add(EvaluateExpression(argumentExpression, environment, context));
             }
+        }
 
         try
         {
             // If this is an environment-aware callable, set the calling environment
-            if (callable is IJsEnvironmentAwareCallable envAware) envAware.CallingJsEnvironment = environment;
+            if (callable is IJsEnvironmentAwareCallable envAware)
+            {
+                envAware.CallingJsEnvironment = environment;
+            }
 
             // If this is a debug-aware function, set the environment and context
             if (callable is DebugAwareHostFunction debugFunc)
@@ -1364,8 +1639,10 @@ public static class Evaluator
         {
             var binding = ExpectSuperBinding(environment, context);
             if (binding.Constructor is null)
-                throw new InvalidOperationException(FormatErrorMessage("Super constructor is not available in this context", 
+            {
+                throw new InvalidOperationException(FormatErrorMessage("Super constructor is not available in this context",
                     calleeExpression as Cons) + ".");
+            }
 
             return (binding.Constructor, binding.ThisValue);
         }
@@ -1380,13 +1657,19 @@ public static class Evaluator
             if (targetExpression is Symbol { } targetSymbol && ReferenceEquals(targetSymbol, JsSymbols.Super))
             {
                 var binding = ExpectSuperBinding(environment, context);
-                if (binding.TryGetProperty(propertyName, out var superValue)) return (superValue, binding.ThisValue);
+                if (binding.TryGetProperty(propertyName, out var superValue))
+                {
+                    return (superValue, binding.ThisValue);
+                }
 
                 return (null, binding.ThisValue);
             }
 
             var target = EvaluateExpression(targetExpression, environment, context);
-            if (TryGetPropertyValue(target, propertyName, out var value)) return (value, target);
+            if (TryGetPropertyValue(target, propertyName, out var value))
+            {
+                return (value, target);
+            }
 
             return (null, target);
         }
@@ -1406,7 +1689,9 @@ public static class Evaluator
                                             $"Unsupported index value '{superIndex}'.{GetSourceInfo(context)}");
 
                 if (binding.TryGetProperty(superPropertyName, out var superValue))
+                {
                     return (superValue, binding.ThisValue);
+                }
 
                 return (null, binding.ThisValue);
             }
@@ -1415,11 +1700,15 @@ public static class Evaluator
             var index = EvaluateExpression(indexExpression, environment, context);
 
             if (target is JsArray jsArray && TryConvertToIndex(index, out var arrayIndex))
+            {
                 return (jsArray.GetElement(arrayIndex), target);
+            }
 
             var propertyName = ToPropertyName(index);
             if (propertyName is not null && TryGetPropertyValue(target, propertyName, out var value))
+            {
                 return (value, target);
+            }
 
             return (null, target);
         }
@@ -1432,20 +1721,28 @@ public static class Evaluator
         var array = new JsArray();
         foreach (var elementExpression in cons.Rest)
             // Check if this is a spread element
+        {
             if (elementExpression is Cons { Head: Symbol head } spreadCons && ReferenceEquals(head, JsSymbols.Spread))
             {
                 var spreadValue = EvaluateExpression(spreadCons.Rest.Head, environment, context);
                 // Spread arrays
                 if (spreadValue is JsArray spreadArray)
+                {
                     foreach (var arrayElement in spreadArray.Items)
+                    {
                         array.Push(arrayElement);
+                    }
+                }
                 else
+                {
                     throw new InvalidOperationException(FormatErrorMessage("Spread operator can only be applied to arrays", spreadCons) + ".");
+                }
             }
             else
             {
                 array.Push(EvaluateExpression(elementExpression, environment, context));
             }
+        }
 
         // Add standard array methods
         StandardLibrary.AddArrayMethods(array);
@@ -1458,6 +1755,7 @@ public static class Evaluator
         var result = new System.Text.StringBuilder();
 
         foreach (var part in cons.Rest)
+        {
             if (part is string str)
             {
                 result.Append(str);
@@ -1468,6 +1766,7 @@ public static class Evaluator
                 var value = EvaluateExpression(part, environment, context);
                 result.Append(ConvertToString(value));
             }
+        }
 
         return result.ToString();
     }
@@ -1476,6 +1775,7 @@ public static class Evaluator
     {
         return value switch
         {
+            //TODO: [object, Object] ??
             null => "null",
             string s => s,
             bool b => b ? "true" : "false",
@@ -1495,15 +1795,19 @@ public static class Evaluator
         var tagFunction = EvaluateExpression(tagExpr, environment, context);
 
         if (tagFunction is not IJsCallable callable)
+        {
             throw new InvalidOperationException(FormatErrorMessage("Tag in tagged template must be a function", cons) + ".");
+        }
 
         rest = rest.Rest;
 
         // Get the strings array expression
         var stringsArrayExpr = rest.Head;
         var stringsArray = EvaluateExpression(stringsArrayExpr, environment, context) as JsArray;
-        if (stringsArray == null) 
+        if (stringsArray == null)
+        {
             throw new InvalidOperationException(FormatErrorMessage("Tagged template strings array is invalid", cons) + ".");
+        }
 
         rest = rest.Rest;
 
@@ -1511,7 +1815,9 @@ public static class Evaluator
         var rawStringsArrayExpr = rest.Head;
         var rawStringsArray = EvaluateExpression(rawStringsArrayExpr, environment, context) as JsArray;
         if (rawStringsArray == null)
+        {
             throw new InvalidOperationException(FormatErrorMessage("Tagged template raw strings array is invalid", cons) + ".");
+        }
 
         rest = rest.Rest;
 
@@ -1519,7 +1825,7 @@ public static class Evaluator
         var templateObj = new JsObject();
 
         // Copy strings array properties
-        for (var i = 0; i < stringsArray.Items.Count; i++) templateObj[i.ToString()] = stringsArray.Items[i];
+        for (var i = 0; i < stringsArray.Items.Count; i++) templateObj[i.ToString(CultureInfo.InvariantCulture)] = stringsArray.Items[i];
         templateObj["length"] = (double)stringsArray.Items.Count;
 
         // Add raw property
@@ -1560,8 +1866,12 @@ public static class Evaluator
             {
                 var spreadValue = EvaluateExpression(propertyCons.Rest.Head, environment, context);
                 if (spreadValue is JsObject spreadObj)
+                {
                     foreach (var kvp in spreadObj)
+                    {
                         result.SetProperty(kvp.Key, kvp.Value);
+                    }
+                }
 
                 continue;
             }
@@ -1623,13 +1933,19 @@ public static class Evaluator
         if (targetExpression is Symbol { } superSymbol && ReferenceEquals(superSymbol, JsSymbols.Super))
         {
             var binding = ExpectSuperBinding(environment, context);
-            if (binding.TryGetProperty(propertyName, out var superValue)) return superValue;
+            if (binding.TryGetProperty(propertyName, out var superValue))
+            {
+                return superValue;
+            }
 
             throw new InvalidOperationException($"Cannot read property '{propertyName}' from super prototype.{GetSourceInfo(context)}");
         }
 
         var target = EvaluateExpression(targetExpression, environment, context);
-        if (TryGetPropertyValue(target, propertyName, out var value)) return value;
+        if (TryGetPropertyValue(target, propertyName, out var value))
+        {
+            return value;
+        }
 
         // Return undefined for non-existent properties (JavaScript behavior)
         return JsSymbols.Undefined;
@@ -1642,7 +1958,9 @@ public static class Evaluator
                            ?? throw new InvalidOperationException($"Property assignment requires a string name.{GetSourceInfo(context)}");
 
          if (targetExpression is Symbol { } superSymbol && ReferenceEquals(superSymbol, JsSymbols.Super))
+         {
              throw new InvalidOperationException($"Assigning through super is not supported in this interpreter.{GetSourceInfo(context)}");
+         }
 
          var valueExpression = cons.Rest.Rest.Rest.Head;
         var target = EvaluateExpression(targetExpression, environment, context);
@@ -1660,9 +1978,15 @@ public static class Evaluator
         var target = EvaluateExpression(targetExpression, environment, context);
 
         // If target is null or undefined, return undefined
-        if (IsNullish(target)) return JsSymbols.Undefined;
+        if (IsNullish(target))
+        {
+            return JsSymbols.Undefined;
+        }
 
-        if (TryGetPropertyValue(target, propertyName, out var value)) return value;
+        if (TryGetPropertyValue(target, propertyName, out var value))
+        {
+            return value;
+        }
 
         return JsSymbols.Undefined;
     }
@@ -1675,18 +1999,28 @@ public static class Evaluator
         var target = EvaluateExpression(targetExpression, environment, context);
 
         // If target is null or undefined, return undefined
-        if (IsNullish(target)) return JsSymbols.Undefined;
+        if (IsNullish(target))
+        {
+            return JsSymbols.Undefined;
+        }
 
         var indexValue = EvaluateExpression(indexExpression, environment, context);
 
         if (target is JsArray jsArray && TryConvertToIndex(indexValue, out var arrayIndex))
+        {
             return jsArray.GetElement(arrayIndex);
+        }
 
         if (target is TypedArrayBase typedArray && TryConvertToIndex(indexValue, out var typedIndex))
+        {
             return typedArray.GetElement(typedIndex);
+        }
 
         var propertyName = ToPropertyName(indexValue);
-        if (propertyName is not null && TryGetPropertyValue(target, propertyName, out var value)) return value;
+        if (propertyName is not null && TryGetPropertyValue(target, propertyName, out var value))
+        {
+            return value;
+        }
 
         return JsSymbols.Undefined;
     }
@@ -1698,26 +2032,40 @@ public static class Evaluator
         var callee = EvaluateExpression(calleeExpression, environment, context);
 
         // If callee is null or undefined, return undefined
-        if (IsNullish(callee)) return JsSymbols.Undefined;
+        if (IsNullish(callee))
+        {
+            return JsSymbols.Undefined;
+        }
 
         // Evaluate arguments
         var arguments = new List<object?>();
         foreach (var argumentExpression in cons.Rest.Rest)
+        {
             if (argumentExpression is Cons { Head: Symbol sym } spreadCons && ReferenceEquals(sym, JsSymbols.Spread))
             {
                 var spreadValue = EvaluateExpression(spreadCons.Rest.Head, environment, context);
                 if (spreadValue is JsArray array)
+                {
                     foreach (var element in array.Items)
+                    {
                         arguments.Add(element);
+                    }
+                }
                 else
+                {
                     throw new InvalidOperationException($"Spread operator can only be applied to arrays.{GetSourceInfo(context)}");
+                }
             }
             else
             {
                 arguments.Add(EvaluateExpression(argumentExpression, environment, context));
             }
+        }
 
-        if (callee is not IJsCallable callable) return JsSymbols.Undefined;
+        if (callee is not IJsCallable callable)
+        {
+            return JsSymbols.Undefined;
+        }
 
         try
         {
@@ -1748,7 +2096,10 @@ public static class Evaluator
                                     ?? throw new InvalidOperationException(
                                         $"Unsupported index value '{superIndexValue}'.{GetSourceInfo(context)}");
 
-            if (binding.TryGetProperty(superPropertyName, out var superPropertyValue)) return superPropertyValue;
+            if (binding.TryGetProperty(superPropertyName, out var superPropertyValue))
+            {
+                return superPropertyValue;
+            }
 
             throw new InvalidOperationException($"Cannot read property '{superPropertyName}' from super prototype.{GetSourceInfo(context)}");
         }
@@ -1757,15 +2108,22 @@ public static class Evaluator
         var indexValue = EvaluateExpression(indexExpression, environment, context);
 
         if (target is JsArray jsArray && TryConvertToIndex(indexValue, out var arrayIndex))
+        {
             return jsArray.GetElement(arrayIndex);
+        }
 
         if (target is TypedArrayBase typedArray && TryConvertToIndex(indexValue, out var typedIndex))
+        {
             return typedArray.GetElement(typedIndex);
+        }
 
         var propertyName = ToPropertyName(indexValue)
                            ?? throw new InvalidOperationException($"Unsupported index value '{indexValue}'.{GetSourceInfo(context)}");
 
-        if (TryGetPropertyValue(target, propertyName, out var propertyValue)) return propertyValue;
+        if (TryGetPropertyValue(target, propertyName, out var propertyValue))
+        {
+            return propertyValue;
+        }
 
         // Return undefined for non-existent properties (JavaScript behavior)
         return JsSymbols.Undefined;
@@ -1778,7 +2136,9 @@ public static class Evaluator
         var valueExpression = cons.Rest.Rest.Rest.Head;
 
         if (targetExpression is Symbol { } superSymbol && ReferenceEquals(superSymbol, JsSymbols.Super))
+        {
             throw new InvalidOperationException($"Assigning through super is not supported in this interpreter.{GetSourceInfo(context)}");
+        }
 
         var target = EvaluateExpression(targetExpression, environment, context);
         var indexValue = EvaluateExpression(indexExpression, environment, context);
@@ -1824,14 +2184,18 @@ public static class Evaluator
 
         var instance = new JsObject();
         if (TryGetPropertyValue(constructor, "prototype", out var prototype) && prototype is JsObject prototypeObject)
+        {
             instance.SetPrototype(prototypeObject);
+        }
 
         // Initialize private fields from this class and all parent classes
         InitializePrivateFields(constructor, instance, environment, context);
 
         var arguments = new List<object?>();
         foreach (var argumentExpression in cons.Rest.Rest)
+        {
             arguments.Add(EvaluateExpression(argumentExpression, environment, context));
+        }
 
         try
         {
@@ -1863,34 +2227,43 @@ public static class Evaluator
     {
         // First, initialize parent class private and public fields (if any)
         if (constructor is JsFunction jsFunc && TryGetPropertyValue(constructor, "__proto__", out var parent) &&
-            parent is not null) InitializePrivateFields(parent, instance, environment, context);
+            parent is not null)
+        {
+            InitializePrivateFields(parent, instance, environment, context);
+        }
 
         // Then initialize this class's private and public fields
-        if (TryGetPropertyValue(constructor, "__privateFields__", out var privateFieldsValue) &&
-            privateFieldsValue is Cons privateFieldsList)
-            foreach (var fieldExpression in privateFieldsList)
+        if (!TryGetPropertyValue(constructor, "__privateFields__", out var privateFieldsValue) ||
+            privateFieldsValue is not Cons privateFieldsList)
+        {
+            return;
+        }
+
+        foreach (var fieldExpression in privateFieldsList)
+        {
+            var fieldCons = ExpectCons(fieldExpression, "Expected field definition.", context);
+            var tag = ExpectSymbol(fieldCons.Head, "Expected field tag.", context);
+
+            if (!ReferenceEquals(tag, JsSymbols.PrivateField) && !ReferenceEquals(tag, JsSymbols.PublicField))
             {
-                var fieldCons = ExpectCons(fieldExpression, "Expected field definition.", context);
-                var tag = ExpectSymbol(fieldCons.Head, "Expected field tag.", context);
-
-                if (ReferenceEquals(tag, JsSymbols.PrivateField) || ReferenceEquals(tag, JsSymbols.PublicField))
-                {
-                    var fieldName = fieldCons.Rest.Head as string
-                                    ?? throw new InvalidOperationException($"Expected field name.{GetSourceInfo(context)}");
-                    var initializer = fieldCons.Rest.Rest.Head;
-
-                    object? initialValue = null;
-                    if (initializer is not null)
-                    {
-                        // Create a temporary environment with 'this' bound to the instance
-                        var initEnv = new JsEnvironment(environment);
-                        initEnv.Define(JsSymbols.This, instance);
-                        initialValue = EvaluateExpression(initializer, initEnv, context);
-                    }
-
-                    instance.SetProperty(fieldName, initialValue);
-                }
+                continue;
             }
+
+            var fieldName = fieldCons.Rest.Head as string
+                            ?? throw new InvalidOperationException($"Expected field name.{GetSourceInfo(context)}");
+            var initializer = fieldCons.Rest.Rest.Head;
+
+            object? initialValue = null;
+            if (initializer is not null)
+            {
+                // Create a temporary environment with 'this' bound to the instance
+                var initEnv = new JsEnvironment(environment);
+                initEnv.Define(JsSymbols.This, instance);
+                initialValue = EvaluateExpression(initializer, initEnv, context);
+            }
+
+            instance.SetProperty(fieldName, initialValue);
+        }
     }
 
     private static object? EvaluateBinary(Cons cons, JsEnvironment environment, Symbol operatorSymbol,
@@ -1992,7 +2365,10 @@ public static class Evaluator
     private static IReadOnlyList<Symbol> ToSymbolList(Cons list, EvaluationContext context)
     {
         var result = new List<Symbol>();
-        foreach (var item in list) result.Add(ExpectSymbol(item, "Expected symbol in parameter list.", context));
+        foreach (var item in list)
+        {
+            result.Add(ExpectSymbol(item, "Expected symbol in parameter list.", context));
+        }
 
         return result;
     }
@@ -2015,9 +2391,13 @@ public static class Evaluator
             if (item is Cons { Head: Symbol patternType } pattern &&
                 (ReferenceEquals(patternType, JsSymbols.ArrayPattern) ||
                  ReferenceEquals(patternType, JsSymbols.ObjectPattern)))
+            {
                 regularParams.Add(pattern);
+            }
             else
+            {
                 regularParams.Add(ExpectSymbol(item, "Expected symbol or pattern in parameter list.", context));
+            }
         }
 
         return (regularParams, restParam);
@@ -2046,7 +2426,9 @@ public static class Evaluator
         }
 
         if (value is not SuperBinding binding)
+        {
             throw new InvalidOperationException($"Super is not available in this context.{GetSourceInfo(context)}");
+        }
 
         return binding;
     }
@@ -2064,7 +2446,7 @@ public static class Evaluator
         };
     }
 
-    internal static double ToNumber(object? value)
+    internal static double ToNumber(this object? value)
     {
         return value switch
         {
@@ -2092,16 +2474,25 @@ public static class Evaluator
     private static double StringToNumber(string str)
     {
         // Empty string converts to 0
-        if (string.IsNullOrEmpty(str)) return 0;
+        if (string.IsNullOrEmpty(str))
+        {
+            return 0;
+        }
 
         // Trim whitespace
         var trimmed = str.Trim();
 
         // Whitespace-only string converts to 0
-        if (string.IsNullOrEmpty(trimmed)) return 0;
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return 0;
+        }
 
         // Try to parse the trimmed string
-        if (double.TryParse(trimmed, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)) return parsed;
+        if (double.TryParse(trimmed, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
 
         // Invalid number format converts to NaN
         return double.NaN;
@@ -2110,10 +2501,16 @@ public static class Evaluator
     private static double ArrayToNumber(JsArray arr)
     {
         // Empty array converts to 0
-        if (arr.Items.Count == 0) return 0;
+        if (arr.Items.Count == 0)
+        {
+            return 0;
+        }
 
         // Single element array converts to the number representation of that element
-        if (arr.Items.Count == 1) return ToNumber(arr.Items[0]);
+        if (arr.Items.Count == 1)
+        {
+            return ToNumber(arr.Items[0]);
+        }
 
         // Multi-element array converts to NaN
         return double.NaN;
@@ -2128,7 +2525,7 @@ public static class Evaluator
         {
             return "";
         }
-        
+
         return ToString(value);
     }
 
@@ -2151,27 +2548,35 @@ public static class Evaluator
     {
         // Convert each element to string and join with comma
         // Per ECMAScript spec: null and undefined are converted to empty strings
-        var elements = new List<string>();
-        foreach (var element in arr.Items)
-        {
-            elements.Add(ToStringForArray(element));
-        }
+        var elements = arr.Items.Select(ToStringForArray).ToList();
         return string.Join(",", elements);
     }
 
     private static string GetTypeofString(object? value)
     {
         // JavaScript oddity: typeof null === "object" (historical bug)
-        if (value is null) return "object";
+        if (value is null)
+        {
+            return "object";
+        }
 
         // Check for undefined symbol
-        if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined)) return "undefined";
+        if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined))
+        {
+            return "undefined";
+        }
 
         // Check for JavaScript Symbol (primitive type)
-        if (value is JsSymbol) return "symbol";
+        if (value is JsSymbol)
+        {
+            return "symbol";
+        }
 
         // Check for BigInt
-        if (value is JsBigInt) return "bigint";
+        if (value is JsBigInt)
+        {
+            return "bigint";
+        }
 
         return value switch
         {
@@ -2186,18 +2591,28 @@ public static class Evaluator
     private static object Add(object? left, object? right)
     {
         // If either operand is a string, perform string concatenation
-        if (left is string || right is string) return ToString(left) + ToString(right);
+        if (left is string || right is string)
+        {
+            return ToString(left) + ToString(right);
+        }
 
         // If either operand is an object or array, convert to string (ToPrimitive preference is string for +)
         if (left is JsObject || left is JsArray || right is JsObject || right is JsArray)
+        {
             return ToString(left) + ToString(right);
+        }
 
         // Handle BigInt + BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt + rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt + rightBigInt;
+        }
 
         // Cannot mix BigInt with Number
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
 
         // Otherwise, perform numeric addition
         return ToNumber(left) + ToNumber(right);
@@ -2206,11 +2621,16 @@ public static class Evaluator
     private static object Subtract(object? left, object? right)
     {
         // Handle BigInt - BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt - rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt - rightBigInt;
+        }
 
         // Cannot mix BigInt with Number
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
 
         return ToNumber(left) - ToNumber(right);
     }
@@ -2218,11 +2638,16 @@ public static class Evaluator
     private static object Multiply(object? left, object? right)
     {
         // Handle BigInt * BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt * rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt * rightBigInt;
+        }
 
         // Cannot mix BigInt with Number
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
 
         return ToNumber(left) * ToNumber(right);
     }
@@ -2230,11 +2655,16 @@ public static class Evaluator
     private static object Power(object? left, object? right)
     {
         // Handle BigInt ** BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return JsBigInt.Pow(leftBigInt, rightBigInt);
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return JsBigInt.Pow(leftBigInt, rightBigInt);
+        }
 
         // Cannot mix BigInt with Number
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
 
         return Math.Pow(ToNumber(left), ToNumber(right));
     }
@@ -2242,11 +2672,16 @@ public static class Evaluator
     private static object Divide(object? left, object? right)
     {
         // Handle BigInt / BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt / rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt / rightBigInt;
+        }
 
         // Cannot mix BigInt with Number
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
 
         return ToNumber(left) / ToNumber(right);
     }
@@ -2254,11 +2689,16 @@ public static class Evaluator
     private static object Modulo(object? left, object? right)
     {
         // Handle BigInt % BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt % rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt % rightBigInt;
+        }
 
         // Cannot mix BigInt with Number
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
 
         return ToNumber(left) % ToNumber(right);
     }
@@ -2266,20 +2706,31 @@ public static class Evaluator
     private static bool GreaterThan(object? left, object? right)
     {
         // Handle BigInt comparisons
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt > rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt > rightBigInt;
+        }
 
         // BigInt can be compared with Number in relational operators
         if (left is JsBigInt lbi)
         {
             var rightNum = ToNumber(right);
-            if (double.IsNaN(rightNum)) return false;
+            if (double.IsNaN(rightNum))
+            {
+                return false;
+            }
+
             return lbi.Value > new System.Numerics.BigInteger(rightNum);
         }
 
         if (right is JsBigInt rbi)
         {
             var leftNum = ToNumber(left);
-            if (double.IsNaN(leftNum)) return false;
+            if (double.IsNaN(leftNum))
+            {
+                return false;
+            }
+
             return new System.Numerics.BigInteger(leftNum) > rbi.Value;
         }
 
@@ -2289,20 +2740,31 @@ public static class Evaluator
     private static bool GreaterThanOrEqual(object? left, object? right)
     {
         // Handle BigInt comparisons
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt >= rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt >= rightBigInt;
+        }
 
         // BigInt can be compared with Number in relational operators
         if (left is JsBigInt lbi)
         {
             var rightNum = ToNumber(right);
-            if (double.IsNaN(rightNum)) return false;
+            if (double.IsNaN(rightNum))
+            {
+                return false;
+            }
+
             return lbi.Value >= new System.Numerics.BigInteger(rightNum);
         }
 
         if (right is JsBigInt rbi)
         {
             var leftNum = ToNumber(left);
-            if (double.IsNaN(leftNum)) return false;
+            if (double.IsNaN(leftNum))
+            {
+                return false;
+            }
+
             return new System.Numerics.BigInteger(leftNum) >= rbi.Value;
         }
 
@@ -2312,20 +2774,31 @@ public static class Evaluator
     private static bool LessThan(object? left, object? right)
     {
         // Handle BigInt comparisons
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt < rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt < rightBigInt;
+        }
 
         // BigInt can be compared with Number in relational operators
         if (left is JsBigInt lbi)
         {
             var rightNum = ToNumber(right);
-            if (double.IsNaN(rightNum)) return false;
+            if (double.IsNaN(rightNum))
+            {
+                return false;
+            }
+
             return lbi.Value < new System.Numerics.BigInteger(rightNum);
         }
 
         if (right is JsBigInt rbi)
         {
             var leftNum = ToNumber(left);
-            if (double.IsNaN(leftNum)) return false;
+            if (double.IsNaN(leftNum))
+            {
+                return false;
+            }
+
             return new System.Numerics.BigInteger(leftNum) < rbi.Value;
         }
 
@@ -2335,20 +2808,31 @@ public static class Evaluator
     private static bool LessThanOrEqual(object? left, object? right)
     {
         // Handle BigInt comparisons
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt <= rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt <= rightBigInt;
+        }
 
         // BigInt can be compared with Number in relational operators
         if (left is JsBigInt lbi)
         {
             var rightNum = ToNumber(right);
-            if (double.IsNaN(rightNum)) return false;
+            if (double.IsNaN(rightNum))
+            {
+                return false;
+            }
+
             return lbi.Value <= new System.Numerics.BigInteger(rightNum);
         }
 
         if (right is JsBigInt rbi)
         {
             var leftNum = ToNumber(left);
-            if (double.IsNaN(leftNum)) return false;
+            if (double.IsNaN(leftNum))
+            {
+                return false;
+            }
+
             return new System.Numerics.BigInteger(leftNum) <= rbi.Value;
         }
 
@@ -2359,120 +2843,186 @@ public static class Evaluator
     {
         if (ReferenceEquals(left, right))
         {
-            if (left is double d && double.IsNaN(d)) return false; // mirror JavaScript's NaN behaviour
+            if (left is double d && double.IsNaN(d))
+            {
+                return false; // mirror JavaScript's NaN behaviour
+            }
 
             return true;
         }
 
-        if (left is null || right is null) return false;
+        if (left is null || right is null)
+        {
+            return false;
+        }
 
         // BigInt strict equality
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt == rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt == rightBigInt;
+        }
 
         // BigInt and Number are never strictly equal
-        if ((left is JsBigInt && IsNumeric(right)) || (IsNumeric(left) && right is JsBigInt)) return false;
+        if ((left is JsBigInt && IsNumeric(right)) || (IsNumeric(left) && right is JsBigInt))
+        {
+            return false;
+        }
 
         if (IsNumeric(left) && IsNumeric(right))
         {
             var leftNumber = ToNumber(left);
             var rightNumber = ToNumber(right);
-            if (double.IsNaN(leftNumber) || double.IsNaN(rightNumber)) return false;
+            if (double.IsNaN(leftNumber) || double.IsNaN(rightNumber))
+            {
+                return false;
+            }
 
             return leftNumber.Equals(rightNumber);
         }
 
-        if (left.GetType() != right.GetType()) return false;
+        if (left.GetType() != right.GetType())
+        {
+            return false;
+        }
 
         return Equals(left, right);
     }
 
     private static bool LooseEquals(object? left, object? right)
     {
-        // JavaScript oddity: null == undefined (but null !== undefined)
-        var leftIsNullish = left is null || (left is Symbol symL && ReferenceEquals(symL, JsSymbols.Undefined));
-        var rightIsNullish = right is null || (right is Symbol symR && ReferenceEquals(symR, JsSymbols.Undefined));
-
-        if (leftIsNullish && rightIsNullish) return true;
-
-        if (leftIsNullish || rightIsNullish) return false;
-
-        // If types are the same, use strict equality
-        if (left?.GetType() == right?.GetType()) return StrictEquals(left, right);
-
-        // BigInt == Number: compare numerically (allowed in loose equality)
-        if (left is JsBigInt leftBigInt && IsNumeric(right))
+        while (true)
         {
-            var rightNum = ToNumber(right);
-            if (double.IsNaN(rightNum) || double.IsInfinity(rightNum)) return false;
-            // Check if right is an integer and compare
-            if (rightNum == Math.Floor(rightNum)) return leftBigInt.Value == new System.Numerics.BigInteger(rightNum);
-            return false;
-        }
+            // JavaScript oddity: null == undefined (but null !== undefined)
+            var leftIsNullish = left is null || (left is Symbol symL && ReferenceEquals(symL, JsSymbols.Undefined));
+            var rightIsNullish = right is null || (right is Symbol symR && ReferenceEquals(symR, JsSymbols.Undefined));
 
-        if (IsNumeric(left) && right is JsBigInt rightBigInt)
-        {
-            var leftNum = ToNumber(left);
-            if (double.IsNaN(leftNum) || double.IsInfinity(leftNum)) return false;
-            // Check if left is an integer and compare
-            if (leftNum == Math.Floor(leftNum)) return new System.Numerics.BigInteger(leftNum) == rightBigInt.Value;
-            return false;
-        }
-
-        // BigInt == String: convert string to BigInt if possible
-        if (left is JsBigInt lbi && right is string str)
-            try
+            if (leftIsNullish && rightIsNullish)
             {
-                var rightBigInt2 = new JsBigInt(str.Trim());
-                return lbi == rightBigInt2;
+                return true;
             }
-            catch
+
+            if (leftIsNullish || rightIsNullish)
             {
                 return false;
             }
 
-        if (left is string str2 && right is JsBigInt rbi)
-            try
+            // If types are the same, use strict equality
+            if (left?.GetType() == right?.GetType())
             {
-                var leftBigInt2 = new JsBigInt(str2.Trim());
-                return leftBigInt2 == rbi;
+                return StrictEquals(left, right);
             }
-            catch
+
+            // BigInt == Number: compare numerically (allowed in loose equality)
+            if (left is JsBigInt leftBigInt && IsNumeric(right))
             {
+                var rightNum = ToNumber(right);
+                if (double.IsNaN(rightNum) || double.IsInfinity(rightNum))
+                {
+                    return false;
+                }
+
+                //TODO: Check for fractional part, how does this work in JS?
+                // Check if right is an integer and compare
+                if (rightNum == Math.Floor(rightNum))
+                {
+                    return leftBigInt.Value == new System.Numerics.BigInteger(rightNum);
+                }
+
                 return false;
             }
 
-        // Type coercion for loose equality
-        // Number == String: convert string to number
-        if (IsNumeric(left) && right is string) return ToNumber(left).Equals(ToNumber(right));
+            if (IsNumeric(left) && right is JsBigInt rightBigInt)
+            {
+                var leftNum = ToNumber(left);
+                if (double.IsNaN(leftNum) || double.IsInfinity(leftNum))
+                {
+                    return false;
+                }
 
-        if (left is string && IsNumeric(right)) return ToNumber(left).Equals(ToNumber(right));
+                // Check if left is an integer and compare
+                //TODO: Check for fractional part, how does this work in JS?
+                if (leftNum == Math.Floor(leftNum))
+                {
+                    return new System.Numerics.BigInteger(leftNum) == rightBigInt.Value;
+                }
 
-        // Boolean == anything: convert boolean to number
-        if (left is bool) return LooseEquals(ToNumber(left), right);
+                return false;
+            }
 
-        if (right is bool) return LooseEquals(left, ToNumber(right));
+            // BigInt == String: convert string to BigInt if possible
+            if (left is JsBigInt lbi && right is string str)
+            {
+                try
+                {
+                    var rightBigInt2 = new JsBigInt(str.Trim());
+                    return lbi == rightBigInt2;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
 
-        // Object/Array == Primitive: convert object/array to primitive
-        if ((left is JsObject || left is JsArray) && (IsNumeric(right) || right is string))
-        {
-            // Try converting to primitive (via toString then toNumber if comparing to number)
-            if (IsNumeric(right))
+            if (left is string str2 && right is JsBigInt rbi)
+            {
+                try
+                {
+                    var leftBigInt2 = new JsBigInt(str2.Trim());
+                    return leftBigInt2 == rbi;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
+            // Type coercion for loose equality
+            // Number == String: convert string to number
+            if (IsNumeric(left) && right is string)
+            {
                 return ToNumber(left).Equals(ToNumber(right));
-            else
+            }
+
+            if (left is string && IsNumeric(right))
+            {
+                return ToNumber(left).Equals(ToNumber(right));
+            }
+
+            // Boolean == anything: convert boolean to number
+            if (left is bool)
+            {
+                left = ToNumber(left);
+                continue;
+            }
+
+            if (right is bool)
+            {
+                right = ToNumber(right);
+                continue;
+            }
+
+            // Object/Array == Primitive: convert object/array to primitive
+            if (left is JsObject or JsArray && (IsNumeric(right) || right is string))
+            {
+                // Try converting to primitive (via toString then toNumber if comparing to number)
+                if (IsNumeric(right))
+                {
+                    return ToNumber(left).Equals(ToNumber(right));
+                }
+
                 return ToString(left).Equals(right);
-        }
+            }
 
-        if ((right is JsObject || right is JsArray) && (IsNumeric(left) || left is string))
-        {
-            // Try converting to primitive
-            if (IsNumeric(left))
-                return ToNumber(left).Equals(ToNumber(right));
-            else
-                return left.Equals(ToString(right));
-        }
+            if (right is JsObject or JsArray && (IsNumeric(left) || left is string))
+            {
+                // Try converting to primitive
+                return IsNumeric(left) ? ToNumber(left).Equals(ToNumber(right)) : left.Equals(ToString(right));
+            }
 
-        // For other cases, use strict equality
-        return StrictEquals(left, right);
+            // For other cases, use strict equality
+            return StrictEquals(left, right);
+            break;
+        }
     }
 
     private static bool IsNumeric(object? value)
@@ -2521,12 +3071,21 @@ public static class Evaluator
                     case "set":
                         value = new HostFunction(args =>
                         {
-                            if (args.Count == 0) return JsSymbols.Undefined;
+                            if (args.Count == 0)
+                            {
+                                return JsSymbols.Undefined;
+                            }
+
                             var offset = args.Count > 1 && args[1] is double d ? (int)d : 0;
 
                             if (args[0] is TypedArrayBase sourceTypedArray)
+                            {
                                 typedArray.Set(sourceTypedArray, offset);
-                            else if (args[0] is JsArray sourceArray) typedArray.Set(sourceArray, offset);
+                            }
+                            else if (args[0] is JsArray sourceArray)
+                            {
+                                typedArray.Set(sourceArray, offset);
+                            }
 
                             return JsSymbols.Undefined;
                         });
@@ -2724,45 +3283,52 @@ public static class Evaluator
                     return true;
                 }
 
-                if (jsMap.TryGetProperty(propertyName, out value)) return true;
-                return false;
-            case JsSet jsSet:
-                // Handle special 'size' property
-                if (propertyName == "size")
+                if (jsMap.TryGetProperty(propertyName, out value))
                 {
-                    value = (double)jsSet.Size;
                     return true;
                 }
 
-                if (jsSet.TryGetProperty(propertyName, out value)) return true;
                 return false;
+            case JsSet jsSet:
+                switch (propertyName)
+                {
+                    // Handle special 'size' property
+                    case "size":
+                        value = (double)jsSet.Size;
+                        return true;
+                    default:
+                        return jsSet.TryGetProperty(propertyName, out value);
+                }
+
             case JsWeakMap jsWeakMap:
-                if (jsWeakMap.TryGetProperty(propertyName, out value)) return true;
-                return false;
+                return jsWeakMap.TryGetProperty(propertyName, out value);
+
             case JsWeakSet jsWeakSet:
-                if (jsWeakSet.TryGetProperty(propertyName, out value)) return true;
-                return false;
+                return jsWeakSet.TryGetProperty(propertyName, out value);
+
             case JsObject jsObject:
                 // Check for getter first
                 var getter = jsObject.GetGetter(propertyName);
-                if (getter != null)
+                if (getter == null)
                 {
-                    value = getter.Invoke([], jsObject);
-                    return true;
+                    return jsObject.TryGetProperty(propertyName, out value);
                 }
 
-                if (jsObject.TryGetProperty(propertyName, out value)) return true;
-                return false;
+                value = getter.Invoke([], jsObject);
+                return true;
+
             case JsFunction function when function.TryGetProperty(propertyName, out value):
-                return true;
             case HostFunction hostFunction when hostFunction.TryGetProperty(propertyName, out value):
-                return true;
             case IDictionary<string, object?> dictionary when dictionary.TryGetValue(propertyName, out value):
                 return true;
             case double num:
                 // Handle number properties (Number.prototype methods)
                 var numberWrapper = StandardLibrary.CreateNumberWrapper(num);
-                if (numberWrapper.TryGetProperty(propertyName, out value)) return true;
+                if (numberWrapper.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+
                 value = null;
                 return false;
             case string str:
@@ -2774,7 +3340,7 @@ public static class Evaluator
                 }
 
                 // Handle numeric indices (bracket notation: str[0], str[1], etc.)
-                if (int.TryParse(propertyName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) && 
+                if (int.TryParse(propertyName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) &&
                     index >= 0 && index < str.Length)
                 {
                     value = str[index].ToString();
@@ -2783,7 +3349,11 @@ public static class Evaluator
 
                 // For string methods, create a wrapper object with methods
                 var stringWrapper = StandardLibrary.CreateStringWrapper(str);
-                if (stringWrapper.TryGetProperty(propertyName, out value)) return true;
+                if (stringWrapper.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+
                 value = null;
                 return false;
         }
@@ -2803,9 +3373,14 @@ public static class Evaluator
                 // Check for setter first
                 var setter = jsObject.GetSetter(propertyName);
                 if (setter != null)
+                {
                     setter.Invoke([value], jsObject);
+                }
                 else
+                {
                     jsObject.SetProperty(propertyName, value);
+                }
+
                 break;
             case JsFunction function:
                 function.SetProperty(propertyName, value);
@@ -2825,10 +3400,10 @@ public static class Evaluator
     {
         switch (value)
         {
-            case int i when i >= 0:
+            case int i and >= 0:
                 index = i;
                 return true;
-            case long l when l >= 0 && l <= int.MaxValue:
+            case long l and >= 0 and <= int.MaxValue:
                 index = (int)l;
                 return true;
             case double d when !double.IsNaN(d) && !double.IsInfinity(d):
@@ -2870,35 +3445,53 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
+        {
             throw new InvalidOperationException($"Pattern must start with a symbol.{GetSourceInfo(context)}");
+        }
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
+        {
             DestructureArray(pattern, value, environment, isConst, context);
+        }
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
+        {
             DestructureObject(pattern, value, environment, isConst, context);
+        }
         else
+        {
             throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
+        }
     }
 
     private static void DestructureAndDefineFunctionScoped(Cons pattern, object? value, JsEnvironment environment,
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
+        {
             throw new InvalidOperationException($"Pattern must start with a symbol.{GetSourceInfo(context)}");
+        }
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
+        {
             DestructureArrayFunctionScoped(pattern, value, environment, context);
+        }
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
+        {
             DestructureObjectFunctionScoped(pattern, value, environment, context);
+        }
         else
+        {
             throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
+        }
     }
 
     private static void DestructureArray(Cons pattern, object? value, JsEnvironment environment, bool isConst,
         EvaluationContext context)
     {
         if (value is not JsArray array)
+        {
             throw new InvalidOperationException($"Cannot destructure non-array value in array pattern.{GetSourceInfo(context)}");
+        }
 
         var index = 0;
         foreach (var element in pattern.Rest)
@@ -2911,10 +3504,14 @@ public static class Evaluator
             }
 
             if (element is not Cons elementCons)
+            {
                 throw new InvalidOperationException($"Expected pattern element to be a cons.{GetSourceInfo(context)}");
+            }
 
             if (elementCons.Head is not Symbol elementType)
+            {
                 throw new InvalidOperationException($"Pattern element must start with a symbol.{GetSourceInfo(context)}");
+            }
 
             // Handle rest element
             if (ReferenceEquals(elementType, JsSymbols.PatternRest))
@@ -2927,29 +3524,37 @@ public static class Evaluator
             }
 
             // Handle pattern element
-            if (ReferenceEquals(elementType, JsSymbols.PatternElement))
+            if (!ReferenceEquals(elementType, JsSymbols.PatternElement))
             {
-                var target = elementCons.Rest.Head;
-                var defaultValue = elementCons.Rest.Rest.Head;
-                var elementValue = index < array.Items.Count ? array.Items[index] : null;
+                continue;
+            }
 
-                // Apply default value if element is undefined
-                if (elementValue is null && defaultValue is not null)
-                    elementValue = EvaluateExpression(defaultValue, environment, context);
+            var target = elementCons.Rest.Head;
+            var defaultValue = elementCons.Rest.Rest.Head;
+            var elementValue = index < array.Items.Count ? array.Items[index] : null;
 
+            // Apply default value if element is undefined
+            if (elementValue is null && defaultValue is not null)
+            {
+                elementValue = EvaluateExpression(defaultValue, environment, context);
+            }
+
+            switch (target)
+            {
                 // Check if target is a nested pattern
-                if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
-                    (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) ||
-                     ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
+                case Cons { Head: Symbol nestedType } nestedPattern when ReferenceEquals(nestedType, JsSymbols.ArrayPattern) ||
+                                                                         ReferenceEquals(nestedType, JsSymbols.ObjectPattern):
                     DestructureAndDefine(nestedPattern, elementValue, environment, isConst, context);
-                else if (target is Symbol identifier)
+                    break;
+                case Symbol identifier:
                     environment.Define(identifier, elementValue, isConst);
-                else
+                    break;
+                default:
                     throw new InvalidOperationException(
                         $"Expected identifier or nested pattern in array pattern element.{GetSourceInfo(context)}");
-
-                index++;
             }
+
+            index++;
         }
     }
 
@@ -2957,7 +3562,9 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (value is not JsArray array)
+        {
             throw new InvalidOperationException($"Cannot destructure non-array value in array pattern.{GetSourceInfo(context)}");
+        }
 
         var index = 0;
         foreach (var element in pattern.Rest)
@@ -2970,10 +3577,14 @@ public static class Evaluator
             }
 
             if (element is not Cons elementCons)
+            {
                 throw new InvalidOperationException($"Expected pattern element to be a cons.{GetSourceInfo(context)}");
+            }
 
             if (elementCons.Head is not Symbol elementType)
+            {
                 throw new InvalidOperationException($"Pattern element must start with a symbol.{GetSourceInfo(context)}");
+            }
 
             // Handle rest element
             if (ReferenceEquals(elementType, JsSymbols.PatternRest))
@@ -2986,29 +3597,37 @@ public static class Evaluator
             }
 
             // Handle pattern element
-            if (ReferenceEquals(elementType, JsSymbols.PatternElement))
+            if (!ReferenceEquals(elementType, JsSymbols.PatternElement))
             {
-                var target = elementCons.Rest.Head;
-                var defaultValue = elementCons.Rest.Rest.Head;
-                var elementValue = index < array.Items.Count ? array.Items[index] : null;
+                continue;
+            }
 
-                // Apply default value if element is undefined
-                if (elementValue is null && defaultValue is not null)
-                    elementValue = EvaluateExpression(defaultValue, environment, context);
+            var target = elementCons.Rest.Head;
+            var defaultValue = elementCons.Rest.Rest.Head;
+            var elementValue = index < array.Items.Count ? array.Items[index] : null;
 
+            // Apply default value if element is undefined
+            if (elementValue is null && defaultValue is not null)
+            {
+                elementValue = EvaluateExpression(defaultValue, environment, context);
+            }
+
+            switch (target)
+            {
                 // Check if target is a nested pattern
-                if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
-                    (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) ||
-                     ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
+                case Cons { Head: Symbol nestedType } nestedPattern when ReferenceEquals(nestedType, JsSymbols.ArrayPattern) ||
+                                                                         ReferenceEquals(nestedType, JsSymbols.ObjectPattern):
                     DestructureAndDefineFunctionScoped(nestedPattern, elementValue, environment, context);
-                else if (target is Symbol identifier)
+                    break;
+                case Symbol identifier:
                     environment.DefineFunctionScoped(identifier, elementValue, true);
-                else
+                    break;
+                default:
                     throw new InvalidOperationException(
                         $"Expected identifier or nested pattern in array pattern element.{GetSourceInfo(context)}");
-
-                index++;
             }
+
+            index++;
         }
     }
 
@@ -3016,17 +3635,23 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (value is not JsObject obj)
+        {
             throw new InvalidOperationException($"Cannot destructure non-object value in object pattern.{GetSourceInfo(context)}");
+        }
 
         var usedKeys = new HashSet<string>();
 
         foreach (var property in pattern.Rest)
         {
             if (property is not Cons propertyCons)
+            {
                 throw new InvalidOperationException($"Expected pattern property to be a cons.{GetSourceInfo(context)}");
+            }
 
             if (propertyCons.Head is not Symbol propertyType)
+            {
                 throw new InvalidOperationException($"Pattern property must start with a symbol.{GetSourceInfo(context)}");
+            }
 
             // Handle rest property
             if (ReferenceEquals(propertyType, JsSymbols.PatternRest))
@@ -3034,37 +3659,49 @@ public static class Evaluator
                 var restName = ExpectSymbol(propertyCons.Rest.Head, "Expected identifier for rest property.", context);
                 var restObject = new JsObject();
                 foreach (var kvp in obj)
+                {
                     if (!usedKeys.Contains(kvp.Key))
+                    {
                         restObject[kvp.Key] = kvp.Value;
+                    }
+                }
 
                 environment.Define(restName, restObject, isConst);
                 break;
             }
 
             // Handle pattern property
-            if (ReferenceEquals(propertyType, JsSymbols.PatternProperty))
+            if (!ReferenceEquals(propertyType, JsSymbols.PatternProperty))
             {
-                var sourceName = propertyCons.Rest.Head as string ??
-                                 throw new InvalidOperationException($"Expected property name in object pattern.{GetSourceInfo(context)}");
-                var target = propertyCons.Rest.Rest.Head;
-                var defaultValue = propertyCons.Rest.Rest.Rest.Head;
+                continue;
+            }
 
-                usedKeys.Add(sourceName);
+            var sourceName = propertyCons.Rest.Head as string ??
+                             throw new InvalidOperationException($"Expected property name in object pattern.{GetSourceInfo(context)}");
+            var target = propertyCons.Rest.Rest.Head;
+            var defaultValue = propertyCons.Rest.Rest.Rest.Head;
 
-                var propertyValue = obj.TryGetProperty(sourceName, out var val) ? val : null;
+            usedKeys.Add(sourceName);
 
-                // Apply default value if property is undefined
-                if (propertyValue is null && defaultValue is not null)
-                    propertyValue = EvaluateExpression(defaultValue, environment, context);
+            var propertyValue = obj.TryGetProperty(sourceName, out var val) ? val : null;
 
+            // Apply default value if property is undefined
+            if (propertyValue is null && defaultValue is not null)
+            {
+                propertyValue = EvaluateExpression(defaultValue, environment, context);
+            }
+
+            switch (target)
+            {
                 // Check if target is a nested pattern
-                if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
-                    (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) ||
-                     ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
+                case Cons { Head: Symbol nestedType } nestedPattern when ReferenceEquals(nestedType, JsSymbols.ArrayPattern) ||
+                                                                         ReferenceEquals(nestedType, JsSymbols.ObjectPattern):
                     DestructureAndDefine(nestedPattern, propertyValue, environment, isConst, context);
-                else if (target is Symbol identifier)
+                    break;
+                case Symbol identifier:
                     environment.Define(identifier, propertyValue, isConst);
-                else
+                    break;
+                default:
                     throw new InvalidOperationException(
                         $"Expected identifier or nested pattern in object pattern property.{GetSourceInfo(context)}");
             }
@@ -3075,17 +3712,23 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (value is not JsObject obj)
+        {
             throw new InvalidOperationException($"Cannot destructure non-object value in object pattern.{GetSourceInfo(context)}");
+        }
 
         var usedKeys = new HashSet<string>();
 
         foreach (var property in pattern.Rest)
         {
             if (property is not Cons propertyCons)
+            {
                 throw new InvalidOperationException($"Expected pattern property to be a cons.{GetSourceInfo(context)}");
+            }
 
             if (propertyCons.Head is not Symbol propertyType)
+            {
                 throw new InvalidOperationException($"Pattern property must start with a symbol.{GetSourceInfo(context)}");
+            }
 
             // Handle rest property
             if (ReferenceEquals(propertyType, JsSymbols.PatternRest))
@@ -3093,37 +3736,49 @@ public static class Evaluator
                 var restName = ExpectSymbol(propertyCons.Rest.Head, "Expected identifier for rest property.", context);
                 var restObject = new JsObject();
                 foreach (var kvp in obj)
+                {
                     if (!usedKeys.Contains(kvp.Key))
+                    {
                         restObject[kvp.Key] = kvp.Value;
+                    }
+                }
 
                 environment.DefineFunctionScoped(restName, restObject, true);
                 break;
             }
 
             // Handle pattern property
-            if (ReferenceEquals(propertyType, JsSymbols.PatternProperty))
+            if (!ReferenceEquals(propertyType, JsSymbols.PatternProperty))
             {
-                var sourceName = propertyCons.Rest.Head as string ??
-                                 throw new InvalidOperationException($"Expected property name in object pattern.{GetSourceInfo(context)}");
-                var target = propertyCons.Rest.Rest.Head;
-                var defaultValue = propertyCons.Rest.Rest.Rest.Head;
+                continue;
+            }
 
-                usedKeys.Add(sourceName);
+            var sourceName = propertyCons.Rest.Head as string ??
+                             throw new InvalidOperationException($"Expected property name in object pattern.{GetSourceInfo(context)}");
+            var target = propertyCons.Rest.Rest.Head;
+            var defaultValue = propertyCons.Rest.Rest.Rest.Head;
 
-                var propertyValue = obj.TryGetProperty(sourceName, out var val) ? val : null;
+            usedKeys.Add(sourceName);
 
-                // Apply default value if property is undefined
-                if (propertyValue is null && defaultValue is not null)
-                    propertyValue = EvaluateExpression(defaultValue, environment, context);
+            var propertyValue = obj.TryGetProperty(sourceName, out var val) ? val : null;
 
+            // Apply default value if property is undefined
+            if (propertyValue is null && defaultValue is not null)
+            {
+                propertyValue = EvaluateExpression(defaultValue, environment, context);
+            }
+
+            switch (target)
+            {
                 // Check if target is a nested pattern
-                if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
-                    (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) ||
-                     ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
+                case Cons { Head: Symbol nestedType } nestedPattern when ReferenceEquals(nestedType, JsSymbols.ArrayPattern) ||
+                                                                         ReferenceEquals(nestedType, JsSymbols.ObjectPattern):
                     DestructureAndDefineFunctionScoped(nestedPattern, propertyValue, environment, context);
-                else if (target is Symbol identifier)
+                    break;
+                case Symbol identifier:
                     environment.DefineFunctionScoped(identifier, propertyValue, true);
-                else
+                    break;
+                default:
                     throw new InvalidOperationException(
                         $"Expected identifier or nested pattern in object pattern property.{GetSourceInfo(context)}");
             }
@@ -3135,35 +3790,53 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
+        {
             throw new InvalidOperationException($"Pattern must start with a symbol.{GetSourceInfo(context)}");
+        }
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
+        {
             DestructureArrayFunctionScoped(pattern, value, environment, context);
+        }
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
+        {
             DestructureObjectFunctionScoped(pattern, value, environment, context);
+        }
         else
+        {
             throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
+        }
     }
 
     private static void DestructureAssignment(Cons pattern, object? value, JsEnvironment environment,
         EvaluationContext context)
     {
         if (pattern.Head is not Symbol patternType)
+        {
             throw new InvalidOperationException($"Pattern must start with a symbol.{GetSourceInfo(context)}");
+        }
 
         if (ReferenceEquals(patternType, JsSymbols.ArrayPattern))
+        {
             DestructureArrayFunctionScoped(pattern, value, environment, context);
+        }
         else if (ReferenceEquals(patternType, JsSymbols.ObjectPattern))
+        {
             DestructureObjectFunctionScoped(pattern, value, environment, context);
+        }
         else
+        {
             throw new InvalidOperationException($"Unknown pattern type: {patternType}{GetSourceInfo(context)}");
+        }
     }
 
     private static void DestructureArrayAssignment(Cons pattern, object? value, JsEnvironment environment,
         EvaluationContext context)
     {
         if (value is not JsArray array)
+        {
             throw new InvalidOperationException($"Cannot destructure non-array value in array pattern.{GetSourceInfo(context)}");
+        }
 
         var index = 0;
         foreach (var element in pattern.Rest)
@@ -3176,10 +3849,14 @@ public static class Evaluator
             }
 
             if (element is not Cons elementCons)
+            {
                 throw new InvalidOperationException($"Expected pattern element to be a cons.{GetSourceInfo(context)}");
+            }
 
             if (elementCons.Head is not Symbol elementType)
+            {
                 throw new InvalidOperationException($"Pattern element must start with a symbol.{GetSourceInfo(context)}");
+            }
 
             // Handle rest element
             if (ReferenceEquals(elementType, JsSymbols.PatternRest))
@@ -3200,18 +3877,26 @@ public static class Evaluator
 
                 // Apply default value if element is undefined
                 if (elementValue is null && defaultValue is not null)
+                {
                     elementValue = EvaluateExpression(defaultValue, environment, context);
+                }
 
                 // Check if target is a nested pattern
                 if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
                     (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) ||
                      ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
+                {
                     DestructureAssignment(nestedPattern, elementValue, environment, context);
+                }
                 else if (target is Symbol identifier)
+                {
                     environment.Assign(identifier, elementValue);
+                }
                 else
+                {
                     throw new InvalidOperationException(
                         $"Expected identifier or nested pattern in array pattern element.{GetSourceInfo(context)}");
+                }
 
                 index++;
             }
@@ -3222,17 +3907,23 @@ public static class Evaluator
         EvaluationContext context)
     {
         if (value is not JsObject obj)
+        {
             throw new InvalidOperationException($"Cannot destructure non-object value in object pattern.{GetSourceInfo(context)}");
+        }
 
         var usedKeys = new HashSet<string>();
 
         foreach (var property in pattern.Rest)
         {
             if (property is not Cons propertyCons)
+            {
                 throw new InvalidOperationException($"Expected pattern property to be a cons.{GetSourceInfo(context)}");
+            }
 
             if (propertyCons.Head is not Symbol propertyType)
+            {
                 throw new InvalidOperationException($"Pattern property must start with a symbol.{GetSourceInfo(context)}");
+            }
 
             // Handle rest property
             if (ReferenceEquals(propertyType, JsSymbols.PatternRest))
@@ -3240,37 +3931,49 @@ public static class Evaluator
                 var restName = ExpectSymbol(propertyCons.Rest.Head, "Expected identifier for rest property.", context);
                 var restObject = new JsObject();
                 foreach (var kvp in obj)
+                {
                     if (!usedKeys.Contains(kvp.Key))
+                    {
                         restObject[kvp.Key] = kvp.Value;
+                    }
+                }
 
                 environment.Assign(restName, restObject);
                 break;
             }
 
             // Handle pattern property
-            if (ReferenceEquals(propertyType, JsSymbols.PatternProperty))
+            if (!ReferenceEquals(propertyType, JsSymbols.PatternProperty))
             {
-                var sourceName = propertyCons.Rest.Head as string ??
-                                 throw new InvalidOperationException($"Expected property name in object pattern.{GetSourceInfo(context)}");
-                var target = propertyCons.Rest.Rest.Head;
-                var defaultValue = propertyCons.Rest.Rest.Rest.Head;
+                continue;
+            }
 
-                usedKeys.Add(sourceName);
+            var sourceName = propertyCons.Rest.Head as string ??
+                             throw new InvalidOperationException($"Expected property name in object pattern.{GetSourceInfo(context)}");
+            var target = propertyCons.Rest.Rest.Head;
+            var defaultValue = propertyCons.Rest.Rest.Rest.Head;
 
-                var propertyValue = obj.TryGetProperty(sourceName, out var val) ? val : null;
+            usedKeys.Add(sourceName);
 
-                // Apply default value if property is undefined
-                if (propertyValue is null && defaultValue is not null)
-                    propertyValue = EvaluateExpression(defaultValue, environment, context);
+            var propertyValue = obj.TryGetProperty(sourceName, out var val) ? val : null;
 
+            // Apply default value if property is undefined
+            if (propertyValue is null && defaultValue is not null)
+            {
+                propertyValue = EvaluateExpression(defaultValue, environment, context);
+            }
+
+            switch (target)
+            {
                 // Check if target is a nested pattern
-                if (target is Cons nestedPattern && nestedPattern.Head is Symbol nestedType &&
-                    (ReferenceEquals(nestedType, JsSymbols.ArrayPattern) ||
-                     ReferenceEquals(nestedType, JsSymbols.ObjectPattern)))
+                case Cons { Head: Symbol nestedType } nestedPattern when ReferenceEquals(nestedType, JsSymbols.ArrayPattern) ||
+                                                                         ReferenceEquals(nestedType, JsSymbols.ObjectPattern):
                     DestructureAssignment(nestedPattern, propertyValue, environment, context);
-                else if (target is Symbol identifier)
+                    break;
+                case Symbol identifier:
                     environment.Assign(identifier, propertyValue);
-                else
+                    break;
+                default:
                     throw new InvalidOperationException(
                         $"Expected identifier or nested pattern in object pattern property.{GetSourceInfo(context)}");
             }
@@ -3280,25 +3983,35 @@ public static class Evaluator
     // Helper for exceptions with source info
     private static string GetSourceInfo(EvaluationContext context)
     {
-        if (context.SourceReference is not null)
+        if (context.SourceReference is null)
         {
-            var src = context.SourceReference;
-            var snippet = src.GetText();
-            if (snippet.Length > 50) snippet = snippet[..47] + "...";
-            return $" at {src} (snippet: '{snippet}') Source: '{src.Source}' Start: {src.StartPosition} End: {src.EndPosition}";
+            return " (no source reference)";
         }
-        return " (no source reference)";
+
+        var src = context.SourceReference;
+        var snippet = src.GetText();
+        if (snippet.Length > 50)
+        {
+            snippet = snippet[..47] + "...";
+        }
+
+        return $" at {src} (snippet: '{snippet}') Source: '{src.Source}' Start: {src.StartPosition} End: {src.EndPosition}";
     }
 
     // Bitwise operations
     private static object BitwiseAnd(object? left, object? right)
     {
         // Handle BigInt & BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt & rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt & rightBigInt;
+        }
 
         // Cannot mix BigInt with Number
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
 
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right);
@@ -3308,11 +4021,16 @@ public static class Evaluator
     private static object BitwiseOr(object? left, object? right)
     {
         // Handle BigInt | BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt | rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt | rightBigInt;
+        }
 
         // Cannot mix BigInt with Number
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
 
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right);
@@ -3322,11 +4040,16 @@ public static class Evaluator
     private static object BitwiseXor(object? left, object? right)
     {
         // Handle BigInt ^ BigInt
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt) return leftBigInt ^ rightBigInt;
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt ^ rightBigInt;
+        }
 
         // Cannot mix BigInt with Number
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
 
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right);
@@ -3336,7 +4059,10 @@ public static class Evaluator
     private static object BitwiseNot(object? operand)
     {
         // Handle ~BigInt
-        if (operand is JsBigInt bigInt) return ~bigInt;
+        if (operand is JsBigInt bigInt)
+        {
+            return ~bigInt;
+        }
 
         var operandInt = ToInt32(operand);
         return (double)~operandInt;
@@ -3349,13 +4075,18 @@ public static class Evaluator
         {
             // BigInt shift requires int, so check range
             if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
+            {
                 throw new InvalidOperationException("BigInt shift amount is too large");
+            }
+
             return leftBigInt << (int)rightBigInt.Value;
         }
 
         // Cannot mix BigInt with Number
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
 
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
@@ -3369,13 +4100,18 @@ public static class Evaluator
         {
             // BigInt shift requires int, so check range
             if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
+            {
                 throw new InvalidOperationException("BigInt shift amount is too large");
+            }
+
             return leftBigInt >> (int)rightBigInt.Value;
         }
 
         // Cannot mix BigInt with Number
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
 
         var leftInt = ToInt32(left);
         var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
@@ -3386,7 +4122,9 @@ public static class Evaluator
     {
         // BigInt does not support >>> operator (unsigned right shift)
         if (left is JsBigInt || right is JsBigInt)
+        {
             throw new InvalidOperationException("BigInts have no unsigned right shift, use >> instead");
+        }
 
         var leftUInt = ToUInt32(left);
         var rightInt = ToInt32(right) & 0x1F; // Only use the bottom 5 bits
@@ -3555,21 +4293,28 @@ public static class Evaluator
     private static SourceReference? GetSourceReference(Cons? cons)
     {
         if (cons == null)
+        {
             return null;
-        
+        }
+
         // Check the current cons for a source reference
         if (cons.SourceReference != null)
+        {
             return cons.SourceReference;
-        
+        }
+
         // Walk the origin chain to find a source reference
         var current = cons.Origin;
         while (current != null)
         {
             if (current.SourceReference != null)
+            {
                 return current.SourceReference;
+            }
+
             current = current.Origin;
         }
-        
+
         return null;
     }
 
@@ -3584,9 +4329,11 @@ public static class Evaluator
             message += $" at {sourceRef}";
             var sourceText = sourceRef.GetText();
             if (!string.IsNullOrWhiteSpace(sourceText))
+            {
                 message += $": {sourceText}";
+            }
         }
-        
+
         return message;
     }
 
@@ -3597,13 +4344,13 @@ public static class Evaluator
     {
         // Convert left operand to string (property name)
         var propertyName = left?.ToString() ?? "";
-        
+
         // Right operand must be an object
         if (right is JsObject jsObj)
         {
             return jsObj.ContainsKey(propertyName);
         }
-        
+
         // For non-objects, 'in' returns false
         return false;
     }

@@ -12,7 +12,7 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
     public async Task SimpleThrow_WithStringConcatenation()
     {
         var engine = new JsEngine();
-        
+
         try
         {
             await engine.Evaluate(@"
@@ -28,7 +28,7 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
             output.WriteLine($"ThrownValue type: {ex.ThrownValue?.GetType()}");
             output.WriteLine($"ThrownValue == null: {ex.ThrownValue == null}");
             output.WriteLine($"Message: {ex.Message}");
-            
+
             // This should have a proper error message
             Assert.NotNull(ex.ThrownValue);
             Assert.Contains("ERROR", ex.ThrownValue.ToString());
@@ -39,10 +39,10 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
     public async Task CryptoMd5_Diagnose()
     {
         var engine = new JsEngine();
-        
+
         var content = SunSpiderTests.GetEmbeddedFile("crypto-md5.js");
         output.WriteLine($"Script length: {content.Length}");
-        
+
         try
         {
             await engine.Evaluate(content);
@@ -55,7 +55,7 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
             output.WriteLine($"ThrownValue: {ex.ThrownValue}");
             output.WriteLine($"ThrownValue type: {ex.ThrownValue?.GetType()}");
             output.WriteLine($"ThrownValue == null: {ex.ThrownValue == null}");
-            
+
             // Check debug messages
             var debugMessages = new List<DebugMessage>();
             while (engine.DebugMessages().TryRead(out var msg))
@@ -63,16 +63,19 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
                 debugMessages.Add(msg);
                 output.WriteLine($"\nDebug message {debugMessages.Count}:");
                 output.WriteLine($"  Variables count: {msg.Variables.Count}");
-                foreach (var kvp in msg.Variables)
+                foreach (var (key, value) in msg.Variables)
                 {
-                    var value = kvp.Value;
                     var valueStr = value != null ? value.ToString() : "null";
-                    if (valueStr.Length > 100) valueStr = valueStr.Substring(0, 100) + "...";
-                    output.WriteLine($"    {kvp.Key} = {valueStr}");
+                    if (valueStr is { Length: > 100 })
+                    {
+                        valueStr = string.Concat(valueStr.AsSpan(0, 100), "...");
+                    }
+
+                    output.WriteLine($"    {key} = {valueStr}");
                 }
             }
             output.WriteLine($"\nTotal debug messages: {debugMessages.Count}");
-            
+
             // Read console logs
             try
             {
@@ -95,7 +98,7 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
             {
                 output.WriteLine($"Could not read console logs: {logEx.Message}");
             }
-            
+
             // Re-throw so test fails with details
             throw;
         }
@@ -105,10 +108,10 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
     public async Task CryptoSha1_Diagnose()
     {
         var engine = new JsEngine();
-        
+
         var content = SunSpiderTests.GetEmbeddedFile("crypto-sha1.js");
         output.WriteLine($"Script length: {content.Length}");
-        
+
         try
         {
             await engine.Evaluate(content);
@@ -119,8 +122,8 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
             output.WriteLine($"\nThrowSignal caught!");
             output.WriteLine($"Message: {ex.Message}");
             output.WriteLine($"ThrownValue: {ex.ThrownValue}");
-            
-            // Check debug messages  
+
+            // Check debug messages
             var debugMessages = new List<DebugMessage>();
             while (engine.DebugMessages().TryRead(out var msg))
             {
@@ -130,11 +133,15 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
                 {
                     var value = kvp.Value;
                     var valueStr = value != null ? value.ToString() : "null";
-                    if (valueStr.Length > 100) valueStr = valueStr.Substring(0, 100) + "...";
+                    if (valueStr is { Length: > 100 })
+                    {
+                        valueStr = string.Concat(valueStr.AsSpan(0, 100), "...");
+                    }
+
                     output.WriteLine($"    {kvp.Key} = {valueStr}");
                 }
             }
-            
+
             // Read console logs
             try
             {
@@ -157,7 +164,7 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
             {
                 output.WriteLine($"Could not read console logs: {logEx.Message}");
             }
-            
+
             throw;
         }
     }

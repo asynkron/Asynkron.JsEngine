@@ -14,13 +14,20 @@ public abstract class TypedArrayBase
     {
         _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
 
-        if (byteOffset < 0 || byteOffset > buffer.ByteLength) throw new ArgumentOutOfRangeException(nameof(byteOffset));
+        if (byteOffset < 0 || byteOffset > buffer.ByteLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(byteOffset));
+        }
 
         if (byteOffset % bytesPerElement != 0)
+        {
             throw new ArgumentException("Byte offset must be aligned to element size", nameof(byteOffset));
+        }
 
         if (length < 0 || byteOffset + length * bytesPerElement > buffer.ByteLength)
+        {
             throw new ArgumentOutOfRangeException(nameof(length));
+        }
 
         _byteOffset = byteOffset;
         _length = length;
@@ -58,7 +65,9 @@ public abstract class TypedArrayBase
     protected void CheckBounds(int index)
     {
         if (index < 0 || index >= _length)
+        {
             throw new ArgumentOutOfRangeException(nameof(index), "Index is out of range");
+        }
     }
 
     /// <summary>
@@ -89,9 +98,12 @@ public abstract class TypedArrayBase
     /// </summary>
     public void Set(TypedArrayBase source, int offset = 0)
     {
-        if (source == null) throw new ArgumentNullException(nameof(source));
+        ArgumentNullException.ThrowIfNull(source);
 
-        if (offset < 0 || offset + source.Length > _length) throw new ArgumentOutOfRangeException(nameof(offset));
+        if (offset < 0 || offset + source.Length > _length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset));
+        }
 
         for (var i = 0; i < source.Length; i++) SetElement(offset + i, source.GetElement(i));
     }
@@ -101,9 +113,12 @@ public abstract class TypedArrayBase
     /// </summary>
     public void Set(JsArray source, int offset = 0)
     {
-        if (source == null) throw new ArgumentNullException(nameof(source));
+        ArgumentNullException.ThrowIfNull(source);
 
-        if (offset < 0 || offset + source.Items.Count > _length) throw new ArgumentOutOfRangeException(nameof(offset));
+        if (offset < 0 || offset + source.Items.Count > _length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset));
+        }
 
         for (var i = 0; i < source.Items.Count; i++)
         {

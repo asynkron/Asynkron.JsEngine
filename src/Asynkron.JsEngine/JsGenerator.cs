@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 /// Represents a JavaScript generator object that implements the iterator protocol.
 /// Generators are created by calling generator functions (function*) and can be
 /// paused and resumed using yield expressions.
-/// 
+///
 /// This is a simplified implementation that works for sequential yields by re-executing
 /// the generator body and skipping already-yielded values. For full generator support
 /// with complex control flow, the full CPS transformation would be needed.
@@ -67,7 +67,9 @@ public sealed class JsGenerator : IJsCallable
     {
         if (_done)
             // Generator is already completed
+        {
             return CreateIteratorResult(null, true);
+        }
 
         if (_state == GeneratorState.Completed)
         {
@@ -179,15 +181,24 @@ public sealed class JsGenerator : IJsCallable
 
             // Check if this is a rest parameter (wrapped in a rest cons)
             if (param is Cons paramCons && !paramCons.IsEmpty)
+            {
                 if (paramCons.Head is Symbol paramSymbol && paramSymbol.Name == "rest")
                 {
                     // This is a rest parameter
-                    if (paramCons.Rest.Head is Symbol restSymbol) restParam = restSymbol;
+                    if (paramCons.Rest.Head is Symbol restSymbol)
+                    {
+                        restParam = restSymbol;
+                    }
+
                     break; // Rest param must be last
                 }
+            }
 
             // Regular parameter
-            if (param is Symbol symbol) regularParams.Add(symbol);
+            if (param is Symbol symbol)
+            {
+                regularParams.Add(symbol);
+            }
 
             current = current.Rest;
         }
@@ -211,7 +222,7 @@ public sealed class JsGenerator : IJsCallable
 /// </summary>
 public sealed class YieldTracker(int skipCount)
 {
-    private int _currentIndex = 0;
+    private int _currentIndex;
 
     public bool ShouldYield()
     {

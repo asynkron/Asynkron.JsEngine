@@ -57,7 +57,7 @@ public class ArrayConstructorTests
     [Fact(Timeout = 2000)]
     public async Task Array_Constructor_CanBeUsedInFunctions()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var code = @"
             function fannkuch(n) {
                 var perm = Array(n);

@@ -131,7 +131,10 @@ public class CpsTransformDebugTests(ITestOutputHelper output)
         output.WriteLine($"Log messages: {string.Join(", ", logMessages)}");
 
         // Let's see what actually gets logged
-        foreach (var msg in logMessages) output.WriteLine($"  - {msg}");
+        foreach (var msg in logMessages)
+        {
+            output.WriteLine($"  - {msg}");
+        }
 
         Assert.Equal("ab", result);
     }

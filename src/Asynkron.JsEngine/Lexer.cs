@@ -112,91 +112,165 @@ public sealed class Lexer(string source)
                 break;
             case '+':
                 if (Match('+'))
+                {
                     AddToken(TokenType.PlusPlus);
+                }
                 else if (Match('='))
+                {
                     AddToken(TokenType.PlusEqual);
+                }
                 else
+                {
                     AddToken(TokenType.Plus);
+                }
+
                 break;
             case '.':
                 if (Match('.') && Match('.'))
+                {
                     AddToken(TokenType.DotDotDot);
+                }
                 else
+                {
                     AddToken(TokenType.Dot);
+                }
+
                 break;
             case '-':
                 if (Match('-'))
+                {
                     AddToken(TokenType.MinusMinus);
+                }
                 else if (Match('='))
+                {
                     AddToken(TokenType.MinusEqual);
+                }
                 else
+                {
                     AddToken(TokenType.Minus);
+                }
+
                 break;
             case '*':
                 if (Match('*'))
+                {
                     AddToken(Match('=') ? TokenType.StarStarEqual : TokenType.StarStar);
+                }
                 else if (Match('='))
+                {
                     AddToken(TokenType.StarEqual);
+                }
                 else
+                {
                     AddToken(TokenType.Star);
+                }
+
                 break;
             case '&':
                 if (Match('&'))
+                {
                     AddToken(Match('=') ? TokenType.AmpAmpEqual : TokenType.AmpAmp);
+                }
                 else if (Match('='))
+                {
                     AddToken(TokenType.AmpEqual);
+                }
                 else
+                {
                     AddToken(TokenType.Amp);
+                }
+
                 break;
             case '|':
                 if (Match('|'))
+                {
                     AddToken(Match('=') ? TokenType.PipePipeEqual : TokenType.PipePipe);
+                }
                 else if (Match('='))
+                {
                     AddToken(TokenType.PipeEqual);
+                }
                 else
+                {
                     AddToken(TokenType.Pipe);
+                }
+
                 break;
             case '?':
                 if (Match('?'))
+                {
                     AddToken(Match('=') ? TokenType.QuestionQuestionEqual : TokenType.QuestionQuestion);
+                }
                 else if (Match('.'))
+                {
                     AddToken(TokenType.QuestionDot);
+                }
                 else
+                {
                     AddToken(TokenType.Question);
+                }
+
                 break;
             case '/':
                 if (Match('/'))
+                {
                     SkipSingleLineComment();
+                }
                 else if (Match('*'))
+                {
                     SkipMultiLineComment();
+                }
                 else if (IsRegexContext())
+                {
                     ReadRegexLiteral();
+                }
                 else if (Match('='))
+                {
                     AddToken(TokenType.SlashEqual);
+                }
                 else
+                {
                     AddToken(TokenType.Slash);
+                }
+
                 break;
             case '!':
                 if (Match('='))
+                {
                     AddToken(Match('=') ? TokenType.BangEqualEqual : TokenType.BangEqual);
+                }
                 else
+                {
                     AddToken(TokenType.Bang);
+                }
+
                 break;
             case '=':
                 if (Match('='))
+                {
                     AddToken(Match('=') ? TokenType.EqualEqualEqual : TokenType.EqualEqual);
+                }
                 else if (Match('>'))
+                {
                     AddToken(TokenType.Arrow);
+                }
                 else
+                {
                     AddToken(TokenType.Equal);
+                }
+
                 break;
             case '>':
                 if (Match('>'))
                 {
                     if (Match('>'))
+                    {
                         AddToken(Match('=') ? TokenType.GreaterGreaterGreaterEqual : TokenType.GreaterGreaterGreater);
+                    }
                     else
+                    {
                         AddToken(Match('=') ? TokenType.GreaterGreaterEqual : TokenType.GreaterGreater);
+                    }
                 }
                 else
                 {
@@ -206,21 +280,36 @@ public sealed class Lexer(string source)
                 break;
             case '<':
                 if (Match('<'))
+                {
                     AddToken(Match('=') ? TokenType.LessLessEqual : TokenType.LessLess);
+                }
                 else
+                {
                     AddToken(Match('=') ? TokenType.LessEqual : TokenType.Less);
+                }
+
                 break;
             case '%':
                 if (Match('='))
+                {
                     AddToken(TokenType.PercentEqual);
+                }
                 else
+                {
                     AddToken(TokenType.Percent);
+                }
+
                 break;
             case '^':
                 if (Match('='))
+                {
                     AddToken(TokenType.CaretEqual);
+                }
                 else
+                {
                     AddToken(TokenType.Caret);
+                }
+
                 break;
             case '~':
                 AddToken(TokenType.Tilde);
@@ -247,11 +336,18 @@ public sealed class Lexer(string source)
                 break;
             default:
                 if (IsDigit(c))
+                {
                     ReadNumber();
+                }
                 else if (IsAlpha(c))
+                {
                     ReadIdentifier();
+                }
                 else
+                {
                     throw new ParseException($"Unexpected character '{c}' on line {_line} column {_column}.");
+                }
+
                 break;
         }
     }
@@ -290,16 +386,22 @@ public sealed class Lexer(string source)
 
         var text = _source[_start.._current];
         if (Keywords.TryGetValue(text, out var keyword))
+        {
             AddToken(keyword);
+        }
         else
+        {
             AddToken(TokenType.Identifier);
+        }
     }
 
     private void ReadPrivateIdentifier()
     {
         // '#' has already been consumed
         if (!IsAlpha(Peek()))
+        {
             throw new ParseException($"Expected identifier after '#' on line {_line} column {_column}.");
+        }
 
         while (IsAlphaNumeric(Peek())) Advance();
 
@@ -313,17 +415,19 @@ public sealed class Lexer(string source)
         if (_source[_start] == '0' && _current < _source.Length)
         {
             var next = Peek();
-            if (next == 'x' || next == 'X')
+            if (next is 'x' or 'X')
             {
                 // Hexadecimal literal
                 var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'x' or 'X'
                 if (!IsHexDigit(Peek()))
+                {
                     throw new ParseException($"Expected hexadecimal digit after '0x' on line {_line} column {_column}.");
-                
+                }
+
                 var digitStart = _current; // Remember where hex digits start
                 while (IsHexDigit(Peek())) Advance();
-                
+
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
                 {
@@ -333,32 +437,36 @@ public sealed class Lexer(string source)
                     {
                         Advance(); // consume 'n'
                         var hexDigits = _source[digitStart..(_current - 1)]; // Only the hex digits, not the 'n'
-                        var bigIntValue = System.Numerics.BigInteger.Parse(hexDigits, System.Globalization.NumberStyles.HexNumber);
+
+                        var bigIntValue = System.Numerics.BigInteger.Parse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                         var value = new JsBigInt(bigIntValue);
                         AddToken(TokenType.BigInt, value);
                         return;
                     }
                 }
-                
+
                 var hexDigits2 = _source[digitStart.._current]; // Only the hex digits, not the prefix
                 // Use BigInteger to handle values larger than long.MaxValue, then convert to double
                 // Prepend "0" to ensure the value is treated as unsigned (positive)
-                var hexBigInt = System.Numerics.BigInteger.Parse("0" + hexDigits2, System.Globalization.NumberStyles.HexNumber);
+                var hexBigInt = System.Numerics.BigInteger.Parse("0" + hexDigits2, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                 var hexValue = (double)hexBigInt;
                 AddToken(TokenType.Number, hexValue);
                 return;
             }
-            else if (next == 'o' || next == 'O')
+
+            if (next is 'o' or 'O')
             {
                 // Octal literal
                 var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'o' or 'O'
                 if (!IsOctalDigit(Peek()))
+                {
                     throw new ParseException($"Expected octal digit after '0o' on line {_line} column {_column}.");
-                
+                }
+
                 var digitStart = _current; // Remember where octal digits start
                 while (IsOctalDigit(Peek())) Advance();
-                
+
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
                 {
@@ -379,7 +487,7 @@ public sealed class Lexer(string source)
                         return;
                     }
                 }
-                
+
                 var octalDigits2 = _source[digitStart.._current]; // Only the octal digits, not the prefix
                 // Use BigInteger to handle values larger than long.MaxValue, then convert to double
                 var octalBigInt = System.Numerics.BigInteger.Zero;
@@ -391,17 +499,20 @@ public sealed class Lexer(string source)
                 AddToken(TokenType.Number, octalValue);
                 return;
             }
-            else if (next == 'b' || next == 'B')
+
+            if (next is 'b' or 'B')
             {
                 // Binary literal
                 var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'b' or 'B'
                 if (!IsBinaryDigit(Peek()))
+                {
                     throw new ParseException($"Expected binary digit after '0b' on line {_line} column {_column}.");
-                
+                }
+
                 var digitStart = _current; // Remember where binary digits start
                 while (IsBinaryDigit(Peek())) Advance();
-                
+
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
                 {
@@ -422,7 +533,7 @@ public sealed class Lexer(string source)
                         return;
                     }
                 }
-                
+
                 var binaryDigits2 = _source[digitStart.._current]; // Only the binary digits, not the prefix
                 // Use BigInteger to handle values larger than long.MaxValue, then convert to double
                 var binaryBigInt = System.Numerics.BigInteger.Zero;
@@ -456,17 +567,21 @@ public sealed class Lexer(string source)
             if (IsDigit(next) || (next == '+' || next == '-'))
             {
                 Advance(); // consume 'e' or 'E'
-                
+
                 // Consume optional sign
                 if (Peek() == '+' || Peek() == '-')
+                {
                     Advance();
-                
+                }
+
                 // Must have at least one digit after the exponent
                 if (!IsDigit(Peek()))
+                {
                     throw new ParseException($"Expected digit after exponent on line {_line} column {_column}.");
-                
+                }
+
                 while (IsDigit(Peek())) Advance();
-                
+
                 hasDecimal = true; // exponential notation makes it a regular number, not BigInt
             }
         }
@@ -524,7 +639,10 @@ public sealed class Lexer(string source)
             }
         }
 
-        if (IsAtEnd) throw new ParseException("Unterminated string literal.");
+        if (IsAtEnd)
+        {
+            throw new ParseException("Unterminated string literal.");
+        }
 
         Advance();
         var rawValue = _source[(_start + 1)..(_current - 1)];
@@ -562,7 +680,10 @@ public sealed class Lexer(string source)
             }
         }
 
-        if (IsAtEnd) throw new ParseException("Unterminated string literal.");
+        if (IsAtEnd)
+        {
+            throw new ParseException("Unterminated string literal.");
+        }
 
         Advance();
         var rawValue = _source[(_start + 1)..(_current - 1)];
@@ -573,7 +694,7 @@ public sealed class Lexer(string source)
     private void ReadTemplateLiteral()
     {
         var parts = new List<object>();
-        var currentString = new System.Text.StringBuilder();
+        var currentString = new StringBuilder();
 
         while (!IsAtEnd && Peek() != '`')
             if (Peek() == '$' && PeekNext() == '{')
@@ -596,8 +717,14 @@ public sealed class Lexer(string source)
                 while (!IsAtEnd && braceCount > 0)
                 {
                     var c = Peek();
-                    if (c == '{') braceCount++;
-                    else if (c == '}') braceCount--;
+                    if (c == '{')
+                    {
+                        braceCount++;
+                    }
+                    else if (c == '}')
+                    {
+                        braceCount--;
+                    }
 
                     if (braceCount > 0)
                     {
@@ -611,7 +738,10 @@ public sealed class Lexer(string source)
                     }
                 }
 
-                if (IsAtEnd) throw new ParseException("Unterminated template literal expression.");
+                if (IsAtEnd)
+                {
+                    throw new ParseException("Unterminated template literal expression.");
+                }
 
                 // Extract the expression text
                 var expressionText = _source[expressionStart.._current];
@@ -631,10 +761,16 @@ public sealed class Lexer(string source)
                 currentString.Append(Advance());
             }
 
-        if (IsAtEnd) throw new ParseException("Unterminated template literal.");
+        if (IsAtEnd)
+        {
+            throw new ParseException("Unterminated template literal.");
+        }
 
         // Add any remaining string content
-        if (currentString.Length > 0) parts.Add(currentString.ToString());
+        if (currentString.Length > 0)
+        {
+            parts.Add(currentString.ToString());
+        }
 
         // Skip closing backtick
         Advance();
@@ -652,7 +788,10 @@ public sealed class Lexer(string source)
 
     private bool Match(char expected)
     {
-        if (IsAtEnd || _source[_current] != expected) return false;
+        if (IsAtEnd || _source[_current] != expected)
+        {
+            return false;
+        }
 
         _current++;
         _column++;
@@ -678,7 +817,7 @@ public sealed class Lexer(string source)
 
     private static bool IsAlpha(char c)
     {
-        return c is >= 'a' and <= 'z' || c is >= 'A' and <= 'Z' || c == '_' || c == '$';
+        return c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or '_' or '$';
     }
 
     private static bool IsAlphaNumeric(char c)
@@ -688,7 +827,7 @@ public sealed class Lexer(string source)
 
     private static bool IsHexDigit(char c)
     {
-        return c is >= '0' and <= '9' || c is >= 'a' and <= 'f' || c is >= 'A' and <= 'F';
+        return c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F';
     }
 
     private static bool IsOctalDigit(char c)
@@ -716,7 +855,10 @@ public sealed class Lexer(string source)
     {
         // A regex literal can appear after tokens that cannot be followed by a division operator
         // Common contexts: =, (, [, ,, {, :, ;, !, &, |, ?, return, throw, etc.
-        if (_tokens.Count == 0) return true; // Start of input
+        if (_tokens.Count == 0)
+        {
+            return true; // Start of input
+        }
 
         var lastToken = _tokens[^1].Type;
         return lastToken is
@@ -747,7 +889,7 @@ public sealed class Lexer(string source)
 
     private void ReadRegexLiteral()
     {
-        var pattern = new System.Text.StringBuilder();
+        var pattern = new StringBuilder();
 
         // Read pattern until unescaped /
         while (!IsAtEnd && Peek() != '/')
@@ -755,7 +897,10 @@ public sealed class Lexer(string source)
             {
                 // Include escape sequences in the pattern
                 pattern.Append(Advance());
-                if (!IsAtEnd) pattern.Append(Advance());
+                if (!IsAtEnd)
+                {
+                    pattern.Append(Advance());
+                }
             }
             else if (Peek() == '\n')
             {
@@ -769,27 +914,36 @@ public sealed class Lexer(string source)
                     if (Peek() == '\\')
                     {
                         pattern.Append(Advance());
-                        if (!IsAtEnd) pattern.Append(Advance());
+                        if (!IsAtEnd)
+                        {
+                            pattern.Append(Advance());
+                        }
                     }
                     else
                     {
                         pattern.Append(Advance());
                     }
 
-                if (!IsAtEnd && Peek() == ']') pattern.Append(Advance());
+                if (!IsAtEnd && Peek() == ']')
+                {
+                    pattern.Append(Advance());
+                }
             }
             else
             {
                 pattern.Append(Advance());
             }
 
-        if (IsAtEnd) throw new ParseException("Unterminated regex literal.");
+        if (IsAtEnd)
+        {
+            throw new ParseException("Unterminated regex literal.");
+        }
 
         // Skip closing /
         Advance();
 
         // Read flags (g, i, m, etc.)
-        var flags = new System.Text.StringBuilder();
+        var flags = new StringBuilder();
         while (!IsAtEnd && IsAlpha(Peek())) flags.Append(Advance());
 
         var regexValue = new RegexLiteralValue(pattern.ToString(), flags.ToString());
@@ -852,7 +1006,7 @@ public sealed class Lexer(string source)
                         if (i + 3 < rawString.Length)
                         {
                             var hex = rawString.Substring(i + 2, 2);
-                            if (int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var value))
+                            if (int.TryParse(hex, NumberStyles.HexNumber, null, out var value))
                             {
                                 result.Append((char)value);
                                 i += 4;
@@ -877,7 +1031,7 @@ public sealed class Lexer(string source)
                         if (i + 5 < rawString.Length)
                         {
                             var hex = rawString.Substring(i + 2, 4);
-                            if (int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var value))
+                            if (int.TryParse(hex, NumberStyles.HexNumber, null, out var value))
                             {
                                 result.Append((char)value);
                                 i += 6;

@@ -67,7 +67,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
             }
         ");
 
-        await System.Threading.Tasks.Task.Delay(500);
+        await Task.Delay(500);
 
         // Check exceptions
         var exceptions = new List<ExceptionInfo>();
@@ -164,7 +164,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
             }
         ");
 
-        await System.Threading.Tasks.Task.Delay(500);
+        await Task.Delay(500);
 
         // Check exceptions
         var exceptions = new List<ExceptionInfo>();

@@ -42,12 +42,18 @@ public sealed class ParseException : Exception
         if (message.Contains(posPattern))
         {
             message = message.Replace(posPattern + ".", "").Trim();
-            if (message.EndsWith(".")) message = message[..^1];
+            if (message.EndsWith("."))
+            {
+                message = message[..^1];
+            }
         }
         else if (message.Contains(posPattern2))
         {
             message = message.Replace(posPattern2, "").Trim();
-            if (message.EndsWith(".")) message = message[..^1];
+            if (message.EndsWith("."))
+            {
+                message = message[..^1];
+            }
         }
         
         return $"{message} at line {token.Line}, column {token.Column}\n{snippet}";

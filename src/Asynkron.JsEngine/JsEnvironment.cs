@@ -37,7 +37,10 @@ public sealed class JsEnvironment(
         var scope = GetFunctionScope();
         if (scope._values.TryGetValue(name, out var existing))
         {
-            if (hasInitializer) existing.Value = value;
+            if (hasInitializer)
+            {
+                existing.Value = value;
+            }
 
             return;
         }
@@ -47,9 +50,15 @@ public sealed class JsEnvironment(
 
     public object? Get(Symbol name)
     {
-        if (_values.TryGetValue(name, out var binding)) return binding.Value;
+        if (_values.TryGetValue(name, out var binding))
+        {
+            return binding.Value;
+        }
 
-        if (_enclosing is not null) return _enclosing.Get(name);
+        if (_enclosing is not null)
+        {
+            return _enclosing.Get(name);
+        }
 
         throw new InvalidOperationException($"Undefined symbol '{name.Name}'.");
     }
@@ -62,7 +71,10 @@ public sealed class JsEnvironment(
             return true;
         }
 
-        if (_enclosing is not null) return _enclosing.TryGet(name, out value);
+        if (_enclosing is not null)
+        {
+            return _enclosing.TryGet(name, out value);
+        }
 
         value = null;
         return false;
@@ -79,7 +91,10 @@ public sealed class JsEnvironment(
     {
         if (_values.TryGetValue(name, out var binding))
         {
-            if (binding.IsConst) throw new InvalidOperationException($"Cannot reassign constant '{name.Name}'.");
+            if (binding.IsConst)
+            {
+                throw new InvalidOperationException($"Cannot reassign constant '{name.Name}'.");
+            }
 
             binding.Value = value;
             return;
@@ -128,8 +143,12 @@ public sealed class JsEnvironment(
         {
             // Add variables from current scope (only if not already present from inner scope)
             foreach (var kvp in current._values)
+            {
                 if (!result.ContainsKey(kvp.Key.Name))
+                {
                     result[kvp.Key.Name] = kvp.Value.Value;
+                }
+            }
 
             current = current._enclosing;
         }
@@ -183,22 +202,41 @@ public sealed class JsEnvironment(
     private static string DetermineOperationType(Cons? expression)
     {
         if (expression is null)
+        {
             return "unknown";
+        }
 
         if (expression.Head is Symbol symbol)
         {
             if (ReferenceEquals(symbol, JsSymbols.Call))
+            {
                 return "call";
+            }
+
             if (ReferenceEquals(symbol, JsSymbols.For))
+            {
                 return "for";
+            }
+
             if (ReferenceEquals(symbol, JsSymbols.While))
+            {
                 return "while";
+            }
+
             if (ReferenceEquals(symbol, JsSymbols.DoWhile))
+            {
                 return "do-while";
+            }
+
             if (ReferenceEquals(symbol, JsSymbols.Function))
+            {
                 return "function";
+            }
+
             if (ReferenceEquals(symbol, JsSymbols.Block))
+            {
                 return "block";
+            }
 
             return symbol.Name;
         }
@@ -212,7 +250,9 @@ public sealed class JsEnvironment(
     private static string GetExpressionDescription(Cons? expression, string operationType)
     {
         if (expression is null)
+        {
             return "unknown";
+        }
 
         return operationType switch
         {
@@ -232,7 +272,11 @@ public sealed class JsEnvironment(
     private static string GetFunctionName(Cons expression)
     {
         // (function name params body)
-        if (expression.Rest.Head is Symbol nameSymbol) return $"function {nameSymbol.Name}";
+        if (expression.Rest.Head is Symbol nameSymbol)
+        {
+            return $"function {nameSymbol.Name}";
+        }
+
         return "anonymous function";
     }
 
@@ -244,7 +288,10 @@ public sealed class JsEnvironment(
         // (call callee args...)
         var callee = expression.Rest.Head;
 
-        if (callee is Symbol symbol) return $"call to {symbol.Name}";
+        if (callee is Symbol symbol)
+        {
+            return $"call to {symbol.Name}";
+        }
 
         return "function call";
     }

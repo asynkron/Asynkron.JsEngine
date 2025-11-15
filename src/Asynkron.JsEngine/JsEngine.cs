@@ -6,8 +6,9 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// High level façade that turns JavaScript source into S-expressions and evaluates them.
 /// </summary>
-public sealed class JsEngine
+public sealed class JsEngine : IAsyncDisposable
 {
+    private readonly TaskCompletionSource _doneTcs = new();
     private readonly JsEnvironment _global = new(isFunctionScope: true);
     private readonly ConstantExpressionTransformer _constantTransformer = new();
     private readonly CpsTransformer _cpsTransformer = new();
@@ -18,7 +19,7 @@ public sealed class JsEngine
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly HashSet<Task> _activeTimerTasks = [];
     private int _nextTimerId = 1;
-    private int _pendingTaskCount = 0; // Track pending tasks in the event queue
+    private int _pendingTaskCount; // Track pending tasks in the event queue
     private bool _asyncIteratorTracingEnabled;
 
     // Module registry: maps module paths to their exported values
@@ -59,8 +60,10 @@ public sealed class JsEngine
         if (dateConstructor is HostFunction hf)
         {
             foreach (var prop in dateObj)
+            {
                 hf.SetProperty(prop.Key, prop.Value);
-            
+            }
+
             // Create and set Date.prototype
             var datePrototype = new JsObject();
             hf.SetProperty("prototype", datePrototype);
@@ -187,7 +190,7 @@ public sealed class JsEngine
     /// </summary>
     internal void LogException(Exception exception, string context, JsEnvironment? environment = null)
     {
-        var callStack = environment?.BuildCallStack() ?? new List<CallStackFrame>();
+        var callStack = environment?.BuildCallStack() ?? [];
         var exceptionInfo = new ExceptionInfo(exception, context, callStack);
         _exceptionChannel.Writer.TryWrite(exceptionInfo);
     }
@@ -238,7 +241,9 @@ public sealed class JsEngine
     internal void WriteAsyncIteratorTrace(string message)
     {
         if (!_asyncIteratorTracingEnabled)
+        {
             return;
+        }
 
         _asyncIteratorTraceChannel.Writer.TryWrite(message);
     }
@@ -266,7 +271,10 @@ public sealed class JsEngine
         // Step 4: Apply CPS transformation if needed
         // This enables support for generators and async/await by converting
         // the S-expression tree to continuation-passing style
-        if (_cpsTransformer.NeedsTransformation(program)) return _cpsTransformer.Transform(program);
+        if (_cpsTransformer.NeedsTransformation(program))
+        {
+            return _cpsTransformer.Transform(program);
+        }
 
         return program;
     }
@@ -309,9 +317,13 @@ public sealed class JsEngine
         // Step 4: Apply CPS transformation if needed
         Cons cpsTransformed;
         if (_cpsTransformer.NeedsTransformation(constantFolded))
+        {
             cpsTransformed = _cpsTransformer.Transform(constantFolded);
+        }
         else
+        {
             cpsTransformed = constantFolded;
+        }
 
         return (original, constantFolded, cpsTransformed);
     }
@@ -364,7 +376,7 @@ public sealed class JsEngine
             return Task.CompletedTask;
         });
 
-        var res = await tcs.Task;
+        var res = await tcs.Task.ConfigureAwait(false);
 
         return res;
     }
@@ -374,16 +386,25 @@ public sealed class JsEngine
     /// </summary>
     private static bool HasModuleStatements(Cons program)
     {
-        if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program)) return false;
+        if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
+        {
+            return false;
+        }
 
         foreach (var stmt in program.Rest)
+        {
             if (stmt is Cons { Head: Symbol stmtHead })
+            {
                 if (ReferenceEquals(stmtHead, JsSymbols.Import) ||
                     ReferenceEquals(stmtHead, JsSymbols.Export) ||
                     ReferenceEquals(stmtHead, JsSymbols.ExportDefault) ||
                     ReferenceEquals(stmtHead, JsSymbols.ExportNamed) ||
                     ReferenceEquals(stmtHead, JsSymbols.ExportDeclaration))
+                {
                     return true;
+                }
+            }
+        }
 
         return false;
     }
@@ -425,7 +446,7 @@ public sealed class JsEngine
         var evaluateTask = Evaluate(source);
 
         // Get the result from evaluation
-        var result = await evaluateTask;
+        var result = await evaluateTask.ConfigureAwait(false);
 
         // Wait for all pending work to complete:
         // - Event queue to drain (no pending tasks)
@@ -448,10 +469,12 @@ public sealed class JsEngine
 
             if (!hasActiveTasks && !hasPendingTasks)
                 // No active tasks and no pending tasks, we're done
+            {
                 break;
+            }
 
             // Wait a bit for timer tasks and event queue to process
-            await Task.Delay(20);
+            await Task.Delay(20).ConfigureAwait(false);
         }
 
         return result;
@@ -476,10 +499,11 @@ public sealed class JsEngine
     /// </summary>
     private async Task ProcessEventQueue()
     {
-        await foreach (var x in _eventQueue.Reader.ReadAllAsync())
+        await foreach (var x in _eventQueue.Reader.ReadAllAsync().ConfigureAwait(false))
+        {
             try
             {
-                await x();
+                await x().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -494,6 +518,9 @@ public sealed class JsEngine
                 // Decrement the pending task count after processing
                 Interlocked.Decrement(ref _pendingTaskCount);
             }
+        }
+
+        _doneTcs.SetResult();
     }
 
     /// <summary>
@@ -502,7 +529,9 @@ public sealed class JsEngine
     private object? SetTimeout(IReadOnlyList<object?> args)
     {
         if (args.Count < 2 || args[0] is not IJsCallable callback)
+        {
             return null;
+        }
 
         var delay = args[1] is double d ? (int)d : 0;
         var timerId = _nextTimerId++;
@@ -515,14 +544,16 @@ public sealed class JsEngine
         {
             try
             {
-                await Task.Delay(delay, cts.Token);
+                await Task.Delay(delay, cts.Token).ConfigureAwait(false);
 
                 if (!cts.Token.IsCancellationRequested)
+                {
                     ScheduleTask(() =>
                     {
                         callback.Invoke([], null);
                         return Task.CompletedTask;
                     });
+                }
             }
             catch (TaskCanceledException)
             {
@@ -532,10 +563,12 @@ public sealed class JsEngine
             {
                 _timers.Remove(timerId);
                 if (timerTask != null)
+                {
                     lock (_activeTimerTasks)
                     {
                         _activeTimerTasks.Remove(timerTask);
                     }
+                }
             }
         }, cts.Token);
 
@@ -553,7 +586,9 @@ public sealed class JsEngine
     private object? SetInterval(IReadOnlyList<object?> args)
     {
         if (args.Count < 2 || args[0] is not IJsCallable callback)
+        {
             return null;
+        }
 
         var interval = args[1] is double d ? (int)d : 0;
         var timerId = _nextTimerId++;
@@ -568,14 +603,16 @@ public sealed class JsEngine
             {
                 while (!cts.Token.IsCancellationRequested)
                 {
-                    await Task.Delay(interval, cts.Token);
+                    await Task.Delay(interval, cts.Token).ConfigureAwait(false);
 
                     if (!cts.Token.IsCancellationRequested)
+                    {
                         ScheduleTask(() =>
                         {
                             callback.Invoke([], null);
                             return Task.CompletedTask;
                         });
+                    }
                 }
             }
             catch (TaskCanceledException)
@@ -586,10 +623,12 @@ public sealed class JsEngine
             {
                 _timers.Remove(timerId);
                 if (timerTask != null)
+                {
                     lock (_activeTimerTasks)
                     {
                         _activeTimerTasks.Remove(timerTask);
                     }
+                }
             }
         }, cts.Token);
 
@@ -607,7 +646,9 @@ public sealed class JsEngine
     private object? ClearTimer(IReadOnlyList<object?> args)
     {
         if (args.Count == 0 || args[0] is not double timerId)
+        {
             return null;
+        }
 
         var id = (int)timerId;
         if (_timers.TryGetValue(id, out var cts))
@@ -624,10 +665,16 @@ public sealed class JsEngine
     /// </summary>
     private object? DynamicImport(IReadOnlyList<object?> args)
     {
-        if (args.Count == 0) throw new Exception("import() requires a module specifier");
+        if (args.Count == 0)
+        {
+            throw new Exception("import() requires a module specifier");
+        }
 
         var modulePath = args[0]?.ToString();
-        if (string.IsNullOrEmpty(modulePath)) throw new Exception("import() requires a valid module specifier");
+        if (string.IsNullOrEmpty(modulePath))
+        {
+            throw new Exception("import() requires a valid module specifier");
+        }
 
         // Create a promise that will resolve with the module exports
         var promise = new JsPromise(this);
@@ -651,7 +698,7 @@ public sealed class JsEngine
                 promise.Reject(ex.Message);
             }
 
-            await Task.CompletedTask;
+            await Task.CompletedTask.ConfigureAwait(false);
         });
 
         return promiseObj;
@@ -674,15 +721,22 @@ public sealed class JsEngine
     internal JsObject LoadModule(string modulePath)
     {
         // Check if module is already loaded
-        if (_moduleRegistry.TryGetValue(modulePath, out var cachedExports)) return cachedExports;
+        if (_moduleRegistry.TryGetValue(modulePath, out var cachedExports))
+        {
+            return cachedExports;
+        }
 
         // Load module source
         string source;
         if (_moduleLoader != null)
+        {
             source = _moduleLoader(modulePath);
+        }
         else
             // Default: load from file system
+        {
             source = File.ReadAllText(modulePath);
+        }
 
         // Parse the module
         var program = Parse(source);
@@ -709,7 +763,9 @@ public sealed class JsEngine
     private object? EvaluateModule(Cons program, JsEnvironment moduleEnv, JsObject exports)
     {
         if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
+        {
             throw new InvalidOperationException("Expected program node");
+        }
 
         object? lastValue = null;
         var statements = program.Rest;
@@ -747,10 +803,14 @@ public sealed class JsEngine
                             // Get the defined value from the environment
                             var name = exprCons.Rest.Head as Symbol;
                             if (name != null)
+                            {
                                 value = moduleEnv.Get(name);
+                            }
                             else
                                 // Shouldn't happen, but handle it
+                            {
                                 value = null;
+                            }
                         }
                         else
                         {
@@ -786,7 +846,9 @@ public sealed class JsEngine
                         var sourceExports = LoadModule(fromModule);
 
                         if (exportList != null)
+                        {
                             foreach (var exportItem in exportList)
+                            {
                                 if (exportItem is Cons { Head: Symbol exportHead } exportCons &&
                                     ReferenceEquals(exportHead, JsSymbols.ExportNamed))
                                 {
@@ -799,14 +861,19 @@ public sealed class JsEngine
                                         var exportedName = exported.Name;
 
                                         if (sourceExports.TryGetValue(localName, out var value))
+                                        {
                                             exports[exportedName] = value;
+                                        }
                                     }
                                 }
+                            }
+                        }
                     }
                     else if (exportList != null)
                     {
                         // Export from current module
                         foreach (var exportItem in exportList)
+                        {
                             if (exportItem is Cons { Head: Symbol exportHead } exportCons &&
                                 ReferenceEquals(exportHead, JsSymbols.ExportNamed))
                             {
@@ -821,6 +888,7 @@ public sealed class JsEngine
                                     exports[exportedName] = value;
                                 }
                             }
+                        }
                     }
                 }
                 else if (ReferenceEquals(stmtHead, JsSymbols.ExportDeclaration))
@@ -900,13 +968,19 @@ public sealed class JsEngine
         // (import module-path default-import namespace-import named-imports) for regular imports
         var modulePath = importCons.Rest.Head as string;
 
-        if (modulePath == null) return; // Invalid import
+        if (modulePath == null)
+        {
+            return; // Invalid import
+        }
 
         // Load the module (for side effects)
         var exports = LoadModule(modulePath);
 
         // Check if there are any imports to handle
-        if (importCons.Rest.Rest.IsEmpty) return; // Side-effect only import
+        if (importCons.Rest.Rest.IsEmpty)
+        {
+            return; // Side-effect only import
+        }
 
         var defaultImport = importCons.Rest.Rest.Head as Symbol;
         var namespaceImport = !importCons.Rest.Rest.Rest.IsEmpty ? importCons.Rest.Rest.Rest.Head as Symbol : null;
@@ -916,14 +990,21 @@ public sealed class JsEngine
 
         // Handle default import
         if (defaultImport != null && exports.TryGetValue("default", out var defaultValue))
+        {
             moduleEnv.Define(defaultImport, defaultValue);
+        }
 
         // Handle namespace import
-        if (namespaceImport != null) moduleEnv.Define(namespaceImport, exports);
+        if (namespaceImport != null)
+        {
+            moduleEnv.Define(namespaceImport, exports);
+        }
 
         // Handle named imports
         if (namedImports != null)
+        {
             foreach (var importItem in namedImports)
+            {
                 if (importItem is Cons { Head: Symbol importHead } importItemCons &&
                     ReferenceEquals(importHead, JsSymbols.ImportNamed))
                 {
@@ -931,8 +1012,20 @@ public sealed class JsEngine
                     var local = importItemCons.Rest.Rest.Head as Symbol;
 
                     if (imported != null && local != null)
+                    {
                         if (exports.TryGetValue(imported.Name, out var value))
+                        {
                             moduleEnv.Define(local, value);
+                        }
+                    }
                 }
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _eventQueue.Writer.Complete();
+        await _doneTcs.Task.ConfigureAwait(false);
     }
 }

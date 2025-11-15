@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 public class TransformationOriginTests
 {
     [Fact(Timeout = 2000)]
-    public async Task Origin_AsyncFunction_TracksBackToOriginal()
+    public Task Origin_AsyncFunction_TracksBackToOriginal()
     {
         var source = """
 
@@ -32,10 +32,11 @@ public class TransformationOriginTests
 
         // The transformed function should have an Origin pointing back
         Assert.NotNull(transformedFunc!.Origin);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Origin_UntransformedCode_HasNullOrigin()
+    public Task Origin_UntransformedCode_HasNullOrigin()
     {
         var source = """
 
@@ -53,10 +54,11 @@ public class TransformationOriginTests
 
         // Origin should be null for untransformed code
         Assert.Null(func!.Origin);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Origin_ChainedTransformations_CanTraceBack()
+    public Task Origin_ChainedTransformations_CanTraceBack()
     {
         var source = """
 
@@ -75,10 +77,11 @@ public class TransformationOriginTests
 
         // Verify we can trace back
         Assert.NotNull(transformedFunc!.Origin);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Origin_WithSourceReference_BothPropertiesWork()
+    public Task Origin_WithSourceReference_BothPropertiesWork()
     {
         var source = @"async function test() { return 42; }";
 
@@ -119,10 +122,11 @@ public class TransformationOriginTests
         var sourceText = sourceRef!.GetText();
         Assert.NotNull(sourceText);
         Assert.Contains("async", sourceText);
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Origin_OnlyTransformedNodes_HaveOriginSet()
+    public Task Origin_OnlyTransformedNodes_HaveOriginSet()
     {
         var source = """
 
@@ -144,5 +148,6 @@ public class TransformationOriginTests
         var asyncFunc = cpsTransformed.Rest.Rest.Head as Cons;
         Assert.NotNull(asyncFunc);
         Assert.NotNull(asyncFunc!.Origin);
+        return Task.CompletedTask;
     }
 }

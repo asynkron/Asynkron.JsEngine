@@ -13,6 +13,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "math.js")
+            {
                 return """
 
                                            export default function add(a, b) {
@@ -20,6 +21,8 @@ public class ModuleTests
                                            }
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -41,12 +44,15 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "config.js")
+            {
                 return """
 
                                            let config = { name: "MyApp", version: "1.0" };
                                            export default config;
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -68,12 +74,15 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "utils.js")
+            {
                 return """
 
                                            export let x = 10;
                                            export let y = 20;
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -95,6 +104,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "math.js")
+            {
                 return """
 
                                            export function add(a, b) {
@@ -106,6 +116,8 @@ public class ModuleTests
                                            }
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -127,6 +139,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "math.js")
+            {
                 return """
 
                                            export function add(a, b) {
@@ -134,6 +147,8 @@ public class ModuleTests
                                            }
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -155,6 +170,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "math.js")
+            {
                 return """
 
                                            export function add(a, b) {
@@ -166,6 +182,8 @@ public class ModuleTests
                                            }
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -187,6 +205,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "utils.js")
+            {
                 return """
 
                                            let x = 1;
@@ -195,6 +214,8 @@ public class ModuleTests
                                            export { x, y };
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -216,12 +237,15 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "utils.js")
+            {
                 return """
 
                                            let privateValue = 42;
                                            export { privateValue as value };
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -288,12 +312,15 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "constants.js")
+            {
                 return """
 
                                            export const PI = 3.14159;
                                            export const E = 2.71828;
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -315,6 +342,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "point.js")
+            {
                 return """
 
                                            export class Point {
@@ -329,6 +357,8 @@ public class ModuleTests
                                            }
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -351,6 +381,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "module.js")
+            {
                 return """
 
                                            export default function main() {
@@ -362,6 +393,8 @@ public class ModuleTests
                                            }
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -383,11 +416,14 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "side-effect.js")
+            {
                 return """
 
                                            let loaded = true;
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -411,6 +447,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "Rectangle.js")
+            {
                 return """
 
                                            export default class Rectangle {
@@ -425,6 +462,8 @@ public class ModuleTests
                                            }
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -447,6 +486,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "math.js")
+            {
                 return """
 
                                            export function add(a, b) { return a + b; }
@@ -455,6 +495,8 @@ public class ModuleTests
                                            export function div(a, b) { return a / b; }
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -476,6 +518,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "dynamic.js")
+            {
                 return """
 
                                            export function greet(name) {
@@ -483,6 +526,8 @@ public class ModuleTests
                                            }
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -507,6 +552,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "calculator.js")
+            {
                 return """
 
                                            export function multiply(a, b) {
@@ -517,6 +563,8 @@ public class ModuleTests
                                            }
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
@@ -546,6 +594,7 @@ public class ModuleTests
         engine.SetModuleLoader(modulePath =>
         {
             if (modulePath == "counter.js")
+            {
                 return """
 
                                            export default function count() {
@@ -553,6 +602,8 @@ public class ModuleTests
                                            }
                                        
                        """;
+            }
+
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 

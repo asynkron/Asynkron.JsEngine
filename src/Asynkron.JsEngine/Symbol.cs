@@ -25,8 +25,10 @@ public sealed class Symbol : IEquatable<Symbol>
     public static Symbol Intern(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
+        {
             throw new ArgumentException("Symbol names must contain at least one non-whitespace character.",
                 nameof(name));
+        }
 
         return Cache.GetOrAdd(name, n => new Symbol(n));
     }

@@ -34,14 +34,22 @@ public sealed class JsUint8ClampedArray(JsArrayBuffer buffer, int byteOffset, in
         // Clamp to 0-255 range, with proper rounding
         byte clampedValue;
         if (double.IsNaN(value))
+        {
             clampedValue = 0;
+        }
         else if (value <= 0)
+        {
             clampedValue = 0;
+        }
         else if (value >= 255)
+        {
             clampedValue = 255;
+        }
         else
             // Round to nearest, ties to even (matches JavaScript spec)
+        {
             clampedValue = (byte)Math.Round(value, MidpointRounding.ToEven);
+        }
 
         _buffer.Buffer[GetByteIndex(index)] = clampedValue;
     }

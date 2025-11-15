@@ -162,7 +162,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
                 .catch(e => log('ERROR: ' + e));
         ");
 
-        await System.Threading.Tasks.Task.Delay(1000);
+        await Task.Delay(1000);
 
         var exceptions = new List<ExceptionInfo>();
         while (engine.Exceptions().TryRead(out var ex))
@@ -247,7 +247,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
                 .catch(e => log('ERROR: ' + e));
         ");
 
-        await System.Threading.Tasks.Task.Delay(1000);
+        await Task.Delay(1000);
         output.WriteLine("Actual for-await-of test with extensive logging to pinpoint failure");
     }
 
@@ -308,7 +308,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
                 .catch(e => log('Failed: ' + e));
         ");
 
-        await System.Threading.Tasks.Task.Delay(1000);
+        await Task.Delay(1000);
 
         var exceptions = new List<ExceptionInfo>();
         while (engine.Exceptions().TryRead(out var ex))

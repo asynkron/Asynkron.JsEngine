@@ -27,7 +27,9 @@ public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
     {
         if (CurrentJsEnvironment is null || CurrentContext is null)
+        {
             throw new InvalidOperationException("Debug-aware function called without environment/context set");
+        }
 
         return _handler(CurrentJsEnvironment, CurrentContext, arguments);
     }

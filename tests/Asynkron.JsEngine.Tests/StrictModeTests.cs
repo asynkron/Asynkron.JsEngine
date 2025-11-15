@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine.Tests;
 public class StrictModeTests
 {
     [Fact(Timeout = 2000)]
-    public async Task StrictMode_DetectedAndParsed()
+    public Task StrictMode_DetectedAndParsed()
     {
         // Verify that "use strict" directive is detected and added to the AST
         var engine = new JsEngine();
@@ -24,6 +24,7 @@ public class StrictModeTests
         Assert.IsType<Cons>(firstStmt);
         var firstStmtCons = (Cons)firstStmt;
         Assert.True(ReferenceEquals(firstStmtCons.Head, JsSymbols.UseStrict));
+        return Task.CompletedTask;
     }
 
     [Fact(Timeout = 2000)]

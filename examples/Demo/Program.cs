@@ -29,7 +29,7 @@ c.sum();
 
 try 
 {
-    var result = await engine.Evaluate(script);
+    var result = await engine.Evaluate(script).ConfigureAwait(false);
     Console.WriteLine($"Success! Result: {result} (expected: 60)");
 }
 catch (Exception ex)

@@ -14,7 +14,11 @@ public class PromiseTests
         engine.SetGlobalFunction("checkResolved", args =>
         {
             resolved = true;
-            if (args.Count > 0 && args[0] is string s) resolvedValue = s;
+            if (args.Count > 0 && args[0] is string s)
+            {
+                resolvedValue = s;
+            }
+
             return null;
         });
 
@@ -46,7 +50,11 @@ public class PromiseTests
         engine.SetGlobalFunction("checkRejected", args =>
         {
             rejected = true;
-            if (args.Count > 0 && args[0] is string s) rejectedReason = s;
+            if (args.Count > 0 && args[0] is string s)
+            {
+                rejectedReason = s;
+            }
+
             return null;
         });
 
@@ -74,7 +82,11 @@ public class PromiseTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -103,7 +115,11 @@ public class PromiseTests
 
         engine.SetGlobalFunction("addResult", args =>
         {
-            if (args.Count > 0) results.Add(args[0]?.ToString() ?? "");
+            if (args.Count > 0)
+            {
+                results.Add(args[0]?.ToString() ?? "");
+            }
+
             return null;
         });
 
@@ -136,7 +152,11 @@ public class PromiseTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -160,7 +180,11 @@ public class PromiseTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -243,7 +267,11 @@ public class PromiseTests
 
         engine.SetGlobalFunction("addResult", args =>
         {
-            if (args.Count > 0) results.Add(args[0]?.ToString() ?? "");
+            if (args.Count > 0)
+            {
+                results.Add(args[0]?.ToString() ?? "");
+            }
+
             return null;
         });
 
@@ -274,7 +302,11 @@ public class PromiseTests
         engine.SetGlobalFunction("captureRejection", args =>
         {
             rejected = true;
-            if (args.Count > 0) reason = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                reason = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -303,7 +335,11 @@ public class PromiseTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -329,7 +365,11 @@ public class PromiseTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -382,7 +422,11 @@ public class PromiseTests
 
         engine.SetGlobalFunction("captureFinal", args =>
         {
-            if (args.Count > 0) finalValue = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                finalValue = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 

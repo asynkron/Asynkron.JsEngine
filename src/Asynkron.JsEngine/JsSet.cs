@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine;
 public sealed class JsSet
 {
     // Use List to maintain insertion order
-    private readonly List<object?> _values = new();
+    private readonly List<object?> _values = [];
     private readonly JsObject _properties = new();
 
     /// <summary>
@@ -32,7 +32,11 @@ public sealed class JsSet
     public JsSet Add(object? value)
     {
         // Check if value already exists
-        if (!Has(value)) _values.Add(value);
+        if (!Has(value))
+        {
+            _values.Add(value);
+        }
+
         return this;
     }
 
@@ -42,8 +46,12 @@ public sealed class JsSet
     public bool Has(object? value)
     {
         foreach (var item in _values)
+        {
             if (SameValueZero(item, value))
+            {
                 return true;
+            }
+        }
 
         return false;
     }
@@ -80,7 +88,9 @@ public sealed class JsSet
     {
         foreach (var value in _values)
             // In Set.forEach, the value is passed as both the first and second argument
+        {
             callback.Invoke([value, value, this], thisArg);
+        }
     }
 
     /// <summary>
@@ -123,17 +133,33 @@ public sealed class JsSet
     private static bool SameValueZero(object? x, object? y)
     {
         // Handle null/undefined
-        if (x == null && y == null) return true;
-        if (x == null || y == null) return false;
+        if (x == null && y == null)
+        {
+            return true;
+        }
+
+        if (x == null || y == null)
+        {
+            return false;
+        }
 
         // Handle NaN (NaN is equal to NaN in SameValueZero)
-        if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy)) return true;
+        if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy))
+        {
+            return true;
+        }
 
         // Handle strings - use value equality
-        if (x is string sx && y is string sy) return sx == sy;
+        if (x is string sx && y is string sy)
+        {
+            return sx == sy;
+        }
 
         // For reference types, use reference equality
-        if (!x.GetType().IsValueType || !y.GetType().IsValueType) return ReferenceEquals(x, y);
+        if (!x.GetType().IsValueType || !y.GetType().IsValueType)
+        {
+            return ReferenceEquals(x, y);
+        }
 
         // For value types, use Equals
         return x.Equals(y);

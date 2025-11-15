@@ -30,7 +30,10 @@ public sealed class JsWeakMap
     public JsWeakMap Set(object? key, object? value)
     {
         // WeakMap only accepts objects as keys
-        if (key == null || !IsObject(key)) throw new Exception("Invalid value used as weak map key");
+        if (key == null || !IsObject(key))
+        {
+            throw new Exception("Invalid value used as weak map key");
+        }
 
         // Use AddOrUpdate to set the value
         _entries.Remove(key);
@@ -43,9 +46,16 @@ public sealed class JsWeakMap
     /// </summary>
     public object? Get(object? key)
     {
-        if (key == null || !IsObject(key)) return JsSymbols.Undefined;
+        if (key == null || !IsObject(key))
+        {
+            return JsSymbols.Undefined;
+        }
 
-        if (_entries.TryGetValue(key, out var value)) return value;
+        if (_entries.TryGetValue(key, out var value))
+        {
+            return value;
+        }
+
         return JsSymbols.Undefined;
     }
 
@@ -54,7 +64,10 @@ public sealed class JsWeakMap
     /// </summary>
     public bool Has(object? key)
     {
-        if (key == null || !IsObject(key)) return false;
+        if (key == null || !IsObject(key))
+        {
+            return false;
+        }
 
         return _entries.TryGetValue(key, out _);
     }
@@ -65,7 +78,10 @@ public sealed class JsWeakMap
     /// </summary>
     public bool Delete(object? key)
     {
-        if (key == null || !IsObject(key)) return false;
+        if (key == null || !IsObject(key))
+        {
+            return false;
+        }
 
         return _entries.Remove(key);
     }
@@ -76,20 +92,35 @@ public sealed class JsWeakMap
     /// </summary>
     private static bool IsObject(object? value)
     {
-        if (value == null) return false;
+        if (value == null)
+        {
+            return false;
+        }
 
         // Check for undefined symbol
-        if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined)) return false;
+        if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined))
+        {
+            return false;
+        }
 
         // Check if it's a reference type that can be used as a WeakMap key
         // Strings are reference types in .NET but are treated as primitives in JavaScript
-        if (value is string) return false;
+        if (value is string)
+        {
+            return false;
+        }
 
         // Value types (numbers, bools, etc.) are not valid WeakMap keys
-        if (value.GetType().IsValueType) return false;
+        if (value.GetType().IsValueType)
+        {
+            return false;
+        }
 
         // Symbol is a special case - not allowed as WeakMap key
-        if (value is JsSymbol) return false;
+        if (value is JsSymbol)
+        {
+            return false;
+        }
 
         return true;
     }

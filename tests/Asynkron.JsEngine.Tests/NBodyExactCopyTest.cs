@@ -32,7 +32,7 @@ public class NBodyExactCopyTest
 
         try
         {
-            await engine.Evaluate(source);
+            await engine.Evaluate(source).ConfigureAwait(false);
         }
         catch (ThrowSignal ex)
         {

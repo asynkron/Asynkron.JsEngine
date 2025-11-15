@@ -24,7 +24,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
     {
         if (arguments.Count == 0 || arguments[0] is not string code)
+        {
             return arguments.Count > 0 ? arguments[0] : JsSymbols.Undefined;
+        }
 
         // Use the calling environment if available, otherwise use global
         var environment = CallingJsEnvironment ?? throw new InvalidOperationException(

@@ -47,12 +47,18 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
 
             if (parameter is Symbol symbol)
                 // Simple parameter
+            {
                 environment.Define(symbol, argument);
+            }
             else if (parameter is Cons pattern)
                 // Destructuring parameter
+            {
                 Evaluator.DestructureParameter(pattern, argument, environment, context);
+            }
             else
+            {
                 throw new InvalidOperationException($"Invalid parameter type: {parameter?.GetType().Name ?? "null"}");
+            }
         }
 
         // Bind rest parameter if present
@@ -61,7 +67,11 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
             var restArgs = new List<object?>();
             for (var i = _parameters.Count; i < arguments.Count; i++) restArgs.Add(arguments[i]);
             var restArray = new JsArray();
-            foreach (var arg in restArgs) restArray.Push(arg);
+            foreach (var arg in restArgs)
+            {
+                restArray.Push(arg);
+            }
+
             environment.Define(_restParameter, restArray);
         }
 
@@ -89,9 +99,15 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
 
         var result = Evaluator.EvaluateBlock(_body, environment, context);
 
-        if (context.IsReturn) return context.FlowValue;
+        if (context.IsReturn)
+        {
+            return context.FlowValue;
+        }
 
-        if (context.IsThrow) throw new ThrowSignal(context.FlowValue);
+        if (context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
 
         // In JavaScript, functions without an explicit return statement return undefined
         return JsSymbols.Undefined;
@@ -106,7 +122,9 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
     {
         // body is a Block: (Block statement1 statement2 ...)
         if (body.Head is not Symbol blockSymbol || !ReferenceEquals(blockSymbol, JsSymbols.Block))
+        {
             return;
+        }
 
         var statements = body.Rest;
         HoistFromStatementList(statements, environment);
@@ -123,8 +141,15 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
 
     private static void HoistFromStatement(object? statement, JsEnvironment environment)
     {
-        if (statement is not Cons cons) return;
-        if (cons.Head is not Symbol symbol) return;
+        if (statement is not Cons cons)
+        {
+            return;
+        }
+
+        if (cons.Head is not Symbol symbol)
+        {
+            return;
+        }
 
         if (ReferenceEquals(symbol, JsSymbols.Var))
         {

@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 /// A host function that has access to the evaluation environment and context.
 /// Used for debug and introspection functions.
 /// </summary>
-public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable
+public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
 {
     private readonly Func<JsEnvironment, EvaluationContext, IReadOnlyList<object?>, object?> _handler;
     private readonly JsObject _properties = new();

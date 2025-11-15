@@ -3203,30 +3203,27 @@ public static class JsEvaluator
 
     private static void AssignPropertyValue(object? target, string propertyName, object? value)
     {
-        switch (target)
+        // First, try the common interface for types with SetProperty
+        if (target is IJsPropertyAccessor propertyAccessor)
         {
-            case JsArray jsArray:
-                jsArray.SetProperty(propertyName, value);
-                break;
-            case JsObject jsObject:
-                // Check for setter first
+            // For JsObject, check for setter first before delegating
+            if (target is JsObject jsObject)
+            {
                 var setter = jsObject.GetSetter(propertyName);
                 if (setter != null)
                 {
                     setter.Invoke([value], jsObject);
+                    return;
                 }
-                else
-                {
-                    jsObject.SetProperty(propertyName, value);
-                }
+            }
+            
+            propertyAccessor.SetProperty(propertyName, value);
+            return;
+        }
 
-                break;
-            case JsFunction function:
-                function.SetProperty(propertyName, value);
-                break;
-            case HostFunction hostFunction:
-                hostFunction.SetProperty(propertyName, value);
-                break;
+        // Handle types that don't implement IJsPropertyAccessor
+        switch (target)
+        {
             case IDictionary<string, object?> dictionary:
                 dictionary[propertyName] = value;
                 break;

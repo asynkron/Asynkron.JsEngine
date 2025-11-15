@@ -1979,6 +1979,7 @@ public static class Evaluator
                 "<" => LessThan(left, right),
                 "<=" => LessThanOrEqual(left, right),
                 "in" => InOperator(left, right),
+                "instanceof" => InstanceofOperator(left, right),
                 _ => throw new InvalidOperationException($"Unsupported operator '{operatorName}'.{GetSourceInfo(context)}")
             };
         }
@@ -3604,6 +3605,53 @@ public static class Evaluator
         }
         
         // For non-objects, 'in' returns false
+        return false;
+    }
+
+    /// <summary>
+    /// Implements the instanceof operator. Checks if an object has a constructor's prototype in its prototype chain.
+    /// </summary>
+    private static bool InstanceofOperator(object? left, object? right)
+    {
+        // Left operand must be an object
+        if (left is not JsObject leftObj)
+        {
+            return false;
+        }
+        
+        // Right operand must be a constructor function
+        if (right is not IJsCallable)
+        {
+            return false;
+        }
+        
+        // Get the prototype property from the constructor
+        object? constructorPrototype = null;
+        if (right is JsFunction jsFunc)
+        {
+            TryGetPropertyValue(jsFunc, "prototype", out constructorPrototype);
+        }
+        else if (right is JsObject rightObj)
+        {
+            TryGetPropertyValue(rightObj, "prototype", out constructorPrototype);
+        }
+        
+        if (constructorPrototype is not JsObject prototypeObj)
+        {
+            return false;
+        }
+        
+        // Walk up the prototype chain of the left operand
+        var current = leftObj.Prototype;
+        while (current != null)
+        {
+            if (ReferenceEquals(current, prototypeObj))
+            {
+                return true;
+            }
+            current = current.Prototype;
+        }
+        
         return false;
     }
 }

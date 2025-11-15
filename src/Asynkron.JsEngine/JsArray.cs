@@ -93,11 +93,11 @@ public sealed class JsArray
 
     public object? GetElement(int index)
     {
-        if (index < 0 || index >= _items.Count) return JsSymbols.Undefined;
+        if (index < 0 || index >= _items.Count) return null;
 
         var item = _items[index];
-        // Return undefined for holes in the array
-        return ReferenceEquals(item, ArrayHole) ? JsSymbols.Undefined : item;
+        // Return null (representing undefined) for holes in the array
+        return ReferenceEquals(item, ArrayHole) ? null : item;
     }
 
     public void SetElement(int index, object? value)

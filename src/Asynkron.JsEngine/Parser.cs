@@ -1309,7 +1309,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var startToken = _tokens[_current];
         var expr = ParseShift();
         while (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual, 
-                     TokenType.In))
+                     TokenType.In, TokenType.Instanceof))
         {
             var op = Previous();
             var right = ParseShift();
@@ -1320,6 +1320,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 TokenType.Less => Operator("<"),
                 TokenType.LessEqual => Operator("<="),
                 TokenType.In => Operator("in"),
+                TokenType.Instanceof => Operator("instanceof"),
                 _ => throw new InvalidOperationException("Unexpected comparison operator.")
             };
 

@@ -71,14 +71,16 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         }
 
         // Check for async function
-        if (Match(TokenType.Async))
+        if (Check(TokenType.Async))
         {
-            if (Match(TokenType.Function))
+            // Look ahead to see if this is an async function declaration
+            if (CheckAhead(TokenType.Function))
             {
+                Advance(); // consume 'async'
+                Advance(); // consume 'function'
                 return ParseAsyncFunctionDeclaration();
             }
-
-            throw new ParseException("Expected 'function' after 'async'.", Peek(), _source);
+            // Otherwise, 'async' is being used as an identifier, fall through to statement parsing
         }
 
         if (Match(TokenType.Function))
@@ -394,7 +396,18 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             else
             {
                 // Regular identifier declaration
-                var nameToken = Consume(TokenType.Identifier, $"Expected variable name after '{keyword}'.");
+                // Allow contextual keywords (get, set, async, await, yield) as variable names
+                Token nameToken;
+                if (Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set)
+                    || Check(TokenType.Async) || Check(TokenType.Await) || Check(TokenType.Yield))
+                {
+                    nameToken = Advance();
+                }
+                else
+                {
+                    throw new ParseException($"Expected variable name after '{keyword}'.", Peek(), _source);
+                }
+                
                 var name = Symbol.Intern(nameToken.Lexeme);
                 object? initializer;
 
@@ -1665,16 +1678,37 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return S(Operator("--prefix"), operand);
         }
 
-        if (Match(TokenType.Yield))
+        if (Check(TokenType.Yield))
         {
+            // Check if 'yield' is being used as an identifier or as a yield expression
+            // If it's followed by tokens that indicate identifier usage, treat it as an identifier
+            if (IsYieldOrAwaitUsedAsIdentifier())
+            {
+                // Fall through to ParsePostfix() which will call ParsePrimary()
+                // where 'yield' will be treated as an identifier
+                return ParsePostfix();
+            }
+            
+            // Otherwise, treat it as a yield expression
+            Advance(); // consume 'yield'
             // yield can be followed by an expression or nothing
             // We'll parse an assignment expression (one level below expression)
             var value = ParseAssignment();
             return S(Yield, value);
         }
 
-        if (Match(TokenType.Await))
+        if (Check(TokenType.Await))
         {
+            // Check if 'await' is being used as an identifier or as an await expression
+            if (IsYieldOrAwaitUsedAsIdentifier())
+            {
+                // Fall through to ParsePostfix() which will call ParsePrimary()
+                // where 'await' will be treated as an identifier
+                return ParsePostfix();
+            }
+            
+            // Otherwise, treat it as an await expression
+            Advance(); // consume 'await'
             // await must be followed by an expression
             var value = ParseUnary();
             return S(Await, value);
@@ -1891,7 +1925,16 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 return ParseAsyncFunctionExpression();
             }
 
-            throw new ParseException("Expected 'function' after 'async' in expression context.", Peek(), _source);
+            // If 'async' is not followed by 'function', treat it as an identifier
+            // This allows 'async' to be used as a variable or parameter name
+            return Symbol.Intern(Previous().Lexeme);
+        }
+
+        // In JavaScript, 'await' and 'yield' are contextual keywords that can be used as identifiers
+        // in non-async/non-generator contexts
+        if (Match(TokenType.Await, TokenType.Yield))
+        {
+            return Symbol.Intern(Previous().Lexeme);
         }
 
         if (Match(TokenType.Function))
@@ -2427,11 +2470,12 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     /// <summary>
     /// Checks if the current token can be used as an identifier in a parameter context.
-    /// In JavaScript, 'get' and 'set' are contextual keywords that can be used as parameter names.
+    /// In JavaScript, 'get', 'set', 'async', 'await', and 'yield' are contextual keywords that can be used as parameter names.
     /// </summary>
     private bool CheckParameterIdentifier()
     {
-        return Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set);
+        return Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set) 
+            || Check(TokenType.Async) || Check(TokenType.Await) || Check(TokenType.Yield);
     }
 
     /// <summary>
@@ -2440,11 +2484,52 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     /// </summary>
     private Token ConsumeParameterIdentifier(string errorMessage)
     {
-        if (Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set))
+        if (Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set)
+            || Check(TokenType.Async) || Check(TokenType.Await) || Check(TokenType.Yield))
         {
             return Advance();
         }
         throw new ParseException(errorMessage, Peek(), _source);
+    }
+
+    /// <summary>
+    /// Determines if 'yield' or 'await' should be treated as an identifier rather than an operator.
+    /// Returns true if the next token indicates identifier usage (like operators, semicolon, comma, etc.).
+    /// </summary>
+    private bool IsYieldOrAwaitUsedAsIdentifier()
+    {
+        var nextToken = PeekNext().Type;
+        
+        // If followed by tokens that can follow an identifier in expression position,
+        // treat it as an identifier
+        return nextToken is
+            TokenType.Semicolon or
+            TokenType.Comma or
+            TokenType.RightParen or
+            TokenType.RightBracket or
+            TokenType.RightBrace or
+            TokenType.Colon or
+            // Binary operators
+            TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or
+            TokenType.Percent or TokenType.StarStar or
+            TokenType.Equal or TokenType.PlusEqual or TokenType.MinusEqual or
+            TokenType.StarEqual or TokenType.SlashEqual or TokenType.PercentEqual or
+            TokenType.StarStarEqual or
+            TokenType.EqualEqual or TokenType.EqualEqualEqual or
+            TokenType.BangEqual or TokenType.BangEqualEqual or
+            TokenType.Greater or TokenType.GreaterEqual or
+            TokenType.Less or TokenType.LessEqual or
+            TokenType.AmpAmp or TokenType.PipePipe or
+            TokenType.Amp or TokenType.Pipe or TokenType.Caret or
+            TokenType.LessLess or TokenType.GreaterGreater or TokenType.GreaterGreaterGreater or
+            TokenType.AmpAmpEqual or TokenType.PipePipeEqual or
+            TokenType.AmpEqual or TokenType.PipeEqual or TokenType.CaretEqual or
+            TokenType.LessLessEqual or TokenType.GreaterGreaterEqual or TokenType.GreaterGreaterGreaterEqual or
+            TokenType.QuestionQuestion or TokenType.QuestionQuestionEqual or
+            TokenType.Question or // ternary operator
+            TokenType.Dot or TokenType.QuestionDot or // property access
+            TokenType.LeftBracket or // index access
+            TokenType.PlusPlus or TokenType.MinusMinus; // postfix operators
     }
 
     private object FinishIndex(object? target)

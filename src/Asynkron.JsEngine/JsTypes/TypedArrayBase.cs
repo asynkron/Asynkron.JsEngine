@@ -1,14 +1,24 @@
+using System.Globalization;
+using Asynkron.JsEngine;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Abstract base class for all JavaScript typed arrays.
+/// Provides shared logic for property access so the evaluator
+/// can treat typed arrays like regular <see cref="IJsPropertyAccessor"/> instances.
 /// </summary>
-public abstract class TypedArrayBase
+public abstract class TypedArrayBase : IJsPropertyAccessor
 {
     protected readonly JsArrayBuffer _buffer;
     protected readonly int _byteOffset;
     protected readonly int _length;
     protected readonly int _bytesPerElement;
+
+    private readonly JsObject _properties = new();
+    private readonly HostFunction _setFunction;
+    private readonly HostFunction _subarrayFunction;
+    private readonly HostFunction _sliceFunction;
 
     protected TypedArrayBase(JsArrayBuffer buffer, int byteOffset, int length, int bytesPerElement)
     {
@@ -32,6 +42,51 @@ public abstract class TypedArrayBase
         _byteOffset = byteOffset;
         _length = length;
         _bytesPerElement = bytesPerElement;
+
+        // Provide built-in instance methods that operate on whichever typed array
+        // is used as the `this` value at invocation time. This mirrors the behaviour
+        // we previously emulated in the evaluator when handling these properties.
+        _setFunction = new HostFunction((thisValue, args) =>
+        {
+            var target = ResolveThis(thisValue, this);
+
+            if (args.Count == 0)
+            {
+                return JsSymbols.Undefined;
+            }
+
+            var offset = args.Count > 1 && args[1] is double d ? (int)d : 0;
+
+            switch (args[0])
+            {
+                case TypedArrayBase sourceTypedArray:
+                    target.Set(sourceTypedArray, offset);
+                    break;
+                case JsArray sourceArray:
+                    target.Set(sourceArray, offset);
+                    break;
+            }
+
+            return JsSymbols.Undefined;
+        });
+
+        _subarrayFunction = new HostFunction((thisValue, args) =>
+        {
+            var target = ResolveThis(thisValue, this);
+            var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : target.Length;
+
+            return target.Subarray(begin, end);
+        });
+
+        _sliceFunction = new HostFunction((thisValue, args) =>
+        {
+            var target = ResolveThis(thisValue, this);
+            var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : target.Length;
+
+            return CreateSlice(target, begin, end);
+        });
     }
 
     /// <summary>
@@ -58,6 +113,14 @@ public abstract class TypedArrayBase
     /// Gets the size in bytes of each element in the array.
     /// </summary>
     public int BytesPerElement => _bytesPerElement;
+
+    /// <summary>
+    /// Allows consumers (e.g. Object.setPrototypeOf) to attach a prototype object.
+    /// </summary>
+    public void SetPrototype(object? candidate)
+    {
+        _properties.SetPrototype(candidate);
+    }
 
     /// <summary>
     /// Checks if the given index is valid for this typed array.
@@ -127,6 +190,8 @@ public abstract class TypedArrayBase
             {
                 double d => d,
                 int iv => (double)iv,
+                long lv => (double)lv,
+                float fv => (double)fv,
                 _ => 0.0
             };
             SetElement(offset + i, numValue);
@@ -142,5 +207,119 @@ public abstract class TypedArrayBase
         var relativeStart = begin < 0 ? Math.Max(len + begin, 0) : Math.Min(begin, len);
         var relativeEnd = end < 0 ? Math.Max(len + end, 0) : Math.Min(end, len);
         return (relativeStart, relativeEnd);
+    }
+
+    public bool TryGetProperty(string name, out object? value)
+    {
+        // Allow dynamically assigned properties and prototype chain lookups first.
+        if (_properties.TryGetProperty(name, out value))
+        {
+            return true;
+        }
+
+        switch (name)
+        {
+            case "length":
+                value = (double)Length;
+                return true;
+            case "byteLength":
+                value = (double)ByteLength;
+                return true;
+            case "byteOffset":
+                value = (double)ByteOffset;
+                return true;
+            case "buffer":
+                value = Buffer;
+                return true;
+            case "BYTES_PER_ELEMENT":
+                value = (double)BytesPerElement;
+                return true;
+            case "set":
+                value = _setFunction;
+                return true;
+            case "subarray":
+                value = _subarrayFunction;
+                return true;
+            case "slice":
+                value = _sliceFunction;
+                return true;
+        }
+
+        if (TryParseIndex(name, out var index) && index >= 0 && index < Length)
+        {
+            value = GetElement(index);
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    public void SetProperty(string name, object? value)
+    {
+        switch (name)
+        {
+            case "length":
+            case "byteLength":
+            case "byteOffset":
+            case "BYTES_PER_ELEMENT":
+            case "buffer":
+                throw new InvalidOperationException($"Cannot assign to read-only property '{name}' on typed arrays.");
+        }
+
+        if (TryParseIndex(name, out var index))
+        {
+            if (index < 0)
+            {
+                throw new InvalidOperationException($"Invalid typed array index '{name}'.");
+            }
+
+            var numericValue = value switch
+            {
+                double d => d,
+                int i => (double)i,
+                long l => (double)l,
+                float f => (double)f,
+                null => 0.0,
+                _ => 0.0
+            };
+
+            if (index >= Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(name), $"Index {index} is outside the bounds of the typed array.");
+            }
+
+            SetElement(index, numericValue);
+            return;
+        }
+
+        _properties.SetProperty(name, value);
+    }
+
+    private static bool TryParseIndex(string candidate, out int index)
+    {
+        return int.TryParse(candidate, NumberStyles.Integer, CultureInfo.InvariantCulture, out index);
+    }
+
+    private static TypedArrayBase ResolveThis(object? thisValue, TypedArrayBase fallback)
+    {
+        return thisValue as TypedArrayBase ?? fallback;
+    }
+
+    private static object CreateSlice(TypedArrayBase typedArray, int begin, int end)
+    {
+        return typedArray switch
+        {
+            JsInt8Array arr => arr.Slice(begin, end),
+            JsUint8Array arr => arr.Slice(begin, end),
+            JsUint8ClampedArray arr => arr.Slice(begin, end),
+            JsInt16Array arr => arr.Slice(begin, end),
+            JsUint16Array arr => arr.Slice(begin, end),
+            JsInt32Array arr => arr.Slice(begin, end),
+            JsUint32Array arr => arr.Slice(begin, end),
+            JsFloat32Array arr => arr.Slice(begin, end),
+            JsFloat64Array arr => arr.Slice(begin, end),
+            _ => throw new InvalidOperationException($"Unknown typed array type: {typedArray.GetType()}")
+        };
     }
 }

@@ -102,7 +102,7 @@ public sealed class JsArray
 
     public void SetElement(int index, object? value)
     {
-        if (index < 0) throw new ArgumentOutOfRangeException(nameof(index));
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
 
         // Fill gaps with ArrayHole sentinel to represent sparse array holes
         while (_items.Count <= index) _items.Add(ArrayHole);

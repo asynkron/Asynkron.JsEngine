@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 /// Transforms S-expressions from direct style to Continuation-Passing Style (CPS).
 /// This enables support for generators (function*, yield) and async/await by making
 /// control flow explicit through continuations.
-/// 
+///
 /// The transformer operates after parsing but before evaluation, converting only
 /// functions that require CPS (async functions, generators) while leaving synchronous
 /// code unchanged for optimal performance.
@@ -295,7 +295,8 @@ public sealed class CpsTransformer
                         ])
                     ]);
                 }
-                else if (loopBreakTarget is Cons breakCons2 && !breakCons2.IsEmpty)
+
+                if (loopBreakTarget is Cons breakCons2 && !breakCons2.IsEmpty)
                 {
                     var head = breakCons2.Head;
 
@@ -312,8 +313,8 @@ public sealed class CpsTransformer
                             if (firstStmtHead is Symbol returnSym && ReferenceEquals(returnSym, JsSymbols.Return))
                                 return breakCons2;
                             // If it's an expression statement, convert to return
-                            else if (firstStmtHead is Symbol exprSym &&
-                                     ReferenceEquals(exprSym, JsSymbols.ExpressionStatement))
+                            if (firstStmtHead is Symbol exprSym &&
+                                ReferenceEquals(exprSym, JsSymbols.ExpressionStatement))
                                 // Get the expression from (expr-stmt expression)
                                 if (firstStmt.Rest is Cons exprRest && !exprRest.IsEmpty)
                                 {
@@ -333,7 +334,8 @@ public sealed class CpsTransformer
                         ]);
                     }
                     // Check if it's a call expression (call __resolve)
-                    else if (head is Symbol callSym && ReferenceEquals(callSym, JsSymbols.Call))
+
+                    if (head is Symbol callSym && ReferenceEquals(callSym, JsSymbols.Call))
                     {
                         // It's a call expression, wrap in return
                         return Cons.FromEnumerable([
@@ -341,20 +343,16 @@ public sealed class CpsTransformer
                             breakCons2
                         ]);
                     }
-                    else
-                    {
-                        // Some other expression, wrap in return
-                        return Cons.FromEnumerable([
-                            JsSymbols.Return,
-                            breakCons2
-                        ]);
-                    }
+
+                    // Some other expression, wrap in return
+                    return Cons.FromEnumerable([
+                        JsSymbols.Return,
+                        breakCons2
+                    ]);
                 }
-                else
-                {
-                    // Unknown type, return as-is
-                    return loopBreakTarget;
-                }
+
+                // Unknown type, return as-is
+                return loopBreakTarget;
             }
 
         // Outside loop context, just include it (will be handled at runtime)
@@ -464,7 +462,7 @@ public sealed class CpsTransformer
                     // If so, we shouldn't add the continuation after the if statement
                     var allBranchesReturnEarly = false;
                     var thenReturnsEarly = BlockAlwaysReturnsEarly(transformedThen);
-                    
+
                     if (transformedElse != null)
                         // Both branches exist - check if both return early
                         allBranchesReturnEarly = thenReturnsEarly &&
@@ -479,10 +477,10 @@ public sealed class CpsTransformer
                         // Get the continuation for the rest of the statements
                         var elseContinuation = ChainStatementsWithAwaits(statements, index + 1, resolveParam, rejectParam,
                             loopContinueTarget, loopBreakTarget, addFinalContinuation);
-                        
+
                         // Add the continuation as the else branch
                         var ifWithElse = Cons.FromEnumerable([JsSymbols.If, condition, transformedThen, elseContinuation]);
-                        
+
                         // Both branches now return, so no continuation needed after the if
                         return Cons.FromEnumerable([JsSymbols.Block, ifWithElse]);
                     }
@@ -513,11 +511,9 @@ public sealed class CpsTransformer
 
                         return Cons.FromEnumerable([JsSymbols.Block, transformedIf, ifRest]);
                     }
-                    else
-                    {
-                        // All branches return early, just return the if statement without continuation
-                        return Cons.FromEnumerable([JsSymbols.Block, transformedIf]);
-                    }
+
+                    // All branches return early, just return the if statement without continuation
+                    return Cons.FromEnumerable([JsSymbols.Block, transformedIf]);
                 }
             }
         }
@@ -558,7 +554,7 @@ public sealed class CpsTransformer
     /// <summary>
     /// Transforms a return statement to call resolve with the return value.
     /// </summary>
-    private object? TransformReturnStatement(Cons returnCons, Symbol resolveParam, List<object?> statements, int index)
+    private static object? TransformReturnStatement(Cons returnCons, Symbol resolveParam, List<object?> statements, int index)
     {
         var parts = ConsList(returnCons);
         var returnValue = parts.Count >= 2 ? parts[1] : null;
@@ -621,7 +617,7 @@ public sealed class CpsTransformer
     /// <summary>
     /// Checks if an expression contains an await.
     /// </summary>
-    private bool ContainsAwait(object? expr)
+    private static bool ContainsAwait(object? expr)
     {
         if (expr == null) return false;
 
@@ -654,7 +650,7 @@ public sealed class CpsTransformer
     /// A block returns early if it ends with a return statement or if all branches
     /// of a final if statement return early.
     /// </summary>
-    private bool BlockAlwaysReturnsEarly(object? block)
+    private static bool BlockAlwaysReturnsEarly(object? block)
     {
         if (block == null) return false;
 
@@ -777,7 +773,8 @@ public sealed class CpsTransformer
                         ]);
                     }
                     // Check if value is a complex expression containing await
-                    else if (ContainsAwait(value))
+
+                    if (ContainsAwait(value))
                     {
                         // Extract awaits from the complex expression and chain them
                         return ExtractAndChainAwaits(varKeyword, varName, value, statements, index, resolveParam,
@@ -1041,7 +1038,7 @@ public sealed class CpsTransformer
 
         if (asyncCatchBlock != null && asyncCatchParam != null)
         {
-            tryCatchRejectHandler = Symbol.Intern("__tryCatchReject" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            tryCatchRejectHandler = Symbol.Intern(string.Concat("__tryCatchReject", Guid.NewGuid().ToString("N").AsSpan(0, 8)));
 
             // Transform the catch block
             // The catch block's continuation is the rest of the statements
@@ -1079,7 +1076,7 @@ public sealed class CpsTransformer
         if (!ContainsAwait(tryBlock))
         {
             // Synchronous try block - wrap in try-catch to catch sync errors
-            var errorParam = Symbol.Intern("__syncError" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            var errorParam = Symbol.Intern(string.Concat("__syncError", Guid.NewGuid().ToString("N").AsSpan(0, 8)));
 
             // Create catch block: { tryCatchRejectHandler(errorParam); }
             var syncCatchBlock = Cons.FromEnumerable([
@@ -1130,44 +1127,7 @@ public sealed class CpsTransformer
                 tryCatchRejectHandlerDecl,
                 tryWithRest
             ]);
-        else
-            return tryWithRest;
-    }
-
-    /// <summary>
-    /// Checks if an expression is a simple resolve call with null.
-    /// </summary>
-    private bool IsSimpleResolveCall(object? expr)
-    {
-        if (expr is not Cons cons || cons.IsEmpty)
-            return false;
-
-        if (cons.Head is not Symbol blockSym || !ReferenceEquals(blockSym, JsSymbols.Block))
-            return false;
-
-        var blockContents = cons.Rest;
-        if (blockContents is not Cons blockCons || blockCons.IsEmpty)
-            return false;
-
-        var firstStmt = blockCons.Head;
-        if (firstStmt is not Cons stmtCons || stmtCons.IsEmpty)
-            return false;
-
-        // Check if it's an expression statement with a call to resolve with no args or null
-        if (stmtCons.Head is Symbol exprSym && ReferenceEquals(exprSym, JsSymbols.ExpressionStatement))
-        {
-            var exprContent = stmtCons.Rest;
-            if (exprContent is Cons exprCons && !exprCons.IsEmpty &&
-                exprCons.Head is Cons callCons && !callCons.IsEmpty &&
-                callCons.Head is Symbol callSym && ReferenceEquals(callSym, JsSymbols.Call))
-            {
-                // It's a call - check if it's calling resolve with null or no args
-                var callArgs = ConsList(callCons);
-                return callArgs.Count <= 2; // call resolve [null]
-            }
-        }
-
-        return false;
+        return tryWithRest;
     }
 
     /// <summary>
@@ -1588,7 +1548,7 @@ public sealed class CpsTransformer
 
         var loopType = parts[0]; // for-of or for-await-of
         var variableDecl = parts[1]; // (let/var/const variable)
-        var iterableExpr = parts[2]; // iterable expression  
+        var iterableExpr = parts[2]; // iterable expression
         var loopBody = parts[3]; // loop body
 
         // Extract variable info
@@ -1618,9 +1578,9 @@ public sealed class CpsTransformer
         // 3. If done, continue after loop
         // 4. If not done, extract value, execute body, and body's continuation is back to step 2
 
-        var iteratorVar = Symbol.Intern("__iterator" + Guid.NewGuid().ToString("N").Substring(0, 8));
+        var iteratorVar = Symbol.Intern(string.Concat("__iterator", Guid.NewGuid().ToString("N").AsSpan(0, 8)));
         var resultVar = Symbol.Intern("__result");
-        var loopCheckFunc = Symbol.Intern("__loopCheck" + Guid.NewGuid().ToString("N").Substring(0, 8));
+        var loopCheckFunc = Symbol.Intern(string.Concat("__loopCheck", Guid.NewGuid().ToString("N").AsSpan(0, 8)));
 
         // Get continuation after loop completes
         var afterLoopStatements = statements.Skip(index + 1).ToList();
@@ -1740,7 +1700,7 @@ public sealed class CpsTransformer
         // Instead of adding the loop check call to body statements, we'll create a special
         // "loop resolve" function that calls the loop check instead of resolving
         // This way, ChainStatementsWithAwaits will call this function at the end instead of __resolve
-        var loopResolve = Symbol.Intern("__loopResolve" + Guid.NewGuid().ToString("N").Substring(0, 8));
+        var loopResolve = Symbol.Intern(string.Concat("__loopResolve", Guid.NewGuid().ToString("N").AsSpan(0, 8)));
 
         // Chain the body statements with await handling
         // Use loopResolve instead of resolveParam so the body calls loopCheck at the end
@@ -1866,36 +1826,34 @@ public sealed class CpsTransformer
                 callGetAsyncIterator
             ]);
         }
-        else
-        {
-            // Regular for-of: use Symbol.iterator
-            // Symbol.iterator
-            var iteratorSymbol = Cons.FromEnumerable([
-                JsSymbols.GetProperty,
-                Symbol.Intern("Symbol"),
-                "iterator"
-            ]);
 
-            // iterable[Symbol.iterator]
-            var getIteratorMethod = Cons.FromEnumerable([
-                JsSymbols.GetIndex,
-                iterableExpr,
-                iteratorSymbol
-            ]);
+        // Regular for-of: use Symbol.iterator
+        // Symbol.iterator
+        var iteratorSymbol = Cons.FromEnumerable([
+            JsSymbols.GetProperty,
+            Symbol.Intern("Symbol"),
+            "iterator"
+        ]);
 
-            // iterable[Symbol.iterator]()
-            var callIteratorMethod = Cons.FromEnumerable([
-                JsSymbols.Call,
-                getIteratorMethod
-            ]);
+        // iterable[Symbol.iterator]
+        var getIteratorMethod = Cons.FromEnumerable([
+            JsSymbols.GetIndex,
+            iterableExpr,
+            iteratorSymbol
+        ]);
 
-            // let __iterator = iterable[Symbol.iterator]();
-            return Cons.FromEnumerable([
-                JsSymbols.Let,
-                iteratorVar,
-                callIteratorMethod
-            ]);
-        }
+        // iterable[Symbol.iterator]()
+        var callIteratorMethod = Cons.FromEnumerable([
+            JsSymbols.Call,
+            getIteratorMethod
+        ]);
+
+        // let __iterator = iterable[Symbol.iterator]();
+        return Cons.FromEnumerable([
+            JsSymbols.Let,
+            iteratorVar,
+            callIteratorMethod
+        ]);
     }
 
     /// <summary>
@@ -1921,7 +1879,7 @@ public sealed class CpsTransformer
         var body = parts[2];
 
         // Create unique function name for the while check
-        var whileCheckFunc = Symbol.Intern("__whileCheck" + Guid.NewGuid().ToString("N").Substring(0, 8));
+        var whileCheckFunc = Symbol.Intern(string.Concat("__whileCheck", Guid.NewGuid().ToString("N").AsSpan(0, 8)));
 
         // Get continuation after loop completes (when condition is false)
         var afterLoopStatements = statements.Skip(index + 1).ToList();
@@ -1947,7 +1905,7 @@ public sealed class CpsTransformer
         }
 
         // Chain the body statements with await handling
-        // Important: Pass whileCheckFunc as both resolve param (for normal completion) 
+        // Important: Pass whileCheckFunc as both resolve param (for normal completion)
         // and as loopContinueTarget (for continue statements)
         // Pass afterLoopContinuation as loopBreakTarget (for break statements)
         // The body will call whileCheckFunc at the end to continue the loop

@@ -89,7 +89,7 @@ public abstract class TypedArrayBase
     /// </summary>
     public void Set(TypedArrayBase source, int offset = 0)
     {
-        if (source == null) throw new ArgumentNullException(nameof(source));
+        ArgumentNullException.ThrowIfNull(source);
 
         if (offset < 0 || offset + source.Length > _length) throw new ArgumentOutOfRangeException(nameof(offset));
 
@@ -101,7 +101,7 @@ public abstract class TypedArrayBase
     /// </summary>
     public void Set(JsArray source, int offset = 0)
     {
-        if (source == null) throw new ArgumentNullException(nameof(source));
+        ArgumentNullException.ThrowIfNull(source);
 
         if (offset < 0 || offset + source.Items.Count > _length) throw new ArgumentOutOfRangeException(nameof(offset));
 

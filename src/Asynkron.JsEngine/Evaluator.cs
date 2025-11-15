@@ -278,7 +278,7 @@ public static class Evaluator
         // (for-in (let/var/const variable) iterable body) OR (for-in identifier iterable body)
         var firstArg = cons.Rest.Head;
         Symbol variableName;
-        
+
         // Check if first argument is a variable declaration or just an identifier
         if (firstArg is Cons variableDecl)
         {
@@ -294,7 +294,7 @@ public static class Evaluator
         {
             throw new InvalidOperationException($"Expected variable declaration or identifier in for...in loop.{GetSourceInfo(context)}");
         }
-        
+
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
 
@@ -311,10 +311,10 @@ public static class Evaluator
                 keys.Add(key);
         else if (iterable is JsArray jsArray)
             for (var i = 0; i < jsArray.Items.Count; i++)
-                keys.Add(i.ToString());
+                keys.Add(i.ToString(CultureInfo.InvariantCulture));
         else if (iterable is string str)
             for (var i = 0; i < str.Length; i++)
-                keys.Add(i.ToString());
+                keys.Add(i.ToString(CultureInfo.InvariantCulture));
 
         foreach (var key in keys)
         {
@@ -357,7 +357,7 @@ public static class Evaluator
         // (for-of (let/var/const variable) iterable body) OR (for-of identifier iterable body)
         var firstArg = cons.Rest.Head;
         Symbol variableName;
-        
+
         // Check if first argument is a variable declaration or just an identifier
         if (firstArg is Cons variableDecl)
         {
@@ -373,7 +373,7 @@ public static class Evaluator
         {
             throw new InvalidOperationException($"Expected variable declaration or identifier in for...of loop.{GetSourceInfo(context)}");
         }
-        
+
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
 
@@ -439,7 +439,7 @@ public static class Evaluator
         // 3. Built-in iterables (arrays, strings, generators)
         var firstArg = cons.Rest.Head;
         Symbol variableName;
-        
+
         // Check if first argument is a variable declaration or just an identifier
         if (firstArg is Cons variableDecl)
         {
@@ -455,7 +455,7 @@ public static class Evaluator
         {
             throw new InvalidOperationException($"Expected variable declaration or identifier in for await...of loop.{GetSourceInfo(context)}");
         }
-        
+
         var iterableExpression = cons.Rest.Rest.Head;
         var body = cons.Rest.Rest.Rest.Head;
 
@@ -1169,7 +1169,7 @@ public static class Evaluator
             // Special case: typeof can be used on undeclared variables without throwing
             // Check if the operand is a simple identifier (Symbol) that doesn't exist
             var operandExpression = cons.Rest.Head;
-            if (operandExpression is Symbol operandSymbol && 
+            if (operandExpression is Symbol operandSymbol &&
                 !ReferenceEquals(operandSymbol, JsSymbols.Undefined))
             {
                 // Try to get the value without throwing
@@ -1181,7 +1181,7 @@ public static class Evaluator
                 // Symbol exists, return its typeof
                 return GetTypeofString(value);
             }
-            
+
             // For non-symbol operands (e.g., typeof (x + y)), evaluate normally
             var operand = EvaluateExpression(operandExpression, environment, context);
             return GetTypeofString(operand);
@@ -1199,7 +1199,7 @@ public static class Evaluator
         {
             // The delete operator deletes a property from an object
             var operandExpression = cons.Rest.Head;
-            
+
             // Check if operand is a property access or index access
             if (operandExpression is Cons operandCons && operandCons.Head is Symbol operandSymbol)
             {
@@ -1218,19 +1218,20 @@ public static class Evaluator
                     }
                     return true;
                 }
-                else if (ReferenceEquals(operandSymbol, JsSymbols.GetIndex))
+
+                if (ReferenceEquals(operandSymbol, JsSymbols.GetIndex))
                 {
                     // delete obj[key]
                     var target = EvaluateExpression(operandCons.Rest.Head, environment, context);
                     var key = EvaluateExpression(operandCons.Rest.Rest.Head, environment, context);
-                    
+
                     // Handle array deletion - set element to undefined to create a hole
                     if (target is JsArray jsArray && TryConvertToIndex(key, out var arrayIndex))
                     {
                         jsArray.SetElement(arrayIndex, JsSymbols.Undefined);
                         return true;
                     }
-                    
+
                     if (target is JsObject jsObj)
                     {
                         var keyStr = ToString(key);
@@ -1240,7 +1241,7 @@ public static class Evaluator
                     return true;
                 }
             }
-            
+
             // For other cases (like delete of a variable or non-property access), evaluate and return true
             // In non-strict mode, delete always returns true for non-property-references
             EvaluateExpression(operandExpression, environment, context);
@@ -1364,7 +1365,7 @@ public static class Evaluator
         {
             var binding = ExpectSuperBinding(environment, context);
             if (binding.Constructor is null)
-                throw new InvalidOperationException(FormatErrorMessage("Super constructor is not available in this context", 
+                throw new InvalidOperationException(FormatErrorMessage("Super constructor is not available in this context",
                     calleeExpression as Cons) + ".");
 
             return (binding.Constructor, binding.ThisValue);
@@ -1502,7 +1503,7 @@ public static class Evaluator
         // Get the strings array expression
         var stringsArrayExpr = rest.Head;
         var stringsArray = EvaluateExpression(stringsArrayExpr, environment, context) as JsArray;
-        if (stringsArray == null) 
+        if (stringsArray == null)
             throw new InvalidOperationException(FormatErrorMessage("Tagged template strings array is invalid", cons) + ".");
 
         rest = rest.Rest;
@@ -1519,7 +1520,7 @@ public static class Evaluator
         var templateObj = new JsObject();
 
         // Copy strings array properties
-        for (var i = 0; i < stringsArray.Items.Count; i++) templateObj[i.ToString()] = stringsArray.Items[i];
+        for (var i = 0; i < stringsArray.Items.Count; i++) templateObj[i.ToString(CultureInfo.InvariantCulture)] = stringsArray.Items[i];
         templateObj["length"] = (double)stringsArray.Items.Count;
 
         // Add raw property
@@ -2063,7 +2064,7 @@ public static class Evaluator
         };
     }
 
-    internal static double ToNumber(object? value)
+    internal static double ToNumber(this object? value)
     {
         return value switch
         {
@@ -2127,7 +2128,7 @@ public static class Evaluator
         {
             return "";
         }
-        
+
         return ToString(value);
     }
 
@@ -2452,22 +2453,18 @@ public static class Evaluator
         if (right is bool) return LooseEquals(left, ToNumber(right));
 
         // Object/Array == Primitive: convert object/array to primitive
-        if ((left is JsObject || left is JsArray) && (IsNumeric(right) || right is string))
+        if (left is JsObject or JsArray && (IsNumeric(right) || right is string))
         {
             // Try converting to primitive (via toString then toNumber if comparing to number)
             if (IsNumeric(right))
                 return ToNumber(left).Equals(ToNumber(right));
-            else
-                return ToString(left).Equals(right);
+            return ToString(left).Equals(right);
         }
 
-        if ((right is JsObject || right is JsArray) && (IsNumeric(left) || left is string))
+        if (right is JsObject or JsArray && (IsNumeric(left) || left is string))
         {
             // Try converting to primitive
-            if (IsNumeric(left))
-                return ToNumber(left).Equals(ToNumber(right));
-            else
-                return left.Equals(ToString(right));
+            return IsNumeric(left) ? ToNumber(left).Equals(ToNumber(right)) : left.Equals(ToString(right));
         }
 
         // For other cases, use strict equality
@@ -2773,7 +2770,7 @@ public static class Evaluator
                 }
 
                 // Handle numeric indices (bracket notation: str[0], str[1], etc.)
-                if (int.TryParse(propertyName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) && 
+                if (int.TryParse(propertyName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) &&
                     index >= 0 && index < str.Length)
                 {
                     value = str[index].ToString();
@@ -2824,10 +2821,10 @@ public static class Evaluator
     {
         switch (value)
         {
-            case int i when i >= 0:
+            case int i and >= 0:
                 index = i;
                 return true;
-            case long l when l >= 0 && l <= int.MaxValue:
+            case long l and >= 0 and <= int.MaxValue:
                 index = (int)l;
                 return true;
             case double d when !double.IsNaN(d) && !double.IsInfinity(d):
@@ -3555,11 +3552,11 @@ public static class Evaluator
     {
         if (cons == null)
             return null;
-        
+
         // Check the current cons for a source reference
         if (cons.SourceReference != null)
             return cons.SourceReference;
-        
+
         // Walk the origin chain to find a source reference
         var current = cons.Origin;
         while (current != null)
@@ -3568,7 +3565,7 @@ public static class Evaluator
                 return current.SourceReference;
             current = current.Origin;
         }
-        
+
         return null;
     }
 
@@ -3585,7 +3582,7 @@ public static class Evaluator
             if (!string.IsNullOrWhiteSpace(sourceText))
                 message += $": {sourceText}";
         }
-        
+
         return message;
     }
 
@@ -3596,13 +3593,13 @@ public static class Evaluator
     {
         // Convert left operand to string (property name)
         var propertyName = left?.ToString() ?? "";
-        
+
         // Right operand must be an object
         if (right is JsObject jsObj)
         {
             return jsObj.ContainsKey(propertyName);
         }
-        
+
         // For non-objects, 'in' returns false
         return false;
     }

@@ -103,7 +103,7 @@ public sealed class Cons : IEnumerable<object?>
     /// </summary>
     public static Cons FromEnumerable(IEnumerable<object?> items)
     {
-        if (items is null) throw new ArgumentNullException(nameof(items));
+        ArgumentNullException.ThrowIfNull(items);
 
         if (items is object?[] array) return FromArray(array);
 
@@ -164,7 +164,7 @@ public sealed class Cons : IEnumerable<object?>
     /// </summary>
     public object? ElementAt(int index)
     {
-        if (index < 0) throw new ArgumentOutOfRangeException(nameof(index));
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
 
         var current = this;
         var position = 0;

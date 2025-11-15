@@ -17,7 +17,7 @@ public sealed class JsDataView
     /// </summary>
     public JsDataView(JsArrayBuffer buffer, int byteOffset = 0, int? byteLength = null)
     {
-        if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+        ArgumentNullException.ThrowIfNull(buffer);
 
         if (byteOffset < 0 || byteOffset > buffer.ByteLength) throw new ArgumentOutOfRangeException(nameof(byteOffset));
 

@@ -55,12 +55,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 // This is import() expression, treat as statement
                 return ParseExpressionStatement();
             }
-            else
-            {
-                // This is static import statement
-                Match(TokenType.Import);
-                return ParseImportDeclaration();
-            }
+
+            // This is static import statement
+            Match(TokenType.Import);
+            return ParseImportDeclaration();
         }
 
         // Check for export statement
@@ -71,8 +69,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             if (Match(TokenType.Function))
                 return ParseAsyncFunctionDeclaration();
-            else
-                throw new ParseException("Expected 'function' after 'async'.", Peek(), _source);
+            throw new ParseException("Expected 'function' after 'async'.", Peek(), _source);
         }
 
         if (Match(TokenType.Function)) return ParseFunctionDeclaration();
@@ -370,10 +367,8 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             return declarations[0];
         }
-        else
-        {
-            return new MultipleDeclarations(declarations);
-        }
+
+        return new MultipleDeclarations(declarations);
     }
 
     private object ParseArrayDestructuringDeclarator(TokenType kind, string keyword)
@@ -747,7 +742,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             if (Match(TokenType.In) || Match(TokenType.Of))
             {
                 var isForOf = Previous().Type == TokenType.Of;
-                
+
                 // for await requires for...of
                 if (isForAwait && !isForOf) throw new ParseException("'for await' can only be used with 'of', not 'in'", Peek(), _source);
 
@@ -760,16 +755,13 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
                 if (isForAwait)
                     return MakeCons([ForAwaitOf, loopVariable, iterableExpression, body], startToken);
-                else if (isForOf)
+                if (isForOf)
                     return MakeCons([ForOf, loopVariable, iterableExpression, body], startToken);
-                else
-                    return MakeCons([ForIn, loopVariable, iterableExpression, body], startToken);
+                return MakeCons([ForIn, loopVariable, iterableExpression, body], startToken);
             }
-            else
-            {
-                // Not for...in/of, reset to checkpoint
-                _current = checkpointPosition;
-            }
+
+            // Not for...in/of, reset to checkpoint
+            _current = checkpointPosition;
         }
 
         // Check if this is for...in or for...of with variable declaration
@@ -796,10 +788,9 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
             if (isForAwait)
                 return MakeCons([ForAwaitOf, varDecl, iterableExpression, body], startToken);
-            else if (isForOf)
+            if (isForOf)
                 return MakeCons([ForOf, varDecl, iterableExpression, body], startToken);
-            else
-                return MakeCons([ForIn, varDecl, iterableExpression, body], startToken);
+            return MakeCons([ForIn, varDecl, iterableExpression, body], startToken);
         }
 
         // for await without of is an error
@@ -840,7 +831,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         // If there's a line terminator, ASI applies and return has no value
         object? value = null;
         var hasValue = false;
-        
+
         if (!Check(TokenType.Semicolon) && !Check(TokenType.RightBrace) && !Check(TokenType.Eof) && !HasLineTerminatorBefore())
         {
             value = ParseSequenceExpression();
@@ -861,7 +852,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             throw new ParseException("Line terminator is not allowed between 'throw' and its expression.", Peek(), _source);
         }
-        
+
         var value = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after throw statement.");
         return S(Throw, value);
@@ -914,7 +905,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private object? ParseSequenceExpression()
     {
         var left = ParseAssignment();
-        
+
         // Handle comma operator (sequence expressions)
         // The comma operator has the lowest precedence
         while (Match(TokenType.Comma))
@@ -922,7 +913,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var right = ParseAssignment();
             left = S(Operator(","), left, right);
         }
-        
+
         return left;
     }
 
@@ -1012,7 +1003,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         // Convert the parameter expression to a parameter list
         Cons parameters;
-        
+
         if (paramExpr is Cons empty && ReferenceEquals(empty, Cons.Empty))
         {
             // Empty parameter list: () => ...
@@ -1054,14 +1045,14 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         return S(Lambda, null, parameters, body);
     }
 
-    private Cons ConvertArrowParametersToList(Cons expr)
+    private static Cons ConvertArrowParametersToList(Cons expr)
     {
         // If expr is already a list of symbols (from parsing (a, b, c)), use it directly
         // Check if all elements are symbols
         var allSymbols = true;
         var current = expr;
         var symbols = new List<object?>();
-        
+
         while (current != null && !ReferenceEquals(current, Cons.Empty))
         {
             if (current.Head is Symbol sym)
@@ -1075,20 +1066,20 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 break;
             }
         }
-        
+
         if (allSymbols && symbols.Count > 0)
         {
             // Already a proper parameter list
             return Cons.FromEnumerable(symbols);
         }
-        
+
         // Otherwise, try to extract parameters using the old logic
         var parameters = new List<object?>();
         CollectParameters(expr, parameters);
         return Cons.FromEnumerable(parameters);
     }
 
-    private void CollectParameters(object? expr, List<object?> parameters)
+    private static void CollectParameters(object? expr, List<object?> parameters)
     {
         if (expr is Symbol sym)
         {
@@ -1308,7 +1299,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var startToken = _tokens[_current];
         var expr = ParseShift();
-        while (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual, 
+        while (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual,
                      TokenType.In))
         {
             var op = Previous();
@@ -1439,7 +1430,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         if (Match(TokenType.Void)) return S(JsSymbols.Void, ParseUnary());
 
-        if (Match(TokenType.Delete)) return S(JsSymbols.Delete, ParseUnary());
+        if (Match(TokenType.Delete)) return S(Delete, ParseUnary());
 
         if (Match(TokenType.PlusPlus))
         {
@@ -1605,9 +1596,8 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             if (Check(TokenType.LeftParen))
                 // Return a symbol that will be handled as a callable
                 return Symbol.Intern("import");
-            else
-                throw new ParseException(
-                    "'import' can only be used as dynamic import with parentheses: import(specifier)", Peek(), _source);
+            throw new ParseException(
+                "'import' can only be used as dynamic import with parentheses: import(specifier)", Peek(), _source);
         }
 
         if (Match(TokenType.Identifier)) return Symbol.Intern(Previous().Lexeme);
@@ -1624,8 +1614,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             if (Match(TokenType.Function))
                 return ParseAsyncFunctionExpression();
-            else
-                throw new ParseException("Expected 'function' after 'async' in expression context.", Peek(), _source);
+            throw new ParseException("Expected 'function' after 'async' in expression context.", Peek(), _source);
         }
 
         if (Match(TokenType.Function)) return ParseFunctionExpression();
@@ -1638,14 +1627,14 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             // This could be a grouped expression or arrow function parameters
             var startPos = _current;
-            
+
             // Try to parse as arrow function parameters first
             var arrowParams = TryParseArrowParameters();
             if (arrowParams != null)
             {
                 return arrowParams;
             }
-            
+
             // Not arrow parameters, parse as normal grouped expression
             // Inside parentheses, we need to handle the comma operator (sequence expressions)
             _current = startPos;
@@ -1661,7 +1650,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         // Try to parse () => or (id1, id2, ...) =>
         // Returns the parameter expression if successful, null otherwise
-        
+
         if (Check(TokenType.RightParen))
         {
             Advance(); // consume ')'
@@ -1673,17 +1662,17 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             // Not arrow function, fail
             return null;
         }
-        
+
         if (!CheckParameterIdentifier())
         {
             // Not starting with identifier, can't be simple arrow params
             return null;
         }
-        
+
         // Parse comma-separated identifiers
         var parameters = new List<object?>();
         parameters.Add(Symbol.Intern(Advance().Lexeme));
-        
+
         while (Match(TokenType.Comma))
         {
             if (!CheckParameterIdentifier())
@@ -1693,30 +1682,28 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             }
             parameters.Add(Symbol.Intern(Advance().Lexeme));
         }
-        
+
         if (!Check(TokenType.RightParen))
         {
             // No closing paren, not arrow params
             return null;
         }
-        
+
         Advance(); // consume ')'
-        
+
         if (!Check(TokenType.Arrow))
         {
             // No arrow, not arrow params
             return null;
         }
-        
+
         // Success! Return the parameters
         if (parameters.Count == 1)
         {
             return parameters[0];
         }
-        else
-        {
-            return Cons.FromEnumerable(parameters);
-        }
+
+        return Cons.FromEnumerable(parameters);
     }
 
     private object ParseNewExpression()
@@ -2098,7 +2085,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 TokenType.Finally or TokenType.Throw or TokenType.This or TokenType.Super or
                 TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
                 TokenType.Undefined or TokenType.Typeof or TokenType.Void or TokenType.Delete or
-                TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or 
+                TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or
                 TokenType.Await => true,
             _ => false
         };
@@ -2319,7 +2306,8 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 properties.Add(S(PatternRest, restSymbol));
                 break; // Rest must be last
             }
-            else if (ReferenceEquals(propHead, Property))
+
+            if (ReferenceEquals(propHead, Property))
             {
                 var key = propCons.Rest.Head as string;
                 var value = propCons.Rest.Rest.Head;

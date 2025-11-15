@@ -117,7 +117,8 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
             output.WriteLine($"[LOCAL] {msg}");
-            localResult.Append($"[LOCAL] {msg}").AppendLine();
+            localResult.Append("[LOCAL] ").Append(msg);
+            localResult.AppendLine();
             return null;
         });
 
@@ -169,7 +170,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         await Task.Delay(1000);
         var localFinalResult = await engine1.Evaluate("test()");
         output.WriteLine($"[LOCAL] Final result: '{localFinalResult}'");
-        localResult.Append($"[LOCAL] Final result: '{localFinalResult}'").AppendLine();
+        localResult.Append("[LOCAL] Final result: '").Append(localFinalResult).Append('\'').AppendLine();
 
         // Test with GLOBAL scope iterable
         var engine2 = new JsEngine();
@@ -177,7 +178,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
             output.WriteLine($"[GLOBAL] {msg}");
-            globalResult.Append($"[GLOBAL] {msg}").AppendLine();
+            globalResult.Append("[GLOBAL] ").Append(msg).AppendLine();
             return null;
         });
 
@@ -229,7 +230,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         await Task.Delay(1000);
         var globalFinalResult = await engine2.Evaluate("test()");
         output.WriteLine($"[GLOBAL] Final result: '{globalFinalResult}'");
-        globalResult.Append($"[GLOBAL] Final result: '{globalFinalResult}'").AppendLine();
+        globalResult.Append("[GLOBAL] Final result: '").Append(globalFinalResult).Append('\'').AppendLine();
 
         // Compare debug messages
         output.WriteLine("");
@@ -334,8 +335,8 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
 
         if (localSnapshots.Count != globalSnapshots.Count)
         {
-            sb.Append($"Snapshot count mismatch (local={localSnapshots.Count}, global={globalSnapshots.Count}).")
-                .AppendLine();
+            sb.Append($"Snapshot count mismatch (local={localSnapshots.Count}, global={globalSnapshots.Count}).");
+            sb.AppendLine();
         }
 
         var localIteratorBindings = localSnapshots.Any(snapshot => snapshot.IteratorIdentifiers.Count > 0);

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Asynkron.JsEngine;
 
 /// <summary>
@@ -71,8 +73,7 @@ public static class StandardLibrary
             // while .NET Math.Round uses "round half to even" by default
             if (d >= 0)
                 return Math.Floor(d + 0.5);
-            else
-                return Math.Ceiling(d - 0.5);
+            return Math.Ceiling(d - 0.5);
         });
 
         math["sqrt"] = new HostFunction(args =>
@@ -419,7 +420,7 @@ public static class StandardLibrary
     public static IJsCallable CreateDateConstructor()
     {
         HostFunction? dateConstructor = null;
-        
+
         static DateTimeOffset ConvertMillisecondsToUtc(double milliseconds)
         {
             // JavaScript stores Date values as milliseconds since Unix epoch in UTC.
@@ -650,7 +651,7 @@ public static class StandardLibrary
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
                 {
                     var dt = ConvertMillisecondsToUtc(ms);
-                    return dt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+                    return dt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture);
                 }
 
                 return "";
@@ -682,7 +683,7 @@ public static class StandardLibrary
 
             return dateInstance;
         });
-        
+
         return dateConstructor;
     }
 
@@ -1877,7 +1878,7 @@ public static class StandardLibrary
             var separator = args[0]?.ToString();
             var limit = args.Count > 1 && args[1] is double d ? (int)d : int.MaxValue;
 
-            if (separator == null || separator == "")
+            if (separator is null or "")
             {
                 // Split into individual characters
                 var chars = str.Select(c => c.ToString()).Take(limit).ToArray();
@@ -1903,13 +1904,11 @@ public static class StandardLibrary
                 {
                     return System.Text.RegularExpressions.Regex.Replace(str, regex.Pattern, replaceValue);
                 }
-                else
-                {
-                    var match = System.Text.RegularExpressions.Regex.Match(str, regex.Pattern);
-                    if (match.Success)
-                        return str.Substring(0, match.Index) + replaceValue + str.Substring(match.Index + match.Length);
-                    return str;
-                }
+
+                var match = System.Text.RegularExpressions.Regex.Match(str, regex.Pattern);
+                if (match.Success)
+                    return string.Concat(str.AsSpan(0, match.Index), replaceValue, str.AsSpan(match.Index + match.Length));
+                return str;
             }
 
             // String replacement (only first occurrence)
@@ -1918,7 +1917,7 @@ public static class StandardLibrary
             var index = str.IndexOf(searchValue, StringComparison.Ordinal);
             if (index == -1) return str;
 
-            return str.Substring(0, index) + replaceStr + str.Substring(index + searchValue.Length);
+            return string.Concat(str.AsSpan(0, index), replaceStr, str.AsSpan(index + searchValue.Length));
         }));
 
         // match(regexp)
@@ -1931,8 +1930,7 @@ public static class StandardLibrary
             {
                 if (regex.Global)
                     return regex.MatchAll(str);
-                else
-                    return regex.Exec(str);
+                return regex.Exec(str);
             }
 
             return null;
@@ -1991,7 +1989,7 @@ public static class StandardLibrary
         {
             if (args.Count == 0 || args[0] is not double d) return "";
             var count = (int)d;
-            if (count < 0 || count == int.MaxValue) return ""; // JavaScript throws RangeError, we return empty
+            if (count is < 0 or int.MaxValue) return ""; // JavaScript throws RangeError, we return empty
             if (count == 0) return "";
             return string.Concat(Enumerable.Repeat(str, count));
         }));
@@ -2008,7 +2006,7 @@ public static class StandardLibrary
             var padLength = targetLength - str.Length;
             var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
             var padding = string.Concat(Enumerable.Repeat(padString, padCount));
-            return padding.Substring(0, padLength) + str;
+            return string.Concat(padding.AsSpan(0, padLength), str);
         }));
 
         // padEnd(targetLength, padString?)
@@ -2023,7 +2021,7 @@ public static class StandardLibrary
             var padLength = targetLength - str.Length;
             var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
             var padding = string.Concat(Enumerable.Repeat(padString, padCount));
-            return str + padding.Substring(0, padLength);
+            return string.Concat(str, padding.AsSpan(0, padLength));
         }));
 
         // replaceAll(searchValue, replaceValue)
@@ -2201,16 +2199,16 @@ public static class StandardLibrary
         numberObj.SetProperty("toString", new HostFunction(args =>
         {
             var radix = args.Count > 0 && args[0] is double d ? (int)d : 10;
-            
+
             // Validate radix (must be between 2 and 36)
-            if (radix < 2 || radix > 36)
+            if (radix is < 2 or > 36)
                 throw new ArgumentException("radix must be an integer at least 2 and no greater than 36");
-            
+
             // Handle special cases
             if (double.IsNaN(num)) return "NaN";
             if (double.IsPositiveInfinity(num)) return "Infinity";
             if (double.IsNegativeInfinity(num)) return "-Infinity";
-            
+
             // For radix 10, use standard conversion
             if (radix == 10)
             {
@@ -2219,19 +2217,19 @@ public static class StandardLibrary
                     return ((long)num).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
-            
+
             // For other radices, only works on integers
             var intValue = (long)num;
             if (radix == 2) return Convert.ToString(intValue, 2);
             if (radix == 8) return Convert.ToString(intValue, 8);
             if (radix == 16) return Convert.ToString(intValue, 16);
-            
+
             // For other radices, implement manual conversion
             if (intValue == 0) return "0";
-            
+
             var isNegative = intValue < 0;
             intValue = Math.Abs(intValue);
-            
+
             var digits = "0123456789abcdefghijklmnopqrstuvwxyz";
             var result = "";
             while (intValue > 0)
@@ -2239,7 +2237,7 @@ public static class StandardLibrary
                 result = digits[(int)(intValue % radix)] + result;
                 intValue /= radix;
             }
-            
+
             return isNegative ? "-" + result : result;
         }));
 
@@ -2247,12 +2245,12 @@ public static class StandardLibrary
         numberObj.SetProperty("toFixed", new HostFunction(args =>
         {
             var fractionDigits = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            if (fractionDigits < 0 || fractionDigits > 100)
+            if (fractionDigits is < 0 or > 100)
                 throw new ArgumentException("toFixed() digits argument must be between 0 and 100");
-            
+
             if (double.IsNaN(num)) return "NaN";
             if (double.IsInfinity(num)) return num > 0 ? "Infinity" : "-Infinity";
-            
+
             return num.ToString("F" + fractionDigits, System.Globalization.CultureInfo.InvariantCulture);
         }));
 
@@ -2261,15 +2259,15 @@ public static class StandardLibrary
         {
             if (double.IsNaN(num)) return "NaN";
             if (double.IsInfinity(num)) return num > 0 ? "Infinity" : "-Infinity";
-            
+
             if (args.Count > 0 && args[0] is double d)
             {
                 var fractionDigits = (int)d;
-                if (fractionDigits < 0 || fractionDigits > 100)
+                if (fractionDigits is < 0 or > 100)
                     throw new ArgumentException("toExponential() digits argument must be between 0 and 100");
                 return num.ToString("e" + fractionDigits, System.Globalization.CultureInfo.InvariantCulture);
             }
-            
+
             return num.ToString("e", System.Globalization.CultureInfo.InvariantCulture);
         }));
 
@@ -2277,20 +2275,20 @@ public static class StandardLibrary
         numberObj.SetProperty("toPrecision", new HostFunction(args =>
         {
             if (args.Count == 0) return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            
+
             if (double.IsNaN(num)) return "NaN";
             if (double.IsInfinity(num)) return num > 0 ? "Infinity" : "-Infinity";
-            
+
             if (args[0] is double d)
             {
                 var precision = (int)d;
-                if (precision < 1 || precision > 100)
+                if (precision is < 1 or > 100)
                     throw new ArgumentException("toPrecision() precision argument must be between 1 and 100");
-                
+
                 // Format with specified precision
                 return num.ToString("G" + precision, System.Globalization.CultureInfo.InvariantCulture);
             }
-            
+
             return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }));
 
@@ -3097,7 +3095,7 @@ public static class StandardLibrary
             if (str == "") return double.NaN;
 
             var radix = args.Count > 1 && args[1] is double r ? (int)r : 10;
-            if (radix < 2 || radix > 36) return double.NaN;
+            if (radix is < 2 or > 36) return double.NaN;
 
             // Handle sign
             var sign = 1;
@@ -3199,7 +3197,7 @@ public static class StandardLibrary
                 {
                     var codePoint = (int)d;
                     // Validate code point range
-                    if (codePoint < 0 || codePoint > 0x10FFFF)
+                    if (codePoint is < 0 or > 0x10FFFF)
                         throw new Exception("RangeError: Invalid code point " + codePoint);
 
                     // Handle surrogate pairs for code points > 0xFFFF
@@ -3273,15 +3271,15 @@ public static class StandardLibrary
         {
             if (args.Count == 0) return "";
             var str = args[0]?.ToString() ?? "";
-            
+
             var result = new System.Text.StringBuilder();
             foreach (var ch in str)
             {
                 // Characters that don't need escaping
-                if ((ch >= 'A' && ch <= 'Z') || 
-                    (ch >= 'a' && ch <= 'z') || 
+                if ((ch >= 'A' && ch <= 'Z') ||
+                    (ch >= 'a' && ch <= 'z') ||
                     (ch >= '0' && ch <= '9') ||
-                    ch == '@' || ch == '*' || ch == '_' || 
+                    ch == '@' || ch == '*' || ch == '_' ||
                     ch == '+' || ch == '-' || ch == '.' || ch == '/')
                 {
                     result.Append(ch);
@@ -3290,16 +3288,16 @@ public static class StandardLibrary
                 else if (ch < 256)
                 {
                     result.Append('%');
-                    result.Append(((int)ch).ToString("X2"));
+                    result.Append(((int)ch).ToString("X2", CultureInfo.InvariantCulture));
                 }
                 // Unicode characters use %uXXXX format
                 else
                 {
                     result.Append("%u");
-                    result.Append(((int)ch).ToString("X4"));
+                    result.Append(((int)ch).ToString("X4", CultureInfo.InvariantCulture));
                 }
             }
-            
+
             return result.ToString();
         }));
 
@@ -3751,7 +3749,7 @@ public static class StandardLibrary
             if (str == "") return double.NaN;
 
             var radix = args.Count > 1 && args[1] is double r ? (int)r : 10;
-            if (radix < 2 || radix > 36) return double.NaN;
+            if (radix is < 2 or > 36) return double.NaN;
 
             // Handle sign
             var sign = 1;

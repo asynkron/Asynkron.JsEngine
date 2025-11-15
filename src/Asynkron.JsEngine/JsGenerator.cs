@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 /// Represents a JavaScript generator object that implements the iterator protocol.
 /// Generators are created by calling generator functions (function*) and can be
 /// paused and resumed using yield expressions.
-/// 
+///
 /// This is a simplified implementation that works for sequential yields by re-executing
 /// the generator body and skipping already-yielded values. For full generator support
 /// with complex control flow, the full CPS transformation would be needed.
@@ -211,7 +211,7 @@ public sealed class JsGenerator : IJsCallable
 /// </summary>
 public sealed class YieldTracker(int skipCount)
 {
-    private int _currentIndex = 0;
+    private int _currentIndex;
 
     public bool ShouldYield()
     {

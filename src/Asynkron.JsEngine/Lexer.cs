@@ -312,17 +312,17 @@ public sealed class Lexer(string source)
         if (_source[_start] == '0' && _current < _source.Length)
         {
             var next = Peek();
-            if (next == 'x' || next == 'X')
+            if (next is 'x' or 'X')
             {
                 // Hexadecimal literal
                 var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'x' or 'X'
                 if (!IsHexDigit(Peek()))
                     throw new ParseException($"Expected hexadecimal digit after '0x' on line {_line} column {_column}.");
-                
+
                 var digitStart = _current; // Remember where hex digits start
                 while (IsHexDigit(Peek())) Advance();
-                
+
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
                 {
@@ -332,32 +332,34 @@ public sealed class Lexer(string source)
                     {
                         Advance(); // consume 'n'
                         var hexDigits = _source[digitStart..(_current - 1)]; // Only the hex digits, not the 'n'
-                        var bigIntValue = System.Numerics.BigInteger.Parse(hexDigits, System.Globalization.NumberStyles.HexNumber);
+
+                        var bigIntValue = System.Numerics.BigInteger.Parse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                         var value = new JsBigInt(bigIntValue);
                         AddToken(TokenType.BigInt, value);
                         return;
                     }
                 }
-                
+
                 var hexDigits2 = _source[digitStart.._current]; // Only the hex digits, not the prefix
                 // Use BigInteger to handle values larger than long.MaxValue, then convert to double
                 // Prepend "0" to ensure the value is treated as unsigned (positive)
-                var hexBigInt = System.Numerics.BigInteger.Parse("0" + hexDigits2, System.Globalization.NumberStyles.HexNumber);
+                var hexBigInt = System.Numerics.BigInteger.Parse("0" + hexDigits2, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                 var hexValue = (double)hexBigInt;
                 AddToken(TokenType.Number, hexValue);
                 return;
             }
-            else if (next == 'o' || next == 'O')
+
+            if (next is 'o' or 'O')
             {
                 // Octal literal
                 var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'o' or 'O'
                 if (!IsOctalDigit(Peek()))
                     throw new ParseException($"Expected octal digit after '0o' on line {_line} column {_column}.");
-                
+
                 var digitStart = _current; // Remember where octal digits start
                 while (IsOctalDigit(Peek())) Advance();
-                
+
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
                 {
@@ -378,7 +380,7 @@ public sealed class Lexer(string source)
                         return;
                     }
                 }
-                
+
                 var octalDigits2 = _source[digitStart.._current]; // Only the octal digits, not the prefix
                 // Use BigInteger to handle values larger than long.MaxValue, then convert to double
                 var octalBigInt = System.Numerics.BigInteger.Zero;
@@ -390,17 +392,18 @@ public sealed class Lexer(string source)
                 AddToken(TokenType.Number, octalValue);
                 return;
             }
-            else if (next == 'b' || next == 'B')
+
+            if (next is 'b' or 'B')
             {
                 // Binary literal
                 var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'b' or 'B'
                 if (!IsBinaryDigit(Peek()))
                     throw new ParseException($"Expected binary digit after '0b' on line {_line} column {_column}.");
-                
+
                 var digitStart = _current; // Remember where binary digits start
                 while (IsBinaryDigit(Peek())) Advance();
-                
+
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
                 {
@@ -421,7 +424,7 @@ public sealed class Lexer(string source)
                         return;
                     }
                 }
-                
+
                 var binaryDigits2 = _source[digitStart.._current]; // Only the binary digits, not the prefix
                 // Use BigInteger to handle values larger than long.MaxValue, then convert to double
                 var binaryBigInt = System.Numerics.BigInteger.Zero;
@@ -455,17 +458,17 @@ public sealed class Lexer(string source)
             if (IsDigit(next) || (next == '+' || next == '-'))
             {
                 Advance(); // consume 'e' or 'E'
-                
+
                 // Consume optional sign
                 if (Peek() == '+' || Peek() == '-')
                     Advance();
-                
+
                 // Must have at least one digit after the exponent
                 if (!IsDigit(Peek()))
                     throw new ParseException($"Expected digit after exponent on line {_line} column {_column}.");
-                
+
                 while (IsDigit(Peek())) Advance();
-                
+
                 hasDecimal = true; // exponential notation makes it a regular number, not BigInt
             }
         }
@@ -572,7 +575,7 @@ public sealed class Lexer(string source)
     private void ReadTemplateLiteral()
     {
         var parts = new List<object>();
-        var currentString = new System.Text.StringBuilder();
+        var currentString = new StringBuilder();
 
         while (!IsAtEnd && Peek() != '`')
             if (Peek() == '$' && PeekNext() == '{')
@@ -677,7 +680,7 @@ public sealed class Lexer(string source)
 
     private static bool IsAlpha(char c)
     {
-        return c is >= 'a' and <= 'z' || c is >= 'A' and <= 'Z' || c == '_' || c == '$';
+        return c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or '_' or '$';
     }
 
     private static bool IsAlphaNumeric(char c)
@@ -687,7 +690,7 @@ public sealed class Lexer(string source)
 
     private static bool IsHexDigit(char c)
     {
-        return c is >= '0' and <= '9' || c is >= 'a' and <= 'f' || c is >= 'A' and <= 'F';
+        return c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F';
     }
 
     private static bool IsOctalDigit(char c)
@@ -746,7 +749,7 @@ public sealed class Lexer(string source)
 
     private void ReadRegexLiteral()
     {
-        var pattern = new System.Text.StringBuilder();
+        var pattern = new StringBuilder();
 
         // Read pattern until unescaped /
         while (!IsAtEnd && Peek() != '/')
@@ -788,7 +791,7 @@ public sealed class Lexer(string source)
         Advance();
 
         // Read flags (g, i, m, etc.)
-        var flags = new System.Text.StringBuilder();
+        var flags = new StringBuilder();
         while (!IsAtEnd && IsAlpha(Peek())) flags.Append(Advance());
 
         var regexValue = new RegexLiteralValue(pattern.ToString(), flags.ToString());
@@ -851,7 +854,7 @@ public sealed class Lexer(string source)
                         if (i + 3 < rawString.Length)
                         {
                             var hex = rawString.Substring(i + 2, 2);
-                            if (int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var value))
+                            if (int.TryParse(hex, NumberStyles.HexNumber, null, out var value))
                             {
                                 result.Append((char)value);
                                 i += 4;
@@ -876,7 +879,7 @@ public sealed class Lexer(string source)
                         if (i + 5 < rawString.Length)
                         {
                             var hex = rawString.Substring(i + 2, 4);
-                            if (int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var value))
+                            if (int.TryParse(hex, NumberStyles.HexNumber, null, out var value))
                             {
                                 result.Append((char)value);
                                 i += 6;

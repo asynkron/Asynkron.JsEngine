@@ -19,7 +19,7 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly HashSet<Task> _activeTimerTasks = [];
     private int _nextTimerId = 1;
-    private int _pendingTaskCount = 0; // Track pending tasks in the event queue
+    private int _pendingTaskCount; // Track pending tasks in the event queue
     private bool _asyncIteratorTracingEnabled;
 
     // Module registry: maps module paths to their exported values

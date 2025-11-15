@@ -8,27 +8,6 @@
  */
 
 /*
- * TEST STATUS: FAILING
- * Error: Expected hash 2524d264def74cce2498bf112bedf00e6c0b796d but got 85634b6b67255134eeb5fd1c9b02f4bf0481b7c4
- * Root Cause: SHA1 algorithm produces incorrect hash - likely issue with:
- *   - Bitwise rotation operations (rol function)
- *   - 32-bit unsigned integer arithmetic
- *   - Bit shifting and masking operations
- * Similar root cause to crypto-md5.js failure.
- */
-
-// Console object for debugging
-var console = {
-  log: function(msg) {
-    // Store in a global array for later inspection
-    if (typeof consoleLogs === 'undefined') {
-      consoleLogs = [];
-    }
-    consoleLogs.push(String(msg));
-  }
-};
-
-/*
  * Configurable variables. You may need to tweak these to be compatible with
  * the server-side, but the defaults work in most cases.
  */
@@ -64,8 +43,6 @@ function core_sha1(x, len)
   x[len >> 5] |= 0x80 << (24 - len % 32);
   x[((len + 64 >> 9) << 4) + 15] = len;
 
-  console.log(x);
-
   var w = Array(80);
   var a =  1732584193;
   var b = -271733879;
@@ -87,10 +64,6 @@ function core_sha1(x, len)
       else w[j] = rol(w[j-3] ^ w[j-8] ^ w[j-14] ^ w[j-16], 1);
       var t = safe_add(safe_add(rol(a, 5), sha1_ft(j, b, c, d)),
                        safe_add(safe_add(e, w[j]), sha1_kt(j)));
-
-       console.log(w);
-       console.log(t);
-
       e = d;
       d = c;
       c = rol(b, 30);
@@ -244,14 +217,11 @@ Is now the two hours' traffic of our stage;\n\
 The which if you with patient ears attend,\n\
 What here shall miss, our toil shall strive to mend.";
 
-__debug(); // Debug: initial plainText length
 for (var i = 0; i <4; i++) {
     plainText += plainText;
 }
-__debug(); // Debug: after expanding plainText
 
 var sha1Output = hex_sha1(plainText);
-__debug(); // Debug: after hex_sha1, check output
 
 var expected = "2524d264def74cce2498bf112bedf00e6c0b796d";
 if (sha1Output != expected)

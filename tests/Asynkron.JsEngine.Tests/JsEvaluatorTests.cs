@@ -2,7 +2,7 @@ using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class EvaluatorTests
+public class JsEvaluatorTests
 {
     [Fact(Timeout = 2000)]
     public async Task EvaluateArithmeticAndVariableLookup()
@@ -1093,7 +1093,7 @@ public class EvaluatorTests
 
         Assert.IsType<double>(result);
         var value = (double)result;
-        Assert.True(value >= 0 && value < 1);
+        Assert.True(value is >= 0 and < 1);
     }
 
     [Fact(Timeout = 2000)]

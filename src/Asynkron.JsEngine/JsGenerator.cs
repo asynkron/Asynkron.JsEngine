@@ -96,7 +96,7 @@ public sealed class JsGenerator : IJsCallable
             var context = new EvaluationContext();
 
             // Execute the body (or re-execute it to get to the next yield)
-            var result = Evaluator.EvaluateBlock(_body, _executionEnv, context);
+            var result = JsEvaluator.EvaluateBlock(_body, _executionEnv, context);
 
             // Check if yield was encountered
             if (context.IsYield)
@@ -180,18 +180,15 @@ public sealed class JsGenerator : IJsCallable
             var param = current.Head;
 
             // Check if this is a rest parameter (wrapped in a rest cons)
-            if (param is Cons paramCons && !paramCons.IsEmpty)
+            if (param is Cons { IsEmpty: false, Head: Symbol { Name: "rest" } } paramCons)
             {
-                if (paramCons.Head is Symbol paramSymbol && paramSymbol.Name == "rest")
+                // This is a rest parameter
+                if (paramCons.Rest.Head is Symbol restSymbol)
                 {
-                    // This is a rest parameter
-                    if (paramCons.Rest.Head is Symbol restSymbol)
-                    {
-                        restParam = restSymbol;
-                    }
-
-                    break; // Rest param must be last
+                    restParam = restSymbol;
                 }
+
+                break; // Rest param must be last
             }
 
             // Regular parameter

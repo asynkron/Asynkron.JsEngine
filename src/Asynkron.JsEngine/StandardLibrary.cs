@@ -331,7 +331,7 @@ public static class StandardLibrary
 
         math["clz32"] = new HostFunction(args =>
         {
-            var number = args.Count > 0 ? Evaluator.ToNumber(args[0]) : 0d;
+            var number = args.Count > 0 ? JsEvaluator.ToNumber(args[0]) : 0d;
             var value = JsNumericConversions.ToUInt32(number);
             if (value == 0)
             {
@@ -343,8 +343,8 @@ public static class StandardLibrary
 
         math["imul"] = new HostFunction(args =>
         {
-            var left = args.Count > 0 ? Evaluator.ToNumber(args[0]) : 0d;
-            var right = args.Count > 1 ? Evaluator.ToNumber(args[1]) : 0d;
+            var left = args.Count > 0 ? JsEvaluator.ToNumber(args[0]) : 0d;
+            var right = args.Count > 1 ? JsEvaluator.ToNumber(args[1]) : 0d;
             var a = JsNumericConversions.ToInt32(left);
             var b = JsNumericConversions.ToInt32(right);
             return (double)(a * b);
@@ -1364,7 +1364,7 @@ public static class StandardLibrary
             var parts = new List<string>();
             foreach (var item in jsArray.Items)
             {
-                parts.Add(Evaluator.ToStringForArray(item));
+                parts.Add(JsEvaluator.ToStringForArray(item));
             }
 
             return string.Join(separator, parts);
@@ -2603,8 +2603,6 @@ public static class StandardLibrary
                 {
                     return d;
                 }
-
-                return -1d;
             }
 
             return -1d;
@@ -3239,7 +3237,7 @@ public static class StandardLibrary
             var result = new JsObject();
             foreach (var entry in entries.Items)
             {
-                if (entry is JsArray entryArray && entryArray.Items.Count >= 2)
+                if (entry is JsArray { Items.Count: >= 2 } entryArray)
                 {
                     var key = entryArray.GetElement(0)?.ToString() ?? "";
                     var value = entryArray.GetElement(1);
@@ -3517,7 +3515,7 @@ public static class StandardLibrary
         var arrayConstructor = new HostFunction(args =>
         {
             // Array(length) or Array(element0, element1, ...)
-            if (args.Count == 1 && args[0] is double length)
+            if (args is [double length])
             {
                 var arr = new JsArray();
                 arr.SetProperty("length", length);
@@ -3643,7 +3641,7 @@ public static class StandardLibrary
             {
                 foreach (var entry in entries.Items)
                 {
-                    if (entry is JsArray pair && pair.Items.Count >= 2)
+                    if (entry is JsArray { Items.Count: >= 2 } pair)
                     {
                         map.Set(pair.GetElement(0), pair.GetElement(1));
                     }
@@ -3922,7 +3920,7 @@ public static class StandardLibrary
             {
                 foreach (var entry in entries.Items)
                 {
-                    if (entry is JsArray pair && pair.Items.Count >= 2)
+                    if (entry is JsArray { Items.Count: >= 2 } pair)
                     {
                         try
                         {
@@ -4134,7 +4132,6 @@ public static class StandardLibrary
 
             if (ReferenceEquals(value, JsSymbols.Undefined))
             {
-                return double.NaN;
             }
 
             return double.NaN;
@@ -4516,9 +4513,9 @@ public static class StandardLibrary
             foreach (var ch in str)
             {
                 // Characters that don't need escaping
-                if ((ch >= 'A' && ch <= 'Z') ||
-                    (ch >= 'a' && ch <= 'z') ||
-                    (ch >= '0' && ch <= '9') ||
+                if (ch is >= 'A' and <= 'Z' ||
+                    ch is >= 'a' and <= 'z' ||
+                    ch is >= '0' and <= '9' ||
                     ch == '@' || ch == '*' || ch == '_' ||
                     ch == '+' || ch == '-' || ch == '.' || ch == '/')
                 {

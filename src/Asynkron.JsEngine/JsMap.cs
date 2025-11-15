@@ -162,7 +162,7 @@ public sealed class JsMap
         }
 
         // Handle NaN (NaN is equal to NaN in SameValueZero)
-        if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy))
+        if (x is double and Double.NaN && y is double and Double.NaN)
         {
             return true;
         }

@@ -2208,12 +2208,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var exprProgram = exprParser.ParseProgram();
 
                 // Extract the expression (skip the 'program' wrapper)
-                if (exprProgram is Cons programCons && !programCons.IsEmpty)
+                if (exprProgram is Cons { IsEmpty: false } programCons)
                 {
                     var firstStatement = programCons.Rest.Head;
                     // If it's an expression statement, unwrap it
-                    if (firstStatement is Cons stmtCons &&
-                        stmtCons.Head is Symbol sym &&
+                    if (firstStatement is Cons { Head: Symbol sym } stmtCons &&
                         ReferenceEquals(sym, ExpressionStatement))
                     {
                         items.Add(stmtCons.Rest.Head);
@@ -2257,11 +2256,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var exprParser = new Parser(wrappedTokens, wrappedSource);
                 var exprProgram = exprParser.ParseProgram();
 
-                if (exprProgram is Cons programCons && !programCons.IsEmpty)
+                if (exprProgram is Cons { IsEmpty: false } programCons)
                 {
                     var firstStatement = programCons.Rest.Head;
-                    if (firstStatement is Cons stmtCons &&
-                        stmtCons.Head is Symbol sym &&
+                    if (firstStatement is Cons { Head: Symbol sym } stmtCons &&
                         ReferenceEquals(sym, ExpressionStatement))
                     {
                         expressions.Add(stmtCons.Rest.Head);

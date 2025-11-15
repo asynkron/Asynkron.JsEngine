@@ -115,6 +115,37 @@ public class ParserTests
     }
 
     [Fact(Timeout = 2000)]
+    public Task ParseCommaSeparatedExpressionStatementAsSequence()
+    {
+        var program = JsEngine.ParseWithoutTransformation(
+            "_ref = _temp === void 0 ? {} : _temp, _ref$jsx = _ref.jsx, jsx = _ref$jsx === void 0 ? false : _ref$jsx;");
+
+        var expressionStatement = Assert.IsType<Cons>(program.Rest.Head);
+        Assert.Same(JsSymbols.ExpressionStatement, expressionStatement.Head);
+
+        var outerSequence = Assert.IsType<Cons>(expressionStatement.Rest.Head);
+        Assert.Same(JsSymbols.Operator(","), outerSequence.Head);
+
+        var firstSequence = Assert.IsType<Cons>(outerSequence.Rest.Head);
+        Assert.Same(JsSymbols.Operator(","), firstSequence.Head);
+
+        var firstAssignment = Assert.IsType<Cons>(firstSequence.Rest.Head);
+        Assert.Same(JsSymbols.Assign, firstAssignment.Head);
+        Assert.Equal(Symbol.Intern("_ref"), firstAssignment.Rest.Head);
+        Assert.IsType<Cons>(firstAssignment.Rest.Rest.Head); // ternary expression
+
+        var secondAssignment = Assert.IsType<Cons>(firstSequence.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Assign, secondAssignment.Head);
+        Assert.Equal(Symbol.Intern("_ref$jsx"), secondAssignment.Rest.Head);
+
+        var thirdAssignment = Assert.IsType<Cons>(outerSequence.Rest.Rest.Head);
+        Assert.Same(JsSymbols.Assign, thirdAssignment.Head);
+        Assert.Equal(Symbol.Intern("jsx"), thirdAssignment.Rest.Head);
+
+        return Task.CompletedTask;
+    }
+
+    [Fact(Timeout = 2000)]
     public Task ParseArrayLiteralAndIndexedAssignment()
     {
         var engine = new JsEngine();

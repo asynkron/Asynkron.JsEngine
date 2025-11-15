@@ -714,8 +714,8 @@ public static class StandardLibrary
                 try
                 {
                     var localDate = new DateTime(year, month, day, hour, minute, second, millisecond,
-                        DateTimeKind.Local);
-                    dateTime = new DateTimeOffset(localDate).ToUniversalTime();
+                        DateTimeKind.Utc);
+                    dateTime = new DateTimeOffset(localDate);
                 }
                 catch
                 {

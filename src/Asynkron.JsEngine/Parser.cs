@@ -116,7 +116,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         // Check if this is a generator function (function*)
         var isGenerator = Match(TokenType.Star);
 
-        var nameToken = Consume(TokenType.Identifier, "Expected function name.");
+        var nameToken = ConsumeParameterIdentifier("Expected function name.");
         var name = Symbol.Intern(nameToken.Lexeme);
         Consume(TokenType.LeftParen, "Expected '(' after function name.");
         var parameters = ParseParameterList();
@@ -135,7 +135,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var startTokenIndex = _current >= 2 ? _current - 2 : 0;
         var startToken = _tokens[startTokenIndex];
 
-        var nameToken = Consume(TokenType.Identifier, "Expected function name.");
+        var nameToken = ConsumeParameterIdentifier("Expected function name.");
         var name = Symbol.Intern(nameToken.Lexeme);
         Consume(TokenType.LeftParen, "Expected '(' after function name.");
         var parameters = ParseParameterList();
@@ -2102,8 +2102,8 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var isGenerator = Match(TokenType.Star);
 
         Symbol? name = null;
-        // Accept 'get' and 'set' as valid function names (they are contextual keywords)
-        if (Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set))
+        // Accept contextual keywords such as get/set/async as valid function names
+        if (CheckParameterIdentifier())
         {
             name = Symbol.Intern(Advance().Lexeme);
         }
@@ -2123,8 +2123,8 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private object ParseAsyncFunctionExpression()
     {
         Symbol? name = null;
-        // Accept 'get' and 'set' as valid function names (they are contextual keywords)
-        if (Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set))
+        // Accept contextual keywords such as get/set/async as valid function names
+        if (CheckParameterIdentifier())
         {
             name = Symbol.Intern(Advance().Lexeme);
         }

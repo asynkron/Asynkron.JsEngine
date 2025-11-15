@@ -545,4 +545,108 @@ public class RegExpTests
                                            """);
         Assert.True((bool)result!);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegexLiteral_ComplexEscapeSequences()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let str = "test.*?";
+                                                       str.replace(/\.\*\?$/, "*");
+                                                   
+                                           """);
+        Assert.Equal("test*", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegexLiteral_EscapeSequences_Dot()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let regex = /\./;
+                                                       regex.test("test.txt");
+                                                   
+                                           """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegexLiteral_EscapeSequences_Star()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let regex = /\*/;
+                                                       regex.test("2*3");
+                                                   
+                                           """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegexLiteral_EscapeSequences_Question()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let regex = /\?/;
+                                                       regex.test("what?");
+                                                   
+                                           """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegexLiteral_EscapeSequences_Plus()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let regex = /\+/;
+                                                       regex.test("1+2");
+                                                   
+                                           """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegexLiteral_MultipleEscapes_WithAnchors()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let str = "start.*?end";
+                                                       str.replace(/^\w+\.\*\?\w+$/, "replaced");
+                                                   
+                                           """);
+        Assert.Equal("replaced", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegexLiteral_ParenthesesEscape()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let regex = /\(test\)/;
+                                                       regex.test("(test)");
+                                                   
+                                           """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegexLiteral_BracketsEscape()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let regex = /\[test\]/;
+                                                       regex.test("[test]");
+                                                   
+                                           """);
+        Assert.True((bool)result!);
+    }
 }

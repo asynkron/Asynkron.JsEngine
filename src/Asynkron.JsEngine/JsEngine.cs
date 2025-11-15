@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// High level façade that turns JavaScript source into S-expressions and evaluates them.
 /// </summary>
-public sealed class JsEngine
+public sealed class JsEngine : IAsyncDisposable
 {
     private readonly JsEnvironment _global = new(isFunctionScope: true);
     private readonly ConstantExpressionTransformer _constantTransformer = new();
@@ -477,6 +477,7 @@ public sealed class JsEngine
     private async Task ProcessEventQueue()
     {
         await foreach (var x in _eventQueue.Reader.ReadAllAsync())
+        {
             try
             {
                 await x();
@@ -494,6 +495,10 @@ public sealed class JsEngine
                 // Decrement the pending task count after processing
                 Interlocked.Decrement(ref _pendingTaskCount);
             }
+        }
+        
+        //TODO: set task completion source when channel is closed
+        //make DisposeAsync close the channel and wait for TCS?
     }
 
     /// <summary>
@@ -934,5 +939,12 @@ public sealed class JsEngine
                         if (exports.TryGetValue(imported.Name, out var value))
                             moduleEnv.Define(local, value);
                 }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _eventQueue.Writer.Complete();
+        //TODO: Wait for event queue to finish processing
+        return ValueTask.CompletedTask;
     }
 }

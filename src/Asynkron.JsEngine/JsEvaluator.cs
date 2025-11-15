@@ -258,7 +258,7 @@ public static class JsEvaluator
         return null;
     }
 
-    private static object? EvaluateWhile(Cons cons, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateWhile(Cons cons, JsEnvironment environment, EvaluationContext context, Symbol? loopLabel = null)
     {
         var conditionExpression = cons.Rest.Head;
         var body = cons.Rest.Rest.Head;
@@ -277,25 +277,28 @@ public static class JsEvaluator
             // Note: This shows the new signal-based approach
             if (context.CurrentSignal is ContinueSignal continueSignal)
             {
-                // Clear if: no label, OR label matches current enclosing label
-                if (continueSignal.Label is null || 
-                    (context.CurrentLabel is not null && ReferenceEquals(continueSignal.Label, context.CurrentLabel)))
+                // Clear if this loop owns the continue or if it's unlabeled (innermost loop)
+                if (continueSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(continueSignal.Label, loopLabel)))
                 {
                     context.ClearContinue();
                     continue;
                 }
-                // Has a different label, let it propagate up
+
+                // Has a different label, let it propagate up to an outer loop
                 break;
             }
 
             if (context.CurrentSignal is BreakSignal breakSignal)
             {
-                // Clear if: no label, OR label matches current enclosing label
-                if (breakSignal.Label is null)
+                // Clear if this loop owns the break or if it's unlabeled (innermost loop)
+                if (breakSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(breakSignal.Label, loopLabel)))
                 {
                     context.ClearBreak();
                     break;
                 }
+
                 // Has a different label, let it propagate up
                 break;
             }
@@ -310,7 +313,7 @@ public static class JsEvaluator
         return lastResult;
     }
 
-    private static object? EvaluateDoWhile(Cons cons, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateDoWhile(Cons cons, JsEnvironment environment, EvaluationContext context, Symbol? loopLabel = null)
     {
         var conditionExpression = cons.Rest.Head;
         var body = cons.Rest.Rest.Head;
@@ -322,8 +325,9 @@ public static class JsEvaluator
 
             if (context.CurrentSignal is ContinueSignal continueSignal)
             {
-                // Clear if: no label, OR label matches current enclosing label
-                if (continueSignal.Label is null)
+                // Clear if this loop owns the continue or if it's unlabeled (innermost loop)
+                if (continueSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(continueSignal.Label, loopLabel)))
                 {
                     context.ClearContinue();
                     // fall through to condition check for the next iteration
@@ -336,12 +340,14 @@ public static class JsEvaluator
             }
             else if (context.CurrentSignal is BreakSignal breakSignal)
             {
-                // Clear if: no label, OR label matches current enclosing label
-                if (breakSignal.Label is null)
+                // Clear if this loop owns the break or if it's unlabeled (innermost loop)
+                if (breakSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(breakSignal.Label, loopLabel)))
                 {
                     context.ClearBreak();
                     break;
                 }
+
                 // Has a different label, let it propagate up
                 break;
             }
@@ -370,40 +376,62 @@ public static class JsEvaluator
             throw new Exception("Label statement must have a label name.");
         }
 
-        // Check if the labeled statement is a loop
-        var isLoop = false;
-        if (statement is Cons statementCons && statementCons.Head is Symbol statementType)
-        {
-            isLoop = ReferenceEquals(statementType, JsSymbols.For) ||
-                     ReferenceEquals(statementType, JsSymbols.ForIn) ||
-                     ReferenceEquals(statementType, JsSymbols.ForOf) ||
-                     ReferenceEquals(statementType, JsSymbols.ForAwaitOf) ||
-                     ReferenceEquals(statementType, JsSymbols.While) ||
-                     ReferenceEquals(statementType, JsSymbols.DoWhile);
-        }
-
         // Push the label onto the context stack
         context.PushLabel(labelName);
         try
         {
-            // Evaluate the labeled statement
-            var result = EvaluateStatement(statement, environment, context);
+            object? result;
+            var handledAsLoop = false;
 
-            // Check if there's a break signal targeting this label
+            if (statement is Cons statementCons && statementCons.Head is Symbol statementType)
+            {
+                if (ReferenceEquals(statementType, JsSymbols.For))
+                {
+                    handledAsLoop = true;
+                    result = EvaluateFor(statementCons, environment, context, labelName);
+                }
+                else if (ReferenceEquals(statementType, JsSymbols.ForIn))
+                {
+                    handledAsLoop = true;
+                    result = EvaluateForIn(statementCons, environment, context, labelName);
+                }
+                else if (ReferenceEquals(statementType, JsSymbols.ForOf))
+                {
+                    handledAsLoop = true;
+                    result = EvaluateForOf(statementCons, environment, context, labelName);
+                }
+                else if (ReferenceEquals(statementType, JsSymbols.ForAwaitOf))
+                {
+                    handledAsLoop = true;
+                    result = EvaluateForAwaitOf(statementCons, environment, context, labelName);
+                }
+                else if (ReferenceEquals(statementType, JsSymbols.While))
+                {
+                    handledAsLoop = true;
+                    result = EvaluateWhile(statementCons, environment, context, labelName);
+                }
+                else if (ReferenceEquals(statementType, JsSymbols.DoWhile))
+                {
+                    handledAsLoop = true;
+                    result = EvaluateDoWhile(statementCons, environment, context, labelName);
+                }
+                else
+                {
+                    result = EvaluateStatement(statement, environment, context);
+                }
+            }
+            else
+            {
+                result = EvaluateStatement(statement, environment, context);
+            }
+
             if (context.CurrentSignal is BreakSignal)
             {
-                // If the break matches this label, consume it
                 context.TryClearBreak(labelName);
             }
 
-            // Check if there's a continue signal targeting this label
-            // Continue with a label can only target loops
-            if (context.CurrentSignal is ContinueSignal && isLoop)
+            if (handledAsLoop && context.CurrentSignal is ContinueSignal)
             {
-                // If the continue matches this label, we can't just clear it and return
-                // because the loop has already exited. We would need to re-execute the loop,
-                // but that's not straightforward without changing the architecture significantly.
-                // For now, just clear if it matches (this won't work correctly for continue)
                 context.TryClearContinue(labelName);
             }
 
@@ -416,7 +444,7 @@ public static class JsEvaluator
         }
     }
 
-    private static object? EvaluateFor(Cons cons, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateFor(Cons cons, JsEnvironment environment, EvaluationContext context, Symbol? loopLabel = null)
     {
         var initializer = cons.Rest.Head;
         var conditionExpression = cons.Rest.Rest.Head;
@@ -444,8 +472,9 @@ public static class JsEvaluator
 
             if (context.CurrentSignal is ContinueSignal continueSignal)
             {
-                // Clear if: no label, OR label matches current enclosing label
-                if (continueSignal.Label is null)
+                // Clear if this loop owns the continue or if it's unlabeled (innermost loop)
+                if (continueSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(continueSignal.Label, loopLabel)))
                 {
                     context.ClearContinue();
                     if (incrementExpression is not null)
@@ -454,18 +483,21 @@ public static class JsEvaluator
                     }
                     continue;
                 }
+
                 // Has a different label, let it propagate up
                 break;
             }
 
             if (context.CurrentSignal is BreakSignal breakSignal)
             {
-                // Clear if: no label, OR label matches current enclosing label
-                if (breakSignal.Label is null)
+                // Clear if this loop owns the break or if it's unlabeled (innermost loop)
+                if (breakSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(breakSignal.Label, loopLabel)))
                 {
                     context.ClearBreak();
                     break;
                 }
+
                 // Has a different label, let it propagate up
                 break;
             }
@@ -484,7 +516,7 @@ public static class JsEvaluator
         return lastResult;
     }
 
-    private static object? EvaluateForIn(Cons cons, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateForIn(Cons cons, JsEnvironment environment, EvaluationContext context, Symbol? loopLabel = null)
     {
         // (for-in (let/var/const variable) iterable body) OR (for-in identifier iterable body)
         var firstArg = cons.Rest.Head;
@@ -561,25 +593,29 @@ public static class JsEvaluator
 
             if (context.CurrentSignal is ContinueSignal continueSignal)
             {
-                // Only clear if the continue has no label
-                if (continueSignal.Label is null)
+                // Clear if this loop owns the continue or if it's unlabeled (innermost loop)
+                if (continueSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(continueSignal.Label, loopLabel)))
                 {
                     context.ClearContinue();
                     continue;
                 }
-                // Has a label, let it propagate up
+
+                // Has a different label, let it propagate up
                 break;
             }
 
             if (context.CurrentSignal is BreakSignal breakSignal)
             {
-                // Only clear if the break has no label
-                if (breakSignal.Label is null)
+                // Clear if this loop owns the break or if it's unlabeled (innermost loop)
+                if (breakSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(breakSignal.Label, loopLabel)))
                 {
                     context.ClearBreak();
                     break;
                 }
-                // Has a label, let it propagate up
+
+                // Has a different label, let it propagate up
                 break;
             }
 
@@ -592,7 +628,7 @@ public static class JsEvaluator
         return lastResult;
     }
 
-    private static object? EvaluateForOf(Cons cons, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateForOf(Cons cons, JsEnvironment environment, EvaluationContext context, Symbol? loopLabel = null)
     {
         // (for-of (let/var/const variable) iterable body) OR (for-of identifier iterable body)
         var firstArg = cons.Rest.Head;
@@ -659,25 +695,29 @@ public static class JsEvaluator
 
             if (context.CurrentSignal is ContinueSignal continueSignal)
             {
-                // Only clear if the continue has no label
-                if (continueSignal.Label is null)
+                // Clear if this loop owns the continue or if it's unlabeled (innermost loop)
+                if (continueSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(continueSignal.Label, loopLabel)))
                 {
                     context.ClearContinue();
                     continue;
                 }
-                // Has a label, let it propagate up
+
+                // Has a different label, let it propagate up
                 break;
             }
 
             if (context.CurrentSignal is BreakSignal breakSignal)
             {
-                // Only clear if the break has no label
-                if (breakSignal.Label is null)
+                // Clear if this loop owns the break or if it's unlabeled (innermost loop)
+                if (breakSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(breakSignal.Label, loopLabel)))
                 {
                     context.ClearBreak();
                     break;
                 }
-                // Has a label, let it propagate up
+
+                // Has a different label, let it propagate up
                 break;
             }
 
@@ -690,7 +730,7 @@ public static class JsEvaluator
         return lastResult;
     }
 
-    private static object? EvaluateForAwaitOf(Cons cons, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateForAwaitOf(Cons cons, JsEnvironment environment, EvaluationContext context, Symbol? loopLabel = null)
     {
         // (for-await-of (let/var/const variable) iterable body) OR (for-await-of identifier iterable body)
         // This implements async iteration with support for:
@@ -809,25 +849,29 @@ public static class JsEvaluator
 
                     if (context.CurrentSignal is ContinueSignal continueSignal)
                     {
-                        // Only clear if the continue has no label
-                        if (continueSignal.Label is null)
+                        // Clear if this loop owns the continue or if it's unlabeled (innermost loop)
+                        if (continueSignal.Label is null ||
+                            (loopLabel is not null && ReferenceEquals(continueSignal.Label, loopLabel)))
                         {
                             context.ClearContinue();
                             continue;
                         }
-                        // Has a label, let it propagate up
+
+                        // Has a different label, let it propagate up
                         break;
                     }
 
                     if (context.CurrentSignal is BreakSignal breakSignal)
                     {
-                        // Only clear if the break has no label
-                        if (breakSignal.Label is null)
+                        // Clear if this loop owns the break or if it's unlabeled (innermost loop)
+                        if (breakSignal.Label is null ||
+                            (loopLabel is not null && ReferenceEquals(breakSignal.Label, loopLabel)))
                         {
                             context.ClearBreak();
                             break;
                         }
-                        // Has a label, let it propagate up
+
+                        // Has a different label, let it propagate up
                         break;
                     }
 
@@ -912,15 +956,31 @@ public static class JsEvaluator
 
             lastResult = EvaluateStatement(body, loopJsEnvironment, context);
 
-            if (context.IsContinue)
+            if (context.CurrentSignal is ContinueSignal continueSignal)
             {
-                context.ClearContinue();
-                continue;
+                // Clear if this loop owns the continue or if it's unlabeled (innermost loop)
+                if (continueSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(continueSignal.Label, loopLabel)))
+                {
+                    context.ClearContinue();
+                    continue;
+                }
+
+                // Has a different label, let it propagate up
+                break;
             }
 
-            if (context.IsBreak)
+            if (context.CurrentSignal is BreakSignal breakSignal)
             {
-                context.ClearBreak();
+                // Clear if this loop owns the break or if it's unlabeled (innermost loop)
+                if (breakSignal.Label is null ||
+                    (loopLabel is not null && ReferenceEquals(breakSignal.Label, loopLabel)))
+                {
+                    context.ClearBreak();
+                    break;
+                }
+
+                // Has a different label, let it propagate up
                 break;
             }
 

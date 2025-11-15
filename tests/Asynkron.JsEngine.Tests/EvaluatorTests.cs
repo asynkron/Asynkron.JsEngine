@@ -1557,12 +1557,13 @@ public class EvaluatorTests
         var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
-                                           let d = new Date("2024-01-01T00:00:00.000Z");
+                                           let d = new Date(2024, 0, 1);
                                            d.toISOString();
 
                                            """);
         Assert.IsType<string>(result);
-        Assert.Contains("2024", (string)result);
+        // Verify the result matches ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ)
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$", (string)result);
     }
 
     [Fact(Timeout = 2000)]

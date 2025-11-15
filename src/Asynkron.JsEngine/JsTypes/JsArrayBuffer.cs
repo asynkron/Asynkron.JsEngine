@@ -1,11 +1,16 @@
+using System;
+using Asynkron.JsEngine;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Represents a JavaScript ArrayBuffer - a fixed-length raw binary data buffer.
 /// </summary>
-public sealed class JsArrayBuffer
+public sealed class JsArrayBuffer : IJsPropertyAccessor
 {
     private readonly byte[] _buffer;
+    private readonly JsObject _properties = new();
+    private readonly HostFunction _sliceFunction;
 
     /// <summary>
     /// Creates a new ArrayBuffer with the specified length in bytes.
@@ -18,6 +23,15 @@ public sealed class JsArrayBuffer
         }
 
         _buffer = new byte[byteLength];
+
+        _sliceFunction = new HostFunction((thisValue, args) =>
+        {
+            var target = thisValue as JsArrayBuffer ?? this;
+            var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : target.ByteLength;
+
+            return target.Slice(begin, end);
+        });
     }
 
     /// <summary>
@@ -29,6 +43,14 @@ public sealed class JsArrayBuffer
     /// Gets the underlying byte array.
     /// </summary>
     public byte[] Buffer => _buffer;
+
+    /// <summary>
+    /// Allows external callers to attach a prototype object.
+    /// </summary>
+    public void SetPrototype(object? candidate)
+    {
+        _properties.SetPrototype(candidate);
+    }
 
     /// <summary>
     /// Creates a copy of this ArrayBuffer containing a slice of the data.
@@ -46,5 +68,36 @@ public sealed class JsArrayBuffer
         Array.Copy(_buffer, relativeStart, newBuffer._buffer, 0, newLen);
 
         return newBuffer;
+    }
+
+    public bool TryGetProperty(string name, out object? value)
+    {
+        if (_properties.TryGetProperty(name, out value))
+        {
+            return true;
+        }
+
+        switch (name)
+        {
+            case "byteLength":
+                value = (double)ByteLength;
+                return true;
+            case "slice":
+                value = _sliceFunction;
+                return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    public void SetProperty(string name, object? value)
+    {
+        if (string.Equals(name, "byteLength", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Cannot assign to read-only property 'byteLength' on ArrayBuffer.");
+        }
+
+        _properties.SetProperty(name, value);
     }
 }

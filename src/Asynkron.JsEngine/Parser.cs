@@ -971,13 +971,14 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         }
         else
         {
-            initializer = ParseExpressionStatement();
+            initializer = ParseSequenceExpression();
+            Consume(TokenType.Semicolon, "Expected ';' after for loop initializer.");
         }
 
         object? condition = null;
         if (!Check(TokenType.Semicolon))
         {
-            condition = ParseExpression();
+            condition = ParseSequenceExpression();
         }
 
         Consume(TokenType.Semicolon, "Expected ';' after for loop condition.");

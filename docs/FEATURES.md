@@ -1244,6 +1244,24 @@ caseInsensitive.test('HELLO'); // true
 
 // Global flag
 let global = /[0-9]+/g;
+
+// Escape sequences - special regex characters can be escaped
+let dotPattern = /\./;
+dotPattern.test('file.txt'); // true - matches literal dot
+
+let starPattern = /\*/;
+starPattern.test('2*3'); // true - matches literal asterisk
+
+let questionPattern = /\?/;
+questionPattern.test('what?'); // true - matches literal question mark
+
+// Complex escape sequences
+let complexPattern = /\.\*\?$/;
+'test.*?'.replace(complexPattern, '*'); // 'test*'
+
+// Multiple escapes with character classes and anchors
+let advancedPattern = /^\w+\.\*\?\w+$/;
+advancedPattern.test('start.*?end'); // true
 ```
 
 ### Methods

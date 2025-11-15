@@ -363,7 +363,7 @@ public sealed class JsEngine : IAsyncDisposable
                 }
                 else
                 {
-                    result = Evaluator.EvaluateProgram(program, _global);
+                    result = JsEvaluator.EvaluateProgram(program, _global);
                 }
 
                 tcs.SetResult(result);
@@ -798,7 +798,7 @@ public sealed class JsEngine : IAsyncDisposable
                             // It's a named function or class declaration
                             // Evaluate it to define it in the environment
                             var declProgram = Cons.FromEnumerable([JsSymbols.Program, expression]);
-                            Evaluator.EvaluateProgram(declProgram, moduleEnv);
+                            JsEvaluator.EvaluateProgram(declProgram, moduleEnv);
 
                             // Get the defined value from the environment
                             var name = exprCons.Rest.Head as Symbol;
@@ -819,7 +819,7 @@ public sealed class JsEngine : IAsyncDisposable
                                 JsSymbols.Program,
                                 Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])
                             ]);
-                            value = Evaluator.EvaluateProgram(exprProgram, moduleEnv);
+                            value = JsEvaluator.EvaluateProgram(exprProgram, moduleEnv);
                         }
                     }
                     else
@@ -829,7 +829,7 @@ public sealed class JsEngine : IAsyncDisposable
                             JsSymbols.Program,
                             Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])
                         ]);
-                        value = Evaluator.EvaluateProgram(exprProgram, moduleEnv);
+                        value = JsEvaluator.EvaluateProgram(exprProgram, moduleEnv);
                     }
 
                     exports["default"] = value;
@@ -898,7 +898,7 @@ public sealed class JsEngine : IAsyncDisposable
 
                     // Evaluate the declaration
                     var declProgram = Cons.FromEnumerable([JsSymbols.Program, declaration]);
-                    Evaluator.EvaluateProgram(declProgram, moduleEnv);
+                    JsEvaluator.EvaluateProgram(declProgram, moduleEnv);
 
                     // Extract the declared names and add to exports
                     if (declaration is Cons { Head: Symbol declHead } declCons)
@@ -943,14 +943,14 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     // Regular statement - just evaluate it
                     var stmtProgram = Cons.FromEnumerable([JsSymbols.Program, stmt]);
-                    lastValue = Evaluator.EvaluateProgram(stmtProgram, moduleEnv);
+                    lastValue = JsEvaluator.EvaluateProgram(stmtProgram, moduleEnv);
                 }
             }
             else
             {
                 // Regular statement - just evaluate it
                 var stmtProgram = Cons.FromEnumerable([JsSymbols.Program, stmt]);
-                lastValue = Evaluator.EvaluateProgram(stmtProgram, moduleEnv);
+                lastValue = JsEvaluator.EvaluateProgram(stmtProgram, moduleEnv);
             }
 
             statements = statements.Rest;
@@ -984,7 +984,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         var defaultImport = importCons.Rest.Rest.Head as Symbol;
         var namespaceImport = !importCons.Rest.Rest.Rest.IsEmpty ? importCons.Rest.Rest.Rest.Head as Symbol : null;
-        var namedImports = !importCons.Rest.Rest.Rest.IsEmpty && !importCons.Rest.Rest.Rest.Rest.IsEmpty
+        var namedImports = importCons.Rest.Rest.Rest is { IsEmpty: false, Rest.IsEmpty: false }
             ? importCons.Rest.Rest.Rest.Rest.Head as Cons
             : null;
 

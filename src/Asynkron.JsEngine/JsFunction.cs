@@ -34,7 +34,7 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
         // JavaScript allows both more and fewer arguments than parameters
         // Missing arguments become undefined (null in our implementation)
         // Extra arguments are accessible via the arguments object
-        
+
         var context = new EvaluationContext();
         var functionDescription = _name != null ? $"function {_name.Name}" : "anonymous function";
         var environment = new JsEnvironment(_closure, true, creatingExpression: _body, description: functionDescription);
@@ -45,19 +45,18 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
             var parameter = _parameters[i];
             var argument = i < arguments.Count ? arguments[i] : null;
 
-            if (parameter is Symbol symbol)
+            switch (parameter)
+            {
                 // Simple parameter
-            {
-                environment.Define(symbol, argument);
-            }
-            else if (parameter is Cons pattern)
+                case Symbol symbol:
+                    environment.Define(symbol, argument);
+                    break;
                 // Destructuring parameter
-            {
-                Evaluator.DestructureParameter(pattern, argument, environment, context);
-            }
-            else
-            {
-                throw new InvalidOperationException($"Invalid parameter type: {parameter?.GetType().Name ?? "null"}");
+                case Cons pattern:
+                    JsEvaluator.DestructureParameter(pattern, argument, environment, context);
+                    break;
+                default:
+                    throw new InvalidOperationException($"Invalid parameter type: {parameter?.GetType().Name ?? "null"}");
             }
         }
 
@@ -97,7 +96,7 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
         // Hoist all var declarations before executing the function body
         HoistVariableDeclarations(_body, environment);
 
-        var result = Evaluator.EvaluateBlock(_body, environment, context);
+        var result = JsEvaluator.EvaluateBlock(_body, environment, context);
 
         if (context.IsReturn)
         {
@@ -132,7 +131,7 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
 
     private static void HoistFromStatementList(object? statements, JsEnvironment environment)
     {
-        while (statements is Cons cons && !cons.IsEmpty)
+        while (statements is Cons { IsEmpty: false } cons)
         {
             HoistFromStatement(cons.Head, environment);
             statements = cons.Rest;
@@ -141,161 +140,179 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable
 
     private static void HoistFromStatement(object? statement, JsEnvironment environment)
     {
-        if (statement is not Cons cons)
+        while (true)
         {
-            return;
-        }
-
-        if (cons.Head is not Symbol symbol)
-        {
-            return;
-        }
-
-        if (ReferenceEquals(symbol, JsSymbols.Var))
-        {
-            // Found a var declaration: (Var name initializer)
-            var target = cons.Rest.Head;
-            
-            // Handle simple identifier case
-            if (target is Symbol varName)
+            if (statement is not Cons cons)
             {
-                // Pre-declare the variable with undefined if it doesn't exist
-                if (!environment.TryGet(varName, out _))
+                return;
+            }
+
+            if (cons.Head is not Symbol symbol)
+            {
+                return;
+            }
+
+            if (ReferenceEquals(symbol, JsSymbols.Var))
+            {
+                // Found a var declaration: (Var name initializer)
+                var target = cons.Rest.Head;
+
+                // Handle simple identifier case
+                if (target is Symbol varName)
                 {
-                    environment.Define(varName, JsSymbols.Undefined);
+                    // Pre-declare the variable with undefined if it doesn't exist
+                    if (!environment.TryGet(varName, out _))
+                    {
+                        environment.Define(varName, JsSymbols.Undefined);
+                    }
+                }
+                // Handle destructuring patterns
+                else if (target is Cons { Head: Symbol patternSymbol } patternCons && (ReferenceEquals(patternSymbol, JsSymbols.ArrayPattern) || ReferenceEquals(patternSymbol, JsSymbols.ObjectPattern)))
+                {
+                    // Hoist identifiers from destructuring pattern
+                    HoistFromDestructuringPattern(patternCons, environment);
                 }
             }
-            // Handle destructuring patterns
-            else if (target is Cons patternCons && patternCons.Head is Symbol patternSymbol &&
-                     (ReferenceEquals(patternSymbol, JsSymbols.ArrayPattern) ||
-                      ReferenceEquals(patternSymbol, JsSymbols.ObjectPattern)))
+            else if (ReferenceEquals(symbol, JsSymbols.Block))
             {
-                // Hoist identifiers from destructuring pattern
-                HoistFromDestructuringPattern(patternCons, environment);
+                // Recursively hoist from nested blocks
+                HoistFromStatementList(cons.Rest, environment);
             }
-        }
-        else if (ReferenceEquals(symbol, JsSymbols.Block))
-        {
-            // Recursively hoist from nested blocks
-            HoistFromStatementList(cons.Rest, environment);
-        }
-        else if (ReferenceEquals(symbol, JsSymbols.If))
-        {
-            // Hoist from if branches: (If condition thenBranch elseBranch)
-            var thenBranch = cons.Rest.Rest.Head;
-            HoistFromStatement(thenBranch, environment);
-            
-            // Check if we have an else branch
-            if (cons.Rest.Rest.Rest is Cons elseCons && !elseCons.IsEmpty)
+            else if (ReferenceEquals(symbol, JsSymbols.If))
             {
-                var elseBranch = elseCons.Head;
-                if (elseBranch != null)
+                // Hoist from if branches: (If condition thenBranch elseBranch)
+                var thenBranch = cons.Rest.Rest.Head;
+                HoistFromStatement(thenBranch, environment);
+
+                // Check if we have an else branch
+                if (cons.Rest.Rest.Rest is { IsEmpty: false } elseCons)
                 {
-                    HoistFromStatement(elseBranch, environment);
+                    var elseBranch = elseCons.Head;
+                    if (elseBranch != null)
+                    {
+                        statement = elseBranch;
+                        continue;
+                    }
                 }
             }
-        }
-        else if (ReferenceEquals(symbol, JsSymbols.For))
-        {
-            // Hoist from for loop body: (For init condition update body)
-            var body = cons.Rest.Rest.Rest.Rest.Head;
-            HoistFromStatement(body, environment);
-        }
-        else if (ReferenceEquals(symbol, JsSymbols.ForIn) || ReferenceEquals(symbol, JsSymbols.ForOf))
-        {
-            // Hoist from for-in/for-of loop body: (ForIn variable iterable body)
-            var body = cons.Rest.Rest.Rest.Head;
-            HoistFromStatement(body, environment);
-        }
-        else if (ReferenceEquals(symbol, JsSymbols.While) || ReferenceEquals(symbol, JsSymbols.DoWhile))
-        {
-            // Hoist from while loop body: (While condition body)
-            var body = cons.Rest.Rest.Head;
-            HoistFromStatement(body, environment);
-        }
-        else if (ReferenceEquals(symbol, JsSymbols.Switch))
-        {
-            // Hoist from switch cases: (Switch expr (Case value body)* (Default body)?)
-            var cases = cons.Rest.Rest;
-            HoistFromStatementList(cases, environment);
-        }
-        else if (ReferenceEquals(symbol, JsSymbols.Case) || ReferenceEquals(symbol, JsSymbols.Default))
-        {
-            // Hoist from case body
-            var caseBody = cons.Rest.Rest.Head;
-            HoistFromStatement(caseBody, environment);
-        }
-        else if (ReferenceEquals(symbol, JsSymbols.Try))
-        {
-            // Hoist from try/catch/finally blocks: (Try tryBlock catchClause finallyBlock)
-            var tryBlock = cons.Rest.Head;
-            HoistFromStatement(tryBlock, environment);
-            
-            var catchBlock = cons.Rest.Rest.Head;
-            if (catchBlock is Cons catchCons && catchCons.Head is Symbol catchSymbol &&
-                ReferenceEquals(catchSymbol, JsSymbols.Catch))
+            else if (ReferenceEquals(symbol, JsSymbols.For))
             {
-                var catchBody = catchCons.Rest.Rest.Head;
-                HoistFromStatement(catchBody, environment);
+                // Hoist from for loop body: (For init condition update body)
+                var body = cons.Rest.Rest.Rest.Rest.Head;
+                statement = body;
+                continue;
             }
-            
-            var finallyBlock = cons.Rest.Rest.Rest.Head;
-            if (finallyBlock is Cons)
+            else if (ReferenceEquals(symbol, JsSymbols.ForIn) || ReferenceEquals(symbol, JsSymbols.ForOf))
             {
-                HoistFromStatement(finallyBlock, environment);
+                // Hoist from for-in/for-of loop body: (ForIn variable iterable body)
+                var body = cons.Rest.Rest.Rest.Head;
+                statement = body;
+                continue;
             }
+            else if (ReferenceEquals(symbol, JsSymbols.While) || ReferenceEquals(symbol, JsSymbols.DoWhile))
+            {
+                // Hoist from while loop body: (While condition body)
+                var body = cons.Rest.Rest.Head;
+                statement = body;
+                continue;
+            }
+            else if (ReferenceEquals(symbol, JsSymbols.Switch))
+            {
+                // Hoist from switch cases: (Switch expr (Case value body)* (Default body)?)
+                var cases = cons.Rest.Rest;
+                HoistFromStatementList(cases, environment);
+            }
+            else if (ReferenceEquals(symbol, JsSymbols.Case) || ReferenceEquals(symbol, JsSymbols.Default))
+            {
+                // Hoist from case body
+                var caseBody = cons.Rest.Rest.Head;
+                statement = caseBody;
+                continue;
+            }
+            else if (ReferenceEquals(symbol, JsSymbols.Try))
+            {
+                // Hoist from try/catch/finally blocks: (Try tryBlock catchClause finallyBlock)
+                var tryBlock = cons.Rest.Head;
+                HoistFromStatement(tryBlock, environment);
+
+                var catchBlock = cons.Rest.Rest.Head;
+                if (catchBlock is Cons { Head: Symbol catchSymbol } catchCons && ReferenceEquals(catchSymbol, JsSymbols.Catch))
+                {
+                    var catchBody = catchCons.Rest.Rest.Head;
+                    HoistFromStatement(catchBody, environment);
+                }
+
+                var finallyBlock = cons.Rest.Rest.Rest.Head;
+                if (finallyBlock is Cons)
+                {
+                    statement = finallyBlock;
+                    continue;
+                }
+            }
+
+            break;
         }
     }
 
     private static void HoistFromDestructuringPattern(Cons pattern, JsEnvironment environment)
     {
         // Extract identifiers from destructuring patterns and pre-declare them
-        if (pattern.Head is Symbol patternSymbol)
+        if (pattern.Head is not Symbol patternSymbol)
         {
-            if (ReferenceEquals(patternSymbol, JsSymbols.ArrayPattern))
+            return;
+        }
+
+        if (ReferenceEquals(patternSymbol, JsSymbols.ArrayPattern))
+        {
+            // (ArrayPattern element1 element2 ...)
+            var elements = pattern.Rest;
+            while (elements is { } elementCons)
             {
-                // (ArrayPattern element1 element2 ...)
-                var elements = pattern.Rest;
-                while (elements is Cons elementCons)
+                var element = elementCons.Head;
+                switch (element)
                 {
-                    var element = elementCons.Head;
-                    if (element is Symbol identifier)
+                    case Symbol identifier:
                     {
                         if (!environment.TryGet(identifier, out _))
                         {
                             environment.Define(identifier, JsSymbols.Undefined);
                         }
+
+                        break;
                     }
-                    else if (element is Cons nestedPattern)
-                    {
+                    case Cons nestedPattern:
                         HoistFromDestructuringPattern(nestedPattern, environment);
-                    }
-                    elements = elementCons.Rest;
+                        break;
                 }
+                elements = elementCons.Rest;
             }
-            else if (ReferenceEquals(patternSymbol, JsSymbols.ObjectPattern))
+        }
+        else if (ReferenceEquals(patternSymbol, JsSymbols.ObjectPattern))
+        {
+            // (ObjectPattern (key value) ...)
+            var properties = pattern.Rest;
+            while (properties is Cons propertyCons)
             {
-                // (ObjectPattern (key value) ...)
-                var properties = pattern.Rest;
-                while (properties is Cons propertyCons)
+                if (propertyCons.Head is Cons property)
                 {
-                    if (propertyCons.Head is Cons property)
+                    var value = property.Rest.Head;
+                    switch (value)
                     {
-                        var value = property.Rest.Head;
-                        if (value is Symbol identifier)
+                        case Symbol identifier:
                         {
                             if (!environment.TryGet(identifier, out _))
                             {
                                 environment.Define(identifier, JsSymbols.Undefined);
                             }
+
+                            break;
                         }
-                        else if (value is Cons nestedPattern)
-                        {
+                        case Cons nestedPattern:
                             HoistFromDestructuringPattern(nestedPattern, environment);
-                        }
+                            break;
                     }
-                    properties = propertyCons.Rest;
                 }
+                properties = propertyCons.Rest;
             }
         }
     }

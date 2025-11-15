@@ -181,7 +181,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         // Check if property has a descriptor that makes it non-writable
         if (_descriptors.TryGetValue(name, out var descriptor))
         {
-            if (descriptor.IsAccessorDescriptor && descriptor.Set != null)
+            if (descriptor is { IsAccessorDescriptor: true, Set: not null })
                 // Call setter
             {
                 return; // Setter will be called elsewhere

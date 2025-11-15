@@ -14,7 +14,7 @@ public class OptionalChainingTests
                                                        obj?.name;
                                                    
                                            """);
-        Assert.True(result is Symbol sym && sym.Name == "undefined");
+        Assert.True(result is Symbol { Name: "undefined" });
     }
 
     [Fact(Timeout = 2000)]
@@ -53,7 +53,7 @@ public class OptionalChainingTests
                                                        obj?.user?.name;
                                                    
                                            """);
-        Assert.True(result is Symbol sym && sym.Name == "undefined");
+        Assert.True(result is Symbol { Name: "undefined" });
     }
 
     [Fact(Timeout = 2000)]
@@ -66,7 +66,7 @@ public class OptionalChainingTests
                                                        obj?.();
                                                    
                                            """);
-        Assert.True(result is Symbol sym && sym.Name == "undefined");
+        Assert.True(result is Symbol { Name: "undefined" });
     }
 
     [Fact(Timeout = 2000)]
@@ -94,7 +94,7 @@ public class OptionalChainingTests
                                                        arr?.[0];
                                                    
                                            """);
-        Assert.True(result is Symbol sym && sym.Name == "undefined");
+        Assert.True(result is Symbol { Name: "undefined" });
     }
 
     [Fact(Timeout = 2000)]
@@ -136,6 +136,6 @@ public class OptionalChainingTests
                                                        obj?.name;
                                                    
                                            """);
-        Assert.True(result is Symbol sym && sym.Name == "undefined");
+        Assert.True(result is Symbol { Name: "undefined" });
     }
 }

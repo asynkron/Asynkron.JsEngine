@@ -251,10 +251,10 @@ public static class JsEvaluator
 
     private static object? EvaluateIf(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
-        var conditionExpression = cons.Rest.Head;
-        var thenBranch = cons.Rest.Rest.Head;
-        var elseBranchCons = cons.Rest.Rest.Rest;
-        var elseBranch = elseBranchCons.IsEmpty ? null : elseBranchCons.Head;
+        if (!cons.TryAsIfStatement(out var conditionExpression, out var thenBranch, out var elseBranch))
+        {
+            throw new InvalidOperationException($"If expression is malformed.{GetSourceInfo(context)}");
+        }
 
         var condition = EvaluateExpression(conditionExpression, environment, context);
         if (IsTruthy(condition))
@@ -272,8 +272,10 @@ public static class JsEvaluator
 
     private static object? EvaluateWhile(Cons cons, JsEnvironment environment, EvaluationContext context, Symbol? loopLabel = null)
     {
-        var conditionExpression = cons.Rest.Head;
-        var body = cons.Rest.Rest.Head;
+        if (!cons.TryAsWhileStatement(out var conditionExpression, out var body))
+        {
+            throw new InvalidOperationException($"While loop must have a condition and body.{GetSourceInfo(context)}");
+        }
 
         object? lastResult = null;
         while (IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
@@ -327,8 +329,10 @@ public static class JsEvaluator
 
     private static object? EvaluateDoWhile(Cons cons, JsEnvironment environment, EvaluationContext context, Symbol? loopLabel = null)
     {
-        var conditionExpression = cons.Rest.Head;
-        var body = cons.Rest.Rest.Head;
+        if (!cons.TryAsDoWhileStatement(out var conditionExpression, out var body))
+        {
+            throw new InvalidOperationException($"Do/while loop must have a condition and body.{GetSourceInfo(context)}");
+        }
 
         object? lastResult = null;
         while (true)
@@ -379,13 +383,9 @@ public static class JsEvaluator
 
     private static object? EvaluateLabel(Cons cons, JsEnvironment environment, EvaluationContext context)
     {
-        // (label labelName statement)
-        var labelName = cons.Rest.Head as Symbol;
-        var statement = cons.Rest.Rest.Head;
-
-        if (labelName is null)
+        if (!cons.TryAsLabelStatement(out var labelName, out var statement))
         {
-            throw new Exception("Label statement must have a label name.");
+            throw new InvalidOperationException($"Label statement must include a symbol name and a statement.{GetSourceInfo(context)}");
         }
 
         // Push the label onto the context stack
@@ -458,10 +458,11 @@ public static class JsEvaluator
 
     private static object? EvaluateFor(Cons cons, JsEnvironment environment, EvaluationContext context, Symbol? loopLabel = null)
     {
-        var initializer = cons.Rest.Head;
-        var conditionExpression = cons.Rest.Rest.Head;
-        var incrementExpression = cons.Rest.Rest.Rest.Head;
-        var body = cons.Rest.Rest.Rest.Rest.Head;
+        if (!cons.TryAsForStatement(out var initializer, out var conditionExpression, out var incrementExpression,
+                out var body))
+        {
+            throw new InvalidOperationException($"For loop must have initializer, condition, increment, and body.{GetSourceInfo(context)}");
+        }
 
         // Create environment for the loop, passing the for loop S-expression
         var loopJsEnvironment = new JsEnvironment(environment, creatingExpression: cons, description: "for loop");
@@ -531,7 +532,10 @@ public static class JsEvaluator
     private static object? EvaluateForIn(Cons cons, JsEnvironment environment, EvaluationContext context, Symbol? loopLabel = null)
     {
         // (for-in (let/var/const variable) iterable body) OR (for-in identifier iterable body)
-        var firstArg = cons.Rest.Head;
+        if (!cons.TryAsForInStatement(out var firstArg, out var iterableExpression, out var body))
+        {
+            throw new InvalidOperationException($"for...in loop must include a binding, iterable expression, and body.{GetSourceInfo(context)}");
+        }
         Symbol variableName;
 
         // Check if first argument is a variable declaration or just an identifier
@@ -549,9 +553,6 @@ public static class JsEvaluator
         {
             throw new InvalidOperationException($"Expected variable declaration or identifier in for...in loop.{GetSourceInfo(context)}");
         }
-
-        var iterableExpression = cons.Rest.Rest.Head;
-        var body = cons.Rest.Rest.Rest.Head;
 
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
@@ -643,7 +644,10 @@ public static class JsEvaluator
     private static object? EvaluateForOf(Cons cons, JsEnvironment environment, EvaluationContext context, Symbol? loopLabel = null)
     {
         // (for-of (let/var/const variable) iterable body) OR (for-of identifier iterable body)
-        var firstArg = cons.Rest.Head;
+        if (!cons.TryAsForOfStatement(out var firstArg, out var iterableExpression, out var body))
+        {
+            throw new InvalidOperationException($"for...of loop must include a binding, iterable expression, and body.{GetSourceInfo(context)}");
+        }
 
         var variableName = firstArg switch
         {
@@ -654,9 +658,6 @@ public static class JsEvaluator
             _ => throw new InvalidOperationException(
                 $"Expected variable declaration or identifier in for...of loop.{GetSourceInfo(context)}")
         };
-
-        var iterableExpression = cons.Rest.Rest.Head;
-        var body = cons.Rest.Rest.Rest.Head;
 
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
@@ -749,7 +750,10 @@ public static class JsEvaluator
         // 1. Symbol.asyncIterator protocol
         // 2. Fallback to Symbol.iterator
         // 3. Built-in iterables (arrays, strings, generators)
-        var firstArg = cons.Rest.Head;
+        if (!cons.TryAsForAwaitOfStatement(out var firstArg, out var iterableExpression, out var body))
+        {
+            throw new InvalidOperationException($"for await...of loop must include a binding, iterable expression, and body.{GetSourceInfo(context)}");
+        }
 
         var variableName = firstArg switch
         {
@@ -760,9 +764,6 @@ public static class JsEvaluator
             _ => throw new InvalidOperationException(
                 $"Expected variable declaration or identifier in for await...of loop.{GetSourceInfo(context)}")
         };
-
-        var iterableExpression = cons.Rest.Rest.Head;
-        var body = cons.Rest.Rest.Rest.Head;
 
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);

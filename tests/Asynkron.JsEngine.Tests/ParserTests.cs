@@ -494,6 +494,26 @@ public class ParserTests
     }
 
     [Fact(Timeout = 2000)]
+    public Task ParseFunctionCallWithTrailingComma()
+    {
+        var engine = new JsEngine();
+        var program = engine.Parse("foo(1,);");
+
+        var exprStmt = Assert.IsType<Cons>(program.Rest.Head);
+        var callExpr = Assert.IsType<Cons>(exprStmt.Rest.Head);
+        Assert.Same(JsSymbols.Call, callExpr.Head);
+
+        // Callee symbol should remain intact
+        Assert.Equal(Symbol.Intern("foo"), callExpr.Rest.Head);
+
+        // Single argument survives even with trailing comma
+        Assert.Equal(1d, callExpr.Rest.Rest.Head);
+        Assert.Same(Cons.Empty, callExpr.Rest.Rest.Rest);
+
+        return Task.CompletedTask;
+    }
+
+    [Fact(Timeout = 2000)]
     public Task ParseCommaSeparatedVarDeclarations()
     {
         var engine = new JsEngine();

@@ -90,7 +90,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -123,7 +127,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -154,7 +162,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -186,7 +198,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -247,7 +263,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -281,7 +301,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -321,7 +345,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -427,7 +455,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -520,7 +552,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -556,7 +592,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -600,7 +640,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -641,7 +685,10 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("addResult", args =>
         {
-            if (args.Count > 0) results.Add(args[0]?.ToString() ?? "");
+            if (args.Count > 0)
+            {
+                results.Add(args[0]?.ToString() ?? "");
+            }
 
             return null;
         });
@@ -685,7 +732,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 
@@ -732,7 +783,11 @@ public class AsyncAwaitTests
 
         engine.SetGlobalFunction("captureResult", args =>
         {
-            if (args.Count > 0) result = args[0]?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                result = args[0]?.ToString() ?? "";
+            }
+
             return null;
         });
 

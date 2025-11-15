@@ -67,7 +67,9 @@ public sealed class JsGenerator : IJsCallable
     {
         if (_done)
             // Generator is already completed
+        {
             return CreateIteratorResult(null, true);
+        }
 
         if (_state == GeneratorState.Completed)
         {
@@ -179,15 +181,24 @@ public sealed class JsGenerator : IJsCallable
 
             // Check if this is a rest parameter (wrapped in a rest cons)
             if (param is Cons paramCons && !paramCons.IsEmpty)
+            {
                 if (paramCons.Head is Symbol paramSymbol && paramSymbol.Name == "rest")
                 {
                     // This is a rest parameter
-                    if (paramCons.Rest.Head is Symbol restSymbol) restParam = restSymbol;
+                    if (paramCons.Rest.Head is Symbol restSymbol)
+                    {
+                        restParam = restSymbol;
+                    }
+
                     break; // Rest param must be last
                 }
+            }
 
             // Regular parameter
-            if (param is Symbol symbol) regularParams.Add(symbol);
+            if (param is Symbol symbol)
+            {
+                regularParams.Add(symbol);
+            }
 
             current = current.Rest;
         }

@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine;
 public sealed class JsMap
 {
     // Use List to maintain insertion order
-    private readonly List<KeyValuePair<object?, object?>> _entries = new();
+    private readonly List<KeyValuePair<object?, object?>> _entries = [];
     private readonly JsObject _properties = new();
 
     /// <summary>
@@ -50,8 +50,12 @@ public sealed class JsMap
     public object? Get(object? key)
     {
         foreach (var entry in _entries)
+        {
             if (SameValueZero(entry.Key, key))
+            {
                 return entry.Value;
+            }
+        }
 
         return JsSymbols.Undefined;
     }
@@ -62,8 +66,12 @@ public sealed class JsMap
     public bool Has(object? key)
     {
         foreach (var entry in _entries)
+        {
             if (SameValueZero(entry.Key, key))
+            {
                 return true;
+            }
+        }
 
         return false;
     }
@@ -97,7 +105,10 @@ public sealed class JsMap
     /// </summary>
     public void ForEach(IJsCallable callback, object? thisArg)
     {
-        foreach (var entry in _entries) callback.Invoke([entry.Value, entry.Key, this], thisArg);
+        foreach (var entry in _entries)
+        {
+            callback.Invoke([entry.Value, entry.Key, this], thisArg);
+        }
     }
 
     /// <summary>
@@ -140,17 +151,33 @@ public sealed class JsMap
     private static bool SameValueZero(object? x, object? y)
     {
         // Handle null/undefined
-        if (x == null && y == null) return true;
-        if (x == null || y == null) return false;
+        if (x == null && y == null)
+        {
+            return true;
+        }
+
+        if (x == null || y == null)
+        {
+            return false;
+        }
 
         // Handle NaN (NaN is equal to NaN in SameValueZero)
-        if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy)) return true;
+        if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy))
+        {
+            return true;
+        }
 
         // Handle strings - use value equality
-        if (x is string sx && y is string sy) return sx == sy;
+        if (x is string sx && y is string sy)
+        {
+            return sx == sy;
+        }
 
         // For reference types, use reference equality
-        if (!x.GetType().IsValueType || !y.GetType().IsValueType) return ReferenceEquals(x, y);
+        if (!x.GetType().IsValueType || !y.GetType().IsValueType)
+        {
+            return ReferenceEquals(x, y);
+        }
 
         // For value types, use Equals
         return x.Equals(y);

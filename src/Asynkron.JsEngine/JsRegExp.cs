@@ -29,8 +29,15 @@ public class JsRegExp
 
         // Convert JavaScript regex flags to .NET RegexOptions
         var options = RegexOptions.None;
-        if (IgnoreCase) options |= RegexOptions.IgnoreCase;
-        if (Multiline) options |= RegexOptions.Multiline;
+        if (IgnoreCase)
+        {
+            options |= RegexOptions.IgnoreCase;
+        }
+
+        if (Multiline)
+        {
+            options |= RegexOptions.Multiline;
+        }
 
         try
         {
@@ -60,10 +67,16 @@ public class JsRegExp
     /// </summary>
     public bool Test(string input)
     {
-        if (input == null) return false;
+        if (input == null)
+        {
+            return false;
+        }
 
         var startIndex = Global && LastIndex > 0 ? LastIndex : 0;
-        if (startIndex > input.Length) startIndex = 0;
+        if (startIndex > input.Length)
+        {
+            startIndex = 0;
+        }
 
         var match = _regex.Match(input, startIndex);
 
@@ -86,7 +99,10 @@ public class JsRegExp
     /// </summary>
     public object? Exec(string input)
     {
-        if (input == null) return null;
+        if (input == null)
+        {
+            return null;
+        }
 
         var startIndex = Global && LastIndex > 0 ? LastIndex : 0;
         if (startIndex > input.Length)
@@ -143,7 +159,10 @@ public class JsRegExp
     /// </summary>
     internal JsArray MatchAll(string input)
     {
-        if (input == null) return new JsArray();
+        if (input == null)
+        {
+            return new JsArray();
+        }
 
         var result = new JsArray();
         var matches = _regex.Matches(input);

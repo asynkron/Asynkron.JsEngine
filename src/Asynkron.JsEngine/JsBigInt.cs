@@ -45,8 +45,16 @@ public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
 
     public static bool operator ==(JsBigInt? left, JsBigInt? right)
     {
-        if (ReferenceEquals(left, right)) return true;
-        if (left is null || right is null) return false;
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
         return left.Value == right.Value;
     }
 
@@ -93,13 +101,21 @@ public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
 
     public static JsBigInt operator /(JsBigInt left, JsBigInt right)
     {
-        if (right.Value == BigInteger.Zero) throw new DivideByZeroException("Division by zero");
+        if (right.Value == BigInteger.Zero)
+        {
+            throw new DivideByZeroException("Division by zero");
+        }
+
         return new JsBigInt(left.Value / right.Value);
     }
 
     public static JsBigInt operator %(JsBigInt left, JsBigInt right)
     {
-        if (right.Value == BigInteger.Zero) throw new DivideByZeroException("Division by zero");
+        if (right.Value == BigInteger.Zero)
+        {
+            throw new DivideByZeroException("Division by zero");
+        }
+
         return new JsBigInt(left.Value % right.Value);
     }
 
@@ -132,23 +148,37 @@ public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
     public static JsBigInt operator <<(JsBigInt left, int right)
     {
         // JavaScript behavior: negative shifts shift in the opposite direction
-        if (right < 0) return left >> -right;
+        if (right < 0)
+        {
+            return left >> -right;
+        }
+
         return new JsBigInt(left.Value << right);
     }
 
     public static JsBigInt operator >> (JsBigInt left, int right)
     {
         // JavaScript behavior: negative shifts shift in the opposite direction
-        if (right < 0) return left << -right;
+        if (right < 0)
+        {
+            return left << -right;
+        }
+
         return new JsBigInt(left.Value >> right);
     }
 
     public static JsBigInt Pow(JsBigInt baseValue, JsBigInt exponent)
     {
-        if (exponent.Value < 0) throw new InvalidOperationException("Exponent must be non-negative for BigInt");
+        if (exponent.Value < 0)
+        {
+            throw new InvalidOperationException("Exponent must be non-negative for BigInt");
+        }
 
         // BigInteger.Pow only accepts int, so we need to check the range
-        if (exponent.Value > int.MaxValue) throw new InvalidOperationException("Exponent is too large");
+        if (exponent.Value > int.MaxValue)
+        {
+            throw new InvalidOperationException("Exponent is too large");
+        }
 
         return new JsBigInt(BigInteger.Pow(baseValue.Value, (int)exponent.Value));
     }

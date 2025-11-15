@@ -59,7 +59,10 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         {
             debugMessages.Add(msg);
             output.WriteLine($"Debug message {debugMessages.Count}: {msg.Variables.Count} variables");
-            foreach (var kvp in msg.Variables) output.WriteLine($"  {kvp.Key} = {kvp.Value}");
+            foreach (var kvp in msg.Variables)
+            {
+                output.WriteLine($"  {kvp.Key} = {kvp.Value}");
+            }
         }
 
         output.WriteLine($"Total debug messages: {debugMessages.Count}");

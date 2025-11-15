@@ -19,12 +19,17 @@ public sealed class JsDataView
     {
         ArgumentNullException.ThrowIfNull(buffer);
 
-        if (byteOffset < 0 || byteOffset > buffer.ByteLength) throw new ArgumentOutOfRangeException(nameof(byteOffset));
+        if (byteOffset < 0 || byteOffset > buffer.ByteLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(byteOffset));
+        }
 
         var length = byteLength ?? buffer.ByteLength - byteOffset;
 
         if (length < 0 || byteOffset + length > buffer.ByteLength)
+        {
             throw new ArgumentOutOfRangeException(nameof(byteLength));
+        }
 
         _buffer = buffer;
         _byteOffset = byteOffset;
@@ -38,7 +43,9 @@ public sealed class JsDataView
     private void CheckBounds(int offset, int size)
     {
         if (offset < 0 || offset + size > _byteLength)
+        {
             throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside the bounds of the DataView");
+        }
     }
 
     // Int8
@@ -82,9 +89,13 @@ public sealed class JsDataView
         CheckBounds(byteOffset, 2);
         var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 2);
         if (littleEndian)
+        {
             BinaryPrimitives.WriteInt16LittleEndian(span, value);
+        }
         else
+        {
             BinaryPrimitives.WriteInt16BigEndian(span, value);
+        }
     }
 
     // Uint16
@@ -102,9 +113,13 @@ public sealed class JsDataView
         CheckBounds(byteOffset, 2);
         var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 2);
         if (littleEndian)
+        {
             BinaryPrimitives.WriteUInt16LittleEndian(span, value);
+        }
         else
+        {
             BinaryPrimitives.WriteUInt16BigEndian(span, value);
+        }
     }
 
     // Int32
@@ -122,9 +137,13 @@ public sealed class JsDataView
         CheckBounds(byteOffset, 4);
         var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
         if (littleEndian)
+        {
             BinaryPrimitives.WriteInt32LittleEndian(span, value);
+        }
         else
+        {
             BinaryPrimitives.WriteInt32BigEndian(span, value);
+        }
     }
 
     // Uint32
@@ -142,9 +161,13 @@ public sealed class JsDataView
         CheckBounds(byteOffset, 4);
         var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
         if (littleEndian)
+        {
             BinaryPrimitives.WriteUInt32LittleEndian(span, value);
+        }
         else
+        {
             BinaryPrimitives.WriteUInt32BigEndian(span, value);
+        }
     }
 
     // Float32
@@ -162,9 +185,13 @@ public sealed class JsDataView
         CheckBounds(byteOffset, 4);
         var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
         if (littleEndian)
+        {
             BinaryPrimitives.WriteSingleLittleEndian(span, value);
+        }
         else
+        {
             BinaryPrimitives.WriteSingleBigEndian(span, value);
+        }
     }
 
     // Float64
@@ -182,8 +209,12 @@ public sealed class JsDataView
         CheckBounds(byteOffset, 8);
         var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 8);
         if (littleEndian)
+        {
             BinaryPrimitives.WriteDoubleLittleEndian(span, value);
+        }
         else
+        {
             BinaryPrimitives.WriteDoubleBigEndian(span, value);
+        }
     }
 }

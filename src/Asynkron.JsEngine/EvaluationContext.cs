@@ -72,7 +72,10 @@ public sealed class EvaluationContext
     /// </summary>
     public void ClearContinue()
     {
-        if (CurrentSignal is ContinueSignal) CurrentSignal = null;
+        if (CurrentSignal is ContinueSignal)
+        {
+            CurrentSignal = null;
+        }
     }
 
     /// <summary>
@@ -80,7 +83,10 @@ public sealed class EvaluationContext
     /// </summary>
     public void ClearBreak()
     {
-        if (CurrentSignal is BreakSignal) CurrentSignal = null;
+        if (CurrentSignal is BreakSignal)
+        {
+            CurrentSignal = null;
+        }
     }
 
     /// <summary>
@@ -88,7 +94,10 @@ public sealed class EvaluationContext
     /// </summary>
     public void ClearReturn()
     {
-        if (CurrentSignal is ReturnSignal) CurrentSignal = null;
+        if (CurrentSignal is ReturnSignal)
+        {
+            CurrentSignal = null;
+        }
     }
 
     /// <summary>
@@ -96,7 +105,10 @@ public sealed class EvaluationContext
     /// </summary>
     public void ClearYield()
     {
-        if (CurrentSignal is YieldSignal) CurrentSignal = null;
+        if (CurrentSignal is YieldSignal)
+        {
+            CurrentSignal = null;
+        }
     }
 
     /// <summary>

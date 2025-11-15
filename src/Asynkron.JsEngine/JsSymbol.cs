@@ -54,7 +54,11 @@ public sealed class JsSymbol
 
     public override string ToString()
     {
-        if (Description != null) return $"Symbol({Description})";
+        if (Description != null)
+        {
+            return $"Symbol({Description})";
+        }
+
         return "Symbol()";
     }
 

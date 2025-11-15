@@ -24,7 +24,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         // Check for "use strict" directive at the beginning
         var hasUseStrict = CheckForUseStrictDirective();
-        if (hasUseStrict) statements.Add(S(UseStrict));
+        if (hasUseStrict)
+        {
+            statements.Add(S(UseStrict));
+        }
 
         while (!Check(TokenType.Eof))
         {
@@ -62,25 +65,46 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         }
 
         // Check for export statement
-        if (Match(TokenType.Export)) return ParseExportDeclaration();
+        if (Match(TokenType.Export))
+        {
+            return ParseExportDeclaration();
+        }
 
         // Check for async function
         if (Match(TokenType.Async))
         {
             if (Match(TokenType.Function))
+            {
                 return ParseAsyncFunctionDeclaration();
+            }
+
             throw new ParseException("Expected 'function' after 'async'.", Peek(), _source);
         }
 
-        if (Match(TokenType.Function)) return ParseFunctionDeclaration();
+        if (Match(TokenType.Function))
+        {
+            return ParseFunctionDeclaration();
+        }
 
-        if (Match(TokenType.Class)) return ParseClassDeclaration();
+        if (Match(TokenType.Class))
+        {
+            return ParseClassDeclaration();
+        }
 
-        if (Match(TokenType.Let)) return ParseVariableDeclaration(TokenType.Let);
+        if (Match(TokenType.Let))
+        {
+            return ParseVariableDeclaration(TokenType.Let);
+        }
 
-        if (Match(TokenType.Var)) return ParseVariableDeclaration(TokenType.Var);
+        if (Match(TokenType.Var))
+        {
+            return ParseVariableDeclaration(TokenType.Var);
+        }
 
-        if (Match(TokenType.Const)) return ParseVariableDeclaration(TokenType.Const);
+        if (Match(TokenType.Const))
+        {
+            return ParseVariableDeclaration(TokenType.Const);
+        }
 
         return ParseStatement();
     }
@@ -143,7 +167,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             // Check for static keyword
             var isStatic = false;
-            if (Match(TokenType.Static)) isStatic = true;
+            if (Match(TokenType.Static))
+            {
+                isStatic = true;
+            }
 
             // Check for private field declaration
             if (Check(TokenType.PrivateIdentifier))
@@ -152,20 +179,30 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var fieldName = fieldToken.Lexeme; // Includes the '#'
 
                 object? initializer = null;
-                if (Match(TokenType.Equal)) initializer = ParseExpression();
+                if (Match(TokenType.Equal))
+                {
+                    initializer = ParseExpression();
+                }
 
                 Match(TokenType.Semicolon); // optional semicolon
 
                 if (isStatic)
+                {
                     staticFields.Add(S(StaticField, fieldName, initializer));
+                }
                 else
+                {
                     privateFields.Add(S(PrivateField, fieldName, initializer));
+                }
             }
             // Check for getter/setter in class
             else if (Check(TokenType.Get) || Check(TokenType.Set))
             {
                 var isGetter = Match(TokenType.Get);
-                if (!isGetter) Match(TokenType.Set);
+                if (!isGetter)
+                {
+                    Match(TokenType.Set);
+                }
 
                 var methodNameToken = Consume(TokenType.Identifier,
                     isGetter ? "Expected getter name in class body." : "Expected setter name in class body.");
@@ -178,9 +215,13 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     var body = ParseBlock();
 
                     if (isStatic)
+                    {
                         methods.Add(S(StaticGetter, methodName, body));
+                    }
                     else
+                    {
                         methods.Add(S(Getter, methodName, body));
+                    }
                 }
                 else
                 {
@@ -191,9 +232,13 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     var body = ParseBlock();
 
                     if (isStatic)
+                    {
                         methods.Add(S(StaticSetter, methodName, param, body));
+                    }
                     else
+                    {
                         methods.Add(S(Setter, methodName, param, body));
+                    }
                 }
             }
             else if (Check(TokenType.Identifier))
@@ -208,19 +253,30 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     Match(TokenType.Semicolon); // optional semicolon
 
                     if (isStatic)
+                    {
                         staticFields.Add(S(StaticField, methodName, initializer));
+                    }
                     else
                         // Public instance field
+                    {
                         publicFields.Add(S(PublicField, methodName, initializer));
+                    }
+
                     continue;
                 }
 
                 // Check for constructor
                 if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
                 {
-                    if (isStatic) throw new ParseException("Constructor cannot be static.", Peek(), _source);
+                    if (isStatic)
+                    {
+                        throw new ParseException("Constructor cannot be static.", Peek(), _source);
+                    }
+
                     if (constructor is not null)
+                    {
                         throw new ParseException("Class cannot declare multiple constructors.", Peek(), _source);
+                    }
 
                     Consume(TokenType.LeftParen, "Expected '(' after constructor name.");
                     var parameters = ParseParameterList();
@@ -238,9 +294,13 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
                     var lambda = S(Lambda, null, parameters, body);
                     if (isStatic)
+                    {
                         methods.Add(S(StaticMethod, methodName, lambda));
+                    }
                     else
+                    {
                         methods.Add(S(Method, methodName, lambda));
+                    }
                 }
             }
             else
@@ -269,6 +329,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var parameters = new List<object?>();
         if (!Check(TokenType.RightParen))
+        {
             do
             {
                 // Check for rest parameter
@@ -301,6 +362,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     parameters.Add(Symbol.Intern(identifier.Lexeme));
                 }
             } while (Match(TokenType.Comma));
+        }
 
         return Cons.FromEnumerable(parameters);
     }
@@ -342,7 +404,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 }
                 else
                 {
-                    if (kind == TokenType.Const) throw new ParseException("Const declarations require an initializer.", Peek(), _source);
+                    if (kind == TokenType.Const)
+                    {
+                        throw new ParseException("Const declarations require an initializer.", Peek(), _source);
+                    }
 
                     initializer = Uninitialized;
                 }
@@ -376,7 +441,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.LeftBracket, "Expected '[' for array destructuring.");
         var pattern = ParseArrayDestructuringPattern();
 
-        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.", Peek(), _source);
+        if (!Match(TokenType.Equal))
+        {
+            throw new ParseException($"Destructuring declarations require an initializer.", Peek(), _source);
+        }
 
         var initializer = ParseExpression();
 
@@ -396,7 +464,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.LeftBrace, "Expected '{' for object destructuring.");
         var pattern = ParseObjectDestructuringPattern();
 
-        if (!Match(TokenType.Equal)) throw new ParseException($"Destructuring declarations require an initializer.", Peek(), _source);
+        if (!Match(TokenType.Equal))
+        {
+            throw new ParseException($"Destructuring declarations require an initializer.", Peek(), _source);
+        }
 
         var initializer = ParseExpression();
 
@@ -416,6 +487,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var elements = new List<object?> { ArrayPattern };
 
         if (!Check(TokenType.RightBracket))
+        {
             do
             {
                 // Check for hole (skipped element)
@@ -455,11 +527,15 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
                     // Check for default value
                     object? defaultValue = null;
-                    if (Match(TokenType.Equal)) defaultValue = ParseExpression();
+                    if (Match(TokenType.Equal))
+                    {
+                        defaultValue = ParseExpression();
+                    }
 
                     elements.Add(S(PatternElement, identifier, defaultValue));
                 }
             } while (Match(TokenType.Comma));
+        }
 
         Consume(TokenType.RightBracket, "Expected ']' after array pattern.");
         return Cons.FromEnumerable(elements);
@@ -470,6 +546,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var properties = new List<object?> { ObjectPattern };
 
         if (!Check(TokenType.RightBrace))
+        {
             do
             {
                 // Check for rest property
@@ -508,7 +585,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
                         // Check for default value
                         object? defaultValue = null;
-                        if (Match(TokenType.Equal)) defaultValue = ParseExpression();
+                        if (Match(TokenType.Equal))
+                        {
+                            defaultValue = ParseExpression();
+                        }
 
                         properties.Add(S(PatternProperty, propertyName, target, defaultValue
                         ));
@@ -521,12 +601,16 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
                     // Check for default value
                     object? defaultValue = null;
-                    if (Match(TokenType.Equal)) defaultValue = ParseExpression();
+                    if (Match(TokenType.Equal))
+                    {
+                        defaultValue = ParseExpression();
+                    }
 
                     properties.Add(S(PatternProperty, propertyName, identifier, defaultValue
                     ));
                 }
             } while (Match(TokenType.Comma));
+        }
 
         Consume(TokenType.RightBrace, "Expected '}' after object pattern.");
         return Cons.FromEnumerable(properties);
@@ -541,11 +625,20 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return S(EmptyStatement);
         }
 
-        if (Match(TokenType.Try)) return ParseTryStatement();
+        if (Match(TokenType.Try))
+        {
+            return ParseTryStatement();
+        }
 
-        if (Match(TokenType.Switch)) return ParseSwitchStatement();
+        if (Match(TokenType.Switch))
+        {
+            return ParseSwitchStatement();
+        }
 
-        if (Match(TokenType.If)) return ParseIfStatement();
+        if (Match(TokenType.If))
+        {
+            return ParseIfStatement();
+        }
 
         if (Match(TokenType.For))
         {
@@ -554,9 +647,15 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return ParseForStatement(isForAwait);
         }
 
-        if (Match(TokenType.While)) return ParseWhileStatement();
+        if (Match(TokenType.While))
+        {
+            return ParseWhileStatement();
+        }
 
-        if (Match(TokenType.Do)) return ParseDoWhileStatement();
+        if (Match(TokenType.Do))
+        {
+            return ParseDoWhileStatement();
+        }
 
         if (Match(TokenType.Break))
         {
@@ -570,11 +669,20 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             return S(Continue);
         }
 
-        if (Match(TokenType.Return)) return ParseReturnStatement();
+        if (Match(TokenType.Return))
+        {
+            return ParseReturnStatement();
+        }
 
-        if (Match(TokenType.Throw)) return ParseThrowStatement();
+        if (Match(TokenType.Throw))
+        {
+            return ParseThrowStatement();
+        }
 
-        if (Match(TokenType.LeftBrace)) return ParseBlock(true);
+        if (Match(TokenType.LeftBrace))
+        {
+            return ParseBlock(true);
+        }
 
         return ParseExpressionStatement();
     }
@@ -605,7 +713,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
             if (Match(TokenType.Default))
             {
-                if (seenDefault) throw new ParseException("Switch statement can only contain one default clause.", Peek(), _source);
+                if (seenDefault)
+                {
+                    throw new ParseException("Switch statement can only contain one default clause.", Peek(), _source);
+                }
 
                 seenDefault = true;
                 Consume(TokenType.Colon, "Expected ':' after default keyword.");
@@ -656,10 +767,15 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         }
 
         Cons? finallyBlock = null;
-        if (Match(TokenType.Finally)) finallyBlock = ParseBlock();
+        if (Match(TokenType.Finally))
+        {
+            finallyBlock = ParseBlock();
+        }
 
         if (catchClause is null && finallyBlock is null)
+        {
             throw new ParseException("Try statement requires at least a catch or finally clause.", Peek(), _source);
+        }
 
         return S(
             Try,
@@ -676,7 +792,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.RightParen, "Expected ')' after if condition.");
         var thenBranch = ParseStatement();
         object? elseBranch = null;
-        if (Match(TokenType.Else)) elseBranch = ParseStatement();
+        if (Match(TokenType.Else))
+        {
+            elseBranch = ParseStatement();
+        }
 
         return S(If, condition, thenBranch, elseBranch);
     }
@@ -744,7 +863,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var isForOf = Previous().Type == TokenType.Of;
 
                 // for await requires for...of
-                if (isForAwait && !isForOf) throw new ParseException("'for await' can only be used with 'of', not 'in'", Peek(), _source);
+                if (isForAwait && !isForOf)
+                {
+                    throw new ParseException("'for await' can only be used with 'of', not 'in'", Peek(), _source);
+                }
 
                 var iterableExpression = ParseExpression();
                 Consume(TokenType.RightParen, "Expected ')' after for...in/of clauses.");
@@ -754,9 +876,15 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 loopVariable = Symbol.Intern(identifier.Lexeme);
 
                 if (isForAwait)
+                {
                     return MakeCons([ForAwaitOf, loopVariable, iterableExpression, body], startToken);
+                }
+
                 if (isForOf)
+                {
                     return MakeCons([ForOf, loopVariable, iterableExpression, body], startToken);
+                }
+
                 return MakeCons([ForIn, loopVariable, iterableExpression, body], startToken);
             }
 
@@ -770,7 +898,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var isForOf = Previous().Type == TokenType.Of;
 
             // for await requires for...of
-            if (isForAwait && !isForOf) throw new ParseException("'for await' can only be used with 'of', not 'in'", Peek(), _source);
+            if (isForAwait && !isForOf)
+            {
+                throw new ParseException("'for await' can only be used with 'of', not 'in'", Peek(), _source);
+            }
 
             var iterableExpression = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after for...in/of clauses.");
@@ -787,37 +918,62 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var varDecl = S(Symbol.Intern(keyword), loopVariable, null);
 
             if (isForAwait)
+            {
                 return MakeCons([ForAwaitOf, varDecl, iterableExpression, body], startToken);
+            }
+
             if (isForOf)
+            {
                 return MakeCons([ForOf, varDecl, iterableExpression, body], startToken);
+            }
+
             return MakeCons([ForIn, varDecl, iterableExpression, body], startToken);
         }
 
         // for await without of is an error
-        if (isForAwait) throw new ParseException("'for await' can only be used with 'for await...of' syntax", Peek(), _source);
+        if (isForAwait)
+        {
+            throw new ParseException("'for await' can only be used with 'for await...of' syntax", Peek(), _source);
+        }
 
         // Not a for...in/of loop, reset and parse as regular for loop
         _current = checkpointPosition;
 
         object? initializer = null;
         if (Match(TokenType.Semicolon))
+        {
             initializer = null;
+        }
         else if (Match(TokenType.Let))
+        {
             initializer = ParseVariableDeclaration(TokenType.Let);
+        }
         else if (Match(TokenType.Var))
+        {
             initializer = ParseVariableDeclaration(TokenType.Var);
+        }
         else if (Match(TokenType.Const))
+        {
             initializer = ParseVariableDeclaration(TokenType.Const);
+        }
         else
+        {
             initializer = ParseExpressionStatement();
+        }
 
         object? condition = null;
-        if (!Check(TokenType.Semicolon)) condition = ParseExpression();
+        if (!Check(TokenType.Semicolon))
+        {
+            condition = ParseExpression();
+        }
 
         Consume(TokenType.Semicolon, "Expected ';' after for loop condition.");
 
         object? increment = null;
-        if (!Check(TokenType.RightParen)) increment = ParseSequenceExpression();
+        if (!Check(TokenType.RightParen))
+        {
+            increment = ParseSequenceExpression();
+        }
 
         Consume(TokenType.RightParen, "Expected ')' after for clauses.");
         var body2 = ParseStatement();
@@ -867,13 +1023,19 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private Cons ParseBlock(bool leftBraceConsumed = false)
     {
-        if (!leftBraceConsumed) Consume(TokenType.LeftBrace, "Expected '{' to begin block.");
+        if (!leftBraceConsumed)
+        {
+            Consume(TokenType.LeftBrace, "Expected '{' to begin block.");
+        }
 
         var statements = new List<object?> { Block };
 
         // Check for "use strict" directive at the beginning of the block
         var hasUseStrict = CheckForUseStrictDirective();
-        if (hasUseStrict) statements.Add(S(UseStrict));
+        if (hasUseStrict)
+        {
+            statements.Add(S(UseStrict));
+        }
 
         while (!Check(TokenType.RightBrace) && !Check(TokenType.Eof))
         {
@@ -963,7 +1125,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 value = S(Operator(binaryOp), expr, value);
             }
 
-            if (expr is Symbol symbol) return S(Assign, symbol, value);
+            if (expr is Symbol symbol)
+            {
+                return S(Assign, symbol, value);
+            }
 
             if (expr is Cons { Head: Symbol head } assignmentTarget && ReferenceEquals(head, GetProperty))
             {
@@ -1141,7 +1306,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1164,7 +1332,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1187,7 +1358,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1210,7 +1384,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1233,7 +1410,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1256,7 +1436,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1289,7 +1472,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1319,7 +1505,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1346,7 +1535,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1366,7 +1558,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1392,7 +1587,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1412,7 +1610,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             var endToken = _tokens[_current - 1];
             var sourceRef = new SourceReference(_source, startToken.StartPosition, endToken.EndPosition,
                 startToken.Line, startToken.Column, endToken.Line, endToken.Column);
-            if (expr is Cons cons) cons.WithSourceReference(sourceRef);
+            if (expr is Cons cons)
+            {
+                cons.WithSourceReference(sourceRef);
+            }
         }
 
         return expr;
@@ -1420,17 +1621,35 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParseUnary()
     {
-        if (Match(TokenType.Bang)) return S(Not, ParseUnary());
+        if (Match(TokenType.Bang))
+        {
+            return S(Not, ParseUnary());
+        }
 
-        if (Match(TokenType.Minus)) return S(Negate, ParseUnary());
+        if (Match(TokenType.Minus))
+        {
+            return S(Negate, ParseUnary());
+        }
 
-        if (Match(TokenType.Tilde)) return S(Operator("~"), ParseUnary());
+        if (Match(TokenType.Tilde))
+        {
+            return S(Operator("~"), ParseUnary());
+        }
 
-        if (Match(TokenType.Typeof)) return S(Typeof, ParseUnary());
+        if (Match(TokenType.Typeof))
+        {
+            return S(Typeof, ParseUnary());
+        }
 
-        if (Match(TokenType.Void)) return S(JsSymbols.Void, ParseUnary());
+        if (Match(TokenType.Void))
+        {
+            return S(JsSymbols.Void, ParseUnary());
+        }
 
-        if (Match(TokenType.Delete)) return S(Delete, ParseUnary());
+        if (Match(TokenType.Delete))
+        {
+            return S(Delete, ParseUnary());
+        }
 
         if (Match(TokenType.PlusPlus))
         {
@@ -1466,9 +1685,15 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var expr = ParseCall();
 
-        if (Match(TokenType.PlusPlus)) return S(Operator("++postfix"), expr);
+        if (Match(TokenType.PlusPlus))
+        {
+            return S(Operator("++postfix"), expr);
+        }
 
-        if (Match(TokenType.MinusMinus)) return S(Operator("--postfix"), expr);
+        if (Match(TokenType.MinusMinus))
+        {
+            return S(Operator("--postfix"), expr);
+        }
 
         return expr;
     }
@@ -1549,6 +1774,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var arguments = new List<object?>();
         if (!Check(TokenType.RightParen))
+        {
             do
             {
                 // Check for spread in arguments
@@ -1562,6 +1788,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     arguments.Add(ParseExpression());
                 }
             } while (Match(TokenType.Comma));
+        }
 
         Consume(TokenType.RightParen, "Expected ')' after arguments.");
         return arguments;
@@ -1569,25 +1796,55 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object? ParsePrimary()
     {
-        if (Match(TokenType.New)) return ParseNewExpression();
+        if (Match(TokenType.New))
+        {
+            return ParseNewExpression();
+        }
 
-        if (Match(TokenType.False)) return false;
+        if (Match(TokenType.False))
+        {
+            return false;
+        }
 
-        if (Match(TokenType.True)) return true;
+        if (Match(TokenType.True))
+        {
+            return true;
+        }
 
-        if (Match(TokenType.Null)) return null;
+        if (Match(TokenType.Null))
+        {
+            return null;
+        }
 
-        if (Match(TokenType.Undefined)) return Undefined;
+        if (Match(TokenType.Undefined))
+        {
+            return Undefined;
+        }
 
-        if (Match(TokenType.Number)) return Previous().Literal is double number ? number : 0d;
+        if (Match(TokenType.Number))
+        {
+            return Previous().Literal is double number ? number : 0d;
+        }
 
-        if (Match(TokenType.BigInt)) return Previous().Literal;
+        if (Match(TokenType.BigInt))
+        {
+            return Previous().Literal;
+        }
 
-        if (Match(TokenType.String)) return Previous().Literal as string ?? string.Empty;
+        if (Match(TokenType.String))
+        {
+            return Previous().Literal as string ?? string.Empty;
+        }
 
-        if (Match(TokenType.TemplateLiteral)) return ParseTemplateLiteralExpression();
+        if (Match(TokenType.TemplateLiteral))
+        {
+            return ParseTemplateLiteralExpression();
+        }
 
-        if (Match(TokenType.RegexLiteral)) return ParseRegexLiteral();
+        if (Match(TokenType.RegexLiteral))
+        {
+            return ParseRegexLiteral();
+        }
 
         if (Match(TokenType.Import))
         {
@@ -1595,33 +1852,60 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             // This is different from the static import statement
             if (Check(TokenType.LeftParen))
                 // Return a symbol that will be handled as a callable
+            {
                 return Symbol.Intern("import");
+            }
+
             throw new ParseException(
                 "'import' can only be used as dynamic import with parentheses: import(specifier)", Peek(), _source);
         }
 
-        if (Match(TokenType.Identifier)) return Symbol.Intern(Previous().Lexeme);
+        if (Match(TokenType.Identifier))
+        {
+            return Symbol.Intern(Previous().Lexeme);
+        }
 
         // In JavaScript, 'get' and 'set' are contextual keywords that can be used as identifiers
         // in most contexts (not just in class methods or object literals)
-        if (Match(TokenType.Get, TokenType.Set)) return Symbol.Intern(Previous().Lexeme);
+        if (Match(TokenType.Get, TokenType.Set))
+        {
+            return Symbol.Intern(Previous().Lexeme);
+        }
 
-        if (Match(TokenType.This)) return This;
+        if (Match(TokenType.This))
+        {
+            return This;
+        }
 
-        if (Match(TokenType.Super)) return Super;
+        if (Match(TokenType.Super))
+        {
+            return Super;
+        }
 
         if (Match(TokenType.Async))
         {
             if (Match(TokenType.Function))
+            {
                 return ParseAsyncFunctionExpression();
+            }
+
             throw new ParseException("Expected 'function' after 'async' in expression context.", Peek(), _source);
         }
 
-        if (Match(TokenType.Function)) return ParseFunctionExpression();
+        if (Match(TokenType.Function))
+        {
+            return ParseFunctionExpression();
+        }
 
-        if (Match(TokenType.LeftBrace)) return ParseObjectLiteral();
+        if (Match(TokenType.LeftBrace))
+        {
+            return ParseObjectLiteral();
+        }
 
-        if (Match(TokenType.LeftBracket)) return ParseArrayLiteral();
+        if (Match(TokenType.LeftBracket))
+        {
+            return ParseArrayLiteral();
+        }
 
         if (Match(TokenType.LeftParen))
         {
@@ -1715,7 +1999,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         while (Match(TokenType.LeftBracket)) constructor = FinishIndex(constructor);
 
         var arguments = new List<object?>();
-        if (Match(TokenType.LeftParen)) arguments = ParseArgumentList();
+        if (Match(TokenType.LeftParen))
+        {
+            arguments = ParseArgumentList();
+        }
 
         var items = new List<object?> { New, constructor };
         items.AddRange(arguments);
@@ -1728,7 +2015,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var isGenerator = Match(TokenType.Star);
 
         Symbol? name = null;
-        if (Check(TokenType.Identifier)) name = Symbol.Intern(Advance().Lexeme);
+        if (Check(TokenType.Identifier))
+        {
+            name = Symbol.Intern(Advance().Lexeme);
+        }
 
         Consume(TokenType.LeftParen, "Expected '(' after function keyword.");
         var parameters = ParseParameterList();
@@ -1745,7 +2035,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private object ParseAsyncFunctionExpression()
     {
         Symbol? name = null;
-        if (Check(TokenType.Identifier)) name = Symbol.Intern(Advance().Lexeme);
+        if (Check(TokenType.Identifier))
+        {
+            name = Symbol.Intern(Advance().Lexeme);
+        }
 
         Consume(TokenType.LeftParen, "Expected '(' after function keyword.");
         var parameters = ParseParameterList();
@@ -1759,6 +2052,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var properties = new List<object?>();
         if (!Check(TokenType.RightBrace))
+        {
             do
             {
                 // Check for spread in object literal (for object rest/spread - future feature)
@@ -1846,6 +2140,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     }
                 }
             } while (Match(TokenType.Comma) && !Check(TokenType.RightBrace));
+        }
 
         Consume(TokenType.RightBrace, "Expected '}' after object literal.");
         var items = new List<object?> { ObjectLiteral };
@@ -1857,6 +2152,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var elements = new List<object?>();
         if (!Check(TokenType.RightBracket))
+        {
             do
             {
                 // Check for spread in array literal
@@ -1870,6 +2166,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     elements.Add(ParseExpression());
                 }
             } while (Match(TokenType.Comma) && !Check(TokenType.RightBracket));
+        }
 
         Consume(TokenType.RightBracket, "Expected ']' after array literal.");
         var items = new List<object?> { ArrayLiteral };
@@ -1886,6 +2183,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var items = new List<object?> { TemplateLiteral };
 
         foreach (var part in parts)
+        {
             if (part is string str)
             {
                 items.Add(str);
@@ -1915,11 +2213,16 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     if (firstStatement is Cons stmtCons &&
                         stmtCons.Head is Symbol sym &&
                         ReferenceEquals(sym, ExpressionStatement))
+                    {
                         items.Add(stmtCons.Rest.Head);
+                    }
                     else
+                    {
                         items.Add(firstStatement);
+                    }
                 }
             }
+        }
 
         return Cons.FromEnumerable(items);
     }
@@ -1936,6 +2239,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var expressions = new List<object?>();
 
         foreach (var part in parts)
+        {
             if (part is string str)
             {
                 strings.Add(str);
@@ -1957,11 +2261,16 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     if (firstStatement is Cons stmtCons &&
                         stmtCons.Head is Symbol sym &&
                         ReferenceEquals(sym, ExpressionStatement))
+                    {
                         expressions.Add(stmtCons.Rest.Head);
+                    }
                     else
+                    {
                         expressions.Add(firstStatement);
+                    }
                 }
             }
+        }
 
         // Make sure we have one more string than expressions
         // (template literals always start and end with a string part, even if empty)
@@ -1992,7 +2301,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         var token = Previous();
         var regexValue = token.Literal as RegexLiteralValue;
-        if (regexValue == null) throw new ParseException("Invalid regex literal.", Peek(), _source);
+        if (regexValue == null)
+        {
+            throw new ParseException("Invalid regex literal.", Peek(), _source);
+        }
 
         // Create a new RegExp(...) expression
         // (new RegExp pattern flags)
@@ -2006,14 +2318,20 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             pattern
         };
 
-        if (!string.IsNullOrEmpty(flags)) items.Add(flags);
+        if (!string.IsNullOrEmpty(flags))
+        {
+            items.Add(flags);
+        }
 
         return Cons.FromEnumerable(items);
     }
 
     private string ParseObjectPropertyName()
     {
-        if (Match(TokenType.String)) return Previous().Literal as string ?? string.Empty;
+        if (Match(TokenType.String))
+        {
+            return Previous().Literal as string ?? string.Empty;
+        }
 
         // Support numeric keys in object literals - JavaScript coerces numbers to strings
         if (Match(TokenType.Number))
@@ -2057,7 +2375,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
         // Allow identifiers or keywords as property names (e.g., object.of, object.in, object.for)
         if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
+        {
             throw new ParseException("Expected property name after '.'.", Peek(), _source);
+        }
+
         var nameToken = Advance();
         var propertyName = nameToken.Lexeme;
         return S(GetProperty, target, propertyName);
@@ -2067,7 +2388,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     {
         // Allow identifiers or keywords as property names
         if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
+        {
             throw new ParseException("Expected property name after '?.'.", Peek(), _source);
+        }
+
         var nameToken = Advance();
         var propertyName = nameToken.Lexeme;
         return S(OptionalGetProperty, target, propertyName);
@@ -2139,25 +2463,33 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private bool Match(params TokenType[] types)
     {
         foreach (var type in types)
+        {
             if (Check(type))
             {
                 Advance();
                 return true;
             }
+        }
 
         return false;
     }
 
     private bool Check(TokenType type)
     {
-        if (IsAtEnd) return type == TokenType.Eof;
+        if (IsAtEnd)
+        {
+            return type == TokenType.Eof;
+        }
 
         return Peek().Type == type;
     }
 
     private Token Advance()
     {
-        if (!IsAtEnd) _current++;
+        if (!IsAtEnd)
+        {
+            _current++;
+        }
 
         return Previous();
     }
@@ -2181,7 +2513,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private Token Consume(TokenType type, string message)
     {
-        if (Check(type)) return Advance();
+        if (Check(type))
+        {
+            return Advance();
+        }
 
         // Apply Automatic Semicolon Insertion (ASI) for semicolons
         if (type == TokenType.Semicolon && CanInsertSemicolon())
@@ -2245,6 +2580,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var elements = new List<object?> { ArrayPattern };
 
         foreach (var item in arrayLiteral.Rest)
+        {
             if (item is null)
             {
                 elements.Add(null); // hole
@@ -2253,7 +2589,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             {
                 // Spread becomes rest pattern
                 var restTarget = spreadCons.Rest.Head;
-                if (restTarget is not Symbol restSymbol) throw new ParseException("Rest element must be an identifier", Peek(), _source);
+                if (restTarget is not Symbol restSymbol)
+                {
+                    throw new ParseException("Rest element must be an identifier", Peek(), _source);
+                }
+
                 elements.Add(S(PatternRest, restSymbol));
                 break; // Rest must be last
             }
@@ -2284,6 +2624,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
             {
                 throw new ParseException("Invalid destructuring pattern", Peek(), _source);
             }
+        }
 
         return Cons.FromEnumerable(elements);
     }
@@ -2295,14 +2636,19 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         foreach (var prop in objectLiteral.Rest)
         {
             if (prop is not Cons { Head: Symbol propHead } propCons)
+            {
                 throw new ParseException("Invalid object destructuring pattern", Peek(), _source);
+            }
 
             if (ReferenceEquals(propHead, Spread))
             {
                 // Spread becomes rest property
                 var restTarget = propCons.Rest.Head;
                 if (restTarget is not Symbol restSymbol)
+                {
                     throw new ParseException("Rest property must be an identifier", Peek(), _source);
+                }
+
                 properties.Add(S(PatternRest, restSymbol));
                 break; // Rest must be last
             }
@@ -2312,7 +2658,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var key = propCons.Rest.Head as string;
                 var value = propCons.Rest.Rest.Head;
 
-                if (key is null) throw new ParseException("Property key must be a string", Peek(), _source);
+                if (key is null)
+                {
+                    throw new ParseException("Property key must be a string", Peek(), _source);
+                }
 
                 if (value is Symbol targetSymbol)
                 {
@@ -2593,7 +2942,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         {
             // Check for static keyword
             var isStatic = false;
-            if (Match(TokenType.Static)) isStatic = true;
+            if (Match(TokenType.Static))
+            {
+                isStatic = true;
+            }
 
             // Check for private field declaration
             if (Check(TokenType.PrivateIdentifier))
@@ -2602,21 +2954,31 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 var fieldName = fieldToken.Lexeme; // Includes the '#'
 
                 object? initializer = null;
-                if (Match(TokenType.Equal)) initializer = ParseExpression();
+                if (Match(TokenType.Equal))
+                {
+                    initializer = ParseExpression();
+                }
 
                 Match(TokenType.Semicolon); // optional semicolon
 
                 if (isStatic)
                     // Static private fields - add to static fields list with a special marker
+                {
                     staticFields.Add(S(StaticField, fieldName, initializer));
+                }
                 else
+                {
                     privateFields.Add(S(PrivateField, fieldName, initializer));
+                }
             }
             // Check for getter/setter in class
             else if (Check(TokenType.Get) || Check(TokenType.Set))
             {
                 var isGetter = Match(TokenType.Get);
-                if (!isGetter) Match(TokenType.Set); // Must be setter
+                if (!isGetter)
+                {
+                    Match(TokenType.Set); // Must be setter
+                }
 
                 var methodNameToken = Consume(TokenType.Identifier,
                     isGetter ? "Expected getter name in class body." : "Expected setter name in class body.");
@@ -2629,9 +2991,13 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     var body = ParseBlock();
 
                     if (isStatic)
+                    {
                         methods.Add(S(StaticGetter, methodName, body));
+                    }
                     else
+                    {
                         methods.Add(S(Getter, methodName, body));
+                    }
                 }
                 else
                 {
@@ -2642,9 +3008,13 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     var body = ParseBlock();
 
                     if (isStatic)
+                    {
                         methods.Add(S(StaticSetter, methodName, param, body));
+                    }
                     else
+                    {
                         methods.Add(S(Setter, methodName, param, body));
+                    }
                 }
             }
             else if (Check(TokenType.Identifier))
@@ -2660,19 +3030,30 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
                     if (isStatic)
                         // Static public field
+                    {
                         staticFields.Add(S(StaticField, methodName, initializer));
+                    }
                     else
                         // Public instance field
+                    {
                         publicFields.Add(S(PublicField, methodName, initializer));
+                    }
+
                     continue;
                 }
 
                 // Check for constructor - cannot be static
                 if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
                 {
-                    if (isStatic) throw new ParseException("Constructor cannot be static.", Peek(), _source);
+                    if (isStatic)
+                    {
+                        throw new ParseException("Constructor cannot be static.", Peek(), _source);
+                    }
+
                     if (constructor is not null)
+                    {
                         throw new ParseException("Class cannot declare multiple constructors.", Peek(), _source);
+                    }
 
                     Consume(TokenType.LeftParen, "Expected '(' after constructor name.");
                     var parameters = ParseParameterList();
@@ -2690,9 +3071,13 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
                     var lambda = S(Lambda, null, parameters, body);
                     if (isStatic)
+                    {
                         methods.Add(S(StaticMethod, methodName, lambda));
+                    }
                     else
+                    {
                         methods.Add(S(Method, methodName, lambda));
+                    }
                 }
             }
             else
@@ -2712,7 +3097,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private bool CheckAhead(TokenType type)
     {
-        if (_current + 1 >= _tokens.Count) return false;
+        if (_current + 1 >= _tokens.Count)
+        {
+            return false;
+        }
+
         return _tokens[_current + 1].Type == type;
     }
 
@@ -2753,7 +3142,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var savedPosition = _current;
 
         // Check if next token is a string literal
-        if (!Check(TokenType.String)) return false;
+        if (!Check(TokenType.String))
+        {
+            return false;
+        }
 
         var stringToken = Advance();
 
@@ -2800,7 +3192,11 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     /// </summary>
     private Cons MakeCons(IEnumerable<object?> items)
     {
-        if (_current > 0 && _current <= _tokens.Count) return MakeCons(items, _tokens[_current - 1]);
+        if (_current > 0 && _current <= _tokens.Count)
+        {
+            return MakeCons(items, _tokens[_current - 1]);
+        }
+
         return Cons.FromEnumerable(items);
     }
 }

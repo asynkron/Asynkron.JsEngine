@@ -14,7 +14,10 @@ public sealed class ConstantExpressionTransformer
     /// <returns>The transformed S-expression program with constant expressions folded</returns>
     public Cons Transform(Cons program)
     {
-        if (program == null || program.IsEmpty) return program;
+        if (program == null || program.IsEmpty)
+        {
+            return program;
+        }
 
         // Transform each element in the program
         return TransformCons(program);
@@ -26,7 +29,10 @@ public sealed class ConstantExpressionTransformer
     /// </summary>
     private Cons TransformCons(Cons cons)
     {
-        if (cons.IsEmpty) return cons;
+        if (cons.IsEmpty)
+        {
+            return cons;
+        }
 
         var items = new List<object?>();
         var current = cons;
@@ -38,18 +44,27 @@ public sealed class ConstantExpressionTransformer
             items.Add(transformed);
 
             // Check if anything changed
-            if (!ReferenceEquals(transformed, current.Head)) hasChanges = true;
+            if (!ReferenceEquals(transformed, current.Head))
+            {
+                hasChanges = true;
+            }
 
             current = current.Rest;
         }
 
         // If nothing changed, return the original
-        if (!hasChanges) return cons;
+        if (!hasChanges)
+        {
+            return cons;
+        }
 
         var result = Cons.FromEnumerable(items);
 
         // Preserve source reference from the input cons
-        if (cons.SourceReference != null) result.WithSourceReference(cons.SourceReference);
+        if (cons.SourceReference != null)
+        {
+            result.WithSourceReference(cons.SourceReference);
+        }
 
         // Set origin to track that this came from constant folding
         result.WithOrigin(cons);
@@ -63,17 +78,26 @@ public sealed class ConstantExpressionTransformer
     private object? TransformExpression(object? expr)
     {
         // If it's already a constant, return it
-        if (expr.IsConstant()) return expr;
+        if (expr.IsConstant())
+        {
+            return expr;
+        }
 
         // If it's not a Cons, return as-is
-        if (expr is not Cons cons || cons.IsEmpty) return expr;
+        if (expr is not Cons cons || cons.IsEmpty)
+        {
+            return expr;
+        }
 
         // Check if this is an operation that can be folded
         if (cons.Head is Symbol symbol)
         {
             // Try to fold the operation
             var folded = TryFoldOperation(symbol, cons);
-            if (folded != null) return folded;
+            if (folded != null)
+            {
+                return folded;
+            }
         }
 
         // Otherwise, recursively transform the Cons
@@ -118,7 +142,10 @@ public sealed class ConstantExpressionTransformer
             }
 
             // If no operands changed, return the original
-            if (!operandsChanged) return null; // Signal to caller that no transformation occurred
+            if (!operandsChanged)
+            {
+                return null; // Signal to caller that no transformation occurred
+            }
 
             // Operands changed, rebuild cons
             var items = new List<object?> { operation };
@@ -126,7 +153,11 @@ public sealed class ConstantExpressionTransformer
             var rebuilt = Cons.FromEnumerable(items);
 
             // Preserve SourceReference and set Origin
-            if (cons.SourceReference != null) rebuilt.WithSourceReference(cons.SourceReference);
+            if (cons.SourceReference != null)
+            {
+                rebuilt.WithSourceReference(cons.SourceReference);
+            }
+
             rebuilt.WithOrigin(cons);
 
             return rebuilt;
@@ -179,7 +210,10 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldAddition(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
 
         var left = operands[0];
         var right = operands[1];
@@ -193,39 +227,71 @@ public sealed class ConstantExpressionTransformer
         }
 
         // Numeric addition
-        if (left.IsConstantNumber() && right.IsConstantNumber()) return (double)left! + (double)right!;
+        if (left.IsConstantNumber() && right.IsConstantNumber())
+        {
+            return (double)left! + (double)right!;
+        }
 
         return null;
     }
 
     private static object? FoldSubtraction(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
-        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber())
+        {
+            return null;
+        }
 
         return (double)operands[0]! - (double)operands[1]!;
     }
 
     private static object? FoldMultiplication(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
-        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber())
+        {
+            return null;
+        }
 
         return (double)operands[0]! * (double)operands[1]!;
     }
 
     private static object? FoldDivision(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
-        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber())
+        {
+            return null;
+        }
 
         var divisor = (double)operands[1]!;
         if (divisor == 0)
         {
             var dividend = (double)operands[0]!;
             // JavaScript division by zero behavior
-            if (dividend == 0) return double.NaN;
-            if (dividend > 0) return double.PositiveInfinity;
+            if (dividend == 0)
+            {
+                return double.NaN;
+            }
+
+            if (dividend > 0)
+            {
+                return double.PositiveInfinity;
+            }
+
             return double.NegativeInfinity;
         }
 
@@ -234,19 +300,36 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldModulo(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
-        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber())
+        {
+            return null;
+        }
 
         var divisor = (double)operands[1]!;
-        if (divisor == 0) return double.NaN;
+        if (divisor == 0)
+        {
+            return double.NaN;
+        }
 
         return (double)operands[0]! % divisor;
     }
 
     private static object? FoldExponentiation(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
-        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber())
+        {
+            return null;
+        }
 
         return Math.Pow((double)operands[0]!, (double)operands[1]!);
     }
@@ -255,23 +338,40 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldUnaryMinus(List<object?> operands)
     {
-        if (operands.Count != 1) return null;
-        if (!operands[0].IsConstantNumber()) return null;
+        if (operands.Count != 1)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber())
+        {
+            return null;
+        }
 
         return -(double)operands[0]!;
     }
 
     private static object? FoldUnaryPlus(List<object?> operands)
     {
-        if (operands.Count != 1) return null;
-        if (!operands[0].IsConstantNumber()) return null;
+        if (operands.Count != 1)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber())
+        {
+            return null;
+        }
 
         return (double)operands[0]!;
     }
 
     private static object? FoldLogicalNot(List<object?> operands)
     {
-        if (operands.Count != 1) return null;
+        if (operands.Count != 1)
+        {
+            return null;
+        }
 
         var value = operands[0];
         return !CoerceToBoolean(value);
@@ -281,25 +381,39 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldLogicalAnd(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
 
         var left = operands[0];
         var right = operands[1];
 
         // JavaScript && returns the first falsy value or the last value
-        if (!CoerceToBoolean(left)) return left;
+        if (!CoerceToBoolean(left))
+        {
+            return left;
+        }
+
         return right;
     }
 
     private static object? FoldLogicalOr(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
 
         var left = operands[0];
         var right = operands[1];
 
         // JavaScript || returns the first truthy value or the last value
-        if (CoerceToBoolean(left)) return left;
+        if (CoerceToBoolean(left))
+        {
+            return left;
+        }
+
         return right;
     }
 
@@ -307,7 +421,10 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldEquals(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
 
         // Abstract equality (==) with type coercion
         return LooseEquals(operands[0], operands[1]);
@@ -315,35 +432,49 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldNotEquals(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
 
         return !LooseEquals(operands[0], operands[1]);
     }
 
     private static object? FoldStrictEquals(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
 
         return StrictEquals(operands[0], operands[1]);
     }
 
     private static object? FoldStrictNotEquals(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
 
         return !StrictEquals(operands[0], operands[1]);
     }
 
     private static object? FoldLessThan(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
 
         var left = operands[0];
         var right = operands[1];
 
         // String comparison
         if (left.IsConstantString() && right.IsConstantString())
+        {
             return string.CompareOrdinal((string)left!, (string)right!) < 0;
+        }
 
         // Numeric comparison
         if (left.IsConstantNumber() && right.IsConstantNumber())
@@ -352,7 +483,9 @@ public sealed class ConstantExpressionTransformer
             var rightNum = (double)right!;
 
             if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
+            {
                 return false;
+            }
 
             return leftNum < rightNum;
         }
@@ -362,14 +495,19 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldLessThanOrEqual(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
 
         var left = operands[0];
         var right = operands[1];
 
         // String comparison
         if (left.IsConstantString() && right.IsConstantString())
+        {
             return string.CompareOrdinal((string)left!, (string)right!) <= 0;
+        }
 
         // Numeric comparison
         if (left.IsConstantNumber() && right.IsConstantNumber())
@@ -378,7 +516,9 @@ public sealed class ConstantExpressionTransformer
             var rightNum = (double)right!;
 
             if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
+            {
                 return false;
+            }
 
             return leftNum <= rightNum;
         }
@@ -388,14 +528,19 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldGreaterThan(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
 
         var left = operands[0];
         var right = operands[1];
 
         // String comparison
         if (left.IsConstantString() && right.IsConstantString())
+        {
             return string.CompareOrdinal((string)left!, (string)right!) > 0;
+        }
 
         // Numeric comparison
         if (left.IsConstantNumber() && right.IsConstantNumber())
@@ -404,7 +549,9 @@ public sealed class ConstantExpressionTransformer
             var rightNum = (double)right!;
 
             if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
+            {
                 return false;
+            }
 
             return leftNum > rightNum;
         }
@@ -414,14 +561,19 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldGreaterThanOrEqual(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
 
         var left = operands[0];
         var right = operands[1];
 
         // String comparison
         if (left.IsConstantString() && right.IsConstantString())
+        {
             return string.CompareOrdinal((string)left!, (string)right!) >= 0;
+        }
 
         // Numeric comparison
         if (left.IsConstantNumber() && right.IsConstantNumber())
@@ -430,7 +582,9 @@ public sealed class ConstantExpressionTransformer
             var rightNum = (double)right!;
 
             if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
+            {
                 return false;
+            }
 
             return leftNum >= rightNum;
         }
@@ -442,8 +596,15 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldBitwiseAnd(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
-        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber())
+        {
+            return null;
+        }
 
         var left = ToInt32((double)operands[0]!);
         var right = ToInt32((double)operands[1]!);
@@ -453,8 +614,15 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldBitwiseOr(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
-        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber())
+        {
+            return null;
+        }
 
         var left = ToInt32((double)operands[0]!);
         var right = ToInt32((double)operands[1]!);
@@ -464,8 +632,15 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldBitwiseXor(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
-        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber())
+        {
+            return null;
+        }
 
         var left = ToInt32((double)operands[0]!);
         var right = ToInt32((double)operands[1]!);
@@ -475,8 +650,15 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldBitwiseNot(List<object?> operands)
     {
-        if (operands.Count != 1) return null;
-        if (!operands[0].IsConstantNumber()) return null;
+        if (operands.Count != 1)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber())
+        {
+            return null;
+        }
 
         var value = ToInt32((double)operands[0]!);
 
@@ -485,8 +667,15 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldLeftShift(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
-        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber())
+        {
+            return null;
+        }
 
         var left = ToInt32((double)operands[0]!);
         var right = ToInt32((double)operands[1]!) & 0x1F; // Only use lower 5 bits
@@ -496,8 +685,15 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldRightShift(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
-        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber())
+        {
+            return null;
+        }
 
         var left = ToInt32((double)operands[0]!);
         var right = ToInt32((double)operands[1]!) & 0x1F; // Only use lower 5 bits
@@ -507,8 +703,15 @@ public sealed class ConstantExpressionTransformer
 
     private static object? FoldUnsignedRightShift(List<object?> operands)
     {
-        if (operands.Count != 2) return null;
-        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber()) return null;
+        if (operands.Count != 2)
+        {
+            return null;
+        }
+
+        if (!operands[0].IsConstantNumber() || !operands[1].IsConstantNumber())
+        {
+            return null;
+        }
 
         var left = ToUint32((double)operands[0]!);
         var right = ToInt32((double)operands[1]!) & 0x1F; // Only use lower 5 bits
@@ -546,13 +749,23 @@ public sealed class ConstantExpressionTransformer
     private static bool LooseEquals(object? left, object? right)
     {
         // Same type comparison
-        if (left == null && right == null) return true;
-        if (left == null || right == null) return false;
+        if (left == null && right == null)
+        {
+            return true;
+        }
+
+        if (left == null || right == null)
+        {
+            return false;
+        }
 
         var leftType = left.GetType();
         var rightType = right.GetType();
 
-        if (leftType == rightType) return StrictEquals(left, right);
+        if (leftType == rightType)
+        {
+            return StrictEquals(left, right);
+        }
 
         // Number and string comparison
         if (left.IsConstantNumber() && right.IsConstantString())
@@ -605,18 +818,24 @@ public sealed class ConstantExpressionTransformer
     {
         // Empty string converts to 0
         if (string.IsNullOrEmpty(str))
+        {
             return 0.0;
+        }
 
         // Trim whitespace
         str = str.Trim();
 
         // After trimming, empty string converts to 0
         if (str.Length == 0)
+        {
             return 0.0;
+        }
 
         // Try to parse as a number
         if (double.TryParse(str, out var result))
+        {
             return result;
+        }
 
         // If parsing fails, return NaN
         return double.NaN;
@@ -624,19 +843,31 @@ public sealed class ConstantExpressionTransformer
 
     private static bool StrictEquals(object? left, object? right)
     {
-        if (left == null && right == null) return true;
-        if (left == null || right == null) return false;
+        if (left == null && right == null)
+        {
+            return true;
+        }
+
+        if (left == null || right == null)
+        {
+            return false;
+        }
 
         var leftType = left.GetType();
         var rightType = right.GetType();
 
-        if (leftType != rightType) return false;
+        if (leftType != rightType)
+        {
+            return false;
+        }
 
         if (left is double leftNum && right is double rightNum)
         {
             // NaN !== NaN
             if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
+            {
                 return false;
+            }
 
             return leftNum == rightNum;
         }
@@ -647,7 +878,9 @@ public sealed class ConstantExpressionTransformer
     private static int ToInt32(double value)
     {
         if (double.IsNaN(value) || double.IsInfinity(value))
+        {
             return 0;
+        }
 
         // JavaScript ToInt32 conversion
         var int64 = (long)value;
@@ -657,7 +890,9 @@ public sealed class ConstantExpressionTransformer
     private static uint ToUint32(double value)
     {
         if (double.IsNaN(value) || double.IsInfinity(value))
+        {
             return 0;
+        }
 
         // JavaScript ToUint32 conversion
         var int64 = (long)value;

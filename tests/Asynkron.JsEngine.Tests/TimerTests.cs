@@ -129,7 +129,11 @@ public class TimerTests
 
         engine.SetGlobalFunction("addToOrder", args =>
         {
-            if (args.Count > 0 && args[0] is string s) order.Add(s);
+            if (args.Count > 0 && args[0] is string s)
+            {
+                order.Add(s);
+            }
+
             return null;
         });
 
@@ -154,7 +158,11 @@ public class TimerTests
 
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0 && args[0] is string s) capturedValue = s;
+            if (args.Count > 0 && args[0] is string s)
+            {
+                capturedValue = s;
+            }
+
             return null;
         });
 

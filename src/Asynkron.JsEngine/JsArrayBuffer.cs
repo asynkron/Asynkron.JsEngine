@@ -13,7 +13,9 @@ public sealed class JsArrayBuffer
     public JsArrayBuffer(int byteLength)
     {
         if (byteLength < 0)
+        {
             throw new ArgumentOutOfRangeException(nameof(byteLength), "ArrayBuffer size cannot be negative");
+        }
 
         _buffer = new byte[byteLength];
     }

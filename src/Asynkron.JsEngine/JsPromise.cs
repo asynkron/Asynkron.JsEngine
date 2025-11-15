@@ -28,7 +28,9 @@ public sealed class JsPromise(JsEngine engine)
     public void Resolve(object? value)
     {
         if (_state != PromiseState.Pending)
+        {
             return;
+        }
 
         _state = PromiseState.Fulfilled;
         _value = value;
@@ -41,7 +43,9 @@ public sealed class JsPromise(JsEngine engine)
     public void Reject(object? reason)
     {
         if (_state != PromiseState.Pending)
+        {
             return;
+        }
 
         _state = PromiseState.Rejected;
         _value = reason;
@@ -56,7 +60,10 @@ public sealed class JsPromise(JsEngine engine)
         var nextPromise = new JsPromise(engine);
         _handlers.Add((onFulfilled, onRejected, nextPromise));
 
-        if (_state != PromiseState.Pending) ProcessHandlers();
+        if (_state != PromiseState.Pending)
+        {
+            ProcessHandlers();
+        }
 
         return nextPromise;
     }
@@ -64,12 +71,15 @@ public sealed class JsPromise(JsEngine engine)
     private void ProcessHandlers()
     {
         if (_state == PromiseState.Pending)
+        {
             return;
+        }
 
         var handlersToProcess = _handlers.ToList();
         _handlers.Clear();
 
         foreach (var (onFulfilled, onRejected, nextPromise) in handlersToProcess)
+        {
             engine.ScheduleTask(async () =>
             {
                 try
@@ -83,6 +93,7 @@ public sealed class JsPromise(JsEngine engine)
                             // If the result is a promise (JsObject with "then" method), chain it
                             if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
                                 thenMethod is IJsCallable thenCallable)
+                            {
                                 thenCallable.Invoke([
                                     new HostFunction(args =>
                                     {
@@ -95,8 +106,11 @@ public sealed class JsPromise(JsEngine engine)
                                         return null;
                                     })
                                 ], resultObj);
+                            }
                             else
+                            {
                                 nextPromise.Resolve(result);
+                            }
                         }
                         else
                         {
@@ -112,6 +126,7 @@ public sealed class JsPromise(JsEngine engine)
                             // If the result is a promise (JsObject with "then" method), chain it
                             if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
                                 thenMethod is IJsCallable thenCallable)
+                            {
                                 thenCallable.Invoke([
                                     new HostFunction(args =>
                                     {
@@ -124,9 +139,12 @@ public sealed class JsPromise(JsEngine engine)
                                         return null;
                                     })
                                 ], resultObj);
+                            }
                             else
                                 // Rejection handler executed successfully, resolve next promise
+                            {
                                 nextPromise.Resolve(result);
+                            }
                         }
                         else
                         {
@@ -142,5 +160,6 @@ public sealed class JsPromise(JsEngine engine)
 
                 await Task.CompletedTask.ConfigureAwait(false);
             });
+        }
     }
 }

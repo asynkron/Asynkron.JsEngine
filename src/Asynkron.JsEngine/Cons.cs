@@ -42,7 +42,10 @@ public sealed class Cons : IEnumerable<object?>
     {
         get
         {
-            if (IsEmpty) throw new InvalidOperationException("The empty list does not have a head.");
+            if (IsEmpty)
+            {
+                throw new InvalidOperationException("The empty list does not have a head.");
+            }
 
             return _head;
         }
@@ -55,7 +58,10 @@ public sealed class Cons : IEnumerable<object?>
     {
         get
         {
-            if (IsEmpty) throw new InvalidOperationException("The empty list does not have a rest.");
+            if (IsEmpty)
+            {
+                throw new InvalidOperationException("The empty list does not have a rest.");
+            }
 
             return _tail;
         }
@@ -105,10 +111,16 @@ public sealed class Cons : IEnumerable<object?>
     {
         ArgumentNullException.ThrowIfNull(items);
 
-        if (items is object?[] array) return FromArray(array);
+        if (items is object?[] array)
+        {
+            return FromArray(array);
+        }
 
         var stack = new Stack<object?>();
-        foreach (var item in items) stack.Push(item);
+        foreach (var item in items)
+        {
+            stack.Push(item);
+        }
 
         return FromStack(stack);
     }
@@ -120,7 +132,10 @@ public sealed class Cons : IEnumerable<object?>
     /// </summary>
     public Cons CloneDeep()
     {
-        if (IsEmpty) return EmptyInstance;
+        if (IsEmpty)
+        {
+            return EmptyInstance;
+        }
 
         var clonedItems = new List<object?>();
         foreach (var item in this)
@@ -137,8 +152,15 @@ public sealed class Cons : IEnumerable<object?>
 
         var clone = FromEnumerable(clonedItems);
 
-        if (SourceReference != null) clone.WithSourceReference(SourceReference);
-        if (Origin != null) clone.WithOrigin(Origin);
+        if (SourceReference != null)
+        {
+            clone.WithSourceReference(SourceReference);
+        }
+
+        if (Origin != null)
+        {
+            clone.WithOrigin(Origin);
+        }
 
         return clone;
     }
@@ -170,7 +192,10 @@ public sealed class Cons : IEnumerable<object?>
         var position = 0;
         while (!current.IsEmpty)
         {
-            if (position == index) return current._head;
+            if (position == index)
+            {
+                return current._head;
+            }
 
             current = current._tail;
             position++;
@@ -219,13 +244,19 @@ public sealed class Cons : IEnumerable<object?>
 
     public override string ToString()
     {
-        if (IsEmpty) return "()";
+        if (IsEmpty)
+        {
+            return "()";
+        }
 
         var builder = new StringBuilder("(");
         var first = true;
         foreach (var item in this)
         {
-            if (!first) builder.Append(' ');
+            if (!first)
+            {
+                builder.Append(' ');
+            }
 
             builder.Append(FormatAtom(item));
             first = false;

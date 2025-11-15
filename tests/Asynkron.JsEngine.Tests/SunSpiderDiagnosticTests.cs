@@ -66,7 +66,11 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
                 foreach (var (key, value) in msg.Variables)
                 {
                     var valueStr = value != null ? value.ToString() : "null";
-                    if (valueStr is { Length: > 100 }) valueStr = string.Concat(valueStr.AsSpan(0, 100), "...");
+                    if (valueStr is { Length: > 100 })
+                    {
+                        valueStr = string.Concat(valueStr.AsSpan(0, 100), "...");
+                    }
+
                     output.WriteLine($"    {key} = {valueStr}");
                 }
             }
@@ -129,7 +133,11 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
                 {
                     var value = kvp.Value;
                     var valueStr = value != null ? value.ToString() : "null";
-                    if (valueStr is { Length: > 100 }) valueStr = string.Concat(valueStr.AsSpan(0, 100), "...");
+                    if (valueStr is { Length: > 100 })
+                    {
+                        valueStr = string.Concat(valueStr.AsSpan(0, 100), "...");
+                    }
+
                     output.WriteLine($"    {kvp.Key} = {valueStr}");
                 }
             }

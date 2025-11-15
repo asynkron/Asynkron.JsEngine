@@ -548,16 +548,24 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         {
             output.WriteLine("");
             output.WriteLine("LOCAL SCOPE DEBUG MESSAGES (from inside loop):");
-            for (int i = 0; i < localDebugMessages.Count; i++)
+            for (var i = 0; i < localDebugMessages.Count; i++)
             {
                 output.WriteLine($"  Message {i + 1} - Variables count: {localDebugMessages[i].Variables.Count}");
                 // Show key variables
                 if (localDebugMessages[i].Variables.ContainsKey("item"))
+                {
                     output.WriteLine($"    item = {localDebugMessages[i].Variables["item"]}");
+                }
+
                 if (localDebugMessages[i].Variables.ContainsKey("result"))
+                {
                     output.WriteLine($"    result = {localDebugMessages[i].Variables["result"]}");
+                }
+
                 if (localDebugMessages[i].Variables.ContainsKey("localIterable"))
+                {
                     output.WriteLine($"    localIterable = {localDebugMessages[i].Variables["localIterable"]}");
+                }
             }
         }
 
@@ -630,16 +638,24 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         {
             output.WriteLine("");
             output.WriteLine("GLOBAL SCOPE DEBUG MESSAGES (from inside loop):");
-            for (int i = 0; i < globalDebugMessages.Count; i++)
+            for (var i = 0; i < globalDebugMessages.Count; i++)
             {
                 output.WriteLine($"  Message {i + 1} - Variables count: {globalDebugMessages[i].Variables.Count}");
                 // Show key variables
                 if (globalDebugMessages[i].Variables.ContainsKey("item"))
+                {
                     output.WriteLine($"    item = {globalDebugMessages[i].Variables["item"]}");
+                }
+
                 if (globalDebugMessages[i].Variables.ContainsKey("result"))
+                {
                     output.WriteLine($"    result = {globalDebugMessages[i].Variables["result"]}");
+                }
+
                 if (globalDebugMessages[i].Variables.ContainsKey("globalIterable"))
+                {
                     output.WriteLine($"    globalIterable = {globalDebugMessages[i].Variables["globalIterable"]}");
+                }
             }
         }
         else

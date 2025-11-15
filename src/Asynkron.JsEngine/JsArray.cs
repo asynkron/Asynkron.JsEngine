@@ -21,7 +21,10 @@ public sealed class JsArray
 
     public JsArray(IEnumerable<object?> items)
     {
-        if (items is not null) _items.AddRange(items);
+        if (items is not null)
+        {
+            _items.AddRange(items);
+        }
 
         UpdateLength();
         SetupIterator();
@@ -66,7 +69,9 @@ public sealed class JsArray
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
             if (!TryCoerceLength(value, out var newLength))
+            {
                 throw new InvalidOperationException("RangeError: Invalid array length");
+            }
 
             if (newLength < _items.Count)
             {
@@ -93,7 +98,10 @@ public sealed class JsArray
 
     public object? GetElement(int index)
     {
-        if (index < 0 || index >= _items.Count) return JsSymbols.Undefined;
+        if (index < 0 || index >= _items.Count)
+        {
+            return JsSymbols.Undefined;
+        }
 
         var item = _items[index];
         // Return undefined for holes in the array
@@ -119,7 +127,10 @@ public sealed class JsArray
 
     public object? Pop()
     {
-        if (_items.Count == 0) return JsSymbols.Undefined;
+        if (_items.Count == 0)
+        {
+            return JsSymbols.Undefined;
+        }
 
         var lastIndex = _items.Count - 1;
         var value = _items[lastIndex];
@@ -132,7 +143,10 @@ public sealed class JsArray
 
     public object? Shift()
     {
-        if (_items.Count == 0) return JsSymbols.Undefined;
+        if (_items.Count == 0)
+        {
+            return JsSymbols.Undefined;
+        }
 
         var value = _items[0];
         _items.RemoveAt(0);
@@ -152,9 +166,13 @@ public sealed class JsArray
     {
         // Normalize start index
         if (start < 0)
+        {
             start = Math.Max(0, _items.Count + start);
+        }
         else
+        {
             start = Math.Min(start, _items.Count);
+        }
 
         // Normalize delete count
         deleteCount = Math.Max(0, Math.Min(deleteCount, _items.Count - start));
@@ -168,7 +186,10 @@ public sealed class JsArray
         }
 
         // Insert new items
-        if (itemsToInsert.Length > 0) _items.InsertRange(start, itemsToInsert);
+        if (itemsToInsert.Length > 0)
+        {
+            _items.InsertRange(start, itemsToInsert);
+        }
 
         UpdateLength();
         return deleted;
@@ -229,19 +250,29 @@ public sealed class JsArray
         index = 0;
 
         if (string.IsNullOrEmpty(propertyName))
+        {
             return false;
+        }
 
         if (!uint.TryParse(propertyName, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
+        {
             return false;
+        }
 
         if (parsed == uint.MaxValue)
+        {
             return false;
+        }
 
         if (!string.Equals(parsed.ToString(CultureInfo.InvariantCulture), propertyName, StringComparison.Ordinal))
+        {
             return false;
+        }
 
         if (parsed > int.MaxValue)
+        {
             return false;
+        }
 
         index = (int)parsed;
         return true;
@@ -251,7 +282,7 @@ public sealed class JsArray
     {
         length = 0;
 
-        double numericValue = value switch
+        var numericValue = value switch
         {
             null => 0d,
             double d => d,
@@ -271,18 +302,26 @@ public sealed class JsArray
         };
 
         if (double.IsNaN(numericValue) || double.IsInfinity(numericValue) || numericValue < 0)
+        {
             return false;
+        }
 
         var truncated = Math.Truncate(numericValue);
         if (Math.Abs(numericValue - truncated) > double.Epsilon)
+        {
             return false;
+        }
 
         if (truncated > uint.MaxValue - 1)
+        {
             return false;
+        }
 
         var coerced = (uint)truncated;
         if (coerced > int.MaxValue)
+        {
             return false;
+        }
 
         length = (int)coerced;
         return true;

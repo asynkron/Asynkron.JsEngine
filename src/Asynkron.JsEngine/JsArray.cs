@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Minimal JavaScript-like array that tracks indexed elements and behaves like an object for property access.
 /// </summary>
-public sealed class JsArray
+public sealed class JsArray : IJsPropertyAccessor
 {
     // Sentinel value to represent holes in sparse arrays (indices that have never been set)
     private static readonly object ArrayHole = new();

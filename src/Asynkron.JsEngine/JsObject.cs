@@ -21,7 +21,7 @@ public sealed class PropertyDescriptor
 /// <summary>
 /// Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal)
+public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal), IJsPropertyAccessor
 {
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";

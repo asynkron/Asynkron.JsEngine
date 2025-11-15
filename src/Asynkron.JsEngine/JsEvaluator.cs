@@ -2654,13 +2654,19 @@ public static class JsEvaluator
             (l, r) => l % r);
     }
 
-    private static bool GreaterThan(object? left, object? right)
+    // Helper for comparison operations with BigInt/Number mixed comparisons
+    private static bool PerformComparisonOperation(
+        object? left,
+        object? right,
+        Func<JsBigInt, JsBigInt, bool> bigIntOp,
+        Func<System.Numerics.BigInteger, System.Numerics.BigInteger, bool> mixedOp,
+        Func<double, double, bool> numericOp)
     {
         switch (left)
         {
             // Handle BigInt comparisons
             case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
-                return leftBigInt > rightBigInt;
+                return bigIntOp(leftBigInt, rightBigInt);
             // BigInt can be compared with Number in relational operators
             case JsBigInt lbi:
             {
@@ -2670,7 +2676,7 @@ public static class JsEvaluator
                     return false;
                 }
 
-                return lbi.Value > new System.Numerics.BigInteger(rightNum);
+                return mixedOp(lbi.Value, new System.Numerics.BigInteger(rightNum));
             }
         }
 
@@ -2684,122 +2690,43 @@ public static class JsEvaluator
                     return false;
                 }
 
-                return new System.Numerics.BigInteger(leftNum) > rbi.Value;
+                return mixedOp(new System.Numerics.BigInteger(leftNum), rbi.Value);
             }
             default:
-                return ToNumber(left) > ToNumber(right);
+                return numericOp(ToNumber(left), ToNumber(right));
         }
+    }
+
+    private static bool GreaterThan(object? left, object? right)
+    {
+        return PerformComparisonOperation(left, right,
+            (l, r) => l > r,
+            (l, r) => l > r,
+            (l, r) => l > r);
     }
 
     private static bool GreaterThanOrEqual(object? left, object? right)
     {
-        switch (left)
-        {
-            // Handle BigInt comparisons
-            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
-                return leftBigInt >= rightBigInt;
-            // BigInt can be compared with Number in relational operators
-            case JsBigInt lbi:
-            {
-                var rightNum = ToNumber(right);
-                if (double.IsNaN(rightNum))
-                {
-                    return false;
-                }
-
-                return lbi.Value >= new System.Numerics.BigInteger(rightNum);
-            }
-        }
-
-        switch (right)
-        {
-            case JsBigInt rbi:
-            {
-                var leftNum = ToNumber(left);
-                if (double.IsNaN(leftNum))
-                {
-                    return false;
-                }
-
-                return new System.Numerics.BigInteger(leftNum) >= rbi.Value;
-            }
-            default:
-                return ToNumber(left) >= ToNumber(right);
-        }
+        return PerformComparisonOperation(left, right,
+            (l, r) => l >= r,
+            (l, r) => l >= r,
+            (l, r) => l >= r);
     }
 
     private static bool LessThan(object? left, object? right)
     {
-        switch (left)
-        {
-            // Handle BigInt comparisons
-            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
-                return leftBigInt < rightBigInt;
-            // BigInt can be compared with Number in relational operators
-            case JsBigInt lbi:
-            {
-                var rightNum = ToNumber(right);
-                if (double.IsNaN(rightNum))
-                {
-                    return false;
-                }
-
-                return lbi.Value < new System.Numerics.BigInteger(rightNum);
-            }
-        }
-
-        switch (right)
-        {
-            case JsBigInt rbi:
-            {
-                var leftNum = ToNumber(left);
-                if (double.IsNaN(leftNum))
-                {
-                    return false;
-                }
-
-                return new System.Numerics.BigInteger(leftNum) < rbi.Value;
-            }
-            default:
-                return ToNumber(left) < ToNumber(right);
-        }
+        return PerformComparisonOperation(left, right,
+            (l, r) => l < r,
+            (l, r) => l < r,
+            (l, r) => l < r);
     }
 
     private static bool LessThanOrEqual(object? left, object? right)
     {
-        switch (left)
-        {
-            // Handle BigInt comparisons
-            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
-                return leftBigInt <= rightBigInt;
-            // BigInt can be compared with Number in relational operators
-            case JsBigInt lbi:
-            {
-                var rightNum = ToNumber(right);
-                if (double.IsNaN(rightNum))
-                {
-                    return false;
-                }
-
-                return lbi.Value <= new System.Numerics.BigInteger(rightNum);
-            }
-        }
-
-        switch (right)
-        {
-            case JsBigInt rbi:
-            {
-                var leftNum = ToNumber(left);
-                if (double.IsNaN(leftNum))
-                {
-                    return false;
-                }
-
-                return new System.Numerics.BigInteger(leftNum) <= rbi.Value;
-            }
-            default:
-                return ToNumber(left) <= ToNumber(right);
-        }
+        return PerformComparisonOperation(left, right,
+            (l, r) => l <= r,
+            (l, r) => l <= r,
+            (l, r) => l <= r);
     }
 
     private static bool StrictEquals(object? left, object? right)

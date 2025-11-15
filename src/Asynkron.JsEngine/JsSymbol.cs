@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public sealed class JsSymbol
 {
-    private static readonly ConcurrentDictionary<string, JsSymbol> GlobalRegistry = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, JsSymbol> _globalRegistry = new(StringComparer.Ordinal);
     private static int _nextId;
 
     private readonly int _id;
@@ -41,7 +41,7 @@ public sealed class JsSymbol
     /// </summary>
     public static JsSymbol For(string key)
     {
-        return GlobalRegistry.GetOrAdd(key, k => new JsSymbol(k, k, Interlocked.Increment(ref _nextId)));
+        return _globalRegistry.GetOrAdd(key, k => new JsSymbol(k, k, Interlocked.Increment(ref _nextId)));
     }
 
     /// <summary>
@@ -54,12 +54,13 @@ public sealed class JsSymbol
 
     public override string ToString()
     {
-        if (Description != null)
+        if (Description == null)
         {
-            return $"Symbol({Description})";
+            return "Symbol()";
         }
 
-        return "Symbol()";
+        return $"Symbol({Description})";
+
     }
 
     public override bool Equals(object? obj)

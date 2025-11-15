@@ -1,4 +1,6 @@
 using System.Threading.Channels;
+using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.AstTransformers;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using JetBrains.Annotations;
@@ -196,14 +198,6 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Enables or disables lightweight tracing for async iterator helpers.
-    /// </summary>
-    public void EnableAsyncIteratorTracing(bool enable)
-    {
-        _asyncIteratorTracingEnabled = enable;
-    }
-
-    /// <summary>
     /// Writes a trace message to the async iterator trace channel when tracing is enabled.
     /// Internal helpers use this to surface branch decisions for testing and diagnostics.
     /// </summary>
@@ -363,16 +357,18 @@ public sealed class JsEngine : IAsyncDisposable
 
         foreach (var stmt in program.Rest)
         {
-            if (stmt is Cons { Head: Symbol stmtHead })
+            if (stmt is not Cons { Head: Symbol stmtHead })
             {
-                if (ReferenceEquals(stmtHead, JsSymbols.Import) ||
-                    ReferenceEquals(stmtHead, JsSymbols.Export) ||
-                    ReferenceEquals(stmtHead, JsSymbols.ExportDefault) ||
-                    ReferenceEquals(stmtHead, JsSymbols.ExportNamed) ||
-                    ReferenceEquals(stmtHead, JsSymbols.ExportDeclaration))
-                {
-                    return true;
-                }
+                continue;
+            }
+
+            if (ReferenceEquals(stmtHead, JsSymbols.Import) ||
+                ReferenceEquals(stmtHead, JsSymbols.Export) ||
+                ReferenceEquals(stmtHead, JsSymbols.ExportDefault) ||
+                ReferenceEquals(stmtHead, JsSymbols.ExportNamed) ||
+                ReferenceEquals(stmtHead, JsSymbols.ExportDeclaration))
+            {
+                return true;
             }
         }
 
@@ -382,7 +378,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     /// Registers a value in the global scope.
     /// </summary>
-    public void SetGlobal(string name, object? value)
+    private void SetGlobal(string name, object? value)
     {
         _global.Define(Symbol.Intern(name), value);
     }
@@ -967,21 +963,23 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         // Handle named imports
-        if (namedImports != null)
+        if (namedImports == null)
         {
-            foreach (var importItem in namedImports)
+            return;
+        }
+
+        foreach (var importItem in namedImports)
+        {
+            if (importItem is not Cons { Head: Symbol importHead } importItemCons ||
+                !ReferenceEquals(importHead, JsSymbols.ImportNamed) ||
+                importItemCons.Rest.Head is not Symbol imported || importItemCons.Rest.Rest.Head is not Symbol local)
             {
-                if (importItem is Cons { Head: Symbol importHead } importItemCons &&
-                    ReferenceEquals(importHead, JsSymbols.ImportNamed))
-                {
-                    if (importItemCons.Rest.Head is Symbol imported && importItemCons.Rest.Rest.Head is Symbol local)
-                    {
-                        if (exports.TryGetValue(imported.Name, out var value))
-                        {
-                            moduleEnv.Define(local, value);
-                        }
-                    }
-                }
+                continue;
+            }
+
+            if (exports.TryGetValue(imported.Name, out var value))
+            {
+                moduleEnv.Define(local, value);
             }
         }
     }

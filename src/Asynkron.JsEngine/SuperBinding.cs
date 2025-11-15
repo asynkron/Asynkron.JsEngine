@@ -15,12 +15,13 @@ public sealed class SuperBinding(JsFunction? constructor, JsObject? prototype, o
 
     public bool TryGetProperty(string name, out object? value)
     {
-        if (Prototype is null)
+        if (Prototype is not null)
         {
-            value = null;
-            return false;
+            return Prototype.TryGetProperty(name, out value);
         }
 
-        return Prototype.TryGetProperty(name, out value);
+        value = null;
+        return false;
+
     }
 }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 
@@ -2996,19 +2997,20 @@ public static class JsEvaluator
             return false;
         }
 
-        if (IsNumeric(left) && IsNumeric(right))
+        if (!IsNumeric(left) || !IsNumeric(right))
         {
-            var leftNumber = ToNumber(left);
-            var rightNumber = ToNumber(right);
-            if (double.IsNaN(leftNumber) || double.IsNaN(rightNumber))
-            {
-                return false;
-            }
-
-            return leftNumber.Equals(rightNumber);
+            return left.GetType() == right.GetType() && Equals(left, right);
         }
 
-        return left.GetType() == right.GetType() && Equals(left, right);
+        var leftNumber = ToNumber(left);
+        var rightNumber = ToNumber(right);
+        if (double.IsNaN(leftNumber) || double.IsNaN(rightNumber))
+        {
+            return false;
+        }
+
+        return leftNumber.Equals(rightNumber);
+
     }
 
     private static bool LooseEquals(object? left, object? right)
@@ -3072,31 +3074,30 @@ public static class JsEvaluator
                 return false;
             }
 
-            // BigInt == String: convert string to BigInt if possible
-            if (left is JsBigInt lbi && right is string str)
+            switch (left)
             {
-                try
-                {
-                    var rightBigInt2 = new JsBigInt(str.Trim());
-                    return lbi == rightBigInt2;
-                }
-                catch
-                {
-                    return false;
-                }
-            }
+                // BigInt == String: convert string to BigInt if possible
+                case JsBigInt lbi when right is string str:
+                    try
+                    {
+                        var rightBigInt2 = new JsBigInt(str.Trim());
+                        return lbi == rightBigInt2;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
 
-            if (left is string str2 && right is JsBigInt rbi)
-            {
-                try
-                {
-                    var leftBigInt2 = new JsBigInt(str2.Trim());
-                    return leftBigInt2 == rbi;
-                }
-                catch
-                {
-                    return false;
-                }
+                case string str2 when right is JsBigInt rbi:
+                    try
+                    {
+                        var leftBigInt2 = new JsBigInt(str2.Trim());
+                        return leftBigInt2 == rbi;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
             }
 
             // Type coercion for loose equality

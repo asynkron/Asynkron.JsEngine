@@ -1,6 +1,4 @@
-using Asynkron.JsEngine.JsTypes;
-
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Represents a host function that can be called from JavaScript.

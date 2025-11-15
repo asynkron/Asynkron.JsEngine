@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.Ast;
+
 namespace Asynkron.JsEngine;
 
 public sealed class JsEnvironment(
@@ -17,14 +19,13 @@ public sealed class JsEnvironment(
     private readonly Dictionary<Symbol, Binding> _values = new();
     private readonly JsEnvironment? _enclosing = enclosing;
     private readonly bool _isFunctionScope = isFunctionScope;
-    private readonly bool _isStrict = isStrict;
     private readonly Cons? _creatingExpression = creatingExpression;
     private readonly string? _description = description;
 
     /// <summary>
     /// Returns true if this environment or any enclosing environment is in strict mode.
     /// </summary>
-    public bool IsStrict => _isStrict || (_enclosing?.IsStrict ?? false);
+    public bool IsStrict => isStrict || (_enclosing?.IsStrict ?? false);
 
     public void Define(Symbol name, object? value, bool isConst = false)
     {
@@ -114,7 +115,7 @@ public sealed class JsEnvironment(
             // Use ReferenceError message format
             throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
         }
-        
+
         // Non-strict mode: Create the variable in the global scope (this environment)
         Define(name, value, isConst: false);
     }
@@ -206,42 +207,43 @@ public sealed class JsEnvironment(
             return "unknown";
         }
 
-        if (expression.Head is Symbol symbol)
+        if (expression.Head is not Symbol symbol)
         {
-            if (ReferenceEquals(symbol, JsSymbols.Call))
-            {
-                return "call";
-            }
-
-            if (ReferenceEquals(symbol, JsSymbols.For))
-            {
-                return "for";
-            }
-
-            if (ReferenceEquals(symbol, JsSymbols.While))
-            {
-                return "while";
-            }
-
-            if (ReferenceEquals(symbol, JsSymbols.DoWhile))
-            {
-                return "do-while";
-            }
-
-            if (ReferenceEquals(symbol, JsSymbols.Function))
-            {
-                return "function";
-            }
-
-            if (ReferenceEquals(symbol, JsSymbols.Block))
-            {
-                return "block";
-            }
-
-            return symbol.Name;
+            return "expression";
         }
 
-        return "expression";
+        if (ReferenceEquals(symbol, JsSymbols.Call))
+        {
+            return "call";
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.For))
+        {
+            return "for";
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.While))
+        {
+            return "while";
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.DoWhile))
+        {
+            return "do-while";
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.Function))
+        {
+            return "function";
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.Block))
+        {
+            return "block";
+        }
+
+        return symbol.Name;
+
     }
 
     /// <summary>

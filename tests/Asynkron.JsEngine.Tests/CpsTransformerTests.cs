@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.AstTransformers;
 using Xunit;
 
 namespace Asynkron.JsEngine.Tests;

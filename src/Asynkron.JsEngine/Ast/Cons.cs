@@ -2,7 +2,7 @@ using System.Collections;
 using System.Text;
 using Asynkron.JsEngine.Parser;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
 /// Represents a cons cell backed S-expression list.

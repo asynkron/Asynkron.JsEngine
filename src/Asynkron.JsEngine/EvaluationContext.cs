@@ -124,18 +124,20 @@ public sealed class EvaluationContext
     /// </summary>
     public bool TryClearContinue(Symbol? label)
     {
-        if (CurrentSignal is ContinueSignal continueSignal)
+        if (CurrentSignal is not ContinueSignal continueSignal)
         {
-            // If the continue has no label, or if it matches the provided label, clear it
-            if (continueSignal.Label is null || (label is not null && ReferenceEquals(continueSignal.Label, label)))
-            {
-                CurrentSignal = null;
-                return true;
-            }
-            // Continue has a different label, let it propagate
             return false;
         }
-        return false;
+
+        // If the continue has no label, or if it matches the provided label, clear it
+        if (continueSignal.Label is not null && (label is null || !ReferenceEquals(continueSignal.Label, label)))
+        {
+            return false;
+        }
+
+        CurrentSignal = null;
+        return true;
+        // Continue has a different label, let it propagate
     }
 
     /// <summary>
@@ -155,40 +157,20 @@ public sealed class EvaluationContext
     /// </summary>
     public bool TryClearBreak(Symbol? label)
     {
-        if (CurrentSignal is BreakSignal breakSignal)
+        if (CurrentSignal is not BreakSignal breakSignal)
         {
-            // If the break has no label, or if it matches the provided label, clear it
-            if (breakSignal.Label is null || (label is not null && ReferenceEquals(breakSignal.Label, label)))
-            {
-                CurrentSignal = null;
-                return true;
-            }
-            // Break has a different label, let it propagate
             return false;
         }
-        return false;
-    }
 
-    /// <summary>
-    /// Clears the Return signal (used when a function consumes it).
-    /// </summary>
-    public void ClearReturn()
-    {
-        if (CurrentSignal is ReturnSignal)
+        // If the break has no label, or if it matches the provided label, clear it
+        if (breakSignal.Label is not null && (label is null || !ReferenceEquals(breakSignal.Label, label)))
         {
-            CurrentSignal = null;
+            return false;
         }
-    }
 
-    /// <summary>
-    /// Clears the Yield signal (used when a generator consumes it).
-    /// </summary>
-    public void ClearYield()
-    {
-        if (CurrentSignal is YieldSignal)
-        {
-            CurrentSignal = null;
-        }
+        CurrentSignal = null;
+        return true;
+        // Break has a different label, let it propagate
     }
 
     /// <summary>
@@ -208,16 +190,6 @@ public sealed class EvaluationContext
     /// Returns true if the current signal is Return.
     /// </summary>
     public bool IsReturn => CurrentSignal is ReturnSignal;
-
-    /// <summary>
-    /// Returns true if the current signal is Break.
-    /// </summary>
-    public bool IsBreak => CurrentSignal is BreakSignal;
-
-    /// <summary>
-    /// Returns true if the current signal is Continue.
-    /// </summary>
-    public bool IsContinue => CurrentSignal is ContinueSignal;
 
     /// <summary>
     /// Returns true if the current signal is Throw.

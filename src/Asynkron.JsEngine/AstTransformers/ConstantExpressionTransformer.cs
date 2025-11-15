@@ -1,6 +1,7 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.AstTransformers;
 
 /// <summary>
 /// Transforms S-expressions by folding constant expressions into their computed values.

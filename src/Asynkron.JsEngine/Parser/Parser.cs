@@ -1,5 +1,6 @@
 using System.Globalization;
-using static Asynkron.JsEngine.ConsDsl;
+using Asynkron.JsEngine.Ast;
+using static Asynkron.JsEngine.Ast.ConsDsl;
 using static Asynkron.JsEngine.JsSymbols;
 
 namespace Asynkron.JsEngine.Parser;

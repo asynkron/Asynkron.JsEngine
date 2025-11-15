@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.Ast;
+
 namespace Asynkron.JsEngine;
 
 /// <summary>

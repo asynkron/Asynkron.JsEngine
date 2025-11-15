@@ -1,5 +1,6 @@
 using Xunit;
 using System.Collections.Generic;
+using Asynkron.JsEngine.AstTransformers;
 
 namespace Asynkron.JsEngine.Tests;
 

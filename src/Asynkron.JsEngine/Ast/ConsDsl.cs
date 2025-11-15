@@ -1,4 +1,4 @@
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
 /// Provides a convenient DSL for creating S-expressions using the Cons structure.

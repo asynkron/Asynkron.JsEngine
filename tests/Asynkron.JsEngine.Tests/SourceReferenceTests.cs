@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Ast;
 using Xunit;
 
 namespace Asynkron.JsEngine.Tests;

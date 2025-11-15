@@ -1,6 +1,4 @@
-using Asynkron.JsEngine.JsTypes;
-
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Interface for callables that need access to the calling environment for debug/introspection purposes.

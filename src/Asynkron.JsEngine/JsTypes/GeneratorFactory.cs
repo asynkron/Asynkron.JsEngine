@@ -1,6 +1,6 @@
-using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Ast;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Factory class for creating generator instances.

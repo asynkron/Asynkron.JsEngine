@@ -1,6 +1,4 @@
-using Asynkron.JsEngine.JsTypes;
-
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// A host function that has access to the evaluation environment and context.

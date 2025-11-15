@@ -1,4 +1,4 @@
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
 /// Extension methods for Cons that provide checks for constant expressions.

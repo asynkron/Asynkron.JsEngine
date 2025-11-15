@@ -1064,7 +1064,9 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private object ParseExpressionStatement()
     {
-        var expression = ParseExpression();
+        // Expression statements should allow the comma operator so transpiled output
+        // like "a = b, c = d;" parses as a single statement rather than two.
+        var expression = ParseSequenceExpression();
         Consume(TokenType.Semicolon, "Expected ';' after expression statement.");
         return S(ExpressionStatement, expression);
     }

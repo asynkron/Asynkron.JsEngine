@@ -1853,7 +1853,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var arguments = new List<object?>();
         if (!Check(TokenType.RightParen))
         {
-            do
+            while (true)
             {
                 // Check for spread in arguments
                 if (Match(TokenType.DotDotDot))
@@ -1865,7 +1865,18 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 {
                     arguments.Add(ParseExpression());
                 }
-            } while (Match(TokenType.Comma));
+
+                if (!Match(TokenType.Comma))
+                {
+                    break;
+                }
+
+                if (Check(TokenType.RightParen))
+                {
+                    // Allow trailing commas in call expressions (e.g. foo(1,))
+                    break;
+                }
+            }
         }
 
         Consume(TokenType.RightParen, "Expected ')' after arguments.");

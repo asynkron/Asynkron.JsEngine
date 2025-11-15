@@ -1246,29 +1246,30 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
 
     private static void CollectParameters(object? expr, List<object?> parameters)
     {
-        if (expr is Symbol sym)
+        while (true)
         {
-            parameters.Add(sym);
-        }
-        else if (expr is Cons { Head: Symbol head } cons)
-        {
-            // Check if this is a comma operator (sequence)
-            if (ReferenceEquals(head, Operator(",")))
+            switch (expr)
             {
-                // Recursively collect parameters from left and right
-                CollectParameters(cons.Rest.Head, parameters);
-                CollectParameters(cons.Rest.Rest.Head, parameters);
-            }
-            else
-            {
+                case Symbol sym:
+                    parameters.Add(sym);
+                    break;
+                // Check if this is a comma operator (sequence)
+                case Cons { Head: Symbol head } cons when ReferenceEquals(head, Operator(",")):
+                    // Recursively collect parameters from left and right
+                    CollectParameters(cons.Rest.Head, parameters);
+                    expr = cons.Rest.Rest.Head;
+                    continue;
                 // Single symbol wrapped in some structure, extract it
-                parameters.Add(expr);
+                case Cons { Head: Symbol head } cons:
+                    parameters.Add(expr);
+                    break;
+                default:
+                    // For any other expression, treat it as a single parameter
+                    parameters.Add(expr);
+                    break;
             }
-        }
-        else
-        {
-            // For any other expression, treat it as a single parameter
-            parameters.Add(expr);
+
+            break;
         }
     }
 

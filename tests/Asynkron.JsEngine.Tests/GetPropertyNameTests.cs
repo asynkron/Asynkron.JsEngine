@@ -91,4 +91,110 @@ public class GetPropertyNameTests
         """);
         Assert.Equal(100.0, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Get_As_Named_Function_Expression()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var obj = {
+                get: function get() {
+                    return 42;
+                }
+            };
+            obj.get();
+        """);
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Set_As_Named_Function_Expression()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var obj = {
+                set: function set(val) {
+                    return val * 2;
+                }
+            };
+            obj.set(21);
+        """);
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Get_As_Function_Name_With_Different_Property_Name()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var obj = {
+                foo: function get() {
+                    return 42;
+                }
+            };
+            obj.foo();
+        """);
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Set_As_Function_Name_With_Different_Property_Name()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var obj = {
+                bar: function set() {
+                    return 99;
+                }
+            };
+            obj.bar();
+        """);
+        Assert.Equal(99.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Async_Function_With_Get_As_Name()
+    {
+        var engine = new JsEngine();
+        var result = "";
+        
+        engine.SetGlobalFunction("capture", args =>
+        {
+            result = args[0]?.ToString() ?? "";
+            return null;
+        });
+        
+        await engine.Run("""
+            var obj = {
+                get: async function get() {
+                    return 42;
+                }
+            };
+            obj.get().then(function(val) { capture(val); });
+        """);
+        Assert.Equal("42", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Async_Function_With_Set_As_Name()
+    {
+        var engine = new JsEngine();
+        var result = "";
+        
+        engine.SetGlobalFunction("capture", args =>
+        {
+            result = args[0]?.ToString() ?? "";
+            return null;
+        });
+        
+        await engine.Run("""
+            var obj = {
+                set: async function set(val) {
+                    return val * 2;
+                }
+            };
+            obj.set(21).then(function(val) { capture(val); });
+        """);
+        Assert.Equal("42", result);
+    }
 }

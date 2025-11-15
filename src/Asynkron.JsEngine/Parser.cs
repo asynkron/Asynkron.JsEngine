@@ -2060,7 +2060,8 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var isGenerator = Match(TokenType.Star);
 
         Symbol? name = null;
-        if (Check(TokenType.Identifier))
+        // Accept 'get' and 'set' as valid function names (they are contextual keywords)
+        if (Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set))
         {
             name = Symbol.Intern(Advance().Lexeme);
         }
@@ -2080,7 +2081,8 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
     private object ParseAsyncFunctionExpression()
     {
         Symbol? name = null;
-        if (Check(TokenType.Identifier))
+        // Accept 'get' and 'set' as valid function names (they are contextual keywords)
+        if (Check(TokenType.Identifier) || Check(TokenType.Get) || Check(TokenType.Set))
         {
             name = Symbol.Intern(Advance().Lexeme);
         }
@@ -2090,7 +2092,8 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         Consume(TokenType.RightParen, "Expected ')' after lambda parameters.");
         var body = ParseBlock();
 
-        return S(Async, name, parameters, body);
+        // Use AsyncExpr to distinguish async function expressions from declarations
+        return S(AsyncExpr, name, parameters, body);
     }
 
     private object ParseObjectLiteral()

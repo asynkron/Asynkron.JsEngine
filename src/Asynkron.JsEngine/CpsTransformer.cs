@@ -85,6 +85,12 @@ public sealed class CpsTransformer
                 return TransformAsyncFunction(cons);
             }
 
+            // Transform async function expressions
+            if (symbol == JsSymbols.AsyncExpr)
+            {
+                return TransformAsyncFunctionExpression(cons);
+            }
+
             // Transform blocks that might contain await
             if (symbol == JsSymbols.Block)
             {
@@ -163,12 +169,44 @@ public sealed class CpsTransformer
         // The async function will return a new Promise that resolves with the function's result
         var promiseBody = CreateAsyncPromiseWrapper(body);
 
-        // Return a regular function (declaration) or lambda (expression) that returns a promise
-        // Use Lambda for anonymous functions (function expressions), Function for named functions (function declarations)
-        var functionType = name == null ? JsSymbols.Lambda : JsSymbols.Function;
-
+        // For declarations, use Function symbol so they can be properly bound
+        // Async declarations always have a name
         return MakeTransformedCons([
-            functionType,
+            JsSymbols.Function,
+            name,
+            parameters,
+            promiseBody
+        ], cons);
+    }
+
+    /// <summary>
+    /// Transforms an async function expression to return a Promise.
+    /// (async-expr name (params) body) => (lambda name (params) (return (new Promise ...)))
+    /// </summary>
+    private object? TransformAsyncFunctionExpression(Cons cons)
+    {
+        // cons is (async-expr name params body)
+        var parts = ConsList(cons);
+        if (parts.Count < 4)
+        {
+            return cons;
+        }
+
+        var asyncExprSymbol = parts[0]; // 'async-expr'
+        var name = parts[1]; // function name or null
+        var parameters = parts[2]; // parameter list
+        var body = parts[3]; // function body
+
+        // DON'T transform the body here - it will be transformed inside CreateAsyncPromiseWrapper
+        // which understands the async context (return => resolve, await => .then())
+
+        // Wrap the body in a Promise constructor
+        // The async function will return a new Promise that resolves with the function's result
+        var promiseBody = CreateAsyncPromiseWrapper(body);
+
+        // For expressions, always use Lambda regardless of whether there's a name
+        return MakeTransformedCons([
+            JsSymbols.Lambda,
             name,
             parameters,
             promiseBody
@@ -2136,6 +2174,7 @@ public sealed class CpsTransformer
             if (cons.Head is Symbol symbol)
             {
                 if (symbol == JsSymbols.Async ||
+                    symbol == JsSymbols.AsyncExpr ||
                     symbol == JsSymbols.Await ||
                     symbol == JsSymbols.Generator ||
                     symbol == JsSymbols.Yield ||

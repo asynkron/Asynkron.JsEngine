@@ -76,6 +76,7 @@ public static class JsSymbols
 
     // Async/Await symbols
     public static readonly Symbol Async = Symbol.Intern("async");
+    public static readonly Symbol AsyncExpr = Symbol.Intern("async-expr");
     public static readonly Symbol Await = Symbol.Intern("await");
     public static readonly Symbol Promise = Symbol.Intern("promise");
 

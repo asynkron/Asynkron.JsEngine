@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine;
 
-public sealed class JsFunction : IJsEnvironmentAwareCallable
+public sealed class JsFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
 {
     private readonly Symbol? _name;
     private readonly IReadOnlyList<object> _parameters; // Can be Symbol or Cons (for destructuring patterns)

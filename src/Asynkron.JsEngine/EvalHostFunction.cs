@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 /// A special host function for eval() that has access to the calling environment
 /// and can evaluate code synchronously in that context.
 /// </summary>
-public sealed class EvalHostFunction : IJsEnvironmentAwareCallable
+public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
 {
     private readonly JsEngine _engine;
     private readonly JsObject _properties = new();

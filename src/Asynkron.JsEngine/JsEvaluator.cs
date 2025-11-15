@@ -2908,10 +2908,15 @@ public static class JsEvaluator
 
     private static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
     {
+        // First, try the common interface for types with TryGetProperty
+        if (target is IJsPropertyAccessor propertyAccessor)
+        {
+            return propertyAccessor.TryGetProperty(propertyName, out value);
+        }
+
+        // Handle types that don't implement IJsPropertyAccessor
         switch (target)
         {
-            case JsArray jsArray when jsArray.TryGetProperty(propertyName, out value):
-                return true;
             case TypedArrayBase typedArray:
                 // Handle typed array properties
                 switch (propertyName)
@@ -3144,47 +3149,6 @@ public static class JsEvaluator
                 }
 
                 break;
-            case JsMap jsMap:
-                switch (propertyName)
-                {
-                    // Handle special 'size' property
-                    case "size":
-                        value = (double)jsMap.Size;
-                        return true;
-                    default:
-                        return jsMap.TryGetProperty(propertyName, out value);
-                }
-
-            case JsSet jsSet:
-                switch (propertyName)
-                {
-                    // Handle special 'size' property
-                    case "size":
-                        value = (double)jsSet.Size;
-                        return true;
-                    default:
-                        return jsSet.TryGetProperty(propertyName, out value);
-                }
-
-            case JsWeakMap jsWeakMap:
-                return jsWeakMap.TryGetProperty(propertyName, out value);
-
-            case JsWeakSet jsWeakSet:
-                return jsWeakSet.TryGetProperty(propertyName, out value);
-
-            case JsObject jsObject:
-                // Check for getter first
-                var getter = jsObject.GetGetter(propertyName);
-                if (getter == null)
-                {
-                    return jsObject.TryGetProperty(propertyName, out value);
-                }
-
-                value = getter.Invoke([], jsObject);
-                return true;
-
-            case JsFunction function when function.TryGetProperty(propertyName, out value):
-            case HostFunction hostFunction when hostFunction.TryGetProperty(propertyName, out value):
             case IDictionary<string, object?> dictionary when dictionary.TryGetValue(propertyName, out value):
                 return true;
             case double num:
@@ -3228,30 +3192,16 @@ public static class JsEvaluator
 
     private static void AssignPropertyValue(object? target, string propertyName, object? value)
     {
+        // First, try the common interface for types with SetProperty
+        if (target is IJsPropertyAccessor propertyAccessor)
+        {
+            propertyAccessor.SetProperty(propertyName, value);
+            return;
+        }
+
+        // Handle types that don't implement IJsPropertyAccessor
         switch (target)
         {
-            case JsArray jsArray:
-                jsArray.SetProperty(propertyName, value);
-                break;
-            case JsObject jsObject:
-                // Check for setter first
-                var setter = jsObject.GetSetter(propertyName);
-                if (setter != null)
-                {
-                    setter.Invoke([value], jsObject);
-                }
-                else
-                {
-                    jsObject.SetProperty(propertyName, value);
-                }
-
-                break;
-            case JsFunction function:
-                function.SetProperty(propertyName, value);
-                break;
-            case HostFunction hostFunction:
-                hostFunction.SetProperty(propertyName, value);
-                break;
             case IDictionary<string, object?> dictionary:
                 dictionary[propertyName] = value;
                 break;

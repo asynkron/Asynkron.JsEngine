@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 /// Represents a JavaScript Set collection.
 /// Sets store unique values of any type and remember the original insertion order.
 /// </summary>
-public sealed class JsSet
+public sealed class JsSet : IJsPropertyAccessor
 {
     // Use List to maintain insertion order
     private readonly List<object?> _values = [];
@@ -17,6 +17,13 @@ public sealed class JsSet
 
     public bool TryGetProperty(string name, out object? value)
     {
+        // Handle special 'size' property
+        if (string.Equals(name, "size", StringComparison.Ordinal))
+        {
+            value = (double)Size;
+            return true;
+        }
+        
         return _properties.TryGetProperty(name, out value);
     }
 

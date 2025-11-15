@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Represents a host function that can be called from JavaScript.
 /// </summary>
-public sealed class HostFunction : IJsCallable
+public sealed class HostFunction : IJsCallable, IJsPropertyAccessor
 {
     private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
     private readonly JsObject _properties = new();

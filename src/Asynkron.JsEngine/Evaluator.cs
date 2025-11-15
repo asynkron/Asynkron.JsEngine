@@ -1480,6 +1480,7 @@ public static class Evaluator
             string s => s,
             bool b => b ? "true" : "false",
             double d => d.ToString(CultureInfo.InvariantCulture),
+            IJsCallable => "function() { [native code] }",
             _ => value.ToString() ?? ""
         };
     }
@@ -2140,6 +2141,7 @@ public static class Evaluator
             JsBigInt bigInt => bigInt.ToString(),
             JsArray arr => ArrayToString(arr),
             JsObject => "[object Object]",
+            IJsCallable => "function() { [native code] }",
             _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
         };
     }

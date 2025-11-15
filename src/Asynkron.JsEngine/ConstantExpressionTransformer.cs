@@ -526,6 +526,7 @@ public sealed class ConstantExpressionTransformer
             string s => s,
             bool b => b ? "true" : "false",
             double d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            IJsCallable => "function() { [native code] }",
             _ => value.ToString() ?? ""
         };
     }

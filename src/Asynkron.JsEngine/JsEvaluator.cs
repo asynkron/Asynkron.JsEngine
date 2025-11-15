@@ -3160,8 +3160,8 @@ public static class JsEvaluator
         // Handle common primitives and host collections that expose properties without the interface
         switch (target)
         {
-            case IDictionary<string, object?> dictionary when dictionary.TryGetValue(propertyName, out value):
-                return true;
+            // case IDictionary<string, object?> dictionary when dictionary.TryGetValue(propertyName, out value):
+            //     return true;
             case double num:
                 // Handle number properties (Number.prototype methods)
                 var numberWrapper = StandardLibrary.CreateNumberWrapper(num);
@@ -3210,15 +3210,7 @@ public static class JsEvaluator
             return;
         }
 
-        // Handle types that don't implement IJsPropertyAccessor
-        switch (target)
-        {
-            case IDictionary<string, object?> dictionary:
-                dictionary[propertyName] = value;
-                break;
-            default:
-                throw new InvalidOperationException($"Cannot assign property '{propertyName}' on value '{target}'.");
-        }
+        throw new InvalidOperationException($"Cannot assign property '{propertyName}' on value '{target}'.");
     }
 
     private static bool TryConvertToIndex(object? value, out int index)

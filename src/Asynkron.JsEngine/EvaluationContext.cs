@@ -17,6 +17,44 @@ public sealed class EvaluationContext
     public SourceReference? SourceReference { get; set; }
 
     /// <summary>
+    /// Stack of enclosing labels (innermost first). Used to determine if a labeled
+    /// break/continue should be handled by the current statement.
+    /// </summary>
+    private Stack<Symbol> _labelStack = new();
+
+    /// <summary>
+    /// Pushes a label onto the label stack.
+    /// </summary>
+    public void PushLabel(Symbol label)
+    {
+        _labelStack.Push(label);
+    }
+
+    /// <summary>
+    /// Pops a label from the label stack.
+    /// </summary>
+    public void PopLabel()
+    {
+        if (_labelStack.Count > 0)
+        {
+            _labelStack.Pop();
+        }
+    }
+
+    /// <summary>
+    /// Returns the current innermost label, or null if not in a labeled context.
+    /// </summary>
+    public Symbol? CurrentLabel => _labelStack.Count > 0 ? _labelStack.Peek() : null;
+
+    /// <summary>
+    /// Checks if a label is in the current label stack.
+    /// </summary>
+    public bool IsLabelInScope(Symbol label)
+    {
+        return _labelStack.Contains(label);
+    }
+
+    /// <summary>
     /// The value associated with the control flow (for Return, Throw, and Yield signals).
     /// </summary>
     public object? FlowValue => CurrentSignal switch
@@ -38,17 +76,17 @@ public sealed class EvaluationContext
     /// <summary>
     /// Sets the context to Break state.
     /// </summary>
-    public void SetBreak()
+    public void SetBreak(Symbol? label = null)
     {
-        CurrentSignal = new BreakSignal();
+        CurrentSignal = new BreakSignal(label);
     }
 
     /// <summary>
     /// Sets the context to Continue state.
     /// </summary>
-    public void SetContinue()
+    public void SetContinue(Symbol? label = null)
     {
-        CurrentSignal = new ContinueSignal();
+        CurrentSignal = new ContinueSignal(label);
     }
 
     /// <summary>
@@ -79,6 +117,26 @@ public sealed class EvaluationContext
     }
 
     /// <summary>
+    /// Clears the Continue signal only if it matches the given label (or has no label).
+    /// Returns true if the signal was cleared, false if it should propagate.
+    /// </summary>
+    public bool TryClearContinue(Symbol? label)
+    {
+        if (CurrentSignal is ContinueSignal continueSignal)
+        {
+            // If the continue has no label, or if it matches the provided label, clear it
+            if (continueSignal.Label is null || (label is not null && ReferenceEquals(continueSignal.Label, label)))
+            {
+                CurrentSignal = null;
+                return true;
+            }
+            // Continue has a different label, let it propagate
+            return false;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Clears the Break signal (used when a loop or switch consumes it).
     /// </summary>
     public void ClearBreak()
@@ -87,6 +145,26 @@ public sealed class EvaluationContext
         {
             CurrentSignal = null;
         }
+    }
+
+    /// <summary>
+    /// Clears the Break signal only if it matches the given label (or has no label).
+    /// Returns true if the signal was cleared, false if it should propagate.
+    /// </summary>
+    public bool TryClearBreak(Symbol? label)
+    {
+        if (CurrentSignal is BreakSignal breakSignal)
+        {
+            // If the break has no label, or if it matches the provided label, clear it
+            if (breakSignal.Label is null || (label is not null && ReferenceEquals(breakSignal.Label, label)))
+            {
+                CurrentSignal = null;
+                return true;
+            }
+            // Break has a different label, let it propagate
+            return false;
+        }
+        return false;
     }
 
     /// <summary>

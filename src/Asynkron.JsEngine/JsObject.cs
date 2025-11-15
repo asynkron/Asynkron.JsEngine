@@ -178,13 +178,22 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public void SetProperty(string name, object? value)
     {
+        // First check if this object or its prototype chain has a setter
+        var setter = GetSetter(name);
+        if (setter != null)
+        {
+            setter.Invoke([value], this);
+            return;
+        }
+        
         // Check if property has a descriptor that makes it non-writable
         if (_descriptors.TryGetValue(name, out var descriptor))
         {
             if (descriptor is { IsAccessorDescriptor: true, Set: not null })
-                // Call setter
             {
-                return; // Setter will be called elsewhere
+                // This should have been caught by GetSetter above
+                descriptor.Set.Invoke([value], this);
+                return;
             }
 
             if (!descriptor.Writable)
@@ -275,11 +284,21 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public bool TryGetProperty(string name, out object? value)
     {
+        // Check for getter in this object or prototype chain
+        var getter = GetGetter(name);
+        if (getter != null)
+        {
+            // Important: call with 'this' as context, which is the original object that property access was done on
+            value = getter.Invoke([], this);
+            return true;
+        }
+        
         return TryGetProperty(name, new HashSet<JsObject>(ReferenceEqualityComparer<JsObject>.Instance), out value);
     }
 
     private bool TryGetProperty(string name, HashSet<JsObject> visited, out object? value)
     {
+        // Check for regular properties (not getters)
         if (TryGetValue(name, out value))
         {
             return true;

@@ -2911,17 +2911,6 @@ public static class JsEvaluator
         // First, try the common interface for types with TryGetProperty
         if (target is IJsPropertyAccessor propertyAccessor)
         {
-            // For JsObject, check for getter first before delegating
-            if (target is JsObject jsObject)
-            {
-                var getter = jsObject.GetGetter(propertyName);
-                if (getter != null)
-                {
-                    value = getter.Invoke([], jsObject);
-                    return true;
-                }
-            }
-            
             return propertyAccessor.TryGetProperty(propertyName, out value);
         }
 
@@ -3206,17 +3195,6 @@ public static class JsEvaluator
         // First, try the common interface for types with SetProperty
         if (target is IJsPropertyAccessor propertyAccessor)
         {
-            // For JsObject, check for setter first before delegating
-            if (target is JsObject jsObject)
-            {
-                var setter = jsObject.GetSetter(propertyName);
-                if (setter != null)
-                {
-                    setter.Invoke([value], jsObject);
-                    return;
-                }
-            }
-            
             propertyAccessor.SetProperty(propertyName, value);
             return;
         }

@@ -1486,7 +1486,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         var startToken = _tokens[_current];
         var expr = ParseShift();
         while (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual,
-                     TokenType.In))
+                     TokenType.In, TokenType.Instanceof))
         {
             var op = Previous();
             var right = ParseShift();

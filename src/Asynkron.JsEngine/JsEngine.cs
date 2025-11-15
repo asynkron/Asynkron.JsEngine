@@ -235,7 +235,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Step 4: Apply CPS transformation if needed
         // This enables support for generators and async/await by converting
         // the S-expression tree to continuation-passing style
-        if (_cpsTransformer.NeedsTransformation(program))
+        if (CpsTransformer.NeedsTransformation(program))
         {
             return _cpsTransformer.Transform(program);
         }
@@ -280,7 +280,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Step 4: Apply CPS transformation if needed
         Cons cpsTransformed;
-        if (_cpsTransformer.NeedsTransformation(constantFolded))
+        if (CpsTransformer.NeedsTransformation(constantFolded))
         {
             cpsTransformed = _cpsTransformer.Transform(constantFolded);
         }

@@ -386,7 +386,7 @@ public class AsyncAwaitTests
                                    """);
 
         // Act
-        var needsTransform = transformer.NeedsTransformation(program);
+        var needsTransform = CpsTransformer.NeedsTransformation(program);
 
         // Assert - Already transformed code should not need transformation
         Assert.False(needsTransform);
@@ -411,7 +411,7 @@ public class AsyncAwaitTests
                                    """);
 
         // Act
-        var needsTransform = transformer.NeedsTransformation(program);
+        var needsTransform = CpsTransformer.NeedsTransformation(program);
 
         // Assert - Already transformed code should not need transformation
         Assert.False(needsTransform);

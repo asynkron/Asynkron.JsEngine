@@ -18,7 +18,7 @@ public class CpsTransformerTests
         var program = engine.Parse("let x = 1 + 2;");
 
         // Act
-        var needsTransform = transformer.NeedsTransformation(program);
+        var needsTransform = CpsTransformer.NeedsTransformation(program);
 
         // Assert
         Assert.False(needsTransform);
@@ -31,7 +31,7 @@ public class CpsTransformerTests
         var transformer = new CpsTransformer();
 
         // Act
-        var needsTransform = transformer.NeedsTransformation(null!);
+        var needsTransform = CpsTransformer.NeedsTransformation(null!);
 
         // Assert
         Assert.False(needsTransform);
@@ -46,7 +46,7 @@ public class CpsTransformerTests
         var emptyProgram = Cons.Empty;
 
         // Act
-        var needsTransform = transformer.NeedsTransformation(emptyProgram);
+        var needsTransform = CpsTransformer.NeedsTransformation(emptyProgram);
 
         // Assert
         Assert.False(needsTransform);
@@ -89,7 +89,7 @@ public class CpsTransformerTests
         var program = engine.Parse("function test() { return 42; }");
 
         // Act
-        var needsTransform = transformer.NeedsTransformation(program);
+        var needsTransform = CpsTransformer.NeedsTransformation(program);
 
         // Assert
         // Regular functions don't need CPS transformation
@@ -113,7 +113,7 @@ public class CpsTransformerTests
                                    """);
 
         // Act
-        var needsTransform = transformer.NeedsTransformation(program);
+        var needsTransform = CpsTransformer.NeedsTransformation(program);
 
         // Assert
         // Regular recursive functions don't need CPS transformation

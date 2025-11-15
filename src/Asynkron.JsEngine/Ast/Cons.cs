@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 public sealed class Cons : IEnumerable<object?>
 {
-    private static readonly Cons EmptyInstance = new();
+    private static readonly Cons _emptyInstance = new();
     private readonly object? _head;
     private readonly Cons _tail;
 
@@ -22,14 +22,14 @@ public sealed class Cons : IEnumerable<object?>
     private Cons(object? head, Cons? tail)
     {
         _head = head;
-        _tail = tail ?? EmptyInstance;
+        _tail = tail ?? _emptyInstance;
         IsEmpty = false;
     }
 
     /// <summary>
     /// Gets the shared empty list instance.
     /// </summary>
-    public static Cons Empty => EmptyInstance;
+    public static Cons Empty => _emptyInstance;
 
     /// <summary>
     /// Indicates whether the cons cell represents the empty list.
@@ -96,11 +96,6 @@ public sealed class Cons : IEnumerable<object?>
     {
         ArgumentNullException.ThrowIfNull(items);
 
-        if (items is object?[] array)
-        {
-            return FromArray(array);
-        }
-
         var stack = new Stack<object?>();
         foreach (var item in items)
         {
@@ -119,7 +114,7 @@ public sealed class Cons : IEnumerable<object?>
     {
         if (IsEmpty)
         {
-            return EmptyInstance;
+            return _emptyInstance;
         }
 
         var clonedItems = new List<object?>();
@@ -152,7 +147,7 @@ public sealed class Cons : IEnumerable<object?>
 
     private static Cons FromArray(object?[] array)
     {
-        var current = EmptyInstance;
+        var current = _emptyInstance;
         for (var i = array.Length - 1; i >= 0; i--) current = new Cons(array[i], current);
 
         return current;
@@ -160,7 +155,7 @@ public sealed class Cons : IEnumerable<object?>
 
     private static Cons FromStack(Stack<object?> stack)
     {
-        var current = EmptyInstance;
+        var current = _emptyInstance;
         while (stack.Count > 0) current = new Cons(stack.Pop(), current);
 
         return current;

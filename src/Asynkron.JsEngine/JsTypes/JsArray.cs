@@ -244,7 +244,7 @@ public sealed class JsArray : IJsPropertyAccessor
     private void SetupIterator()
     {
         // Set up Symbol.iterator
-        var iteratorSymbol = JsSymbol.For("Symbol.iterator");
+        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
 
         // Create iterator function that returns an iterator object

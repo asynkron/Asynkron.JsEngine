@@ -675,7 +675,7 @@ internal static class StatementEvaluator
         if (iterable is JsObject jsObj)
         {
             // Get Symbol.asyncIterator
-            var asyncIteratorSymbol = JsSymbol.For("Symbol.asyncIterator");
+            var asyncIteratorSymbol = TypedAstSymbol.For("Symbol.asyncIterator");
             var asyncIteratorKey = $"@@symbol:{asyncIteratorSymbol.GetHashCode()}";
             if (jsObj.TryGetProperty(asyncIteratorKey, out var asyncIteratorMethod) &&
                 asyncIteratorMethod is IJsCallable asyncIteratorCallable)
@@ -686,7 +686,7 @@ internal static class StatementEvaluator
             // Fallback to Symbol.iterator if Symbol.asyncIterator is not present
             else
             {
-                var iteratorSymbol = JsSymbol.For("Symbol.iterator");
+                var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
                 var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
                 if (jsObj.TryGetProperty(iteratorKey, out var iteratorMethod) &&
                     iteratorMethod is IJsCallable iteratorCallable)

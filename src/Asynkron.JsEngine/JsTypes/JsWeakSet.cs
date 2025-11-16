@@ -103,7 +103,7 @@ public sealed class JsWeakSet : IJsPropertyAccessor
         }
 
         // Symbol is a special case - not allowed as WeakSet value
-        if (value is JsSymbol)
+        if (value is TypedAstSymbol)
         {
             return false;
         }

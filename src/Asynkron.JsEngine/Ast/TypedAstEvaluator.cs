@@ -462,7 +462,7 @@ public static class TypedAstEvaluator
 
     private static bool TryInvokeSymbolMethod(JsObject target, string symbolName, out object? result)
     {
-        var symbol = JsSymbol.For(symbolName);
+        var symbol = TypedAstSymbol.For(symbolName);
         var propertyName = $"@@symbol:{symbol.GetHashCode()}";
         if (target.TryGetProperty(propertyName, out var candidate) && candidate is IJsCallable callable)
         {
@@ -1592,7 +1592,7 @@ public static class TypedAstEvaluator
             JsArray array => ArrayToString(array),
             JsObject => "[object Object]",
             IJsCallable => "function() { [native code] }",
-            JsSymbol jsSymbol => jsSymbol.ToString(),
+            TypedAstSymbol jsSymbol => jsSymbol.ToString(),
             _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
         };
 
@@ -2088,7 +2088,7 @@ public static class TypedAstEvaluator
             null => "null",
             string s => s,
             Symbol symbol => symbol.Name,
-            JsSymbol jsSymbol => $"@@symbol:{jsSymbol.GetHashCode()}",
+            TypedAstSymbol jsSymbol => $"@@symbol:{jsSymbol.GetHashCode()}",
             bool b => b ? "true" : "false",
             int i => i.ToString(CultureInfo.InvariantCulture),
             long l => l.ToString(CultureInfo.InvariantCulture),
@@ -2462,7 +2462,7 @@ public static class TypedAstEvaluator
             return "undefined";
         }
 
-        if (value is JsSymbol)
+        if (value is TypedAstSymbol)
         {
             return "symbol";
         }

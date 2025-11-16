@@ -117,7 +117,7 @@ public sealed class JsWeakMap : IJsPropertyAccessor
         }
 
         // Symbol is a special case - not allowed as WeakMap key
-        if (value is JsSymbol)
+        if (value is TypedAstSymbol)
         {
             return false;
         }

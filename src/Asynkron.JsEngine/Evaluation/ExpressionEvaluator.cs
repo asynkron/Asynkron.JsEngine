@@ -1209,7 +1209,7 @@ internal static class ExpressionEvaluator
         }
 
         // Check for JavaScript Symbol (primitive type)
-        if (value is JsSymbol)
+        if (value is TypedAstSymbol)
         {
             return "symbol";
         }
@@ -1671,7 +1671,7 @@ internal static class ExpressionEvaluator
             null => "null",
             string s => s,
             Symbol symbol => symbol.Name,
-            JsSymbol jsSymbol => $"@@symbol:{jsSymbol.GetHashCode()}", // Special prefix for Symbol keys
+            TypedAstSymbol jsSymbol => $"@@symbol:{jsSymbol.GetHashCode()}", // Special prefix for Symbol keys
             bool b => b ? "true" : "false",
             int i => i.ToString(CultureInfo.InvariantCulture),
             long l => l.ToString(CultureInfo.InvariantCulture),

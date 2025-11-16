@@ -7,15 +7,15 @@ namespace Asynkron.JsEngine;
 /// Symbols are unique and immutable primitive values that can be used as object property keys.
 /// This is distinct from the internal Symbol class used for S-expression atoms.
 /// </summary>
-public sealed class JsSymbol
+public sealed class TypedAstSymbol
 {
-    private static readonly ConcurrentDictionary<string, JsSymbol> _globalRegistry = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, TypedAstSymbol> _globalRegistry = new(StringComparer.Ordinal);
     private static int _nextId;
 
     private readonly int _id;
     private readonly string? _key; // null for non-global symbols, non-null for global symbols
 
-    private JsSymbol(string? description, string? key, int id)
+    private TypedAstSymbol(string? description, string? key, int id)
     {
         Description = description;
         _key = key;
@@ -30,24 +30,24 @@ public sealed class JsSymbol
     /// <summary>
     /// Creates a new unique symbol with an optional description.
     /// </summary>
-    public static JsSymbol Create(string? description = null)
+    public static TypedAstSymbol Create(string? description = null)
     {
-        return new JsSymbol(description, null, Interlocked.Increment(ref _nextId));
+        return new TypedAstSymbol(description, null, Interlocked.Increment(ref _nextId));
     }
 
     /// <summary>
     /// Gets or creates a global symbol for the given key.
     /// Global symbols with the same key are the same object.
     /// </summary>
-    public static JsSymbol For(string key)
+    public static TypedAstSymbol For(string key)
     {
-        return _globalRegistry.GetOrAdd(key, k => new JsSymbol(k, k, Interlocked.Increment(ref _nextId)));
+        return _globalRegistry.GetOrAdd(key, k => new TypedAstSymbol(k, k, Interlocked.Increment(ref _nextId)));
     }
 
     /// <summary>
     /// Gets the key for a global symbol, or null if the symbol is not global.
     /// </summary>
-    public static string? KeyFor(JsSymbol symbol)
+    public static string? KeyFor(TypedAstSymbol symbol)
     {
         return symbol._key;
     }

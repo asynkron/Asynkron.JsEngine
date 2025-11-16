@@ -2897,7 +2897,7 @@ public static class StandardLibrary
         }));
 
         // Set up Symbol.iterator for string
-        var iteratorSymbol = JsSymbol.For("Symbol.iterator");
+        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
 
         // Create iterator function that returns an iterator object
@@ -3596,7 +3596,7 @@ public static class StandardLibrary
             var description = args.Count > 0 && args[0] != null && !ReferenceEquals(args[0], JsSymbols.Undefined)
                 ? args[0]!.ToString()
                 : null;
-            return JsSymbol.Create(description);
+            return TypedAstSymbol.Create(description);
         });
 
         // Symbol.for(key) - creates/retrieves a global symbol
@@ -3608,24 +3608,24 @@ public static class StandardLibrary
             }
 
             var key = args[0]?.ToString() ?? "";
-            return JsSymbol.For(key);
+            return TypedAstSymbol.For(key);
         }));
 
         // Symbol.keyFor(symbol) - gets the key for a global symbol
         symbolConstructor.SetProperty("keyFor", new HostFunction(args =>
         {
-            if (args.Count == 0 || args[0] is not JsSymbol sym)
+            if (args.Count == 0 || args[0] is not TypedAstSymbol sym)
             {
                 return JsSymbols.Undefined;
             }
 
-            var key = JsSymbol.KeyFor(sym);
+            var key = TypedAstSymbol.KeyFor(sym);
             return key ?? (object)JsSymbols.Undefined;
         }));
 
         // Well-known symbols
-        symbolConstructor.SetProperty("iterator", JsSymbol.For("Symbol.iterator"));
-        symbolConstructor.SetProperty("asyncIterator", JsSymbol.For("Symbol.asyncIterator"));
+        symbolConstructor.SetProperty("iterator", TypedAstSymbol.For("Symbol.iterator"));
+        symbolConstructor.SetProperty("asyncIterator", TypedAstSymbol.For("Symbol.asyncIterator"));
 
         return symbolConstructor;
     }
@@ -4869,7 +4869,7 @@ public static class StandardLibrary
                 }
 
                 // Try Symbol.asyncIterator
-                var asyncIteratorSymbol = JsSymbol.For("Symbol.asyncIterator");
+                var asyncIteratorSymbol = TypedAstSymbol.For("Symbol.asyncIterator");
                 var asyncIteratorKey = $"@@symbol:{asyncIteratorSymbol.GetHashCode()}";
                 if (jsObj.TryGetProperty(asyncIteratorKey, out var asyncIteratorMethod) &&
                     asyncIteratorMethod is IJsCallable asyncIteratorCallable)
@@ -4881,7 +4881,7 @@ public static class StandardLibrary
                 }
 
                 // Fall back to Symbol.iterator
-                var iteratorSymbol = JsSymbol.For("Symbol.iterator");
+                var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
                 var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
                 if (jsObj.TryGetProperty(iteratorKey, out var iteratorMethod) &&
                     iteratorMethod is IJsCallable iteratorCallable)
@@ -4899,7 +4899,7 @@ public static class StandardLibrary
             // For arrays, get the iterator
             if (iterable is JsArray jsArray)
             {
-                var iteratorSymbol = JsSymbol.For("Symbol.iterator");
+                var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
                 var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
                 if (jsArray.TryGetProperty(iteratorKey, out var iteratorMethod) &&
                     iteratorMethod is IJsCallable iteratorCallable)

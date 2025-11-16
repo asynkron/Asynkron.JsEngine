@@ -43,4 +43,28 @@ public class TypedConstantExpressionTransformerTests
 
         Assert.Same(program, transformed);
     }
+
+    [Theory]
+    [InlineData(1d, 0d, double.PositiveInfinity)]
+    [InlineData(-1d, 0d, double.NegativeInfinity)]
+    [InlineData(1d, -0d, double.NegativeInfinity)]
+    [InlineData(-1d, -0d, double.PositiveInfinity)]
+    public void Preserves_division_by_zero_signs(double numerator, double denominator, double expected)
+    {
+        var transformer = new TypedConstantExpressionTransformer();
+        var expression = new BinaryExpression(
+            Source: null,
+            Operator: "/",
+            Left: new LiteralExpression(null, numerator),
+            Right: new LiteralExpression(null, denominator));
+        var program = new ProgramNode(
+            Source: null,
+            Body: ImmutableArray.Create<StatementNode>(new ExpressionStatement(null, expression)),
+            IsStrict: false);
+
+        var transformed = transformer.Transform(program);
+
+        var literal = Assert.IsType<LiteralExpression>(Assert.IsType<ExpressionStatement>(transformed.Body[0]).Expression);
+        Assert.Equal(expected, literal.Value);
+    }
 }

@@ -760,14 +760,25 @@ public sealed class TypedConstantExpressionTransformer
         value = null;
         if (left is double leftNum && right is double rightNum)
         {
+            if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
+            {
+                value = double.NaN;
+                return true;
+            }
+
             if (rightNum == 0)
             {
-                value = leftNum switch
+                if (leftNum == 0)
                 {
-                    0 => double.NaN,
-                    > 0 => double.PositiveInfinity,
-                    _ => double.NegativeInfinity
-                };
+                    value = double.NaN;
+                    return true;
+                }
+
+                var numeratorNegative = HasNegativeSign(leftNum);
+                var denominatorNegative = HasNegativeSign(rightNum);
+                value = numeratorNegative ^ denominatorNegative
+                    ? double.NegativeInfinity
+                    : double.PositiveInfinity;
                 return true;
             }
 
@@ -1212,5 +1223,12 @@ public sealed class TypedConstantExpressionTransformer
         }
 
         return builder is null ? items : builder.ToImmutable();
+    }
+
+    private static bool HasNegativeSign(double value)
+    {
+        const long signMask = 1L << 63;
+        var bits = BitConverter.DoubleToInt64Bits(value);
+        return (bits & signMask) != 0;
     }
 }

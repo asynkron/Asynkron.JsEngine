@@ -1253,10 +1253,14 @@ public static class TypedAstEvaluator
 
     private static object? Add(object? left, object? right)
     {
-        if (left is string || right is string || left is JsObject || left is JsArray || right is JsObject ||
-            right is JsArray)
+        if (left is string || right is string)
         {
-            return $"{left}{right}";
+            return JsEvaluator.ToJsString(left) + JsEvaluator.ToJsString(right);
+        }
+
+        if (left is JsObject || left is JsArray || right is JsObject || right is JsArray)
+        {
+            return JsEvaluator.ToJsString(left) + JsEvaluator.ToJsString(right);
         }
 
         if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)

@@ -1744,7 +1744,7 @@ public static class JsEvaluator
                             return true;
                         case JsObject jsObj:
                         {
-                            var keyStr = ToString(key);
+                            var keyStr = ToJsString(key);
                             jsObj.Remove(keyStr);
                             return true;
                         }
@@ -2742,7 +2742,7 @@ public static class JsEvaluator
 
     // Helper method for converting values to strings in array context (join/toString)
     // where null and undefined become empty strings
-    internal static string ToStringForArray(object? value)
+    internal static string ToJsStringForArray(object? value)
     {
         // null and undefined convert to empty string in array toString/join
         if (value is null || (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined)))
@@ -2750,10 +2750,10 @@ public static class JsEvaluator
             return "";
         }
 
-        return ToString(value);
+        return ToJsString(value);
     }
 
-    private static string ToString(object? value)
+    internal static string ToJsString(object? value)
     {
         return value switch
         {
@@ -2772,7 +2772,7 @@ public static class JsEvaluator
     {
         // Convert each element to string and join with comma
         // Per ECMAScript spec: null and undefined are converted to empty strings
-        var elements = arr.Items.Select(ToStringForArray).ToList();
+        var elements = arr.Items.Select(ToJsStringForArray).ToList();
         return string.Join(",", elements);
     }
 
@@ -2839,13 +2839,13 @@ public static class JsEvaluator
         // If either operand is a string, perform string concatenation
         if (left is string || right is string)
         {
-            return ToString(left) + ToString(right);
+            return ToJsString(left) + ToJsString(right);
         }
 
         // If either operand is an object or array, convert to string (ToPrimitive preference is string for +)
         if (left is JsObject || left is JsArray || right is JsObject || right is JsArray)
         {
-            return ToString(left) + ToString(right);
+            return ToJsString(left) + ToJsString(right);
         }
 
         // Handle BigInt + BigInt
@@ -3131,13 +3131,15 @@ public static class JsEvaluator
                 // Try converting to primitive (via toString then toNumber if comparing to number)
                 return IsNumeric(right)
                     ? ToNumber(left).Equals(ToNumber(right))
-                    : ToString(left).Equals(right);
+                    : ToJsString(left).Equals(right);
             }
 
             if (right is JsObject or JsArray && (IsNumeric(left) || left is string))
             {
                 // Try converting to primitive
-                return IsNumeric(left) ? ToNumber(left).Equals(ToNumber(right)) : left.Equals(ToString(right));
+                return IsNumeric(left)
+                    ? ToNumber(left).Equals(ToNumber(right))
+                    : left.Equals(ToJsString(right));
             }
 
             // For other cases, use strict equality

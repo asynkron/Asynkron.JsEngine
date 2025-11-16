@@ -4844,6 +4844,30 @@ public static class StandardLibrary
                 return iteratorObj;
             }
 
+            static JsObject CreateArrayIterator(JsArray array)
+            {
+                var iteratorObj = new JsObject();
+                var index = 0;
+                iteratorObj.SetProperty("next", new HostFunction(_ =>
+                {
+                    var result = new JsObject();
+                    if (index < array.Length)
+                    {
+                        result.SetProperty("value", array.GetElement(index));
+                        result.SetProperty("done", false);
+                        index++;
+                    }
+                    else
+                    {
+                        result.SetProperty("done", true);
+                    }
+
+                    return result;
+                }));
+
+                return iteratorObj;
+            }
+
             if (iterable is JsObject jsObject)
             {
                 if (HasCallableNext(jsObject))
@@ -4868,6 +4892,14 @@ public static class StandardLibrary
 
                 throw new InvalidOperationException(
                     "Object is not iterable (no Symbol.asyncIterator or Symbol.iterator method)");
+            }
+
+            if (iterable is JsArray jsArray)
+            {
+                var iteratorObj = CreateArrayIterator(jsArray);
+                engine.WriteAsyncIteratorTrace(
+                    $"getAsyncIterator: branch=array length={jsArray.Length}");
+                return iteratorObj;
             }
 
             if (iterable is string str)

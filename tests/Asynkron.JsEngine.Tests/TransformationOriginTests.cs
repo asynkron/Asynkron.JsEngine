@@ -1,3 +1,4 @@
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Lisp;
 using Asynkron.JsEngine.Parser;
 
@@ -9,7 +10,7 @@ namespace Asynkron.JsEngine.Tests;
 public class TransformationOriginTests
 {
     [Fact(Timeout = 2000)]
-    public async Task Origin_AsyncFunction_TracksBackToOriginal()
+    public void Origin_AsyncFunction_TracksBackToOriginal()
     {
         var source = """
 
@@ -18,25 +19,19 @@ public class TransformationOriginTests
                      }
                      """;
 
-        await using var engine = new JsEngine();
+        var (original, cpsTransformed) = ParseAndTransform(source);
 
-        // Get transformation stages
-        var (original, _, cpsTransformed) = engine.ParseWithTransformationSteps(source);
-
-        // The original should be an async function
         var originalFunc = original.Rest.Head as Cons;
         Assert.NotNull(originalFunc);
 
-        // The CPS transformed should be a regular function
-        var transformedFunc = cpsTransformed.Rest.Head as Cons;
+        Assert.NotNull(cpsTransformed);
+        var transformedFunc = cpsTransformed!.Rest.Head as Cons;
         Assert.NotNull(transformedFunc);
-
-        // The transformed function should have an Origin pointing back
         Assert.NotNull(transformedFunc!.Origin);
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Origin_UntransformedCode_HasNullOrigin()
+    public void Origin_UntransformedCode_HasNullOrigin()
     {
         var source = """
 
@@ -45,8 +40,7 @@ public class TransformationOriginTests
                      }
                      """;
 
-        await using var engine = new JsEngine();
-        var parsed = engine.Parse(source);
+        var parsed = JsEngine.ParseWithoutTransformation(source);
 
         // Regular function should not be transformed
         var func = parsed.Rest.Head as Cons;
@@ -57,7 +51,7 @@ public class TransformationOriginTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Origin_ChainedTransformations_CanTraceBack()
+    public void Origin_ChainedTransformations_CanTraceBack()
     {
         var source = """
 
@@ -67,45 +61,32 @@ public class TransformationOriginTests
                      }
                      """;
 
-        await using var engine = new JsEngine();
-        var (original, _, cpsTransformed) = engine.ParseWithTransformationSteps(source);
+        var (_, cpsTransformed) = ParseAndTransform(source);
 
-        // The CPS transformed tree should have nodes with Origin set
-        var transformedFunc = cpsTransformed.Rest.Head as Cons;
+        Assert.NotNull(cpsTransformed);
+        var transformedFunc = cpsTransformed!.Rest.Head as Cons;
         Assert.NotNull(transformedFunc);
-
-        // Verify we can trace back
         Assert.NotNull(transformedFunc!.Origin);
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Origin_WithSourceReference_BothPropertiesWork()
+    public void Origin_WithSourceReference_BothPropertiesWork()
     {
         var source = @"async function test() { return 42; }";
 
-        await using var engine = new JsEngine();
-        var (original, _, cpsTransformed) = engine.ParseWithTransformationSteps(source);
+        var (original, cpsTransformed) = ParseAndTransform(source);
 
         var originalFunc = original.Rest.Head as Cons;
-        var transformedFunc = cpsTransformed.Rest.Head as Cons;
-
         Assert.NotNull(originalFunc);
-        Assert.NotNull(transformedFunc);
-
-        // Original should have a source reference
         Assert.NotNull(originalFunc!.SourceReference);
 
-        // Transformed should point back through the chain
+        Assert.NotNull(cpsTransformed);
+        var transformedFunc = cpsTransformed!.Rest.Head as Cons;
+        Assert.NotNull(transformedFunc);
         Assert.NotNull(transformedFunc!.Origin);
 
-        // We can trace from transformed back to source via origin chain
-        // The origin chain might be: cpsTransformed -> original when CPS runs directly
-        // or it may go through intermediate nodes that still point back to the typed
-        // constant-folded AST before reaching the original cons node.
         var current = transformedFunc.Origin;
         SourceReference? sourceRef = null;
-
-        // Walk the origin chain until we find a SourceReference
         while (current != null)
         {
             if (current.SourceReference != null)
@@ -124,7 +105,7 @@ public class TransformationOriginTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Origin_OnlyTransformedNodes_HaveOriginSet()
+    public void Origin_OnlyTransformedNodes_HaveOriginSet()
     {
         var source = """
 
@@ -134,17 +115,27 @@ public class TransformationOriginTests
                      }
                      """;
 
-        await using var engine = new JsEngine();
-        var (original, _, cpsTransformed) = engine.ParseWithTransformationSteps(source);
+        var (_, cpsTransformed) = ParseAndTransform(source);
 
-        // The let statement should not be transformed (Origin = null for constant folding)
-        var letStatement = cpsTransformed.Rest.Head as Cons;
+        Assert.NotNull(cpsTransformed);
+        var transformedProgram = cpsTransformed!;
+
+        var letStatement = transformedProgram.Rest.Head as Cons;
         Assert.NotNull(letStatement);
-        // Note: constant folding doesn't set Origin, so this is expected to be null
+        Assert.Null(letStatement!.Origin);
 
-        // The async function should be transformed by CPS (Origin != null)
-        var asyncFunc = cpsTransformed.Rest.Rest.Head as Cons;
+        var asyncFunc = transformedProgram.Rest.Rest.Head as Cons;
         Assert.NotNull(asyncFunc);
         Assert.NotNull(asyncFunc!.Origin);
+    }
+
+    private static (Cons original, Cons? transformed) ParseAndTransform(string source)
+    {
+        var original = JsEngine.ParseWithoutTransformation(source);
+        var cpsTransformer = new CpsTransformer();
+        var transformed = CpsTransformer.NeedsTransformation(original)
+            ? cpsTransformer.Transform(original)
+            : null;
+        return (original, transformed);
     }
 }

@@ -1,4 +1,4 @@
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Lisp;
 
 /// <summary>
 /// Centralised symbol definitions so parser and evaluator agree on structure.

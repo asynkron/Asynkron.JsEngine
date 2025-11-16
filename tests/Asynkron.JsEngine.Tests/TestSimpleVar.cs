@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.Lisp;
+
 namespace Asynkron.JsEngine.Tests;
 
 public class TestSimpleVar

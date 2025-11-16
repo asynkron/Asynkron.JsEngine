@@ -1,7 +1,7 @@
 using System.Globalization;
 using Asynkron.JsEngine.Lisp;
 using static Asynkron.JsEngine.Lisp.ConsDsl;
-using static Asynkron.JsEngine.JsSymbols;
+using static Asynkron.JsEngine.Lisp.JsSymbols;
 
 namespace Asynkron.JsEngine.Parser;
 

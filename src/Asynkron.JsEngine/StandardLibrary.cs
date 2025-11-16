@@ -1,6 +1,5 @@
 using System.Globalization;
 using Asynkron.JsEngine.Converters;
-using Asynkron.JsEngine.Evaluation;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine;
@@ -334,7 +333,7 @@ public static class StandardLibrary
 
         math["clz32"] = new HostFunction(args =>
         {
-            var number = args.Count > 0 ? ExpressionEvaluator.ToNumber(args[0]) : 0d;
+            var number = args.Count > 0 ? args[0].ToNumber() : 0d;
             var value = JsNumericConversions.ToUInt32(number);
             if (value == 0)
             {
@@ -346,8 +345,8 @@ public static class StandardLibrary
 
         math["imul"] = new HostFunction(args =>
         {
-            var left = args.Count > 0 ? ExpressionEvaluator.ToNumber(args[0]) : 0d;
-            var right = args.Count > 1 ? ExpressionEvaluator.ToNumber(args[1]) : 0d;
+            var left = args.Count > 0 ? args[0].ToNumber() : 0d;
+            var right = args.Count > 1 ? args[1].ToNumber() : 0d;
             var a = JsNumericConversions.ToInt32(left);
             var b = JsNumericConversions.ToInt32(right);
             return (double)(a * b);
@@ -1367,7 +1366,7 @@ public static class StandardLibrary
             var parts = new List<string>();
             foreach (var item in jsArray.Items)
             {
-                parts.Add(ExpressionEvaluator.ToJsStringForArray(item));
+                parts.Add(item.ToJsStringForArray());
             }
 
             return string.Join(separator, parts);
@@ -4791,7 +4790,6 @@ public static class StandardLibrary
     {
         return new HostFunction(args =>
         {
-            // args[0] should be the iterable
             if (args.Count == 0)
             {
                 throw new InvalidOperationException("__getAsyncIterator requires an iterable");
@@ -4806,89 +4804,65 @@ public static class StandardLibrary
                        nextProp is IJsCallable;
             }
 
-            // Handle generators - they are already iterators
-            if (iterable is JsGenerator generator)
+            static bool TryInvokeSymbolIterator(JsObject target, string symbolName, out JsObject? iterator)
             {
-                // Wrap the generator in a JsObject that exposes the Next method
-                var iteratorObj = new JsObject();
-                iteratorObj.SetProperty("next", new HostFunction(_ => { return generator.Next(); }));
-                iteratorObj.SetProperty("return", new HostFunction(args =>
+                var symbol = TypedAstSymbol.For(symbolName);
+                var propertyName = $"@@symbol:{symbol.GetHashCode()}";
+                if (target.TryGetProperty(propertyName, out var method) && method is IJsCallable callable)
                 {
-                    var value = args.Count > 0 ? args[0] : null;
-                    return generator.Return(value);
-                }));
-                iteratorObj.SetProperty("throw", new HostFunction(args =>
-                {
-                    var error = args.Count > 0 ? args[0] : null;
-                    return generator.Throw(error);
-                }));
-                engine.WriteAsyncIteratorTrace(
-                    $"getAsyncIterator: branch=generator hasCallableNext={HasCallableNext(iteratorObj)}");
-                return iteratorObj;
+                    if (callable.Invoke(Array.Empty<object?>(), target) is JsObject iteratorObj)
+                    {
+                        iterator = iteratorObj;
+                        return true;
+                    }
+                }
+
+                iterator = null;
+                return false;
             }
 
-            // Handle strings specially - they need Symbol.iterator
-            if (iterable is string str)
+            static JsObject CreateStringIterator(string str)
             {
-                // Create a string iterator manually
-                var index = 0;
                 var iteratorObj = new JsObject();
+                var index = 0;
                 iteratorObj.SetProperty("next", new HostFunction(_ =>
                 {
+                    var result = new JsObject();
                     if (index < str.Length)
                     {
-                        var result = new JsObject();
                         result.SetProperty("value", str[index].ToString());
                         result.SetProperty("done", false);
                         index++;
-                        return result;
                     }
                     else
                     {
-                        var result = new JsObject();
                         result.SetProperty("done", true);
-                        return result;
                     }
+
+                    return result;
                 }));
-                engine.WriteAsyncIteratorTrace(
-                    $"getAsyncIterator: branch=string hasCallableNext={HasCallableNext(iteratorObj)} length={str.Length}");
                 return iteratorObj;
             }
 
-            // For objects, check if it's already an iterator (has a "next" method)
-            // This handles generator objects which are returned from generator functions
-            if (iterable is JsObject jsObj)
+            if (iterable is JsObject jsObject)
             {
-                // Check if it's already an iterator (has a "next" method)
-                if (jsObj.TryGetProperty("next", out var nextMethod) && nextMethod is IJsCallable)
+                if (HasCallableNext(jsObject))
                 {
-                    engine.WriteAsyncIteratorTrace(
-                        $"getAsyncIterator: branch=next-property hasCallableNext={HasCallableNext(jsObj)}");
-                    // It's already an iterator, return it as-is
-                    return jsObj;
+                    engine.WriteAsyncIteratorTrace("getAsyncIterator: branch=next-property");
+                    return jsObject;
                 }
 
-                // Try Symbol.asyncIterator
-                var asyncIteratorSymbol = TypedAstSymbol.For("Symbol.asyncIterator");
-                var asyncIteratorKey = $"@@symbol:{asyncIteratorSymbol.GetHashCode()}";
-                if (jsObj.TryGetProperty(asyncIteratorKey, out var asyncIteratorMethod) &&
-                    asyncIteratorMethod is IJsCallable asyncIteratorCallable)
+                if (TryInvokeSymbolIterator(jsObject, "Symbol.asyncIterator", out var asyncIterator))
                 {
-                    var iterator = asyncIteratorCallable.Invoke([], jsObj);
                     engine.WriteAsyncIteratorTrace(
-                        $"getAsyncIterator: branch=symbol-asyncIterator hasCallableNext={HasCallableNext(iterator)}");
-                    return iterator;
+                        $"getAsyncIterator: branch=symbol-asyncIterator hasCallableNext={HasCallableNext(asyncIterator)}");
+                    return asyncIterator;
                 }
 
-                // Fall back to Symbol.iterator
-                var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-                var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-                if (jsObj.TryGetProperty(iteratorKey, out var iteratorMethod) &&
-                    iteratorMethod is IJsCallable iteratorCallable)
+                if (TryInvokeSymbolIterator(jsObject, "Symbol.iterator", out var iterator))
                 {
-                    var iterator = iteratorCallable.Invoke([], jsObj);
                     engine.WriteAsyncIteratorTrace(
-                        $"getAsyncIterator: branch=symbol-iterator hasCallableNext={HasCallableNext(iterator)} source=object");
+                        $"getAsyncIterator: branch=symbol-iterator hasCallableNext={HasCallableNext(iterator)}");
                     return iterator;
                 }
 
@@ -4896,19 +4870,12 @@ public static class StandardLibrary
                     "Object is not iterable (no Symbol.asyncIterator or Symbol.iterator method)");
             }
 
-            // For arrays, get the iterator
-            if (iterable is JsArray jsArray)
+            if (iterable is string str)
             {
-                var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-                var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-                if (jsArray.TryGetProperty(iteratorKey, out var iteratorMethod) &&
-                    iteratorMethod is IJsCallable iteratorCallable)
-                {
-                    var iterator = iteratorCallable.Invoke([], jsArray);
-                    engine.WriteAsyncIteratorTrace(
-                        $"getAsyncIterator: branch=symbol-iterator hasCallableNext={HasCallableNext(iterator)} source=array length={jsArray.Length}");
-                    return iterator;
-                }
+                var iteratorObj = CreateStringIterator(str);
+                engine.WriteAsyncIteratorTrace(
+                    $"getAsyncIterator: branch=string hasCallableNext={HasCallableNext(iteratorObj)} length={str.Length}");
+                return iteratorObj;
             }
 
             throw new InvalidOperationException($"Value is not iterable: {iterable?.GetType().Name}");

@@ -93,7 +93,7 @@ public static class TypedAstEvaluator
     private static object? EvaluateReturn(ReturnStatement statement, JsEnvironment environment, EvaluationContext context)
     {
         var value = statement.Expression is null
-            ? JsSymbols.Undefined
+            ? null
             : EvaluateExpression(statement.Expression, environment, context);
         context.SetReturn(value);
         return value;
@@ -448,6 +448,7 @@ public static class TypedAstEvaluator
         if (statement.Finally is not null)
         {
             var savedSignal = context.CurrentSignal;
+            context.Clear();
             _ = EvaluateBlock(statement.Finally, environment, context);
             if (context.CurrentSignal is null)
             {
@@ -911,9 +912,11 @@ public static class TypedAstEvaluator
             debugFunction.CurrentContext = context;
         }
 
+        var frozenArguments = FreezeArguments(arguments);
+
         try
         {
-            return callable.Invoke(arguments.MoveToImmutable(), thisValue);
+            return callable.Invoke(frozenArguments, thisValue);
         }
         catch (ThrowSignal signal)
         {
@@ -928,6 +931,13 @@ public static class TypedAstEvaluator
                 debugFunction.CurrentContext = null;
             }
         }
+    }
+
+    private static ImmutableArray<object?> FreezeArguments(ImmutableArray<object?>.Builder builder)
+    {
+        return builder.Count == builder.Capacity
+            ? builder.MoveToImmutable()
+            : builder.ToImmutable();
     }
 
     private static (object? Callee, object? ThisValue, bool SkippedOptional) EvaluateCallTarget(ExpressionNode callee,
@@ -1265,10 +1275,49 @@ public static class TypedAstEvaluator
                 return JsSymbols.Undefined;
             }
 
-            builder.Append(value);
+            builder.Append(ToJsString(value));
         }
 
         return builder.ToString();
+    }
+
+    private static string ToJsString(object? value)
+    {
+        return value switch
+        {
+            null => "null",
+            Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => "undefined",
+            Symbol sym => sym.Name,
+            string s => s,
+            bool b => b ? "true" : "false",
+            double d => d.ToString(CultureInfo.InvariantCulture),
+            float f => f.ToString(CultureInfo.InvariantCulture),
+            decimal m => m.ToString(CultureInfo.InvariantCulture),
+            int i => i.ToString(CultureInfo.InvariantCulture),
+            long l => l.ToString(CultureInfo.InvariantCulture),
+            JsBigInt bigInt => bigInt.ToString(),
+            JsArray array => ArrayToString(array),
+            JsObject => "[object Object]",
+            IJsCallable => "function() { [native code] }",
+            JsSymbol jsSymbol => jsSymbol.ToString(),
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+        };
+
+        static string ArrayToString(JsArray array)
+        {
+            var builder = new StringBuilder();
+            for (var i = 0; i < array.Items.Count; i++)
+            {
+                if (i > 0)
+                {
+                    builder.Append(',');
+                }
+
+                builder.Append(JsEvaluator.ToJsStringForArray(array.Items[i]));
+            }
+
+            return builder.ToString();
+        }
     }
 
     private static bool IsNullish(object? value)
@@ -1464,18 +1513,30 @@ public static class TypedAstEvaluator
                 continue;
             }
 
-            if (left is JsObject or JsArray && (IsNumeric(right) || right is string))
+            if (left is JsObject or JsArray)
             {
-                return IsNumeric(right)
-                    ? left.ToNumber().Equals(right.ToNumber())
-                    : Equals(left.ToString(), right);
+                if (IsNumeric(right))
+                {
+                    return left.ToNumber().Equals(right.ToNumber());
+                }
+
+                if (right is string rightString)
+                {
+                    return string.Equals(ToJsString(left), rightString, StringComparison.Ordinal);
+                }
             }
 
-            if (right is JsObject or JsArray && (IsNumeric(left) || left is string))
+            if (right is JsObject or JsArray)
             {
-                return IsNumeric(left)
-                    ? left.ToNumber().Equals(right.ToNumber())
-                    : Equals(left, right.ToString());
+                if (IsNumeric(left))
+                {
+                    return left.ToNumber().Equals(right.ToNumber());
+                }
+
+                if (left is string leftString)
+                {
+                    return string.Equals(leftString, ToJsString(right), StringComparison.Ordinal);
+                }
             }
 
             return StrictEquals(left, right);
@@ -1971,7 +2032,7 @@ public static class TypedAstEvaluator
             bool => "boolean",
             double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
             string => "string",
-            JsFunction or HostFunction => "function",
+            JsFunction or HostFunction or TypedFunction => "function",
             _ => "object"
         };
     }
@@ -2041,6 +2102,8 @@ public static class TypedAstEvaluator
                 () => environment.Get(identifier.Name),
                 value => environment.Assign(identifier.Name, value)),
             MemberExpression member => ResolveMemberReference(member, environment, context),
+            UnaryExpression { Operator: "++" or "--" } unary =>
+                ResolveReference(unary.Operand, environment, context),
             _ => throw new NotSupportedException("Unsupported assignment target.")
         };
     }

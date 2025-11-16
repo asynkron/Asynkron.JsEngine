@@ -95,10 +95,12 @@ public sealed record SequenceExpression(SourceReference? Source, ExpressionNode 
     : ExpressionNode(Source);
 
 /// <summary>
-/// Represents a destructuring assignment.
+/// Represents a destructuring assignment (<c>[a, b] = value</c> or <c>({ x } = value)</c>).
+/// The pattern is expressed via the same typed binding nodes used by declarations so the
+/// evaluator can reuse its destructuring logic.
 /// </summary>
-public sealed record DestructuringAssignmentExpression(SourceReference? Source, Cons Pattern, ExpressionNode Value)
-    : ExpressionNode(Source);
+public sealed record DestructuringAssignmentExpression(SourceReference? Source, BindingTarget Target,
+    ExpressionNode Value) : ExpressionNode(Source);
 
 /// <summary>
 /// Represents an array literal.

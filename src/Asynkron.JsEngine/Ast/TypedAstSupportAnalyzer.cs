@@ -275,8 +275,9 @@ internal static class TypedAstSupportAnalyzer
                         return true;
                     case TaggedTemplateExpression:
                         return Fail("Tagged template literals are not supported by the typed evaluator yet.");
-                    case DestructuringAssignmentExpression:
-                        return Fail("Destructuring assignments are not supported by the typed evaluator yet.");
+                    case DestructuringAssignmentExpression destructuringAssignment:
+                        return IsSupportedBinding(destructuringAssignment.Target) &&
+                               VisitExpression(destructuringAssignment.Value);
                     case AwaitExpression:
                         return Fail("await expressions are not supported by the typed evaluator yet.");
                     case YieldExpression:

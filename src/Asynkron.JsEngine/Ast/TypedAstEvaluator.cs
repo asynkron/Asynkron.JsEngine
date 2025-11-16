@@ -1340,12 +1340,7 @@ public static class TypedAstEvaluator
 
     private static object? Add(object? left, object? right)
     {
-        if (left is string || right is string)
-        {
-            return JsEvaluator.ToJsString(left) + JsEvaluator.ToJsString(right);
-        }
-
-        if (left is JsObject || left is JsArray || right is JsObject || right is JsArray)
+        if (left is string || right is string || left is JsObject || left is JsArray || right is JsObject || right is JsArray)
         {
             return JsEvaluator.ToJsString(left) + JsEvaluator.ToJsString(right);
         }
@@ -2041,75 +2036,81 @@ public static class TypedAstEvaluator
 
     private static void HoistFromStatement(StatementNode statement, JsEnvironment environment)
     {
-        switch (statement)
+        while (true)
         {
-            case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
-                foreach (var declarator in varDeclaration.Declarators)
-                {
-                    HoistFromBindingTarget(declarator.Target, environment);
-                }
+            switch (statement)
+            {
+                case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
+                    foreach (var declarator in varDeclaration.Declarators)
+                    {
+                        HoistFromBindingTarget(declarator.Target, environment);
+                    }
 
-                break;
-            case BlockStatement block:
-                HoistVarDeclarations(block, environment);
-                break;
-            case IfStatement ifStatement:
-                HoistFromStatement(ifStatement.Then, environment);
-                if (ifStatement.Else is { } elseBranch)
-                {
-                    HoistFromStatement(elseBranch, environment);
-                }
+                    break;
+                case BlockStatement block:
+                    HoistVarDeclarations(block, environment);
+                    break;
+                case IfStatement ifStatement:
+                    HoistFromStatement(ifStatement.Then, environment);
+                    if (ifStatement.Else is { } elseBranch)
+                    {
+                        statement = elseBranch;
+                        continue;
+                    }
 
-                break;
-            case WhileStatement whileStatement:
-                HoistFromStatement(whileStatement.Body, environment);
-                break;
-            case DoWhileStatement doWhileStatement:
-                HoistFromStatement(doWhileStatement.Body, environment);
-                break;
-            case ForStatement forStatement:
-                if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
-                {
-                    HoistFromStatement(initVar, environment);
-                }
+                    break;
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
+                    {
+                        HoistFromStatement(initVar, environment);
+                    }
 
-                HoistFromStatement(forStatement.Body, environment);
-                break;
-            case ForEachStatement forEachStatement:
-                if (forEachStatement.DeclarationKind == VariableKind.Var)
-                {
-                    HoistFromBindingTarget(forEachStatement.Target, environment);
-                }
+                    statement = forStatement.Body;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    if (forEachStatement.DeclarationKind == VariableKind.Var)
+                    {
+                        HoistFromBindingTarget(forEachStatement.Target, environment);
+                    }
 
-                HoistFromStatement(forEachStatement.Body, environment);
-                break;
-            case LabeledStatement labeled:
-                HoistFromStatement(labeled.Statement, environment);
-                break;
-            case TryStatement tryStatement:
-                HoistVarDeclarations(tryStatement.TryBlock, environment);
-                if (tryStatement.Catch is { } catchClause)
-                {
-                    HoistVarDeclarations(catchClause.Body, environment);
-                }
+                    statement = forEachStatement.Body;
+                    continue;
+                case LabeledStatement labeled:
+                    statement = labeled.Statement;
+                    continue;
+                case TryStatement tryStatement:
+                    HoistVarDeclarations(tryStatement.TryBlock, environment);
+                    if (tryStatement.Catch is { } catchClause)
+                    {
+                        HoistVarDeclarations(catchClause.Body, environment);
+                    }
 
-                if (tryStatement.Finally is { } finallyBlock)
-                {
-                    HoistVarDeclarations(finallyBlock, environment);
-                }
+                    if (tryStatement.Finally is { } finallyBlock)
+                    {
+                        HoistVarDeclarations(finallyBlock, environment);
+                    }
 
-                break;
-            case SwitchStatement switchStatement:
-                foreach (var switchCase in switchStatement.Cases)
-                {
-                    HoistVarDeclarations(switchCase.Body, environment);
-                }
+                    break;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        HoistVarDeclarations(switchCase.Body, environment);
+                    }
 
-                break;
-            case FunctionDeclaration:
-            case ClassDeclaration:
-            case ModuleStatement:
-                break;
+                    break;
+                case FunctionDeclaration:
+                case ClassDeclaration:
+                case ModuleStatement:
+                    break;
+            }
+
+            break;
         }
     }
 

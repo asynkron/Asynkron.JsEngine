@@ -652,15 +652,13 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
-        var propertyName = ToPropertyName(property)
-                           ?? throw new InvalidOperationException("Property name cannot be null.");
         var value = EvaluateExpression(expression.Value, environment, context);
         if (context.ShouldStopEvaluation)
         {
             return JsSymbols.Undefined;
         }
 
-        AssignPropertyValue(target, propertyName, value);
+        AssignPropertyValue(target, property, value);
         return value;
     }
 
@@ -679,15 +677,13 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
-        var propertyName = ToPropertyName(index)
-                           ?? throw new InvalidOperationException("Property name cannot be null.");
         var value = EvaluateExpression(expression.Value, environment, context);
         if (context.ShouldStopEvaluation)
         {
             return JsSymbols.Undefined;
         }
 
-        AssignPropertyValue(target, propertyName, value);
+        AssignPropertyValue(target, index, value);
         return value;
     }
 
@@ -718,6 +714,11 @@ public static class TypedAstEvaluator
         if (context.ShouldStopEvaluation)
         {
             return JsSymbols.Undefined;
+        }
+
+        if (TryGetPropertyValue(target, propertyValue, out var arrayValue))
+        {
+            return arrayValue;
         }
 
         var propertyName = ToPropertyName(propertyValue)
@@ -1024,9 +1025,7 @@ public static class TypedAstEvaluator
                 return false;
             }
 
-            var propertyName = ToPropertyName(propertyValue)
-                               ?? throw new InvalidOperationException("Property name cannot be null.");
-            return DeletePropertyValue(target, propertyName);
+            return DeletePropertyValue(target, propertyValue);
         }
 
         // Deleting identifiers is a no-op in strict mode; return false to indicate failure.
@@ -1809,6 +1808,47 @@ public static class TypedAstEvaluator
         };
     }
 
+    private static bool TryResolveArrayIndex(object? candidate, out int index)
+    {
+        switch (candidate)
+        {
+            case int i when i >= 0:
+                index = i;
+                return true;
+            case long l when l >= 0 && l <= int.MaxValue:
+                index = (int)l;
+                return true;
+            case double d when !double.IsNaN(d) && !double.IsInfinity(d):
+                if (d < 0)
+                {
+                    break;
+                }
+
+                var truncated = Math.Truncate(d);
+                if (Math.Abs(truncated - d) > double.Epsilon)
+                {
+                    break;
+                }
+
+                if (truncated > int.MaxValue)
+                {
+                    break;
+                }
+
+                index = (int)truncated;
+                return true;
+            case JsBigInt bigInt when bigInt.Value >= BigInteger.Zero && bigInt.Value <= int.MaxValue:
+                index = (int)bigInt.Value;
+                return true;
+            case string s when int.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0:
+                index = parsed;
+                return true;
+        }
+
+        index = 0;
+        return false;
+    }
+
     private static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
     {
         if (target is IJsPropertyAccessor propertyAccessor)
@@ -1853,7 +1893,57 @@ public static class TypedAstEvaluator
         return false;
     }
 
-    private static void AssignPropertyValue(object? target, string propertyName, object? value)
+    private static bool TryGetPropertyValue(object? target, object? propertyKey, out object? value)
+    {
+        if (TryGetArrayLikeValue(target, propertyKey, out value))
+        {
+            return true;
+        }
+
+        var propertyName = ToPropertyName(propertyKey);
+        if (propertyName is null)
+        {
+            value = JsSymbols.Undefined;
+            return true;
+        }
+
+        return TryGetPropertyValue(target, propertyName, out value);
+    }
+
+    private static bool TryGetArrayLikeValue(object? target, object? propertyKey, out object? value)
+    {
+        if (target is JsArray jsArray && TryResolveArrayIndex(propertyKey, out var arrayIndex))
+        {
+            value = jsArray.GetElement(arrayIndex);
+            return true;
+        }
+
+        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex))
+        {
+            value = typedIndex >= 0 && typedIndex < typedArray.Length
+                ? typedArray.GetElement(typedIndex)
+                : JsSymbols.Undefined;
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static void AssignPropertyValue(object? target, object? propertyKey, object? value)
+    {
+        if (TryAssignArrayLikeValue(target, propertyKey, value))
+        {
+            return;
+        }
+
+        var propertyName = ToPropertyName(propertyKey)
+                           ?? throw new InvalidOperationException("Property name cannot be null.");
+
+        AssignPropertyValueByName(target, propertyName, value);
+    }
+
+    private static void AssignPropertyValueByName(object? target, string propertyName, object? value)
     {
         if (target is IJsPropertyAccessor accessor)
         {
@@ -1864,17 +1954,77 @@ public static class TypedAstEvaluator
         throw new InvalidOperationException($"Cannot assign property '{propertyName}' on value '{target}'.");
     }
 
-    private static bool DeletePropertyValue(object? target, string propertyName)
+    private static bool TryAssignArrayLikeValue(object? target, object? propertyKey, object? value)
     {
-        if (target is JsObject jsObject)
+        if (target is JsArray jsArray && TryResolveArrayIndex(propertyKey, out var index))
         {
-            // JavaScript specifies that deleting a non-existent property returns true
-            if (!jsObject.ContainsKey(propertyName))
+            jsArray.SetElement(index, value);
+            return true;
+        }
+
+        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex))
+        {
+            if (typedIndex < 0 || typedIndex >= typedArray.Length)
             {
                 return true;
             }
 
-            return jsObject.Remove(propertyName);
+            var numericValue = value switch
+            {
+                double d => d,
+                int i => i,
+                long l => l,
+                float f => f,
+                bool b => b ? 1.0 : 0.0,
+                null => 0.0,
+                _ => 0.0
+            };
+
+            typedArray.SetElement(typedIndex, numericValue);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool DeletePropertyValue(object? target, object? propertyKey)
+    {
+        if (target is JsArray jsArray)
+        {
+            if (TryResolveArrayIndex(propertyKey, out var arrayIndex))
+            {
+                return jsArray.DeleteElement(arrayIndex);
+            }
+
+            var propertyName = ToPropertyName(propertyKey);
+            return propertyName is null || jsArray.DeleteProperty(propertyName);
+        }
+
+        if (target is TypedArrayBase typedArray)
+        {
+            if (TryResolveArrayIndex(propertyKey, out _))
+            {
+                return false;
+            }
+
+            var propertyName = ToPropertyName(propertyKey);
+            return propertyName is null || typedArray.DeleteProperty(propertyName);
+        }
+
+        var resolvedName = ToPropertyName(propertyKey);
+        if (resolvedName is null)
+        {
+            return true;
+        }
+
+        if (target is JsObject jsObject)
+        {
+            if (!jsObject.ContainsKey(resolvedName))
+            {
+                return true;
+            }
+
+            return jsObject.Remove(resolvedName);
         }
 
         // Deleting primitives or other non-object values is a no-op that succeeds
@@ -2123,12 +2273,34 @@ public static class TypedAstEvaluator
             return new AssignmentReference(() => JsSymbols.Undefined, _ => { });
         }
 
+        if (target is JsArray jsArray && TryResolveArrayIndex(propertyValue, out var arrayIndex))
+        {
+            return new AssignmentReference(
+                () => jsArray.GetElement(arrayIndex),
+                newValue => jsArray.SetElement(arrayIndex, newValue));
+        }
+
+        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyValue, out var typedIndex))
+        {
+            return new AssignmentReference(
+                () => typedIndex >= 0 && typedIndex < typedArray.Length
+                    ? typedArray.GetElement(typedIndex)
+                    : JsSymbols.Undefined,
+                newValue =>
+                {
+                    if (typedIndex >= 0 && typedIndex < typedArray.Length)
+                    {
+                        typedArray.SetElement(typedIndex, newValue.ToNumber());
+                    }
+                });
+        }
+
         var propertyName = ToPropertyName(propertyValue)
                            ?? throw new InvalidOperationException("Property name cannot be null.");
 
         return new AssignmentReference(
             () => TryGetPropertyValue(target, propertyName, out var value) ? value : JsSymbols.Undefined,
-            newValue => AssignPropertyValue(target, propertyName, newValue));
+            newValue => AssignPropertyValueByName(target, propertyName, newValue));
     }
 
     private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor

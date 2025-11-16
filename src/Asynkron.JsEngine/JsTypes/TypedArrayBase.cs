@@ -296,6 +296,27 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         _properties.SetProperty(name, value);
     }
 
+    /// <summary>
+    /// Deletes a dynamically assigned property. Built-in properties are non-configurable.
+    /// </summary>
+    public bool DeleteProperty(string name)
+    {
+        switch (name)
+        {
+            case "length":
+            case "byteLength":
+            case "byteOffset":
+            case "BYTES_PER_ELEMENT":
+            case "buffer":
+            case "set":
+            case "subarray":
+            case "slice":
+                return false;
+        }
+
+        return _properties.Remove(name);
+    }
+
     private static bool TryParseIndex(string candidate, out int index)
     {
         return int.TryParse(candidate, NumberStyles.Integer, CultureInfo.InvariantCulture, out index);

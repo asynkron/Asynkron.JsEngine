@@ -112,11 +112,47 @@ public sealed class JsArray : IJsPropertyAccessor
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
 
+        var extended = false;
         // Fill gaps with ArrayHole sentinel to represent sparse array holes
-        while (_items.Count <= index) _items.Add(ArrayHole);
+        while (_items.Count <= index)
+        {
+            _items.Add(ArrayHole);
+            extended = true;
+        }
 
         _items[index] = value;
-        UpdateLength();
+        if (extended)
+        {
+            UpdateLength();
+        }
+    }
+
+    /// <summary>
+    /// Removes the element at the specified index without affecting the array length.
+    /// JavaScript's delete operator leaves holes behind, which we represent via <see cref="ArrayHole"/>.
+    /// </summary>
+    public bool DeleteElement(int index)
+    {
+        if (index < 0 || index >= _items.Count)
+        {
+            return true;
+        }
+
+        _items[index] = ArrayHole;
+        return true;
+    }
+
+    /// <summary>
+    /// Deletes a named property from the backing object storage.
+    /// </summary>
+    public bool DeleteProperty(string name)
+    {
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return _properties.Remove(name);
     }
 
     public void Push(object? value)

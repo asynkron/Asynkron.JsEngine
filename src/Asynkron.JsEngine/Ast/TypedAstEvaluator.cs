@@ -21,6 +21,9 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 public static class TypedAstEvaluator
 {
+    private static readonly Symbol YieldTrackerSymbol = Symbol.Intern("__yieldTracker__");
+    private static readonly string IteratorSymbolPropertyName =
+        $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
     public static object? EvaluateProgram(ProgramNode program, JsEnvironment environment)
     {
         var context = new EvaluationContext { SourceReference = program.Source };
@@ -942,9 +945,19 @@ public static class TypedAstEvaluator
 
     private static object? EvaluateFunctionDeclaration(FunctionDeclaration declaration, JsEnvironment environment)
     {
-        var function = new TypedFunction(declaration.Function, environment);
+        var function = CreateFunctionValue(declaration.Function, environment);
         environment.Define(declaration.Name, function);
         return function;
+    }
+
+    private static IJsCallable CreateFunctionValue(FunctionExpression functionExpression, JsEnvironment environment)
+    {
+        if (functionExpression.IsGenerator)
+        {
+            return new TypedGeneratorFactory(functionExpression, environment);
+        }
+
+        return new TypedFunction(functionExpression, environment);
     }
 
     private static object? EvaluateLabeled(LabeledStatement statement, JsEnvironment environment, EvaluationContext context)
@@ -980,7 +993,7 @@ public static class TypedAstEvaluator
             UnaryExpression unary => EvaluateUnary(unary, environment, context),
             ConditionalExpression conditional => EvaluateConditional(conditional, environment, context),
             CallExpression call => EvaluateCall(call, environment, context),
-            FunctionExpression functionExpression => new TypedFunction(functionExpression, environment),
+            FunctionExpression functionExpression => CreateFunctionValue(functionExpression, environment),
             AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
             DestructuringAssignmentExpression destructuringAssignment =>
                 EvaluateDestructuringAssignment(destructuringAssignment, environment, context),
@@ -996,6 +1009,7 @@ public static class TypedAstEvaluator
             TemplateLiteralExpression template => EvaluateTemplateLiteral(template, environment, context),
             TaggedTemplateExpression taggedTemplate =>
                 EvaluateTaggedTemplate(taggedTemplate, environment, context),
+            YieldExpression yieldExpression => EvaluateYield(yieldExpression, environment, context),
             ThisExpression => environment.Get(JsSymbols.This),
             UnknownExpression unknown => throw new NotSupportedException(
                 $"Typed evaluator does not yet understand the '{unknown.Node.Head}' expression form."),
@@ -1015,6 +1029,36 @@ public static class TypedAstEvaluator
 
         environment.Assign(expression.Target, targetValue);
         return targetValue;
+    }
+
+    private static object? EvaluateYield(YieldExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        if (expression.IsDelegated)
+        {
+            throw new NotSupportedException("Delegated yield expressions are not supported by the typed evaluator yet.");
+        }
+
+        var yieldedValue = expression.Expression is null
+            ? JsSymbols.Undefined
+            : EvaluateExpression(expression.Expression, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return yieldedValue;
+        }
+
+        if (!environment.TryGet(YieldTrackerSymbol, out var tracker) || tracker is not YieldTracker yieldTracker)
+        {
+            throw new InvalidOperationException("'yield' can only be used inside a generator function.");
+        }
+
+        if (!yieldTracker.ShouldYield())
+        {
+            return JsSymbols.Undefined;
+        }
+
+        context.SetYield(yieldedValue);
+        return yieldedValue;
     }
 
     private static object? EvaluateDestructuringAssignment(DestructuringAssignmentExpression expression,
@@ -2968,6 +3012,260 @@ public static class TypedAstEvaluator
             newValue => AssignPropertyValueByName(target, propertyName, newValue));
     }
 
+    private static void BindFunctionParameters(FunctionExpression function, IReadOnlyList<object?> arguments,
+        JsEnvironment environment, EvaluationContext context)
+    {
+        var argumentIndex = 0;
+
+        foreach (var parameter in function.Parameters)
+        {
+            if (parameter.IsRest)
+            {
+                if (parameter.Pattern is not null)
+                {
+                    throw new NotSupportedException("Rest parameters cannot use destructuring patterns.");
+                }
+
+                var restArray = new JsArray();
+                for (; argumentIndex < arguments.Count; argumentIndex++)
+                {
+                    restArray.Push(arguments[argumentIndex]);
+                }
+
+                if (parameter.Name is null)
+                {
+                    throw new InvalidOperationException("Rest parameter must have an identifier.");
+                }
+
+                environment.Define(parameter.Name, restArray);
+                continue;
+            }
+
+            var value = argumentIndex < arguments.Count ? arguments[argumentIndex] : JsSymbols.Undefined;
+            argumentIndex++;
+
+            if (IsNullOrUndefined(value) && parameter.DefaultValue is not null)
+            {
+                value = EvaluateExpression(parameter.DefaultValue, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+            }
+
+            if (parameter.Pattern is not null)
+            {
+                ApplyBindingTarget(parameter.Pattern, value, environment, context, BindingMode.DefineParameter);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+
+                continue;
+            }
+
+            if (parameter.Name is null)
+            {
+                throw new InvalidOperationException("Parameter must have an identifier when no pattern is provided.");
+            }
+
+            environment.Define(parameter.Name, value);
+        }
+    }
+
+    private sealed class TypedGeneratorFactory : IJsCallable
+    {
+        private readonly FunctionExpression _function;
+        private readonly JsEnvironment _closure;
+
+        public TypedGeneratorFactory(FunctionExpression function, JsEnvironment closure)
+        {
+            if (!function.IsGenerator)
+            {
+                throw new ArgumentException("Factory can only wrap generator functions.", nameof(function));
+            }
+
+            _function = function;
+            _closure = closure;
+        }
+
+        public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+        {
+            var instance = new TypedGeneratorInstance(_function, _closure, arguments, thisValue, this);
+            return instance.CreateGeneratorObject();
+        }
+
+        public override string ToString()
+        {
+            return _function.Name is { } name
+                ? $"[GeneratorFunction: {name.Name}]"
+                : "[GeneratorFunction]";
+        }
+    }
+
+    private sealed class TypedGeneratorInstance
+    {
+        private readonly FunctionExpression _function;
+        private readonly JsEnvironment _closure;
+        private readonly IReadOnlyList<object?> _arguments;
+        private readonly object? _thisValue;
+        private readonly IJsCallable _callable;
+        private JsEnvironment? _executionEnvironment;
+        private GeneratorState _state = GeneratorState.Start;
+        private bool _done;
+        private int _currentYieldIndex;
+
+        public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
+            IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
+        {
+            _function = function;
+            _closure = closure;
+            _arguments = arguments;
+            _thisValue = thisValue;
+            _callable = callable;
+        }
+
+        public JsObject CreateGeneratorObject()
+        {
+            var iterator = new JsObject();
+            iterator.SetProperty("next",
+                new HostFunction((_, args) => Next(args.Count > 0 ? args[0] : null)));
+            iterator.SetProperty("return",
+                new HostFunction((_, args) => Return(args.Count > 0 ? args[0] : null)));
+            iterator.SetProperty("throw",
+                new HostFunction((_, args) => Throw(args.Count > 0 ? args[0] : null)));
+            iterator.SetProperty(IteratorSymbolPropertyName, new HostFunction((_, _) => iterator));
+            return iterator;
+        }
+
+        private object? Next(object? value)
+        {
+            // TODO: Support feeding values back into the generator body via next(value).
+            _ = value;
+            if (_done || _state == GeneratorState.Completed)
+            {
+                _state = GeneratorState.Completed;
+                _done = true;
+                return CreateIteratorResult(null, true);
+            }
+
+            try
+            {
+                _state = GeneratorState.Executing;
+
+                _executionEnvironment ??= CreateExecutionEnvironment();
+
+                var context = new EvaluationContext();
+                _executionEnvironment.Define(YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
+
+                // NOTE: Sending values back into the generator via next(value) is not yet implemented.
+                var result = EvaluateBlock(_function.Body, _executionEnvironment, context);
+
+                if (context.IsThrow)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    _state = GeneratorState.Completed;
+                    _done = true;
+                    throw new ThrowSignal(thrown);
+                }
+
+                if (context.IsYield)
+                {
+                    var yielded = context.FlowValue;
+                    context.Clear();
+                    _state = GeneratorState.Suspended;
+                    _currentYieldIndex++;
+                    return CreateIteratorResult(yielded, false);
+                }
+
+                if (context.IsReturn)
+                {
+                    var returnValue = context.FlowValue;
+                    context.ClearReturn();
+                    _state = GeneratorState.Completed;
+                    _done = true;
+                    return CreateIteratorResult(returnValue, true);
+                }
+
+                _state = GeneratorState.Completed;
+                _done = true;
+                return CreateIteratorResult(result, true);
+            }
+            catch
+            {
+                _state = GeneratorState.Completed;
+                _done = true;
+                throw;
+            }
+        }
+
+        private object? Return(object? value)
+        {
+            _state = GeneratorState.Completed;
+            _done = true;
+            return CreateIteratorResult(value, true);
+        }
+
+        private object? Throw(object? error)
+        {
+            _state = GeneratorState.Completed;
+            _done = true;
+            throw new ThrowSignal(error);
+        }
+
+        private JsEnvironment CreateExecutionEnvironment()
+        {
+            var description = _function.Name is { } name
+                ? $"function* {name.Name}"
+                : "generator function";
+            var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, description: description);
+            environment.Define(JsSymbols.This, _thisValue ?? new JsObject());
+
+            if (_function.Name is { } functionName)
+            {
+                environment.Define(functionName, _callable);
+            }
+
+            HoistVarDeclarations(_function.Body, environment);
+
+            var bindingContext = new EvaluationContext();
+            BindFunctionParameters(_function, _arguments, environment, bindingContext);
+            if (bindingContext.IsThrow)
+            {
+                var thrown = bindingContext.FlowValue;
+                bindingContext.Clear();
+                throw new ThrowSignal(thrown);
+            }
+
+            if (bindingContext.IsReturn)
+            {
+                bindingContext.ClearReturn();
+            }
+
+            return environment;
+        }
+
+        private static JsObject CreateIteratorResult(object? value, bool done)
+        {
+            var result = new JsObject();
+            var normalizedValue = done && ReferenceEquals(value, JsSymbols.Undefined)
+                ? null
+                : value;
+            result.SetProperty("value", normalizedValue);
+            result.SetProperty("done", done);
+            return result;
+        }
+
+        private enum GeneratorState
+        {
+            Start,
+            Suspended,
+            Executing,
+            Completed
+        }
+    }
+
     private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
     {
         private readonly FunctionExpression _function;
@@ -3016,7 +3314,7 @@ public static class TypedAstEvaluator
 
             HoistVarDeclarations(_function.Body, environment);
 
-            BindParameters(arguments, environment, context);
+            BindFunctionParameters(_function, arguments, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsSymbols.Undefined;
@@ -3084,66 +3382,6 @@ public static class TypedAstEvaluator
                 }
 
                 instance.SetProperty(field.Name, value);
-            }
-        }
-
-        private void BindParameters(IReadOnlyList<object?> arguments, JsEnvironment environment, EvaluationContext context)
-        {
-            var argumentIndex = 0;
-
-            foreach (var parameter in _function.Parameters)
-            {
-                if (parameter.IsRest)
-                {
-                    if (parameter.Pattern is not null)
-                    {
-                        throw new NotSupportedException("Rest parameters cannot use destructuring patterns.");
-                    }
-
-                    var restArray = new JsArray();
-                    for (; argumentIndex < arguments.Count; argumentIndex++)
-                    {
-                        restArray.Push(arguments[argumentIndex]);
-                    }
-
-                    if (parameter.Name is null)
-                    {
-                        throw new InvalidOperationException("Rest parameter must have an identifier.");
-                    }
-
-                    environment.Define(parameter.Name, restArray);
-                    continue;
-                }
-
-                var value = argumentIndex < arguments.Count ? arguments[argumentIndex] : JsSymbols.Undefined;
-                argumentIndex++;
-
-                if (IsNullOrUndefined(value) && parameter.DefaultValue is not null)
-                {
-                    value = EvaluateExpression(parameter.DefaultValue, environment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return;
-                    }
-                }
-
-                if (parameter.Pattern is not null)
-                {
-                    ApplyBindingTarget(parameter.Pattern, value, environment, context, BindingMode.DefineParameter);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return;
-                    }
-
-                    continue;
-                }
-
-                if (parameter.Name is null)
-                {
-                    throw new InvalidOperationException("Parameter must have an identifier when no pattern is provided.");
-                }
-
-                environment.Define(parameter.Name, value);
             }
         }
 

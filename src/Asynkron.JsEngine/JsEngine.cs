@@ -15,7 +15,7 @@ public sealed class JsEngine : IAsyncDisposable
 {
     private readonly TaskCompletionSource _doneTcs = new();
     private readonly JsEnvironment _global = new(isFunctionScope: true);
-    private readonly CpsTransformer _cpsTransformer = new();
+
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private readonly TypedProgramExecutor _typedExecutor = new();
@@ -258,7 +258,7 @@ public sealed class JsEngine : IAsyncDisposable
         var parser = new Parser.Parser(tokens, source);
         var program = parser.ParseProgram();
 
-        return applyTransformations ? ApplyConsTransformations(program) : program;
+        return program;
     }
 
     private ParsedProgram CreateParsedProgram(Cons program, bool preferTyped)
@@ -300,10 +300,10 @@ public sealed class JsEngine : IAsyncDisposable
 
     private ParsedProgram CreateFallbackParsedProgram(Cons program)
     {
-        var transformedCons = ApplyConsTransformations(program);
-        var fallbackTyped = _astBuilder.BuildProgram(transformedCons);
+
+        var fallbackTyped = _astBuilder.BuildProgram(program);
         fallbackTyped = _typedConstantTransformer.Transform(fallbackTyped);
-        return new ParsedProgram(transformedCons, fallbackTyped);
+        return new ParsedProgram(program, fallbackTyped);
     }
 
     /// <summary>
@@ -353,26 +353,10 @@ public sealed class JsEngine : IAsyncDisposable
         var typed = _astBuilder.BuildProgram(original);
         var typedConstant = _typedConstantTransformer.Transform(typed);
 
-        // Step 4: Apply CPS transformation if needed
-        var cpsTransformed = ApplyConsCpsTransformation(original);
-
-        return (original, typedConstant, cpsTransformed);
+        return (original, typedConstant, null);
     }
 
-    private Cons ApplyConsTransformations(Cons program)
-    {
-        return ApplyConsCpsTransformation(program);
-    }
 
-    private Cons ApplyConsCpsTransformation(Cons program)
-    {
-        if (!CpsTransformer.NeedsTransformation(program))
-        {
-            return program;
-        }
-
-        return _cpsTransformer.Transform(program);
-    }
 
     /// <summary>
     /// Parses and schedules evaluation of the provided source on the event queue.

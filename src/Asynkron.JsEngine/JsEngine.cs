@@ -15,7 +15,6 @@ public sealed class JsEngine : IAsyncDisposable
 {
     private readonly TaskCompletionSource _doneTcs = new();
     private readonly JsEnvironment _global = new(isFunctionScope: true);
-    private readonly ConstantExpressionTransformer _constantTransformer = new();
     private readonly CpsTransformer _cpsTransformer = new();
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
@@ -226,10 +225,10 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Parses JavaScript source code into an S-expression representation.
-    /// Applies constant expression folding followed by CPS (Continuation-Passing Style) transformation.
-    /// Constant folding runs first to simplify expressions like 1+2*7 to 15 before CPS transformation.
-    /// CPS transformation is applied if the code contains async functions, generators, await expressions, or yield expressions.
+    /// Parses JavaScript source code into an S-expression representation and
+    /// applies CPS (Continuation-Passing Style) transformation when needed.
+    /// Constant folding now happens exclusively on the typed AST, so the
+    /// returned Cons tree reflects only structural CPS rewrites.
     /// </summary>
     public Cons Parse([LanguageInjection("javascript")] string source)
     {
@@ -337,8 +336,9 @@ public sealed class JsEngine : IAsyncDisposable
     /// This is useful for understanding how constant folding and CPS transformation affect the code.
     /// </summary>
     /// <param name="source">JavaScript source code</param>
-    /// <returns>A tuple containing (original, constantFolded, cpsTransformed) S-expressions.</returns>
-    public (Cons original, Cons constantFolded, Cons cpsTransformed) ParseWithTransformationSteps(
+    /// <returns>A tuple containing the original S-expression, the typed AST after constant folding,
+    /// and the CPS-transformed S-expression.</returns>
+    public (Cons original, ProgramNode typedConstantFolded, Cons cpsTransformed) ParseWithTransformationSteps(
         [LanguageInjection("javascript")] string source)
     {
         // Step 1: Tokenize
@@ -349,24 +349,19 @@ public sealed class JsEngine : IAsyncDisposable
         var parser = new Parser.Parser(tokens, source);
         var original = parser.ParseProgram();
 
-        // Step 3: Apply constant expression folding
-        var constantFolded = ApplyConsConstantFolding(original);
+        // Step 3: Build the typed AST and apply constant folding there
+        var typed = _astBuilder.BuildProgram(original);
+        var typedConstant = _typedConstantTransformer.Transform(typed);
 
         // Step 4: Apply CPS transformation if needed
-        var cpsTransformed = ApplyConsCpsTransformation(constantFolded);
+        var cpsTransformed = ApplyConsCpsTransformation(original);
 
-        return (original, constantFolded, cpsTransformed);
+        return (original, typedConstant, cpsTransformed);
     }
 
     private Cons ApplyConsTransformations(Cons program)
     {
-        var constantFolded = ApplyConsConstantFolding(program);
-        return ApplyConsCpsTransformation(constantFolded);
-    }
-
-    private Cons ApplyConsConstantFolding(Cons program)
-    {
-        return _constantTransformer.Transform(program);
+        return ApplyConsCpsTransformation(program);
     }
 
     private Cons ApplyConsCpsTransformation(Cons program)

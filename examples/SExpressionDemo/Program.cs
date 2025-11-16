@@ -63,15 +63,15 @@ var jsCode = """
 Console.WriteLine("=== Original S-Expression (Before Transformations) ===\n");
 
 // Parse and get the S-expressions at each transformation stage
-var (originalProgram, constantFoldedProgram, cpsTransformedProgram) = engine.ParseWithTransformationSteps(jsCode);
+var (originalProgram, typedConstantProgram, cpsTransformedProgram) = engine.ParseWithTransformationSteps(jsCode);
 
 // Display the original S-expression
 Console.WriteLine(originalProgram.ToString());
 
-Console.WriteLine("\n\n=== After Constant Folding ===\n");
+Console.WriteLine("\n\n=== After Typed Constant Folding ===\n");
 
-// Display the constant-folded S-expression
-Console.WriteLine(constantFoldedProgram.ToString());
+// Display the typed AST after constant folding
+Console.WriteLine(typedConstantProgram.ToString());
 
 Console.WriteLine("\n\n=== After CPS Transformation ===\n");
 

@@ -479,6 +479,40 @@ public class ModuleTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ExportDefaultAnonymousClass()
+    {
+        await using var engine = new JsEngine();
+
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (modulePath == "anonymous.js")
+            {
+                return """
+                                           export default class {
+                                               constructor(value) {
+                                                   this.value = value;
+                                               }
+
+                                               double() {
+                                                   return this.value * 2;
+                                               }
+                                           }
+                       """;
+            }
+
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+
+        var result = await engine.Evaluate("""
+                                                       import Mystery from "anonymous.js";
+                                                       new Mystery(7).double();
+
+                                           """);
+
+        Assert.Equal(14d, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task MultipleImportsFromSameModule()
     {
         await using var engine = new JsEngine();

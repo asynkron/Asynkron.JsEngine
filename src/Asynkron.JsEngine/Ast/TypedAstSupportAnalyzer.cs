@@ -150,8 +150,6 @@ internal static class TypedAstSupportAnalyzer
                         return VisitClass(classDeclaration);
                     case ModuleStatement:
                         return Fail("module import/export statements are not supported by the typed evaluator yet.");
-                    case UnknownStatement unknown:
-                        return Fail($"Unknown statement form '{unknown.Node.Head}'.");
                     default:
                         return Fail($"Statement '{statement.GetType().Name}' is not supported by the typed evaluator yet.");
                 }
@@ -162,17 +160,22 @@ internal static class TypedAstSupportAnalyzer
 
         private bool VisitClass(ClassDeclaration classDeclaration)
         {
-            if (classDeclaration.Definition.Extends is { } extends && !VisitExpression(extends))
+            return VisitClassDefinition(classDeclaration.Definition);
+        }
+
+        private bool VisitClassDefinition(ClassDefinition definition)
+        {
+            if (definition.Extends is { } extends && !VisitExpression(extends))
             {
                 return false;
             }
 
-            if (!VisitFunction(classDeclaration.Definition.Constructor))
+            if (!VisitFunction(definition.Constructor))
             {
                 return false;
             }
 
-            foreach (var member in classDeclaration.Definition.Members)
+            foreach (var member in definition.Members)
             {
                 if (!VisitFunction(member.Function))
                 {
@@ -180,7 +183,7 @@ internal static class TypedAstSupportAnalyzer
                 }
             }
 
-            foreach (var field in classDeclaration.Definition.Fields)
+            foreach (var field in definition.Fields)
             {
                 if (field.Initializer is not null && !VisitExpression(field.Initializer))
                 {
@@ -294,6 +297,8 @@ internal static class TypedAstSupportAnalyzer
                         }
 
                         return true;
+                    case ClassExpression classExpression:
+                        return VisitClassDefinition(classExpression.Definition);
                     case TemplateLiteralExpression template:
                         foreach (var part in template.Parts)
                         {
@@ -304,8 +309,23 @@ internal static class TypedAstSupportAnalyzer
                         }
 
                         return true;
-                    case TaggedTemplateExpression:
-                        return Fail("Tagged template literals are not supported by the typed evaluator yet.");
+                    case TaggedTemplateExpression taggedTemplate:
+                        if (!VisitExpression(taggedTemplate.Tag) ||
+                            !VisitExpression(taggedTemplate.StringsArray) ||
+                            !VisitExpression(taggedTemplate.RawStringsArray))
+                        {
+                            return false;
+                        }
+
+                        foreach (var expr in taggedTemplate.Expressions)
+                        {
+                            if (!VisitExpression(expr))
+                            {
+                                return false;
+                            }
+                        }
+
+                        return true;
                     case DestructuringAssignmentExpression destructuringAssignment:
                         return IsSupportedBinding(destructuringAssignment.Target) &&
                                VisitExpression(destructuringAssignment.Value);
@@ -320,8 +340,6 @@ internal static class TypedAstSupportAnalyzer
                         return VisitExpression(yieldExpression.Expression);
                     case SuperExpression:
                         return Fail("super expressions are not supported by the typed evaluator yet.");
-                    case UnknownExpression unknown:
-                        return Fail($"Unknown expression form '{unknown.Node.Head}'.");
                     default:
                         return Fail($"Expression '{expression.GetType().Name}' is not supported by the typed evaluator yet.");
                 }

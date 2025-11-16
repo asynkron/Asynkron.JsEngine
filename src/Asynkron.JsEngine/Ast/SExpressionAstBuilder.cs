@@ -262,13 +262,13 @@ public sealed class SExpressionAstBuilder
         if (ReferenceEquals(symbol, JsSymbols.Class))
         {
             var name = cons.Rest.Head as Symbol;
-            var extendsClause = cons.Rest.Rest.Head as Cons;
-            var constructor = cons.Rest.Rest.Rest.Head as Cons ?? Cons.Empty;
-            var methods = cons.Rest.Rest.Rest.Rest.Head as Cons ?? Cons.Empty;
-            var fields = cons.Rest.Rest.Rest.Rest.Rest.Head as Cons ?? Cons.Empty;
-            return name is null
-                ? new UnknownStatement(cons.SourceReference, cons)
-                : new ClassDeclaration(cons.SourceReference, name, extendsClause, constructor, methods, fields);
+            if (name is null)
+            {
+                return new UnknownStatement(cons.SourceReference, cons);
+            }
+
+            var definition = BuildClassDefinition(cons);
+            return new ClassDeclaration(cons.SourceReference, name, definition);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Import))
@@ -519,6 +519,146 @@ public sealed class SExpressionAstBuilder
 
         var declarator = new VariableDeclarator(cons.SourceReference, target, initializer);
         return new VariableDeclaration(cons.SourceReference, kind, ImmutableArray.Create(declarator));
+    }
+
+    private ClassDefinition BuildClassDefinition(Cons cons)
+    {
+        ExpressionNode? extends = null;
+        if (cons.Rest.Rest.Head is Cons { Head: Symbol extendsHead } extendsCons &&
+            ReferenceEquals(extendsHead, JsSymbols.Extends))
+        {
+            extends = BuildExpression(extendsCons.Rest.Head);
+        }
+
+        var ctorExpression = cons.Rest.Rest.Rest.Head;
+        if (ctorExpression is null)
+        {
+            throw new InvalidOperationException("Class constructor expression cannot be null.");
+        }
+
+        if (BuildExpression(ctorExpression) is not FunctionExpression constructor)
+        {
+            throw new InvalidOperationException("Class constructor must be a function expression.");
+        }
+
+        var methodsCons = cons.Rest.Rest.Rest.Rest.Head as Cons ?? Cons.Empty;
+        var fieldsCons = cons.Rest.Rest.Rest.Rest.Rest.Head as Cons ?? Cons.Empty;
+
+        return new ClassDefinition(cons.SourceReference, extends, constructor,
+            BuildClassMembers(methodsCons), BuildClassFields(fieldsCons));
+    }
+
+    private ImmutableArray<ClassMember> BuildClassMembers(Cons methods)
+    {
+        var builder = ImmutableArray.CreateBuilder<ClassMember>();
+        foreach (var entry in methods)
+        {
+            if (entry is not Cons { Head: Symbol head } memberCons)
+            {
+                continue;
+            }
+
+            var name = memberCons.Rest.Head as string;
+            if (name is null)
+            {
+                continue;
+            }
+
+            ClassMemberKind kind;
+            bool isStatic;
+            FunctionExpression function;
+
+            if (ReferenceEquals(head, JsSymbols.Method) || ReferenceEquals(head, JsSymbols.StaticMethod))
+            {
+                var functionExpr = BuildExpression(memberCons.Rest.Rest.Head);
+                if (functionExpr is not FunctionExpression fn)
+                {
+                    continue;
+                }
+
+                function = fn;
+                kind = ClassMemberKind.Method;
+                isStatic = ReferenceEquals(head, JsSymbols.StaticMethod);
+            }
+            else if (ReferenceEquals(head, JsSymbols.Getter) || ReferenceEquals(head, JsSymbols.StaticGetter))
+            {
+                var body = BuildBlock(ExpectCons(memberCons.Rest.Rest.Head, memberCons.SourceReference));
+                function = new FunctionExpression(memberCons.SourceReference, null,
+                    ImmutableArray<FunctionParameter>.Empty, body, false, false);
+                kind = ClassMemberKind.Getter;
+                isStatic = ReferenceEquals(head, JsSymbols.StaticGetter);
+            }
+            else if (ReferenceEquals(head, JsSymbols.Setter) || ReferenceEquals(head, JsSymbols.StaticSetter))
+            {
+                var parameter = memberCons.Rest.Rest.Head as Symbol;
+                if (parameter is null)
+                {
+                    continue;
+                }
+
+                var body = BuildBlock(ExpectCons(memberCons.Rest.Rest.Rest.Head, memberCons.SourceReference));
+                var parameterList = ImmutableArray.Create(new FunctionParameter(memberCons.SourceReference, parameter,
+                    false, null, null));
+                function = new FunctionExpression(memberCons.SourceReference, null, parameterList, body, false, false);
+                kind = ClassMemberKind.Setter;
+                isStatic = ReferenceEquals(head, JsSymbols.StaticSetter);
+            }
+            else
+            {
+                continue;
+            }
+
+            builder.Add(new ClassMember(memberCons.SourceReference, kind, name, function, isStatic));
+        }
+
+        return builder.ToImmutable();
+    }
+
+    private ImmutableArray<ClassField> BuildClassFields(Cons fields)
+    {
+        var builder = ImmutableArray.CreateBuilder<ClassField>();
+        foreach (var entry in fields)
+        {
+            if (entry is not Cons { Head: Symbol head } fieldCons)
+            {
+                continue;
+            }
+
+            var name = fieldCons.Rest.Head as string;
+            if (name is null)
+            {
+                continue;
+            }
+
+            var initializerNode = fieldCons.Rest.Rest.Head;
+            ExpressionNode? initializer = initializerNode is null ? null : BuildExpression(initializerNode);
+
+            bool isStatic;
+            bool isPrivate;
+            if (ReferenceEquals(head, JsSymbols.PrivateField))
+            {
+                isStatic = false;
+                isPrivate = true;
+            }
+            else if (ReferenceEquals(head, JsSymbols.PublicField))
+            {
+                isStatic = false;
+                isPrivate = false;
+            }
+            else if (ReferenceEquals(head, JsSymbols.StaticField))
+            {
+                isStatic = true;
+                isPrivate = name.StartsWith("#", StringComparison.Ordinal);
+            }
+            else
+            {
+                continue;
+            }
+
+            builder.Add(new ClassField(fieldCons.SourceReference, name, initializer, isStatic, isPrivate));
+        }
+
+        return builder.ToImmutable();
     }
 
     private BindingTarget BuildBindingTarget(object? target, SourceReference? source)

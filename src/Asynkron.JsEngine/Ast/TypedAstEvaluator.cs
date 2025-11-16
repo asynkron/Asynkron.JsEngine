@@ -42,7 +42,8 @@ public static class TypedAstEvaluator
         return result;
     }
 
-    private static object? EvaluateStatement(StatementNode statement, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateStatement(StatementNode statement, JsEnvironment environment, EvaluationContext context,
+        Symbol? activeLabel = null)
     {
         context.SourceReference = statement.Source;
 
@@ -55,15 +56,15 @@ public static class TypedAstEvaluator
             VariableDeclaration declaration => EvaluateVariableDeclaration(declaration, environment, context),
             FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment),
             IfStatement ifStatement => EvaluateIf(ifStatement, environment, context),
-            WhileStatement whileStatement => EvaluateWhile(whileStatement, environment, context),
-            DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context),
-            ForStatement forStatement => EvaluateFor(forStatement, environment, context),
-            ForEachStatement forEachStatement => EvaluateForEach(forEachStatement, environment, context),
+            WhileStatement whileStatement => EvaluateWhile(whileStatement, environment, context, activeLabel),
+            DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context, activeLabel),
+            ForStatement forStatement => EvaluateFor(forStatement, environment, context, activeLabel),
+            ForEachStatement forEachStatement => EvaluateForEach(forEachStatement, environment, context, activeLabel),
             BreakStatement breakStatement => EvaluateBreak(breakStatement, context),
             ContinueStatement continueStatement => EvaluateContinue(continueStatement, context),
             LabeledStatement labeledStatement => EvaluateLabeled(labeledStatement, environment, context),
             TryStatement tryStatement => EvaluateTry(tryStatement, environment, context),
-            SwitchStatement switchStatement => EvaluateSwitch(switchStatement, environment, context),
+            SwitchStatement switchStatement => EvaluateSwitch(switchStatement, environment, context, activeLabel),
             EmptyStatement => JsSymbols.Undefined,
             UnknownStatement unknown => throw new NotSupportedException(
                 $"Typed evaluator does not yet understand the '{unknown.Node.Head}' statement form."),
@@ -129,10 +130,10 @@ public static class TypedAstEvaluator
         return branch is null ? JsSymbols.Undefined : EvaluateStatement(branch, environment, context);
     }
 
-    private static object? EvaluateWhile(WhileStatement statement, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateWhile(WhileStatement statement, JsEnvironment environment, EvaluationContext context,
+        Symbol? loopLabel)
     {
         object? lastValue = JsSymbols.Undefined;
-        var loopLabel = context.CurrentLabel;
 
         while (true)
         {
@@ -172,10 +173,10 @@ public static class TypedAstEvaluator
         return lastValue;
     }
 
-    private static object? EvaluateDoWhile(DoWhileStatement statement, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateDoWhile(DoWhileStatement statement, JsEnvironment environment, EvaluationContext context,
+        Symbol? loopLabel)
     {
         object? lastValue = JsSymbols.Undefined;
-        var loopLabel = context.CurrentLabel;
 
         do
         {
@@ -213,10 +214,10 @@ public static class TypedAstEvaluator
         return lastValue;
     }
 
-    private static object? EvaluateFor(ForStatement statement, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateFor(ForStatement statement, JsEnvironment environment, EvaluationContext context,
+        Symbol? loopLabel)
     {
         var loopEnvironment = new JsEnvironment(environment, creatingExpression: null, description: "for-loop");
-        var loopLabel = context.CurrentLabel;
         object? lastValue = JsSymbols.Undefined;
 
         if (statement.Initializer is not null)
@@ -290,7 +291,7 @@ public static class TypedAstEvaluator
     }
 
     private static object? EvaluateForEach(ForEachStatement statement, JsEnvironment environment,
-        EvaluationContext context)
+        EvaluationContext context, Symbol? loopLabel)
     {
         if (statement.Kind == ForEachKind.AwaitOf)
         {
@@ -304,7 +305,6 @@ public static class TypedAstEvaluator
         }
 
         var loopEnvironment = new JsEnvironment(environment, creatingExpression: null, description: "for-each-loop");
-        var loopLabel = context.CurrentLabel;
         object? lastValue = JsSymbols.Undefined;
 
         IEnumerable<object?> values = statement.Kind switch
@@ -458,7 +458,8 @@ public static class TypedAstEvaluator
         return result;
     }
 
-    private static object? EvaluateSwitch(SwitchStatement statement, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateSwitch(SwitchStatement statement, JsEnvironment environment, EvaluationContext context,
+        Symbol? targetLabel)
     {
         var discriminant = EvaluateExpression(statement.Discriminant, environment, context);
         if (context.ShouldStopEvaluation)
@@ -467,7 +468,6 @@ public static class TypedAstEvaluator
         }
 
         object? lastValue = JsSymbols.Undefined;
-        var loopLabel = context.CurrentLabel;
         var hasMatched = false;
 
         foreach (var switchCase in statement.Cases)
@@ -496,7 +496,7 @@ public static class TypedAstEvaluator
             }
 
             lastValue = EvaluateBlock(switchCase.Body, environment, context);
-            if (context.TryClearBreak(loopLabel))
+            if (context.TryClearBreak(targetLabel))
             {
                 break;
             }
@@ -570,7 +570,14 @@ public static class TypedAstEvaluator
         context.PushLabel(statement.Label);
         try
         {
-            return EvaluateStatement(statement.Statement, environment, context);
+            var result = EvaluateStatement(statement.Statement, environment, context, statement.Label);
+
+            if (context.TryClearBreak(statement.Label))
+            {
+                return JsSymbols.Undefined;
+            }
+
+            return result;
         }
         finally
         {

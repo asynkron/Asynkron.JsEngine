@@ -171,11 +171,38 @@ public sealed record FunctionDeclaration(SourceReference? Source, Symbol Name, F
     : StatementNode(Source);
 
 /// <summary>
-/// Represents a class declaration. We keep the shape broad for now while retaining the
-/// original S-expression to avoid losing information needed by downstream passes.
+/// Represents a class declaration with its fully typed definition.
 /// </summary>
-public sealed record ClassDeclaration(SourceReference? Source, Symbol Name, Cons? ExtendsClause, Cons Constructor,
-    Cons Methods, Cons Fields) : StatementNode(Source);
+public sealed record ClassDeclaration(SourceReference? Source, Symbol Name, ClassDefinition Definition)
+    : StatementNode(Source);
+
+/// <summary>
+/// Captures the structure of a class body.
+/// </summary>
+public sealed record ClassDefinition(SourceReference? Source, ExpressionNode? Extends, FunctionExpression Constructor,
+    ImmutableArray<ClassMember> Members, ImmutableArray<ClassField> Fields) : AstNode(Source);
+
+/// <summary>
+/// Represents a single method/getter/setter within a class body.
+/// </summary>
+public sealed record ClassMember(SourceReference? Source, ClassMemberKind Kind, string Name,
+    FunctionExpression Function, bool IsStatic) : AstNode(Source);
+
+/// <summary>
+/// Distinguishes between regular methods, getters and setters.
+/// </summary>
+public enum ClassMemberKind
+{
+    Method,
+    Getter,
+    Setter
+}
+
+/// <summary>
+/// Represents a field declared on a class.
+/// </summary>
+public sealed record ClassField(SourceReference? Source, string Name, ExpressionNode? Initializer,
+    bool IsStatic, bool IsPrivate) : AstNode(Source);
 
 /// <summary>
 /// Base type for module import/export statements. Concrete records capture the

@@ -67,6 +67,7 @@ public static class TypedAstEvaluator
             LabeledStatement labeledStatement => EvaluateLabeled(labeledStatement, environment, context),
             TryStatement tryStatement => EvaluateTry(tryStatement, environment, context),
             SwitchStatement switchStatement => EvaluateSwitch(switchStatement, environment, context, activeLabel),
+            ClassDeclaration classDeclaration => EvaluateClass(classDeclaration, environment, context),
             EmptyStatement => JsSymbols.Undefined,
             UnknownStatement unknown => throw new NotSupportedException(
                 $"Typed evaluator does not yet understand the '{unknown.Node.Head}' statement form."),
@@ -706,6 +707,201 @@ public static class TypedAstEvaluator
         return lastValue;
     }
 
+    private static object? EvaluateClass(ClassDeclaration declaration, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var definition = declaration.Definition;
+        var (superConstructor, superPrototype) = ResolveSuperclass(definition.Extends, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        var constructorValue = EvaluateExpression(definition.Constructor, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        if (constructorValue is not IJsEnvironmentAwareCallable constructor ||
+            constructorValue is not IJsPropertyAccessor constructorAccessor)
+        {
+            throw new InvalidOperationException("Class constructor must be callable.");
+        }
+
+        environment.Define(declaration.Name, constructorValue);
+
+        var prototype = EnsurePrototype(constructorAccessor);
+        if (superPrototype is not null)
+        {
+            prototype.SetPrototype(superPrototype);
+        }
+
+        if (constructorValue is TypedFunction typedFunction)
+        {
+            typedFunction.SetSuperBinding(superConstructor, superPrototype);
+            var instanceFields = definition.Fields.Where(field => !field.IsStatic).ToImmutableArray();
+            typedFunction.SetInstanceFields(instanceFields);
+        }
+        else if (constructorValue is JsFunction jsFunction)
+        {
+            jsFunction.SetSuperBinding(superConstructor, superPrototype);
+        }
+
+        if (superConstructor is not null)
+        {
+            constructorAccessor.SetProperty("__proto__", superConstructor);
+        }
+
+        prototype.SetProperty("constructor", constructorValue);
+
+        AssignClassMembers(definition.Members, constructorAccessor, prototype, superConstructor, superPrototype,
+            environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        var staticFields = definition.Fields.Where(field => field.IsStatic).ToImmutableArray();
+        InitializeStaticFields(staticFields, constructorAccessor, environment, context);
+
+        return constructorValue;
+    }
+
+    private static (IJsEnvironmentAwareCallable? Constructor, JsObject? Prototype) ResolveSuperclass(
+        ExpressionNode? extendsExpression, JsEnvironment environment, EvaluationContext context)
+    {
+        if (extendsExpression is null)
+        {
+            return (null, null);
+        }
+
+        var baseValue = EvaluateExpression(extendsExpression, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return (null, null);
+        }
+
+        if (baseValue is null)
+        {
+            return (null, null);
+        }
+
+        if (baseValue is not IJsEnvironmentAwareCallable callable ||
+            baseValue is not IJsPropertyAccessor accessor)
+        {
+            throw new InvalidOperationException("Classes can only extend other constructors or null.");
+        }
+
+        if (!TryGetPropertyValue(baseValue, "prototype", out var prototypeValue) || prototypeValue is not JsObject prototype)
+        {
+            prototype = new JsObject();
+            accessor.SetProperty("prototype", prototype);
+        }
+
+        return (callable, prototype);
+    }
+
+    private static JsObject EnsurePrototype(IJsPropertyAccessor constructor)
+    {
+        if (constructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue is JsObject prototype)
+        {
+            return prototype;
+        }
+
+        var created = new JsObject();
+        constructor.SetProperty("prototype", created);
+        return created;
+    }
+
+    private static void AssignClassMembers(ImmutableArray<ClassMember> members, IJsPropertyAccessor constructorAccessor,
+        JsObject prototype, IJsEnvironmentAwareCallable? superConstructor, JsObject? superPrototype,
+        JsEnvironment environment, EvaluationContext context)
+    {
+        foreach (var member in members)
+        {
+            var value = EvaluateExpression(member.Function, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return;
+            }
+
+            if (value is not IJsCallable callable)
+            {
+                throw new InvalidOperationException("Class member must be callable.");
+            }
+
+            switch (value)
+            {
+                case TypedFunction typedFunction:
+                    typedFunction.SetSuperBinding(superConstructor, superPrototype);
+                    break;
+                case JsFunction jsFunction:
+                    jsFunction.SetSuperBinding(superConstructor, superPrototype);
+                    break;
+            }
+
+            if (member.Kind == ClassMemberKind.Method)
+            {
+                if (member.IsStatic)
+                {
+                    constructorAccessor.SetProperty(member.Name, value);
+                }
+                else
+                {
+                    prototype.SetProperty(member.Name, value);
+                }
+
+                continue;
+            }
+
+            var accessorTarget = member.IsStatic ? TryGetStaticDescriptor(constructorAccessor) : prototype;
+            if (accessorTarget is null)
+            {
+                constructorAccessor.SetProperty(member.Name, value);
+                continue;
+            }
+
+            if (member.Kind == ClassMemberKind.Getter)
+            {
+                accessorTarget.SetGetter(member.Name, callable);
+            }
+            else
+            {
+                accessorTarget.SetSetter(member.Name, callable);
+            }
+        }
+    }
+
+    private static JsObject? TryGetStaticDescriptor(IJsPropertyAccessor constructorAccessor)
+    {
+        if (constructorAccessor.TryGetProperty("__properties__", out var descriptor) && descriptor is JsObject properties)
+        {
+            return properties;
+        }
+
+        return null;
+    }
+
+    private static void InitializeStaticFields(ImmutableArray<ClassField> fields, IJsPropertyAccessor constructorAccessor,
+        JsEnvironment environment, EvaluationContext context)
+    {
+        foreach (var field in fields)
+        {
+            object? value = JsSymbols.Undefined;
+            if (field.Initializer is not null)
+            {
+                value = EvaluateExpression(field.Initializer, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+            }
+
+            constructorAccessor.SetProperty(field.Name, value);
+        }
+    }
+
     private static object? EvaluateVariableDeclaration(VariableDeclaration declaration, JsEnvironment environment,
         EvaluationContext context)
     {
@@ -1255,6 +1451,12 @@ public static class TypedAstEvaluator
             instance.SetPrototype(proto);
         }
 
+        InitializeClassInstance(constructor, instance, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
         var args = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
         foreach (var argument in expression.Arguments)
         {
@@ -1279,6 +1481,15 @@ public static class TypedAstEvaluator
             IJsCallable => result,
             _ => instance
         };
+    }
+
+    private static void InitializeClassInstance(object? constructor, JsObject instance, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        if (constructor is TypedFunction typedFunction)
+        {
+            typedFunction.InitializeInstance(instance, environment, context);
+        }
     }
 
     private static object? EvaluateArray(ArrayExpression expression, JsEnvironment environment,
@@ -2762,6 +2973,9 @@ public static class TypedAstEvaluator
         private readonly FunctionExpression _function;
         private readonly JsEnvironment _closure;
         private readonly JsObject _properties = new();
+        private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
+        private IJsEnvironmentAwareCallable? _superConstructor;
+        private JsObject? _superPrototype;
 
         public TypedFunction(FunctionExpression function, JsEnvironment closure)
         {
@@ -2787,6 +3001,12 @@ public static class TypedAstEvaluator
 
             // Bind `this`.
             environment.Define(JsSymbols.This, thisValue ?? new JsObject());
+
+            if (_superConstructor is not null || _superPrototype is not null)
+            {
+                var binding = new SuperBinding(_superConstructor, _superPrototype, thisValue);
+                environment.Define(JsSymbols.Super, binding);
+            }
 
             // Named function expressions should see their name inside the body.
             if (_function.Name is { } functionName)
@@ -2820,6 +3040,51 @@ public static class TypedAstEvaluator
             context.ClearReturn();
             return value;
 
+        }
+
+        public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, JsObject? superPrototype)
+        {
+            _superConstructor = superConstructor;
+            _superPrototype = superPrototype;
+        }
+
+        public void SetInstanceFields(ImmutableArray<ClassField> fields)
+        {
+            _instanceFields = fields;
+        }
+
+        public void InitializeInstance(JsObject instance, JsEnvironment environment, EvaluationContext context)
+        {
+            if (_superConstructor is TypedFunction typedFunction)
+            {
+                typedFunction.InitializeInstance(instance, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+            }
+
+            if (_instanceFields.IsDefaultOrEmpty || _instanceFields.Length == 0)
+            {
+                return;
+            }
+
+            foreach (var field in _instanceFields)
+            {
+                object? value = JsSymbols.Undefined;
+                if (field.Initializer is not null)
+                {
+                    var initEnv = new JsEnvironment(environment);
+                    initEnv.Define(JsSymbols.This, instance);
+                    value = EvaluateExpression(field.Initializer, initEnv, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return;
+                    }
+                }
+
+                instance.SetProperty(field.Name, value);
+            }
         }
 
         private void BindParameters(IReadOnlyList<object?> arguments, JsEnvironment environment, EvaluationContext context)

@@ -13,7 +13,7 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable, IJsPropertyAccesso
     private readonly Cons _body;
     private readonly JsEnvironment _closure;
     private readonly JsObject _properties = new();
-    private JsFunction? _superConstructor;
+    private IJsEnvironmentAwareCallable? _superConstructor;
     private JsObject? _superPrototype;
 
     /// <summary>
@@ -332,7 +332,7 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable, IJsPropertyAccesso
         _properties.SetProperty(name, value);
     }
 
-    public void SetSuperBinding(JsFunction? superConstructor, JsObject? superPrototype)
+    public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, JsObject? superPrototype)
     {
         _superConstructor = superConstructor;
         _superPrototype = superPrototype;

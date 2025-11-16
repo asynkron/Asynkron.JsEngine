@@ -146,8 +146,8 @@ internal static class TypedAstSupportAnalyzer
                     case ContinueStatement:
                     case EmptyStatement:
                         return true;
-                    case ClassDeclaration:
-                        return Fail("class declarations are not yet translated to the typed evaluator.");
+                    case ClassDeclaration classDeclaration:
+                        return VisitClass(classDeclaration);
                     case ModuleStatement:
                         return Fail("module import/export statements are not supported by the typed evaluator yet.");
                     case UnknownStatement unknown:
@@ -158,6 +158,37 @@ internal static class TypedAstSupportAnalyzer
 
                 break;
             }
+        }
+
+        private bool VisitClass(ClassDeclaration classDeclaration)
+        {
+            if (classDeclaration.Definition.Extends is { } extends && !VisitExpression(extends))
+            {
+                return false;
+            }
+
+            if (!VisitFunction(classDeclaration.Definition.Constructor))
+            {
+                return false;
+            }
+
+            foreach (var member in classDeclaration.Definition.Members)
+            {
+                if (!VisitFunction(member.Function))
+                {
+                    return false;
+                }
+            }
+
+            foreach (var field in classDeclaration.Definition.Fields)
+            {
+                if (field.Initializer is not null && !VisitExpression(field.Initializer))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private bool VisitBlock(BlockStatement block)

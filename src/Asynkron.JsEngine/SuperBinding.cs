@@ -5,9 +5,9 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// Captures superclass metadata for use by class constructors and methods when resolving <c>super</c> references.
 /// </summary>
-public sealed class SuperBinding(JsFunction? constructor, JsObject? prototype, object? thisValue)
+public sealed class SuperBinding(IJsEnvironmentAwareCallable? constructor, JsObject? prototype, object? thisValue)
 {
-    public JsFunction? Constructor { get; } = constructor;
+    public IJsEnvironmentAwareCallable? Constructor { get; } = constructor;
 
     public JsObject? Prototype { get; } = prototype;
 

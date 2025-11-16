@@ -100,22 +100,25 @@ public sealed class TypedCpsTransformer
         var executorStatements = ImmutableArray.Create<StatementNode>(tryStatement);
         var executorBody = new BlockStatement(null, executorStatements, body.IsStrict);
         var executor = new FunctionExpression(null, null,
-            ImmutableArray.Create(
+            [
                 new FunctionParameter(null, ResolveIdentifier, false, null, null),
-                new FunctionParameter(null, RejectIdentifier, false, null, null)),
+                new FunctionParameter(null, RejectIdentifier, false, null, null)
+            ],
             executorBody, false, false);
         var promise = new NewExpression(null, new IdentifierExpression(null, PromiseIdentifier),
-            ImmutableArray.Create<ExpressionNode>(executor));
+            [executor]);
         var returnPromise = new ReturnStatement(null, promise);
-        return body with { Statements = ImmutableArray.Create<StatementNode>(returnPromise) };
+        return body with { Statements = [returnPromise] };
     }
 
     private ImmutableArray<StatementNode> RewriteReturnExpression(ExpressionNode? expression, bool isStrict)
     {
         if (expression is null)
         {
-            return ImmutableArray.Create<StatementNode>(
-                new ReturnStatement(null, CreateResolveCall(new LiteralExpression(null, null))));
+            return
+            [
+                new ReturnStatement(null, CreateResolveCall(new LiteralExpression(null, null)))
+            ];
         }
 
         if (expression is AwaitExpression awaitExpression)
@@ -124,11 +127,13 @@ public sealed class TypedCpsTransformer
             var awaitCall = CreateAwaitHelperCall(awaited);
             var thenInvocation = CreateThenInvocation(awaitCall);
             var expressionStatement = new ExpressionStatement(null, thenInvocation);
-            return ImmutableArray.Create<StatementNode>(expressionStatement);
+            return [expressionStatement];
         }
 
-        return ImmutableArray.Create<StatementNode>(
-            new ReturnStatement(null, CreateResolveCall(expression)));
+        return
+        [
+            new ReturnStatement(null, CreateResolveCall(expression))
+        ];
     }
 
     private ExpressionNode EnsureSupportedAwaitOperand(ExpressionNode expression)
@@ -149,7 +154,7 @@ public sealed class TypedCpsTransformer
     {
         var argument = new CallArgument(awaited.Source, awaited, false);
         return new CallExpression(null, new IdentifierExpression(null, AwaitHelperIdentifier),
-            ImmutableArray.Create(argument), false);
+            [argument], false);
     }
 
     private ExpressionNode CreateThenInvocation(ExpressionNode awaitCall)
@@ -159,7 +164,7 @@ public sealed class TypedCpsTransformer
                 CreateResolveCall(new IdentifierExpression(null, AwaitValueIdentifier))));
         var callbackBody = new BlockStatement(null, callbackBodyStatements, false);
         var callback = new FunctionExpression(null, null,
-            ImmutableArray.Create(new FunctionParameter(null, AwaitValueIdentifier, false, null, null)),
+            [new FunctionParameter(null, AwaitValueIdentifier, false, null, null)],
             callbackBody, false, false);
         var target = new MemberExpression(null, awaitCall,
             new IdentifierExpression(null, ThenIdentifier), false, false);
@@ -173,14 +178,14 @@ public sealed class TypedCpsTransformer
     {
         var argument = new CallArgument(value.Source, value, false);
         return new CallExpression(null, new IdentifierExpression(null, ResolveIdentifier),
-            ImmutableArray.Create(argument), false);
+            [argument], false);
     }
 
     private ExpressionNode CreateRejectCall(ExpressionNode value)
     {
         var argument = new CallArgument(value.Source, value, false);
         return new CallExpression(null, new IdentifierExpression(null, RejectIdentifier),
-            ImmutableArray.Create(argument), false);
+            [argument], false);
     }
 
     private static ImmutableArray<T> TransformImmutableArray<T>(ImmutableArray<T> source, Func<T, T> transformer,

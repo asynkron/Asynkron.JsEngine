@@ -521,7 +521,7 @@ public sealed class SExpressionAstBuilder
         }
 
         var declarator = new VariableDeclarator(cons.SourceReference, target, initializer);
-        return new VariableDeclaration(cons.SourceReference, kind, ImmutableArray.Create(declarator));
+        return new VariableDeclaration(cons.SourceReference, kind, [declarator]);
     }
 
     private ClassExpression BuildClassExpression(Cons cons)

@@ -17,7 +17,7 @@ public class TypedConstantExpressionTransformerTests
             Left: new LiteralExpression(null, 1d),
             Right: new BinaryExpression(null, "*", new LiteralExpression(null, 2d), new LiteralExpression(null, 3d)));
         var program = new ProgramNode(null,
-            ImmutableArray.Create<StatementNode>(new ExpressionStatement(null, expression)), false);
+            [new ExpressionStatement(null, expression)], false);
 
         var transformed = transformer.Transform(program);
 
@@ -32,11 +32,13 @@ public class TypedConstantExpressionTransformerTests
         var transformer = new TypedConstantExpressionTransformer();
         var program = new ProgramNode(
             Source: null,
-            Body: ImmutableArray.Create<StatementNode>(
+            Body:
+            [
                 new ExpressionStatement(null,
                     new BinaryExpression(null, "+",
                         new IdentifierExpression(null, Symbol.Intern("value")),
-                        new LiteralExpression(null, 1d)))),
+                        new LiteralExpression(null, 1d)))
+            ],
             IsStrict: false);
 
         var transformed = transformer.Transform(program);
@@ -59,7 +61,7 @@ public class TypedConstantExpressionTransformerTests
             Right: new LiteralExpression(null, denominator));
         var program = new ProgramNode(
             Source: null,
-            Body: ImmutableArray.Create<StatementNode>(new ExpressionStatement(null, expression)),
+            Body: [new ExpressionStatement(null, expression)],
             IsStrict: false);
 
         var transformed = transformer.Transform(program);

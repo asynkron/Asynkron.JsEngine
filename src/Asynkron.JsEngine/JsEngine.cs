@@ -905,7 +905,7 @@ public sealed class JsEngine : IAsyncDisposable
 
     private static object? ExecuteTypedStatement(StatementNode statement, JsEnvironment environment, bool isStrict)
     {
-        var program = new ProgramNode(statement.Source, ImmutableArray.Create(statement), isStrict);
+        var program = new ProgramNode(statement.Source, [statement], isStrict);
         return TypedAstEvaluator.EvaluateProgram(program, environment);
     }
 

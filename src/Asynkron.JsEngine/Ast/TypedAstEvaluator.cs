@@ -515,7 +515,7 @@ public static class TypedAstEvaluator
         var propertyName = $"@@symbol:{symbol.GetHashCode()}";
         if (target.TryGetProperty(propertyName, out var candidate) && candidate is IJsCallable callable)
         {
-            result = callable.Invoke(Array.Empty<object?>(), target);
+            result = callable.Invoke([], target);
             return true;
         }
 
@@ -530,7 +530,7 @@ public static class TypedAstEvaluator
             throw new InvalidOperationException("Iterator must expose a 'next' method.");
         }
 
-        return callable.Invoke(Array.Empty<object?>(), iterator);
+        return callable.Invoke([], iterator);
     }
 
     private static bool IsPromiseLike(object? candidate)

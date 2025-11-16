@@ -4812,7 +4812,7 @@ public static class StandardLibrary
                 var propertyName = $"@@symbol:{symbol.GetHashCode()}";
                 if (target.TryGetProperty(propertyName, out var method) && method is IJsCallable callable)
                 {
-                    if (callable.Invoke(Array.Empty<object?>(), target) is JsObject iteratorObj)
+                    if (callable.Invoke([], target) is JsObject iteratorObj)
                     {
                         iterator = iteratorObj;
                         return true;

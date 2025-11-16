@@ -17,6 +17,7 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly JsEnvironment _global = new(isFunctionScope: true);
     private readonly ConstantExpressionTransformer _constantTransformer = new();
     private readonly CpsTransformer _cpsTransformer = new();
+    private readonly TypedProgramExecutor _typedExecutor = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
     private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
@@ -260,6 +261,15 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
+    /// Executes a transformed S-expression program through the typed evaluator when possible,
+    /// automatically falling back to the legacy interpreter for unsupported constructs.
+    /// </summary>
+    internal object? ExecuteProgram(Cons program, JsEnvironment environment)
+    {
+        return _typedExecutor.Evaluate(program, environment);
+    }
+
+    /// <summary>
     /// Parses JavaScript source code and returns the S-expression at each transformation stage.
     /// This is useful for understanding how constant folding and CPS transformation affect the code.
     /// </summary>
@@ -328,7 +338,7 @@ public sealed class JsEngine : IAsyncDisposable
                 }
                 else
                 {
-                    result = JsEvaluator.EvaluateProgram(program, _global);
+                    result = ExecuteProgram(program, _global);
                 }
 
                 tcs.SetResult(result);
@@ -773,7 +783,7 @@ public sealed class JsEngine : IAsyncDisposable
                             // It's a named function or class declaration
                             // Evaluate it to define it in the environment
                             var declProgram = Cons.FromEnumerable([JsSymbols.Program, expression]);
-                            JsEvaluator.EvaluateProgram(declProgram, moduleEnv);
+                            ExecuteProgram(declProgram, moduleEnv);
 
                             // Get the defined value from the environment
                             if (exprCons.Rest.Head is Symbol name)
@@ -793,7 +803,7 @@ public sealed class JsEngine : IAsyncDisposable
                                 JsSymbols.Program,
                                 Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])
                             ]);
-                            value = JsEvaluator.EvaluateProgram(exprProgram, moduleEnv);
+                            value = ExecuteProgram(exprProgram, moduleEnv);
                         }
                     }
                     else
@@ -803,7 +813,7 @@ public sealed class JsEngine : IAsyncDisposable
                             JsSymbols.Program,
                             Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])
                         ]);
-                        value = JsEvaluator.EvaluateProgram(exprProgram, moduleEnv);
+                        value = ExecuteProgram(exprProgram, moduleEnv);
                     }
 
                     exports["default"] = value;
@@ -865,7 +875,7 @@ public sealed class JsEngine : IAsyncDisposable
 
                     // Evaluate the declaration
                     var declProgram = Cons.FromEnumerable([JsSymbols.Program, declaration]);
-                    JsEvaluator.EvaluateProgram(declProgram, moduleEnv);
+                    ExecuteProgram(declProgram, moduleEnv);
 
                     // Extract the declared names and add to exports
                     if (declaration is Cons { Head: Symbol declHead } declCons)
@@ -907,14 +917,14 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     // Regular statement - just evaluate it
                     var stmtProgram = Cons.FromEnumerable([JsSymbols.Program, stmt]);
-                    lastValue = JsEvaluator.EvaluateProgram(stmtProgram, moduleEnv);
+                    lastValue = ExecuteProgram(stmtProgram, moduleEnv);
                 }
             }
             else
             {
                 // Regular statement - just evaluate it
                 var stmtProgram = Cons.FromEnumerable([JsSymbols.Program, stmt]);
-                lastValue = JsEvaluator.EvaluateProgram(stmtProgram, moduleEnv);
+                lastValue = ExecuteProgram(stmtProgram, moduleEnv);
             }
 
             statements = statements.Rest;

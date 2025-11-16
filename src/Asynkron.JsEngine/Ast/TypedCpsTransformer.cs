@@ -129,6 +129,31 @@ public sealed class TypedCpsTransformer
         return false;
     }
 
+    private static bool CanRewriteStatement(StatementNode statement)
+    {
+        switch (statement)
+        {
+            case BlockStatement block:
+                if (block.Statements.Length != 1)
+                {
+                    return false;
+                }
+
+                return CanRewriteStatement(block.Statements[0]);
+            case ReturnStatement:
+            case ExpressionStatement:
+                return true;
+            case VariableDeclaration:
+                // Variable declarations are normalized to single declarators before
+                // rewriting, so any awaits they contain are handled as expression
+                // statements afterwards.
+                return true;
+            default:
+                // Anything we don't explicitly support must not contain awaits.
+                return !StatementNeedsTransformation(statement);
+        }
+    }
+
     private static bool FunctionNeedsTransformation(FunctionExpression function)
     {
         if (function.IsAsync)
@@ -470,6 +495,16 @@ public sealed class TypedCpsTransformer
         if (function.IsGenerator)
         {
             throw new NotSupportedException("Typed CPS transformer does not handle async generators yet.");
+        }
+
+        // Only attempt the rewrite when the function body exclusively contains
+        // statement shapes the experimental CPS rewriter understands. This
+        // prevents us from clearing the async modifier when the body still
+        // contains await expressions in unsupported control flow constructs.
+        if (!CanRewriteStatement(function.Body))
+        {
+            throw new NotSupportedException(
+                "Typed CPS transformer cannot rewrite async functions that contain awaits inside unsupported statements.");
         }
 
         var transformedBody = RewriteAsyncBody(function.Body);

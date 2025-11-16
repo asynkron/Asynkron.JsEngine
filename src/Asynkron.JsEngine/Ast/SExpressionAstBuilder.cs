@@ -89,7 +89,8 @@ public sealed class SExpressionAstBuilder
             case Cons cons when cons.Head is Symbol symbol:
                 return BuildStatementFromSymbol(cons, symbol);
             case Cons cons:
-                return new UnknownStatement(cons.SourceReference, cons);
+                throw new InvalidOperationException(
+                    "Encountered a list statement without a symbolic head. This indicates a malformed S-expression.");
             default:
                 return new ExpressionStatement(null, BuildExpression(node));
         }
@@ -245,11 +246,13 @@ public sealed class SExpressionAstBuilder
 
         if (ReferenceEquals(symbol, JsSymbols.Label))
         {
-            var label = cons.Rest.Head as Symbol;
+            if (cons.Rest.Head is not Symbol label)
+            {
+                throw new InvalidOperationException("Labels must use symbolic identifiers.");
+            }
+
             var statement = BuildStatement(cons.Rest.Rest.Head);
-            return label is null
-                ? new UnknownStatement(cons.SourceReference, cons)
-                : new LabeledStatement(cons.SourceReference, label, statement);
+            return new LabeledStatement(cons.SourceReference, label, statement);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Function) ||
@@ -261,13 +264,12 @@ public sealed class SExpressionAstBuilder
 
         if (ReferenceEquals(symbol, JsSymbols.Class))
         {
-            var name = cons.Rest.Head as Symbol;
-            if (name is null)
+            if (cons.Rest.Head is not Symbol name)
             {
-                return new UnknownStatement(cons.SourceReference, cons);
+                throw new InvalidOperationException("Class declarations must provide a name.");
             }
 
-            var definition = BuildClassDefinition(cons);
+            var definition = BuildClassDefinition(cons, name);
             return new ClassDeclaration(cons.SourceReference, name, definition);
         }
 
@@ -289,19 +291,17 @@ public sealed class SExpressionAstBuilder
         if (ReferenceEquals(symbol, JsSymbols.ExportDeclaration))
         {
             var declaration = BuildStatement(cons.Rest.Head);
-            return declaration is null
-                ? new UnknownStatement(cons.SourceReference, cons)
-                : new ExportDeclarationStatement(cons.SourceReference, declaration);
+            return new ExportDeclarationStatement(cons.SourceReference, declaration);
         }
 
-        return new UnknownStatement(cons.SourceReference, cons);
+        throw new NotSupportedException($"Unsupported statement form '{symbol.Name}'.");
     }
 
     private StatementNode BuildImportStatement(Cons cons)
     {
         if (cons.Rest.Head is not string modulePath)
         {
-            return new UnknownStatement(cons.SourceReference, cons);
+            throw new InvalidOperationException("Import module specifiers must be strings.");
         }
 
         Symbol? defaultBinding = null;
@@ -322,15 +322,18 @@ public sealed class SExpressionAstBuilder
     private ExportDefaultStatement BuildExportDefaultStatement(Cons cons)
     {
         var payload = cons.Rest.Head;
-        if (payload is Cons { Head: Symbol head } valueCons &&
-            (ReferenceEquals(head, JsSymbols.Function) ||
-             ReferenceEquals(head, JsSymbols.Async) ||
-             ReferenceEquals(head, JsSymbols.Generator) ||
-             ReferenceEquals(head, JsSymbols.Class)))
+        if (payload is Cons { Head: Symbol head } valueCons)
         {
-            var declaration = BuildStatement(valueCons);
-            if (declaration is FunctionDeclaration or ClassDeclaration)
+            if (IsFunctionDeclarationHead(head) && valueCons.Rest.Head is Symbol)
             {
+                var declaration = BuildStatement(valueCons);
+                return new ExportDefaultStatement(cons.SourceReference,
+                    new ExportDefaultDeclaration(cons.SourceReference, declaration));
+            }
+
+            if (ReferenceEquals(head, JsSymbols.Class) && valueCons.Rest.Head is Symbol)
+            {
+                var declaration = BuildStatement(valueCons);
                 return new ExportDefaultStatement(cons.SourceReference,
                     new ExportDefaultDeclaration(cons.SourceReference, declaration));
             }
@@ -498,13 +501,16 @@ public sealed class SExpressionAstBuilder
         var isAsync = ReferenceEquals(symbol, JsSymbols.Async);
         var isGenerator = ReferenceEquals(symbol, JsSymbols.Generator);
 
+        if (name is null)
+        {
+            throw new InvalidOperationException("Function declarations must provide a name.");
+        }
+
         var function = new FunctionExpression(cons.SourceReference, name,
             BuildFunctionParameters(parametersCons),
             BuildBlock(bodyCons), isAsync, isGenerator);
 
-        return name is null
-            ? new UnknownStatement(cons.SourceReference, cons)
-            : new FunctionDeclaration(cons.SourceReference, name, function);
+        return new FunctionDeclaration(cons.SourceReference, name, function);
     }
 
     private VariableDeclaration BuildVariableDeclaration(Cons cons, VariableKind kind)
@@ -521,7 +527,14 @@ public sealed class SExpressionAstBuilder
         return new VariableDeclaration(cons.SourceReference, kind, ImmutableArray.Create(declarator));
     }
 
-    private ClassDefinition BuildClassDefinition(Cons cons)
+    private ClassExpression BuildClassExpression(Cons cons)
+    {
+        var name = cons.Rest.Head as Symbol;
+        var definition = BuildClassDefinition(cons, name);
+        return new ClassExpression(cons.SourceReference, name, definition);
+    }
+
+    private ClassDefinition BuildClassDefinition(Cons cons, Symbol? className)
     {
         ExpressionNode? extends = null;
         if (cons.Rest.Rest.Head is Cons { Head: Symbol extendsHead } extendsCons &&
@@ -539,6 +552,11 @@ public sealed class SExpressionAstBuilder
         if (BuildExpression(ctorExpression) is not FunctionExpression constructor)
         {
             throw new InvalidOperationException("Class constructor must be a function expression.");
+        }
+
+        if (className is not null)
+        {
+            constructor = constructor with { Name = className };
         }
 
         var methodsCons = cons.Rest.Rest.Rest.Rest.Head as Cons ?? Cons.Empty;
@@ -817,7 +835,8 @@ public sealed class SExpressionAstBuilder
             int i => new LiteralExpression(null, (double)i),
             Symbol symbol => BuildSymbolExpression(symbol),
             Cons { Head: Symbol symbol } cons => BuildCompositeExpression(cons, symbol),
-            Cons cons => new UnknownExpression(cons.SourceReference, cons),
+            Cons cons => throw new InvalidOperationException(
+                "Encountered a list expression without a symbolic head. This indicates a malformed S-expression."),
             _ => new LiteralExpression(null, expression)
         };
     }
@@ -841,24 +860,24 @@ public sealed class SExpressionAstBuilder
     {
         if (ReferenceEquals(symbol, JsSymbols.Assign))
         {
-            if (cons.Rest.Head is Symbol targetSymbol)
+            if (cons.Rest.Head is not Symbol targetSymbol)
             {
-                return new AssignmentExpression(cons.SourceReference, targetSymbol, BuildExpression(cons.Rest.Rest.Head));
+                throw new InvalidOperationException("Assignments require an identifier target.");
             }
 
-            return new UnknownExpression(cons.SourceReference, cons);
+            return new AssignmentExpression(cons.SourceReference, targetSymbol, BuildExpression(cons.Rest.Rest.Head));
         }
 
         if (ReferenceEquals(symbol, JsSymbols.DestructuringAssignment))
         {
-            if (cons.Rest.Head is null)
-            {
-                return new UnknownExpression(cons.SourceReference, cons);
-            }
-
             var target = BuildBindingTarget(cons.Rest.Head, cons.SourceReference);
             var value = BuildExpression(cons.Rest.Rest.Head);
             return new DestructuringAssignmentExpression(cons.SourceReference, target, value);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.Class))
+        {
+            return BuildClassExpression(cons);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Call) || ReferenceEquals(symbol, JsSymbols.OptionalCall))
@@ -1067,7 +1086,7 @@ public sealed class SExpressionAstBuilder
             return BuildOperatorExpression(cons, symbol.Name);
         }
 
-        return new UnknownExpression(cons.SourceReference, cons);
+        throw new NotSupportedException($"Unsupported expression form '{symbol.Name}'.");
     }
 
     private ExpressionNode BuildOperatorExpression(Cons cons, string opName)
@@ -1166,6 +1185,13 @@ public sealed class SExpressionAstBuilder
 
         isComputed = false;
         return keyNode ?? string.Empty;
+    }
+
+    private static bool IsFunctionDeclarationHead(Symbol symbol)
+    {
+        return ReferenceEquals(symbol, JsSymbols.Function) ||
+               ReferenceEquals(symbol, JsSymbols.Async) ||
+               ReferenceEquals(symbol, JsSymbols.Generator);
     }
 
     private static Cons ExpectCons(object? value, SourceReference? fallbackSource)

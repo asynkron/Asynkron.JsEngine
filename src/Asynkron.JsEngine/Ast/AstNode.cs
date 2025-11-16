@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine;
-using Asynkron.JsEngine.Lisp;
 using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
@@ -30,13 +29,3 @@ public abstract record ExpressionNode(SourceReference? Source) : AstNode(Source)
 public sealed record ProgramNode(SourceReference? Source, ImmutableArray<StatementNode> Body, bool IsStrict)
     : AstNode(Source);
 
-/// <summary>
-/// Wrapper for constructs we do not translate yet. This keeps the AST walkable while we
-/// gradually replace raw S-expressions with typed counterparts.
-/// </summary>
-public sealed record UnknownStatement(SourceReference? Source, Cons Node) : StatementNode(Source);
-
-/// <summary>
-/// Wrapper for expressions that are not translated yet.
-/// </summary>
-public sealed record UnknownExpression(SourceReference? Source, Cons Node) : ExpressionNode(Source);

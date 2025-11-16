@@ -218,13 +218,13 @@ public sealed class SExpressionAstBuilder
 
         if (ReferenceEquals(symbol, JsSymbols.Break))
         {
-            var label = cons.Rest.Head as Symbol;
+            var label = cons.Rest is { IsEmpty: false } rest ? rest.Head as Symbol : null;
             return new BreakStatement(cons.SourceReference, label);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Continue))
         {
-            var label = cons.Rest.Head as Symbol;
+            var label = cons.Rest is { IsEmpty: false } rest ? rest.Head as Symbol : null;
             return new ContinueStatement(cons.SourceReference, label);
         }
 

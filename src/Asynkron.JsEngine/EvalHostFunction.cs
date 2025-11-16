@@ -34,8 +34,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyA
         var environment = CallingJsEnvironment ?? throw new InvalidOperationException(
             "eval() called without a calling environment");
 
-        // Parse the code
-        var program = _engine.Parse(code);
+        // Parse the code and build the typed AST so eval shares the same pipeline
+        var program = _engine.ParseForExecution(code);
 
         // Evaluate directly in the calling environment without going through the event queue
         // This is safe because eval() is synchronous in JavaScript

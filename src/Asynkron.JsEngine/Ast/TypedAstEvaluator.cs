@@ -786,6 +786,8 @@ public static class TypedAstEvaluator
             CallExpression call => EvaluateCall(call, environment, context),
             FunctionExpression functionExpression => new TypedFunction(functionExpression, environment),
             AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
+            DestructuringAssignmentExpression destructuringAssignment =>
+                EvaluateDestructuringAssignment(destructuringAssignment, environment, context),
             PropertyAssignmentExpression propertyAssignment =>
                 EvaluatePropertyAssignment(propertyAssignment, environment, context),
             IndexAssignmentExpression indexAssignment =>
@@ -817,6 +819,21 @@ public static class TypedAstEvaluator
 
         environment.Assign(expression.Target, targetValue);
         return targetValue;
+    }
+
+    private static object? EvaluateDestructuringAssignment(DestructuringAssignmentExpression expression,
+        JsEnvironment environment, EvaluationContext context)
+    {
+        var assignedValue = EvaluateExpression(expression.Value, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return assignedValue;
+        }
+
+        // Reuse the same binding machinery as variable declarations so nested
+        // destructuring assignments behave consistently.
+        AssignBindingTarget(expression.Target, assignedValue, environment, context);
+        return assignedValue;
     }
 
     private static object? EvaluatePropertyAssignment(PropertyAssignmentExpression expression, JsEnvironment environment,

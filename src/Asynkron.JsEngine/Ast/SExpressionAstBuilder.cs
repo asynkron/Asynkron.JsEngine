@@ -704,9 +704,14 @@ public sealed class SExpressionAstBuilder
 
         if (ReferenceEquals(symbol, JsSymbols.DestructuringAssignment))
         {
-            var pattern = cons.Rest.Head as Cons ?? Cons.Empty;
+            if (cons.Rest.Head is null)
+            {
+                return new UnknownExpression(cons.SourceReference, cons);
+            }
+
+            var target = BuildBindingTarget(cons.Rest.Head, cons.SourceReference);
             var value = BuildExpression(cons.Rest.Rest.Head);
-            return new DestructuringAssignmentExpression(cons.SourceReference, pattern, value);
+            return new DestructuringAssignmentExpression(cons.SourceReference, target, value);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Call) || ReferenceEquals(symbol, JsSymbols.OptionalCall))

@@ -59,4 +59,32 @@ public class TypedAstDestructuringTests
 
         Assert.Equal(12.0, result);
     }
+
+    [Fact]
+    public async Task ArrayDestructuringAssignment_Works()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let first = 0;
+            let second = 0;
+            [first, second] = [3, 7];
+            first * second;
+        ");
+
+        Assert.Equal(21.0, result);
+    }
+
+    [Fact]
+    public async Task ObjectDestructuringAssignment_WithNestedPattern_Works()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let x = 0;
+            let y = 0;
+            ({ x, inner: { y } } = { x: 2, inner: { y: 5 } });
+            x + y;
+        ");
+
+        Assert.Equal(7.0, result);
+    }
 }

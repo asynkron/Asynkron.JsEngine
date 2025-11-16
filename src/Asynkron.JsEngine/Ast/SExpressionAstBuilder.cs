@@ -140,8 +140,18 @@ public sealed class SExpressionAstBuilder
         {
             var condition = BuildExpression(cons.Rest.Head);
             var thenStatement = BuildStatement(cons.Rest.Rest.Head);
-            var elseBranch = cons.Rest.Rest.Rest.Head;
-            var elseStatement = elseBranch is null ? null : BuildStatement(elseBranch);
+
+            StatementNode? elseStatement = null;
+            var elseContainer = cons.Rest.Rest.Rest;
+            if (!ReferenceEquals(elseContainer, Cons.Empty))
+            {
+                var elseBranch = elseContainer.Head;
+                if (elseBranch is not null)
+                {
+                    elseStatement = BuildStatement(elseBranch);
+                }
+            }
+
             return new IfStatement(cons.SourceReference, condition, thenStatement, elseStatement);
         }
 

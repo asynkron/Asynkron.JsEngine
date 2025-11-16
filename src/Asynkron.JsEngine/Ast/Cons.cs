@@ -82,6 +82,15 @@ public sealed class Cons : IEnumerable<object?>
     public Cons? Origin { get; private set; }
 
     /// <summary>
+    /// Creates a single cons cell from a head value and optional rest.
+    /// This mirrors the historical Cell helper so existing DSL builders keep working.
+    /// </summary>
+    public static Cons Cell(object? head, Cons? rest = null)
+    {
+        return new Cons(head, rest);
+    }
+
+    /// <summary>
     /// Builds a list from the supplied items. Alias for List method.
     /// </summary>
     public static Cons From(params object?[] items)

@@ -174,6 +174,17 @@ public sealed class EvaluationContext
     }
 
     /// <summary>
+    /// Clears the Return signal (used when a function consumes it).
+    /// </summary>
+    public void ClearReturn()
+    {
+        if (CurrentSignal is ReturnSignal)
+        {
+            CurrentSignal = null;
+        }
+    }
+
+    /// <summary>
     /// Clears any control flow signal.
     /// </summary>
     public void Clear()

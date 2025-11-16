@@ -1365,7 +1365,7 @@ public static class StandardLibrary
             var parts = new List<string>();
             foreach (var item in jsArray.Items)
             {
-                parts.Add(JsEvaluator.ToStringForArray(item));
+                parts.Add(JsEvaluator.ToJsStringForArray(item));
             }
 
             return string.Join(separator, parts);

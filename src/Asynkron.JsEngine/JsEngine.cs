@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Linq;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.AstTransformers;
@@ -320,6 +322,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     private async Task<object?> Evaluate(Cons program)
     {
+        var typedProgram = _typedExecutor.BuildProgram(program);
         var tcs = new TaskCompletionSource<object?>();
 
         // Schedule the evaluation on the event queue
@@ -329,16 +332,14 @@ public sealed class JsEngine : IAsyncDisposable
             try
             {
                 object? result;
-                // Check if the program contains any import/export statements
-                if (HasModuleStatements(program))
+                if (HasModuleStatements(typedProgram))
                 {
-                    // Treat as a module
                     var exports = new JsObject();
-                    result = EvaluateModule(program, _global, exports);
+                    result = EvaluateModule(typedProgram, program, _global, exports);
                 }
                 else
                 {
-                    result = ExecuteProgram(program, _global);
+                    result = _typedExecutor.Evaluate(typedProgram, program, _global);
                 }
 
                 tcs.SetResult(result);
@@ -359,31 +360,9 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     /// Checks if a program contains any import or export statements.
     /// </summary>
-    private static bool HasModuleStatements(Cons program)
+    private static bool HasModuleStatements(ProgramNode program)
     {
-        if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
-        {
-            return false;
-        }
-
-        foreach (var stmt in program.Rest)
-        {
-            if (stmt is not Cons { Head: Symbol stmtHead })
-            {
-                continue;
-            }
-
-            if (ReferenceEquals(stmtHead, JsSymbols.Import) ||
-                ReferenceEquals(stmtHead, JsSymbols.Export) ||
-                ReferenceEquals(stmtHead, JsSymbols.ExportDefault) ||
-                ReferenceEquals(stmtHead, JsSymbols.ExportNamed) ||
-                ReferenceEquals(stmtHead, JsSymbols.ExportDeclaration))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return program.Body.Any(statement => statement is ModuleStatement);
     }
 
     /// <summary>
@@ -725,6 +704,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Parse the module
         var program = Parse(source);
+        var typedProgram = _typedExecutor.BuildProgram(program);
 
         // Create a module exports object
         var exports = new JsObject();
@@ -733,7 +713,7 @@ public sealed class JsEngine : IAsyncDisposable
         var moduleEnv = new JsEnvironment(_global, false);
 
         // Evaluate the module with export tracking
-        EvaluateModule(program, moduleEnv, exports);
+        EvaluateModule(typedProgram, program, moduleEnv, exports);
 
         // Cache the exports
         _moduleRegistry[modulePath] = exports;
@@ -745,189 +725,44 @@ public sealed class JsEngine : IAsyncDisposable
     /// Evaluates a module program and populates the exports object.
     /// Returns the last evaluated value.
     /// </summary>
-    private object? EvaluateModule(Cons program, JsEnvironment moduleEnv, JsObject exports)
+    private object? EvaluateModule(ProgramNode program, Cons originalProgram, JsEnvironment moduleEnv, JsObject exports)
     {
-        if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
+        if (originalProgram.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
         {
             throw new InvalidOperationException("Expected program node");
         }
 
         object? lastValue = null;
-        var statements = program.Rest;
-        while (statements is not null && !statements.IsEmpty)
+        var rawStatements = originalProgram.Rest;
+
+        foreach (var statement in program.Body)
         {
-            var stmt = statements.Head;
-
-            if (stmt is Cons { Head: Symbol stmtHead } stmtCons)
+            if (rawStatements.IsEmpty)
             {
-                if (ReferenceEquals(stmtHead, JsSymbols.Import))
-                {
-                    // Process import statement
-                    EvaluateImport(stmtCons, moduleEnv);
-                }
-                else if (ReferenceEquals(stmtHead, JsSymbols.ExportDefault))
-                {
-                    // export default expression
-                    var expression = stmtCons.Rest.Head;
-
-                    // Evaluate the expression and export it as default
-                    // For function/class declarations with names, this will define them and return them
-                    // For expressions, this will just evaluate them
-                    object? value;
-
-                    if (expression is Cons { Head: Symbol exprHead } exprCons)
-                    {
-                        if (ReferenceEquals(exprHead, JsSymbols.Function) ||
-                            ReferenceEquals(exprHead, JsSymbols.Class))
-                        {
-                            // It's a named function or class declaration
-                            // Evaluate it to define it in the environment
-                            var declProgram = Cons.FromEnumerable([JsSymbols.Program, expression]);
-                            ExecuteProgram(declProgram, moduleEnv);
-
-                            // Get the defined value from the environment
-                            if (exprCons.Rest.Head is Symbol name)
-                            {
-                                value = moduleEnv.Get(name);
-                            }
-                            else
-                                // Shouldn't happen, but handle it
-                            {
-                                value = null;
-                            }
-                        }
-                        else
-                        {
-                            // It's some other construct - evaluate it as an expression
-                            var exprProgram = Cons.FromEnumerable([
-                                JsSymbols.Program,
-                                Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])
-                            ]);
-                            value = ExecuteProgram(exprProgram, moduleEnv);
-                        }
-                    }
-                    else
-                    {
-                        // It's a symbol or literal - evaluate it as an expression
-                        var exprProgram = Cons.FromEnumerable([
-                            JsSymbols.Program,
-                            Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])
-                        ]);
-                        value = ExecuteProgram(exprProgram, moduleEnv);
-                    }
-
-                    exports["default"] = value;
-                }
-                else if (ReferenceEquals(stmtHead, JsSymbols.ExportNamed))
-                {
-                    // export { name1, name2 }
-                    var exportList = stmtCons.Rest.Head as Cons;
-
-                    if (stmtCons.Rest.Rest.Head is string fromModule)
-                    {
-                        // Re-export from another module
-                        var sourceExports = LoadModule(fromModule);
-
-                        if (exportList != null)
-                        {
-                            foreach (var exportItem in exportList)
-                            {
-                                if (exportItem is Cons { Head: Symbol exportHead } exportCons &&
-                                    ReferenceEquals(exportHead, JsSymbols.ExportNamed))
-                                {
-                                    if (exportCons.Rest.Head is Symbol local && exportCons.Rest.Rest.Head is Symbol exported)
-                                    {
-                                        var localName = local.Name;
-                                        var exportedName = exported.Name;
-
-                                        if (sourceExports.TryGetValue(localName, out var value))
-                                        {
-                                            exports[exportedName] = value;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    else if (exportList != null)
-                    {
-                        // Export from current module
-                        foreach (var exportItem in exportList)
-                        {
-                            if (exportItem is Cons { Head: Symbol exportHead } exportCons &&
-                                ReferenceEquals(exportHead, JsSymbols.ExportNamed))
-                            {
-                                if (exportCons.Rest.Head is Symbol local && exportCons.Rest.Rest.Head is Symbol exported)
-                                {
-                                    var localName = local.Name;
-                                    var exportedName = exported.Name;
-                                    var value = moduleEnv.Get(local);
-                                    exports[exportedName] = value;
-                                }
-                            }
-                        }
-                    }
-                }
-                else if (ReferenceEquals(stmtHead, JsSymbols.ExportDeclaration))
-                {
-                    // export let/const/var/function/class
-                    var declaration = stmtCons.Rest.Head;
-
-                    // Evaluate the declaration
-                    var declProgram = Cons.FromEnumerable([JsSymbols.Program, declaration]);
-                    ExecuteProgram(declProgram, moduleEnv);
-
-                    // Extract the declared names and add to exports
-                    if (declaration is Cons { Head: Symbol declHead } declCons)
-                    {
-                        if (ReferenceEquals(declHead, JsSymbols.Let) ||
-                            ReferenceEquals(declHead, JsSymbols.Const) ||
-                            ReferenceEquals(declHead, JsSymbols.Var))
-                        {
-                            // Variable declaration: (let name value) or (let name)
-                            if (declCons.Rest.Head is Symbol name)
-                            {
-                                var value = moduleEnv.Get(name);
-                                exports[name.Name] = value;
-                            }
-                        }
-                        else if (ReferenceEquals(declHead, JsSymbols.Function) ||
-                                 ReferenceEquals(declHead, JsSymbols.Async) ||
-                                 ReferenceEquals(declHead, JsSymbols.Generator))
-                        {
-                            // Function declaration: (function name params body)
-                            if (declCons.Rest.Head is Symbol name)
-                            {
-                                var value = moduleEnv.Get(name);
-                                exports[name.Name] = value;
-                            }
-                        }
-                        else if (ReferenceEquals(declHead, JsSymbols.Class))
-                        {
-                            // Class declaration: (class name ...)
-                            if (declCons.Rest.Head is Symbol name)
-                            {
-                                var value = moduleEnv.Get(name);
-                                exports[name.Name] = value;
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    // Regular statement - just evaluate it
-                    var stmtProgram = Cons.FromEnumerable([JsSymbols.Program, stmt]);
-                    lastValue = ExecuteProgram(stmtProgram, moduleEnv);
-                }
-            }
-            else
-            {
-                // Regular statement - just evaluate it
-                var stmtProgram = Cons.FromEnumerable([JsSymbols.Program, stmt]);
-                lastValue = ExecuteProgram(stmtProgram, moduleEnv);
+                break;
             }
 
-            statements = statements.Rest;
+            var rawStatement = rawStatements.Head;
+            rawStatements = rawStatements.Rest;
+
+            switch (statement)
+            {
+                case ImportStatement importStatement:
+                    EvaluateImport(importStatement, moduleEnv);
+                    break;
+                case ExportDefaultStatement exportDefault:
+                    exports["default"] = EvaluateExportDefault(exportDefault, moduleEnv, program.IsStrict);
+                    break;
+                case ExportNamedStatement exportNamed:
+                    EvaluateExportNamed(exportNamed, moduleEnv, exports);
+                    break;
+                case ExportDeclarationStatement exportDeclaration:
+                    EvaluateExportDeclaration(exportDeclaration, moduleEnv, exports, program.IsStrict);
+                    break;
+                default:
+                    lastValue = ExecuteSingleStatement(statement, rawStatement, moduleEnv, program.IsStrict);
+                    break;
+            }
         }
 
         return lastValue;
@@ -936,63 +771,130 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     /// Processes an import statement and brings imported values into the module environment.
     /// </summary>
-    private void EvaluateImport(Cons importCons, JsEnvironment moduleEnv)
+    private void EvaluateImport(ImportStatement importStatement, JsEnvironment moduleEnv)
     {
-        // (import module-path) for side-effect imports
-        // (import module-path default-import namespace-import named-imports) for regular imports
+        var exports = LoadModule(importStatement.ModulePath);
 
-        if (importCons.Rest.Head is not string modulePath)
-        {
-            return; // Invalid import
-        }
-
-        // Load the module (for side effects)
-        var exports = LoadModule(modulePath);
-
-        // Check if there are any imports to handle
-        if (importCons.Rest.Rest.IsEmpty)
-        {
-            return; // Side-effect only import
-        }
-
-        var defaultImport = importCons.Rest.Rest.Head as Symbol;
-        var namespaceImport = !importCons.Rest.Rest.Rest.IsEmpty ? importCons.Rest.Rest.Rest.Head as Symbol : null;
-        var namedImports = importCons.Rest.Rest.Rest is { IsEmpty: false, Rest.IsEmpty: false }
-            ? importCons.Rest.Rest.Rest.Rest.Head as Cons
-            : null;
-
-        // Handle default import
-        if (defaultImport != null && exports.TryGetValue("default", out var defaultValue))
+        if (importStatement.DefaultImport is { } defaultImport && exports.TryGetValue("default", out var defaultValue))
         {
             moduleEnv.Define(defaultImport, defaultValue);
         }
 
-        // Handle namespace import
-        if (namespaceImport != null)
+        if (importStatement.NamespaceImport is { } namespaceImport)
         {
             moduleEnv.Define(namespaceImport, exports);
         }
 
-        // Handle named imports
-        if (namedImports == null)
+        if (importStatement.NamedImports.IsDefaultOrEmpty)
         {
             return;
         }
 
-        foreach (var importItem in namedImports)
+        foreach (var specifier in importStatement.NamedImports)
         {
-            if (importItem is not Cons { Head: Symbol importHead } importItemCons ||
-                !ReferenceEquals(importHead, JsSymbols.ImportNamed) ||
-                importItemCons.Rest.Head is not Symbol imported || importItemCons.Rest.Rest.Head is not Symbol local)
+            if (exports.TryGetValue(specifier.Imported.Name, out var value))
             {
-                continue;
-            }
-
-            if (exports.TryGetValue(imported.Name, out var value))
-            {
-                moduleEnv.Define(local, value);
+                moduleEnv.Define(specifier.Local, value);
             }
         }
+    }
+
+    private object? EvaluateExportDefault(ExportDefaultStatement statement, JsEnvironment moduleEnv, bool isStrict)
+    {
+        if (statement.DeclarationName is { } binding && statement.RawExpression is not null)
+        {
+            var program = BuildProgramCons(statement.RawExpression);
+            ExecuteProgram(program, moduleEnv);
+            return moduleEnv.Get(binding);
+        }
+
+        return ExecuteExpression(statement.Expression, statement.RawExpression, moduleEnv, isStrict);
+    }
+
+    private void EvaluateExportNamed(ExportNamedStatement statement, JsEnvironment moduleEnv, JsObject exports)
+    {
+        if (statement.FromModule is { } fromModule)
+        {
+            var sourceExports = LoadModule(fromModule);
+            foreach (var specifier in statement.Specifiers)
+            {
+                if (sourceExports.TryGetValue(specifier.Local.Name, out var value))
+                {
+                    exports[specifier.Exported.Name] = value;
+                }
+            }
+
+            return;
+        }
+
+        foreach (var specifier in statement.Specifiers)
+        {
+            var value = moduleEnv.Get(specifier.Local);
+            exports[specifier.Exported.Name] = value;
+        }
+    }
+
+    private void EvaluateExportDeclaration(ExportDeclarationStatement statement, JsEnvironment moduleEnv, JsObject exports,
+        bool isStrict)
+    {
+        ExecuteSingleStatement(statement.Declaration, statement.RawDeclaration, moduleEnv, isStrict);
+        CollectExportedBindings(statement.Declaration, moduleEnv, exports);
+    }
+
+    private void CollectExportedBindings(StatementNode statement, JsEnvironment moduleEnv, JsObject exports)
+    {
+        switch (statement)
+        {
+            case VariableDeclaration variableDeclaration:
+                foreach (var declarator in variableDeclaration.Declarators)
+                {
+                    if (declarator.Target is IdentifierBinding identifier)
+                    {
+                        exports[identifier.Name.Name] = moduleEnv.Get(identifier.Name);
+                    }
+                }
+
+                break;
+            case FunctionDeclaration functionDeclaration:
+                exports[functionDeclaration.Name.Name] = moduleEnv.Get(functionDeclaration.Name);
+                break;
+            case ClassDeclaration classDeclaration:
+                exports[classDeclaration.Name.Name] = moduleEnv.Get(classDeclaration.Name);
+                break;
+            case BlockStatement block:
+                foreach (var child in block.Statements)
+                {
+                    CollectExportedBindings(child, moduleEnv, exports);
+                }
+
+                break;
+        }
+    }
+
+    private object? ExecuteSingleStatement(StatementNode statement, object? rawStatement, JsEnvironment environment,
+        bool isStrict)
+    {
+        var typedProgram = new ProgramNode(null, ImmutableArray.Create(statement), isStrict);
+        var consProgram = BuildProgramCons(rawStatement);
+        return _typedExecutor.Evaluate(typedProgram, consProgram, environment);
+    }
+
+    private object? ExecuteExpression(ExpressionNode expression, object? rawExpression, JsEnvironment environment,
+        bool isStrict)
+    {
+        var expressionStatement = new ExpressionStatement(expression.Source, expression);
+        var rawStatement = BuildExpressionStatementCons(rawExpression);
+        return ExecuteSingleStatement(expressionStatement, rawStatement, environment, isStrict);
+    }
+
+    private static Cons BuildProgramCons(object? statement)
+    {
+        return Cons.FromEnumerable(new object?[] { JsSymbols.Program, statement });
+    }
+
+    private static Cons BuildExpressionStatementCons(object? expression)
+    {
+        return Cons.FromEnumerable(new object?[] { JsSymbols.ExpressionStatement, expression });
     }
 
     public async ValueTask DisposeAsync()

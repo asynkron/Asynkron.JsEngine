@@ -160,6 +160,40 @@ public sealed record ClassDeclaration(SourceReference? Source, Symbol Name, Cons
     Cons Methods, Cons Fields) : StatementNode(Source);
 
 /// <summary>
-/// Represents an import or export statement. Modules are still WIP so we preserve the raw cons payload.
+/// Base type for all module-related statements (import/export).
 /// </summary>
-public sealed record ModuleStatement(SourceReference? Source, Cons Node) : StatementNode(Source);
+public abstract record ModuleStatement(SourceReference? Source) : StatementNode(Source);
+
+/// <summary>
+/// Represents an import declaration.
+/// </summary>
+public sealed record ImportStatement(SourceReference? Source, string ModulePath, Symbol? DefaultImport,
+    Symbol? NamespaceImport, ImmutableArray<ImportSpecifier> NamedImports) : ModuleStatement(Source);
+
+/// <summary>
+/// Represents a single named import ("import { imported as local }").
+/// </summary>
+public sealed record ImportSpecifier(Symbol Imported, Symbol Local);
+
+/// <summary>
+/// Represents an export default statement.
+/// </summary>
+public sealed record ExportDefaultStatement(SourceReference? Source, ExpressionNode Expression, object? RawExpression,
+    Symbol? DeclarationName) : ModuleStatement(Source);
+
+/// <summary>
+/// Represents a named export statement, optionally re-exporting from another module.
+/// </summary>
+public sealed record ExportNamedStatement(SourceReference? Source, ImmutableArray<ExportSpecifier> Specifiers,
+    string? FromModule) : ModuleStatement(Source);
+
+/// <summary>
+/// Represents a single named export mapping.
+/// </summary>
+public sealed record ExportSpecifier(Symbol Local, Symbol Exported);
+
+/// <summary>
+/// Represents an export that forwards an existing declaration.
+/// </summary>
+public sealed record ExportDeclarationStatement(SourceReference? Source, StatementNode Declaration,
+    Cons RawDeclaration) : ModuleStatement(Source);

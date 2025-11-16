@@ -13,13 +13,22 @@ internal sealed class TypedProgramExecutor
 {
     private readonly SExpressionAstBuilder _builder = new();
 
+    public ProgramNode BuildProgram(Cons program)
+    {
+        return _builder.BuildProgram(program);
+    }
+
     public object? Evaluate(Cons program, JsEnvironment environment)
     {
-        var typedProgram = _builder.BuildProgram(program);
+        var typedProgram = BuildProgram(program);
+        return Evaluate(typedProgram, program, environment);
+    }
 
+    public object? Evaluate(ProgramNode typedProgram, Cons originalProgram, JsEnvironment environment)
+    {
         if (!TypedAstSupportAnalyzer.Supports(typedProgram, out _))
         {
-            return ProgramEvaluator.EvaluateProgram(program, environment);
+            return ProgramEvaluator.EvaluateProgram(originalProgram, environment);
         }
 
         return TypedAstEvaluator.EvaluateProgram(typedProgram, environment);

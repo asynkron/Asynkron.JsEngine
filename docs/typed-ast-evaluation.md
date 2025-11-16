@@ -35,3 +35,19 @@ As the interpreter matures we can gradually widen the supported node set and
 port semantics from `JsEvaluator` into the typed version. Because evaluation is
 now factored into a single class, we can unit-test it in isolation and evolve it
 without re-threading behaviour through the AST definitions.
+
+## Recent improvements
+
+`TypedAstEvaluator` now understands a much larger portion of the surface area:
+
+- Property reads/writes (including optional chaining) and `new` construction now
+  use the same helper routines as the legacy evaluator, so object literals and
+  method calls behave as expected.
+- Control-flow constructs such as `while`, `do/while`, and classic `for` loops
+  execute natively, including support for labeled `break`/`continue`.
+- Array/object literals (with spreads), template literals, and tagged templates
+  are fully evaluated.
+
+These changes make it viable to execute real programs purely through the typed
+pipeline while keeping a small compatibility layer for helpers that still live
+in `JsEvaluator`.

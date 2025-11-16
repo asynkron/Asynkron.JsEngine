@@ -2465,7 +2465,7 @@ public static class JsEvaluator
         }
     }
 
-    private static void InitializePrivateFields(object? constructor, JsObject instance, JsEnvironment environment,
+    internal static void InitializePrivateFields(object? constructor, JsObject instance, JsEnvironment environment,
         EvaluationContext context)
     {
         // First, initialize parent class private and public fields (if any)
@@ -3151,7 +3151,7 @@ public static class JsEvaluator
         return value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
     }
 
-    private static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
+    internal static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
     {
         // First, try the common interface for types with TryGetProperty
         if (target is IJsPropertyAccessor propertyAccessor)
@@ -3203,7 +3203,7 @@ public static class JsEvaluator
         return false;
     }
 
-    private static void AssignPropertyValue(object? target, string propertyName, object? value)
+    internal static void AssignPropertyValue(object? target, string propertyName, object? value)
     {
         // First, try the common interface for types with SetProperty
         if (target is IJsPropertyAccessor propertyAccessor)
@@ -3215,7 +3215,7 @@ public static class JsEvaluator
         throw new InvalidOperationException($"Cannot assign property '{propertyName}' on value '{target}'.");
     }
 
-    private static bool TryConvertToIndex(object? value, out int index)
+    internal static bool TryConvertToIndex(object? value, out int index)
     {
         switch (value)
         {
@@ -3244,7 +3244,7 @@ public static class JsEvaluator
         return false;
     }
 
-    private static string? ToPropertyName(object? value)
+    internal static string? ToPropertyName(object? value)
     {
         return value switch
         {
@@ -3976,7 +3976,7 @@ public static class JsEvaluator
     /// <summary>
     /// Implements the 'in' operator, which checks if a property exists in an object.
     /// </summary>
-    private static bool InOperator(object? left, object? right)
+    internal static bool InOperator(object? left, object? right)
     {
         // Convert left operand to string (property name)
         var propertyName = left?.ToString() ?? "";
@@ -3994,7 +3994,7 @@ public static class JsEvaluator
     /// <summary>
     /// Implements the instanceof operator. Checks if an object has a constructor's prototype in its prototype chain.
     /// </summary>
-    private static bool InstanceofOperator(object? left, object? right)
+    internal static bool InstanceofOperator(object? left, object? right)
     {
         // Left operand must be an object
         if (left is not JsObject leftObj)

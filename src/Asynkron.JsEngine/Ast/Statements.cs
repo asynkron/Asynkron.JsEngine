@@ -160,6 +160,60 @@ public sealed record ClassDeclaration(SourceReference? Source, Symbol Name, Cons
     Cons Methods, Cons Fields) : StatementNode(Source);
 
 /// <summary>
-/// Represents an import or export statement. Modules are still WIP so we preserve the raw cons payload.
+/// Base type for module import/export statements. Concrete records capture the
+/// typed shape of each construct so higher layers no longer need to reason
+/// about the underlying cons cells.
 /// </summary>
-public sealed record ModuleStatement(SourceReference? Source, Cons Node) : StatementNode(Source);
+public abstract record ModuleStatement(SourceReference? Source) : StatementNode(Source);
+
+/// <summary>
+/// Represents an <c>import</c> declaration.
+/// </summary>
+public sealed record ImportStatement(SourceReference? Source, string ModulePath, Symbol? DefaultBinding,
+    Symbol? NamespaceBinding, ImmutableArray<ImportBinding> NamedImports) : ModuleStatement(Source);
+
+/// <summary>
+/// Represents a single named binding within an <c>import</c> declaration.
+/// </summary>
+public sealed record ImportBinding(SourceReference? Source, Symbol Imported, Symbol Local) : AstNode(Source);
+
+/// <summary>
+/// Represents an <c>export default</c> declaration.
+/// </summary>
+public sealed record ExportDefaultStatement(SourceReference? Source, ExportDefaultValue Value)
+    : ModuleStatement(Source);
+
+/// <summary>
+/// Base type for <c>export default</c> payloads.
+/// </summary>
+public abstract record ExportDefaultValue(SourceReference? Source) : AstNode(Source);
+
+/// <summary>
+/// Represents <c>export default</c> followed by an expression.
+/// </summary>
+public sealed record ExportDefaultExpression(SourceReference? Source, ExpressionNode Expression)
+    : ExportDefaultValue(Source);
+
+/// <summary>
+/// Represents <c>export default</c> followed by a declaration (function/class).
+/// </summary>
+public sealed record ExportDefaultDeclaration(SourceReference? Source, StatementNode Declaration)
+    : ExportDefaultValue(Source);
+
+/// <summary>
+/// Represents <c>export { ... }</c> declarations.
+/// </summary>
+public sealed record ExportNamedStatement(SourceReference? Source, ImmutableArray<ExportSpecifier> Specifiers,
+    string? FromModule) : ModuleStatement(Source);
+
+/// <summary>
+/// Represents a single <c>export { local as exported }</c> specifier.
+/// </summary>
+public sealed record ExportSpecifier(SourceReference? Source, Symbol Local, Symbol Exported) : AstNode(Source);
+
+/// <summary>
+/// Represents <c>export</c> followed by a regular declaration (<c>let</c>,
+/// <c>function</c>, etc.).
+/// </summary>
+public sealed record ExportDeclarationStatement(SourceReference? Source, StatementNode Declaration)
+    : ModuleStatement(Source);

@@ -271,15 +271,117 @@ public sealed class SExpressionAstBuilder
                 : new ClassDeclaration(cons.SourceReference, name, extendsClause, constructor, methods, fields);
         }
 
-        if (ReferenceEquals(symbol, JsSymbols.Import) ||
-            ReferenceEquals(symbol, JsSymbols.Export) ||
-            ReferenceEquals(symbol, JsSymbols.ExportDefault) ||
-            ReferenceEquals(symbol, JsSymbols.ExportNamed))
+        if (ReferenceEquals(symbol, JsSymbols.Import))
         {
-            return new ModuleStatement(cons.SourceReference, cons);
+            return BuildImportStatement(cons);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.ExportDefault))
+        {
+            return BuildExportDefaultStatement(cons);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.ExportNamed) && cons.Rest.Head is Cons)
+        {
+            return BuildExportNamedStatement(cons);
+        }
+
+        if (ReferenceEquals(symbol, JsSymbols.ExportDeclaration))
+        {
+            var declaration = BuildStatement(cons.Rest.Head);
+            return declaration is null
+                ? new UnknownStatement(cons.SourceReference, cons)
+                : new ExportDeclarationStatement(cons.SourceReference, declaration);
         }
 
         return new UnknownStatement(cons.SourceReference, cons);
+    }
+
+    private StatementNode BuildImportStatement(Cons cons)
+    {
+        if (cons.Rest.Head is not string modulePath)
+        {
+            return new UnknownStatement(cons.SourceReference, cons);
+        }
+
+        Symbol? defaultBinding = null;
+        Symbol? namespaceBinding = null;
+        var namedImports = ImmutableArray<ImportBinding>.Empty;
+
+        if (!cons.Rest.Rest.IsEmpty)
+        {
+            defaultBinding = cons.Rest.Rest.Head as Symbol;
+            namespaceBinding = cons.Rest.Rest.Rest.Head as Symbol;
+            var namedList = cons.Rest.Rest.Rest.Rest.Head as Cons;
+            namedImports = BuildImportBindings(namedList);
+        }
+
+        return new ImportStatement(cons.SourceReference, modulePath, defaultBinding, namespaceBinding, namedImports);
+    }
+
+    private ExportDefaultStatement BuildExportDefaultStatement(Cons cons)
+    {
+        var payload = cons.Rest.Head;
+        if (payload is Cons { Head: Symbol head } valueCons &&
+            (ReferenceEquals(head, JsSymbols.Function) ||
+             ReferenceEquals(head, JsSymbols.Async) ||
+             ReferenceEquals(head, JsSymbols.Generator) ||
+             ReferenceEquals(head, JsSymbols.Class)))
+        {
+            var declaration = BuildStatement(valueCons);
+            if (declaration is FunctionDeclaration or ClassDeclaration)
+            {
+                return new ExportDefaultStatement(cons.SourceReference,
+                    new ExportDefaultDeclaration(cons.SourceReference, declaration));
+            }
+        }
+
+        var expression = BuildExpression(payload);
+        return new ExportDefaultStatement(cons.SourceReference,
+            new ExportDefaultExpression(cons.SourceReference, expression));
+    }
+
+    private ExportNamedStatement BuildExportNamedStatement(Cons cons)
+    {
+        var exportsList = cons.Rest.Head as Cons ?? Cons.Empty;
+        var fromModule = cons.Rest.Rest.Head as string;
+        var specifiers = BuildExportSpecifiers(exportsList);
+        return new ExportNamedStatement(cons.SourceReference, specifiers, fromModule);
+    }
+
+    private static ImmutableArray<ImportBinding> BuildImportBindings(Cons? list)
+    {
+        if (list is null)
+        {
+            return ImmutableArray<ImportBinding>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<ImportBinding>();
+        foreach (var item in list)
+        {
+            if (item is Cons { Head: Symbol head } importCons && ReferenceEquals(head, JsSymbols.ImportNamed) &&
+                importCons.Rest.Head is Symbol imported && importCons.Rest.Rest.Head is Symbol local)
+            {
+                builder.Add(new ImportBinding(importCons.SourceReference, imported, local));
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
+    private static ImmutableArray<ExportSpecifier> BuildExportSpecifiers(Cons list)
+    {
+        var builder = ImmutableArray.CreateBuilder<ExportSpecifier>();
+        foreach (var item in list)
+        {
+            if (item is Cons { Head: Symbol head } exportCons && ReferenceEquals(head, JsSymbols.ExportNamed) &&
+                exportCons.Rest.Head is Symbol local && exportCons.Rest.Rest.Head is Symbol exported)
+            {
+                builder.Add(new ExportSpecifier(exportCons.SourceReference, local, exported));
+            }
+        }
+
+        return builder.ToImmutable();
     }
 
     private BlockStatement BuildBlock(Cons cons)

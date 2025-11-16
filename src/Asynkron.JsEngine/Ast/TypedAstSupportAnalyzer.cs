@@ -3,9 +3,9 @@ namespace Asynkron.JsEngine.Ast;
 /// <summary>
 /// Lightweight static analysis pass that determines whether the current typed AST
 /// only relies on language constructs supported by <see cref="TypedAstEvaluator"/>.
-/// This allows callers to detect unsupported features before evaluation begins so
-/// we can safely fall back to the legacy cons-based interpreter without executing
-/// half the program twice.
+/// The runtime no longer uses this to decide between evaluators (the typed
+/// interpreter always runs), but tooling can still query it to flag unsupported
+/// constructs ahead of time.
 /// </summary>
 internal static class TypedAstSupportAnalyzer
 {

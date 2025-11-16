@@ -3168,27 +3168,17 @@ public static class TypedAstEvaluator
         }
     }
 
-    private sealed class TypedGeneratorInstance
+    private sealed class TypedGeneratorInstance(
+        FunctionExpression function,
+        JsEnvironment closure,
+        IReadOnlyList<object?> arguments,
+        object? thisValue,
+        IJsCallable callable)
     {
-        private readonly FunctionExpression _function;
-        private readonly JsEnvironment _closure;
-        private readonly IReadOnlyList<object?> _arguments;
-        private readonly object? _thisValue;
-        private readonly IJsCallable _callable;
         private JsEnvironment? _executionEnvironment;
         private GeneratorState _state = GeneratorState.Start;
         private bool _done;
         private int _currentYieldIndex;
-
-        public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
-            IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
-        {
-            _function = function;
-            _closure = closure;
-            _arguments = arguments;
-            _thisValue = thisValue;
-            _callable = callable;
-        }
 
         public JsObject CreateGeneratorObject()
         {
@@ -3224,7 +3214,7 @@ public static class TypedAstEvaluator
                 _executionEnvironment.Define(YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
 
                 // NOTE: Sending values back into the generator via next(value) is not yet implemented.
-                var result = EvaluateBlock(_function.Body, _executionEnvironment, context);
+                var result = EvaluateBlock(function.Body, _executionEnvironment, context);
 
                 if (context.IsThrow)
                 {
@@ -3281,21 +3271,21 @@ public static class TypedAstEvaluator
 
         private JsEnvironment CreateExecutionEnvironment()
         {
-            var description = _function.Name is { } name
+            var description = function.Name is { } name
                 ? $"function* {name.Name}"
                 : "generator function";
-            var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, description: description);
-            environment.Define(JsSymbols.This, _thisValue ?? new JsObject());
+            var environment = new JsEnvironment(closure, true, function.Body.IsStrict, description: description);
+            environment.Define(JsSymbols.This, thisValue ?? new JsObject());
 
-            if (_function.Name is { } functionName)
+            if (function.Name is { } functionName)
             {
-                environment.Define(functionName, _callable);
+                environment.Define(functionName, callable);
             }
 
-            HoistVarDeclarations(_function.Body, environment);
+            HoistVarDeclarations(function.Body, environment);
 
             var bindingContext = new EvaluationContext();
-            BindFunctionParameters(_function, _arguments, environment, bindingContext);
+            BindFunctionParameters(function, arguments, environment, bindingContext);
             if (bindingContext.IsThrow)
             {
                 var thrown = bindingContext.FlowValue;

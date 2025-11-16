@@ -4,15 +4,9 @@ namespace Asynkron.JsEngine;
 /// Tracks progress through a generator's yield points so re-executing the
 /// generator body can skip values that have already been produced.
 /// </summary>
-public sealed class YieldTracker
+public sealed class YieldTracker(int skipCount)
 {
-    private readonly int _skipCount;
     private int _currentIndex;
-
-    public YieldTracker(int skipCount)
-    {
-        _skipCount = skipCount;
-    }
 
     /// <summary>
     /// Returns <c>true</c> when the current execution pass should emit the
@@ -20,7 +14,7 @@ public sealed class YieldTracker
     /// </summary>
     public bool ShouldYield()
     {
-        var should = _currentIndex >= _skipCount;
+        var should = _currentIndex >= skipCount;
         _currentIndex++;
         return should;
     }

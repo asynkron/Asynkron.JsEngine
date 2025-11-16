@@ -67,14 +67,9 @@ public static class ConsExtensions
         return false;
     }
 
-    private ref struct ConsWalker
+    private ref struct ConsWalker(Cons start)
     {
-        private Cons _current;
-
-        public ConsWalker(Cons start)
-        {
-            _current = start;
-        }
+        private Cons _current = start;
 
         public bool TryTake(out object? value)
         {

@@ -3,15 +3,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ArrayLengthTest
+public class ArrayLengthTest(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper output;
-
-    public ArrayLengthTest(ITestOutputHelper output)
-    {
-        this.output = output;
-    }
-
     [Fact]
     public async Task TestStr2binlLength()
     {

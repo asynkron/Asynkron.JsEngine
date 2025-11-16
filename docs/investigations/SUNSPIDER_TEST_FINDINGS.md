@@ -105,13 +105,13 @@ These tests execute but produce incorrect cryptographic hashes:
 
 ---
 
-### Runtime Errors - 3D Graphics (1 test)
+### Runtime Errors - 3D Graphics (historical)
 
-#### 13. **3d-raytrace.js**
-- **Error**: `JavaScript error: Error: bad result: expected length [N] but got [actual]`
-- **Issue**: Ray-tracing algorithm produces wrong output length
-- **Root Cause**: Complex calculations with arrays and objects
-- **Notes**: Likely floating-point or array handling issue
+#### 13. **3d-raytrace.js** *(Resolved)*
+- **Status**: Passes again after optimising typed AST property access/deletion so array-heavy workloads stay within the 3s budget.
+- **Original Error**: `JavaScript error: Error: bad result: expected length [N] but got [actual]`
+- **Original Issue**: Ray-tracing algorithm produced the wrong output length
+- **Notes**: Historical failure kept for reference; modern runs now match the legacy evaluator.
 
 ---
 

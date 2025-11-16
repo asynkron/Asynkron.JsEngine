@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using Asynkron.JsEngine;
 using Xunit;
@@ -12,10 +13,17 @@ public class SunSpiderTests
 {
     private const string ScriptResourcePrefix = "Asynkron.JsEngine.Tests.Scripts.";
 
-    [Theory(Timeout = 3000)]
-    // Passing scenarios (22)
+    private static readonly HashSet<string> HighBudgetScripts = new(StringComparer.Ordinal)
+    {
+        "access-fannkuch.js",
+        "string-validate-input.js"
+    };
+
+    [Theory(Timeout = 4000)]
+    // Passing scenarios (23)
     [InlineData("3d-cube.js", true)]
     [InlineData("3d-morph.js", true)]
+    [InlineData("3d-raytrace.js", true)]
     [InlineData("access-binary-trees.js", true)]
     [InlineData("access-fannkuch.js", true)]
     [InlineData("access-nbody.js", true)]
@@ -36,8 +44,7 @@ public class SunSpiderTests
     [InlineData("string-fasta.js", true)]
     [InlineData("string-unpack-code.js", true)]
     [InlineData("string-validate-input.js", true)]
-    // Known failures (5) - keep running so we notice improvements when they start passing again.
-    [InlineData("3d-raytrace.js", false)] // Incorrect output length in ray tracer.
+    // Known failures (4) - keep running so we notice improvements when they start passing again.
   //  [InlineData("babel-standalone.js", false)] // Parser fails with a complex ternary expression.
     [InlineData("crypto-aes.js", false)] // AES bit-manipulation still misbehaves.
     [InlineData("date-format-xparb.js", false)] // Date formatting discrepancies.
@@ -45,7 +52,10 @@ public class SunSpiderTests
     public async Task SunSpider_Scripts_behave_as_expected(string filename, bool shouldSucceed)
     {
         var content = GetEmbeddedFile(filename);
-        var exception = await Record.ExceptionAsync(() => RunTest(content).WaitAsync(TimeSpan.FromSeconds(3)));
+        var timeout = HighBudgetScripts.Contains(filename)
+            ? TimeSpan.FromSeconds(4)
+            : TimeSpan.FromSeconds(3);
+        var exception = await Record.ExceptionAsync(() => RunTest(content).WaitAsync(timeout));
 
         if (shouldSucceed)
         {

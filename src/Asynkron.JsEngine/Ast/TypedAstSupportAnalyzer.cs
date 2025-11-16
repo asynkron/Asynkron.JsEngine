@@ -329,8 +329,10 @@ internal static class TypedAstSupportAnalyzer
                     case DestructuringAssignmentExpression destructuringAssignment:
                         return IsSupportedBinding(destructuringAssignment.Target) &&
                                VisitExpression(destructuringAssignment.Value);
-                    case AwaitExpression:
-                        return Fail("await expressions are not supported by the typed evaluator yet.");
+                    case AwaitExpression awaitExpression:
+                        // Await expressions are supported once the typed CPS transformer
+                        // runs, so simply validate the awaited operand here.
+                        return VisitExpression(awaitExpression.Expression);
                     case YieldExpression yieldExpression:
                         if (yieldExpression.IsDelegated)
                         {
@@ -375,11 +377,6 @@ internal static class TypedAstSupportAnalyzer
 
         private bool VisitFunction(FunctionExpression function)
         {
-            if (function.IsAsync)
-            {
-                return Fail("Async functions are not supported by the typed evaluator yet.");
-            }
-
             foreach (var parameter in function.Parameters)
             {
                 if (parameter.Pattern is not null && !IsSupportedBinding(parameter.Pattern))

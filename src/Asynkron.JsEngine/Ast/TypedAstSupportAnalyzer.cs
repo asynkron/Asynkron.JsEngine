@@ -1,534 +1,456 @@
-using System.Collections.Immutable;
-
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Scans a typed program node to determine if the typed evaluator can execute it.
-/// When unsupported constructs are detected the analyzer reports a descriptive
-/// reason that can be surfaced to logs or metrics.
+/// Lightweight static analysis pass that determines whether the current typed AST
+/// only relies on language constructs supported by <see cref="TypedAstEvaluator"/>.
+/// This allows callers to detect unsupported features before evaluation begins so
+/// we can safely fall back to the legacy cons-based interpreter without executing
+/// half the program twice.
 /// </summary>
 internal static class TypedAstSupportAnalyzer
 {
-    public static bool Supports(ProgramNode program, out string reason)
+    public static bool Supports(ProgramNode program, out string? reason)
     {
-        if (program is null)
-        {
-            reason = "Program node is null.";
-            return false;
-        }
-
         var visitor = new SupportVisitor();
         visitor.VisitProgram(program);
-        reason = visitor.Reason ?? string.Empty;
-        return visitor.IsSupported;
+        reason = visitor.UnsupportedReason;
+        return reason is null;
     }
 
     private sealed class SupportVisitor
     {
-        private string? _reason;
-
-        public bool IsSupported => _reason is null;
-
-        public string? Reason => _reason;
+        public string? UnsupportedReason { get; private set; }
 
         public void VisitProgram(ProgramNode program)
         {
             foreach (var statement in program.Body)
             {
-                VisitStatement(statement);
-                if (!IsSupported)
-                {
-                    break;
-                }
-            }
-        }
-
-        private void VisitStatement(StatementNode statement)
-        {
-            if (!IsSupported)
-            {
-                return;
-            }
-
-            switch (statement)
-            {
-                case BlockStatement block:
-                    foreach (var inner in block.Statements)
-                    {
-                        VisitStatement(inner);
-                        if (!IsSupported)
-                        {
-                            return;
-                        }
-                    }
-
-                    break;
-                case ExpressionStatement expressionStatement:
-                    VisitExpression(expressionStatement.Expression);
-                    break;
-                case ReturnStatement returnStatement when returnStatement.Expression is not null:
-                    VisitExpression(returnStatement.Expression);
-                    break;
-                case ThrowStatement throwStatement:
-                    VisitExpression(throwStatement.Expression);
-                    break;
-                case VariableDeclaration declaration:
-                    foreach (var declarator in declaration.Declarators)
-                    {
-                        VisitBindingTarget(declarator.Target);
-                        if (declarator.Initializer is not null)
-                        {
-                            VisitExpression(declarator.Initializer);
-                        }
-                        if (!IsSupported)
-                        {
-                            return;
-                        }
-                    }
-
-                    break;
-                case FunctionDeclaration functionDeclaration:
-                    VisitFunction(functionDeclaration.Function,
-                        $"function declaration '{functionDeclaration.Name.Name}'");
-                    break;
-                case IfStatement ifStatement:
-                    VisitExpression(ifStatement.Condition);
-                    VisitStatement(ifStatement.Then);
-                    if (ifStatement.Else is not null)
-                    {
-                        VisitStatement(ifStatement.Else);
-                    }
-
-                    break;
-                case WhileStatement whileStatement:
-                    VisitExpression(whileStatement.Condition);
-                    VisitStatement(whileStatement.Body);
-                    break;
-                case DoWhileStatement doWhileStatement:
-                    VisitStatement(doWhileStatement.Body);
-                    VisitExpression(doWhileStatement.Condition);
-                    break;
-                case ForStatement forStatement:
-                    if (forStatement.Initializer is not null)
-                    {
-                        VisitStatement(forStatement.Initializer);
-                    }
-
-                    if (forStatement.Condition is not null)
-                    {
-                        VisitExpression(forStatement.Condition);
-                    }
-
-                    if (forStatement.Increment is not null)
-                    {
-                        VisitExpression(forStatement.Increment);
-                    }
-
-                    VisitStatement(forStatement.Body);
-                    break;
-                case ForEachStatement forEachStatement:
-                    VisitBindingTarget(forEachStatement.Target);
-                    VisitExpression(forEachStatement.Iterable);
-                    VisitStatement(forEachStatement.Body);
-                    break;
-                case BreakStatement:
-                case ContinueStatement:
-                case EmptyStatement:
-                    break;
-                case LabeledStatement labeledStatement:
-                    VisitStatement(labeledStatement.Statement);
-                    break;
-                case TryStatement tryStatement:
-                    VisitBlock(tryStatement.TryBlock);
-                    if (tryStatement.Catch is not null)
-                    {
-                        VisitBlock(tryStatement.Catch.Body);
-                    }
-
-                    if (tryStatement.Finally is not null)
-                    {
-                        VisitBlock(tryStatement.Finally);
-                    }
-
-                    break;
-                case SwitchStatement switchStatement:
-                    VisitExpression(switchStatement.Discriminant);
-                    foreach (var @case in switchStatement.Cases)
-                    {
-                        if (@case.Test is not null)
-                        {
-                            VisitExpression(@case.Test);
-                        }
-
-                        VisitBlock(@case.Body);
-                        if (!IsSupported)
-                        {
-                            return;
-                        }
-                    }
-
-                    break;
-                case ClassDeclaration classDeclaration:
-                    VisitClassDefinition(classDeclaration.Definition);
-                    break;
-                case ModuleStatement:
-                    Fail("Module statements are not supported by the typed evaluator yet.");
-                    break;
-                case UnknownStatement unknownStatement:
-                    var statementHead = unknownStatement.Node.Head switch
-                    {
-                        Symbol symbol => symbol.Name,
-                        _ => unknownStatement.Node.Head?.ToString() ?? "unknown"
-                    };
-                    Fail($"Typed evaluator does not yet understand the '{statementHead}' statement form.");
-                    break;
-                default:
-                    Fail($"Typed evaluator does not yet support '{statement.GetType().Name}'.");
-                    break;
-            }
-        }
-
-        private void VisitBlock(BlockStatement block)
-        {
-            foreach (var statement in block.Statements)
-            {
-                VisitStatement(statement);
-                if (!IsSupported)
+                if (!VisitStatement(statement))
                 {
                     return;
                 }
             }
         }
 
-        private void VisitExpression(ExpressionNode? expression)
+        private bool VisitStatement(StatementNode statement)
         {
-            if (!IsSupported || expression is null)
+            while (true)
             {
-                return;
-            }
-
-            switch (expression)
-            {
-                case LiteralExpression:
-                case IdentifierExpression:
-                case ThisExpression:
-                case SuperExpression:
-                    break;
-                case BinaryExpression binaryExpression:
-                    VisitExpression(binaryExpression.Left);
-                    VisitExpression(binaryExpression.Right);
-                    break;
-                case UnaryExpression unaryExpression:
-                    VisitExpression(unaryExpression.Operand);
-                    break;
-                case ConditionalExpression conditionalExpression:
-                    VisitExpression(conditionalExpression.Test);
-                    VisitExpression(conditionalExpression.Consequent);
-                    VisitExpression(conditionalExpression.Alternate);
-                    break;
-                case CallExpression callExpression:
-                    VisitExpression(callExpression.Callee);
-                    foreach (var argument in callExpression.Arguments)
-                    {
-                        VisitExpression(argument.Expression);
-                    }
-
-                    break;
-                case FunctionExpression functionExpression:
-                    VisitFunction(functionExpression, "function expression");
-                    break;
-                case AssignmentExpression assignmentExpression:
-                    VisitExpression(assignmentExpression.Value);
-                    break;
-                case DestructuringAssignmentExpression destructuringAssignment:
-                    VisitBindingTarget(destructuringAssignment.Target);
-                    VisitExpression(destructuringAssignment.Value);
-                    break;
-                case PropertyAssignmentExpression propertyAssignment:
-                    VisitExpression(propertyAssignment.Target);
-                    VisitExpression(propertyAssignment.Property);
-                    VisitExpression(propertyAssignment.Value);
-                    break;
-                case IndexAssignmentExpression indexAssignment:
-                    VisitExpression(indexAssignment.Target);
-                    VisitExpression(indexAssignment.Index);
-                    VisitExpression(indexAssignment.Value);
-                    break;
-                case SequenceExpression sequenceExpression:
-                    VisitExpression(sequenceExpression.Left);
-                    VisitExpression(sequenceExpression.Right);
-                    break;
-                case MemberExpression memberExpression:
-                    VisitExpression(memberExpression.Target);
-                    VisitExpression(memberExpression.Property);
-                    break;
-                case NewExpression newExpression:
-                    VisitExpression(newExpression.Constructor);
-                    foreach (var argument in newExpression.Arguments)
-                    {
-                        VisitExpression(argument);
-                    }
-
-                    break;
-                case ArrayExpression arrayExpression:
-                    foreach (var element in arrayExpression.Elements)
-                    {
-                        VisitExpression(element.Expression);
-                    }
-
-                    break;
-                case ObjectExpression objectExpression:
-                    VisitObjectMembers(objectExpression.Members);
-                    break;
-                case TemplateLiteralExpression templateLiteral:
-                    foreach (var part in templateLiteral.Parts)
-                    {
-                        if (part.Expression is not null)
-                        {
-                            VisitExpression(part.Expression);
-                        }
-                    }
-
-                    break;
-                case TaggedTemplateExpression taggedTemplate:
-                    VisitExpression(taggedTemplate.Tag);
-                    VisitExpression(taggedTemplate.StringsArray);
-                    VisitExpression(taggedTemplate.RawStringsArray);
-                    foreach (var inner in taggedTemplate.Expressions)
-                    {
-                        VisitExpression(inner);
-                    }
-
-                    break;
-                case YieldExpression yieldExpression when yieldExpression.IsDelegated:
-                    Fail("Delegated yield expressions are not supported by the typed evaluator yet.");
-                    break;
-                case YieldExpression yieldExpression:
-                    if (yieldExpression.Expression is not null)
-                    {
-                        VisitExpression(yieldExpression.Expression);
-                    }
-
-                    break;
-                case AwaitExpression:
-                    Fail("Await expressions are not supported by the typed evaluator yet.");
-                    break;
-                case UnknownExpression unknownExpression:
-                    var expressionHead = unknownExpression.Node.Head switch
-                    {
-                        Symbol symbol => symbol.Name,
-                        _ => unknownExpression.Node.Head?.ToString() ?? "unknown"
-                    };
-                    Fail($"Typed evaluator does not yet understand the '{expressionHead}' expression form.");
-                    break;
-                default:
-                    Fail($"Typed evaluator does not yet support '{expression.GetType().Name}'.");
-                    break;
-            }
-        }
-
-        private void VisitObjectMembers(ImmutableArray<ObjectMember> members)
-        {
-            foreach (var member in members)
-            {
-                if (member.IsComputed && member.Key is ExpressionNode keyExpression)
+                if (UnsupportedReason is not null)
                 {
-                    VisitExpression(keyExpression);
+                    return false;
                 }
 
-                if (!IsSupported)
+                switch (statement)
                 {
-                    return;
-                }
-
-                switch (member.Kind)
-                {
-                    case ObjectMemberKind.Property:
-                    case ObjectMemberKind.Field:
-                    case ObjectMemberKind.Spread:
-                        if (member.Value is not null)
+                    case BlockStatement block:
+                        foreach (var child in block.Statements)
                         {
-                            VisitExpression(member.Value);
+                            if (!VisitStatement(child))
+                            {
+                                return false;
+                            }
                         }
 
-                        break;
-                    case ObjectMemberKind.Method:
-                    case ObjectMemberKind.Getter:
-                    case ObjectMemberKind.Setter:
-                        if (member.Function is not null)
+                        return true;
+                    case ExpressionStatement expressionStatement:
+                        return VisitExpression(expressionStatement.Expression);
+                    case ReturnStatement returnStatement:
+                        return returnStatement.Expression is null || VisitExpression(returnStatement.Expression);
+                    case ThrowStatement throwStatement:
+                        return VisitExpression(throwStatement.Expression);
+                    case VariableDeclaration declaration:
+                        foreach (var declarator in declaration.Declarators)
                         {
-                            VisitFunction(member.Function,
-                                $"object member '{DescribeObjectMember(member)}'");
+                            if (!IsSupportedBinding(declarator.Target))
+                            {
+                                return false;
+                            }
+
+                            if (declarator.Initializer is not null && !VisitExpression(declarator.Initializer))
+                            {
+                                return false;
+                            }
                         }
 
-                        break;
-                    case ObjectMemberKind.Unknown:
-                        Fail("Object literal contains unsupported member kind.");
-                        return;
+                        return true;
+                    case FunctionDeclaration functionDeclaration:
+                        return VisitFunction(functionDeclaration.Function);
+                    case IfStatement ifStatement:
+                        return VisitExpression(ifStatement.Condition) && VisitStatement(ifStatement.Then) && (ifStatement.Else is null || VisitStatement(ifStatement.Else));
+                    case WhileStatement whileStatement:
+                        return VisitExpression(whileStatement.Condition) && VisitStatement(whileStatement.Body);
+                    case DoWhileStatement doWhileStatement:
+                        return VisitStatement(doWhileStatement.Body) && VisitExpression(doWhileStatement.Condition);
+                    case ForStatement forStatement:
+                        if (forStatement.Initializer is not null && !VisitStatement(forStatement.Initializer))
+                        {
+                            return false;
+                        }
+
+                        if (forStatement.Condition is not null && !VisitExpression(forStatement.Condition))
+                        {
+                            return false;
+                        }
+
+                        if (forStatement.Increment is not null && !VisitExpression(forStatement.Increment))
+                        {
+                            return false;
+                        }
+
+                        statement = forStatement.Body;
+                        continue;
+                    case ForEachStatement forEach:
+                        return IsSupportedBinding(forEach.Target) && VisitExpression(forEach.Iterable) && VisitStatement(forEach.Body);
+                    case LabeledStatement labeled:
+                        statement = labeled.Statement;
+                        continue;
+                    case TryStatement tryStatement:
+                        if (!VisitBlock(tryStatement.TryBlock))
+                        {
+                            return false;
+                        }
+
+                        if (tryStatement.Catch is not null && !VisitCatch(tryStatement.Catch))
+                        {
+                            return false;
+                        }
+
+                        if (tryStatement.Finally is not null && !VisitBlock(tryStatement.Finally))
+                        {
+                            return false;
+                        }
+
+                        return true;
+                    case SwitchStatement switchStatement:
+                        if (!VisitExpression(switchStatement.Discriminant))
+                        {
+                            return false;
+                        }
+
+                        foreach (var switchCase in switchStatement.Cases)
+                        {
+                            if (switchCase.Test is not null && !VisitExpression(switchCase.Test))
+                            {
+                                return false;
+                            }
+
+                            if (!VisitBlock(switchCase.Body))
+                            {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    case BreakStatement:
+                    case ContinueStatement:
+                    case EmptyStatement:
+                        return true;
+                    case ClassDeclaration classDeclaration:
+                        return VisitClass(classDeclaration);
+                    case ModuleStatement:
+                        return Fail("module import/export statements are not supported by the typed evaluator yet.");
                     default:
-                        Fail($"Object literal member '{member.Kind}' is not supported yet.");
-                        return;
+                        return Fail($"Statement '{statement.GetType().Name}' is not supported by the typed evaluator yet.");
                 }
 
-                if (!IsSupported)
-                {
-                    return;
-                }
+                break;
             }
         }
 
-        private void VisitClassDefinition(ClassDefinition definition)
+        private bool VisitClass(ClassDeclaration classDeclaration)
         {
-            if (definition.Extends is not null)
+            return VisitClassDefinition(classDeclaration.Definition);
+        }
+
+        private bool VisitClassDefinition(ClassDefinition definition)
+        {
+            if (definition.Extends is { } extends && !VisitExpression(extends))
             {
-                VisitExpression(definition.Extends);
+                return false;
             }
 
-            VisitFunction(definition.Constructor, "class constructor");
+            if (!VisitFunction(definition.Constructor))
+            {
+                return false;
+            }
+
             foreach (var member in definition.Members)
             {
-                VisitFunction(member.Function, $"class member '{member.Name}'");
-                if (!IsSupported)
+                if (!VisitFunction(member.Function))
                 {
-                    return;
+                    return false;
                 }
             }
 
             foreach (var field in definition.Fields)
             {
-                if (field.Initializer is not null)
+                if (field.Initializer is not null && !VisitExpression(field.Initializer))
                 {
-                    VisitExpression(field.Initializer);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool VisitBlock(BlockStatement block)
+        {
+            foreach (var statement in block.Statements)
+            {
+                if (!VisitStatement(statement))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool VisitCatch(CatchClause clause)
+        {
+            return VisitBlock(clause.Body);
+        }
+
+        private bool VisitExpression(ExpressionNode expression)
+        {
+            while (true)
+            {
+                if (UnsupportedReason is not null)
+                {
+                    return false;
                 }
 
-                if (!IsSupported)
+                switch (expression)
                 {
-                    return;
+                    case LiteralExpression:
+                    case IdentifierExpression:
+                    case ThisExpression:
+                        return true;
+                    case BinaryExpression binary:
+                        return VisitExpression(binary.Left) && VisitExpression(binary.Right);
+                    case UnaryExpression unary:
+                        expression = unary.Operand;
+                        continue;
+                    case ConditionalExpression conditional:
+                        return VisitExpression(conditional.Test) && VisitExpression(conditional.Consequent) && VisitExpression(conditional.Alternate);
+                    case CallExpression call:
+                        if (!VisitExpression(call.Callee))
+                        {
+                            return false;
+                        }
+
+                        foreach (var argument in call.Arguments)
+                        {
+                            if (!VisitExpression(argument.Expression))
+                            {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    case FunctionExpression function:
+                        return VisitFunction(function);
+                    case AssignmentExpression assignment:
+                        expression = assignment.Value;
+                        continue;
+                    case PropertyAssignmentExpression propertyAssignment:
+                        return VisitExpression(propertyAssignment.Target) && VisitExpression(propertyAssignment.Property) && VisitExpression(propertyAssignment.Value);
+                    case IndexAssignmentExpression indexAssignment:
+                        return VisitExpression(indexAssignment.Target) && VisitExpression(indexAssignment.Index) && VisitExpression(indexAssignment.Value);
+                    case SequenceExpression sequence:
+                        return VisitExpression(sequence.Left) && VisitExpression(sequence.Right);
+                    case MemberExpression member:
+                        return VisitExpression(member.Target) && VisitExpression(member.Property);
+                    case NewExpression newExpression:
+                        if (!VisitExpression(newExpression.Constructor))
+                        {
+                            return false;
+                        }
+
+                        foreach (var argument in newExpression.Arguments)
+                        {
+                            if (!VisitExpression(argument))
+                            {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    case ArrayExpression arrayExpression:
+                        foreach (var element in arrayExpression.Elements)
+                        {
+                            if (element.Expression is not null && !VisitExpression(element.Expression))
+                            {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    case ObjectExpression objectExpression:
+                        foreach (var member in objectExpression.Members)
+                        {
+                            if (!VisitObjectMember(member))
+                            {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    case ClassExpression classExpression:
+                        return VisitClassDefinition(classExpression.Definition);
+                    case TemplateLiteralExpression template:
+                        foreach (var part in template.Parts)
+                        {
+                            if (part.Expression is not null && !VisitExpression(part.Expression))
+                            {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    case TaggedTemplateExpression taggedTemplate:
+                        if (!VisitExpression(taggedTemplate.Tag) ||
+                            !VisitExpression(taggedTemplate.StringsArray) ||
+                            !VisitExpression(taggedTemplate.RawStringsArray))
+                        {
+                            return false;
+                        }
+
+                        foreach (var expr in taggedTemplate.Expressions)
+                        {
+                            if (!VisitExpression(expr))
+                            {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    case DestructuringAssignmentExpression destructuringAssignment:
+                        return IsSupportedBinding(destructuringAssignment.Target) &&
+                               VisitExpression(destructuringAssignment.Value);
+                    case AwaitExpression:
+                        return Fail("await expressions are not supported by the typed evaluator yet.");
+                    case YieldExpression yieldExpression:
+                        if (yieldExpression.IsDelegated)
+                        {
+                            return Fail("Delegated yield expressions are not supported by the typed evaluator yet.");
+                        }
+
+                        return VisitExpression(yieldExpression.Expression);
+                    case SuperExpression:
+                        return Fail("super expressions are not supported by the typed evaluator yet.");
+                    default:
+                        return Fail($"Expression '{expression.GetType().Name}' is not supported by the typed evaluator yet.");
                 }
+
+                break;
             }
         }
 
-        private void VisitFunction(FunctionExpression function, string description)
+        private bool VisitObjectMember(ObjectMember member)
         {
-            if (!IsSupported)
+            if (member.Kind == ObjectMemberKind.Unknown)
             {
-                return;
+                return Fail("Object literal member kind is not recognised by the typed evaluator.");
             }
 
+            if (member.Value is not null && !VisitExpression(member.Value))
+            {
+                return false;
+            }
+
+            if (member.Function is not null && !VisitFunction(member.Function))
+            {
+                return false;
+            }
+
+            if (member.Key is ExpressionNode keyExpression && !VisitExpression(keyExpression))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool VisitFunction(FunctionExpression function)
+        {
             if (function.IsAsync)
             {
-                Fail($"Async functions are not supported ({description}).");
-                return;
+                return Fail("Async functions are not supported by the typed evaluator yet.");
             }
 
             foreach (var parameter in function.Parameters)
             {
-                if (parameter.Pattern is not null)
+                if (parameter.Pattern is not null && !IsSupportedBinding(parameter.Pattern))
                 {
-                    VisitBindingTarget(parameter.Pattern);
+                    return false;
                 }
 
-                if (parameter.DefaultValue is not null)
+                if (parameter.DefaultValue is not null && !VisitExpression(parameter.DefaultValue))
                 {
-                    VisitExpression(parameter.DefaultValue);
-                }
-
-                if (!IsSupported)
-                {
-                    return;
-                }
-
-                if (parameter.IsRest && parameter.Pattern is not null)
-                {
-                    Fail("Rest parameters cannot use destructuring patterns.");
-                    return;
+                    return false;
                 }
             }
 
-            VisitBlock(function.Body);
+            return VisitBlock(function.Body);
         }
 
-        private void VisitBindingTarget(BindingTarget target)
+        private bool IsSupportedBinding(BindingTarget target)
         {
-            if (!IsSupported)
-            {
-                return;
-            }
-
             switch (target)
             {
                 case IdentifierBinding:
-                    break;
+                    return true;
                 case ArrayBinding arrayBinding:
                     foreach (var element in arrayBinding.Elements)
                     {
-                        VisitArrayBindingElement(element);
-                        if (!IsSupported)
+                        if (element.Target is not null && !IsSupportedBinding(element.Target))
                         {
-                            return;
+                            return false;
+                        }
+
+                        if (element.DefaultValue is not null && !VisitExpression(element.DefaultValue))
+                        {
+                            return false;
                         }
                     }
 
-                    if (arrayBinding.RestElement is not null)
+                    if (arrayBinding.RestElement is not null && !IsSupportedBinding(arrayBinding.RestElement))
                     {
-                        VisitBindingTarget(arrayBinding.RestElement);
+                        return false;
                     }
 
-                    break;
+                    return true;
                 case ObjectBinding objectBinding:
                     foreach (var property in objectBinding.Properties)
                     {
-                        VisitObjectBindingProperty(property);
-                        if (!IsSupported)
+                        if (!IsSupportedBinding(property.Target))
                         {
-                            return;
+                            return false;
+                        }
+
+                        if (property.DefaultValue is not null && !VisitExpression(property.DefaultValue))
+                        {
+                            return false;
                         }
                     }
 
-                    if (objectBinding.RestElement is not null)
+                    if (objectBinding.RestElement is not null && !IsSupportedBinding(objectBinding.RestElement))
                     {
-                        VisitBindingTarget(objectBinding.RestElement);
+                        return false;
                     }
 
-                    break;
+                    return true;
                 default:
-                    Fail($"Binding target '{target.GetType().Name}' is not supported.");
-                    break;
+                    return Fail("Binding target type is not supported by the typed evaluator.");
             }
         }
 
-        private void VisitArrayBindingElement(ArrayBindingElement element)
+        private bool Fail(string reason)
         {
-            if (element.Target is not null)
-            {
-                VisitBindingTarget(element.Target);
-            }
-
-            if (element.DefaultValue is not null)
-            {
-                VisitExpression(element.DefaultValue);
-            }
-        }
-
-        private void VisitObjectBindingProperty(ObjectBindingProperty property)
-        {
-            VisitBindingTarget(property.Target);
-            if (property.DefaultValue is not null)
-            {
-                VisitExpression(property.DefaultValue);
-            }
-        }
-
-        private static string DescribeObjectMember(ObjectMember member)
-        {
-            return member.IsComputed
-                ? "[computed]"
-                : member.Key?.ToString() ?? "(unknown)";
-        }
-
-        private void Fail(string message)
-        {
-            _reason ??= message;
+            UnsupportedReason ??= reason;
+            return false;
         }
     }
 }

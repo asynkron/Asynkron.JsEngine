@@ -43,10 +43,28 @@ public abstract record BindingTarget(SourceReference? Source) : AstNode(Source);
 public sealed record IdentifierBinding(SourceReference? Source, Symbol Name) : BindingTarget(Source);
 
 /// <summary>
-/// Placeholder for complex destructuring patterns. We keep the original cons tree
-/// so we can incrementally replace it with a richer typed model without losing fidelity.
+/// Represents an array destructuring binding with optional rest element.
 /// </summary>
-public sealed record DestructuringBinding(SourceReference? Source, Cons Pattern) : BindingTarget(Source);
+public sealed record ArrayBinding(SourceReference? Source, ImmutableArray<ArrayBindingElement> Elements,
+    BindingTarget? RestElement) : BindingTarget(Source);
+
+/// <summary>
+/// Represents a single element within an array destructuring binding.
+/// </summary>
+public sealed record ArrayBindingElement(SourceReference? Source, BindingTarget? Target, ExpressionNode? DefaultValue)
+    : AstNode(Source);
+
+/// <summary>
+/// Represents an object destructuring binding with optional rest binding.
+/// </summary>
+public sealed record ObjectBinding(SourceReference? Source, ImmutableArray<ObjectBindingProperty> Properties,
+    BindingTarget? RestElement) : BindingTarget(Source);
+
+/// <summary>
+/// Represents a single property inside an object destructuring binding.
+/// </summary>
+public sealed record ObjectBindingProperty(SourceReference? Source, string Name, BindingTarget Target,
+    ExpressionNode? DefaultValue) : AstNode(Source);
 
 /// <summary>
 /// Represents an expression statement.

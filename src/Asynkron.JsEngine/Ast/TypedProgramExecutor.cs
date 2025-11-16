@@ -12,11 +12,6 @@ internal sealed class TypedProgramExecutor
 {
     public object? Evaluate(ParsedProgram program, JsEnvironment environment)
     {
-        if (!TypedAstSupportAnalyzer.Supports(program.Typed, out _))
-        {
-            return ProgramEvaluator.EvaluateProgram(program.SExpression, environment);
-        }
-
         return TypedAstEvaluator.EvaluateProgram(program.Typed, environment);
     }
 }

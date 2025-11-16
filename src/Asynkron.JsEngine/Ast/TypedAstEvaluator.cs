@@ -759,6 +759,23 @@ public static class TypedAstEvaluator
             return EvaluateDelete(expression.Operand, environment, context);
         }
 
+        if (expression.Operator == "typeof")
+        {
+            if (expression.Operand is IdentifierExpression identifier &&
+                !environment.TryGet(identifier.Name, out var value))
+            {
+                return "undefined";
+            }
+
+            var operandValue = EvaluateExpression(expression.Operand, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsSymbols.Undefined;
+            }
+
+            return GetTypeofString(operandValue);
+        }
+
         var operand = EvaluateExpression(expression.Operand, environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -773,7 +790,6 @@ public static class TypedAstEvaluator
                 : operand.ToNumber(),
             "-" => operand is JsBigInt bigInt ? (object)(-bigInt) : -operand.ToNumber(),
             "~" => BitwiseNot(operand),
-            "typeof" => GetTypeofString(operand),
             "void" => JsSymbols.Undefined,
             _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
         };
@@ -1791,10 +1807,113 @@ public static class TypedAstEvaluator
     {
         if (target is JsObject jsObject)
         {
+            // JavaScript specifies that deleting a non-existent property returns true
+            if (!jsObject.ContainsKey(propertyName))
+            {
+                return true;
+            }
+
             return jsObject.Remove(propertyName);
         }
 
-        return false;
+        // Deleting primitives or other non-object values is a no-op that succeeds
+        return true;
+    }
+
+    private static void HoistVarDeclarations(BlockStatement block, JsEnvironment environment)
+    {
+        foreach (var statement in block.Statements)
+        {
+            HoistFromStatement(statement, environment);
+        }
+    }
+
+    private static void HoistFromStatement(StatementNode statement, JsEnvironment environment)
+    {
+        switch (statement)
+        {
+            case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
+                foreach (var declarator in varDeclaration.Declarators)
+                {
+                    HoistFromBindingTarget(declarator.Target, environment);
+                }
+
+                break;
+            case BlockStatement block:
+                HoistVarDeclarations(block, environment);
+                break;
+            case IfStatement ifStatement:
+                HoistFromStatement(ifStatement.Then, environment);
+                if (ifStatement.Else is { } elseBranch)
+                {
+                    HoistFromStatement(elseBranch, environment);
+                }
+
+                break;
+            case WhileStatement whileStatement:
+                HoistFromStatement(whileStatement.Body, environment);
+                break;
+            case DoWhileStatement doWhileStatement:
+                HoistFromStatement(doWhileStatement.Body, environment);
+                break;
+            case ForStatement forStatement:
+                if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
+                {
+                    HoistFromStatement(initVar, environment);
+                }
+
+                HoistFromStatement(forStatement.Body, environment);
+                break;
+            case ForEachStatement forEachStatement:
+                if (forEachStatement.DeclarationKind == VariableKind.Var)
+                {
+                    HoistFromBindingTarget(forEachStatement.Target, environment);
+                }
+
+                HoistFromStatement(forEachStatement.Body, environment);
+                break;
+            case LabeledStatement labeled:
+                HoistFromStatement(labeled.Statement, environment);
+                break;
+            case TryStatement tryStatement:
+                HoistVarDeclarations(tryStatement.TryBlock, environment);
+                if (tryStatement.Catch is { } catchClause)
+                {
+                    HoistVarDeclarations(catchClause.Body, environment);
+                }
+
+                if (tryStatement.Finally is { } finallyBlock)
+                {
+                    HoistVarDeclarations(finallyBlock, environment);
+                }
+
+                break;
+            case SwitchStatement switchStatement:
+                foreach (var switchCase in switchStatement.Cases)
+                {
+                    HoistVarDeclarations(switchCase.Body, environment);
+                }
+
+                break;
+            case FunctionDeclaration:
+            case ClassDeclaration:
+            case ModuleStatement:
+                break;
+        }
+    }
+
+    private static void HoistFromBindingTarget(BindingTarget target, JsEnvironment environment)
+    {
+        switch (target)
+        {
+            case IdentifierBinding identifier:
+                environment.DefineFunctionScoped(identifier.Name, JsSymbols.Undefined, false);
+                break;
+            case DestructuringBinding:
+                // Destructuring is not yet supported by the typed evaluator, so we rely on the
+                // legacy interpreter to handle these cases when we fall back.
+                break;
+        }
     }
 
     private static bool InOperator(object? property, object? target)
@@ -1985,6 +2104,8 @@ public static class TypedAstEvaluator
             {
                 environment.Define(functionName, this);
             }
+
+            HoistVarDeclarations(_function.Body, environment);
 
             BindParameters(arguments, environment, context);
             if (context.ShouldStopEvaluation)

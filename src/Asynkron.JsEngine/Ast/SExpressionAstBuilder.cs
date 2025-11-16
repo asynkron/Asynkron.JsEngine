@@ -807,6 +807,12 @@ public sealed class SExpressionAstBuilder
             return BuildExpression(cons);
         }
 
+        if (keyNode is Symbol symbol)
+        {
+            isComputed = true;
+            return BuildSymbolExpression(symbol);
+        }
+
         isComputed = false;
         return keyNode ?? string.Empty;
     }

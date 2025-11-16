@@ -20,6 +20,7 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly ConstantExpressionTransformer _constantTransformer = new();
     private readonly CpsTransformer _cpsTransformer = new();
     private readonly TypedProgramExecutor _typedExecutor = new();
+    private readonly SExpressionAstBuilder _astBuilder = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
     private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
@@ -224,6 +225,22 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public Cons Parse([LanguageInjection("javascript")] string source)
     {
+        return ParseInternal(source);
+    }
+
+    /// <summary>
+    /// Parses JavaScript source code and returns both the transformed S-expression and the
+    /// typed AST. This is primarily used by the evaluator so we avoid rebuilding the typed
+    /// tree multiple times.
+    /// </summary>
+    internal ParsedProgram ParseForExecution([LanguageInjection("javascript")] string source)
+    {
+        var program = ParseInternal(source);
+        return CreateParsedProgram(program);
+    }
+
+    private Cons ParseInternal(string source)
+    {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
         var tokens = lexer.Tokenize();
@@ -241,10 +258,16 @@ public sealed class JsEngine : IAsyncDisposable
         // the S-expression tree to continuation-passing style
         if (CpsTransformer.NeedsTransformation(program))
         {
-            return _cpsTransformer.Transform(program);
+            program = _cpsTransformer.Transform(program);
         }
 
         return program;
+    }
+
+    private ParsedProgram CreateParsedProgram(Cons program)
+    {
+        var typed = _astBuilder.BuildProgram(program);
+        return new ParsedProgram(program, typed);
     }
 
     /// <summary>
@@ -263,10 +286,10 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Executes a transformed S-expression program through the typed evaluator when possible,
+    /// Executes a transformed program through the typed evaluator when possible,
     /// automatically falling back to the legacy interpreter for unsupported constructs.
     /// </summary>
-    internal object? ExecuteProgram(Cons program, JsEnvironment environment)
+    internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment)
     {
         return _typedExecutor.Evaluate(program, environment);
     }
@@ -312,7 +335,8 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public Task<object?> Evaluate([LanguageInjection("javascript")] string source)
     {
-        return Evaluate(Parse(source));
+        var program = ParseForExecution(source);
+        return Evaluate(program);
     }
 
     /// <summary>
@@ -320,7 +344,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// This ensures all code executes through the event loop, maintaining proper
     /// single-threaded execution semantics.
     /// </summary>
-    private async Task<object?> Evaluate(Cons program)
+    private async Task<object?> Evaluate(ParsedProgram program)
     {
         var typedProgram = _typedExecutor.BuildProgram(program);
         var tcs = new TaskCompletionSource<object?>();

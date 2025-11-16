@@ -1,5 +1,4 @@
 using Asynkron.JsEngine.Evaluation;
-using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -32,5 +31,10 @@ internal sealed class TypedProgramExecutor
         }
 
         return TypedAstEvaluator.EvaluateProgram(typedProgram, environment);
+    }
+  
+    public object? Evaluate(ParsedProgram program, JsEnvironment environment)
+    {
+        return TypedAstEvaluator.EvaluateProgram(program.Typed, environment);
     }
 }

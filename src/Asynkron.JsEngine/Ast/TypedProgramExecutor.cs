@@ -1,5 +1,4 @@
 using Asynkron.JsEngine.Evaluation;
-using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -11,17 +10,13 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 internal sealed class TypedProgramExecutor
 {
-    private readonly SExpressionAstBuilder _builder = new();
-
-    public object? Evaluate(Cons program, JsEnvironment environment)
+    public object? Evaluate(ParsedProgram program, JsEnvironment environment)
     {
-        var typedProgram = _builder.BuildProgram(program);
-
-        if (!TypedAstSupportAnalyzer.Supports(typedProgram, out _))
+        if (!TypedAstSupportAnalyzer.Supports(program.Typed, out _))
         {
-            return ProgramEvaluator.EvaluateProgram(program, environment);
+            return ProgramEvaluator.EvaluateProgram(program.SExpression, environment);
         }
 
-        return TypedAstEvaluator.EvaluateProgram(typedProgram, environment);
+        return TypedAstEvaluator.EvaluateProgram(program.Typed, environment);
     }
 }

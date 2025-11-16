@@ -18,6 +18,7 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly ConstantExpressionTransformer _constantTransformer = new();
     private readonly CpsTransformer _cpsTransformer = new();
     private readonly TypedProgramExecutor _typedExecutor = new();
+    private readonly SExpressionAstBuilder _astBuilder = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
     private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
@@ -222,6 +223,22 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public Cons Parse([LanguageInjection("javascript")] string source)
     {
+        return ParseInternal(source);
+    }
+
+    /// <summary>
+    /// Parses JavaScript source code and returns both the transformed S-expression and the
+    /// typed AST. This is primarily used by the evaluator so we avoid rebuilding the typed
+    /// tree multiple times.
+    /// </summary>
+    internal ParsedProgram ParseForExecution([LanguageInjection("javascript")] string source)
+    {
+        var program = ParseInternal(source);
+        return CreateParsedProgram(program);
+    }
+
+    private Cons ParseInternal(string source)
+    {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
         var tokens = lexer.Tokenize();
@@ -239,10 +256,16 @@ public sealed class JsEngine : IAsyncDisposable
         // the S-expression tree to continuation-passing style
         if (CpsTransformer.NeedsTransformation(program))
         {
-            return _cpsTransformer.Transform(program);
+            program = _cpsTransformer.Transform(program);
         }
 
         return program;
+    }
+
+    private ParsedProgram CreateParsedProgram(Cons program)
+    {
+        var typed = _astBuilder.BuildProgram(program);
+        return new ParsedProgram(program, typed);
     }
 
     /// <summary>
@@ -261,10 +284,10 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Executes a transformed S-expression program through the typed evaluator when possible,
+    /// Executes a transformed program through the typed evaluator when possible,
     /// automatically falling back to the legacy interpreter for unsupported constructs.
     /// </summary>
-    internal object? ExecuteProgram(Cons program, JsEnvironment environment)
+    internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment)
     {
         return _typedExecutor.Evaluate(program, environment);
     }
@@ -310,7 +333,8 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public Task<object?> Evaluate([LanguageInjection("javascript")] string source)
     {
-        return Evaluate(Parse(source));
+        var program = ParseForExecution(source);
+        return Evaluate(program);
     }
 
     /// <summary>
@@ -318,7 +342,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// This ensures all code executes through the event loop, maintaining proper
     /// single-threaded execution semantics.
     /// </summary>
-    private async Task<object?> Evaluate(Cons program)
+    private async Task<object?> Evaluate(ParsedProgram program)
     {
         var tcs = new TaskCompletionSource<object?>();
 
@@ -330,7 +354,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 object? result;
                 // Check if the program contains any import/export statements
-                if (HasModuleStatements(program))
+                if (HasModuleStatements(program.Typed))
                 {
                     // Treat as a module
                     var exports = new JsObject();
@@ -359,25 +383,11 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     /// Checks if a program contains any import or export statements.
     /// </summary>
-    private static bool HasModuleStatements(Cons program)
+    private static bool HasModuleStatements(ProgramNode program)
     {
-        if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
+        foreach (var statement in program.Body)
         {
-            return false;
-        }
-
-        foreach (var stmt in program.Rest)
-        {
-            if (stmt is not Cons { Head: Symbol stmtHead })
-            {
-                continue;
-            }
-
-            if (ReferenceEquals(stmtHead, JsSymbols.Import) ||
-                ReferenceEquals(stmtHead, JsSymbols.Export) ||
-                ReferenceEquals(stmtHead, JsSymbols.ExportDefault) ||
-                ReferenceEquals(stmtHead, JsSymbols.ExportNamed) ||
-                ReferenceEquals(stmtHead, JsSymbols.ExportDeclaration))
+            if (statement is ModuleStatement)
             {
                 return true;
             }
@@ -724,7 +734,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         // Parse the module
-        var program = Parse(source);
+        var program = ParseForExecution(source);
 
         // Create a module exports object
         var exports = new JsObject();
@@ -745,15 +755,17 @@ public sealed class JsEngine : IAsyncDisposable
     /// Evaluates a module program and populates the exports object.
     /// Returns the last evaluated value.
     /// </summary>
-    private object? EvaluateModule(Cons program, JsEnvironment moduleEnv, JsObject exports)
+    private object? EvaluateModule(ParsedProgram program, JsEnvironment moduleEnv, JsObject exports)
     {
-        if (program.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
+        var consProgram = program.SExpression;
+
+        if (consProgram.Head is not Symbol head || !ReferenceEquals(head, JsSymbols.Program))
         {
             throw new InvalidOperationException("Expected program node");
         }
 
         object? lastValue = null;
-        var statements = program.Rest;
+        var statements = consProgram.Rest;
         while (statements is not null && !statements.IsEmpty)
         {
             var stmt = statements.Head;
@@ -783,7 +795,7 @@ public sealed class JsEngine : IAsyncDisposable
                             // It's a named function or class declaration
                             // Evaluate it to define it in the environment
                             var declProgram = Cons.FromEnumerable([JsSymbols.Program, expression]);
-                            ExecuteProgram(declProgram, moduleEnv);
+                            ExecuteProgram(CreateParsedProgram(declProgram), moduleEnv);
 
                             // Get the defined value from the environment
                             if (exprCons.Rest.Head is Symbol name)
@@ -803,7 +815,7 @@ public sealed class JsEngine : IAsyncDisposable
                                 JsSymbols.Program,
                                 Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])
                             ]);
-                            value = ExecuteProgram(exprProgram, moduleEnv);
+                            value = ExecuteProgram(CreateParsedProgram(exprProgram), moduleEnv);
                         }
                     }
                     else
@@ -813,7 +825,7 @@ public sealed class JsEngine : IAsyncDisposable
                             JsSymbols.Program,
                             Cons.FromEnumerable([JsSymbols.ExpressionStatement, expression])
                         ]);
-                        value = ExecuteProgram(exprProgram, moduleEnv);
+                        value = ExecuteProgram(CreateParsedProgram(exprProgram), moduleEnv);
                     }
 
                     exports["default"] = value;
@@ -875,7 +887,7 @@ public sealed class JsEngine : IAsyncDisposable
 
                     // Evaluate the declaration
                     var declProgram = Cons.FromEnumerable([JsSymbols.Program, declaration]);
-                    ExecuteProgram(declProgram, moduleEnv);
+                    ExecuteProgram(CreateParsedProgram(declProgram), moduleEnv);
 
                     // Extract the declared names and add to exports
                     if (declaration is Cons { Head: Symbol declHead } declCons)
@@ -917,14 +929,14 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     // Regular statement - just evaluate it
                     var stmtProgram = Cons.FromEnumerable([JsSymbols.Program, stmt]);
-                    lastValue = ExecuteProgram(stmtProgram, moduleEnv);
+                    lastValue = ExecuteProgram(CreateParsedProgram(stmtProgram), moduleEnv);
                 }
             }
             else
             {
                 // Regular statement - just evaluate it
                 var stmtProgram = Cons.FromEnumerable([JsSymbols.Program, stmt]);
-                lastValue = ExecuteProgram(stmtProgram, moduleEnv);
+                lastValue = ExecuteProgram(CreateParsedProgram(stmtProgram), moduleEnv);
             }
 
             statements = statements.Rest;

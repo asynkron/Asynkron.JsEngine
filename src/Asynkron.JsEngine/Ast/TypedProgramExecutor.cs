@@ -1,5 +1,3 @@
-using Asynkron.JsEngine.Evaluation;
-
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>

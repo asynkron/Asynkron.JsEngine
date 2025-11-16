@@ -8,7 +8,6 @@ using System.Numerics;
 using System.Text;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Converters;
-using Asynkron.JsEngine.Evaluation;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 
@@ -314,6 +313,12 @@ public static class TypedAstEvaluator
         var loopEnvironment = new JsEnvironment(environment, creatingExpression: null, description: "for-each-loop");
         object? lastValue = JsSymbols.Undefined;
 
+        if (statement.Kind == ForEachKind.Of &&
+            TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
+        {
+            return IterateIteratorValues(statement, iterator, loopEnvironment, environment, context, loopLabel);
+        }
+
         IEnumerable<object?> values = statement.Kind switch
         {
             ForEachKind.In => EnumeratePropertyKeys(iterable),
@@ -412,7 +417,7 @@ public static class TypedAstEvaluator
             return lastValue;
         }
 
-        var values = CollectSynchronousIterableValues(iterable);
+        var values = EnumerateValues(iterable);
         foreach (var value in values)
         {
             if (context.ShouldStopEvaluation)
@@ -421,6 +426,51 @@ public static class TypedAstEvaluator
             }
 
             AssignLoopBinding(statement, value, loopEnvironment, environment, context);
+            lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
+
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;
+            }
+
+            if (context.TryClearContinue(loopLabel))
+            {
+                continue;
+            }
+
+            if (context.TryClearBreak(loopLabel))
+            {
+                break;
+            }
+        }
+
+        return lastValue;
+    }
+
+    private static object? IterateIteratorValues(ForEachStatement statement, JsObject iterator,
+        JsEnvironment loopEnvironment, JsEnvironment outerEnvironment, EvaluationContext context, Symbol? loopLabel)
+    {
+        object? lastValue = JsSymbols.Undefined;
+
+        while (!context.ShouldStopEvaluation)
+        {
+            var nextResult = InvokeIteratorNext(iterator);
+            if (nextResult is not JsObject resultObj)
+            {
+                break;
+            }
+
+            var done = resultObj.TryGetProperty("done", out var doneValue) && doneValue is bool completed && completed;
+            if (done)
+            {
+                break;
+            }
+
+            var value = resultObj.TryGetProperty("value", out var yielded)
+                ? yielded
+                : JsSymbols.Undefined;
+
+            AssignLoopBinding(statement, value, loopEnvironment, outerEnvironment, context);
             lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
 
             if (context.IsReturn || context.IsThrow)
@@ -493,55 +543,6 @@ public static class TypedAstEvaluator
     {
         return candidate is JsObject jsObject && jsObject.TryGetProperty("then", out var thenValue) &&
                thenValue is IJsCallable;
-    }
-
-    private static IEnumerable<object?> CollectSynchronousIterableValues(object? iterable)
-    {
-        switch (iterable)
-        {
-            case JsArray jsArray:
-            {
-                for (var i = 0; i < jsArray.Items.Count; i++)
-                {
-                    yield return jsArray.GetElement(i);
-                }
-
-                yield break;
-            }
-            case JsGenerator generator:
-            {
-                while (true)
-                {
-                    var next = generator.Next(null);
-                    if (next is not JsObject nextObj)
-                    {
-                        yield break;
-                    }
-
-                    var done = nextObj.TryGetProperty("done", out var doneValue) && doneValue is bool completed && completed;
-                    if (done)
-                    {
-                        yield break;
-                    }
-
-                    if (nextObj.TryGetProperty("value", out var value))
-                    {
-                        yield return value;
-                    }
-                }
-            }
-            case string s:
-            {
-                foreach (var ch in s)
-                {
-                    yield return ch.ToString();
-                }
-
-                yield break;
-            }
-        }
-
-        throw new InvalidOperationException($"Cannot iterate over non-iterable value '{iterable}'.");
     }
 
     private static void AssignLoopBinding(ForEachStatement statement, object? value, JsEnvironment loopEnvironment,
@@ -747,10 +748,6 @@ public static class TypedAstEvaluator
             var instanceFields = definition.Fields.Where(field => !field.IsStatic).ToImmutableArray();
             typedFunction.SetInstanceFields(instanceFields);
         }
-        else if (constructorValue is JsFunction jsFunction)
-        {
-            jsFunction.SetSuperBinding(superConstructor, superPrototype);
-        }
 
         if (superConstructor is not null)
         {
@@ -835,14 +832,9 @@ public static class TypedAstEvaluator
                 throw new InvalidOperationException("Class member must be callable.");
             }
 
-            switch (value)
+            if (value is TypedFunction typedFunction)
             {
-                case TypedFunction typedFunction:
-                    typedFunction.SetSuperBinding(superConstructor, superPrototype);
-                    break;
-                case JsFunction jsFunction:
-                    jsFunction.SetSuperBinding(superConstructor, superPrototype);
-                    break;
+                typedFunction.SetSuperBinding(superConstructor, superPrototype);
             }
 
             if (member.Kind == ClassMemberKind.Method)
@@ -1777,7 +1769,7 @@ public static class TypedAstEvaluator
                 return JsSymbols.Undefined;
             }
 
-            builder.Append(ToJsString(value));
+            builder.Append(value.ToJsString());
         }
 
         return builder.ToString();
@@ -1880,45 +1872,6 @@ public static class TypedAstEvaluator
         return templateObject;
     }
 
-    private static string ToJsString(object? value)
-    {
-        return value switch
-        {
-            null => "null",
-            Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => "undefined",
-            Symbol sym => sym.Name,
-            string s => s,
-            bool b => b ? "true" : "false",
-            double d => d.ToString(CultureInfo.InvariantCulture),
-            float f => f.ToString(CultureInfo.InvariantCulture),
-            decimal m => m.ToString(CultureInfo.InvariantCulture),
-            int i => i.ToString(CultureInfo.InvariantCulture),
-            long l => l.ToString(CultureInfo.InvariantCulture),
-            JsBigInt bigInt => bigInt.ToString(),
-            JsArray array => ArrayToString(array),
-            JsObject => "[object Object]",
-            IJsCallable => "function() { [native code] }",
-            TypedAstSymbol jsSymbol => jsSymbol.ToString(),
-            _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
-        };
-
-        static string ArrayToString(JsArray array)
-        {
-            var builder = new StringBuilder();
-            for (var i = 0; i < array.Items.Count; i++)
-            {
-                if (i > 0)
-                {
-                    builder.Append(',');
-                }
-
-                builder.Append(ExpressionEvaluator.ToJsStringForArray(array.Items[i]));
-            }
-
-            return builder.ToString();
-        }
-    }
-
     private static bool IsNullish(object? value)
     {
         return value is null || value is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Undefined);
@@ -1942,7 +1895,7 @@ public static class TypedAstEvaluator
     {
         if (left is string || right is string || left is JsObject || left is JsArray || right is JsObject || right is JsArray)
         {
-            return ExpressionEvaluator.ToJsString(left) + ExpressionEvaluator.ToJsString(right);
+            return left.ToJsString() + right.ToJsString();
         }
 
         if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
@@ -2116,7 +2069,7 @@ public static class TypedAstEvaluator
 
                 if (right is string rightString)
                 {
-                    return string.Equals(ToJsString(left), rightString, StringComparison.Ordinal);
+                    return string.Equals(left.ToJsString(), rightString, StringComparison.Ordinal);
                 }
             }
 
@@ -2129,7 +2082,7 @@ public static class TypedAstEvaluator
 
                 if (left is string leftString)
                 {
-                    return string.Equals(leftString, ToJsString(right), StringComparison.Ordinal);
+                    return string.Equals(leftString, right.ToJsString(), StringComparison.Ordinal);
                 }
             }
 
@@ -2813,7 +2766,7 @@ public static class TypedAstEvaluator
             bool => "boolean",
             double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
             string => "string",
-            JsFunction or HostFunction or TypedFunction => "function",
+            IJsCallable => "function",
             _ => "object"
         };
     }

@@ -332,7 +332,7 @@ public static class StandardLibrary
 
         math["clz32"] = new HostFunction(args =>
         {
-            var number = args.Count > 0 ? JsEvaluator.ToNumber(args[0]) : 0d;
+            var number = args.Count > 0 ? ExpressionEvaluator.ToNumber(args[0]) : 0d;
             var value = JsNumericConversions.ToUInt32(number);
             if (value == 0)
             {
@@ -344,8 +344,8 @@ public static class StandardLibrary
 
         math["imul"] = new HostFunction(args =>
         {
-            var left = args.Count > 0 ? JsEvaluator.ToNumber(args[0]) : 0d;
-            var right = args.Count > 1 ? JsEvaluator.ToNumber(args[1]) : 0d;
+            var left = args.Count > 0 ? ExpressionEvaluator.ToNumber(args[0]) : 0d;
+            var right = args.Count > 1 ? ExpressionEvaluator.ToNumber(args[1]) : 0d;
             var a = JsNumericConversions.ToInt32(left);
             var b = JsNumericConversions.ToInt32(right);
             return (double)(a * b);
@@ -1365,7 +1365,7 @@ public static class StandardLibrary
             var parts = new List<string>();
             foreach (var item in jsArray.Items)
             {
-                parts.Add(JsEvaluator.ToJsStringForArray(item));
+                parts.Add(ExpressionEvaluator.ToJsStringForArray(item));
             }
 
             return string.Join(separator, parts);

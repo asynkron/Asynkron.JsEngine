@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Lisp;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -56,7 +57,7 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable, IJsPropertyAccesso
                     break;
                 // Destructuring parameter
                 case Cons pattern:
-                    JsEvaluator.DestructureParameter(pattern, argument, environment, context);
+                    DestructuringEvaluator.DestructureParameter(pattern, argument, environment, context);
                     break;
                 default:
                     throw new InvalidOperationException($"Invalid parameter type: {parameter?.GetType().Name ?? "null"}");
@@ -99,7 +100,7 @@ public sealed class JsFunction : IJsEnvironmentAwareCallable, IJsPropertyAccesso
         // Hoist all var declarations before executing the function body
         HoistVariableDeclarations(_body, environment);
 
-        var result = JsEvaluator.EvaluateBlock(_body, environment, context);
+        var result = ProgramEvaluator.EvaluateBlock(_body, environment, context);
 
         if (context.IsReturn)
         {

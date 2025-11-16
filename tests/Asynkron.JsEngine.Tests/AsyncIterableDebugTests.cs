@@ -1,6 +1,4 @@
-using Xunit;
 using Xunit.Abstractions;
-using System.Collections.Generic;
 
 namespace Asynkron.JsEngine.Tests;
 

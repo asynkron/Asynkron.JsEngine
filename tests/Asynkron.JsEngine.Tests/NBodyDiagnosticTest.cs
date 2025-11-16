@@ -1,6 +1,4 @@
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
-using Xunit;
 
 namespace Asynkron.JsEngine.Tests;
 

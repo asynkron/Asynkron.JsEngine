@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.AstTransformers;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Lisp;
 using Asynkron.JsEngine.Parser;

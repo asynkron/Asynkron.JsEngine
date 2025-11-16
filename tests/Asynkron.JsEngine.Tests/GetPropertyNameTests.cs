@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace Asynkron.JsEngine.Tests;
 
 public class GetPropertyNameTests

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
 /// Represents a JavaScript Symbol value (ES6 symbol primitive type).

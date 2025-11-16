@@ -1,4 +1,3 @@
-using System;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine;

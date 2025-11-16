@@ -1,6 +1,3 @@
-using Asynkron.JsEngine;
-using Xunit;
-
 namespace Asynkron.JsEngine.Tests;
 
 public class NBodyStepByStepTest

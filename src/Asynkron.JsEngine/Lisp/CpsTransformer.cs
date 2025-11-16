@@ -1,7 +1,4 @@
-using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Lisp;
-
-namespace Asynkron.JsEngine.AstTransformers;
+namespace Asynkron.JsEngine.Lisp;
 
 /// <summary>
 /// Transforms S-expressions from direct style to Continuation-Passing Style (CPS).

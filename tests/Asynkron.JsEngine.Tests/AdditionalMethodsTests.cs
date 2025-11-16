@@ -1,5 +1,3 @@
-using Asynkron.JsEngine;
-
 namespace Asynkron.JsEngine.Tests;
 
 public class AdditionalMethodsTests

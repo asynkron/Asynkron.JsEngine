@@ -2716,38 +2716,45 @@ public static class TypedAstEvaluator
 
     private static void HoistFromBindingTarget(BindingTarget target, JsEnvironment environment)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding identifier:
-                environment.DefineFunctionScoped(identifier.Name, JsSymbols.Undefined, false);
-                break;
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.Target is not null)
+            switch (target)
+            {
+                case IdentifierBinding identifier:
+                    environment.DefineFunctionScoped(identifier.Name, JsSymbols.Undefined, false);
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
                     {
-                        HoistFromBindingTarget(element.Target, environment);
+                        if (element.Target is not null)
+                        {
+                            HoistFromBindingTarget(element.Target, environment);
+                        }
                     }
-                }
 
-                if (arrayBinding.RestElement is not null)
-                {
-                    HoistFromBindingTarget(arrayBinding.RestElement, environment);
-                }
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
 
-                break;
-            case ObjectBinding objectBinding:
-                foreach (var property in objectBinding.Properties)
-                {
-                    HoistFromBindingTarget(property.Target, environment);
-                }
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        HoistFromBindingTarget(property.Target, environment);
+                    }
 
-                if (objectBinding.RestElement is not null)
-                {
-                    HoistFromBindingTarget(objectBinding.RestElement, environment);
-                }
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
 
-                break;
+                    break;
+            }
+
+            break;
         }
     }
 

@@ -663,20 +663,27 @@ public sealed class SExpressionAstBuilder
 
     private BindingTarget BuildBindingTarget(object? target, SourceReference? source)
     {
-        switch (target)
+        while (true)
         {
-            case Symbol symbol:
-                return new IdentifierBinding(source, symbol);
-            case Cons { Head: Symbol head } cons when ReferenceEquals(head, JsSymbols.ArrayPattern):
-                return BuildArrayBinding(cons, source);
-            case Cons { Head: Symbol head } cons when ReferenceEquals(head, JsSymbols.ObjectPattern):
-                return BuildObjectBinding(cons, source);
-            case Cons cons:
-                // If we reach this branch we likely encountered a nested pattern container
-                // (e.g. pattern element) – unwrap its payload and try again.
-                return BuildBindingTarget(cons.Rest.Head, cons.SourceReference ?? source);
-            default:
-                throw new NotSupportedException($"Unsupported binding target of type '{target?.GetType().Name ?? "null"}'.");
+            switch (target)
+            {
+                case Symbol symbol:
+                    return new IdentifierBinding(source, symbol);
+                case Cons { Head: Symbol head } cons when ReferenceEquals(head, JsSymbols.ArrayPattern):
+                    return BuildArrayBinding(cons, source);
+                case Cons { Head: Symbol head } cons when ReferenceEquals(head, JsSymbols.ObjectPattern):
+                    return BuildObjectBinding(cons, source);
+                case Cons cons:
+                    // If we reach this branch we likely encountered a nested pattern container
+                    // (e.g. pattern element) – unwrap its payload and try again.
+                    target = cons.Rest.Head;
+                    source = cons.SourceReference ?? source;
+                    continue;
+                default:
+                    throw new NotSupportedException($"Unsupported binding target of type '{target?.GetType().Name ?? "null"}'.");
+            }
+
+            break;
         }
     }
 

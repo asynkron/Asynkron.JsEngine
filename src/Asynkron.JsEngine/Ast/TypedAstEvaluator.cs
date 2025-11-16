@@ -1312,7 +1312,7 @@ public static class TypedAstEvaluator
                     builder.Append(',');
                 }
 
-                builder.Append(JsEvaluator.ToJsStringForArray(array.Items[i]));
+                builder.Append(ExpressionEvaluator.ToJsStringForArray(array.Items[i]));
             }
 
             return builder.ToString();
@@ -1342,7 +1342,7 @@ public static class TypedAstEvaluator
     {
         if (left is string || right is string || left is JsObject || left is JsArray || right is JsObject || right is JsArray)
         {
-            return JsEvaluator.ToJsString(left) + JsEvaluator.ToJsString(right);
+            return ExpressionEvaluator.ToJsString(left) + ExpressionEvaluator.ToJsString(right);
         }
 
         if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)

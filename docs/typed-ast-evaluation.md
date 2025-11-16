@@ -21,7 +21,7 @@ We prefer the second option for a few reasons:
   execution.
 
 To illustrate the approach we introduced `TypedAstEvaluator`. It is **not** a
-complete replacement for `JsEvaluator` yet, but it demonstrates the key ideas:
+complete replacement for `ProgramEvaluator` yet, but it demonstrates the key ideas:
 
 - An entry point that accepts a `ProgramNode` and a `JsEnvironment`.
 - Statement/expression dispatch implemented via C# pattern matching so adding
@@ -32,7 +32,7 @@ complete replacement for `JsEvaluator` yet, but it demonstrates the key ideas:
   remaining language surface.
 
 As the interpreter matures we can gradually widen the supported node set and
-port semantics from `JsEvaluator` into the typed version. Because evaluation is
+port semantics from `ProgramEvaluator` into the typed version. Because evaluation is
 now factored into a single class, we can unit-test it in isolation and evolve it
 without re-threading behaviour through the AST definitions.
 
@@ -42,7 +42,7 @@ without re-threading behaviour through the AST definitions.
 transformed S-expression into the typed tree and runs a fast capability check
 (`TypedAstSupportAnalyzer`) before evaluating the program. When the analyzer
 spots syntax that the typed runtime does not understand yet we simply fall back
-to the legacy `JsEvaluator`. This keeps the public behaviour stable while still
+to the legacy `ProgramEvaluator`. This keeps the public behaviour stable while still
 allowing most scripts to execute through the new pipeline. As more constructs
 gain typed support we can shrink the set of early exits until the fallback is no
 longer necessary.

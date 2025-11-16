@@ -25,14 +25,14 @@ internal sealed class TypedProgramExecutor
             // legacy cons-based interpreter can execute. Rather than crash the engine
             // whenever a transformation produces an unexpected S-expression (for example
             // CPS lowering of async functions with complex object literals), we fall back
-            // to the battle-tested JsEvaluator. This keeps the public behaviour aligned
+            // to the battle-tested ProgramEvaluator. This keeps the public behaviour aligned
             // with the legacy runtime while we continue expanding typed support.
-            return JsEvaluator.EvaluateProgram(program, environment);
+            return ProgramEvaluator.EvaluateProgram(program, environment);
         }
 
         if (!TypedAstSupportAnalyzer.Supports(typedProgram, out _))
         {
-            return JsEvaluator.EvaluateProgram(program, environment);
+            return ProgramEvaluator.EvaluateProgram(program, environment);
         }
 
         return TypedAstEvaluator.EvaluateProgram(typedProgram, environment);

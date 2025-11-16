@@ -50,19 +50,16 @@ public class TypedCpsTransformerTests
         var helperIdentifier = Assert.IsType<IdentifierExpression>(awaitHelperCall.Callee);
         Assert.Same(Symbol.Intern("__awaitHelper"), helperIdentifier.Name);
 
-        var thenProperty = Assert.IsType<IdentifierExpression>(member.Property);
-        Assert.Same(Symbol.Intern("then"), thenProperty.Name);
+        var thenProperty = Assert.IsType<LiteralExpression>(member.Property);
+        Assert.Equal("then", thenProperty.Value);
 
+        Assert.Single(thenCall.Arguments);
         var callback = Assert.IsType<FunctionExpression>(thenCall.Arguments[0].Expression);
         var callbackBody = Assert.IsType<BlockStatement>(callback.Body);
-        var callbackReturn = Assert.IsType<ReturnStatement>(Assert.Single(callbackBody.Statements));
-        var resolveCall = Assert.IsType<CallExpression>(callbackReturn.Expression);
+        var callbackExpression = Assert.IsType<ExpressionStatement>(Assert.Single(callbackBody.Statements));
+        var resolveCall = Assert.IsType<CallExpression>(callbackExpression.Expression);
         var resolveIdentifier = Assert.IsType<IdentifierExpression>(resolveCall.Callee);
         Assert.Same(Symbol.Intern("__resolve"), resolveIdentifier.Name);
-
-        var rejectArgument = thenCall.Arguments[1].Expression as IdentifierExpression;
-        Assert.NotNull(rejectArgument);
-        Assert.Same(Symbol.Intern("__reject"), rejectArgument!.Name);
     }
 
     [Fact]
@@ -80,5 +77,36 @@ public class TypedCpsTransformerTests
         var transformer = new TypedCpsTransformer();
 
         Assert.Throws<NotSupportedException>(() => transformer.Transform(typedBefore));
+    }
+
+    [Fact]
+    public void Typed_pipeline_matches_cons_pipeline_for_async_function()
+    {
+        const string source = """
+            async function demo() {
+                return await Promise.resolve(1);
+            }
+            """;
+
+        var consOriginal = JsEngine.ParseWithoutTransformation(source);
+        var consForTyped = TypedTransformerTestHelpers.CloneWithoutSourceReferences(consOriginal);
+        var constantTransformer = new ConstantExpressionTransformer();
+        var consConstant = constantTransformer.Transform(consOriginal);
+        var cpsTransformer = new CpsTransformer();
+        var consCps = CpsTransformer.NeedsTransformation(consConstant)
+            ? cpsTransformer.Transform(consConstant)
+            : consConstant;
+        var builder = new SExpressionAstBuilder();
+        var expected = builder.BuildProgram(
+            TypedTransformerTestHelpers.CloneWithoutSourceReferences(consCps));
+        var expectedSnapshot = TypedAstSnapshot.Create(expected);
+
+        var typedBuilder = new SExpressionAstBuilder();
+        var typedProgram = typedBuilder.BuildProgram(consForTyped);
+        var typedConstant = new TypedConstantExpressionTransformer().Transform(typedProgram);
+        var typedTransformer = new TypedCpsTransformer();
+        var typedCps = typedTransformer.Transform(typedConstant);
+        var actualSnapshot = TypedAstSnapshot.Create(typedCps);
+        Assert.Equal(expectedSnapshot, actualSnapshot);
     }
 }

@@ -19,7 +19,7 @@ public sealed class TypedCpsTransformer
     private static readonly Symbol AwaitHelperIdentifier = Symbol.Intern("__awaitHelper");
     private static readonly Symbol AwaitValueIdentifier = Symbol.Intern("__value");
     private static readonly Symbol CatchIdentifier = Symbol.Intern("__error");
-    private static readonly Symbol ThenIdentifier = Symbol.Intern("then");
+    private const string ThenPropertyName = "then";
 
     /// <summary>
     /// Returns true when the typed program contains async functions that would
@@ -161,16 +161,18 @@ public sealed class TypedCpsTransformer
     {
         var resolveCall = CreateResolveCall(new IdentifierExpression(null, AwaitValueIdentifier));
         var callbackBodyStatements = ImmutableArray.Create<StatementNode>(
-            new ReturnStatement(null, resolveCall));
+            new ExpressionStatement(null, resolveCall));
         var callbackBody = new BlockStatement(null, callbackBodyStatements, false);
         var callback = new FunctionExpression(null, null,
             [new FunctionParameter(null, AwaitValueIdentifier, false, null, null)],
             callbackBody, false, false);
+        // Member access should mirror the shape produced by the S-expression based pipeline.
+        // That pipeline emits a literal string for a non-computed property such as ".then",
+        // so we need to do the same here to keep the typed and untyped snapshots aligned.
         var target = new MemberExpression(null, awaitCall,
-            new IdentifierExpression(null, ThenIdentifier), false, false);
+            new LiteralExpression(null, ThenPropertyName), false, false);
         var callbackArgument = new CallArgument(null, callback, false);
-        var rejectArgument = new CallArgument(null, new IdentifierExpression(null, RejectIdentifier), false);
-        var thenArguments = ImmutableArray.Create(callbackArgument, rejectArgument);
+        var thenArguments = ImmutableArray.Create(callbackArgument);
         return new CallExpression(null, target, thenArguments, false);
     }
 

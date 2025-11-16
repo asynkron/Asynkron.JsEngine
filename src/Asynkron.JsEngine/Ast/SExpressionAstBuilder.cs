@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -409,17 +410,12 @@ public sealed class SExpressionAstBuilder
 
     private BindingTarget BuildBindingTarget(object? target, SourceReference? source)
     {
-        if (target is Symbol symbol)
+        return target switch
         {
-            return new IdentifierBinding(source, symbol);
-        }
-
-        if (target is Cons cons)
-        {
-            return new DestructuringBinding(cons.SourceReference ?? source, cons);
-        }
-
-        return new DestructuringBinding(source, Cons.Cell(target));
+            Symbol symbol => new IdentifierBinding(source, symbol),
+            Cons cons => new DestructuringBinding(cons.SourceReference ?? source, cons),
+            _ => new DestructuringBinding(source, Cons.Cell(target))
+        };
     }
 
     private ImmutableArray<FunctionParameter> BuildFunctionParameters(Cons parameters)
@@ -465,30 +461,21 @@ public sealed class SExpressionAstBuilder
 
     private ExpressionNode BuildExpression(object? expression)
     {
-        switch (expression)
+        return expression switch
         {
-            case null:
-                return new LiteralExpression(null, null);
-            case bool b:
-                return new LiteralExpression(null, b);
-            case string s:
-                return new LiteralExpression(null, s);
-            case double d:
-                return new LiteralExpression(null, d);
-            case int i:
-                return new LiteralExpression(null, (double)i);
-            case Symbol symbol:
-                return BuildSymbolExpression(symbol);
-            case Cons cons when cons.Head is Symbol symbol:
-                return BuildCompositeExpression(cons, symbol);
-            case Cons cons:
-                return new UnknownExpression(cons.SourceReference, cons);
-            default:
-                return new LiteralExpression(null, expression);
-        }
+            null => new LiteralExpression(null, null),
+            bool b => new LiteralExpression(null, b),
+            string s => new LiteralExpression(null, s),
+            double d => new LiteralExpression(null, d),
+            int i => new LiteralExpression(null, (double)i),
+            Symbol symbol => BuildSymbolExpression(symbol),
+            Cons { Head: Symbol symbol } cons => BuildCompositeExpression(cons, symbol),
+            Cons cons => new UnknownExpression(cons.SourceReference, cons),
+            _ => new LiteralExpression(null, expression)
+        };
     }
 
-    private ExpressionNode BuildSymbolExpression(Symbol symbol)
+    private static ExpressionNode BuildSymbolExpression(Symbol symbol)
     {
         if (ReferenceEquals(symbol, JsSymbols.This))
         {
@@ -560,18 +547,20 @@ public sealed class SExpressionAstBuilder
             var elementsBuilder = ImmutableArray.CreateBuilder<ArrayElement>();
             foreach (var element in cons.Rest)
             {
-                if (element is Cons { Head: Symbol head } elementCons && ReferenceEquals(head, JsSymbols.Spread))
+                switch (element)
                 {
-                    var spreadValue = BuildExpression(elementCons.Rest.Head);
-                    elementsBuilder.Add(new ArrayElement(elementCons.SourceReference, spreadValue, true));
-                }
-                else if (element is null)
-                {
-                    elementsBuilder.Add(new ArrayElement(null, null, false));
-                }
-                else
-                {
-                    elementsBuilder.Add(new ArrayElement((element as Cons)?.SourceReference, BuildExpression(element), false));
+                    case Cons { Head: Symbol head } elementCons when ReferenceEquals(head, JsSymbols.Spread):
+                    {
+                        var spreadValue = BuildExpression(elementCons.Rest.Head);
+                        elementsBuilder.Add(new ArrayElement(elementCons.SourceReference, spreadValue, true));
+                        break;
+                    }
+                    case null:
+                        elementsBuilder.Add(new ArrayElement(null, null, false));
+                        break;
+                    default:
+                        elementsBuilder.Add(new ArrayElement((element as Cons)?.SourceReference, BuildExpression(element), false));
+                        break;
                 }
             }
 

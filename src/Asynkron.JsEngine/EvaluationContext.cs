@@ -200,44 +200,4 @@ public sealed class EvaluationContext
     /// Returns true if the current signal is Yield.
     /// </summary>
     public bool IsYield => CurrentSignal is YieldSignal;
-
-    /// <summary>
-    /// The possible control flow states during evaluation.
-    /// </summary>
-    [Obsolete("Use ISignal pattern matching instead")]
-    public enum ControlFlow
-    {
-        /// <summary>Normal execution - no control flow interruption</summary>
-        None,
-
-        /// <summary>Return statement encountered</summary>
-        Return,
-
-        /// <summary>Break statement encountered</summary>
-        Break,
-
-        /// <summary>Continue statement encountered</summary>
-        Continue,
-
-        /// <summary>Throw statement encountered</summary>
-        Throw,
-
-        /// <summary>Yield expression encountered (in generator context)</summary>
-        Yield
-    }
-
-    /// <summary>
-    /// The current control flow state.
-    /// </summary>
-    [Obsolete("Use CurrentSignal with pattern matching instead")]
-    public ControlFlow Flow => CurrentSignal switch
-    {
-        null => ControlFlow.None,
-        ReturnSignal => ControlFlow.Return,
-        BreakSignal => ControlFlow.Break,
-        ContinueSignal => ControlFlow.Continue,
-        ThrowFlowSignal => ControlFlow.Throw,
-        YieldSignal => ControlFlow.Yield,
-        _ => ControlFlow.None
-    };
 }

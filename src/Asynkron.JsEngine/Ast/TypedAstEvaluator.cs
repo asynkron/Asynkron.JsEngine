@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -484,14 +485,15 @@ public static class TypedAstEvaluator
                 throw new ThrowSignal(thrown);
             }
 
-            if (context.IsReturn)
+            if (!context.IsReturn)
             {
-                var value = context.FlowValue;
-                context.ClearReturn();
-                return value;
+                return JsSymbols.Undefined;
             }
 
-            return JsSymbols.Undefined;
+            var value = context.FlowValue;
+            context.ClearReturn();
+            return value;
+
         }
 
         private void BindParameters(IReadOnlyList<object?> arguments, JsEnvironment environment, EvaluationContext context)

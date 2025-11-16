@@ -636,7 +636,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         // This is valid JavaScript: while(condition); or if(x) {}; etc.
         if (Match(TokenType.Semicolon))
         {
-            return S(EmptyStatement);
+            return S(JsSymbols.EmptyStatement);
         }
 
         if (Match(TokenType.Try))
@@ -1069,7 +1069,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
         // like "a = b, c = d;" parses as a single statement rather than two.
         var expression = ParseSequenceExpression();
         Consume(TokenType.Semicolon, "Expected ';' after expression statement.");
-        return S(ExpressionStatement, expression);
+        return S(JsSymbols.ExpressionStatement, expression);
     }
 
     private Cons ParseBlock(bool leftBraceConsumed = false)
@@ -2313,7 +2313,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                     var firstStatement = programCons.Rest.Head;
                     // If it's an expression statement, unwrap it
                     if (firstStatement is Cons { Head: Symbol sym } stmtCons &&
-                        ReferenceEquals(sym, ExpressionStatement))
+                        ReferenceEquals(sym, JsSymbols.ExpressionStatement))
                     {
                         items.Add(stmtCons.Rest.Head);
                     }
@@ -2360,7 +2360,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens, string source)
                 {
                     var firstStatement = programCons.Rest.Head;
                     if (firstStatement is Cons { Head: Symbol sym } stmtCons &&
-                        ReferenceEquals(sym, ExpressionStatement))
+                        ReferenceEquals(sym, JsSymbols.ExpressionStatement))
                     {
                         expressions.Add(stmtCons.Rest.Head);
                     }

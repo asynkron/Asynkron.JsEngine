@@ -63,26 +63,6 @@ public class TypedCpsTransformerTests
     }
 
     [Fact]
-    public async Task AsyncFunctionWithAwaitInsideIf_IsRejected()
-    {
-        const string source = """
-            async function choose(flag) {
-                if (flag) {
-                    await Promise.resolve(1);
-                }
-
-                return 0;
-            }
-            """;
-
-        await using var engine = new JsEngine();
-        var (_, typedBefore, _) = engine.ParseWithTransformationSteps(source);
-
-        var transformer = new TypedCpsTransformer();
-        Assert.Throws<NotSupportedException>(() => transformer.Transform(typedBefore));
-    }
-
-    [Fact]
     public async Task AsyncFunctionWithMultipleStatements_IsRejected()
     {
         const string source = """

@@ -1,6 +1,4 @@
-using System;
-
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Converters;
 
 internal static class JsNumericConversions
 {

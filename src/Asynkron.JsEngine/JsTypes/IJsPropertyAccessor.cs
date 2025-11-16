@@ -1,4 +1,4 @@
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 /// Interface for JavaScript objects that support property access.
@@ -13,7 +13,7 @@ public interface IJsPropertyAccessor
     /// <param name="value">When this method returns, contains the property value if found; otherwise, null.</param>
     /// <returns>true if the property was found; otherwise, false.</returns>
     bool TryGetProperty(string name, out object? value);
-    
+
     /// <summary>
     /// Sets the value of a property by name.
     /// </summary>

@@ -1,12 +1,9 @@
-using System.Collections.Generic;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Lisp;
-using Asynkron.JsEngine.Parser;
-using static Asynkron.JsEngine.EvaluationGuards;
-using static Asynkron.JsEngine.ExpressionEvaluator;
+using static Asynkron.JsEngine.Evaluation.EvaluationGuards;
+using static Asynkron.JsEngine.Evaluation.ExpressionEvaluator;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Evaluation;
 
 internal static class DestructuringEvaluator
 {

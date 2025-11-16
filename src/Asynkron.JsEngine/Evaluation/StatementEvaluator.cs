@@ -1,15 +1,13 @@
 using System.Globalization;
-using System.Linq;
-using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Lisp;
-using Asynkron.JsEngine.Parser;
-using static Asynkron.JsEngine.DestructuringEvaluator;
-using static Asynkron.JsEngine.EvaluationGuards;
-using static Asynkron.JsEngine.ExpressionEvaluator;
-using static Asynkron.JsEngine.ProgramEvaluator;
+using static Asynkron.JsEngine.Evaluation.DestructuringEvaluator;
+using static Asynkron.JsEngine.Evaluation.EvaluationGuards;
+using static Asynkron.JsEngine.Evaluation.ExpressionEvaluator;
+using static Asynkron.JsEngine.Evaluation.ProgramEvaluator;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Evaluation;
 
 internal static class StatementEvaluator
 {
@@ -169,7 +167,7 @@ internal static class StatementEvaluator
         }
 
         var condition = EvaluateExpression(conditionExpression, environment, context);
-        if (IsTruthy(condition))
+        if (JsTruthyConversion.IsTruthy(condition))
         {
             return EvaluateStatement(thenBranch, environment, context);
         }
@@ -190,7 +188,7 @@ internal static class StatementEvaluator
         }
 
         object? lastResult = null;
-        while (IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
+        while (JsTruthyConversion.IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
         {
             if (context.ShouldStopEvaluation)
             {
@@ -284,7 +282,7 @@ internal static class StatementEvaluator
                 break; // Propagate return/throw
             }
 
-            if (!IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
+            if (!JsTruthyConversion.IsTruthy(EvaluateExpression(conditionExpression, environment, context)))
             {
                 break;
             }
@@ -385,8 +383,7 @@ internal static class StatementEvaluator
         }
 
         object? lastResult = null;
-        while (conditionExpression is null ||
-               IsTruthy(EvaluateExpression(conditionExpression, loopJsEnvironment, context)))
+        while (conditionExpression is null || JsTruthyConversion.IsTruthy(EvaluateExpression(conditionExpression, loopJsEnvironment, context)))
         {
             if (context.ShouldStopEvaluation)
             {
@@ -448,23 +445,16 @@ internal static class StatementEvaluator
         {
             throw new InvalidOperationException($"for...in loop must include a binding, iterable expression, and body.{GetSourceInfo(context)}");
         }
-        Symbol variableName;
 
-        // Check if first argument is a variable declaration or just an identifier
-        if (firstArg is Cons variableDecl)
+        var variableName = firstArg switch
         {
-            // Extract variable name from declaration
-            variableName = ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...in loop.", context);
-        }
-        else if (firstArg is Symbol identifier)
-        {
-            // Using existing variable
-            variableName = identifier;
-        }
-        else
-        {
-            throw new InvalidOperationException($"Expected variable declaration or identifier in for...in loop.{GetSourceInfo(context)}");
-        }
+            // Check if first argument is a variable declaration or just an identifier
+            Cons variableDecl => ExpectSymbol(variableDecl.Rest.Head, "Expected variable name in for...in loop.",
+                context),
+            Symbol identifier => identifier,
+            _ => throw new InvalidOperationException(
+                $"Expected variable declaration or identifier in for...in loop.{GetSourceInfo(context)}")
+        };
 
         // Evaluate the iterable
         var iterable = EvaluateExpression(iterableExpression, environment, context);
@@ -496,13 +486,8 @@ internal static class StatementEvaluator
             }
         }
 
-        foreach (var key in keys)
+        foreach (var key in keys.TakeWhile(key => !context.ShouldStopEvaluation))
         {
-            if (context.ShouldStopEvaluation)
-            {
-                break;
-            }
-
             // Set loop variable
             // If using existing variable, update in parent scope, otherwise define in loop scope
             if (firstArg is Symbol)

@@ -1,6 +1,7 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Lisp;
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.Evaluation;
 
 namespace Asynkron.JsEngine.JsTypes;
 

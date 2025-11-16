@@ -1,10 +1,7 @@
-using System.Collections.Generic;
-using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Lisp;
 using Asynkron.JsEngine.Parser;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Evaluation;
 
 internal static class EvaluationGuards
 {

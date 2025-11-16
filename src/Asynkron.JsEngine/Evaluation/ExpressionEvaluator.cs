@@ -1,15 +1,12 @@
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Lisp;
-using Asynkron.JsEngine.Parser;
-using static Asynkron.JsEngine.DestructuringEvaluator;
-using static Asynkron.JsEngine.EvaluationGuards;
+using static Asynkron.JsEngine.Evaluation.DestructuringEvaluator;
+using static Asynkron.JsEngine.Evaluation.EvaluationGuards;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Evaluation;
 
 internal static class ExpressionEvaluator
 {
@@ -162,7 +159,7 @@ internal static class ExpressionEvaluator
         if (ReferenceEquals(symbol, JsSymbols.Not))
         {
             var operand = EvaluateExpression(cons.Rest.Head, environment, context);
-            return !IsTruthy(operand);
+            return !JsTruthyConversion.IsTruthy(operand);
         }
 
         if (ReferenceEquals(symbol, JsSymbols.Typeof))
@@ -303,7 +300,7 @@ internal static class ExpressionEvaluator
         var condition = EvaluateExpression(cons.Rest.Head, environment, context);
         var thenBranch = cons.Rest.Rest.Head;
         var elseBranch = cons.Rest.Rest.Rest.Head;
-        return IsTruthy(condition)
+        return JsTruthyConversion.IsTruthy(condition)
             ? EvaluateExpression(thenBranch, environment, context)
             : EvaluateExpression(elseBranch, environment, context);
 
@@ -1037,9 +1034,9 @@ internal static class ExpressionEvaluator
         switch (operatorName)
         {
             case "&&":
-                return IsTruthy(left) ? EvaluateExpression(rightExpression, environment, context) : left;
+                return JsTruthyConversion.IsTruthy(left) ? EvaluateExpression(rightExpression, environment, context) : left;
             case "||":
-                return IsTruthy(left) ? left : EvaluateExpression(rightExpression, environment, context);
+                return JsTruthyConversion.IsTruthy(left) ? left : EvaluateExpression(rightExpression, environment, context);
             case "??":
             {
                 var leftIsNullish = left is null || (left is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined));
@@ -1093,19 +1090,6 @@ internal static class ExpressionEvaluator
         {
             throw new InvalidOperationException(ex.Message + GetSourceInfo(context), ex);
         }
-    }
-
-    internal static bool IsTruthy(object? value)
-    {
-        return value switch
-        {
-            null => false,
-            Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => false,
-            bool b => b,
-            double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
-            string s => s.Length > 0,
-            _ => true
-        };
     }
 
     internal static double ToNumber(this object? value)

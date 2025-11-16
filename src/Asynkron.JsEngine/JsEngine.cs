@@ -37,14 +37,6 @@ public sealed class JsEngine : IAsyncDisposable
     private Func<string, string>? _moduleLoader;
 
     /// <summary>
-    /// Gets or sets whether the engine should prefer the typed AST based
-    /// constant folding and CPS transformers. This path is still experimental
-    /// and will fall back to the S-expression transformers when the typed
-    /// analyzer deems a program unsupported.
-    /// </summary>
-    public bool UseTypedTransformers { get; set; }
-
-    /// <summary>
     /// Initializes a new instance of JsEngine with standard library objects.
     /// </summary>
     public JsEngine()
@@ -242,13 +234,13 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     internal ParsedProgram ParseForExecution([LanguageInjection("javascript")] string source)
     {
-        var program = UseTypedTransformers
-            ? ParseInternal(source, applyTransformations: false)
-            : ParseInternal(source);
-        return CreateParsedProgram(program, UseTypedTransformers);
+        // All executable code flows through the typed AST pipeline so async/await
+        // rewrites and other typed-only transformations are always applied.
+        var program = ParseInternal(source);
+        return CreateTypedParsedProgram(program);
     }
 
-    private Cons ParseInternal(string source, bool applyTransformations = true)
+    private Cons ParseInternal(string source)
     {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
@@ -259,18 +251,6 @@ public sealed class JsEngine : IAsyncDisposable
         var program = parser.ParseProgram();
 
         return program;
-    }
-
-    private ParsedProgram CreateParsedProgram(Cons program, bool preferTyped)
-    {
-        if (!preferTyped)
-        {
-            var typedProgram = _astBuilder.BuildProgram(program);
-            typedProgram = _typedConstantTransformer.Transform(typedProgram);
-            return new ParsedProgram(program, typedProgram);
-        }
-
-        return CreateTypedParsedProgram(program);
     }
 
     private ParsedProgram CreateTypedParsedProgram(Cons program)

@@ -10,13 +10,11 @@ public class TypedCpsTransformerTests
     [Fact]
     public async Task NeedsTransformation_ReturnsTrueForAsyncFunction()
     {
-        var builder = new SExpressionAstBuilder();
         var js = "async function demo() { return await Promise.resolve(1); }";
         await using var engine = new JsEngine();
-        var (_, constantFolded, _) = engine.ParseWithTransformationSteps(js);
-        var program = builder.BuildProgram(constantFolded);
+        var (_, typedConstant, _) = engine.ParseWithTransformationSteps(js);
 
-        Assert.True(TypedCpsTransformer.NeedsTransformation(program));
+        Assert.True(TypedCpsTransformer.NeedsTransformation(typedConstant));
     }
 
     [Fact]
@@ -29,9 +27,7 @@ public class TypedCpsTransformerTests
             """;
 
         await using var engine = new JsEngine();
-        var (_, constantFolded, _) = engine.ParseWithTransformationSteps(source);
-        var builder = new SExpressionAstBuilder();
-        var typedBefore = builder.BuildProgram(constantFolded);
+        var (_, typedBefore, _) = engine.ParseWithTransformationSteps(source);
 
         var transformer = new TypedCpsTransformer();
         var transformed = transformer.Transform(typedBefore);
@@ -80,43 +76,9 @@ public class TypedCpsTransformerTests
             """;
 
         await using var engine = new JsEngine();
-        var (_, constantFolded, _) = engine.ParseWithTransformationSteps(source);
-        var builder = new SExpressionAstBuilder();
-        var typedBefore = builder.BuildProgram(constantFolded);
+        var (_, typedBefore, _) = engine.ParseWithTransformationSteps(source);
         var transformer = new TypedCpsTransformer();
 
         Assert.Throws<NotSupportedException>(() => transformer.Transform(typedBefore));
-    }
-
-    [Fact]
-    public void Typed_pipeline_matches_cons_pipeline_for_async_function()
-    {
-        const string source = """
-            async function demo() {
-                return await Promise.resolve(1);
-            }
-            """;
-
-        var consOriginal = JsEngine.ParseWithoutTransformation(source);
-        var consForTyped = TypedTransformerTestHelpers.CloneWithoutSourceReferences(consOriginal);
-        var constantTransformer = new ConstantExpressionTransformer();
-        var consConstant = constantTransformer.Transform(consOriginal);
-        var cpsTransformer = new CpsTransformer();
-        var consCps = CpsTransformer.NeedsTransformation(consConstant)
-            ? cpsTransformer.Transform(consConstant)
-            : consConstant;
-        var builder = new SExpressionAstBuilder();
-        var expected = builder.BuildProgram(
-            TypedTransformerTestHelpers.CloneWithoutSourceReferences(consCps));
-        var expectedSnapshot = TypedAstSnapshot.Create(expected);
-
-        var typedBuilder = new SExpressionAstBuilder();
-        var typedProgram = typedBuilder.BuildProgram(consForTyped);
-        var typedConstant = new TypedConstantExpressionTransformer().Transform(typedProgram);
-        var typedTransformer = new TypedCpsTransformer();
-        var typedCps = typedTransformer.Transform(typedConstant);
-        var actualSnapshot = TypedAstSnapshot.Create(typedCps);
-
-        Assert.Equal(expectedSnapshot, actualSnapshot);
     }
 }

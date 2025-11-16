@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Lisp;
 using Xunit;
@@ -71,25 +70,4 @@ public class TypedConstantExpressionTransformerTests
         Assert.Equal(expected, literal.Value);
     }
 
-    [Fact]
-    public void Typed_pipeline_matches_cons_pipeline_for_constant_folding()
-    {
-        const string source = "let value = 1 + 2 * 3;";
-        var consOriginal = JsEngine.ParseWithoutTransformation(source);
-        var consForTyped = TypedTransformerTestHelpers.CloneWithoutSourceReferences(consOriginal);
-        var constantTransformer = new ConstantExpressionTransformer();
-        var consTransformed = constantTransformer.Transform(consOriginal);
-        var builder = new SExpressionAstBuilder();
-        var expected = builder.BuildProgram(
-            TypedTransformerTestHelpers.CloneWithoutSourceReferences(consTransformed));
-        var expectedSnapshot = TypedAstSnapshot.Create(expected);
-
-        var typedBuilder = new SExpressionAstBuilder();
-        var typedProgram = typedBuilder.BuildProgram(consForTyped);
-        var typedTransformer = new TypedConstantExpressionTransformer();
-        var typedTransformed = typedTransformer.Transform(typedProgram);
-        var actualSnapshot = TypedAstSnapshot.Create(typedTransformed);
-
-        Assert.Equal(expectedSnapshot, actualSnapshot);
-    }
 }

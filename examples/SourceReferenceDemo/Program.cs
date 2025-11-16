@@ -34,19 +34,23 @@ async function fetchData() {
     return data;
 }";
 
-var (original, transformed) = engine.ParseWithTransformationSteps(asyncSource);
+var (original, typedConstant, cpsTransformed) = engine.ParseWithTransformationSteps(asyncSource);
 
 Console.WriteLine("Original S-Expression:");
 Console.WriteLine(original.ToString().Substring(0, Math.Min(150, original.ToString().Length)) + "...");
 Console.WriteLine();
 
-Console.WriteLine("Transformed S-Expression:");
-Console.WriteLine(transformed.ToString().Substring(0, Math.Min(150, transformed.ToString().Length)) + "...");
+Console.WriteLine("Typed constant AST:");
+Console.WriteLine(typedConstant.ToString().Substring(0, Math.Min(150, typedConstant.ToString().Length)) + "...");
+Console.WriteLine();
+
+Console.WriteLine("CPS Transformed S-Expression:");
+Console.WriteLine(cpsTransformed.ToString().Substring(0, Math.Min(150, cpsTransformed.ToString().Length)) + "...");
 Console.WriteLine();
 
 // Check the transformation chain
 var originalFunc = original.Rest.Head as Cons;
-var transformedFunc = transformed.Rest.Head as Cons;
+var transformedFunc = cpsTransformed.Rest.Head as Cons;
 
 Console.WriteLine("Transformation Chain:");
 Console.WriteLine($"- Original function Origin: {(originalFunc?.Origin == null ? "null (not transformed)" : "has origin")}");

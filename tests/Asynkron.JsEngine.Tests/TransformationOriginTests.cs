@@ -21,7 +21,7 @@ public class TransformationOriginTests
         await using var engine = new JsEngine();
 
         // Get transformation stages
-        var (original, constantFolded, cpsTransformed) = engine.ParseWithTransformationSteps(source);
+        var (original, _, cpsTransformed) = engine.ParseWithTransformationSteps(source);
 
         // The original should be an async function
         var originalFunc = original.Rest.Head as Cons;
@@ -68,7 +68,7 @@ public class TransformationOriginTests
                      """;
 
         await using var engine = new JsEngine();
-        var (original, constantFolded, cpsTransformed) = engine.ParseWithTransformationSteps(source);
+        var (original, _, cpsTransformed) = engine.ParseWithTransformationSteps(source);
 
         // The CPS transformed tree should have nodes with Origin set
         var transformedFunc = cpsTransformed.Rest.Head as Cons;
@@ -84,7 +84,7 @@ public class TransformationOriginTests
         var source = @"async function test() { return 42; }";
 
         await using var engine = new JsEngine();
-        var (original, constantFolded, cpsTransformed) = engine.ParseWithTransformationSteps(source);
+        var (original, _, cpsTransformed) = engine.ParseWithTransformationSteps(source);
 
         var originalFunc = original.Rest.Head as Cons;
         var transformedFunc = cpsTransformed.Rest.Head as Cons;
@@ -99,8 +99,9 @@ public class TransformationOriginTests
         Assert.NotNull(transformedFunc!.Origin);
 
         // We can trace from transformed back to source via origin chain
-        // The origin chain might be: cpsTransformed -> constantFolded -> original
-        // or: cpsTransformed -> original (if constant folding made no changes)
+        // The origin chain might be: cpsTransformed -> original when CPS runs directly
+        // or it may go through intermediate nodes that still point back to the typed
+        // constant-folded AST before reaching the original cons node.
         var current = transformedFunc.Origin;
         SourceReference? sourceRef = null;
 
@@ -134,7 +135,7 @@ public class TransformationOriginTests
                      """;
 
         await using var engine = new JsEngine();
-        var (original, constantFolded, cpsTransformed) = engine.ParseWithTransformationSteps(source);
+        var (original, _, cpsTransformed) = engine.ParseWithTransformationSteps(source);
 
         // The let statement should not be transformed (Origin = null for constant folding)
         var letStatement = cpsTransformed.Rest.Head as Cons;

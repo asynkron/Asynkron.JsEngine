@@ -37,6 +37,16 @@ public sealed class JsEngine : IAsyncDisposable
     private Func<string, string>? _moduleLoader;
 
     /// <summary>
+    /// Optional observer invoked when the engine falls back to the legacy
+    /// interpreter because the typed pipeline cannot handle a program.
+    /// </summary>
+    public Action<string>? TypedAstFallbackObserver
+    {
+        get => _typedExecutor.UnsupportedCallback;
+        set => _typedExecutor.UnsupportedCallback = value;
+    }
+
+    /// <summary>
     /// Initializes a new instance of JsEngine with standard library objects.
     /// </summary>
     public JsEngine()

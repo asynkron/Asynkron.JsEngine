@@ -100,8 +100,6 @@ internal static class TypedAstSupportAnalyzer
 
                         statement = forStatement.Body;
                         continue;
-                    case ForEachStatement forEach when forEach.Kind == ForEachKind.AwaitOf:
-                        return Fail("for await...of loops are not supported by the typed evaluator yet.");
                     case ForEachStatement forEach:
                         return IsSupportedBinding(forEach.Target) && VisitExpression(forEach.Iterable) && VisitStatement(forEach.Body);
                     case LabeledStatement labeled:

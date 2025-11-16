@@ -295,7 +295,7 @@ public static class TypedAstEvaluator
     {
         if (statement.Kind == ForEachKind.AwaitOf)
         {
-            throw new NotSupportedException("for await...of is not yet supported by the typed evaluator.");
+            return EvaluateForAwaitOf(statement, environment, context, loopLabel);
         }
 
         var iterable = EvaluateExpression(statement.Iterable, environment, context);
@@ -342,6 +342,199 @@ public static class TypedAstEvaluator
         }
 
         return lastValue;
+    }
+
+    private static object? EvaluateForAwaitOf(ForEachStatement statement, JsEnvironment environment,
+        EvaluationContext context, Symbol? loopLabel)
+    {
+        var iterable = EvaluateExpression(statement.Iterable, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        var loopEnvironment = new JsEnvironment(environment, creatingExpression: null, description: "for-await-of loop");
+        object? lastValue = JsSymbols.Undefined;
+
+        if (TryGetIteratorFromProtocols(iterable, out var iterator))
+        {
+            while (!context.ShouldStopEvaluation)
+            {
+                var nextResult = InvokeIteratorNext(iterator!);
+                if (nextResult is not JsObject resultObj)
+                {
+                    break;
+                }
+
+                if (IsPromiseLike(resultObj))
+                {
+                    throw new InvalidOperationException(
+                        "Async iteration with promises requires async function context. Use for await...of inside an async function.");
+                }
+
+                var done = resultObj.TryGetProperty("done", out var doneValue) && doneValue is bool completed && completed;
+                if (done)
+                {
+                    break;
+                }
+
+                if (!resultObj.TryGetProperty("value", out var value))
+                {
+                    continue;
+                }
+
+                AssignLoopBinding(statement, value, loopEnvironment, environment);
+                lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
+
+                if (context.IsReturn || context.IsThrow)
+                {
+                    break;
+                }
+
+                if (context.TryClearContinue(loopLabel))
+                {
+                    continue;
+                }
+
+                if (context.TryClearBreak(loopLabel))
+                {
+                    break;
+                }
+            }
+
+            return lastValue;
+        }
+
+        var values = CollectSynchronousIterableValues(iterable);
+        foreach (var value in values)
+        {
+            if (context.ShouldStopEvaluation)
+            {
+                break;
+            }
+
+            AssignLoopBinding(statement, value, loopEnvironment, environment);
+            lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
+
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;
+            }
+
+            if (context.TryClearContinue(loopLabel))
+            {
+                continue;
+            }
+
+            if (context.TryClearBreak(loopLabel))
+            {
+                break;
+            }
+        }
+
+        return lastValue;
+    }
+
+    private static bool TryGetIteratorFromProtocols(object? iterable, out JsObject? iterator)
+    {
+        iterator = null;
+        if (iterable is not JsObject jsObject)
+        {
+            return false;
+        }
+
+        if (TryInvokeSymbolMethod(jsObject, "Symbol.asyncIterator", out var asyncIterator) && asyncIterator is JsObject asyncObj)
+        {
+            iterator = asyncObj;
+            return true;
+        }
+
+        if (TryInvokeSymbolMethod(jsObject, "Symbol.iterator", out var iteratorValue) && iteratorValue is JsObject iteratorObj)
+        {
+            iterator = iteratorObj;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryInvokeSymbolMethod(JsObject target, string symbolName, out object? result)
+    {
+        var symbol = JsSymbol.For(symbolName);
+        var propertyName = $"@@symbol:{symbol.GetHashCode()}";
+        if (target.TryGetProperty(propertyName, out var candidate) && candidate is IJsCallable callable)
+        {
+            result = callable.Invoke(Array.Empty<object?>(), target);
+            return true;
+        }
+
+        result = null;
+        return false;
+    }
+
+    private static object? InvokeIteratorNext(JsObject iterator)
+    {
+        if (!iterator.TryGetProperty("next", out var nextValue) || nextValue is not IJsCallable callable)
+        {
+            throw new InvalidOperationException("Iterator must expose a 'next' method.");
+        }
+
+        return callable.Invoke(Array.Empty<object?>(), iterator);
+    }
+
+    private static bool IsPromiseLike(object? candidate)
+    {
+        return candidate is JsObject jsObject && jsObject.TryGetProperty("then", out var thenValue) &&
+               thenValue is IJsCallable;
+    }
+
+    private static IEnumerable<object?> CollectSynchronousIterableValues(object? iterable)
+    {
+        switch (iterable)
+        {
+            case JsArray jsArray:
+            {
+                for (var i = 0; i < jsArray.Items.Count; i++)
+                {
+                    yield return jsArray.GetElement(i);
+                }
+
+                yield break;
+            }
+            case JsGenerator generator:
+            {
+                while (true)
+                {
+                    var next = generator.Next(null);
+                    if (next is not JsObject nextObj)
+                    {
+                        yield break;
+                    }
+
+                    var done = nextObj.TryGetProperty("done", out var doneValue) && doneValue is bool completed && completed;
+                    if (done)
+                    {
+                        yield break;
+                    }
+
+                    if (nextObj.TryGetProperty("value", out var value))
+                    {
+                        yield return value;
+                    }
+                }
+            }
+            case string s:
+            {
+                foreach (var ch in s)
+                {
+                    yield return ch.ToString();
+                }
+
+                yield break;
+            }
+        }
+
+        throw new InvalidOperationException($"Cannot iterate over non-iterable value '{iterable}'.");
     }
 
     private static void AssignLoopBinding(ForEachStatement statement, object? value, JsEnvironment loopEnvironment,

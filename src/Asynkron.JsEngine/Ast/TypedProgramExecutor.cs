@@ -16,11 +16,11 @@ internal sealed class TypedProgramExecutor
     {
         var typedProgram = _builder.BuildProgram(program);
 
-        //TODO: everything works if this is uncommented, but our goal is to make everything run using the TypedAstEvaluator now.
-        // if (!TypedAstSupportAnalyzer.Supports(typedProgram, out _))
-        // {
-        //     return ProgramEvaluator.EvaluateProgram(program, environment);
-        // }
+        if (!TypedAstSupportAnalyzer.Supports(typedProgram, out _))
+        {
+            return ProgramEvaluator.EvaluateProgram(program, environment);
+        }
+
         return TypedAstEvaluator.EvaluateProgram(typedProgram, environment);
     }
 }

@@ -978,12 +978,14 @@ public sealed class TypedCpsTransformer
     {
         private readonly TypedCpsTransformer _owner;
         private readonly bool _isStrict;
+        private readonly Symbol _resolveIdentifier;
         private int _temporaryId;
 
-        public AsyncFunctionRewriter(TypedCpsTransformer owner, bool isStrict)
+        public AsyncFunctionRewriter(TypedCpsTransformer owner, bool isStrict, Symbol? resolveOverride = null)
         {
             _owner = owner;
             _isStrict = isStrict;
+            _resolveIdentifier = resolveOverride ?? ResolveIdentifier;
         }
 
         public ImmutableArray<StatementNode> Rewrite(ImmutableArray<StatementNode> statements)
@@ -992,10 +994,22 @@ public sealed class TypedCpsTransformer
             if (rewritten.IsDefaultOrEmpty || rewritten[^1] is not ReturnStatement)
             {
                 var undefinedValue = new IdentifierExpression(null, JsSymbols.Undefined);
-                rewritten = rewritten.Add(new ReturnStatement(null, _owner.CreateResolveCall(undefinedValue)));
+                rewritten = rewritten.Add(new ReturnStatement(null, CreateResolveCall(undefinedValue)));
             }
 
             return rewritten;
+        }
+
+        private ExpressionNode CreateResolveCall(ExpressionNode value)
+        {
+            if (ReferenceEquals(_resolveIdentifier, ResolveIdentifier))
+            {
+                return _owner.CreateResolveCall(value);
+            }
+
+            var argument = new CallArgument(value.Source, value, false);
+            return new CallExpression(null, new IdentifierExpression(null, _resolveIdentifier),
+                ImmutableArray.Create(argument), false);
         }
 
         private ImmutableArray<StatementNode> RewriteStatements(ImmutableArray<StatementNode> statements)
@@ -1031,7 +1045,7 @@ public sealed class TypedCpsTransformer
                 case ReturnStatement returnStatement:
                     var returnExpression = returnStatement.Expression ?? new IdentifierExpression(null, JsSymbols.Undefined);
                     rewritten = RewriteExpression(returnExpression, remaining,
-                        expr => new ReturnStatement(returnStatement.Source, _owner.CreateResolveCall(expr)),
+                        expr => new ReturnStatement(returnStatement.Source, CreateResolveCall(expr)),
                         continueAfter: false,
                         inlineRemainder: false,
                         out _,
@@ -1059,11 +1073,186 @@ public sealed class TypedCpsTransformer
                         out handledRemainder,
                         out var declarationAwait);
                     return declarationAwait;
+                case ForEachStatement forEachStatement when ShouldRewriteForEach(forEachStatement):
+                    rewritten = RewriteForEachStatement(forEachStatement, remaining);
+                    handledRemainder = true;
+                    return true;
             }
 
             rewritten = default;
             handledRemainder = false;
             return false;
+        }
+
+        private bool ShouldRewriteForEach(ForEachStatement statement)
+        {
+            if (statement.Kind == ForEachKind.In)
+            {
+                return false;
+            }
+
+            if (statement.Kind == ForEachKind.AwaitOf)
+            {
+                return true;
+            }
+
+            return StatementNeedsTransformation(statement.Body);
+        }
+
+        private ImmutableArray<StatementNode> RewriteForEachStatement(ForEachStatement statement,
+            ImmutableArray<StatementNode> remaining)
+        {
+            var iteratorSymbol = Symbol.Intern($"__iterator{_temporaryId++}");
+            var resultSymbol = Symbol.Intern($"__result{_temporaryId++}");
+            var loopCheckSymbol = Symbol.Intern($"__loopCheck{_temporaryId++}");
+            var loopResolveSymbol = Symbol.Intern($"__loopResolve{_temporaryId++}");
+
+            var iteratorDeclaration = CreateIteratorDeclaration(statement, iteratorSymbol);
+            var afterLoopBlock = BuildAfterLoopBlock(remaining);
+            var loopBodyBlock = BuildLoopBodyBlock(statement, loopCheckSymbol, resultSymbol, loopResolveSymbol);
+            var loopCheckDeclaration = BuildLoopCheckFunction(statement, iteratorSymbol, loopCheckSymbol,
+                resultSymbol, afterLoopBlock, loopBodyBlock);
+
+            var loopInvocation = new CallExpression(null, new IdentifierExpression(null, loopCheckSymbol),
+                ImmutableArray<CallArgument>.Empty, false);
+            var startCallExpression = _owner.AttachCatch(loopInvocation);
+            var startCall = new ReturnStatement(null, startCallExpression);
+
+            return ImmutableArray.Create<StatementNode>(iteratorDeclaration, loopCheckDeclaration, startCall);
+        }
+
+        private StatementNode CreateIteratorDeclaration(ForEachStatement statement, Symbol iteratorSymbol)
+        {
+            var initializer = statement.Kind == ForEachKind.AwaitOf
+                ? BuildGetAsyncIteratorCall(statement.Iterable)
+                : BuildGetIteratorCall(statement.Iterable);
+            var binding = new IdentifierBinding(null, iteratorSymbol);
+            var declarator = new VariableDeclarator(null, binding, initializer);
+            return new VariableDeclaration(null, VariableKind.Let, ImmutableArray.Create(declarator));
+        }
+
+        private ExpressionNode BuildGetAsyncIteratorCall(ExpressionNode iterable)
+        {
+            var callee = new IdentifierExpression(null, Symbol.Intern("__getAsyncIterator"));
+            var argument = new CallArgument(null, iterable, false);
+            return new CallExpression(null, callee, ImmutableArray.Create(argument), false);
+        }
+
+        private ExpressionNode BuildGetIteratorCall(ExpressionNode iterable)
+        {
+            var symbolIdentifier = new IdentifierExpression(null, Symbol.Intern("Symbol"));
+            var iteratorProperty = new MemberExpression(null, symbolIdentifier, new LiteralExpression(null, "iterator"),
+                false, false);
+            var iteratorAccessor = new MemberExpression(null, iterable, iteratorProperty, true, false);
+            return new CallExpression(null, iteratorAccessor, ImmutableArray<CallArgument>.Empty, false);
+        }
+
+        private BlockStatement BuildAfterLoopBlock(ImmutableArray<StatementNode> remaining)
+        {
+            var continuation = RewriteStatements(remaining);
+            if (continuation.IsDefaultOrEmpty)
+            {
+                var undefinedValue = new IdentifierExpression(null, JsSymbols.Undefined);
+                continuation = ImmutableArray.Create<StatementNode>(new ReturnStatement(null, CreateResolveCall(undefinedValue)));
+            }
+
+            return new BlockStatement(null, continuation, _isStrict);
+        }
+
+        private BlockStatement BuildLoopBodyBlock(ForEachStatement statement, Symbol loopCheckSymbol, Symbol resultSymbol,
+            Symbol loopResolveSymbol)
+        {
+            var resultIdentifier = new IdentifierExpression(null, resultSymbol);
+            var valueExpression = new MemberExpression(null, resultIdentifier, new LiteralExpression(null, "value"),
+                false, false);
+            var assignment = CreateLoopBindingAssignment(statement, valueExpression);
+            var extracted = ExtractBodyStatements(statement.Body);
+            var builder = ImmutableArray.CreateBuilder<StatementNode>(extracted.Length + 2);
+            builder.Add(assignment);
+            builder.AddRange(extracted);
+            builder.Add(CreateLoopContinuationCall(loopResolveSymbol));
+            var normalized = _owner.NormalizeStatements(builder.ToImmutable());
+            var loopResolveDeclaration = CreateLoopResolveFunction(loopResolveSymbol, loopCheckSymbol);
+            var bodyRewriter = new AsyncFunctionRewriter(_owner, _isStrict, loopResolveSymbol);
+            var rewritten = bodyRewriter.Rewrite(normalized);
+            var statements = ImmutableArray.CreateBuilder<StatementNode>(rewritten.Length + 1);
+            statements.Add(loopResolveDeclaration);
+            statements.AddRange(rewritten);
+            return new BlockStatement(null, statements.ToImmutable(), _isStrict);
+        }
+
+        private FunctionDeclaration CreateLoopResolveFunction(Symbol loopResolveSymbol, Symbol loopCheckSymbol)
+        {
+            var parameter = new FunctionParameter(null, Symbol.Intern("__loopValue"), false, null, null);
+            var call = new CallExpression(null, new IdentifierExpression(null, loopCheckSymbol),
+                ImmutableArray<CallArgument>.Empty, false);
+            var returnStatement = new ReturnStatement(null, call);
+            var body = new BlockStatement(null, ImmutableArray.Create<StatementNode>(returnStatement), _isStrict);
+            var functionExpression = new FunctionExpression(null, loopResolveSymbol,
+                ImmutableArray.Create(parameter), body, false, false);
+            return new FunctionDeclaration(null, loopResolveSymbol, functionExpression);
+        }
+
+        private StatementNode CreateLoopContinuationCall(Symbol loopResolveSymbol)
+        {
+            var undefinedValue = new IdentifierExpression(null, JsSymbols.Undefined);
+            var argument = new CallArgument(null, undefinedValue, false);
+            var call = new CallExpression(null, new IdentifierExpression(null, loopResolveSymbol),
+                ImmutableArray.Create(argument), false);
+            return new ExpressionStatement(null, call);
+        }
+
+        private ImmutableArray<StatementNode> ExtractBodyStatements(StatementNode body)
+        {
+            if (body is BlockStatement block)
+            {
+                return block.Statements;
+            }
+
+            return ImmutableArray.Create(body);
+        }
+
+        private StatementNode CreateLoopBindingAssignment(ForEachStatement statement, ExpressionNode valueExpression)
+        {
+            if (statement.DeclarationKind is { } declarationKind)
+            {
+                var declarator = new VariableDeclarator(null, statement.Target, valueExpression);
+                return new VariableDeclaration(null, declarationKind, ImmutableArray.Create(declarator));
+            }
+
+            if (statement.Target is IdentifierBinding identifierBinding)
+            {
+                var assignment = new AssignmentExpression(null, identifierBinding.Name, valueExpression);
+                return new ExpressionStatement(null, assignment);
+            }
+
+            var destructuring = new DestructuringAssignmentExpression(null, statement.Target, valueExpression);
+            return new ExpressionStatement(null, destructuring);
+        }
+
+        private FunctionDeclaration BuildLoopCheckFunction(ForEachStatement statement, Symbol iteratorSymbol,
+            Symbol loopCheckSymbol, Symbol resultSymbol, BlockStatement afterLoopBlock, BlockStatement loopBodyBlock)
+        {
+            var iteratorIdentifier = new IdentifierExpression(null, iteratorSymbol);
+            var iteratorNextCallee = new IdentifierExpression(null, Symbol.Intern("__iteratorNext"));
+            var iteratorNextCall = new CallExpression(null, iteratorNextCallee,
+                ImmutableArray.Create(new CallArgument(null, iteratorIdentifier, false)), false);
+
+            var thenTarget = new MemberExpression(null, iteratorNextCall, new LiteralExpression(null, ThenPropertyName),
+                false, false);
+            var parameter = new FunctionParameter(null, resultSymbol, false, null, null);
+            var resultIdentifier = new IdentifierExpression(null, resultSymbol);
+            var doneExpression = new MemberExpression(null, resultIdentifier, new LiteralExpression(null, "done"), false, false);
+            var ifStatement = new IfStatement(null, doneExpression, afterLoopBlock, loopBodyBlock);
+            var callbackBody = new BlockStatement(null, ImmutableArray.Create<StatementNode>(ifStatement), _isStrict);
+            var callback = new FunctionExpression(null, null, ImmutableArray.Create(parameter), callbackBody, false, false);
+            var thenCall = new CallExpression(null, thenTarget, ImmutableArray.Create(new CallArgument(null, callback, false)), false);
+            var catchCall = _owner.AttachCatch(thenCall);
+            var returnStatement = new ReturnStatement(null, catchCall);
+            var body = new BlockStatement(null, ImmutableArray.Create<StatementNode>(returnStatement), _isStrict);
+            var loopCheckFunction = new FunctionExpression(null, loopCheckSymbol, ImmutableArray<FunctionParameter>.Empty,
+                body, false, false);
+            return new FunctionDeclaration(null, loopCheckSymbol, loopCheckFunction);
         }
 
         private ImmutableArray<StatementNode> RewriteExpression(

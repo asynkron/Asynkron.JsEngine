@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
@@ -740,8 +741,8 @@ public static class TypedAstEvaluator
             var reference = ResolveReference(expression.Operand, environment, context);
             var currentValue = reference.GetValue();
             var updatedValue = expression.Operator == "++"
-                ? currentValue.ToNumber() + 1
-                : currentValue.ToNumber() - 1;
+                ? IncrementValue(currentValue)
+                : DecrementValue(currentValue);
             reference.SetValue(updatedValue);
             return expression.IsPrefix ? updatedValue : currentValue;
         }
@@ -760,9 +761,11 @@ public static class TypedAstEvaluator
         return expression.Operator switch
         {
             "!" => !IsTruthy(operand),
-            "+" => operand.ToNumber(),
-            "-" => -operand.ToNumber(),
-            "~" => ~JsNumericConversions.ToInt32(operand.ToNumber()),
+            "+" => operand is JsBigInt
+                ? throw new Exception("Cannot convert a BigInt value to a number")
+                : operand.ToNumber(),
+            "-" => operand is JsBigInt bigInt ? (object)(-bigInt) : -operand.ToNumber(),
+            "~" => BitwiseNot(operand),
             "typeof" => GetTypeofString(operand),
             "void" => JsSymbols.Undefined,
             _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
@@ -802,25 +805,25 @@ public static class TypedAstEvaluator
         return expression.Operator switch
         {
             "+" => Add(left, right),
-            "-" => left.ToNumber() - right.ToNumber(),
-            "*" => left.ToNumber() * right.ToNumber(),
-            "/" => left.ToNumber() / right.ToNumber(),
-            "%" => left.ToNumber() % right.ToNumber(),
-            "**" => Math.Pow(left.ToNumber(), right.ToNumber()),
+            "-" => Subtract(left, right),
+            "*" => Multiply(left, right),
+            "/" => Divide(left, right),
+            "%" => Modulo(left, right),
+            "**" => Power(left, right),
             "==" => LooseEquals(left, right),
             "!=" => !LooseEquals(left, right),
             "===" => StrictEquals(left, right),
             "!==" => !StrictEquals(left, right),
-            "<" => left.ToNumber() < right.ToNumber(),
-            "<=" => left.ToNumber() <= right.ToNumber(),
-            ">" => left.ToNumber() > right.ToNumber(),
-            ">=" => left.ToNumber() >= right.ToNumber(),
-            "&" => JsNumericConversions.ToInt32(left.ToNumber()) & JsNumericConversions.ToInt32(right.ToNumber()),
-            "|" => JsNumericConversions.ToInt32(left.ToNumber()) | JsNumericConversions.ToInt32(right.ToNumber()),
-            "^" => JsNumericConversions.ToInt32(left.ToNumber()) ^ JsNumericConversions.ToInt32(right.ToNumber()),
-            "<<" => JsNumericConversions.ToInt32(left.ToNumber()) << (JsNumericConversions.ToInt32(right.ToNumber()) & 0x1F),
-            ">>" => JsNumericConversions.ToInt32(left.ToNumber()) >> (JsNumericConversions.ToInt32(right.ToNumber()) & 0x1F),
-            ">>>" => (int)(JsNumericConversions.ToUInt32(left.ToNumber()) >> (int)(JsNumericConversions.ToUInt32(right.ToNumber()) & 0x1F)),
+            "<" => LessThan(left, right),
+            "<=" => LessThanOrEqual(left, right),
+            ">" => GreaterThan(left, right),
+            ">=" => GreaterThanOrEqual(left, right),
+            "&" => BitwiseAnd(left, right),
+            "|" => BitwiseOr(left, right),
+            "^" => BitwiseXor(left, right),
+            "<<" => LeftShift(left, right),
+            ">>" => RightShift(left, right),
+            ">>>" => UnsignedRightShift(left, right),
             "in" => InOperator(left, right),
             "instanceof" => InstanceofOperator(left, right),
             _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
@@ -1250,35 +1253,197 @@ public static class TypedAstEvaluator
 
     private static object? Add(object? left, object? right)
     {
-        if (left is string || right is string)
+        if (left is string || right is string || left is JsObject || left is JsArray || right is JsObject ||
+            right is JsArray)
         {
             return $"{left}{right}";
+        }
+
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt + rightBigInt;
+        }
+
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
         }
 
         return left.ToNumber() + right.ToNumber();
     }
 
+    private static object Subtract(object? left, object? right)
+    {
+        return PerformBigIntOrNumericOperation(left, right,
+            (l, r) => l - r,
+            (l, r) => l - r);
+    }
+
+    private static object Multiply(object? left, object? right)
+    {
+        return PerformBigIntOrNumericOperation(left, right,
+            (l, r) => l * r,
+            (l, r) => l * r);
+    }
+
+    private static object Divide(object? left, object? right)
+    {
+        return PerformBigIntOrNumericOperation(left, right,
+            (l, r) => l / r,
+            (l, r) => l / r);
+    }
+
+    private static object Modulo(object? left, object? right)
+    {
+        return PerformBigIntOrNumericOperation(left, right,
+            (l, r) => l % r,
+            (l, r) => l % r);
+    }
+
+    private static object Power(object? left, object? right)
+    {
+        return PerformBigIntOrNumericOperation(left, right,
+            (l, r) => JsBigInt.Pow(l, r),
+            (l, r) => Math.Pow(l, r));
+    }
+
+    private static object PerformBigIntOrNumericOperation(
+        object? left,
+        object? right,
+        Func<JsBigInt, JsBigInt, object> bigIntOp,
+        Func<double, double, object> numericOp)
+    {
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return bigIntOp(leftBigInt, rightBigInt);
+        }
+
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
+        return numericOp(left.ToNumber(), right.ToNumber());
+    }
+
     private static bool LooseEquals(object? left, object? right)
     {
-        if (IsNullish(left) && IsNullish(right))
+        while (true)
         {
-            return true;
-        }
+            if (IsNullish(left) && IsNullish(right))
+            {
+                return true;
+            }
 
-        if (left is double or float or int or uint or long or ulong or short or ushort or byte or sbyte ||
-            right is double or float or int or uint or long or ulong or short or ushort or byte or sbyte)
-        {
-            return left.ToNumber() == right.ToNumber();
-        }
+            if (IsNullish(left) || IsNullish(right))
+            {
+                return false;
+            }
 
-        return Equals(left, right);
+            if (left?.GetType() == right?.GetType())
+            {
+                return StrictEquals(left, right);
+            }
+
+            if (left is JsBigInt leftBigInt && IsNumeric(right))
+            {
+                var rightNum = right.ToNumber();
+                if (double.IsNaN(rightNum) || double.IsInfinity(rightNum))
+                {
+                    return false;
+                }
+
+                if (rightNum == Math.Floor(rightNum))
+                {
+                    return leftBigInt.Value == new BigInteger(rightNum);
+                }
+
+                return false;
+            }
+
+            if (IsNumeric(left) && right is JsBigInt rightBigInt)
+            {
+                var leftNum = left.ToNumber();
+                if (double.IsNaN(leftNum) || double.IsInfinity(leftNum))
+                {
+                    return false;
+                }
+
+                if (leftNum == Math.Floor(leftNum))
+                {
+                    return new BigInteger(leftNum) == rightBigInt.Value;
+                }
+
+                return false;
+            }
+
+            switch (left)
+            {
+                case JsBigInt lbi when right is string str:
+                    try
+                    {
+                        var converted = new JsBigInt(str.Trim());
+                        return lbi == converted;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                case string str2 when right is JsBigInt rbi:
+                    try
+                    {
+                        var converted = new JsBigInt(str2.Trim());
+                        return converted == rbi;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+            }
+
+            if (IsNumeric(left) && right is string)
+            {
+                return left.ToNumber().Equals(right.ToNumber());
+            }
+
+            switch (left)
+            {
+                case string when IsNumeric(right):
+                    return left.ToNumber().Equals(right.ToNumber());
+                case bool:
+                    left = left.ToNumber();
+                    continue;
+            }
+
+            if (right is bool)
+            {
+                right = right.ToNumber();
+                continue;
+            }
+
+            if (left is JsObject or JsArray && (IsNumeric(right) || right is string))
+            {
+                return IsNumeric(right)
+                    ? left.ToNumber().Equals(right.ToNumber())
+                    : Equals(left.ToString(), right);
+            }
+
+            if (right is JsObject or JsArray && (IsNumeric(left) || left is string))
+            {
+                return IsNumeric(left)
+                    ? left.ToNumber().Equals(right.ToNumber())
+                    : Equals(left, right.ToString());
+            }
+
+            return StrictEquals(left, right);
+        }
     }
 
     private static bool StrictEquals(object? left, object? right)
     {
         if (ReferenceEquals(left, right))
         {
-            return true;
+            return left is not double d || !double.IsNaN(d);
         }
 
         if (left is null || right is null)
@@ -1286,19 +1451,241 @@ public static class TypedAstEvaluator
             return false;
         }
 
-        if (left.GetType() != right.GetType())
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return leftBigInt == rightBigInt;
+        }
+
+        if ((left is JsBigInt && IsNumeric(right)) || (IsNumeric(left) && right is JsBigInt))
         {
             return false;
         }
 
-        return left switch
+        if (!IsNumeric(left) || !IsNumeric(right))
         {
-            double leftDouble => leftDouble.Equals((double)right),
-            float leftFloat => leftFloat.Equals((float)right),
-            bool leftBool => leftBool == (bool)right,
-            string leftString => leftString == (string)right,
-            Symbol leftSymbol => ReferenceEquals(leftSymbol, right),
-            _ => Equals(left, right)
+            return left.GetType() == right.GetType() && Equals(left, right);
+        }
+
+        var leftNumber = left.ToNumber();
+        var rightNumber = right.ToNumber();
+        if (double.IsNaN(leftNumber) || double.IsNaN(rightNumber))
+        {
+            return false;
+        }
+
+        return leftNumber.Equals(rightNumber);
+    }
+
+    private static bool IsNumeric(object? value)
+    {
+        return value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
+    }
+
+    private static bool GreaterThan(object? left, object? right)
+    {
+        return PerformComparisonOperation(left, right,
+            (l, r) => l > r,
+            (l, r) => l > r,
+            (l, r) => l > r);
+    }
+
+    private static bool GreaterThanOrEqual(object? left, object? right)
+    {
+        return PerformComparisonOperation(left, right,
+            (l, r) => l >= r,
+            (l, r) => l >= r,
+            (l, r) => l >= r);
+    }
+
+    private static bool LessThan(object? left, object? right)
+    {
+        return PerformComparisonOperation(left, right,
+            (l, r) => l < r,
+            (l, r) => l < r,
+            (l, r) => l < r);
+    }
+
+    private static bool LessThanOrEqual(object? left, object? right)
+    {
+        return PerformComparisonOperation(left, right,
+            (l, r) => l <= r,
+            (l, r) => l <= r,
+            (l, r) => l <= r);
+    }
+
+    private static bool PerformComparisonOperation(
+        object? left,
+        object? right,
+        Func<JsBigInt, JsBigInt, bool> bigIntOp,
+        Func<BigInteger, BigInteger, bool> mixedOp,
+        Func<double, double, bool> numericOp)
+    {
+        switch (left)
+        {
+            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
+                return bigIntOp(leftBigInt, rightBigInt);
+            case JsBigInt lbi:
+            {
+                var rightNum = right.ToNumber();
+                if (double.IsNaN(rightNum))
+                {
+                    return false;
+                }
+
+                return mixedOp(lbi.Value, new BigInteger(rightNum));
+            }
+        }
+
+        switch (right)
+        {
+            case JsBigInt rbi:
+            {
+                var leftNum = left.ToNumber();
+                if (double.IsNaN(leftNum))
+                {
+                    return false;
+                }
+
+                return mixedOp(new BigInteger(leftNum), rbi.Value);
+            }
+            default:
+                return numericOp(left.ToNumber(), right.ToNumber());
+        }
+    }
+
+    private static object BitwiseAnd(object? left, object? right)
+    {
+        return PerformBigIntOrInt32Operation(left, right,
+            (l, r) => l & r,
+            (l, r) => l & r);
+    }
+
+    private static object BitwiseOr(object? left, object? right)
+    {
+        return PerformBigIntOrInt32Operation(left, right,
+            (l, r) => l | r,
+            (l, r) => l | r);
+    }
+
+    private static object BitwiseXor(object? left, object? right)
+    {
+        return PerformBigIntOrInt32Operation(left, right,
+            (l, r) => l ^ r,
+            (l, r) => l ^ r);
+    }
+
+    private static object BitwiseNot(object? operand)
+    {
+        if (operand is JsBigInt bigInt)
+        {
+            return ~bigInt;
+        }
+
+        return (double)(~ToInt32(operand));
+    }
+
+    private static object LeftShift(object? left, object? right)
+    {
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
+            {
+                throw new InvalidOperationException("BigInt shift amount is too large");
+            }
+
+            return leftBigInt << (int)rightBigInt.Value;
+        }
+
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right) & 0x1F;
+        return (double)(leftInt << rightInt);
+    }
+
+    private static object RightShift(object? left, object? right)
+    {
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
+            {
+                throw new InvalidOperationException("BigInt shift amount is too large");
+            }
+
+            return leftBigInt >> (int)rightBigInt.Value;
+        }
+
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right) & 0x1F;
+        return (double)(leftInt >> rightInt);
+    }
+
+    private static object UnsignedRightShift(object? left, object? right)
+    {
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("BigInts have no unsigned right shift, use >> instead");
+        }
+
+        var leftUInt = ToUInt32(left);
+        var rightInt = ToInt32(right) & 0x1F;
+        return (double)(leftUInt >> rightInt);
+    }
+
+    private static object PerformBigIntOrInt32Operation(
+        object? left,
+        object? right,
+        Func<JsBigInt, JsBigInt, object> bigIntOp,
+        Func<int, int, int> int32Op)
+    {
+        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        {
+            return bigIntOp(leftBigInt, rightBigInt);
+        }
+
+        if (left is JsBigInt || right is JsBigInt)
+        {
+            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
+        var leftInt = ToInt32(left);
+        var rightInt = ToInt32(right);
+        return (double)int32Op(leftInt, rightInt);
+    }
+
+    private static int ToInt32(object? value)
+    {
+        return JsNumericConversions.ToInt32(value.ToNumber());
+    }
+
+    private static uint ToUInt32(object? value)
+    {
+        return JsNumericConversions.ToUInt32(value.ToNumber());
+    }
+
+    private static object IncrementValue(object? value)
+    {
+        return value switch
+        {
+            JsBigInt bigInt => new JsBigInt(bigInt.Value + BigInteger.One),
+            _ => value.ToNumber() + 1
+        };
+    }
+
+    private static object DecrementValue(object? value)
+    {
+        return value switch
+        {
+            JsBigInt bigInt => new JsBigInt(bigInt.Value - BigInteger.One),
+            _ => value.ToNumber() - 1
         };
     }
 

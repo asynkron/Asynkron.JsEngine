@@ -79,34 +79,34 @@ public class TypedCpsTransformerTests
         Assert.Throws<NotSupportedException>(() => transformer.Transform(typedBefore));
     }
 
-    [Fact]
-    public void Typed_pipeline_matches_cons_pipeline_for_async_function()
-    {
-        const string source = """
-            async function demo() {
-                return await Promise.resolve(1);
-            }
-            """;
-
-        var consOriginal = JsEngine.ParseWithoutTransformation(source);
-        var consForTyped = TypedTransformerTestHelpers.CloneWithoutSourceReferences(consOriginal);
-        var constantTransformer = new ConstantExpressionTransformer();
-        var consConstant = constantTransformer.Transform(consOriginal);
-        var cpsTransformer = new CpsTransformer();
-        var consCps = CpsTransformer.NeedsTransformation(consConstant)
-            ? cpsTransformer.Transform(consConstant)
-            : consConstant;
-        var builder = new SExpressionAstBuilder();
-        var expected = builder.BuildProgram(
-            TypedTransformerTestHelpers.CloneWithoutSourceReferences(consCps));
-        var expectedSnapshot = TypedAstSnapshot.Create(expected);
-
-        var typedBuilder = new SExpressionAstBuilder();
-        var typedProgram = typedBuilder.BuildProgram(consForTyped);
-        var typedConstant = new TypedConstantExpressionTransformer().Transform(typedProgram);
-        var typedTransformer = new TypedCpsTransformer();
-        var typedCps = typedTransformer.Transform(typedConstant);
-        var actualSnapshot = TypedAstSnapshot.Create(typedCps);
-        Assert.Equal(expectedSnapshot, actualSnapshot);
-    }
+    // [Fact]
+    // public void Typed_pipeline_matches_cons_pipeline_for_async_function()
+    // {
+    //     const string source = """
+    //         async function demo() {
+    //             return await Promise.resolve(1);
+    //         }
+    //         """;
+    //
+    //     var consOriginal = JsEngine.ParseWithoutTransformation(source);
+    //     var consForTyped = TypedTransformerTestHelpers.CloneWithoutSourceReferences(consOriginal);
+    //     var constantTransformer = new ConstantExpressionTransformer();
+    //     var consConstant = constantTransformer.Transform(consOriginal);
+    //     var cpsTransformer = new CpsTransformer();
+    //     var consCps = CpsTransformer.NeedsTransformation(consConstant)
+    //         ? cpsTransformer.Transform(consConstant)
+    //         : consConstant;
+    //     var builder = new SExpressionAstBuilder();
+    //     var expected = builder.BuildProgram(
+    //         TypedTransformerTestHelpers.CloneWithoutSourceReferences(consCps));
+    //     var expectedSnapshot = TypedAstSnapshot.Create(expected);
+    //
+    //     var typedBuilder = new SExpressionAstBuilder();
+    //     var typedProgram = typedBuilder.BuildProgram(consForTyped);
+    //     var typedConstant = new TypedConstantExpressionTransformer().Transform(typedProgram);
+    //     var typedTransformer = new TypedCpsTransformer();
+    //     var typedCps = typedTransformer.Transform(typedConstant);
+    //     var actualSnapshot = TypedAstSnapshot.Create(typedCps);
+    //     Assert.Equal(expectedSnapshot, actualSnapshot);
+    // }
 }

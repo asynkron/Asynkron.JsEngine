@@ -17,6 +17,8 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly JsEnvironment _global = new(isFunctionScope: true);
     private readonly ConstantExpressionTransformer _constantTransformer = new();
     private readonly CpsTransformer _cpsTransformer = new();
+    private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
+    private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private readonly TypedProgramExecutor _typedExecutor = new();
     private readonly SExpressionAstBuilder _astBuilder = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
@@ -34,6 +36,14 @@ public sealed class JsEngine : IAsyncDisposable
 
     // Module loader function: allows custom module loading logic
     private Func<string, string>? _moduleLoader;
+
+    /// <summary>
+    /// Gets or sets whether the engine should prefer the typed AST based
+    /// constant folding and CPS transformers. This path is still experimental
+    /// and will fall back to the S-expression transformers when the typed
+    /// analyzer deems a program unsupported.
+    /// </summary>
+    public bool UseTypedTransformers { get; set; }
 
     /// <summary>
     /// Initializes a new instance of JsEngine with standard library objects.
@@ -233,11 +243,13 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     internal ParsedProgram ParseForExecution([LanguageInjection("javascript")] string source)
     {
-        var program = ParseInternal(source);
-        return CreateParsedProgram(program);
+        var program = UseTypedTransformers
+            ? ParseInternal(source, applyTransformations: false)
+            : ParseInternal(source);
+        return CreateParsedProgram(program, UseTypedTransformers);
     }
 
-    private Cons ParseInternal(string source)
+    private Cons ParseInternal(string source, bool applyTransformations = true)
     {
         // Step 1: Tokenize
         var lexer = new Lexer(source);
@@ -247,25 +259,52 @@ public sealed class JsEngine : IAsyncDisposable
         var parser = new Parser.Parser(tokens, source);
         var program = parser.ParseProgram();
 
-        // Step 3: Apply constant expression folding (runs before CPS)
-        // This simplifies constant expressions like (+ 1 (* 2 7)) to 15
-        program = _constantTransformer.Transform(program);
-
-        // Step 4: Apply CPS transformation if needed
-        // This enables support for generators and async/await by converting
-        // the S-expression tree to continuation-passing style
-        if (CpsTransformer.NeedsTransformation(program))
-        {
-            program = _cpsTransformer.Transform(program);
-        }
-
-        return program;
+        return applyTransformations ? ApplyConsTransformations(program) : program;
     }
 
-    private ParsedProgram CreateParsedProgram(Cons program)
+    private ParsedProgram CreateParsedProgram(Cons program, bool preferTyped)
+    {
+        if (!preferTyped)
+        {
+            var typedProgram = _astBuilder.BuildProgram(program);
+            typedProgram = _typedConstantTransformer.Transform(typedProgram);
+            return new ParsedProgram(program, typedProgram);
+        }
+
+        return CreateTypedParsedProgram(program);
+    }
+
+    private ParsedProgram CreateTypedParsedProgram(Cons program)
     {
         var typed = _astBuilder.BuildProgram(program);
+        if (!TypedAstSupportAnalyzer.Supports(typed, out _))
+        {
+            return CreateFallbackParsedProgram(program);
+        }
+
+        typed = _typedConstantTransformer.Transform(typed);
+
+        try
+        {
+            if (TypedCpsTransformer.NeedsTransformation(typed))
+            {
+                typed = _typedCpsTransformer.Transform(typed);
+            }
+        }
+        catch (NotSupportedException)
+        {
+            return CreateFallbackParsedProgram(program);
+        }
+
         return new ParsedProgram(program, typed);
+    }
+
+    private ParsedProgram CreateFallbackParsedProgram(Cons program)
+    {
+        var transformedCons = ApplyConsTransformations(program);
+        var fallbackTyped = _astBuilder.BuildProgram(transformedCons);
+        fallbackTyped = _typedConstantTransformer.Transform(fallbackTyped);
+        return new ParsedProgram(transformedCons, fallbackTyped);
     }
 
     /// <summary>
@@ -311,20 +350,33 @@ public sealed class JsEngine : IAsyncDisposable
         var original = parser.ParseProgram();
 
         // Step 3: Apply constant expression folding
-        var constantFolded = _constantTransformer.Transform(original);
+        var constantFolded = ApplyConsConstantFolding(original);
 
         // Step 4: Apply CPS transformation if needed
-        Cons cpsTransformed;
-        if (CpsTransformer.NeedsTransformation(constantFolded))
-        {
-            cpsTransformed = _cpsTransformer.Transform(constantFolded);
-        }
-        else
-        {
-            cpsTransformed = constantFolded;
-        }
+        var cpsTransformed = ApplyConsCpsTransformation(constantFolded);
 
         return (original, constantFolded, cpsTransformed);
+    }
+
+    private Cons ApplyConsTransformations(Cons program)
+    {
+        var constantFolded = ApplyConsConstantFolding(program);
+        return ApplyConsCpsTransformation(constantFolded);
+    }
+
+    private Cons ApplyConsConstantFolding(Cons program)
+    {
+        return _constantTransformer.Transform(program);
+    }
+
+    private Cons ApplyConsCpsTransformation(Cons program)
+    {
+        if (!CpsTransformer.NeedsTransformation(program))
+        {
+            return program;
+        }
+
+        return _cpsTransformer.Transform(program);
     }
 
     /// <summary>

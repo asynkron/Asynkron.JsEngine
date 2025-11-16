@@ -327,9 +327,9 @@ internal static class TypedAstSupportAnalyzer
 
             foreach (var parameter in function.Parameters)
             {
-                if (parameter.Pattern is not null)
+                if (parameter.Pattern is not null && !IsSupportedBinding(parameter.Pattern))
                 {
-                    return Fail("Destructuring parameters are not supported by the typed evaluator yet.");
+                    return false;
                 }
 
                 if (parameter.DefaultValue is not null && !VisitExpression(parameter.DefaultValue))
@@ -343,12 +343,53 @@ internal static class TypedAstSupportAnalyzer
 
         private bool IsSupportedBinding(BindingTarget target)
         {
-            if (target is IdentifierBinding)
+            switch (target)
             {
-                return true;
-            }
+                case IdentifierBinding:
+                    return true;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is not null && !IsSupportedBinding(element.Target))
+                        {
+                            return false;
+                        }
 
-            return Fail("Destructuring bindings are not supported by the typed evaluator yet.");
+                        if (element.DefaultValue is not null && !VisitExpression(element.DefaultValue))
+                        {
+                            return false;
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null && !IsSupportedBinding(arrayBinding.RestElement))
+                    {
+                        return false;
+                    }
+
+                    return true;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        if (!IsSupportedBinding(property.Target))
+                        {
+                            return false;
+                        }
+
+                        if (property.DefaultValue is not null && !VisitExpression(property.DefaultValue))
+                        {
+                            return false;
+                        }
+                    }
+
+                    if (objectBinding.RestElement is not null && !IsSupportedBinding(objectBinding.RestElement))
+                    {
+                        return false;
+                    }
+
+                    return true;
+                default:
+                    return Fail("Binding target type is not supported by the typed evaluator.");
+            }
         }
 
         private bool Fail(string reason)

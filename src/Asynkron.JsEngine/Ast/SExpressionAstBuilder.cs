@@ -521,14 +521,103 @@ public sealed class SExpressionAstBuilder
         return new VariableDeclaration(cons.SourceReference, kind, ImmutableArray.Create(declarator));
     }
 
-    private static BindingTarget BuildBindingTarget(object? target, SourceReference? source)
+    private BindingTarget BuildBindingTarget(object? target, SourceReference? source)
     {
-        return target switch
+        switch (target)
         {
-            Symbol symbol => new IdentifierBinding(source, symbol),
-            Cons cons => new DestructuringBinding(cons.SourceReference ?? source, cons),
-            _ => new DestructuringBinding(source, Cons.Cell(target))
-        };
+            case Symbol symbol:
+                return new IdentifierBinding(source, symbol);
+            case Cons { Head: Symbol head } cons when ReferenceEquals(head, JsSymbols.ArrayPattern):
+                return BuildArrayBinding(cons, source);
+            case Cons { Head: Symbol head } cons when ReferenceEquals(head, JsSymbols.ObjectPattern):
+                return BuildObjectBinding(cons, source);
+            case Cons cons:
+                // If we reach this branch we likely encountered a nested pattern container
+                // (e.g. pattern element) – unwrap its payload and try again.
+                return BuildBindingTarget(cons.Rest.Head, cons.SourceReference ?? source);
+            default:
+                throw new NotSupportedException($"Unsupported binding target of type '{target?.GetType().Name ?? "null"}'.");
+        }
+    }
+
+    private ArrayBinding BuildArrayBinding(Cons pattern, SourceReference? fallbackSource)
+    {
+        var builder = ImmutableArray.CreateBuilder<ArrayBindingElement>();
+        BindingTarget? restTarget = null;
+
+        foreach (var element in pattern.Rest)
+        {
+            if (element is null)
+            {
+                builder.Add(new ArrayBindingElement(null, null, null));
+                continue;
+            }
+
+            if (element is not Cons { Head: Symbol elementHead } elementCons)
+            {
+                continue;
+            }
+
+            if (ReferenceEquals(elementHead, JsSymbols.PatternRest))
+            {
+                restTarget = BuildBindingTarget(elementCons.Rest.Head, elementCons.SourceReference ?? fallbackSource);
+                continue;
+            }
+
+            if (!ReferenceEquals(elementHead, JsSymbols.PatternElement))
+            {
+                continue;
+            }
+
+            var rawTarget = elementCons.Rest.Head;
+            var defaultValue = elementCons.Rest.Rest.Head;
+            var target = rawTarget is null
+                ? null
+                : BuildBindingTarget(rawTarget, elementCons.SourceReference ?? fallbackSource);
+            var defaultExpression = defaultValue is null ? null : BuildExpression(defaultValue);
+            builder.Add(new ArrayBindingElement(elementCons.SourceReference ?? fallbackSource, target, defaultExpression));
+        }
+
+        return new ArrayBinding(pattern.SourceReference ?? fallbackSource, builder.ToImmutable(), restTarget);
+    }
+
+    private ObjectBinding BuildObjectBinding(Cons pattern, SourceReference? fallbackSource)
+    {
+        var builder = ImmutableArray.CreateBuilder<ObjectBindingProperty>();
+        BindingTarget? restTarget = null;
+
+        foreach (var property in pattern.Rest)
+        {
+            if (property is not Cons { Head: Symbol propertyHead } propertyCons)
+            {
+                continue;
+            }
+
+            if (ReferenceEquals(propertyHead, JsSymbols.PatternRest))
+            {
+                restTarget = BuildBindingTarget(propertyCons.Rest.Head, propertyCons.SourceReference ?? fallbackSource);
+                continue;
+            }
+
+            if (!ReferenceEquals(propertyHead, JsSymbols.PatternProperty))
+            {
+                continue;
+            }
+
+            if (propertyCons.Rest.Head is not string sourceName)
+            {
+                continue;
+            }
+
+            var rawTarget = propertyCons.Rest.Rest.Head;
+            var defaultValue = propertyCons.Rest.Rest.Rest.Head;
+            var target = BuildBindingTarget(rawTarget, propertyCons.SourceReference ?? fallbackSource);
+            var defaultExpression = defaultValue is null ? null : BuildExpression(defaultValue);
+            builder.Add(new ObjectBindingProperty(propertyCons.SourceReference ?? fallbackSource, sourceName, target,
+                defaultExpression));
+        }
+
+        return new ObjectBinding(pattern.SourceReference ?? fallbackSource, builder.ToImmutable(), restTarget);
     }
 
     private ImmutableArray<FunctionParameter> BuildFunctionParameters(Cons parameters)
@@ -552,19 +641,17 @@ public sealed class SExpressionAstBuilder
                 return new FunctionParameter(cons.SourceReference, symbol, true, null, null);
             }
 
-            if (ReferenceEquals(head, JsSymbols.PatternElement) ||
-                ReferenceEquals(head, JsSymbols.PatternProperty) ||
-                ReferenceEquals(head, JsSymbols.ArrayPattern) ||
-                ReferenceEquals(head, JsSymbols.ObjectPattern))
-            {
-                return new FunctionParameter(cons.SourceReference, null, false, cons, null);
-            }
-
             if (ReferenceEquals(head, JsSymbols.PatternDefault))
             {
-                var pattern = cons.Rest.Head as Cons;
+                var pattern = BuildBindingTarget(cons.Rest.Head, cons.SourceReference);
                 var defaultValue = BuildExpression(cons.Rest.Rest.Head);
                 return new FunctionParameter(cons.SourceReference, null, false, pattern, defaultValue);
+            }
+
+            if (ReferenceEquals(head, JsSymbols.ArrayPattern) || ReferenceEquals(head, JsSymbols.ObjectPattern))
+            {
+                var pattern = BuildBindingTarget(cons, cons.SourceReference);
+                return new FunctionParameter(cons.SourceReference, null, false, pattern, null);
             }
         }
 

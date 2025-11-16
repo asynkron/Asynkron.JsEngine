@@ -42,9 +42,9 @@ public sealed record FunctionExpression(SourceReference? Source, Symbol? Name,
 
 /// <summary>
 /// Represents a single function parameter. Parameters may use destructuring or rest syntax,
-/// so we capture the original pattern while exposing default values in a typed way.
+/// so we capture the typed binding target while exposing default values.
 /// </summary>
-public sealed record FunctionParameter(SourceReference? Source, Symbol? Name, bool IsRest, Cons? Pattern,
+public sealed record FunctionParameter(SourceReference? Source, Symbol? Name, bool IsRest, BindingTarget? Pattern,
     ExpressionNode? DefaultValue);
 
 /// <summary>

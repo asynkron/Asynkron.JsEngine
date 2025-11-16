@@ -323,7 +323,7 @@ public static class TypedAstEvaluator
                 break;
             }
 
-            AssignLoopBinding(statement, value, loopEnvironment, environment);
+            AssignLoopBinding(statement, value, loopEnvironment, environment, context);
 
             lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
 
@@ -385,7 +385,7 @@ public static class TypedAstEvaluator
                     continue;
                 }
 
-                AssignLoopBinding(statement, value, loopEnvironment, environment);
+                AssignLoopBinding(statement, value, loopEnvironment, environment, context);
                 lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
 
                 if (context.IsReturn || context.IsThrow)
@@ -415,7 +415,7 @@ public static class TypedAstEvaluator
                 break;
             }
 
-            AssignLoopBinding(statement, value, loopEnvironment, environment);
+            AssignLoopBinding(statement, value, loopEnvironment, environment, context);
             lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
 
             if (context.IsReturn || context.IsThrow)
@@ -540,22 +540,22 @@ public static class TypedAstEvaluator
     }
 
     private static void AssignLoopBinding(ForEachStatement statement, object? value, JsEnvironment loopEnvironment,
-        JsEnvironment outerEnvironment)
+        JsEnvironment outerEnvironment, EvaluationContext context)
     {
         if (statement.DeclarationKind is null)
         {
-            AssignBindingTarget(statement.Target, value, outerEnvironment);
+            AssignBindingTarget(statement.Target, value, outerEnvironment, context);
             return;
         }
 
         switch (statement.DeclarationKind)
         {
             case VariableKind.Var:
-                DefineOrAssignVar(statement.Target, value, loopEnvironment);
+                DefineOrAssignVar(statement.Target, value, loopEnvironment, context);
                 break;
             case VariableKind.Let:
             case VariableKind.Const:
-                DefineBindingTarget(statement.Target, value, loopEnvironment,
+                DefineBindingTarget(statement.Target, value, loopEnvironment, context,
                     statement.DeclarationKind == VariableKind.Const);
                 break;
             default:
@@ -724,11 +724,6 @@ public static class TypedAstEvaluator
     private static void EvaluateVariableDeclarator(VariableKind kind, VariableDeclarator declarator,
         JsEnvironment environment, EvaluationContext context)
     {
-        if (declarator.Target is not IdentifierBinding identifier)
-        {
-            throw new NotSupportedException("Destructuring bindings are not supported by the typed evaluator yet.");
-        }
-
         var value = declarator.Initializer is null
             ? JsSymbols.Undefined
             : EvaluateExpression(declarator.Initializer, environment, context);
@@ -738,20 +733,15 @@ public static class TypedAstEvaluator
             return;
         }
 
-        switch (kind)
+        var mode = kind switch
         {
-            case VariableKind.Var:
-                environment.DefineFunctionScoped(identifier.Name, value, declarator.Initializer is not null);
-                break;
-            case VariableKind.Let:
-                environment.Define(identifier.Name, value);
-                break;
-            case VariableKind.Const:
-                environment.Define(identifier.Name, value, isConst: true);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(kind), kind, null);
-        }
+            VariableKind.Var => BindingMode.DefineVar,
+            VariableKind.Let => BindingMode.DefineLet,
+            VariableKind.Const => BindingMode.DefineConst,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        };
+
+        ApplyBindingTarget(declarator.Target, value, environment, context, mode, declarator.Initializer is not null);
     }
 
     private static object? EvaluateFunctionDeclaration(FunctionDeclaration declaration, JsEnvironment environment)
@@ -2415,9 +2405,32 @@ public static class TypedAstEvaluator
             case IdentifierBinding identifier:
                 environment.DefineFunctionScoped(identifier.Name, JsSymbols.Undefined, false);
                 break;
-            case DestructuringBinding:
-                // Destructuring is not yet supported by the typed evaluator, so we rely on the
-                // legacy interpreter to handle these cases when we fall back.
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.Target is not null)
+                    {
+                        HoistFromBindingTarget(element.Target, environment);
+                    }
+                }
+
+                if (arrayBinding.RestElement is not null)
+                {
+                    HoistFromBindingTarget(arrayBinding.RestElement, environment);
+                }
+
+                break;
+            case ObjectBinding objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    HoistFromBindingTarget(property.Target, environment);
+                }
+
+                if (objectBinding.RestElement is not null)
+                {
+                    HoistFromBindingTarget(objectBinding.RestElement, environment);
+                }
+
                 break;
         }
     }
@@ -2482,37 +2495,166 @@ public static class TypedAstEvaluator
         };
     }
 
-    private static void AssignBindingTarget(BindingTarget target, object? value, JsEnvironment environment)
+    private static void AssignBindingTarget(BindingTarget target, object? value, JsEnvironment environment,
+        EvaluationContext context)
     {
-        if (target is IdentifierBinding identifier)
-        {
-            environment.Assign(identifier.Name, value);
-            return;
-        }
-
-        throw new NotSupportedException("Destructuring bindings are not yet supported by the typed evaluator.");
+        ApplyBindingTarget(target, value, environment, context, BindingMode.Assign);
     }
 
-    private static void DefineBindingTarget(BindingTarget target, object? value, JsEnvironment environment, bool isConst)
+    private static void DefineBindingTarget(BindingTarget target, object? value, JsEnvironment environment,
+        EvaluationContext context, bool isConst)
     {
-        if (target is IdentifierBinding identifier)
-        {
-            environment.Define(identifier.Name, value, isConst);
-            return;
-        }
-
-        throw new NotSupportedException("Destructuring bindings are not yet supported by the typed evaluator.");
+        ApplyBindingTarget(target, value, environment, context,
+            isConst ? BindingMode.DefineConst : BindingMode.DefineLet);
     }
 
-    private static void DefineOrAssignVar(BindingTarget target, object? value, JsEnvironment environment)
+    private static void DefineOrAssignVar(BindingTarget target, object? value, JsEnvironment environment,
+        EvaluationContext context)
     {
-        if (target is IdentifierBinding identifier)
+        ApplyBindingTarget(target, value, environment, context, BindingMode.DefineVar);
+    }
+
+    private static void ApplyBindingTarget(BindingTarget target, object? value, JsEnvironment environment,
+        EvaluationContext context, BindingMode mode, bool hasInitializer = true)
+    {
+        switch (target)
         {
-            environment.DefineFunctionScoped(identifier.Name, value, true);
-            return;
+            case IdentifierBinding identifier:
+                ApplyIdentifierBinding(identifier, value, environment, mode, hasInitializer);
+                break;
+            case ArrayBinding arrayBinding:
+                BindArrayPattern(arrayBinding, value, environment, context, mode);
+                break;
+            case ObjectBinding objectBinding:
+                BindObjectPattern(objectBinding, value, environment, context, mode);
+                break;
+            default:
+                throw new NotSupportedException($"Binding target '{target.GetType().Name}' is not supported.");
+        }
+    }
+
+    private static void ApplyIdentifierBinding(IdentifierBinding identifier, object? value, JsEnvironment environment,
+        BindingMode mode, bool hasInitializer)
+    {
+        switch (mode)
+        {
+            case BindingMode.Assign:
+                environment.Assign(identifier.Name, value);
+                break;
+            case BindingMode.DefineLet:
+                environment.Define(identifier.Name, value);
+                break;
+            case BindingMode.DefineConst:
+                environment.Define(identifier.Name, value, isConst: true);
+                break;
+            case BindingMode.DefineVar:
+                environment.DefineFunctionScoped(identifier.Name, value, hasInitializer);
+                break;
+            case BindingMode.DefineParameter:
+                environment.Define(identifier.Name, value);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
+        }
+    }
+
+    private static void BindArrayPattern(ArrayBinding binding, object? value, JsEnvironment environment,
+        EvaluationContext context, BindingMode mode)
+    {
+        if (value is not JsArray array)
+        {
+            throw new InvalidOperationException("Cannot destructure non-array value.");
         }
 
-        throw new NotSupportedException("Destructuring bindings are not yet supported by the typed evaluator.");
+        var index = 0;
+        foreach (var element in binding.Elements)
+        {
+            if (element.Target is null)
+            {
+                index++;
+                continue;
+            }
+
+            var elementValue = index < array.Items.Count ? array.Items[index] : JsSymbols.Undefined;
+            if (IsNullOrUndefined(elementValue) && element.DefaultValue is not null)
+            {
+                elementValue = EvaluateExpression(element.DefaultValue, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+            }
+
+            ApplyBindingTarget(element.Target, elementValue, environment, context, mode);
+            index++;
+        }
+
+        if (binding.RestElement is not null)
+        {
+            var restArray = new JsArray();
+            for (; index < array.Items.Count; index++)
+            {
+                restArray.Push(array.Items[index]);
+            }
+
+            ApplyBindingTarget(binding.RestElement, restArray, environment, context, mode);
+        }
+    }
+
+    private static void BindObjectPattern(ObjectBinding binding, object? value, JsEnvironment environment,
+        EvaluationContext context, BindingMode mode)
+    {
+        if (value is not JsObject obj)
+        {
+            throw new InvalidOperationException("Cannot destructure non-object value.");
+        }
+
+        var usedKeys = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var property in binding.Properties)
+        {
+            usedKeys.Add(property.Name);
+            var propertyValue = obj.TryGetProperty(property.Name, out var val) ? val : JsSymbols.Undefined;
+
+            if (IsNullOrUndefined(propertyValue) && property.DefaultValue is not null)
+            {
+                propertyValue = EvaluateExpression(property.DefaultValue, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+            }
+
+            ApplyBindingTarget(property.Target, propertyValue, environment, context, mode);
+        }
+
+        if (binding.RestElement is not null)
+        {
+            var restObject = new JsObject();
+            foreach (var kvp in obj)
+            {
+                if (!usedKeys.Contains(kvp.Key))
+                {
+                    restObject[kvp.Key] = kvp.Value;
+                }
+            }
+
+            ApplyBindingTarget(binding.RestElement, restObject, environment, context, mode);
+        }
+    }
+
+    private static bool IsNullOrUndefined(object? value)
+    {
+        return value is null || value is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Undefined);
+    }
+
+    private enum BindingMode
+    {
+        Assign,
+        DefineLet,
+        DefineConst,
+        DefineVar,
+        DefineParameter
     }
 
     private static void RestoreSignal(EvaluationContext context, ISignal? signal)
@@ -2669,13 +2811,13 @@ public static class TypedAstEvaluator
 
             foreach (var parameter in _function.Parameters)
             {
-                if (parameter.Pattern is not null)
-                {
-                    throw new NotSupportedException("Destructuring parameters are not supported by the typed evaluator yet.");
-                }
-
                 if (parameter.IsRest)
                 {
+                    if (parameter.Pattern is not null)
+                    {
+                        throw new NotSupportedException("Rest parameters cannot use destructuring patterns.");
+                    }
+
                     var restArray = new JsArray();
                     for (; argumentIndex < arguments.Count; argumentIndex++)
                     {
@@ -2694,14 +2836,24 @@ public static class TypedAstEvaluator
                 var value = argumentIndex < arguments.Count ? arguments[argumentIndex] : JsSymbols.Undefined;
                 argumentIndex++;
 
-                if ((value is null || value is Symbol s && ReferenceEquals(s, JsSymbols.Undefined)) &&
-                    parameter.DefaultValue is not null)
+                if (IsNullOrUndefined(value) && parameter.DefaultValue is not null)
                 {
                     value = EvaluateExpression(parameter.DefaultValue, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
                     }
+                }
+
+                if (parameter.Pattern is not null)
+                {
+                    ApplyBindingTarget(parameter.Pattern, value, environment, context, BindingMode.DefineParameter);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return;
+                    }
+
+                    continue;
                 }
 
                 if (parameter.Name is null)

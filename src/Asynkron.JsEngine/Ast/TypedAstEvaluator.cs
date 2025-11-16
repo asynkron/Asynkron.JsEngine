@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
+using System.Text;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 
@@ -51,6 +53,9 @@ public static class TypedAstEvaluator
             VariableDeclaration declaration => EvaluateVariableDeclaration(declaration, environment, context),
             FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment),
             IfStatement ifStatement => EvaluateIf(ifStatement, environment, context),
+            WhileStatement whileStatement => EvaluateWhile(whileStatement, environment, context),
+            DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context),
+            ForStatement forStatement => EvaluateFor(forStatement, environment, context),
             BreakStatement breakStatement => EvaluateBreak(breakStatement, context),
             ContinueStatement continueStatement => EvaluateContinue(continueStatement, context),
             LabeledStatement labeledStatement => EvaluateLabeled(labeledStatement, environment, context),
@@ -119,6 +124,126 @@ public static class TypedAstEvaluator
         return branch is null ? JsSymbols.Undefined : EvaluateStatement(branch, environment, context);
     }
 
+    private static object? EvaluateWhile(WhileStatement statement, JsEnvironment environment, EvaluationContext context,
+        Symbol? loopLabel = null)
+    {
+        object? result = JsSymbols.Undefined;
+        while (true)
+        {
+            var test = EvaluateExpression(statement.Condition, environment, context);
+            if (context.ShouldStopEvaluation || !IsTruthy(test))
+            {
+                break;
+            }
+
+            result = EvaluateStatement(statement.Body, environment, context);
+            if (context.TryClearContinue(loopLabel))
+            {
+                continue;
+            }
+
+            if (context.TryClearBreak(loopLabel))
+            {
+                break;
+            }
+
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    private static object? EvaluateDoWhile(DoWhileStatement statement, JsEnvironment environment, EvaluationContext context,
+        Symbol? loopLabel = null)
+    {
+        object? result = JsSymbols.Undefined;
+        do
+        {
+            result = EvaluateStatement(statement.Body, environment, context);
+            if (context.TryClearContinue(loopLabel))
+            {
+                // Evaluate the condition before continuing.
+            }
+            else if (context.TryClearBreak(loopLabel))
+            {
+                break;
+            }
+            else if (context.IsReturn || context.IsThrow)
+            {
+                break;
+            }
+
+            var test = EvaluateExpression(statement.Condition, environment, context);
+            if (context.ShouldStopEvaluation || !IsTruthy(test))
+            {
+                break;
+            }
+        }
+        while (true);
+
+        return result;
+    }
+
+    private static object? EvaluateFor(ForStatement statement, JsEnvironment environment, EvaluationContext context,
+        Symbol? loopLabel = null)
+    {
+        var loopEnvironment = new JsEnvironment(environment, creatingExpression: null, description: "for loop");
+        object? result = JsSymbols.Undefined;
+
+        if (statement.Initializer is not null)
+        {
+            EvaluateStatement(statement.Initializer, loopEnvironment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsSymbols.Undefined;
+            }
+        }
+
+        while (true)
+        {
+            if (statement.Condition is not null)
+            {
+                var test = EvaluateExpression(statement.Condition, loopEnvironment, context);
+                if (context.ShouldStopEvaluation || !IsTruthy(test))
+                {
+                    break;
+                }
+            }
+
+            result = EvaluateStatement(statement.Body, loopEnvironment, context);
+
+            if (context.TryClearContinue(loopLabel))
+            {
+                if (statement.Increment is not null)
+                {
+                    EvaluateExpression(statement.Increment, loopEnvironment, context);
+                }
+
+                continue;
+            }
+
+            if (context.TryClearBreak(loopLabel))
+            {
+                break;
+            }
+
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;
+            }
+
+            if (statement.Increment is not null)
+            {
+                EvaluateExpression(statement.Increment, loopEnvironment, context);
+            }
+        }
+
+        return result;
+    }
+
     private static object? EvaluateVariableDeclaration(VariableDeclaration declaration, JsEnvironment environment,
         EvaluationContext context)
     {
@@ -179,7 +304,38 @@ public static class TypedAstEvaluator
         context.PushLabel(statement.Label);
         try
         {
-            return EvaluateStatement(statement.Statement, environment, context);
+            var handledAsLoop = false;
+            object? result;
+            switch (statement.Statement)
+            {
+                case ForStatement forStatement:
+                    handledAsLoop = true;
+                    result = EvaluateFor(forStatement, environment, context, statement.Label);
+                    break;
+                case WhileStatement whileStatement:
+                    handledAsLoop = true;
+                    result = EvaluateWhile(whileStatement, environment, context, statement.Label);
+                    break;
+                case DoWhileStatement doWhileStatement:
+                    handledAsLoop = true;
+                    result = EvaluateDoWhile(doWhileStatement, environment, context, statement.Label);
+                    break;
+                default:
+                    result = EvaluateStatement(statement.Statement, environment, context);
+                    break;
+            }
+
+            if (context.CurrentSignal is BreakSignal)
+            {
+                context.TryClearBreak(statement.Label);
+            }
+
+            if (handledAsLoop && context.CurrentSignal is ContinueSignal)
+            {
+                context.TryClearContinue(statement.Label);
+            }
+
+            return result;
         }
         finally
         {
@@ -202,8 +358,17 @@ public static class TypedAstEvaluator
             CallExpression call => EvaluateCall(call, environment, context),
             FunctionExpression functionExpression => new TypedFunction(functionExpression, environment),
             AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
+            MemberExpression member => EvaluateMember(member, environment, context).Value,
+            NewExpression newExpression => EvaluateNew(newExpression, environment, context),
+            ArrayExpression arrayExpression => EvaluateArray(arrayExpression, environment, context),
+            ObjectExpression objectExpression => EvaluateObject(objectExpression, environment, context),
+            PropertyAssignmentExpression propertyAssignment =>
+                EvaluatePropertyAssignment(propertyAssignment, environment, context),
+            IndexAssignmentExpression indexAssignment => EvaluateIndexAssignment(indexAssignment, environment, context),
             SequenceExpression sequence => EvaluateSequence(sequence, environment, context),
             ThisExpression => environment.Get(JsSymbols.This),
+            TemplateLiteralExpression template => EvaluateTemplateLiteral(template, environment, context),
+            TaggedTemplateExpression tagged => EvaluateTaggedTemplate(tagged, environment, context),
             UnknownExpression unknown => throw new NotSupportedException(
                 $"Typed evaluator does not yet understand the '{unknown.Node.Head}' expression form."),
             _ => throw new NotSupportedException(
@@ -224,6 +389,114 @@ public static class TypedAstEvaluator
         return value;
     }
 
+    private static object? EvaluatePropertyAssignment(PropertyAssignmentExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var target = EvaluateExpression(expression.Target, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        var propertyName = EvaluatePropertyName(expression.Property, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        var value = EvaluateExpression(expression.Value, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return value;
+        }
+
+        if (propertyName is null)
+        {
+            throw new InvalidOperationException("Property assignment requires a valid property name.");
+        }
+
+        JsEvaluator.AssignPropertyValue(target, propertyName, value);
+        return value;
+    }
+
+    private static object? EvaluateIndexAssignment(IndexAssignmentExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var target = EvaluateExpression(expression.Target, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        var indexValue = EvaluateExpression(expression.Index, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        var propertyName = JsEvaluator.ToPropertyName(indexValue)
+                            ?? throw new InvalidOperationException("Index access requires a valid property name.");
+
+        var value = EvaluateExpression(expression.Value, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return value;
+        }
+
+        JsEvaluator.AssignPropertyValue(target, propertyName, value);
+        return value;
+    }
+
+    private static MemberLookupResult EvaluateMember(MemberExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var target = EvaluateExpression(expression.Target, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return new MemberLookupResult(JsSymbols.Undefined, target);
+        }
+
+        if (expression.IsOptional && IsNullish(target))
+        {
+            return new MemberLookupResult(JsSymbols.Undefined, null);
+        }
+
+        var propertyName = EvaluatePropertyName(expression.Property, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return new MemberLookupResult(JsSymbols.Undefined, target);
+        }
+
+        if (IsNullish(target))
+        {
+            throw new InvalidOperationException("Cannot access properties on null or undefined.");
+        }
+
+        if (propertyName is null)
+        {
+            throw new InvalidOperationException("Property access requires a valid property name.");
+        }
+
+        return JsEvaluator.TryGetPropertyValue(target, propertyName, out var value)
+            ? new MemberLookupResult(value, target)
+            : new MemberLookupResult(JsSymbols.Undefined, target);
+    }
+
+    private static string? EvaluatePropertyName(ExpressionNode expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        object? propertyValue = expression is LiteralExpression literal
+            ? literal.Value
+            : EvaluateExpression(expression, environment, context);
+
+        if (context.ShouldStopEvaluation)
+        {
+            return null;
+        }
+
+        return JsEvaluator.ToPropertyName(propertyValue);
+    }
+
     private static object? EvaluateSequence(SequenceExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
@@ -231,6 +504,401 @@ public static class TypedAstEvaluator
         return context.ShouldStopEvaluation
             ? JsSymbols.Undefined
             : EvaluateExpression(expression.Right, environment, context);
+    }
+
+    private static ImmutableArray<object?> EvaluateCallArguments(ImmutableArray<CallArgument> arguments,
+        JsEnvironment environment, EvaluationContext context)
+    {
+        var builder = ImmutableArray.CreateBuilder<object?>();
+        foreach (var argument in arguments)
+        {
+            if (argument.IsSpread)
+            {
+                var spreadValue = EvaluateExpression(argument.Expression, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return ImmutableArray<object?>.Empty;
+                }
+
+                if (spreadValue is JsArray spreadArray)
+                {
+                    foreach (var item in spreadArray.Items)
+                    {
+                        builder.Add(item);
+                    }
+
+                    continue;
+                }
+
+                throw new InvalidOperationException("Spread operator can only be applied to arrays.");
+            }
+
+            builder.Add(EvaluateExpression(argument.Expression, environment, context));
+            if (context.ShouldStopEvaluation)
+            {
+                return ImmutableArray<object?>.Empty;
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
+    private static object EvaluateArray(ArrayExpression expression, JsEnvironment environment, EvaluationContext context)
+    {
+        var array = new JsArray();
+        foreach (var element in expression.Elements)
+        {
+            if (element.IsSpread)
+            {
+                var spreadValue = element.Expression is null
+                    ? JsSymbols.Undefined
+                    : EvaluateExpression(element.Expression, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return array;
+                }
+
+                if (spreadValue is JsArray spreadArray)
+                {
+                    foreach (var item in spreadArray.Items)
+                    {
+                        array.Push(item);
+                    }
+
+                    continue;
+                }
+
+                throw new InvalidOperationException("Spread operator can only be applied to arrays.");
+            }
+
+            var value = element.Expression is null
+                ? JsSymbols.Undefined
+                : EvaluateExpression(element.Expression, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return array;
+            }
+
+            array.Push(value);
+        }
+
+        StandardLibrary.AddArrayMethods(array);
+        return array;
+    }
+
+    private static object EvaluateObject(ObjectExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var obj = new JsObject();
+        foreach (var member in expression.Members)
+        {
+            switch (member.Kind)
+            {
+                case ObjectMemberKind.Property or ObjectMemberKind.Field:
+                {
+                    if (member.Value is null)
+                    {
+                        continue;
+                    }
+
+                    var key = ResolveObjectKey(member, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return obj;
+                    }
+
+                    var value = EvaluateExpression(member.Value, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return obj;
+                    }
+
+                    obj.SetProperty(key, value);
+                    break;
+                }
+                case ObjectMemberKind.Method:
+                {
+                    if (member.Function is null)
+                    {
+                        throw new InvalidOperationException("Method member requires a function expression.");
+                    }
+
+                    var key = ResolveObjectKey(member, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return obj;
+                    }
+
+                    var function = new TypedFunction(member.Function, environment);
+                    obj.SetProperty(key, function);
+                    break;
+                }
+                case ObjectMemberKind.Getter:
+                {
+                    if (member.Function is null)
+                    {
+                        throw new InvalidOperationException("Getter member requires a function expression.");
+                    }
+
+                    var key = ResolveObjectKey(member, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return obj;
+                    }
+
+                    obj.SetGetter(key, new TypedFunction(member.Function, environment));
+                    break;
+                }
+                case ObjectMemberKind.Setter:
+                {
+                    if (member.Function is null)
+                    {
+                        throw new InvalidOperationException("Setter member requires a function expression.");
+                    }
+
+                    var key = ResolveObjectKey(member, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return obj;
+                    }
+
+                    obj.SetSetter(key, new TypedFunction(member.Function, environment));
+                    break;
+                }
+                case ObjectMemberKind.Spread:
+                {
+                    if (member.Value is null)
+                    {
+                        continue;
+                    }
+
+                    var spreadValue = EvaluateExpression(member.Value, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return obj;
+                    }
+
+                    SpreadProperties(obj, spreadValue);
+                    break;
+                }
+            }
+        }
+
+        return obj;
+    }
+
+    private static string ResolveObjectKey(ObjectMember member, JsEnvironment environment, EvaluationContext context)
+    {
+        if (member.IsComputed)
+        {
+            if (member.Key is not ExpressionNode expression)
+            {
+                throw new InvalidOperationException("Computed property must provide an expression for the key.");
+            }
+
+            var evaluated = EvaluateExpression(expression, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return string.Empty;
+            }
+
+            return JsEvaluator.ToPropertyName(evaluated) ?? string.Empty;
+        }
+
+        return JsEvaluator.ToPropertyName(member.Key) ?? string.Empty;
+    }
+
+    private static void SpreadProperties(JsObject target, object? source)
+    {
+        switch (source)
+        {
+            case JsObject jsObject:
+            {
+                foreach (var key in jsObject.GetOwnPropertyNames())
+                {
+                    if (jsObject.TryGetProperty(key, out var value))
+                    {
+                        target.SetProperty(key, value);
+                    }
+                }
+
+                break;
+            }
+            case JsArray jsArray:
+            {
+                for (var i = 0; i < jsArray.Items.Count; i++)
+                {
+                    target.SetProperty(i.ToString(CultureInfo.InvariantCulture), jsArray.GetElement(i));
+                }
+
+                target.SetProperty("length", (double)jsArray.Length);
+                break;
+            }
+            case null:
+                break;
+            default:
+                throw new InvalidOperationException("Spread operator can only be applied to objects or arrays.");
+        }
+    }
+
+    private static object EvaluateTemplateLiteral(TemplateLiteralExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var builder = new StringBuilder();
+        foreach (var part in expression.Parts)
+        {
+            if (part.Text is not null)
+            {
+                builder.Append(part.Text);
+                continue;
+            }
+
+            if (part.Expression is null)
+            {
+                continue;
+            }
+
+            var value = EvaluateExpression(part.Expression, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                break;
+            }
+
+            builder.Append(ConvertToString(value));
+        }
+
+        return builder.ToString();
+    }
+
+    private static object? EvaluateTaggedTemplate(TaggedTemplateExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var tagValue = EvaluateExpression(expression.Tag, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        if (tagValue is not IJsCallable callable)
+        {
+            throw new InvalidOperationException("Tag in tagged template must be callable.");
+        }
+
+        if (EvaluateExpression(expression.StringsArray, environment, context) is not JsArray strings)
+        {
+            throw new InvalidOperationException("Tagged template requires a strings array.");
+        }
+
+        if (EvaluateExpression(expression.RawStringsArray, environment, context) is not JsArray rawStrings)
+        {
+            throw new InvalidOperationException("Tagged template requires a raw strings array.");
+        }
+
+        var template = new JsObject();
+        for (var i = 0; i < strings.Items.Count; i++)
+        {
+            template[i.ToString(CultureInfo.InvariantCulture)] = strings.Items[i];
+        }
+
+        template.SetProperty("length", (double)strings.Items.Count);
+        template.SetProperty("raw", rawStrings);
+
+        var argsBuilder = ImmutableArray.CreateBuilder<object?>();
+        argsBuilder.Add(template);
+        foreach (var expr in expression.Expressions)
+        {
+            argsBuilder.Add(EvaluateExpression(expr, environment, context));
+            if (context.ShouldStopEvaluation)
+            {
+                break;
+            }
+        }
+
+        try
+        {
+            return callable.Invoke(argsBuilder.ToImmutable(), null);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return signal.ThrownValue;
+        }
+    }
+
+    private static string ConvertToString(object? value)
+    {
+        return value switch
+        {
+            null => "null",
+            string s => s,
+            bool b => b ? "true" : "false",
+            double d => d.ToString(CultureInfo.InvariantCulture),
+            IJsCallable => "function() { [native code] }",
+            _ => value?.ToString() ?? string.Empty
+        };
+    }
+
+    private static object? EvaluateNew(NewExpression expression, JsEnvironment environment, EvaluationContext context)
+    {
+        var constructorValue = EvaluateExpression(expression.Constructor, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        if (constructorValue is not IJsCallable callable)
+        {
+            throw new InvalidOperationException(
+                $"Attempted to construct with a non-callable value of type '{constructorValue?.GetType().Name ?? "null"}'.");
+        }
+
+        var instance = new JsObject();
+        if (JsEvaluator.TryGetPropertyValue(constructorValue, "prototype", out var prototype) &&
+            prototype is JsObject prototypeObject)
+        {
+            instance.SetPrototype(prototypeObject);
+        }
+
+        JsEvaluator.InitializePrivateFields(constructorValue, instance, environment, context);
+
+        var arguments = EvaluateExpressionList(expression.Arguments, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        try
+        {
+            var result = callable.Invoke(arguments, instance);
+            return result switch
+            {
+                JsArray or JsObject or JsMap or JsSet or JsWeakMap or JsWeakSet or JsArrayBuffer or JsDataView or
+                    TypedArrayBase => result,
+                IDictionary<string, object?> => result,
+                _ => instance
+            };
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return signal.ThrownValue;
+        }
+    }
+
+    private static ImmutableArray<object?> EvaluateExpressionList(ImmutableArray<ExpressionNode> expressions,
+        JsEnvironment environment, EvaluationContext context)
+    {
+        var builder = ImmutableArray.CreateBuilder<object?>(expressions.Length);
+        foreach (var expression in expressions)
+        {
+            builder.Add(EvaluateExpression(expression, environment, context));
+            if (context.ShouldStopEvaluation)
+            {
+                return builder.ToImmutable();
+            }
+        }
+
+        return builder.ToImmutable();
     }
 
     private static object? EvaluateConditional(ConditionalExpression expression, JsEnvironment environment,
@@ -316,7 +984,25 @@ public static class TypedAstEvaluator
 
     private static object? EvaluateCall(CallExpression expression, JsEnvironment environment, EvaluationContext context)
     {
-        var callee = EvaluateExpression(expression.Callee, environment, context);
+        object? thisValue = null;
+        object? callee;
+
+        if (expression.Callee is MemberExpression member)
+        {
+            var lookup = EvaluateMember(member, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsSymbols.Undefined;
+            }
+
+            callee = lookup.Value;
+            thisValue = lookup.Receiver;
+        }
+        else
+        {
+            callee = EvaluateExpression(expression.Callee, environment, context);
+        }
+
         if (context.ShouldStopEvaluation)
         {
             return JsSymbols.Undefined;
@@ -327,25 +1013,21 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
+        if (expression.Callee is MemberExpression memberCallee && memberCallee.IsOptional && IsNullish(callee))
+        {
+            return JsSymbols.Undefined;
+        }
+
         if (callee is not IJsCallable callable)
         {
             throw new InvalidOperationException(
                 $"Attempted to call a non-callable value of type '{callee?.GetType().Name ?? "null"}'.");
         }
 
-        var arguments = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
-        foreach (var argument in expression.Arguments)
+        var arguments = EvaluateCallArguments(expression.Arguments, environment, context);
+        if (context.ShouldStopEvaluation)
         {
-            if (argument.IsSpread)
-            {
-                throw new NotSupportedException("Spread arguments are not yet supported by the typed evaluator.");
-            }
-
-            arguments.Add(EvaluateExpression(argument.Expression, environment, context));
-            if (context.ShouldStopEvaluation)
-            {
-                return JsSymbols.Undefined;
-            }
+            return JsSymbols.Undefined;
         }
 
         if (callable is IJsEnvironmentAwareCallable envAware)
@@ -353,9 +1035,15 @@ public static class TypedAstEvaluator
             envAware.CallingJsEnvironment = environment;
         }
 
+        if (callable is DebugAwareHostFunction debugFunction)
+        {
+            debugFunction.CurrentJsEnvironment = environment;
+            debugFunction.CurrentContext = context;
+        }
+
         try
         {
-            return callable.Invoke(arguments.MoveToImmutable(), thisValue: null);
+            return callable.Invoke(arguments, thisValue);
         }
         catch (ThrowSignal signal)
         {
@@ -408,6 +1096,8 @@ public static class TypedAstEvaluator
 
         return Equals(left, right);
     }
+
+    private readonly record struct MemberLookupResult(object? Value, object? Receiver);
 
     private static bool StrictEquals(object? left, object? right)
     {

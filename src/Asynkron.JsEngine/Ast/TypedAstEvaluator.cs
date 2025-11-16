@@ -1011,7 +1011,19 @@ public static class TypedAstEvaluator
         }
 
         var result = callable.Invoke(args.MoveToImmutable(), instance);
-        return result is JsObject or JsArray ? result : instance;
+
+        // In JavaScript, constructors can explicitly return an object to override the
+        // default instance that `new` creates. Our host objects (Map, Set, custom
+        // host functions, etc.) don't necessarily derive from JsObject, but they do
+        // expose their members through IJsPropertyAccessor/IJsCallable. Treat any
+        // such object-like result as the constructed value; otherwise fall back to
+        // the auto-created instance.
+        return result switch
+        {
+            IJsPropertyAccessor => result,
+            IJsCallable => result,
+            _ => instance
+        };
     }
 
     private static object? EvaluateArray(ArrayExpression expression, JsEnvironment environment,
@@ -1045,6 +1057,7 @@ public static class TypedAstEvaluator
             }
         }
 
+        StandardLibrary.AddArrayMethods(array);
         return array;
     }
 
@@ -1058,8 +1071,12 @@ public static class TypedAstEvaluator
             {
                 case ObjectMemberKind.Property:
                 {
-                    var name = ToPropertyName(member.Key)
-                               ?? throw new InvalidOperationException("Property name cannot be null.");
+                    var name = ResolveObjectMemberName(member, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsSymbols.Undefined;
+                    }
+
                     var value = member.Value is null
                         ? JsSymbols.Undefined
                         : EvaluateExpression(member.Value, environment, context);
@@ -1069,31 +1086,47 @@ public static class TypedAstEvaluator
                 case ObjectMemberKind.Method:
                 {
                     var method = new TypedFunction(member.Function!, environment);
-                    var name = ToPropertyName(member.Key)
-                               ?? throw new InvalidOperationException("Property name cannot be null.");
+                    var name = ResolveObjectMemberName(member, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsSymbols.Undefined;
+                    }
+
                     obj.SetProperty(name, method);
                     break;
                 }
                 case ObjectMemberKind.Getter:
                 {
                     var getter = new TypedFunction(member.Function!, environment);
-                    var name = ToPropertyName(member.Key)
-                               ?? throw new InvalidOperationException("Property name cannot be null.");
+                    var name = ResolveObjectMemberName(member, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsSymbols.Undefined;
+                    }
+
                     obj.SetGetter(name, getter);
                     break;
                 }
                 case ObjectMemberKind.Setter:
                 {
                     var setter = new TypedFunction(member.Function!, environment);
-                    var name = ToPropertyName(member.Key)
-                               ?? throw new InvalidOperationException("Property name cannot be null.");
+                    var name = ResolveObjectMemberName(member, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsSymbols.Undefined;
+                    }
+
                     obj.SetSetter(name, setter);
                     break;
                 }
                 case ObjectMemberKind.Field:
                 {
-                    var name = ToPropertyName(member.Key)
-                               ?? throw new InvalidOperationException("Property name cannot be null.");
+                    var name = ResolveObjectMemberName(member, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsSymbols.Undefined;
+                    }
+
                     var value = member.Value is null
                         ? JsSymbols.Undefined
                         : EvaluateExpression(member.Value, environment, context);
@@ -1137,6 +1170,34 @@ public static class TypedAstEvaluator
         }
 
         return obj;
+    }
+
+    private static string ResolveObjectMemberName(ObjectMember member, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        object? keyValue;
+
+        if (member.IsComputed)
+        {
+            if (member.Key is not ExpressionNode keyExpression)
+            {
+                throw new InvalidOperationException("Computed property name must be an expression.");
+            }
+
+            keyValue = EvaluateExpression(keyExpression, environment, context);
+        }
+        else
+        {
+            keyValue = member.Key;
+        }
+
+        if (context.ShouldStopEvaluation)
+        {
+            return string.Empty;
+        }
+
+        return ToPropertyName(keyValue)
+               ?? throw new InvalidOperationException("Property name cannot be null.");
     }
 
     private static object? EvaluateTemplateLiteral(TemplateLiteralExpression expression, JsEnvironment environment,

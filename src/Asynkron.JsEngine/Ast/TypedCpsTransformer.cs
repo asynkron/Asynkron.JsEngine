@@ -17,7 +17,6 @@ public sealed class TypedCpsTransformer
     private static readonly Symbol ResolveIdentifier = Symbol.Intern("__resolve");
     private static readonly Symbol RejectIdentifier = Symbol.Intern("__reject");
     private static readonly Symbol AwaitHelperIdentifier = Symbol.Intern("__awaitHelper");
-    private static readonly Symbol ThenIdentifier = Symbol.Intern("then");
     private static readonly Symbol AwaitValueIdentifier = Symbol.Intern("__value");
     private static readonly Symbol CatchIdentifier = Symbol.Intern("__error");
 
@@ -159,18 +158,17 @@ public sealed class TypedCpsTransformer
 
     private ExpressionNode CreateThenInvocation(ExpressionNode awaitCall)
     {
+        var resolveCall = CreateResolveCall(new IdentifierExpression(null, AwaitValueIdentifier));
         var callbackBodyStatements = ImmutableArray.Create<StatementNode>(
-            new ReturnStatement(null,
-                CreateResolveCall(new IdentifierExpression(null, AwaitValueIdentifier))));
+            new ExpressionStatement(null, resolveCall));
         var callbackBody = new BlockStatement(null, callbackBodyStatements, false);
         var callback = new FunctionExpression(null, null,
             [new FunctionParameter(null, AwaitValueIdentifier, false, null, null)],
             callbackBody, false, false);
         var target = new MemberExpression(null, awaitCall,
-            new IdentifierExpression(null, ThenIdentifier), false, false);
+            new LiteralExpression(null, "then"), false, false);
         var thenArguments = ImmutableArray.Create(
-            new CallArgument(null, callback, false),
-            new CallArgument(null, new IdentifierExpression(null, RejectIdentifier), false));
+            new CallArgument(null, callback, false));
         return new CallExpression(null, target, thenArguments, false);
     }
 

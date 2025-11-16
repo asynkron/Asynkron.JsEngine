@@ -72,8 +72,6 @@ public static class TypedAstEvaluator
             SwitchStatement switchStatement => EvaluateSwitch(switchStatement, environment, context, activeLabel),
             ClassDeclaration classDeclaration => EvaluateClass(classDeclaration, environment, context),
             EmptyStatement => JsSymbols.Undefined,
-            UnknownStatement unknown => throw new NotSupportedException(
-                $"Typed evaluator does not yet understand the '{unknown.Node.Head}' statement form."),
             _ => throw new NotSupportedException(
                 $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
         };
@@ -715,7 +713,25 @@ public static class TypedAstEvaluator
     private static object? EvaluateClass(ClassDeclaration declaration, JsEnvironment environment,
         EvaluationContext context)
     {
-        var definition = declaration.Definition;
+        var constructorValue = CreateClassValue(declaration.Definition, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return constructorValue;
+        }
+
+        environment.Define(declaration.Name, constructorValue);
+        return constructorValue;
+    }
+
+    private static object? EvaluateClassExpression(ClassExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        return CreateClassValue(expression.Definition, environment, context);
+    }
+
+    private static object? CreateClassValue(ClassDefinition definition, JsEnvironment environment,
+        EvaluationContext context)
+    {
         var (superConstructor, superPrototype) = ResolveSuperclass(definition.Extends, environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -733,8 +749,6 @@ public static class TypedAstEvaluator
         {
             throw new InvalidOperationException("Class constructor must be callable.");
         }
-
-        environment.Define(declaration.Name, constructorValue);
 
         var prototype = EnsurePrototype(constructorAccessor);
         if (superPrototype is not null)
@@ -765,6 +779,10 @@ public static class TypedAstEvaluator
 
         var staticFields = definition.Fields.Where(field => field.IsStatic).ToImmutableArray();
         InitializeStaticFields(staticFields, constructorAccessor, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
 
         return constructorValue;
     }
@@ -999,6 +1017,7 @@ public static class TypedAstEvaluator
             NewExpression newExpression => EvaluateNew(newExpression, environment, context),
             ArrayExpression array => EvaluateArray(array, environment, context),
             ObjectExpression obj => EvaluateObject(obj, environment, context),
+            ClassExpression classExpression => EvaluateClassExpression(classExpression, environment, context),
             TemplateLiteralExpression template => EvaluateTemplateLiteral(template, environment, context),
             TaggedTemplateExpression taggedTemplate =>
                 EvaluateTaggedTemplate(taggedTemplate, environment, context),
@@ -1006,8 +1025,6 @@ public static class TypedAstEvaluator
             ThisExpression => environment.Get(JsSymbols.This),
             SuperExpression => throw new InvalidOperationException(
                 $"Super is not available in this context.{GetSourceInfo(context, expression.Source)}"),
-            UnknownExpression unknown => throw new NotSupportedException(
-                $"Typed evaluator does not yet understand the '{unknown.Node.Head}' expression form."),
             _ => throw new NotSupportedException(
                 $"Typed evaluator does not yet support '{expression.GetType().Name}'.")
         };

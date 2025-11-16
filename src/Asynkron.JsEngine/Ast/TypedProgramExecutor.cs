@@ -30,10 +30,11 @@ internal sealed class TypedProgramExecutor
             return ProgramEvaluator.EvaluateProgram(program, environment);
         }
 
-        if (!TypedAstSupportAnalyzer.Supports(typedProgram, out _))
-        {
-            return ProgramEvaluator.EvaluateProgram(program, environment);
-        }
+        //TODO: everything works if this is uncommented, but our goal is to make everything run using the TypedAstEvaluator now.
+        // if (!TypedAstSupportAnalyzer.Supports(typedProgram, out _))
+        // {
+        //     return ProgramEvaluator.EvaluateProgram(program, environment);
+        // }
 
         return TypedAstEvaluator.EvaluateProgram(typedProgram, environment);
     }

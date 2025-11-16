@@ -311,8 +311,13 @@ internal static class TypedAstSupportAnalyzer
                                VisitExpression(destructuringAssignment.Value);
                     case AwaitExpression:
                         return Fail("await expressions are not supported by the typed evaluator yet.");
-                    case YieldExpression:
-                        return Fail("yield expressions are not supported by the typed evaluator yet.");
+                    case YieldExpression yieldExpression:
+                        if (yieldExpression.IsDelegated)
+                        {
+                            return Fail("Delegated yield expressions are not supported by the typed evaluator yet.");
+                        }
+
+                        return VisitExpression(yieldExpression.Expression);
                     case SuperExpression:
                         return Fail("super expressions are not supported by the typed evaluator yet.");
                     case UnknownExpression unknown:
@@ -352,9 +357,9 @@ internal static class TypedAstSupportAnalyzer
 
         private bool VisitFunction(FunctionExpression function)
         {
-            if (function.IsAsync || function.IsGenerator)
+            if (function.IsAsync)
             {
-                return Fail("Async or generator functions are not supported by the typed evaluator yet.");
+                return Fail("Async functions are not supported by the typed evaluator yet.");
             }
 
             foreach (var parameter in function.Parameters)

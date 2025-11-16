@@ -54,19 +54,16 @@ public class TypedCpsTransformerTests
         var helperIdentifier = Assert.IsType<IdentifierExpression>(awaitHelperCall.Callee);
         Assert.Same(Symbol.Intern("__awaitHelper"), helperIdentifier.Name);
 
-        var thenProperty = Assert.IsType<IdentifierExpression>(member.Property);
-        Assert.Same(Symbol.Intern("then"), thenProperty.Name);
+        var thenProperty = Assert.IsType<LiteralExpression>(member.Property);
+        Assert.Equal("then", thenProperty.Value);
 
+        Assert.Single(thenCall.Arguments);
         var callback = Assert.IsType<FunctionExpression>(thenCall.Arguments[0].Expression);
         var callbackBody = Assert.IsType<BlockStatement>(callback.Body);
-        var callbackReturn = Assert.IsType<ReturnStatement>(Assert.Single(callbackBody.Statements));
-        var resolveCall = Assert.IsType<CallExpression>(callbackReturn.Expression);
+        var callbackExpression = Assert.IsType<ExpressionStatement>(Assert.Single(callbackBody.Statements));
+        var resolveCall = Assert.IsType<CallExpression>(callbackExpression.Expression);
         var resolveIdentifier = Assert.IsType<IdentifierExpression>(resolveCall.Callee);
         Assert.Same(Symbol.Intern("__resolve"), resolveIdentifier.Name);
-
-        var rejectArgument = thenCall.Arguments[1].Expression as IdentifierExpression;
-        Assert.NotNull(rejectArgument);
-        Assert.Same(Symbol.Intern("__reject"), rejectArgument!.Name);
     }
 
     [Fact]
@@ -116,7 +113,6 @@ public class TypedCpsTransformerTests
         var typedTransformer = new TypedCpsTransformer();
         var typedCps = typedTransformer.Transform(typedConstant);
         var actualSnapshot = TypedAstSnapshot.Create(typedCps);
-
         Assert.Equal(expectedSnapshot, actualSnapshot);
     }
 }

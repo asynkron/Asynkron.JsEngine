@@ -880,6 +880,14 @@ public static class TypedAstEvaluator
             envAware.CallingJsEnvironment = environment;
         }
 
+        DebugAwareHostFunction? debugFunction = null;
+        if (callable is DebugAwareHostFunction debugAware)
+        {
+            debugFunction = debugAware;
+            debugFunction.CurrentJsEnvironment = environment;
+            debugFunction.CurrentContext = context;
+        }
+
         try
         {
             return callable.Invoke(arguments.MoveToImmutable(), thisValue);
@@ -888,6 +896,14 @@ public static class TypedAstEvaluator
         {
             context.SetThrow(signal.ThrownValue);
             return signal.ThrownValue;
+        }
+        finally
+        {
+            if (debugFunction is not null)
+            {
+                debugFunction.CurrentJsEnvironment = null;
+                debugFunction.CurrentContext = null;
+            }
         }
     }
 
@@ -1926,10 +1942,11 @@ public static class TypedAstEvaluator
             newValue => AssignPropertyValue(target, propertyName, newValue));
     }
 
-    private sealed class TypedFunction : IJsEnvironmentAwareCallable
+    private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
     {
         private readonly FunctionExpression _function;
         private readonly JsEnvironment _closure;
+        private readonly JsObject _properties = new();
 
         public TypedFunction(FunctionExpression function, JsEnvironment closure)
         {
@@ -1940,6 +1957,9 @@ public static class TypedAstEvaluator
 
             _function = function;
             _closure = closure;
+
+            // Functions expose a prototype object so instances created via `new` can inherit from it.
+            _properties.SetProperty("prototype", new JsObject());
         }
 
         public JsEnvironment? CallingJsEnvironment { get; set; }
@@ -2033,6 +2053,16 @@ public static class TypedAstEvaluator
 
                 environment.Define(parameter.Name, value);
             }
+        }
+
+        public bool TryGetProperty(string name, out object? value)
+        {
+            return _properties.TryGetProperty(name, out value);
+        }
+
+        public void SetProperty(string name, object? value)
+        {
+            _properties.SetProperty(name, value);
         }
     }
 }

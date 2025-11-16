@@ -10,6 +10,7 @@ using Asynkron.JsEngine;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Evaluation;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -1011,6 +1012,8 @@ public static class TypedAstEvaluator
                 EvaluateTaggedTemplate(taggedTemplate, environment, context),
             YieldExpression yieldExpression => EvaluateYield(yieldExpression, environment, context),
             ThisExpression => environment.Get(JsSymbols.This),
+            SuperExpression => throw new InvalidOperationException(
+                $"Super is not available in this context.{GetSourceInfo(context, expression.Source)}"),
             UnknownExpression unknown => throw new NotSupportedException(
                 $"Typed evaluator does not yet understand the '{unknown.Node.Head}' expression form."),
             _ => throw new NotSupportedException(
@@ -1079,6 +1082,12 @@ public static class TypedAstEvaluator
     private static object? EvaluatePropertyAssignment(PropertyAssignmentExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
+        if (expression.Target is SuperExpression)
+        {
+            throw new InvalidOperationException(
+                $"Assigning through super is not supported.{GetSourceInfo(context, expression.Source)}");
+        }
+
         var target = EvaluateExpression(expression.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -1109,6 +1118,12 @@ public static class TypedAstEvaluator
     private static object? EvaluateIndexAssignment(IndexAssignmentExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
+        if (expression.Target is SuperExpression)
+        {
+            throw new InvalidOperationException(
+                $"Assigning through super is not supported.{GetSourceInfo(context, expression.Source)}");
+        }
+
         var target = EvaluateExpression(expression.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -1143,6 +1158,12 @@ public static class TypedAstEvaluator
     private static object? EvaluateMember(MemberExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
+        if (expression.Target is SuperExpression)
+        {
+            var (memberValue, _) = ResolveSuperMember(expression, environment, context);
+            return context.ShouldStopEvaluation ? JsSymbols.Undefined : memberValue;
+        }
+
         var target = EvaluateExpression(expression.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -1388,8 +1409,31 @@ public static class TypedAstEvaluator
     private static (object? Callee, object? ThisValue, bool SkippedOptional) EvaluateCallTarget(ExpressionNode callee,
         JsEnvironment environment, EvaluationContext context)
     {
+        if (callee is SuperExpression superExpression)
+        {
+            var binding = ExpectSuperBinding(environment, context);
+            if (binding.Constructor is null)
+            {
+                throw new InvalidOperationException(
+                    $"Super constructor is not available in this context.{GetSourceInfo(context, superExpression.Source)}");
+            }
+
+            return (binding.Constructor, binding.ThisValue, false);
+        }
+
         if (callee is MemberExpression member)
         {
+            if (member.Target is SuperExpression)
+            {
+                var (memberValue, binding) = ResolveSuperMember(member, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return (JsSymbols.Undefined, binding.ThisValue, true);
+                }
+
+                return (memberValue, binding.ThisValue, false);
+            }
+
             var target = EvaluateExpression(member.Target, environment, context);
             if (context.ShouldStopEvaluation)
             {
@@ -2835,7 +2879,8 @@ public static class TypedAstEvaluator
     {
         if (value is not JsArray array)
         {
-            throw new InvalidOperationException("Cannot destructure non-array value.");
+            throw new InvalidOperationException(
+                $"Cannot destructure non-array value.{GetSourceInfo(context)}");
         }
 
         var index = 0;
@@ -2847,7 +2892,7 @@ public static class TypedAstEvaluator
                 continue;
             }
 
-            var elementValue = index < array.Items.Count ? array.Items[index] : JsSymbols.Undefined;
+            var elementValue = index < array.Items.Count ? array.Items[index] : null;
             if (IsNullOrUndefined(elementValue) && element.DefaultValue is not null)
             {
                 elementValue = EvaluateExpression(element.DefaultValue, environment, context);
@@ -2878,7 +2923,8 @@ public static class TypedAstEvaluator
     {
         if (value is not JsObject obj)
         {
-            throw new InvalidOperationException("Cannot destructure non-object value.");
+            throw new InvalidOperationException(
+                $"Cannot destructure non-object value.{GetSourceInfo(context)}");
         }
 
         var usedKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -2886,7 +2932,7 @@ public static class TypedAstEvaluator
         foreach (var property in binding.Properties)
         {
             usedKeys.Add(property.Name);
-            var propertyValue = obj.TryGetProperty(property.Name, out var val) ? val : JsSymbols.Undefined;
+            var propertyValue = obj.TryGetProperty(property.Name, out var val) ? val : null;
 
             if (IsNullOrUndefined(propertyValue) && property.DefaultValue is not null)
             {
@@ -2913,6 +2959,65 @@ public static class TypedAstEvaluator
 
             ApplyBindingTarget(binding.RestElement, restObject, environment, context, mode);
         }
+    }
+
+    private static (object? Value, SuperBinding Binding) ResolveSuperMember(MemberExpression expression,
+        JsEnvironment environment, EvaluationContext context)
+    {
+        var binding = ExpectSuperBinding(environment, context);
+        var propertyValue = EvaluateExpression(expression.Property, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return (JsSymbols.Undefined, binding);
+        }
+
+        var propertyName = ToPropertyName(propertyValue)
+                           ?? throw new InvalidOperationException(
+                               $"Property name cannot be null.{GetSourceInfo(context, expression.Source)}");
+
+        if (!binding.TryGetProperty(propertyName, out var value))
+        {
+            throw new InvalidOperationException(
+                $"Cannot read property '{propertyName}' from super prototype.{GetSourceInfo(context, expression.Source)}");
+        }
+
+        return (value, binding);
+    }
+
+    private static SuperBinding ExpectSuperBinding(JsEnvironment environment, EvaluationContext context)
+    {
+        try
+        {
+            if (environment.Get(JsSymbols.Super) is SuperBinding binding)
+            {
+                return binding;
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new InvalidOperationException(
+                $"Super is not available in this context.{GetSourceInfo(context)}", ex);
+        }
+
+        throw new InvalidOperationException($"Super is not available in this context.{GetSourceInfo(context)}");
+    }
+
+    private static string GetSourceInfo(EvaluationContext context, SourceReference? fallback = null)
+    {
+        var source = fallback ?? context.SourceReference;
+        if (source is null)
+        {
+            return " (no source reference)";
+        }
+
+        var snippet = source.GetText();
+        if (snippet.Length > 50)
+        {
+            snippet = snippet[..47] + "...";
+        }
+
+        return
+            $" at {source} (snippet: '{snippet}') Source: '{source.Source}' Start: {source.StartPosition} End: {source.EndPosition}";
     }
 
     private static bool IsNullOrUndefined(object? value)

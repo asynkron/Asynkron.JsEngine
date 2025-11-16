@@ -284,8 +284,9 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Executes a transformed program through the typed evaluator when possible,
-    /// automatically falling back to the legacy interpreter for unsupported constructs.
+    /// Executes a transformed program through the typed evaluator. The legacy
+    /// cons interpreter is no longer part of the runtime path; cons data is only
+    /// used earlier for parsing and transformation.
     /// </summary>
     internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment)
     {

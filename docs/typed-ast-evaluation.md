@@ -20,8 +20,8 @@ We prefer the second option for a few reasons:
   caches) without overloading the AST with fields that only matter during
   execution.
 
-To illustrate the approach we introduced `TypedAstEvaluator`. It is **not** a
-complete replacement for `ProgramEvaluator` yet, but it demonstrates the key ideas:
+To illustrate the approach we introduced `TypedAstEvaluator`. It now acts as the
+canonical replacement for `ProgramEvaluator` and embodies the key ideas:
 
 - An entry point that accepts a `ProgramNode` and a `JsEnvironment`.
 - Statement/expression dispatch implemented via C# pattern matching so adding
@@ -31,18 +31,19 @@ complete replacement for `ProgramEvaluator` yet, but it demonstrates the key ide
   recursion benchmarks, leaving hooks (and `NotSupportedException`s) for the
   remaining language surface.
 
-As the interpreter matures we can gradually widen the supported node set and
-port semantics from `ProgramEvaluator` into the typed version. Because evaluation is
-now factored into a single class, we can unit-test it in isolation and evolve it
-without re-threading behaviour through the AST definitions.
+With evaluation factored into a single class we can unit-test it in isolation and
+evolve it without re-threading behaviour through the AST definitions. All runtime
+semantics now live in the typed interpreter; the cons representation remains in
+play strictly for parsing and transformation pipelines where its structural
+simplicity is still valuable.
 
 ## Bootstrapping the runtime
 
 `TypedProgramExecutor` now ships alongside the evaluator. It converts the
-transformed S-expression into the typed tree and runs a fast capability check
-(`TypedAstSupportAnalyzer`) before evaluating the program. When the analyzer
-spots syntax that the typed runtime does not understand yet we simply fall back
-to the legacy `ProgramEvaluator`. This keeps the public behaviour stable while still
-allowing most scripts to execute through the new pipeline. As more constructs
-gain typed support we can shrink the set of early exits until the fallback is no
-longer necessary.
+transformed S-expression into the typed tree and then always executes the typed
+runtime. The legacy cons-based evaluator has been retired from the execution
+path; cons cells are still produced by the parser so upstream transformations can
+reuse the established tooling, but everything after the AST builder runs purely
+on typed nodes. `TypedAstSupportAnalyzer` remains available as a diagnostic pass
+for tooling or tests that want to assert coverage, yet its results no longer gate
+runtime execution.

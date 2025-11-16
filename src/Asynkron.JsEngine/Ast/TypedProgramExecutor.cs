@@ -1,10 +1,10 @@
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Coordinates conversion from S-expressions to the typed AST and decides whether
-/// the typed evaluator can handle the program. When unsupported constructs are
-/// detected we fall back to the legacy cons-based interpreter to preserve
-/// behaviour while we continue expanding the typed runtime.
+/// Coordinates conversion from S-expressions to the typed AST and feeds the
+/// result to the typed evaluator. Execution no longer falls back to the legacy
+/// cons interpreter; cons cells are retained solely for parsing and
+/// transformation steps before the AST builder runs.
 /// </summary>
 internal sealed class TypedProgramExecutor
 {

@@ -1,3 +1,4 @@
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Lisp;
 
@@ -99,7 +100,7 @@ public sealed class JsGenerator : IJsCallable
             var context = new EvaluationContext();
 
             // Execute the body (or re-execute it to get to the next yield)
-            var result = JsEvaluator.EvaluateBlock(_body, _executionEnv, context);
+            var result = JsProgramEvaluator.EvaluateBlock(_body, _executionEnv, context);
 
             // Check if yield was encountered
             if (context.IsYield)

@@ -36,7 +36,7 @@ public class TypedAstEvaluatorTests
         var legacyEnv = new JsEnvironment(isFunctionScope: true);
 
         var typed = TypedAstEvaluator.EvaluateProgram(typedProgram, typedEnv);
-        var legacy = JsEvaluator.EvaluateProgram(program, legacyEnv);
+        var legacy = JsProgramEvaluator.EvaluateProgram(program, legacyEnv);
         return (typed, legacy);
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Lisp;
 
@@ -177,7 +178,10 @@ public sealed class JsEnvironment(
             // Always add a frame if we have any identifying information
             if (current._creatingExpression is not null || current._description is not null)
             {
-                var operationType = DetermineOperationType(current._creatingExpression);
+                var hasExpression = current._creatingExpression is not null;
+                var operationType = hasExpression
+                    ? DetermineOperationType(current._creatingExpression)
+                    : DetermineOperationTypeFromDescription(current._description);
                 var description = current._description ??
                                   GetExpressionDescription(current._creatingExpression, operationType);
 
@@ -245,6 +249,23 @@ public sealed class JsEnvironment(
 
         return symbol.Name;
 
+    }
+
+    private static string DetermineOperationTypeFromDescription(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return "unknown";
+        }
+
+        var trimmed = description.TrimStart();
+        var separators = new[] { ' ', '-', ':' };
+        var separatorIndex = trimmed.IndexOfAny(separators);
+        var firstToken = separatorIndex >= 0 ? trimmed[..separatorIndex] : trimmed;
+
+        return string.IsNullOrEmpty(firstToken)
+            ? "unknown"
+            : firstToken.ToLowerInvariant();
     }
 
     /// <summary>

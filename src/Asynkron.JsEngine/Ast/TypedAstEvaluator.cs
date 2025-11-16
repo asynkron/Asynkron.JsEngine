@@ -611,6 +611,8 @@ public static class TypedAstEvaluator
             ArrayExpression array => EvaluateArray(array, environment, context),
             ObjectExpression obj => EvaluateObject(obj, environment, context),
             TemplateLiteralExpression template => EvaluateTemplateLiteral(template, environment, context),
+            TaggedTemplateExpression taggedTemplate =>
+                EvaluateTaggedTemplate(taggedTemplate, environment, context),
             ThisExpression => environment.Get(JsSymbols.This),
             UnknownExpression unknown => throw new NotSupportedException(
                 $"Typed evaluator does not yet understand the '{unknown.Node.Head}' expression form."),
@@ -1278,6 +1280,103 @@ public static class TypedAstEvaluator
         }
 
         return builder.ToString();
+    }
+
+    private static object? EvaluateTaggedTemplate(TaggedTemplateExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var (tagValue, thisValue, skippedOptional) = EvaluateCallTarget(expression.Tag, environment, context);
+        if (context.ShouldStopEvaluation || skippedOptional)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        if (tagValue is not IJsCallable callable)
+        {
+            throw new InvalidOperationException("Tag in tagged template must be a function.");
+        }
+
+        var stringsArrayValue = EvaluateExpression(expression.StringsArray, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        if (stringsArrayValue is not JsArray stringsArray)
+        {
+            throw new InvalidOperationException("Tagged template strings array is invalid.");
+        }
+
+        var rawStringsArrayValue = EvaluateExpression(expression.RawStringsArray, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        if (rawStringsArrayValue is not JsArray rawStringsArray)
+        {
+            throw new InvalidOperationException("Tagged template raw strings array is invalid.");
+        }
+
+        var templateObject = CreateTemplateObject(stringsArray, rawStringsArray);
+
+        var arguments = ImmutableArray.CreateBuilder<object?>(expression.Expressions.Length + 1);
+        arguments.Add(templateObject);
+
+        foreach (var expr in expression.Expressions)
+        {
+            arguments.Add(EvaluateExpression(expr, environment, context));
+            if (context.ShouldStopEvaluation)
+            {
+                return JsSymbols.Undefined;
+            }
+        }
+
+        if (callable is IJsEnvironmentAwareCallable envAware)
+        {
+            envAware.CallingJsEnvironment = environment;
+        }
+
+        DebugAwareHostFunction? debugFunction = null;
+        if (callable is DebugAwareHostFunction debugAware)
+        {
+            debugFunction = debugAware;
+            debugFunction.CurrentJsEnvironment = environment;
+            debugFunction.CurrentContext = context;
+        }
+
+        var frozenArguments = FreezeArguments(arguments);
+
+        try
+        {
+            return callable.Invoke(frozenArguments, thisValue);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return signal.ThrownValue;
+        }
+        finally
+        {
+            if (debugFunction is not null)
+            {
+                debugFunction.CurrentJsEnvironment = null;
+                debugFunction.CurrentContext = null;
+            }
+        }
+    }
+
+    private static JsObject CreateTemplateObject(JsArray stringsArray, JsArray rawStringsArray)
+    {
+        var templateObject = new JsObject();
+        for (var i = 0; i < stringsArray.Items.Count; i++)
+        {
+            templateObject[i.ToString(CultureInfo.InvariantCulture)] = stringsArray.Items[i];
+        }
+
+        templateObject["length"] = (double)stringsArray.Items.Count;
+        templateObject["raw"] = rawStringsArray;
+        return templateObject;
     }
 
     private static string ToJsString(object? value)

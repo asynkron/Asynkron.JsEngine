@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace Asynkron.JsEngine.Ast;
+namespace Asynkron.JsEngine.Lisp;
 
 /// <summary>
 /// Extension methods for Cons that provide checks for constant expressions.

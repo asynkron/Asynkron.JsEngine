@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.Lisp;
 using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
@@ -408,7 +409,7 @@ public sealed class SExpressionAstBuilder
         return new VariableDeclaration(cons.SourceReference, kind, ImmutableArray.Create(declarator));
     }
 
-    private BindingTarget BuildBindingTarget(object? target, SourceReference? source)
+    private static BindingTarget BuildBindingTarget(object? target, SourceReference? source)
     {
         return target switch
         {

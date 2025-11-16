@@ -1,6 +1,7 @@
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
-using static Asynkron.JsEngine.Ast.ConsDsl;
+using Asynkron.JsEngine.Lisp;
+using static Asynkron.JsEngine.Lisp.ConsDsl;
 
 namespace Asynkron.JsEngine.Tests;
 

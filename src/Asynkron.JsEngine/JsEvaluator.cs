@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Lisp;
 using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine;

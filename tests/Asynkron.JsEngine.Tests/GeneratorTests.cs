@@ -1,3 +1,5 @@
+using Asynkron.JsEngine;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
@@ -488,6 +490,59 @@ public class GeneratorTests
         Assert.False((bool)firstDone!);
         Assert.True((bool)secondValue!);
         Assert.True((bool)secondDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ThrowDeliversExceptionToYield()
+    {
+        await using var engine = new JsEngine();
+        await engine.Evaluate("""
+
+                                         function* gen() {
+                                             try {
+                                                 yield 1;
+                                             } catch (err) {
+                                                 yield err + 1;
+                                             }
+                                             return 99;
+                                         }
+                                         let g = gen();
+                                         let first = g.next();
+                                         let second = g.throw(4);
+                                         let third = g.next();
+
+                             """);
+
+        var firstValue = await engine.Evaluate("first.value;");
+        var firstDone = await engine.Evaluate("first.done;");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+        var thirdValue = await engine.Evaluate("third.value;");
+        var thirdDone = await engine.Evaluate("third.done;");
+
+        Assert.Equal(1.0, firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal(5.0, secondValue);
+        Assert.False((bool)secondDone!);
+        Assert.Equal(99.0, thirdValue);
+        Assert.True((bool)thirdDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ThrowWithoutCatchPropagatesError()
+    {
+        await using var engine = new JsEngine();
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+            await engine.Evaluate("""
+                function* gen() {
+                    yield 1;
+                    yield 2;
+                }
+                let g = gen();
+                g.next();
+                g.throw("boom");
+            """));
+        Assert.Equal("boom", exception.ThrownValue);
     }
 
     [Fact(Timeout = 2000)]

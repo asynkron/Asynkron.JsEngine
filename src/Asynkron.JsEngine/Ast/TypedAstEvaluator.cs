@@ -1070,7 +1070,19 @@ public static class TypedAstEvaluator
         var yieldTracker = GetYieldTracker(environment);
         if (!yieldTracker.ShouldYield(out var yieldIndex))
         {
-            return GetResumeValue(environment, yieldIndex);
+            var payload = GetResumePayload(environment, yieldIndex);
+            if (!payload.HasValue)
+            {
+                return JsSymbols.Undefined;
+            }
+
+            if (payload.IsThrow)
+            {
+                context.SetThrow(payload.Value);
+                return payload.Value;
+            }
+
+            return payload.Value;
         }
 
         context.SetYield(yieldedValue);
@@ -1119,7 +1131,19 @@ public static class TypedAstEvaluator
 
             if (!tracker.ShouldYield(out var yieldIndex))
             {
-                pendingSend = GetResumeValue(environment, yieldIndex);
+                var payload = GetResumePayload(environment, yieldIndex);
+                if (!payload.HasValue)
+                {
+                    continue;
+                }
+
+                if (payload.IsThrow)
+                {
+                    context.SetThrow(payload.Value);
+                    return payload.Value;
+                }
+
+                pendingSend = payload.Value;
                 hasPendingSend = true;
                 continue;
             }
@@ -1206,41 +1230,53 @@ public static class TypedAstEvaluator
         }
     }
 
-    private static object? GetResumeValue(JsEnvironment environment, int yieldIndex)
+    private static ResumePayload GetResumePayload(JsEnvironment environment, int yieldIndex)
     {
         if (!environment.TryGet(YieldResumeContextSymbol, out var contextValue) ||
             contextValue is not YieldResumeContext resumeContext)
         {
-            return JsSymbols.Undefined;
+            return ResumePayload.Empty;
         }
 
-        return resumeContext.TakeResumeValue(yieldIndex);
+        return resumeContext.TakePayload(yieldIndex);
     }
 
     private sealed class YieldResumeContext
     {
-        private readonly Dictionary<int, object?> _pending = new();
+        private readonly Dictionary<int, ResumePayload> _pending = new();
 
-        public void SetResumeValue(int yieldIndex, object? value)
+        public void SetValue(int yieldIndex, object? value)
         {
-            _pending[yieldIndex] = value;
+            _pending[yieldIndex] = ResumePayload.FromValue(value);
         }
 
-        public object? TakeResumeValue(int yieldIndex)
+        public void SetException(int yieldIndex, object? value)
         {
-            if (_pending.TryGetValue(yieldIndex, out var value))
+            _pending[yieldIndex] = ResumePayload.FromThrow(value);
+        }
+
+        public ResumePayload TakePayload(int yieldIndex)
+        {
+            if (_pending.TryGetValue(yieldIndex, out var payload))
             {
                 _pending.Remove(yieldIndex);
-                return value;
+                return payload;
             }
 
-            return JsSymbols.Undefined;
+            return ResumePayload.Empty;
         }
 
         public void Clear()
         {
             _pending.Clear();
         }
+    }
+
+    private readonly record struct ResumePayload(bool HasValue, bool IsThrow, object? Value)
+    {
+        public static ResumePayload Empty { get; } = new(false, false, JsSymbols.Undefined);
+        public static ResumePayload FromValue(object? value) => new(true, false, value);
+        public static ResumePayload FromThrow(object? value) => new(true, true, value);
     }
 
     private static object? EvaluateDestructuringAssignment(DestructuringAssignmentExpression expression,
@@ -3436,15 +3472,90 @@ public static class TypedAstEvaluator
 
         private object? Next(object? value)
         {
-            if (_done || _state == GeneratorState.Completed)
+            return ResumeGenerator(ResumeMode.Next, value);
+        }
+
+        private object? Return(object? value)
+        {
+            _state = GeneratorState.Completed;
+            _done = true;
+            _resumeContext.Clear();
+            return CreateIteratorResult(value, true);
+        }
+
+        private object? Throw(object? error)
+        {
+            return ResumeGenerator(ResumeMode.Throw, error);
+        }
+
+        private JsEnvironment CreateExecutionEnvironment()
+        {
+            var description = function.Name is { } name
+                ? $"function* {name.Name}"
+                : "generator function";
+            var environment = new JsEnvironment(closure, true, function.Body.IsStrict, description: description);
+            environment.Define(JsSymbols.This, thisValue ?? new JsObject());
+            environment.Define(YieldResumeContextSymbol, _resumeContext);
+
+            if (function.Name is { } functionName)
+            {
+                environment.Define(functionName, callable);
+            }
+
+            HoistVarDeclarations(function.Body, environment);
+
+            var bindingContext = new EvaluationContext();
+            BindFunctionParameters(function, arguments, environment, bindingContext);
+            if (bindingContext.IsThrow)
+            {
+                var thrown = bindingContext.FlowValue;
+                bindingContext.Clear();
+                throw new ThrowSignal(thrown);
+            }
+
+            if (bindingContext.IsReturn)
+            {
+                bindingContext.ClearReturn();
+            }
+
+            return environment;
+        }
+
+        private static JsObject CreateIteratorResult(object? value, bool done)
+        {
+            var result = new JsObject();
+            var normalizedValue = done && ReferenceEquals(value, JsSymbols.Undefined)
+                ? null
+                : value;
+            result.SetProperty("value", normalizedValue);
+            result.SetProperty("done", done);
+            return result;
+        }
+
+        private object? ResumeGenerator(ResumeMode mode, object? value)
+        {
+            var completed = _done || _state == GeneratorState.Completed;
+            if (completed)
             {
                 _state = GeneratorState.Completed;
                 _done = true;
                 _resumeContext.Clear();
+                if (mode == ResumeMode.Throw)
+                {
+                    throw new ThrowSignal(value);
+                }
+
                 return CreateIteratorResult(value, true);
             }
 
             var wasStart = _state == GeneratorState.Start;
+            if (mode == ResumeMode.Throw && wasStart)
+            {
+                _state = GeneratorState.Completed;
+                _done = true;
+                _resumeContext.Clear();
+                throw new ThrowSignal(value);
+            }
 
             try
             {
@@ -3454,7 +3565,14 @@ public static class TypedAstEvaluator
 
                 if (!wasStart && _currentYieldIndex > 0)
                 {
-                    _resumeContext.SetResumeValue(_currentYieldIndex - 1, value);
+                    if (mode == ResumeMode.Throw)
+                    {
+                        _resumeContext.SetException(_currentYieldIndex - 1, value);
+                    }
+                    else
+                    {
+                        _resumeContext.SetValue(_currentYieldIndex - 1, value);
+                    }
                 }
 
                 var context = new EvaluationContext();
@@ -3505,64 +3623,10 @@ public static class TypedAstEvaluator
             }
         }
 
-        private object? Return(object? value)
+        private enum ResumeMode
         {
-            _state = GeneratorState.Completed;
-            _done = true;
-            _resumeContext.Clear();
-            return CreateIteratorResult(value, true);
-        }
-
-        private object? Throw(object? error)
-        {
-            _state = GeneratorState.Completed;
-            _done = true;
-            _resumeContext.Clear();
-            throw new ThrowSignal(error);
-        }
-
-        private JsEnvironment CreateExecutionEnvironment()
-        {
-            var description = function.Name is { } name
-                ? $"function* {name.Name}"
-                : "generator function";
-            var environment = new JsEnvironment(closure, true, function.Body.IsStrict, description: description);
-            environment.Define(JsSymbols.This, thisValue ?? new JsObject());
-            environment.Define(YieldResumeContextSymbol, _resumeContext);
-
-            if (function.Name is { } functionName)
-            {
-                environment.Define(functionName, callable);
-            }
-
-            HoistVarDeclarations(function.Body, environment);
-
-            var bindingContext = new EvaluationContext();
-            BindFunctionParameters(function, arguments, environment, bindingContext);
-            if (bindingContext.IsThrow)
-            {
-                var thrown = bindingContext.FlowValue;
-                bindingContext.Clear();
-                throw new ThrowSignal(thrown);
-            }
-
-            if (bindingContext.IsReturn)
-            {
-                bindingContext.ClearReturn();
-            }
-
-            return environment;
-        }
-
-        private static JsObject CreateIteratorResult(object? value, bool done)
-        {
-            var result = new JsObject();
-            var normalizedValue = done && ReferenceEquals(value, JsSymbols.Undefined)
-                ? null
-                : value;
-            result.SetProperty("value", normalizedValue);
-            result.SetProperty("done", done);
-            return result;
+            Next,
+            Throw
         }
 
         private enum GeneratorState

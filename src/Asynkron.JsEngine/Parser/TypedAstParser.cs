@@ -1455,6 +1455,31 @@ public sealed class TypedAstParser
                 return new UnaryExpression(CreateSourceReference(Previous()), "delete", ParseUnary(), true);
             }
 
+            if (Check(TokenType.Yield))
+            {
+                if (IsYieldOrAwaitUsedAsIdentifier())
+                {
+                    return ParsePostfix();
+                }
+
+                var keyword = Advance();
+                var isDelegated = Match(TokenType.Star);
+                var value = ParseAssignment();
+                return new YieldExpression(CreateSourceReference(keyword), value, isDelegated);
+            }
+
+            if (Check(TokenType.Await))
+            {
+                if (IsYieldOrAwaitUsedAsIdentifier())
+                {
+                    return ParsePostfix();
+                }
+
+                var keyword = Advance();
+                var operand = ParseUnary();
+                return new AwaitExpression(CreateSourceReference(keyword), operand);
+            }
+
             return ParsePostfix();
         }
 
@@ -1518,6 +1543,13 @@ public sealed class TypedAstParser
             }
 
             if (Match(TokenType.Identifier))
+            {
+                var symbol = Symbol.Intern(Previous().Lexeme);
+                expr = new IdentifierExpression(CreateSourceReference(Previous()), symbol);
+                return ApplyCallSuffix(expr, allowCallSuffix);
+            }
+
+            if (Match(TokenType.Yield))
             {
                 var symbol = Symbol.Intern(Previous().Lexeme);
                 expr = new IdentifierExpression(CreateSourceReference(Previous()), symbol);
@@ -2323,6 +2355,26 @@ public sealed class TypedAstParser
             var previousToken = _tokens[_current - 1];
             var currentToken = _tokens[_current];
             return currentToken.Line > previousToken.Line;
+        }
+
+        private bool IsYieldOrAwaitUsedAsIdentifier()
+        {
+            var nextType = PeekNext().Type;
+            return nextType is TokenType.Semicolon or TokenType.Comma or TokenType.RightParen or
+                   TokenType.RightBracket or TokenType.RightBrace or TokenType.Colon or
+                   TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or
+                   TokenType.Percent or TokenType.StarStar or TokenType.Equal or TokenType.PlusEqual or
+                   TokenType.MinusEqual or TokenType.StarEqual or TokenType.SlashEqual or
+                   TokenType.PercentEqual or TokenType.StarStarEqual or TokenType.EqualEqual or
+                   TokenType.EqualEqualEqual or TokenType.BangEqual or TokenType.BangEqualEqual or
+                   TokenType.Greater or TokenType.GreaterEqual or TokenType.Less or TokenType.LessEqual or
+                   TokenType.AmpAmp or TokenType.PipePipe or TokenType.Amp or TokenType.Pipe or TokenType.Caret or
+                   TokenType.LessLess or TokenType.GreaterGreater or TokenType.GreaterGreaterGreater or
+                   TokenType.AmpAmpEqual or TokenType.PipePipeEqual or TokenType.AmpEqual or TokenType.PipeEqual or
+                   TokenType.CaretEqual or TokenType.LessLessEqual or TokenType.GreaterGreaterEqual or
+                   TokenType.GreaterGreaterGreaterEqual or TokenType.QuestionQuestion or
+                   TokenType.QuestionQuestionEqual or TokenType.Question or TokenType.Dot or
+                   TokenType.QuestionDot or TokenType.LeftBracket or TokenType.PlusPlus or TokenType.MinusMinus;
         }
 
         private SourceReference? CreateSourceReference(Token startToken)

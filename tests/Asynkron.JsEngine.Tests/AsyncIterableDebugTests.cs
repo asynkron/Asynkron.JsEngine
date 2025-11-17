@@ -69,35 +69,6 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ForAwaitOf_WithString_ShowTransformation()
-    {
-        // Show the transformation of the for-await-of with string
-        var source = """
-
-                                 async function test() {
-                                     let result = "";
-                                     for await (let char of "hello") {
-                                         result = result + char;
-                                     }
-                                 }
-
-                     """;
-
-        await using var engine = new JsEngine();
-
-        // Parse without transformation
-        var originalSexpr = JsEngine.ParseWithoutTransformation(source);
-        output.WriteLine("=== ORIGINAL S-EXPRESSION ===");
-        output.WriteLine(originalSexpr.ToString());
-        output.WriteLine("");
-
-        // Parse with transformation
-        var transformedSexpr = engine.Parse(source);
-        output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
-        output.WriteLine(transformedSexpr.ToString());
-    }
-
-    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithArray_CompareWithString()
     {
         // This test PASSES - let's see what's different
@@ -338,39 +309,6 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         var result = await engine.Evaluate("count;");
         output.WriteLine($"Final count: '{result}'");
         Assert.Equal(3.0, result);
-    }
-
-    [Fact(Timeout = 2000)]
-    public async Task ForAwaitOf_WithBreak_ShowTransformation()
-    {
-        // Show the transformation of for-await-of with break
-        var source = """
-
-                                 async function test() {
-                                     let count = 0;
-                                     let arr = [1, 2, 3];
-                                     for await (let item of arr) {
-                                         count = count + 1;
-                                         if (item === 3) {
-                                             break;
-                                         }
-                                     }
-                                 }
-
-                     """;
-
-        await using var engine = new JsEngine();
-
-        // Parse without transformation
-        var originalSexpr = JsEngine.ParseWithoutTransformation(source);
-        output.WriteLine("=== ORIGINAL S-EXPRESSION ===");
-        output.WriteLine(originalSexpr.ToString());
-        output.WriteLine("");
-
-        // Parse with transformation
-        var transformedSexpr = engine.Parse(source);
-        output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
-        output.WriteLine(transformedSexpr.ToString());
     }
 
     [Fact(Timeout = 2000)]

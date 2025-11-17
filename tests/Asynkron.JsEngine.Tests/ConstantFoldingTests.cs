@@ -1,5 +1,4 @@
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Lisp;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -74,13 +73,13 @@ public class ConstantFoldingTests(ITestOutputHelper output)
 
         var (original, typedConstantFolded, cpsTransformed) = engine.ParseWithTransformationSteps(source);
 
-        // Original should have the arithmetic operations
-        var originalLet = original.Rest.Head as Cons;
-        var originalValue = originalLet?.Rest?.Rest?.Head as Cons;
-        Assert.NotNull(originalValue);
-
-        // The original should be (+ 1 (* 2 7))
-        Assert.Equal(Symbol.Intern("+"), originalValue!.Head);
+        // Original typed AST should still represent the arithmetic operations.
+        var originalDeclaration = Assert.IsType<VariableDeclaration>(original.Body[0]);
+        var originalDeclarator = Assert.Single(originalDeclaration.Declarators);
+        var originalExpression = Assert.IsType<BinaryExpression>(originalDeclarator.Initializer);
+        Assert.Equal("+", originalExpression.Operator);
+        var multiplication = Assert.IsType<BinaryExpression>(originalExpression.Right);
+        Assert.Equal("*", multiplication.Operator);
 
         // Constant folding now happens on the typed AST, so inspect the first declaration
         var declaration = Assert.IsType<VariableDeclaration>(typedConstantFolded.Body[0]);
@@ -90,7 +89,7 @@ public class ConstantFoldingTests(ITestOutputHelper output)
         // The folded value should be 15 (1 + 2 * 7 = 1 + 14 = 15)
         Assert.Equal(15d, literal.Value);
 
-        output.WriteLine("Original S-expression:");
+        output.WriteLine("Original typed AST:");
         output.WriteLine(original.ToString());
         output.WriteLine("\nAfter typed constant folding:");
         output.WriteLine(typedConstantFolded.ToString());

@@ -7,42 +7,17 @@ using Asynkron.JsEngine.Lisp;
 namespace Asynkron.JsEngine.Parser;
 
 /// <summary>
-/// Transitional parser that attempts to build the typed AST directly. Until the
-/// implementation reaches feature parity with the legacy Cons parser we keep a
-/// fallback that reuses the existing parser + builder pipeline.
+/// Parser that builds the typed AST directly from the token stream.
 /// </summary>
-public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, SExpressionAstBuilder? astBuilder = null)
+public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 {
     private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
     private readonly string _source = source ?? string.Empty;
-    private readonly SExpressionAstBuilder _astBuilder = astBuilder ?? new SExpressionAstBuilder();
-    private static readonly bool _disableFallback =
-        string.Equals(Environment.GetEnvironmentVariable("ASYNKRON_DISABLE_TYPED_FALLBACK"), "1",
-            StringComparison.Ordinal);
 
     public ProgramNode ParseProgram()
     {
-        try
-        {
-            var direct = new DirectParser(_tokens, _source);
-            return direct.ParseProgram();
-        }
-        catch (Exception ex) when (ex is NotSupportedException or ParseException)
-        {
-            if (_disableFallback)
-            {
-                throw;
-            }
-
-            var consProgram = ParseConsProgram();
-            return _astBuilder.BuildProgram(consProgram);
-        }
-    }
-
-    private Cons ParseConsProgram()
-    {
-        var parser = new Parser(_tokens, _source);
-        return parser.ParseProgram();
+        var direct = new DirectParser(_tokens, _source);
+        return direct.ParseProgram();
     }
 
     /// <summary>
@@ -1557,6 +1532,12 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, S
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
+            if (Match(TokenType.BigInt))
+            {
+                expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
+                return ApplyCallSuffix(expr, allowCallSuffix);
+            }
+
             if (Match(TokenType.String))
             {
                 expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
@@ -1706,13 +1687,33 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, S
                 return ApplyCallSuffix(unary, allowCallSuffix);
             }
 
-            throw new NotSupportedException($"Token '{Peek().Type}' is not yet supported by the direct parser.");
+            throw new ParseException($"Unexpected token '{Peek().Lexeme}'.", Peek(), _source);
         }
 
         private ExpressionNode ParseCallSuffix(ExpressionNode expression)
         {
             while (true)
             {
+                if (Match(TokenType.QuestionDot))
+                {
+                    if (Match(TokenType.LeftParen))
+                    {
+                        var optionalArguments = ParseArgumentList();
+                        expression = new CallExpression(CreateSourceReference(Previous()), expression, optionalArguments,
+                            true);
+                        continue;
+                    }
+
+                    if (Match(TokenType.LeftBracket))
+                    {
+                        expression = FinishIndexAccess(expression, isOptional: true);
+                        continue;
+                    }
+
+                    expression = FinishDotAccess(expression, isOptional: true);
+                    continue;
+                }
+
                 if (Match(TokenType.LeftParen))
                 {
                     var arguments = ParseArgumentList();
@@ -1771,24 +1772,24 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, S
             return arguments.ToImmutable();
         }
 
-        private ExpressionNode FinishDotAccess(ExpressionNode target)
+        private ExpressionNode FinishDotAccess(ExpressionNode target, bool isOptional = false)
         {
-            if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
+            if (!Check(TokenType.Identifier) && !IsKeyword(Peek()) && !Check(TokenType.PrivateIdentifier))
             {
                 throw new ParseException("Expected property name after '.'.", Peek(), _source);
             }
 
             var nameToken = Advance();
             var property = new LiteralExpression(CreateSourceReference(nameToken), nameToken.Lexeme);
-            return new MemberExpression(CreateSourceReference(nameToken), target, property, false, false);
+            return new MemberExpression(CreateSourceReference(nameToken), target, property, false, isOptional);
         }
 
-        private ExpressionNode FinishIndexAccess(ExpressionNode target)
+        private ExpressionNode FinishIndexAccess(ExpressionNode target, bool isOptional = false)
         {
             var expression = ParseExpression();
             Consume(TokenType.RightBracket, "Expected ']' after index expression.");
             var source = target.Source ?? expression.Source;
-            return new MemberExpression(source, target, expression, true, false);
+            return new MemberExpression(source, target, expression, true, isOptional);
         }
 
         private ExpressionNode ParseArrayLiteral()
@@ -2057,7 +2058,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, S
             var functionKeyword = Previous();
             var isGenerator = Match(TokenType.Star);
             Symbol? name = explicitName;
-            if (name is null && Check(TokenType.Identifier))
+            if (name is null && CheckParameterIdentifier())
             {
                 var nameToken = Advance();
                 name = Symbol.Intern(nameToken.Lexeme);

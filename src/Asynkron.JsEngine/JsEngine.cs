@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -19,7 +18,6 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private readonly TypedProgramExecutor _typedExecutor = new();
-    private readonly SExpressionAstBuilder _astBuilder = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
     private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
@@ -217,14 +215,13 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Parses JavaScript source code into an S-expression representation and
-    /// applies CPS (Continuation-Passing Style) transformation when needed.
-    /// Constant folding now happens exclusively on the typed AST, so the
-    /// returned Cons tree reflects only structural CPS rewrites.
+    /// Parses JavaScript source code into a typed AST without applying constant
+    /// folding or CPS rewrites. This is primarily used by tests and tooling
+    /// that need to inspect the raw syntax tree produced by the typed parser.
     /// </summary>
-    public Cons Parse([LanguageInjection("javascript")] string source)
+    public ProgramNode Parse([LanguageInjection("javascript")] string source)
     {
-        return ParseInternal(source);
+        return ParseTypedProgram(source);
     }
 
     /// <summary>
@@ -234,76 +231,15 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     internal ParsedProgram ParseForExecution([LanguageInjection("javascript")] string source)
     {
-        // All executable code flows through the typed AST pipeline so async/await
-        // rewrites and other typed-only transformations are always applied.
-        var lexer = new Lexer(source);
-        var tokens = lexer.Tokenize();
+        var typedProgram = ParseTypedProgram(source);
+        typedProgram = _typedConstantTransformer.Transform(typedProgram);
 
-        var typedParser = new TypedAstParser(tokens, source, _astBuilder);
-        var typedProgram = typedParser.ParseProgram();
-        var parsedProgram = new ParsedProgram(typedProgram, tokens, source);
-        return CreateTypedParsedProgram(parsedProgram);
-    }
-
-    private Cons ParseInternal(string source)
-    {
-        // Step 1: Tokenize
-        var lexer = new Lexer(source);
-        var tokens = lexer.Tokenize();
-
-        // Step 2: Parse to S-expressions
-        var parser = new Parser.Parser(tokens, source);
-        var program = parser.ParseProgram();
-
-        return program;
-    }
-
-    private ParsedProgram CreateTypedParsedProgram(ParsedProgram parsedProgram)
-    {
-        var typed = parsedProgram.Typed;
-        if (!TypedAstSupportAnalyzer.Supports(typed, out _))
+        if (TypedCpsTransformer.NeedsTransformation(typedProgram))
         {
-            return CreateFallbackParsedProgram(parsedProgram);
+            typedProgram = _typedCpsTransformer.Transform(typedProgram);
         }
 
-        typed = _typedConstantTransformer.Transform(typed);
-
-        try
-        {
-            if (TypedCpsTransformer.NeedsTransformation(typed))
-            {
-                typed = _typedCpsTransformer.Transform(typed);
-            }
-        }
-        catch (NotSupportedException)
-        {
-            return CreateFallbackParsedProgram(parsedProgram);
-        }
-
-        return parsedProgram.WithTyped(typed);
-    }
-
-    private ParsedProgram CreateFallbackParsedProgram(ParsedProgram parsedProgram)
-    {
-        var sExpression = parsedProgram.EnsureSExpression();
-        var fallbackTyped = _astBuilder.BuildProgram(sExpression);
-        fallbackTyped = _typedConstantTransformer.Transform(fallbackTyped);
-        return parsedProgram.WithTyped(fallbackTyped, sExpression);
-    }
-
-    /// <summary>
-    /// Parses JavaScript source code into an S-expression representation WITHOUT applying any transformations.
-    /// This is useful for debugging and understanding the initial parse tree before any transformation.
-    /// </summary>
-    public static Cons ParseWithoutTransformation([LanguageInjection("javascript")] string source)
-    {
-        // Step 1: Tokenize
-        var lexer = new Lexer(source);
-        var tokens = lexer.Tokenize();
-
-        // Step 2: Parse to S-expressions (without any transformation)
-        var parser = new Parser.Parser(tokens, source);
-        return parser.ParseProgram();
+        return new ParsedProgram(typedProgram);
     }
 
     /// <summary>
@@ -317,28 +253,30 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Parses JavaScript source code and returns the S-expression at each transformation stage.
-    /// This is useful for understanding how constant folding and CPS transformation affect the code.
+    /// <summary>
+    /// Parses JavaScript source code and returns the typed AST at each major
+    /// transformation stage (original, constant folded, CPS-transformed).
     /// </summary>
-    /// <param name="source">JavaScript source code</param>
-    /// <returns>A tuple containing the original S-expression, the typed AST after constant folding,
-    /// and the CPS-transformed S-expression.</returns>
-    public (Cons original, ProgramNode typedConstantFolded, Cons cpsTransformed) ParseWithTransformationSteps(
+    public (ProgramNode original, ProgramNode constantFolded, ProgramNode cpsTransformed) ParseWithTransformationSteps(
         [LanguageInjection("javascript")] string source)
     {
-        // Step 1: Tokenize
+        var original = ParseTypedProgram(source);
+        var constantFolded = _typedConstantTransformer.Transform(original);
+        var cpsTransformed = constantFolded;
+        if (TypedCpsTransformer.NeedsTransformation(constantFolded))
+        {
+            cpsTransformed = _typedCpsTransformer.Transform(constantFolded);
+        }
+
+        return (original, constantFolded, cpsTransformed);
+    }
+
+    private static ProgramNode ParseTypedProgram(string source)
+    {
         var lexer = new Lexer(source);
         var tokens = lexer.Tokenize();
-
-        // Step 2: Parse to S-expressions
-        var parser = new Parser.Parser(tokens, source);
-        var original = parser.ParseProgram();
-
-        // Step 3: Build the typed AST and apply constant folding there
-        var typed = _astBuilder.BuildProgram(original);
-        var typedConstant = _typedConstantTransformer.Transform(typed);
-
-        return (original, typedConstant, null);
+        var typedParser = new TypedAstParser(tokens, source);
+        return typedParser.ParseProgram();
     }
 
 

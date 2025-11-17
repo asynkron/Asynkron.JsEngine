@@ -1,4 +1,4 @@
-using Asynkron.JsEngine.Lisp;
+using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -17,15 +17,10 @@ public class StrictModeTests
 
                                    """);
 
-        // Check that the program contains a UseStrict directive
-        Assert.NotNull(program);
-        Assert.NotNull(program.Rest);
-
-        // The first statement after Program should be UseStrict
-        var firstStmt = program.Rest.Head;
-        Assert.IsType<Cons>(firstStmt);
-        var firstStmtCons = (Cons)firstStmt;
-        Assert.True(ReferenceEquals(firstStmtCons.Head, JsSymbols.UseStrict));
+        Assert.True(program.IsStrict);
+        var directiveStatement = Assert.IsType<ExpressionStatement>(program.Body[0]);
+        var literal = Assert.IsType<LiteralExpression>(directiveStatement.Expression);
+        Assert.Equal("use strict", literal.Value);
     }
 
     [Fact(Timeout = 2000)]

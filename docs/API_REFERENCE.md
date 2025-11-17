@@ -94,17 +94,17 @@ await engine.Run(@"
 
 ### Parse
 
-Parses JavaScript source code into an S-expression representation.
+Parses JavaScript source code into the typed AST.
 
 ```csharp
-public Cons Parse(string source)
+public ProgramNode Parse(string source)
 ```
 
 **Parameters:**
 - `source` - JavaScript source code as a string
 
 **Returns:**
-- A `Cons` object representing the parsed S-expression tree
+- A `ProgramNode` representing the parsed syntax tree
 
 **Throws:**
 - `ParseException` - If the source code has syntax errors
@@ -112,19 +112,19 @@ public Cons Parse(string source)
 **Example:**
 ```csharp
 var engine = new JsEngine();
-var sexpr = engine.Parse("let x = 10; x + 5;");
-Console.WriteLine(sexpr);
-// Output: (program (let x 10) (+ x 5))
+var typed = engine.Parse("let x = 10; x + 5;");
+Console.WriteLine(typed);
+// Output: ProgramNode { ... }
 ```
 
 ---
 
 ### ParseWithTransformationSteps
 
-Parses JavaScript and returns both the original and CPS-transformed S-expressions.
+Parses JavaScript and returns typed AST snapshots for the original, constant-folded, and CPS-transformed stages.
 
 ```csharp
-public (Cons original, Cons transformed) ParseWithTransformationSteps(string source)
+public (ProgramNode original, ProgramNode constantFolded, ProgramNode cpsTransformed) ParseWithTransformationSteps(string source)
 ```
 
 **Parameters:**
@@ -132,22 +132,21 @@ public (Cons original, Cons transformed) ParseWithTransformationSteps(string sou
 
 **Returns:**
 - A tuple containing:
-  - `original` - The original S-expression before transformation
-  - `transformed` - The S-expression after CPS transformation
+  - `original` - The typed AST straight from the parser
+  - `constantFolded` - The AST after typed constant folding
+  - `cpsTransformed` - The AST after CPS transformation (or the constant-folded tree if no CPS rewrite was required)
 
 **Example:**
 ```csharp
 var engine = new JsEngine();
-var (original, transformed) = engine.ParseWithTransformationSteps(@"
+var (_, _, cpsTransformed) = engine.ParseWithTransformationSteps(@"
     async function test() {
         return await Promise.resolve(42);
     }
 ");
 
-Console.WriteLine("Original:");
-Console.WriteLine(original);
-Console.WriteLine("\nTransformed:");
-Console.WriteLine(transformed);
+Console.WriteLine("CPS transformed:");
+Console.WriteLine(cpsTransformed);
 ```
 
 ---
@@ -424,32 +423,6 @@ catch (ParseException ex)
 {
     Console.WriteLine($"Parse error: {ex.Message}");
 }
-```
-
----
-
-## Advanced Features
-
-### Evaluating Pre-Parsed Code
-
-You can evaluate a `Cons` object directly:
-
-```csharp
-public object? Evaluate(Cons program)
-```
-
-**Example:**
-```csharp
-var engine = new JsEngine();
-
-// Parse once
-var program = engine.Parse("2 + 3 * 4;");
-
-// Evaluate multiple times (if needed)
-var result1 = engine.Evaluate(program);
-var result2 = engine.Evaluate(program);
-
-Console.WriteLine(result1); // Output: 14
 ```
 
 ---

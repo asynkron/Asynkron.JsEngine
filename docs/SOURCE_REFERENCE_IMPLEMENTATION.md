@@ -4,6 +4,8 @@
 
 This PR successfully implements source reference tracking and transformation origin tracking for S-expressions in the Asynkron.JsEngine project, as requested in the issue.
 
+> **Legacy note (December 2025):** The runtime now parses and executes exclusively through the typed AST pipeline. The public `JsEngine.ParseWithoutTransformation` helper and the `examples/SourceReferenceDemo` project mentioned below were removed alongside the legacy cons fallback. The historical details are preserved here for reference.
+
 ## Key Features Implemented
 
 ### 1. Source Reference Tracking
@@ -16,7 +18,7 @@ Every S-expression (Cons) can now capture information about where it came from i
   - Reference to the original source text
   - `GetText()` method to retrieve the exact source code snippet
 
-Example usage:
+Legacy example usage (via the removed `JsEngine.ParseWithoutTransformation` API):
 ```csharp
 var parsed = engine.ParseWithoutTransformation(source);
 var forStatement = parsed.Rest.Head as Cons;
@@ -32,7 +34,7 @@ Every transformed S-expression can now track back to its original form:
 - Supports multi-level transformation tracking: `cons.Origin.Origin.Origin...`
 - `null` Origin indicates an untransformed node
 
-Example usage:
+Legacy example usage:
 ```csharp
 var (original, transformed) = engine.ParseWithTransformationSteps(source);
 var transformedFunc = transformed.Rest.Head as Cons;
@@ -69,17 +71,11 @@ var sourceLocation = originalFunc.SourceReference; // Can trace to source
 
 ## Testing
 
-### Test Coverage
-- **SourceReferenceTests.cs**: 4 tests covering source reference capture and retrieval
-- **TransformationOriginTests.cs**: 5 tests covering transformation tracking
-- All 9 new tests pass ✓
-- All existing tests still pass (1047 passing, 9 pre-existing failures unrelated to this change)
+### Test Coverage (Legacy)
+- **SourceReferenceTests.cs** and **TransformationOriginTests.cs** originally covered source reference capture and transformation tracking when the cons pipeline was active. These tests were removed once execution moved exclusively to typed ASTs.
 
-### Demo Application
-Created `examples/SourceReferenceDemo` showing:
-- Source reference capture on for loops
-- Transformation tracking on async functions
-- Tracing from transformed code back to original source
+### Demo Application (Legacy)
+The original PR shipped `examples/SourceReferenceDemo`, which demonstrated how to inspect cons-level source references. That demo has since been removed because no public API exposes cons trees anymore.
 
 ## Benefits
 

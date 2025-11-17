@@ -1,5 +1,6 @@
 using System.Text;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -64,6 +65,23 @@ internal static class TypedAstSnapshot
 
                 builder.Append(')');
                 break;
+            case ForEachStatement forEachStatement:
+                builder.Append("(foreach ");
+                builder.Append(forEachStatement.Kind);
+                builder.Append(' ');
+                if (forEachStatement.DeclarationKind is { } declarationKind)
+                {
+                    builder.Append(declarationKind);
+                    builder.Append(' ');
+                }
+
+                AppendBindingTarget(forEachStatement.Target, builder);
+                builder.Append(' ');
+                AppendExpression(forEachStatement.Iterable, builder);
+                builder.Append(' ');
+                AppendStatement(forEachStatement.Body, builder);
+                builder.Append(')');
+                break;
             case FunctionDeclaration functionDeclaration:
                 builder.Append("(function ");
                 builder.Append(functionDeclaration.Name);
@@ -104,6 +122,31 @@ internal static class TypedAstSnapshot
                     builder.Append(' ');
                     AppendStatement(ifStatement.Else, builder);
                 }
+                builder.Append(')');
+                break;
+            case ThrowStatement throwStatement:
+                builder.Append("(throw ");
+                AppendExpression(throwStatement.Expression, builder);
+                builder.Append(')');
+                break;
+            case BreakStatement breakStatement:
+                builder.Append("(break");
+                if (breakStatement.Label != null)
+                {
+                    builder.Append(' ');
+                    builder.Append(breakStatement.Label);
+                }
+
+                builder.Append(')');
+                break;
+            case ContinueStatement continueStatement:
+                builder.Append("(continue");
+                if (continueStatement.Label != null)
+                {
+                    builder.Append(' ');
+                    builder.Append(continueStatement.Label);
+                }
+
                 builder.Append(')');
                 break;
             default:
@@ -241,8 +284,82 @@ internal static class TypedAstSnapshot
                 AppendExpression(unaryExpression.Operand, builder);
                 builder.Append(')');
                 break;
+            case ObjectExpression objectExpression:
+                AppendObjectExpression(objectExpression, builder);
+                break;
             default:
                 throw new NotSupportedException($"Snapshot does not handle expression '{expression.GetType().Name}'.");
+        }
+    }
+
+    private static void AppendObjectExpression(ObjectExpression objectExpression, StringBuilder builder)
+    {
+        builder.Append("(object");
+        foreach (var member in objectExpression.Members)
+        {
+            builder.Append(' ');
+            AppendObjectMember(member, builder);
+        }
+
+        builder.Append(')');
+    }
+
+    private static void AppendObjectMember(ObjectMember member, StringBuilder builder)
+    {
+        builder.Append("(member ");
+        builder.Append(member.Kind);
+        builder.Append(' ');
+        AppendObjectKey(member, builder);
+        if (member.Value is not null)
+        {
+            builder.Append(' ');
+            AppendExpression(member.Value, builder);
+        }
+
+        if (member.Function is not null)
+        {
+            builder.Append(' ');
+            AppendFunctionExpression(member.Function, builder);
+        }
+
+        builder.Append(')');
+    }
+
+    private static void AppendObjectKey(ObjectMember member, StringBuilder builder)
+    {
+        if (member.Kind == ObjectMemberKind.Spread && member.Value is not null)
+        {
+            builder.Append("spread");
+            return;
+        }
+
+        if (member.IsComputed)
+        {
+            builder.Append('[');
+            AppendObjectKeyValue(member.Key, builder);
+            builder.Append(']');
+            return;
+        }
+
+        AppendObjectKeyValue(member.Key, builder);
+    }
+
+    private static void AppendObjectKeyValue(object key, StringBuilder builder)
+    {
+        switch (key)
+        {
+            case string s:
+                builder.Append('"').Append(s).Append('"');
+                break;
+            case Symbol symbol:
+                builder.Append(symbol);
+                break;
+            case ExpressionNode expressionNode:
+                AppendExpression(expressionNode, builder);
+                break;
+            default:
+                builder.Append(key);
+                break;
         }
     }
 

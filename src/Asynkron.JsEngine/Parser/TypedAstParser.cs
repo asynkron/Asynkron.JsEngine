@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
@@ -12,38 +11,19 @@ namespace Asynkron.JsEngine.Parser;
 /// cons parser and reuses <see cref="SExpressionAstBuilder"/> to materialize the
 /// typed tree so execution can continue.
 /// </summary>
-public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, SExpressionAstBuilder? astBuilder = null)
+public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 {
     private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
     private readonly string _source = source ?? string.Empty;
-    private readonly SExpressionAstBuilder _astBuilder = astBuilder ?? new SExpressionAstBuilder();
+
     private static readonly bool _disableFallback =
         string.Equals(Environment.GetEnvironmentVariable("ASYNKRON_DISABLE_TYPED_FALLBACK"), "1",
             StringComparison.Ordinal);
 
     public ProgramNode ParseProgram()
     {
-        try
-        {
-            var direct = new DirectParser(_tokens, _source);
-            return direct.ParseProgram();
-        }
-        catch (Exception ex) when (ex is NotSupportedException or ParseException)
-        {
-            if (_disableFallback)
-            {
-                throw;
-            }
-
-            var consProgram = ParseConsProgram();
-            return _astBuilder.BuildProgram(consProgram);
-        }
-    }
-
-    private Cons ParseConsProgram()
-    {
-        var parser = new Parser(_tokens, _source);
-        return parser.ParseProgram();
+        var direct = new DirectParser(_tokens, _source);
+        return direct.ParseProgram();
     }
 
     /// <summary>
@@ -51,21 +31,15 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, S
     /// JavaScript grammar required by the test suite. Unsupported constructs
     /// throw <see cref="NotSupportedException"/> to trigger the fallback.
     /// </summary>
-    private sealed class DirectParser
+    private sealed class DirectParser(IReadOnlyList<Token> tokens, string source)
     {
-        private readonly IReadOnlyList<Token> _tokens;
-        private readonly string _source;
+        private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
+        private readonly string _source = source ?? string.Empty;
         private int _current;
         private readonly Stack<FunctionContext> _functionContexts = new();
 
         private bool InGeneratorContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsGenerator;
         private bool InAsyncContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsAsync;
-
-        public DirectParser(IReadOnlyList<Token> tokens, string source)
-        {
-            _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
-            _source = source ?? string.Empty;
-        }
 
         public ProgramNode ParseProgram()
         {

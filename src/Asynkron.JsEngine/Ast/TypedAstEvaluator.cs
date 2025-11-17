@@ -542,6 +542,22 @@ public static class TypedAstEvaluator
         return callable.Invoke(args, iterator);
     }
 
+    private static JsObject? InvokeIteratorMethod(JsObject iterator, string methodName, object? argument)
+    {
+        if (!iterator.TryGetProperty(methodName, out var methodValue))
+        {
+            return null;
+        }
+
+        if (methodValue is not IJsCallable callable)
+        {
+            return null;
+        }
+
+        var result = callable.Invoke([argument], iterator);
+        return result as JsObject;
+    }
+
     private static bool IsPromiseLike(object? candidate)
     {
         return candidate is JsObject jsObject && jsObject.TryGetProperty("then", out var thenValue) &&
@@ -1119,16 +1135,36 @@ public static class TypedAstEvaluator
         }
 
         var tracker = GetYieldTracker(environment);
-
         object? pendingSend = null;
         var hasPendingSend = false;
+        bool pendingThrow = false;
+        bool pendingReturn = false;
 
         while (true)
         {
-            var (value, done) = state.MoveNext(pendingSend, hasPendingSend);
+            var iteratorResult = state.MoveNext(pendingSend,
+                hasPendingSend && !pendingThrow && !pendingReturn,
+                pendingThrow,
+                pendingReturn);
             pendingSend = null;
             hasPendingSend = false;
+            pendingThrow = false;
+            pendingReturn = false;
 
+            if (iteratorResult.IsDelegatedCompletion)
+            {
+                if (iteratorResult.PropagateThrow)
+                {
+                    context.SetThrow(iteratorResult.Value);
+                    ClearDelegatedState(stateKey, environment);
+                    return iteratorResult.Value;
+                }
+
+                ClearDelegatedState(stateKey, environment);
+                return iteratorResult.Value;
+            }
+
+            var (value, done) = (iteratorResult.Value, iteratorResult.Done);
             if (done)
             {
                 ClearDelegatedState(stateKey, environment);
@@ -1145,14 +1181,18 @@ public static class TypedAstEvaluator
 
                 if (payload.IsThrow)
                 {
-                    context.SetThrow(payload.Value);
-                    return payload.Value;
+                    pendingSend = payload.Value;
+                    hasPendingSend = true;
+                    pendingThrow = true;
+                    continue;
                 }
 
                 if (payload.IsReturn)
                 {
-                    context.SetReturn(payload.Value);
-                    return payload.Value;
+                    pendingSend = payload.Value;
+                    hasPendingSend = true;
+                    pendingReturn = true;
+                    continue;
                 }
 
                 pendingSend = payload.Value;
@@ -3400,35 +3440,69 @@ public static class TypedAstEvaluator
             return new DelegatedYieldState(null, enumerable.GetEnumerator());
         }
 
-        public (object? Value, bool Done) MoveNext(object? sendValue, bool hasSendValue)
+        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow) MoveNext(
+            object? sendValue,
+            bool hasSendValue,
+            bool propagateThrow,
+            bool propagateReturn)
         {
             if (_iterator is not null)
             {
-                var nextResult = InvokeIteratorNext(_iterator, sendValue, hasSendValue);
-                if (nextResult is not JsObject resultObj)
+                JsObject? nextResult;
+                if (propagateThrow)
                 {
-                    return (JsSymbols.Undefined, true);
+                    nextResult = InvokeIteratorMethod(_iterator, "throw", sendValue ?? JsSymbols.Undefined);
+                }
+                else if (propagateReturn)
+                {
+                    nextResult = InvokeIteratorMethod(_iterator, "return", sendValue ?? JsSymbols.Undefined);
+                }
+                else
+                {
+                    var raw = InvokeIteratorNext(_iterator, sendValue, hasSendValue);
+                    nextResult = raw as JsObject;
                 }
 
-                var done = resultObj.TryGetProperty("done", out var doneValue) &&
+                if (nextResult is null)
+                {
+                    return (JsSymbols.Undefined, true, propagateThrow, propagateThrow);
+                }
+
+                var done = nextResult.TryGetProperty("done", out var doneValue) &&
                            doneValue is bool completed && completed;
-                var value = resultObj.TryGetProperty("value", out var yielded)
+                var value = nextResult.TryGetProperty("value", out var yielded)
                     ? yielded
                     : JsSymbols.Undefined;
-                return (value, done);
+                var delegatedCompletion = propagateThrow || propagateReturn;
+                return (value, done, delegatedCompletion, propagateThrow);
             }
 
             if (_enumerator is null)
             {
-                return (JsSymbols.Undefined, true);
+                if (propagateThrow)
+                {
+                    throw new ThrowSignal(sendValue);
+                }
+
+                return (JsSymbols.Undefined, true, propagateReturn, false);
+            }
+
+            if (propagateThrow)
+            {
+                throw new ThrowSignal(sendValue);
+            }
+
+            if (propagateReturn)
+            {
+                return (sendValue, true, true, false);
             }
 
             if (!_enumerator.MoveNext())
             {
-                return (JsSymbols.Undefined, true);
+                return (JsSymbols.Undefined, true, false, false);
             }
 
-            return (_enumerator.Current, false);
+            return (_enumerator.Current, false, false, false);
         }
     }
 

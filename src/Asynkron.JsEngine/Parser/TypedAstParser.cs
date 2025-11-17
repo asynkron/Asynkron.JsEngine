@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Immutable;
+using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Lisp;
 
@@ -89,6 +90,18 @@ public sealed class TypedAstParser
                 return new EmptyStatement(CreateSourceReference(Previous()));
             }
 
+            if (Check(TokenType.Async) && CheckAhead(TokenType.Function))
+            {
+                Advance(); // consume async
+                var functionToken = Advance(); // function
+                return ParseFunctionDeclaration(true, functionToken);
+            }
+
+            if (Match(TokenType.Function))
+            {
+                return ParseFunctionDeclaration(false, Previous());
+            }
+
             if (Match(TokenType.Return))
             {
                 return ParseReturnStatement();
@@ -115,6 +128,15 @@ public sealed class TypedAstParser
             }
 
             return ParseExpressionStatement();
+        }
+
+        private StatementNode ParseFunctionDeclaration(bool isAsync, Token functionKeyword)
+        {
+            var nameToken = Consume(TokenType.Identifier, "Expected function name.");
+            var name = Symbol.Intern(nameToken.Lexeme);
+            var function = ParseFunctionTail(name, functionKeyword, isAsync);
+            var source = function.Source ?? CreateSourceReference(functionKeyword);
+            return new FunctionDeclaration(source, name, function);
         }
 
         private StatementNode ParseReturnStatement()
@@ -195,7 +217,187 @@ public sealed class TypedAstParser
 
         private ExpressionNode ParseExpression()
         {
-            return ParseAddition();
+            return ParseAssignment();
+        }
+
+        private ExpressionNode ParseAssignment()
+        {
+            var expr = ParseConditional();
+
+            if (Match(TokenType.Equal))
+            {
+                var value = ParseAssignment();
+                if (expr is IdentifierExpression identifier)
+                {
+                    return new AssignmentExpression(expr.Source ?? value.Source, identifier.Name, value);
+                }
+
+                throw new NotSupportedException("Only simple identifier assignments are supported.");
+            }
+
+            return expr;
+        }
+
+        private ExpressionNode ParseConditional()
+        {
+            var expr = ParseLogicalOr();
+
+            if (Match(TokenType.Question))
+            {
+                var consequent = ParseExpression();
+                Consume(TokenType.Colon, "Expected ':' after conditional expression.");
+                var alternate = ParseAssignment();
+                return new ConditionalExpression(expr.Source ?? consequent.Source ?? alternate.Source, expr, consequent,
+                    alternate);
+            }
+
+            return expr;
+        }
+
+        private ExpressionNode ParseLogicalOr()
+        {
+            var expr = ParseLogicalAnd();
+
+            while (Match(TokenType.PipePipe))
+            {
+                var right = ParseLogicalAnd();
+                expr = CreateBinaryExpression("||", expr, right);
+            }
+
+            return expr;
+        }
+
+        private ExpressionNode ParseLogicalAnd()
+        {
+            var expr = ParseNullish();
+
+            while (Match(TokenType.AmpAmp))
+            {
+                var right = ParseNullish();
+                expr = CreateBinaryExpression("&&", expr, right);
+            }
+
+            return expr;
+        }
+
+        private ExpressionNode ParseNullish()
+        {
+            var expr = ParseBitwiseOr();
+
+            while (Match(TokenType.QuestionQuestion))
+            {
+                var right = ParseBitwiseOr();
+                expr = CreateBinaryExpression("??", expr, right);
+            }
+
+            return expr;
+        }
+
+        private ExpressionNode ParseBitwiseOr()
+        {
+            var expr = ParseBitwiseXor();
+
+            while (Match(TokenType.Pipe))
+            {
+                var right = ParseBitwiseXor();
+                expr = CreateBinaryExpression("|", expr, right);
+            }
+
+            return expr;
+        }
+
+        private ExpressionNode ParseBitwiseXor()
+        {
+            var expr = ParseBitwiseAnd();
+
+            while (Match(TokenType.Caret))
+            {
+                var right = ParseBitwiseAnd();
+                expr = CreateBinaryExpression("^", expr, right);
+            }
+
+            return expr;
+        }
+
+        private ExpressionNode ParseBitwiseAnd()
+        {
+            var expr = ParseEquality();
+
+            while (Match(TokenType.Amp))
+            {
+                var right = ParseEquality();
+                expr = CreateBinaryExpression("&", expr, right);
+            }
+
+            return expr;
+        }
+
+        private ExpressionNode ParseEquality()
+        {
+            var expr = ParseRelational();
+
+            while (Match(TokenType.EqualEqual, TokenType.EqualEqualEqual, TokenType.BangEqual, TokenType.BangEqualEqual))
+            {
+                var token = Previous();
+                var op = token.Type switch
+                {
+                    TokenType.EqualEqual => "==",
+                    TokenType.EqualEqualEqual => "===",
+                    TokenType.BangEqual => "!=",
+                    TokenType.BangEqualEqual => "!==",
+                    _ => throw new InvalidOperationException()
+                };
+                var right = ParseRelational();
+                expr = CreateBinaryExpression(op, expr, right);
+            }
+
+            return expr;
+        }
+
+        private ExpressionNode ParseRelational()
+        {
+            var expr = ParseShift();
+
+            while (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual,
+                       TokenType.Instanceof, TokenType.In))
+            {
+                var token = Previous();
+                var op = token.Type switch
+                {
+                    TokenType.Greater => ">",
+                    TokenType.GreaterEqual => ">=",
+                    TokenType.Less => "<",
+                    TokenType.LessEqual => "<=",
+                    TokenType.Instanceof => "instanceof",
+                    TokenType.In => "in",
+                    _ => throw new InvalidOperationException()
+                };
+                var right = ParseShift();
+                expr = CreateBinaryExpression(op, expr, right);
+            }
+
+            return expr;
+        }
+
+        private ExpressionNode ParseShift()
+        {
+            var expr = ParseAddition();
+
+            while (Match(TokenType.LessLess, TokenType.GreaterGreater, TokenType.GreaterGreaterGreater))
+            {
+                var token = Previous();
+                var op = token.Type switch
+                {
+                    TokenType.LessLess => "<<",
+                    TokenType.GreaterGreater => ">>",
+                    TokenType.GreaterGreaterGreater => ">>>",
+                    _ => throw new InvalidOperationException()
+                };
+                var right = ParseAddition();
+                expr = CreateBinaryExpression(op, expr, right);
+            }
+
+            return expr;
         }
 
         private ExpressionNode ParseAddition()
@@ -206,8 +408,7 @@ public sealed class TypedAstParser
             {
                 var op = Previous();
                 var right = ParseMultiplication();
-                expr = new BinaryExpression(CreateSourceReference(op),
-                    op.Type == TokenType.Plus ? "+" : "-", expr, right);
+                expr = CreateBinaryExpression(op.Type == TokenType.Plus ? "+" : "-", expr, right);
             }
 
             return expr;
@@ -229,7 +430,7 @@ public sealed class TypedAstParser
                     _ => throw new InvalidOperationException("Unexpected binary operator.")
                 };
 
-                expr = new BinaryExpression(CreateSourceReference(op), symbol, expr, right);
+                expr = CreateBinaryExpression(symbol, expr, right);
             }
 
             return expr;
@@ -320,6 +521,57 @@ public sealed class TypedAstParser
                 return ParseCallSuffix(grouped);
             }
 
+            if (Match(TokenType.LeftBracket))
+            {
+                return ParseArrayLiteral();
+            }
+
+            if (Match(TokenType.LeftBrace))
+            {
+                return ParseObjectLiteral();
+            }
+
+            if (Match(TokenType.Function))
+            {
+                return ParseFunctionExpression();
+            }
+
+            if (Match(TokenType.Async))
+            {
+                var asyncToken = Previous();
+                if (Check(TokenType.Function))
+                {
+                    Advance(); // function
+                    return ParseFunctionExpression(isAsync: true);
+                }
+
+                var asyncSymbol = Symbol.Intern(asyncToken.Lexeme);
+                var asyncIdent = new IdentifierExpression(CreateSourceReference(asyncToken), asyncSymbol);
+                return ParseCallSuffix(asyncIdent);
+            }
+
+            if (Match(TokenType.Await))
+            {
+                var awaitToken = Previous();
+                var awaitSymbol = Symbol.Intern(awaitToken.Lexeme);
+                return ParseCallSuffix(new IdentifierExpression(CreateSourceReference(awaitToken), awaitSymbol));
+            }
+
+            if (Match(TokenType.This))
+            {
+                return new ThisExpression(CreateSourceReference(Previous()));
+            }
+
+            if (Match(TokenType.Super))
+            {
+                return new SuperExpression(CreateSourceReference(Previous()));
+            }
+
+            if (Match(TokenType.New))
+            {
+                return ParseNewExpression();
+            }
+
             throw new NotSupportedException($"Token '{Peek().Type}' is not yet supported by the direct parser.");
         }
 
@@ -393,6 +645,209 @@ public sealed class TypedAstParser
             return new MemberExpression(source, target, expression, true, false);
         }
 
+        private ExpressionNode ParseArrayLiteral()
+        {
+            var elements = ImmutableArray.CreateBuilder<ArrayElement>();
+            var startToken = Previous();
+            var expectElement = true;
+
+            while (!Check(TokenType.RightBracket))
+            {
+                if (Match(TokenType.Comma))
+                {
+                    elements.Add(new ArrayElement(null, null, false));
+                    expectElement = true;
+                    continue;
+                }
+
+                var isSpread = Match(TokenType.DotDotDot);
+                var expr = ParseExpression();
+                elements.Add(new ArrayElement(expr.Source, expr, isSpread));
+                expectElement = false;
+
+                if (!Match(TokenType.Comma))
+                {
+                    break;
+                }
+
+                expectElement = true;
+            }
+
+            if (expectElement && elements.Count > 0 && !Check(TokenType.RightBracket))
+            {
+                throw new ParseException("Expected array element.", Peek(), _source);
+            }
+
+            Consume(TokenType.RightBracket, "Expected ']' after array literal.");
+            return new ArrayExpression(CreateSourceReference(startToken), elements.ToImmutable());
+        }
+
+        private ExpressionNode ParseObjectLiteral()
+        {
+            var members = ImmutableArray.CreateBuilder<ObjectMember>();
+            var startToken = Previous();
+            var first = true;
+
+            while (!Check(TokenType.RightBrace))
+            {
+                if (!first)
+                {
+                    Consume(TokenType.Comma, "Expected ',' between object properties.");
+                    if (Check(TokenType.RightBrace))
+                    {
+                        break;
+                    }
+                }
+
+                first = false;
+
+                if (Match(TokenType.DotDotDot))
+                {
+                    var spreadExpr = ParseExpression();
+                    members.Add(new ObjectMember(spreadExpr.Source, ObjectMemberKind.Spread, string.Empty, spreadExpr,
+                        null, false, false, null));
+                    continue;
+                }
+
+                var (key, isComputed, keySource) = ParseObjectPropertyKey();
+
+                ExpressionNode? value = null;
+                FunctionExpression? method = null;
+                var kind = ObjectMemberKind.Property;
+
+                if (Match(TokenType.LeftParen))
+                {
+                    var parameters = ParseParameterList();
+                    Consume(TokenType.RightParen, "Expected ')' after method parameters.");
+                    var body = ParseBlock();
+                    method = new FunctionExpression(body.Source, null, parameters, body, false, false);
+                    kind = ObjectMemberKind.Method;
+                }
+                else if (Match(TokenType.Colon))
+                {
+                    value = ParseExpression();
+                }
+                else
+                {
+                    if (key is not string shorthandName)
+                    {
+                        throw new ParseException("Shorthand properties must use identifiers.", Peek(), _source);
+                    }
+
+                    var symbol = Symbol.Intern(shorthandName);
+                    value = new IdentifierExpression(keySource, symbol);
+                }
+
+                members.Add(new ObjectMember(method?.Source ?? value?.Source ?? keySource, kind, key, value, method,
+                    isComputed, false, null));
+            }
+
+            Consume(TokenType.RightBrace, "Expected '}' after object literal.");
+            return new ObjectExpression(CreateSourceReference(startToken), members.ToImmutable());
+        }
+
+        private (object key, bool isComputed, SourceReference? source) ParseObjectPropertyKey()
+        {
+            if (Match(TokenType.LeftBracket))
+            {
+                var expr = ParseExpression();
+                Consume(TokenType.RightBracket, "Expected ']' after computed property key.");
+                return (expr, true, expr.Source);
+            }
+
+            if (Match(TokenType.String))
+            {
+                var token = Previous();
+                var value = token.Literal?.ToString() ?? string.Empty;
+                return (value, false, CreateSourceReference(token));
+            }
+
+            if (Match(TokenType.Number))
+            {
+                var token = Previous();
+                var value = Convert.ToString(token.Literal, CultureInfo.InvariantCulture) ?? string.Empty;
+                return (value, false, CreateSourceReference(token));
+            }
+
+            var identifier = ConsumeParameterIdentifier("Expected property name.");
+            return (identifier.Lexeme, false, CreateSourceReference(identifier));
+        }
+
+        private ExpressionNode ParseFunctionExpression(Symbol? explicitName = null, bool isAsync = false)
+        {
+            var functionKeyword = Previous();
+            Symbol? name = explicitName;
+            if (name is null && Check(TokenType.Identifier))
+            {
+                var nameToken = Advance();
+                name = Symbol.Intern(nameToken.Lexeme);
+            }
+
+            return ParseFunctionTail(name, functionKeyword, isAsync);
+        }
+
+        private FunctionExpression ParseFunctionTail(Symbol? name, Token startToken, bool isAsync)
+        {
+            Consume(TokenType.LeftParen, "Expected '(' after function name.");
+            var parameters = ParseParameterList();
+            Consume(TokenType.RightParen, "Expected ')' after parameters.");
+            var body = ParseBlock();
+            var source = body.Source ?? CreateSourceReference(startToken);
+            return new FunctionExpression(source, name, parameters, body, isAsync, false);
+        }
+
+        private ImmutableArray<FunctionParameter> ParseParameterList()
+        {
+            var builder = ImmutableArray.CreateBuilder<FunctionParameter>();
+            if (Check(TokenType.RightParen))
+            {
+                return builder.ToImmutable();
+            }
+
+            do
+            {
+                var isRest = Match(TokenType.DotDotDot);
+                var token = ConsumeParameterIdentifier("Expected parameter name.");
+                var name = Symbol.Intern(token.Lexeme);
+                builder.Add(new FunctionParameter(CreateSourceReference(token), name, isRest, null, null));
+                if (isRest)
+                {
+                    break;
+                }
+            } while (Match(TokenType.Comma));
+
+            return builder.ToImmutable();
+        }
+
+        private ExpressionNode ParseNewExpression()
+        {
+            var constructor = ParsePostfix();
+            ImmutableArray<ExpressionNode> args;
+            if (Match(TokenType.LeftParen))
+            {
+                var callArgs = ParseArgumentList();
+                var builder = ImmutableArray.CreateBuilder<ExpressionNode>(callArgs.Length);
+                foreach (var arg in callArgs)
+                {
+                    builder.Add(arg.Expression);
+                }
+
+                args = builder.ToImmutable();
+            }
+            else
+            {
+                args = ImmutableArray<ExpressionNode>.Empty;
+            }
+
+            return new NewExpression(constructor.Source, constructor, args);
+        }
+
+        private BinaryExpression CreateBinaryExpression(string op, ExpressionNode left, ExpressionNode right)
+        {
+            var source = left.Source ?? right.Source;
+            return new BinaryExpression(source, op, left, right);
+        }
+
         private static bool IsKeyword(Token token)
         {
             return token.Type switch
@@ -437,6 +892,16 @@ public sealed class TypedAstParser
             }
 
             return Peek().Type == type;
+        }
+
+        private bool CheckAhead(TokenType type)
+        {
+            if (_current + 1 >= _tokens.Count)
+            {
+                return false;
+            }
+
+            return _tokens[_current + 1].Type == type;
         }
 
         private Token Advance()

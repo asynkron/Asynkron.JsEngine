@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
@@ -530,14 +531,15 @@ public static class TypedAstEvaluator
         return false;
     }
 
-    private static object? InvokeIteratorNext(JsObject iterator)
+    private static object? InvokeIteratorNext(JsObject iterator, object? sendValue = null, bool hasSendValue = false)
     {
         if (!iterator.TryGetProperty("next", out var nextValue) || nextValue is not IJsCallable callable)
         {
             throw new InvalidOperationException("Iterator must expose a 'next' method.");
         }
 
-        return callable.Invoke([], iterator);
+        var args = hasSendValue ? new[] { sendValue } : Array.Empty<object?>();
+        return callable.Invoke(args, iterator);
     }
 
     private static bool IsPromiseLike(object? candidate)
@@ -1100,17 +1102,25 @@ public static class TypedAstEvaluator
 
         var tracker = GetYieldTracker(environment);
 
+        object? pendingSend = null;
+        var hasPendingSend = false;
+
         while (true)
         {
-            var (value, done) = state.MoveNext();
+            var (value, done) = state.MoveNext(pendingSend, hasPendingSend);
+            pendingSend = null;
+            hasPendingSend = false;
+
             if (done)
             {
                 ClearDelegatedState(stateKey, environment);
                 return value;
             }
 
-            if (!tracker.ShouldYield(out _))
+            if (!tracker.ShouldYield(out var yieldIndex))
             {
+                pendingSend = GetResumeValue(environment, yieldIndex);
+                hasPendingSend = true;
                 continue;
             }
 
@@ -3336,11 +3346,11 @@ public static class TypedAstEvaluator
             return new DelegatedYieldState(null, enumerable.GetEnumerator());
         }
 
-        public (object? Value, bool Done) MoveNext()
+        public (object? Value, bool Done) MoveNext(object? sendValue, bool hasSendValue)
         {
             if (_iterator is not null)
             {
-                var nextResult = InvokeIteratorNext(_iterator);
+                var nextResult = InvokeIteratorNext(_iterator, sendValue, hasSendValue);
                 if (nextResult is not JsObject resultObj)
                 {
                     return (JsSymbols.Undefined, true);

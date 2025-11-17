@@ -1082,6 +1082,12 @@ public static class TypedAstEvaluator
                 return payload.Value;
             }
 
+            if (payload.IsReturn)
+            {
+                context.SetReturn(payload.Value);
+                return payload.Value;
+            }
+
             return payload.Value;
         }
 
@@ -1140,6 +1146,12 @@ public static class TypedAstEvaluator
                 if (payload.IsThrow)
                 {
                     context.SetThrow(payload.Value);
+                    return payload.Value;
+                }
+
+                if (payload.IsReturn)
+                {
+                    context.SetReturn(payload.Value);
                     return payload.Value;
                 }
 
@@ -1255,6 +1267,11 @@ public static class TypedAstEvaluator
             _pending[yieldIndex] = ResumePayload.FromThrow(value);
         }
 
+        public void SetReturn(int yieldIndex, object? value)
+        {
+            _pending[yieldIndex] = ResumePayload.FromReturn(value);
+        }
+
         public ResumePayload TakePayload(int yieldIndex)
         {
             if (_pending.TryGetValue(yieldIndex, out var payload))
@@ -1272,11 +1289,12 @@ public static class TypedAstEvaluator
         }
     }
 
-    private readonly record struct ResumePayload(bool HasValue, bool IsThrow, object? Value)
+    private readonly record struct ResumePayload(bool HasValue, bool IsThrow, bool IsReturn, object? Value)
     {
-        public static ResumePayload Empty { get; } = new(false, false, JsSymbols.Undefined);
-        public static ResumePayload FromValue(object? value) => new(true, false, value);
-        public static ResumePayload FromThrow(object? value) => new(true, true, value);
+        public static ResumePayload Empty { get; } = new(false, false, false, JsSymbols.Undefined);
+        public static ResumePayload FromValue(object? value) => new(true, false, false, value);
+        public static ResumePayload FromThrow(object? value) => new(true, true, false, value);
+        public static ResumePayload FromReturn(object? value) => new(true, false, true, value);
     }
 
     private static object? EvaluateDestructuringAssignment(DestructuringAssignmentExpression expression,
@@ -3477,10 +3495,7 @@ public static class TypedAstEvaluator
 
         private object? Return(object? value)
         {
-            _state = GeneratorState.Completed;
-            _done = true;
-            _resumeContext.Clear();
-            return CreateIteratorResult(value, true);
+            return ResumeGenerator(ResumeMode.Return, value);
         }
 
         private object? Throw(object? error)
@@ -3540,21 +3555,16 @@ public static class TypedAstEvaluator
                 _state = GeneratorState.Completed;
                 _done = true;
                 _resumeContext.Clear();
-                if (mode == ResumeMode.Throw)
-                {
-                    throw new ThrowSignal(value);
-                }
-
-                return CreateIteratorResult(value, true);
+                return FinishExternalCompletion(mode, value);
             }
 
             var wasStart = _state == GeneratorState.Start;
-            if (mode == ResumeMode.Throw && wasStart)
+            if ((mode == ResumeMode.Throw || mode == ResumeMode.Return) && wasStart)
             {
                 _state = GeneratorState.Completed;
                 _done = true;
                 _resumeContext.Clear();
-                throw new ThrowSignal(value);
+                return FinishExternalCompletion(mode, value);
             }
 
             try
@@ -3565,13 +3575,17 @@ public static class TypedAstEvaluator
 
                 if (!wasStart && _currentYieldIndex > 0)
                 {
-                    if (mode == ResumeMode.Throw)
+                    switch (mode)
                     {
-                        _resumeContext.SetException(_currentYieldIndex - 1, value);
-                    }
-                    else
-                    {
-                        _resumeContext.SetValue(_currentYieldIndex - 1, value);
+                        case ResumeMode.Throw:
+                            _resumeContext.SetException(_currentYieldIndex - 1, value);
+                            break;
+                        case ResumeMode.Return:
+                            _resumeContext.SetReturn(_currentYieldIndex - 1, value);
+                            break;
+                        default:
+                            _resumeContext.SetValue(_currentYieldIndex - 1, value);
+                            break;
                     }
                 }
 
@@ -3623,10 +3637,20 @@ public static class TypedAstEvaluator
             }
         }
 
+        private object? FinishExternalCompletion(ResumeMode mode, object? value)
+        {
+            return mode switch
+            {
+                ResumeMode.Throw => throw new ThrowSignal(value),
+                _ => CreateIteratorResult(value, true)
+            };
+        }
+
         private enum ResumeMode
         {
             Next,
-            Throw
+            Throw,
+            Return
         }
 
         private enum GeneratorState

@@ -667,6 +667,24 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_CanReceiveSentValues()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                const received = yield 1;
+                yield received * 2;
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("g.next();");
+        var second = await engine.Evaluate("g.next(7).value;");
+        Assert.Equal(14.0, second);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ParseGeneratorSyntax_FunctionStar()
     {
         // Arrange

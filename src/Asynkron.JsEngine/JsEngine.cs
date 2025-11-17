@@ -1,7 +1,6 @@
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Lisp;
 using Asynkron.JsEngine.Parser;
 using JetBrains.Annotations;
 
@@ -50,7 +49,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Register global constants
         SetGlobal("Infinity", double.PositiveInfinity);
         SetGlobal("NaN", double.NaN);
-        SetGlobal("undefined", JsSymbols.Undefined);
+        SetGlobal("undefined", Symbols.Undefined);
 
         // Register global functions
         SetGlobal("parseInt", StandardLibrary.CreateParseIntFunction());
@@ -778,7 +777,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             ExportDefaultExpression expression => ExecuteTypedExpression(expression.Expression, moduleEnv, isStrict),
             ExportDefaultDeclaration declaration => EvaluateExportDefaultDeclaration(declaration, moduleEnv, isStrict),
-            _ => JsSymbols.Undefined
+            _ => Symbols.Undefined
         };
     }
 
@@ -790,7 +789,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             FunctionDeclaration functionDeclaration => moduleEnv.Get(functionDeclaration.Name),
             ClassDeclaration classDeclaration => moduleEnv.Get(classDeclaration.Name),
-            _ => JsSymbols.Undefined
+            _ => Symbols.Undefined
         };
     }
 

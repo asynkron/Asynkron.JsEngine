@@ -1,4 +1,4 @@
-using Asynkron.JsEngine.Lisp;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Tests;
@@ -13,7 +13,7 @@ public class TestVariableDeclarations
             var x;
             x;
         ");
-        Assert.Equal(JsSymbols.Undefined, result);
+        Assert.Equal(Symbols.Undefined, result);
     }
 
     [Fact]

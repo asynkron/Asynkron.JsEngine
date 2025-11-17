@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -50,7 +49,7 @@ public sealed class JsWeakMap : IJsPropertyAccessor
     {
         if (key == null || !IsObject(key))
         {
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         }
 
         if (_entries.TryGetValue(key, out var value))
@@ -58,7 +57,7 @@ public sealed class JsWeakMap : IJsPropertyAccessor
             return value;
         }
 
-        return JsSymbols.Undefined;
+        return Symbols.Undefined;
     }
 
     /// <summary>
@@ -100,7 +99,7 @@ public sealed class JsWeakMap : IJsPropertyAccessor
         }
 
         // Check for undefined symbol
-        if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined))
+        if (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
         {
             return false;
         }

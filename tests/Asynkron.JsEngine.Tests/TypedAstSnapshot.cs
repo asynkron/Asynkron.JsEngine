@@ -1,6 +1,5 @@
 using System.Text;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine.Tests;
 

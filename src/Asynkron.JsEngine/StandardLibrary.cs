@@ -2,7 +2,6 @@ using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine;
 
@@ -510,7 +509,7 @@ public static class StandardLibrary
                 {
                     parts.Add("null");
                 }
-                else if (ReferenceEquals(arg, JsSymbols.Undefined))
+                else if (ReferenceEquals(arg, Symbols.Undefined))
                 {
                     parts.Add("undefined");
                 }
@@ -557,35 +556,35 @@ public static class StandardLibrary
         console["log"] = new HostFunction(args =>
         {
             Console.WriteLine(FormatArgs(args));
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         });
 
         // console.error(...args)
         console["error"] = new HostFunction(args =>
         {
             Console.Error.WriteLine(FormatArgs(args));
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         });
 
         // console.warn(...args)
         console["warn"] = new HostFunction(args =>
         {
             Console.WriteLine($"Warning: {FormatArgs(args)}");
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         });
 
         // console.info(...args)
         console["info"] = new HostFunction(args =>
         {
             Console.WriteLine(FormatArgs(args));
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         });
 
         // console.debug(...args)
         console["debug"] = new HostFunction(args =>
         {
             Console.WriteLine($"Debug: {FormatArgs(args)}");
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         });
 
         return console;
@@ -2929,7 +2928,7 @@ public static class StandardLibrary
                 }
                 else
                 {
-                    result.SetProperty("value", JsSymbols.Undefined);
+                    result.SetProperty("value", Symbols.Undefined);
                     result.SetProperty("done", true);
                 }
 
@@ -3141,7 +3140,7 @@ public static class StandardLibrary
         var objectConstructor = new HostFunction(args =>
         {
             // Object() or Object(value) - creates a new object or wraps the value
-            if (args.Count == 0 || args[0] == null || args[0] == JsSymbols.Undefined)
+            if (args.Count == 0 || args[0] == null || args[0] == Symbols.Undefined)
             {
                 return new JsObject();
             }
@@ -3418,7 +3417,7 @@ public static class StandardLibrary
         {
             if (args.Count < 2 || args[0] is not JsObject obj)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             var propName = args[1]?.ToString() ?? "";
@@ -3426,7 +3425,7 @@ public static class StandardLibrary
             var desc = obj.GetOwnPropertyDescriptor(propName);
             if (desc == null)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             var resultDesc = new JsObject();
@@ -3603,7 +3602,7 @@ public static class StandardLibrary
         // Symbol cannot be used with 'new' in JavaScript
         var symbolConstructor = new HostFunction(args =>
         {
-            var description = args.Count > 0 && args[0] != null && !ReferenceEquals(args[0], JsSymbols.Undefined)
+            var description = args.Count > 0 && args[0] != null && !ReferenceEquals(args[0], Symbols.Undefined)
                 ? args[0]!.ToString()
                 : null;
             return TypedAstSymbol.Create(description);
@@ -3614,7 +3613,7 @@ public static class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             var key = args[0]?.ToString() ?? "";
@@ -3626,11 +3625,11 @@ public static class StandardLibrary
         {
             if (args.Count == 0 || args[0] is not TypedAstSymbol sym)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             var key = TypedAstSymbol.KeyFor(sym);
-            return key ?? (object)JsSymbols.Undefined;
+            return key ?? (object)Symbols.Undefined;
         }));
 
         // Well-known symbols
@@ -3680,11 +3679,11 @@ public static class StandardLibrary
         {
             if (thisValue is not JsMap m)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
-            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
-            var value = args.Count > 1 ? args[1] : JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var value = args.Count > 1 ? args[1] : Symbols.Undefined;
             return m.Set(key, value);
         }));
 
@@ -3693,10 +3692,10 @@ public static class StandardLibrary
         {
             if (thisValue is not JsMap m)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
-            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
             return m.Get(key);
         }));
 
@@ -3708,7 +3707,7 @@ public static class StandardLibrary
                 return false;
             }
 
-            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
             return m.Has(key);
         }));
 
@@ -3720,7 +3719,7 @@ public static class StandardLibrary
                 return false;
             }
 
-            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
             return m.Delete(key);
         }));
 
@@ -3732,7 +3731,7 @@ public static class StandardLibrary
                 m.Clear();
             }
 
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         }));
 
         // forEach(callback, thisArg)
@@ -3740,17 +3739,17 @@ public static class StandardLibrary
         {
             if (thisValue is not JsMap m)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             if (args.Count == 0 || args[0] is not IJsCallable callback)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             var thisArg = args.Count > 1 ? args[1] : null;
             m.ForEach(callback, thisArg);
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         }));
 
         // entries()
@@ -3758,7 +3757,7 @@ public static class StandardLibrary
         {
             if (thisValue is not JsMap m)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             return m.Entries();
@@ -3769,7 +3768,7 @@ public static class StandardLibrary
         {
             if (thisValue is not JsMap m)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             return m.Keys();
@@ -3780,7 +3779,7 @@ public static class StandardLibrary
         {
             if (thisValue is not JsMap m)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             return m.Values();
@@ -3824,10 +3823,10 @@ public static class StandardLibrary
         {
             if (thisValue is not JsSet s)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
-            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
             return s.Add(value);
         }));
 
@@ -3839,7 +3838,7 @@ public static class StandardLibrary
                 return false;
             }
 
-            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
             return s.Has(value);
         }));
 
@@ -3851,7 +3850,7 @@ public static class StandardLibrary
                 return false;
             }
 
-            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
             return s.Delete(value);
         }));
 
@@ -3863,7 +3862,7 @@ public static class StandardLibrary
                 s.Clear();
             }
 
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         }));
 
         // forEach(callback, thisArg)
@@ -3871,17 +3870,17 @@ public static class StandardLibrary
         {
             if (thisValue is not JsSet s)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             if (args.Count == 0 || args[0] is not IJsCallable callback)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             var thisArg = args.Count > 1 ? args[1] : null;
             s.ForEach(callback, thisArg);
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         }));
 
         // entries()
@@ -3889,7 +3888,7 @@ public static class StandardLibrary
         {
             if (thisValue is not JsSet s)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             return s.Entries();
@@ -3900,7 +3899,7 @@ public static class StandardLibrary
         {
             if (thisValue is not JsSet s)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             return s.Keys();
@@ -3911,7 +3910,7 @@ public static class StandardLibrary
         {
             if (thisValue is not JsSet s)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             return s.Values();
@@ -3964,11 +3963,11 @@ public static class StandardLibrary
         {
             if (thisValue is not JsWeakMap wm)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
-            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
-            var value = args.Count > 1 ? args[1] : JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var value = args.Count > 1 ? args[1] : Symbols.Undefined;
             try
             {
                 return wm.Set(key, value);
@@ -3984,10 +3983,10 @@ public static class StandardLibrary
         {
             if (thisValue is not JsWeakMap wm)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
-            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
             return wm.Get(key);
         }));
 
@@ -3999,7 +3998,7 @@ public static class StandardLibrary
                 return false;
             }
 
-            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
             return wm.Has(key);
         }));
 
@@ -4011,7 +4010,7 @@ public static class StandardLibrary
                 return false;
             }
 
-            var key = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
             return wm.Delete(key);
         }));
     }
@@ -4058,10 +4057,10 @@ public static class StandardLibrary
         {
             if (thisValue is not JsWeakSet ws)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
-            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
             try
             {
                 return ws.Add(value);
@@ -4080,7 +4079,7 @@ public static class StandardLibrary
                 return false;
             }
 
-            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
             return ws.Has(value);
         }));
 
@@ -4092,7 +4091,7 @@ public static class StandardLibrary
                 return false;
             }
 
-            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
             return ws.Delete(value);
         }));
     }
@@ -4143,7 +4142,7 @@ public static class StandardLibrary
                 return 0d;
             }
 
-            if (ReferenceEquals(value, JsSymbols.Undefined))
+            if (ReferenceEquals(value, Symbols.Undefined))
             {
             }
 
@@ -4400,7 +4399,7 @@ public static class StandardLibrary
                 return "null";
             }
 
-            if (ReferenceEquals(value, JsSymbols.Undefined))
+            if (ReferenceEquals(value, Symbols.Undefined))
             {
                 return "undefined";
             }
@@ -4592,7 +4591,7 @@ public static class StandardLibrary
         return value switch
         {
             null => false,
-            Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => false,
+            Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => false,
             bool b => b,
             double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
             string s => s.Length > 0,

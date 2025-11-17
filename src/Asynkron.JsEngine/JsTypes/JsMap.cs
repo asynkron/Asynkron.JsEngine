@@ -1,4 +1,4 @@
-using Asynkron.JsEngine.Lisp;
+using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -66,7 +66,7 @@ public sealed class JsMap : IJsPropertyAccessor
             }
         }
 
-        return JsSymbols.Undefined;
+        return Symbols.Undefined;
     }
 
     /// <summary>

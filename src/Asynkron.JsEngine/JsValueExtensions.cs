@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine;
 
@@ -13,7 +12,7 @@ internal static class JsValueExtensions
         return value switch
         {
             null => 0,
-            Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => double.NaN,
+            Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => double.NaN,
             double d => d,
             float f => f,
             decimal m => (double)m,
@@ -38,7 +37,7 @@ internal static class JsValueExtensions
         return value switch
         {
             null => "null",
-            Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => "undefined",
+            Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => "undefined",
             Symbol sym => sym.Name,
             bool b => b ? "true" : "false",
             JsBigInt bigInt => bigInt.ToString(),
@@ -64,7 +63,7 @@ internal static class JsValueExtensions
 
     public static string ToJsStringForArray(this object? value)
     {
-        if (value is null || value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined))
+        if (value is null || value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
         {
             return string.Empty;
         }

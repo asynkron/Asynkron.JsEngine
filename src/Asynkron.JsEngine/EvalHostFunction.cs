@@ -1,5 +1,5 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine;
 
@@ -28,7 +28,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyA
     {
         if (arguments.Count == 0 || arguments[0] is not string code)
         {
-            return arguments.Count > 0 ? arguments[0] : JsSymbols.Undefined;
+            return arguments.Count > 0 ? arguments[0] : Symbols.Undefined;
         }
 
         // Use the calling environment if available, otherwise use global

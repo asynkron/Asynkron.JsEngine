@@ -1,5 +1,5 @@
 using System.Globalization;
-using Asynkron.JsEngine.Lisp;
+using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -52,7 +52,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
             if (args.Count == 0)
             {
-                return JsSymbols.Undefined;
+                return Symbols.Undefined;
             }
 
             var offset = args.Count > 1 && args[1] is double d ? (int)d : 0;
@@ -67,7 +67,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
                     break;
             }
 
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         });
 
         _subarrayFunction = new HostFunction((thisValue, args) =>

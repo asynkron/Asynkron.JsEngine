@@ -1,4 +1,4 @@
-using Asynkron.JsEngine.Lisp;
+using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -326,7 +326,7 @@ public class ObjectDescriptorTests
                                                        Object.getOwnPropertyDescriptor(obj, 'y');
 
                                            """);
-        Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(result, Symbols.Undefined));
     }
 
     [Fact(Timeout = 2000)]

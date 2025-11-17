@@ -642,6 +642,31 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_InitializationRunsOnce()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let hits = 0;
+            function* gen() {
+                hits++;
+                yield hits;
+                hits++;
+                yield hits;
+            }
+            let g = gen();
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.next().value;");
+        var total = await engine.Evaluate("hits;");
+
+        Assert.Equal(1.0, first);
+        Assert.Equal(2.0, second);
+        Assert.Equal(2.0, total);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ParseGeneratorSyntax_FunctionStar()
     {
         // Arrange

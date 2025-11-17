@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Asynkron.JsEngine.Lisp;
+namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
 /// Represents a symbolic atom in an S-expression. Symbols are interned to avoid duplicate instances.

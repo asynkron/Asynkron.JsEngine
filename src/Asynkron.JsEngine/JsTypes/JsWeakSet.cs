@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -86,7 +85,7 @@ public sealed class JsWeakSet : IJsPropertyAccessor
         }
 
         // Check for undefined symbol
-        if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined))
+        if (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
         {
             return false;
         }

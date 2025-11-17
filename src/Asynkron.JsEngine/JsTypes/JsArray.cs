@@ -1,6 +1,5 @@
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -102,12 +101,12 @@ public sealed class JsArray : IJsPropertyAccessor
     {
         if (index < 0 || index >= _items.Count)
         {
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         }
 
         var item = _items[index];
         // Return undefined for holes in the array
-        return ReferenceEquals(item, ArrayHole) ? JsSymbols.Undefined : item;
+        return ReferenceEquals(item, ArrayHole) ? Symbols.Undefined : item;
     }
 
     public void SetElement(int index, object? value)
@@ -167,7 +166,7 @@ public sealed class JsArray : IJsPropertyAccessor
     {
         if (_items.Count == 0)
         {
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         }
 
         var lastIndex = _items.Count - 1;
@@ -176,14 +175,14 @@ public sealed class JsArray : IJsPropertyAccessor
         UpdateLength();
 
         // Return undefined for holes
-        return ReferenceEquals(value, ArrayHole) ? JsSymbols.Undefined : value;
+        return ReferenceEquals(value, ArrayHole) ? Symbols.Undefined : value;
     }
 
     public object? Shift()
     {
         if (_items.Count == 0)
         {
-            return JsSymbols.Undefined;
+            return Symbols.Undefined;
         }
 
         var value = _items[0];
@@ -191,7 +190,7 @@ public sealed class JsArray : IJsPropertyAccessor
         UpdateLength();
 
         // Return undefined for holes
-        return ReferenceEquals(value, ArrayHole) ? JsSymbols.Undefined : value;
+        return ReferenceEquals(value, ArrayHole) ? Symbols.Undefined : value;
     }
 
     public void Unshift(params object?[] values)
@@ -264,13 +263,13 @@ public sealed class JsArray : IJsPropertyAccessor
                 {
                     var value = _items[indexHolder[0]];
                     // Return undefined for holes in the array
-                    result.SetProperty("value", ReferenceEquals(value, ArrayHole) ? JsSymbols.Undefined : value);
+                    result.SetProperty("value", ReferenceEquals(value, ArrayHole) ? Symbols.Undefined : value);
                     result.SetProperty("done", false);
                     indexHolder[0]++;
                 }
                 else
                 {
-                    result.SetProperty("value", JsSymbols.Undefined);
+                    result.SetProperty("value", Symbols.Undefined);
                     result.SetProperty("done", true);
                 }
 

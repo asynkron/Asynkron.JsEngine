@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine.Parser;
 
@@ -1606,7 +1605,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             if (Match(TokenType.Undefined))
             {
                 var token = Previous();
-                var symbol = JsSymbols.Undefined;
+                var symbol = Symbols.Undefined;
                 expr = new IdentifierExpression(CreateSourceReference(token), symbol);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
@@ -1716,7 +1715,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             if (Check(TokenType.Undefined))
             {
                 var token = Advance();
-                var symbol = JsSymbols.Undefined;
+                var symbol = Symbols.Undefined;
                 var undefinedExpr = new IdentifierExpression(CreateSourceReference(token), symbol);
                 return ParseCallSuffix(undefinedExpr);
             }

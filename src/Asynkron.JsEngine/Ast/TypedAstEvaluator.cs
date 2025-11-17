@@ -4,9 +4,10 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
 using Asynkron.JsEngine.Converters;
+using Asynkron.JsEngine.Generators;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Lisp;
 using Asynkron.JsEngine.Parser;
+using JsSymbols = Asynkron.JsEngine.Ast.Symbols;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -3545,18 +3546,34 @@ public static class TypedAstEvaluator
         }
     }
 
-    private sealed class TypedGeneratorInstance(
-        FunctionExpression function,
-        JsEnvironment closure,
-        IReadOnlyList<object?> arguments,
-        object? thisValue,
-        IJsCallable callable)
+    private sealed class TypedGeneratorInstance
     {
+        private readonly FunctionExpression _function;
+        private readonly JsEnvironment _closure;
+        private readonly IReadOnlyList<object?> _arguments;
+        private readonly object? _thisValue;
+        private readonly IJsCallable _callable;
+        private readonly SequentialGeneratorRunner? _sequentialRunner;
         private JsEnvironment? _executionEnvironment;
         private GeneratorState _state = GeneratorState.Start;
         private bool _done;
         private int _currentYieldIndex;
         private readonly YieldResumeContext _resumeContext = new();
+
+        public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
+            IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
+        {
+            _function = function;
+            _closure = closure;
+            _arguments = arguments;
+            _thisValue = thisValue;
+            _callable = callable;
+
+            if (SequentialGeneratorPlan.TryBuild(function, out var plan) && plan is not null)
+            {
+                _sequentialRunner = new SequentialGeneratorRunner(this, plan);
+            }
+        }
 
         public JsObject CreateGeneratorObject()
         {
@@ -3573,37 +3590,52 @@ public static class TypedAstEvaluator
 
         private object? Next(object? value)
         {
+            if (_sequentialRunner is not null)
+            {
+                return _sequentialRunner.Next(value);
+            }
+
             return ResumeGenerator(ResumeMode.Next, value);
         }
 
         private object? Return(object? value)
         {
+            if (_sequentialRunner is not null)
+            {
+                return _sequentialRunner.Return(value);
+            }
+
             return ResumeGenerator(ResumeMode.Return, value);
         }
 
         private object? Throw(object? error)
         {
+            if (_sequentialRunner is not null)
+            {
+                return _sequentialRunner.Throw(error);
+            }
+
             return ResumeGenerator(ResumeMode.Throw, error);
         }
 
         private JsEnvironment CreateExecutionEnvironment()
         {
-            var description = function.Name is { } name
+            var description = _function.Name is { } name
                 ? $"function* {name.Name}"
                 : "generator function";
-            var environment = new JsEnvironment(closure, true, function.Body.IsStrict, function.Source, description);
-            environment.Define(JsSymbols.This, thisValue ?? new JsObject());
+            var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
+            environment.Define(JsSymbols.This, _thisValue ?? new JsObject());
             environment.Define(YieldResumeContextSymbol, _resumeContext);
 
-            if (function.Name is { } functionName)
+            if (_function.Name is { } functionName)
             {
-                environment.Define(functionName, callable);
+                environment.Define(functionName, _callable);
             }
 
-            HoistVarDeclarations(function.Body, environment);
+            HoistVarDeclarations(_function.Body, environment);
 
             var bindingContext = new EvaluationContext();
-            BindFunctionParameters(function, arguments, environment, bindingContext);
+            BindFunctionParameters(_function, _arguments, environment, bindingContext);
             if (bindingContext.IsThrow)
             {
                 var thrown = bindingContext.FlowValue;
@@ -3675,7 +3707,7 @@ public static class TypedAstEvaluator
                 var context = new EvaluationContext();
                 _executionEnvironment.Define(YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
 
-                var result = EvaluateBlock(function.Body, _executionEnvironment, context);
+                var result = EvaluateBlock(_function.Body, _executionEnvironment, context);
 
                 if (context.IsThrow)
                 {
@@ -3742,6 +3774,173 @@ public static class TypedAstEvaluator
             Suspended,
             Executing,
             Completed
+        }
+
+        private sealed class SequentialGeneratorRunner
+        {
+            private readonly TypedGeneratorInstance _owner;
+            private readonly SequentialGeneratorPlan _plan;
+            private JsEnvironment? _environment;
+            private EvaluationContext? _context;
+            private int _segmentIndex;
+            private bool _done;
+
+            public SequentialGeneratorRunner(TypedGeneratorInstance owner, SequentialGeneratorPlan plan)
+            {
+                _owner = owner;
+                _plan = plan;
+            }
+
+            public object? Next(object? value)
+            {
+                if (_done)
+                {
+                    return CreateIteratorResult(JsSymbols.Undefined, true);
+                }
+
+                return ExecuteSegments();
+            }
+
+            public object? Return(object? value)
+            {
+                _done = true;
+                _segmentIndex = _plan.Segments.Length;
+                return CreateIteratorResult(value, true);
+            }
+
+            public object? Throw(object? error)
+            {
+                _done = true;
+                throw new ThrowSignal(error);
+            }
+
+            private object? ExecuteSegments()
+            {
+                var environment = EnsureEnvironment();
+                var context = EnsureContext();
+
+                while (_segmentIndex < _plan.Segments.Length)
+                {
+                    var segment = _plan.Segments[_segmentIndex];
+                    ExecuteStatementList(environment, context, segment.Statements);
+
+                    if (context.IsThrow)
+                    {
+                        var thrown = context.FlowValue;
+                        context.Clear();
+                        _done = true;
+                        throw new ThrowSignal(thrown);
+                    }
+
+                    if (context.IsReturn)
+                    {
+                        var returnValue = context.FlowValue;
+                        context.ClearReturn();
+                        _done = true;
+                        _segmentIndex = _plan.Segments.Length;
+                        return CreateIteratorResult(returnValue, true);
+                    }
+
+                    if (segment.YieldExpression is not null)
+                    {
+                        var yielded = EvaluateYieldExpression(segment.YieldExpression, environment, context);
+                        if (context.IsThrow)
+                        {
+                            var thrown = context.FlowValue;
+                            context.Clear();
+                            _done = true;
+                            throw new ThrowSignal(thrown);
+                        }
+
+                        if (context.IsReturn)
+                        {
+                            var returnValue = context.FlowValue;
+                            context.ClearReturn();
+                            _done = true;
+                            _segmentIndex = _plan.Segments.Length;
+                            return CreateIteratorResult(returnValue, true);
+                        }
+
+                        _segmentIndex++;
+                        return CreateIteratorResult(yielded, false);
+                    }
+
+                    if (segment.IsTerminal)
+                    {
+                        var returnValue = segment.ReturnExpression is null
+                            ? JsSymbols.Undefined
+                            : EvaluateExpression(segment.ReturnExpression, environment, context);
+
+                        if (context.IsThrow)
+                        {
+                            var thrown = context.FlowValue;
+                            context.Clear();
+                            _done = true;
+                            throw new ThrowSignal(thrown);
+                        }
+
+                        if (context.IsReturn)
+                        {
+                            returnValue = context.FlowValue;
+                            context.ClearReturn();
+                        }
+
+                        _done = true;
+                        _segmentIndex = _plan.Segments.Length;
+                        return CreateIteratorResult(returnValue, true);
+                    }
+
+                    _segmentIndex++;
+                }
+
+                _done = true;
+                return CreateIteratorResult(JsSymbols.Undefined, true);
+            }
+
+            private JsEnvironment EnsureEnvironment()
+            {
+                return _environment ??= _owner.CreateExecutionEnvironment();
+            }
+
+            private EvaluationContext EnsureContext()
+            {
+                if (_context is null)
+                {
+                    _context = new EvaluationContext();
+                }
+
+                _context.Clear();
+                return _context;
+            }
+
+            private static void ExecuteStatementList(JsEnvironment environment, EvaluationContext context,
+                ImmutableArray<StatementNode> statements)
+            {
+                foreach (var statement in statements)
+                {
+                    EvaluateStatement(statement, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            private static object? EvaluateYieldExpression(YieldExpression expression, JsEnvironment environment,
+                EvaluationContext context)
+            {
+                if (expression.IsDelegated)
+                {
+                    throw new NotSupportedException("yield* is not supported by the sequential generator runner.");
+                }
+
+                if (expression.Expression is null)
+                {
+                    return JsSymbols.Undefined;
+                }
+
+                return EvaluateExpression(expression.Expression, environment, context);
+            }
         }
     }
 

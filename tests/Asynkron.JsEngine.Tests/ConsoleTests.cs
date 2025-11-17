@@ -1,4 +1,4 @@
-using Asynkron.JsEngine.Lisp;
+using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -13,7 +13,7 @@ public class ConsoleTests
         var result = await engine.Evaluate("console.log('Hello, World!')");
 
         // console.log should return undefined
-        Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(result, Symbols.Undefined));
     }
 
     [Fact]
@@ -25,7 +25,7 @@ public class ConsoleTests
             console.log('Hello', 42, true, null, undefined);
         ");
 
-        Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(result, Symbols.Undefined));
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public class ConsoleTests
 
         var result = await engine.Evaluate("console.error('Error message')");
 
-        Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(result, Symbols.Undefined));
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public class ConsoleTests
 
         var result = await engine.Evaluate("console.warn('Warning message')");
 
-        Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(result, Symbols.Undefined));
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class ConsoleTests
 
         var result = await engine.Evaluate("console.info('Info message')");
 
-        Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(result, Symbols.Undefined));
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class ConsoleTests
 
         var result = await engine.Evaluate("console.debug('Debug message')");
 
-        Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(result, Symbols.Undefined));
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class ConsoleTests
             console.log('User:', obj);
         ");
 
-        Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(result, Symbols.Undefined));
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class ConsoleTests
             console.log('Numbers:', arr);
         ");
 
-        Assert.True(ReferenceEquals(result, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(result, Symbols.Undefined));
     }
 
     [Fact]

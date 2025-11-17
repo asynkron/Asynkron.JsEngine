@@ -1,5 +1,5 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Lisp;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -14,7 +14,7 @@ public class VoidOperatorTests
         // Result should be the Undefined symbol
         Assert.IsType<Symbol>(result);
         var symbol = (Symbol)result;
-        Assert.True(ReferenceEquals(symbol, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(symbol, Symbols.Undefined));
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class VoidOperatorTests
 
         Assert.IsType<Symbol>(result);
         var symbol = (Symbol)result;
-        Assert.True(ReferenceEquals(symbol, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(symbol, Symbols.Undefined));
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class VoidOperatorTests
 
         Assert.IsType<Symbol>(result);
         var symbol = (Symbol)result;
-        Assert.True(ReferenceEquals(symbol, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals(symbol, Symbols.Undefined));
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class VoidOperatorTests
         // First element should be undefined
         var first = arr.Items[0];
         Assert.IsType<Symbol>(first);
-        Assert.True(ReferenceEquals((Symbol)first, JsSymbols.Undefined));
+        Assert.True(ReferenceEquals((Symbol)first, Symbols.Undefined));
 
         // Second element should be true
         Assert.Equal(true, arr.Items[1]);
@@ -117,7 +117,7 @@ public class VoidOperatorTests
             var result = await engine.Evaluate(testCase);
             Assert.IsType<Symbol>(result);
             var symbol = (Symbol)result;
-            Assert.True(ReferenceEquals(symbol, JsSymbols.Undefined),
+            Assert.True(ReferenceEquals(symbol, Symbols.Undefined),
                 $"Failed for: {testCase}");
         }
     }

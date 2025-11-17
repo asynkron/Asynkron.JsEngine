@@ -1,5 +1,3 @@
-using Asynkron.JsEngine.Lisp;
-
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>

@@ -1019,7 +1019,7 @@ public static class TypedAstEvaluator
 
         return expression switch
         {
-            LiteralExpression literal => literal.Value,
+            LiteralExpression literal => EvaluateLiteral(literal),
             IdentifierExpression identifier => environment.Get(identifier.Name),
             BinaryExpression binary => EvaluateBinary(binary, environment, context),
             UnaryExpression unary => EvaluateUnary(unary, environment, context),
@@ -1426,6 +1426,15 @@ public static class TypedAstEvaluator
         return context.ShouldStopEvaluation
             ? JsSymbols.Undefined
             : EvaluateExpression(expression.Right, environment, context);
+    }
+
+    private static object? EvaluateLiteral(LiteralExpression literal)
+    {
+        return literal.Value switch
+        {
+            RegexLiteralValue regex => new JsRegExp(regex.Pattern, regex.Flags),
+            _ => literal.Value
+        };
     }
 
     private static object? EvaluateMember(MemberExpression expression, JsEnvironment environment,

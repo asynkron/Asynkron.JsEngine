@@ -6,19 +6,12 @@ using Asynkron.JsEngine.Lisp;
 namespace Asynkron.JsEngine.Parser;
 
 /// <summary>
-/// Parser that builds the typed AST directly from the token stream. When the
-/// direct parser encounters unsupported constructs it falls back to the legacy
-/// cons parser and reuses <see cref="SExpressionAstBuilder"/> to materialize the
-/// typed tree so execution can continue.
+/// Parser that builds the typed AST directly from the token stream.
 /// </summary>
 public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 {
     private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
     private readonly string _source = source ?? string.Empty;
-
-    private static readonly bool _disableFallback =
-        string.Equals(Environment.GetEnvironmentVariable("ASYNKRON_DISABLE_TYPED_FALLBACK"), "1",
-            StringComparison.Ordinal);
 
     public ProgramNode ParseProgram()
     {
@@ -27,10 +20,9 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
     }
 
     /// <summary>
-    /// Direct typed parser. This currently supports only a subset of the full
-    /// JavaScript grammar required by the test suite. Unsupported constructs
-    /// throw <see cref="NotSupportedException"/> to trigger the fallback.
-    /// </summary>
+        /// Direct typed parser. This currently supports only a subset of the full
+        /// JavaScript grammar required by the test suite.
+        /// </summary>
     private sealed class DirectParser(IReadOnlyList<Token> tokens, string source)
     {
         private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
@@ -176,7 +168,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         private StatementNode ParseFunctionDeclaration(bool isAsync, Token functionKeyword)
         {
             var isGenerator = Match(TokenType.Star);
-            var nameToken = Consume(TokenType.Identifier, "Expected function name.");
+            var nameToken = ConsumeBindingIdentifier("Expected function name.");
             var name = Symbol.Intern(nameToken.Lexeme);
             var function = ParseFunctionTail(name, functionKeyword, isAsync, isGenerator);
             var source = function.Source ?? CreateSourceReference(functionKeyword);
@@ -298,7 +290,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
                 if (Match(TokenType.Equal))
                 {
-                    initializer = ParseExpression();
+                    initializer = ParseExpression(false);
                 }
                 else if (!allowInitializerless && (kind == VariableKind.Const || requiresInitializer))
                 {
@@ -544,7 +536,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             {
                 var catchToken = Previous();
                 Consume(TokenType.LeftParen, "Expected '(' after 'catch'.");
-                var identifier = Consume(TokenType.Identifier, "Expected identifier in catch clause.");
+                var identifier = ConsumeBindingIdentifier("Expected identifier in catch clause.");
                 var binding = Symbol.Intern(identifier.Lexeme);
                 Consume(TokenType.RightParen, "Expected ')' after catch binding.");
                 var catchBody = ParseBlock();
@@ -577,7 +569,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         private StatementNode ParseClassDeclaration()
         {
             var classToken = Previous();
-            var nameToken = Consume(TokenType.Identifier, "Expected class name.");
+            var nameToken = ConsumeBindingIdentifier("Expected class name.");
             var name = Symbol.Intern(nameToken.Lexeme);
             var definition = ParseClassDefinition(name, classToken);
             Match(TokenType.Semicolon);
@@ -637,7 +629,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                     ExpressionNode? initializer = null;
                     if (Match(TokenType.Equal))
                     {
-                        initializer = ParseExpression();
+                        initializer = ParseExpression(false);
                     }
 
                     Match(TokenType.Semicolon);
@@ -649,7 +641,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 {
                     var accessorToken = Advance();
                     var isGetter = accessorToken.Type == TokenType.Get;
-                    var methodNameToken = Consume(TokenType.Identifier,
+                    var methodNameToken = ConsumePropertyIdentifierToken(
                         isGetter ? "Expected getter name in class body." : "Expected setter name in class body.");
                     var methodName = methodNameToken.Lexeme;
 
@@ -684,7 +676,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
                 var isGeneratorMethod = Match(TokenType.Star);
 
-                if (Check(TokenType.Identifier))
+                if (IsPropertyNameToken(Peek()))
                 {
                     var methodNameToken = Advance();
                     var methodName = methodNameToken.Lexeme;
@@ -697,7 +689,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                                 _source);
                         }
 
-                        var initializer = ParseExpression();
+                        var initializer = ParseExpression(false);
                         Match(TokenType.Semicolon);
                         fields.Add(new ClassField(CreateSourceReference(methodNameToken), methodName, initializer,
                             isStatic, false));
@@ -789,7 +781,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                     if (Match(TokenType.Star))
                     {
                         ConsumeContextualKeyword("as", "Expected 'as' after '*'.");
-                        var nsToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
+                        var nsToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
                         namespaceBinding = Symbol.Intern(nsToken.Lexeme);
                     }
                     else if (Match(TokenType.LeftBrace))
@@ -802,7 +794,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             else if (Match(TokenType.Star))
             {
                 ConsumeContextualKeyword("as", "Expected 'as' after '*'.");
-                var namespaceToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
+                var namespaceToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
                 namespaceBinding = Symbol.Intern(namespaceToken.Lexeme);
             }
             else if (Match(TokenType.LeftBrace))
@@ -825,13 +817,13 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
             do
             {
-                var importedToken = Consume(TokenType.Identifier, "Expected identifier in import list.");
+                var importedToken = ConsumeBindingIdentifier("Expected identifier in import list.");
                 var imported = Symbol.Intern(importedToken.Lexeme);
                 Symbol local;
 
                 if (MatchContextualKeyword("as"))
                 {
-                    var localToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
+                    var localToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
                     local = Symbol.Intern(localToken.Lexeme);
                 }
                 else
@@ -956,13 +948,13 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
             do
             {
-                var localToken = Consume(TokenType.Identifier, "Expected identifier in export list.");
+                var localToken = ConsumeBindingIdentifier("Expected identifier in export list.");
                 var local = Symbol.Intern(localToken.Lexeme);
                 Symbol exported;
 
                 if (MatchContextualKeyword("as"))
                 {
-                    var exportedToken = Consume(TokenType.Identifier, "Expected identifier after 'as'.");
+                    var exportedToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
                     exported = Symbol.Intern(exportedToken.Lexeme);
                 }
                 else
@@ -1132,9 +1124,23 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
         #region Expressions
 
-        private ExpressionNode ParseExpression()
+        private ExpressionNode ParseExpression(bool allowSequence = true)
         {
-            return ParseAssignment();
+            var expression = ParseAssignment();
+
+            if (!allowSequence)
+            {
+                return expression;
+            }
+
+            while (Match(TokenType.Comma))
+            {
+                var right = ParseAssignment();
+                var source = expression.Source ?? right.Source ?? CreateSourceReference(Previous());
+                expression = new SequenceExpression(source, expression, right);
+            }
+
+            return expression;
         }
 
         private ExpressionNode ParseAssignment()
@@ -1406,12 +1412,12 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
         private ExpressionNode ParseMultiplication()
         {
-            var expr = ParseUnary();
+            var expr = ParseExponentiation();
 
             while (Match(TokenType.Star, TokenType.Slash, TokenType.Percent))
             {
                 var op = Previous();
-                var right = ParseUnary();
+                var right = ParseExponentiation();
                 var symbol = op.Type switch
                 {
                     TokenType.Star => "*",
@@ -1426,8 +1432,31 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             return expr;
         }
 
+        private ExpressionNode ParseExponentiation()
+        {
+            var expr = ParseUnary();
+
+            if (Match(TokenType.StarStar))
+            {
+                var right = ParseExponentiation();
+                expr = CreateBinaryExpression("**", expr, right);
+            }
+
+            return expr;
+        }
+
         private ExpressionNode ParseUnary()
         {
+            if (Match(TokenType.PlusPlus))
+            {
+                return new UnaryExpression(CreateSourceReference(Previous()), "++", ParseUnary(), true);
+            }
+
+            if (Match(TokenType.MinusMinus))
+            {
+                return new UnaryExpression(CreateSourceReference(Previous()), "--", ParseUnary(), true);
+            }
+
             if (Match(TokenType.Bang))
             {
                 return new UnaryExpression(CreateSourceReference(Previous()), "!", ParseUnary(), true);
@@ -1544,6 +1573,12 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
+            if (Match(TokenType.RegexLiteral))
+            {
+                expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
+                return ApplyCallSuffix(expr, allowCallSuffix);
+            }
+
             if (Match(TokenType.TemplateLiteral))
             {
                 var templateExpr = ParseTemplateLiteralExpression(Previous());
@@ -1583,6 +1618,14 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
+            if (IsContextualIdentifierToken(Peek()))
+            {
+                var contextual = Advance();
+                var symbol = Symbol.Intern(contextual.Lexeme);
+                expr = new IdentifierExpression(CreateSourceReference(contextual), symbol);
+                return ApplyCallSuffix(expr, allowCallSuffix);
+            }
+
             if (Match(TokenType.Yield))
             {
                 var symbol = Symbol.Intern(Previous().Lexeme);
@@ -1619,6 +1662,14 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             {
                 var classExpr = ParseClassExpression();
                 return ApplyCallSuffix(classExpr, allowCallSuffix);
+            }
+
+            if (Match(TokenType.Import))
+            {
+                var importToken = Previous();
+                var importSymbol = Symbol.Intern(importToken.Lexeme);
+                expr = new IdentifierExpression(CreateSourceReference(importToken), importSymbol);
+                return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.Async))
@@ -1687,7 +1738,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 return ApplyCallSuffix(unary, allowCallSuffix);
             }
 
-            throw new NotSupportedException($"Token '{Peek().Type}' is not yet supported by the direct parser.");
+            throw new ParseException($"Unexpected token '{Peek().Lexeme}'.", Peek(), _source);
         }
 
         private ExpressionNode ParseCallSuffix(ExpressionNode expression)
@@ -1764,7 +1815,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             do
             {
                 var isSpread = Match(TokenType.DotDotDot);
-                var expr = ParseExpression();
+                var expr = ParseExpression(false);
                 arguments.Add(new CallArgument(expr.Source, expr, isSpread));
             } while (Match(TokenType.Comma));
 
@@ -1774,7 +1825,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
         private ExpressionNode FinishDotAccess(ExpressionNode target, bool isOptional = false)
         {
-            if (!Check(TokenType.Identifier) && !IsKeyword(Peek()) && !Check(TokenType.PrivateIdentifier))
+            if (!Check(TokenType.Identifier) && !IsKeyword(Peek()) && !Check(TokenType.PrivateIdentifier) &&
+                !IsContextualIdentifierToken(Peek()))
             {
                 throw new ParseException("Expected property name after '.'.", Peek(), _source);
             }
@@ -1808,7 +1860,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 }
 
                 var isSpread = Match(TokenType.DotDotDot);
-                var expr = ParseExpression();
+                var expr = ParseExpression(false);
                 elements.Add(new ArrayElement(expr.Source, expr, isSpread));
                 expectElement = false;
 
@@ -1850,7 +1902,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
                 if (Match(TokenType.DotDotDot))
                 {
-                    var spreadExpr = ParseExpression();
+                var spreadExpr = ParseExpression(false);
                     members.Add(new ObjectMember(spreadExpr.Source, ObjectMemberKind.Spread, string.Empty, spreadExpr,
                         null, false, false, null));
                     continue;
@@ -1912,7 +1964,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                             Peek(), _source);
                     }
 
-                    value = ParseExpression();
+                    value = ParseExpression(false);
                 }
                 else
                 {
@@ -2049,8 +2101,18 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 return (value, false, CreateSourceReference(token));
             }
 
-            var identifier = ConsumeParameterIdentifier("Expected property name.");
+            var identifier = ConsumePropertyIdentifierToken("Expected property name.");
             return (identifier.Lexeme, false, CreateSourceReference(identifier));
+        }
+
+        private Token ConsumePropertyIdentifierToken(string message)
+        {
+            if (IsPropertyNameToken(Peek()))
+            {
+                return Advance();
+            }
+
+            throw new ParseException(message, Peek(), _source);
         }
 
         private ExpressionNode ParseFunctionExpression(Symbol? explicitName = null, bool isAsync = false)
@@ -2653,8 +2715,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
         private Token ConsumeParameterIdentifier(string message)
         {
-            if (Check(TokenType.Identifier) || Check(TokenType.Async) || Check(TokenType.Await) ||
-                Check(TokenType.Get) || Check(TokenType.Set) || Check(TokenType.Yield))
+            if (CheckIdentifierLike())
             {
                 return Advance();
             }
@@ -2664,8 +2725,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
         private bool CheckParameterIdentifier()
         {
-            return Check(TokenType.Identifier) || Check(TokenType.Async) || Check(TokenType.Await) ||
-                   Check(TokenType.Get) || Check(TokenType.Set) || Check(TokenType.Yield);
+            return CheckIdentifierLike();
         }
 
         private Token ConsumeBindingIdentifier(string message)
@@ -2691,6 +2751,28 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
             Match(TokenType.Semicolon);
             return true;
+        }
+
+        private bool CheckIdentifierLike()
+        {
+            if (Check(TokenType.Identifier))
+            {
+                return true;
+            }
+
+            var token = Peek();
+            return token.Type is TokenType.Async or TokenType.Await or TokenType.Yield ||
+                   IsContextualIdentifierToken(token);
+        }
+
+        private static bool IsContextualIdentifierToken(Token token)
+        {
+            return token.Type is TokenType.Get or TokenType.Set;
+        }
+
+        private bool IsPropertyNameToken(Token token)
+        {
+            return token.Type == TokenType.Identifier || IsContextualIdentifierToken(token) || IsKeyword(token);
         }
 
         private bool CheckContextualKeyword(string keyword)

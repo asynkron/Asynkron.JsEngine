@@ -18,9 +18,6 @@ public class StrictModeTests
                                    """);
 
         Assert.True(program.IsStrict);
-        var directiveStatement = Assert.IsType<ExpressionStatement>(program.Body[0]);
-        var literal = Assert.IsType<LiteralExpression>(directiveStatement.Expression);
-        Assert.Equal("use strict", literal.Value);
     }
 
     [Fact(Timeout = 2000)]

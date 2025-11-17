@@ -2268,7 +2268,7 @@ public sealed class TypedAstParser
 
         private bool TryParseAsyncArrowFunction(out ExpressionNode arrowFunction)
         {
-            arrowFunction = null;
+            arrowFunction = null!;
             if (!Check(TokenType.Async))
             {
                 return false;
@@ -2324,7 +2324,7 @@ public sealed class TypedAstParser
 
         private bool TryParseParenthesizedArrowFunction(bool isAsync, out ExpressionNode arrowFunction)
         {
-            arrowFunction = null;
+            arrowFunction = null!;
             if (!Check(TokenType.LeftParen))
             {
                 return false;

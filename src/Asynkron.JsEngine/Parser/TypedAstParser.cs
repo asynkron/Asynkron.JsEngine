@@ -252,50 +252,163 @@ public sealed class TypedAstParser
                 return new UnaryExpression(CreateSourceReference(Previous()), "+", ParseUnary(), true);
             }
 
-            return ParsePrimary();
+            return ParsePostfix();
+        }
+
+        private ExpressionNode ParsePostfix()
+        {
+            var expr = ParsePrimary();
+
+            if (Match(TokenType.PlusPlus))
+            {
+                return new UnaryExpression(CreateSourceReference(Previous()), "++", expr, false);
+            }
+
+            if (Match(TokenType.MinusMinus))
+            {
+                return new UnaryExpression(CreateSourceReference(Previous()), "--", expr, false);
+            }
+
+            return expr;
         }
 
         private ExpressionNode ParsePrimary()
         {
+            ExpressionNode expr;
+
             if (Match(TokenType.Number))
             {
-                return new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
+                expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
+                return ParseCallSuffix(expr);
             }
 
             if (Match(TokenType.String))
             {
-                return new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
+                expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
+                return ParseCallSuffix(expr);
             }
 
             if (Match(TokenType.True))
             {
-                return new LiteralExpression(CreateSourceReference(Previous()), true);
+                expr = new LiteralExpression(CreateSourceReference(Previous()), true);
+                return ParseCallSuffix(expr);
             }
 
             if (Match(TokenType.False))
             {
-                return new LiteralExpression(CreateSourceReference(Previous()), false);
+                expr = new LiteralExpression(CreateSourceReference(Previous()), false);
+                return ParseCallSuffix(expr);
             }
 
             if (Match(TokenType.Null))
             {
-                return new LiteralExpression(CreateSourceReference(Previous()), null);
+                expr = new LiteralExpression(CreateSourceReference(Previous()), null);
+                return ParseCallSuffix(expr);
             }
 
             if (Match(TokenType.Identifier))
             {
                 var symbol = Symbol.Intern(Previous().Lexeme);
-                return new IdentifierExpression(CreateSourceReference(Previous()), symbol);
+                expr = new IdentifierExpression(CreateSourceReference(Previous()), symbol);
+                return ParseCallSuffix(expr);
             }
 
             if (Match(TokenType.LeftParen))
             {
-                var expr = ParseExpression();
+                var grouped = ParseExpression();
                 Consume(TokenType.RightParen, "Expected ')' after expression.");
-                return expr;
+                return ParseCallSuffix(grouped);
             }
 
             throw new NotSupportedException($"Token '{Peek().Type}' is not yet supported by the direct parser.");
+        }
+
+        private ExpressionNode ParseCallSuffix(ExpressionNode expression)
+        {
+            while (true)
+            {
+                if (Match(TokenType.LeftParen))
+                {
+                    var arguments = ParseArgumentList();
+                    expression = new CallExpression(CreateSourceReference(Previous()), expression, arguments, false);
+                    continue;
+                }
+
+                if (Match(TokenType.Dot))
+                {
+                    expression = FinishDotAccess(expression);
+                    continue;
+                }
+
+                if (Match(TokenType.LeftBracket))
+                {
+                    expression = FinishIndexAccess(expression);
+                    continue;
+                }
+
+                break;
+            }
+
+            return expression;
+        }
+
+        private ImmutableArray<CallArgument> ParseArgumentList()
+        {
+            var arguments = ImmutableArray.CreateBuilder<CallArgument>();
+
+            if (Check(TokenType.RightParen))
+            {
+                Consume(TokenType.RightParen, "Expected ')' after arguments.");
+                return arguments.ToImmutable();
+            }
+
+            do
+            {
+                var isSpread = Match(TokenType.DotDotDot);
+                var expr = ParseExpression();
+                arguments.Add(new CallArgument(expr.Source, expr, isSpread));
+            } while (Match(TokenType.Comma));
+
+            Consume(TokenType.RightParen, "Expected ')' after arguments.");
+            return arguments.ToImmutable();
+        }
+
+        private ExpressionNode FinishDotAccess(ExpressionNode target)
+        {
+            if (!Check(TokenType.Identifier) && !IsKeyword(Peek()))
+            {
+                throw new ParseException("Expected property name after '.'.", Peek(), _source);
+            }
+
+            var nameToken = Advance();
+            var property = new LiteralExpression(CreateSourceReference(nameToken), nameToken.Lexeme);
+            return new MemberExpression(CreateSourceReference(nameToken), target, property, false, false);
+        }
+
+        private ExpressionNode FinishIndexAccess(ExpressionNode target)
+        {
+            var expression = ParseExpression();
+            Consume(TokenType.RightBracket, "Expected ']' after index expression.");
+            var source = target.Source ?? expression.Source;
+            return new MemberExpression(source, target, expression, true, false);
+        }
+
+        private static bool IsKeyword(Token token)
+        {
+            return token.Type switch
+            {
+                TokenType.Let or TokenType.Var or TokenType.Const or TokenType.Function or
+                    TokenType.Class or TokenType.Extends or TokenType.If or TokenType.Else or
+                    TokenType.For or TokenType.In or TokenType.Of or TokenType.While or TokenType.Do or
+                    TokenType.Switch or TokenType.Case or TokenType.Default or TokenType.Break or
+                    TokenType.Continue or TokenType.Return or TokenType.Try or TokenType.Catch or
+                    TokenType.Finally or TokenType.Throw or TokenType.This or TokenType.Super or
+                    TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
+                    TokenType.Undefined or TokenType.Typeof or TokenType.Void or TokenType.Delete or
+                    TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or
+                    TokenType.Await => true,
+                _ => false
+            };
         }
 
         #endregion

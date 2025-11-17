@@ -1147,6 +1147,16 @@ public sealed class TypedAstParser
 
         private ExpressionNode ParseAssignment()
         {
+            if (TryParseAsyncArrowFunction(out var asyncArrow))
+            {
+                return asyncArrow;
+            }
+
+            if (TryParseParenthesizedArrowFunction(isAsync: false, out var parenthesizedArrow))
+            {
+                return parenthesizedArrow;
+            }
+
             var expr = ParseConditional();
 
             if (Match(TokenType.Equal))
@@ -1216,6 +1226,11 @@ public sealed class TypedAstParser
                     MemberExpression member => CreateMemberAssignment(member, combined),
                     _ => throw new NotSupportedException("Unsupported assignment target.")
                 };
+            }
+
+            if (Match(TokenType.Arrow))
+            {
+                return FinishArrowFunction(expr, false, Previous());
             }
 
             return expr;
@@ -2251,6 +2266,235 @@ public sealed class TypedAstParser
             }
         }
 
+        private bool TryParseAsyncArrowFunction(out ExpressionNode arrowFunction)
+        {
+            arrowFunction = null;
+            if (!Check(TokenType.Async))
+            {
+                return false;
+            }
+
+            var saved = _current;
+            var asyncToken = Advance();
+
+            if (HasLineTerminatorBefore())
+            {
+                _current = saved;
+                return false;
+            }
+
+            if (Check(TokenType.Function))
+            {
+                _current = saved;
+                return false;
+            }
+
+            if (Check(TokenType.LeftParen))
+            {
+                Advance();
+                if (!TryParseArrowParameterList(out var parameters))
+                {
+                    _current = saved;
+                    return false;
+                }
+
+                Consume(TokenType.Arrow, "Expected '=>' after async arrow parameters.");
+                arrowFunction = ParseArrowFunctionBody(parameters, true, asyncToken);
+                return true;
+            }
+
+            if (!CheckParameterIdentifier())
+            {
+                _current = saved;
+                return false;
+            }
+
+            var parameterToken = ConsumeParameterIdentifier("Expected parameter name.");
+            if (!Match(TokenType.Arrow))
+            {
+                _current = saved;
+                return false;
+            }
+
+            var parameter = new FunctionParameter(CreateSourceReference(parameterToken),
+                Symbol.Intern(parameterToken.Lexeme), false, null, null);
+            arrowFunction = ParseArrowFunctionBody(ImmutableArray.Create(parameter), true, asyncToken);
+            return true;
+        }
+
+        private bool TryParseParenthesizedArrowFunction(bool isAsync, out ExpressionNode arrowFunction)
+        {
+            arrowFunction = null;
+            if (!Check(TokenType.LeftParen))
+            {
+                return false;
+            }
+
+            var saved = _current;
+            var startToken = Peek();
+            Advance(); // consume '('
+
+            if (!TryParseArrowParameterList(out var parameters))
+            {
+                _current = saved;
+                return false;
+            }
+
+            Consume(TokenType.Arrow, "Expected '=>' after arrow parameters.");
+            arrowFunction = ParseArrowFunctionBody(parameters, isAsync, startToken);
+            return true;
+        }
+
+        private bool TryParseArrowParameterList(out ImmutableArray<FunctionParameter> parameters)
+        {
+            var builder = ImmutableArray.CreateBuilder<FunctionParameter>();
+            var start = _current;
+
+            if (Check(TokenType.RightParen))
+            {
+                Advance();
+            }
+            else
+            {
+                while (true)
+                {
+                    var isRest = Match(TokenType.DotDotDot);
+                    FunctionParameter parameter;
+
+                    if (Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace))
+                    {
+                        var pattern = ParseBindingTarget("Expected binding pattern in parameter.");
+                        ExpressionNode? defaultValue = null;
+                        if (!isRest && Match(TokenType.Equal))
+                        {
+                            defaultValue = ParseAssignment();
+                        }
+                        else if (isRest && Check(TokenType.Equal))
+                        {
+                            _current = start;
+                            parameters = default;
+                            return false;
+                        }
+
+                        parameter = CreateParameterFromBinding(pattern, isRest, defaultValue);
+                    }
+                    else
+                    {
+                        if (!CheckParameterIdentifier())
+                        {
+                            _current = start;
+                            parameters = default;
+                            return false;
+                        }
+
+                        var nameToken = ConsumeParameterIdentifier("Expected parameter name.");
+                        ExpressionNode? defaultValue = null;
+                        if (!isRest && Match(TokenType.Equal))
+                        {
+                            defaultValue = ParseAssignment();
+                        }
+                        else if (isRest && Check(TokenType.Equal))
+                        {
+                            _current = start;
+                            parameters = default;
+                            return false;
+                        }
+
+                        parameter = new FunctionParameter(CreateSourceReference(nameToken),
+                            Symbol.Intern(nameToken.Lexeme), isRest, null, defaultValue);
+                    }
+
+                    builder.Add(parameter);
+
+                    if (!Match(TokenType.Comma))
+                    {
+                        break;
+                    }
+
+                    if (Check(TokenType.RightParen))
+                    {
+                        break;
+                    }
+                }
+
+                if (!Check(TokenType.RightParen))
+                {
+                    _current = start;
+                    parameters = default;
+                    return false;
+                }
+
+                Advance();
+            }
+
+            if (!Check(TokenType.Arrow))
+            {
+                _current = start;
+                parameters = default;
+                return false;
+            }
+
+            parameters = builder.ToImmutable();
+            return true;
+        }
+
+        private FunctionParameter CreateParameterFromBinding(BindingTarget target, bool isRest,
+            ExpressionNode? defaultValue)
+        {
+            return target switch
+            {
+                IdentifierBinding identifier =>
+                    new FunctionParameter(target.Source, identifier.Name, isRest, null, defaultValue),
+                _ => new FunctionParameter(target.Source, null, isRest, target, defaultValue)
+            };
+        }
+
+        private ExpressionNode ParseArrowFunctionBody(ImmutableArray<FunctionParameter> parameters, bool isAsync,
+            Token? headToken, SourceReference? fallbackSource = null)
+        {
+            BlockStatement body;
+            if (Match(TokenType.LeftBrace))
+            {
+                body = ParseBlock(leftBraceConsumed: true);
+            }
+            else
+            {
+                var expression = ParseAssignment();
+                var returnStatement = new ReturnStatement(expression.Source, expression);
+                body = new BlockStatement(expression.Source, ImmutableArray.Create<StatementNode>(returnStatement), false);
+            }
+
+            var source = body.Source;
+            if (source is null && headToken is not null)
+            {
+                source = CreateSourceReference(headToken);
+            }
+            else if (source is null)
+            {
+                source = fallbackSource;
+            }
+
+            return new FunctionExpression(source, null, parameters, body, isAsync, false);
+        }
+
+        private ExpressionNode FinishArrowFunction(ExpressionNode parameterExpression, bool isAsync, Token arrowToken)
+        {
+            ImmutableArray<FunctionParameter> parameters;
+
+            if (parameterExpression is IdentifierExpression identifier)
+            {
+                var parameter = new FunctionParameter(parameterExpression.Source, identifier.Name, false, null, null);
+                parameters = ImmutableArray.Create(parameter);
+            }
+            else
+            {
+                throw new NotSupportedException("Arrow functions require an identifier or parenthesized parameter list.");
+            }
+
+            return ParseArrowFunctionBody(parameters, isAsync, null,
+                parameterExpression.Source ?? CreateSourceReference(arrowToken));
+        }
+
         private static bool IsKeyword(Token token)
         {
             return token.Type switch
@@ -2368,6 +2612,12 @@ public sealed class TypedAstParser
             }
 
             throw new ParseException(message, Peek(), _source);
+        }
+
+        private bool CheckParameterIdentifier()
+        {
+            return Check(TokenType.Identifier) || Check(TokenType.Async) || Check(TokenType.Await) ||
+                   Check(TokenType.Get) || Check(TokenType.Set) || Check(TokenType.Yield);
         }
 
         private Token ConsumeBindingIdentifier(string message)

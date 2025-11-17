@@ -642,7 +642,7 @@ public sealed class TypedConstantExpressionTransformer
 
     private ExpressionNode TransformYield(YieldExpression expression)
     {
-        var inner = TransformExpression(expression.Expression);
+        var inner = TransformOptionalExpression(expression.Expression);
         return ReferenceEquals(inner, expression.Expression) ? expression : expression with { Expression = inner };
     }
 

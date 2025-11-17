@@ -353,6 +353,93 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStar_DelegatesValues()
+    {
+        // Arrange
+        await using var engine = new JsEngine();
+
+        // Act
+        var temp = await engine.Evaluate("""
+
+                                                     function* inner() {
+                                                         yield 1;
+                                                         yield 2;
+                                                         return 42;
+                                                     }
+                                                     function* outer() {
+                                                         yield 0;
+                                                         const finalResult = yield* inner();
+                                                         return finalResult;
+                                                     }
+                                                     let g = outer();
+                                                     let r1 = g.next();
+                                                     let r2 = g.next();
+                                                     let r3 = g.next();
+                                                     let r4 = g.next();
+
+                                         """);
+
+        var r1Value = await engine.Evaluate("r1.value;");
+        var r2Value = await engine.Evaluate("r2.value;");
+        var r3Value = await engine.Evaluate("r3.value;");
+        var r4Value = await engine.Evaluate("r4.value;");
+        var r1Done = await engine.Evaluate("r1.done;");
+        var r2Done = await engine.Evaluate("r2.done;");
+        var r3Done = await engine.Evaluate("r3.done;");
+        var r4Done = await engine.Evaluate("r4.done;");
+
+        // Assert
+        Assert.Equal(0.0, r1Value);
+        Assert.False((bool)r1Done!);
+        Assert.Equal(1.0, r2Value);
+        Assert.False((bool)r2Done!);
+        Assert.Equal(2.0, r3Value);
+        Assert.False((bool)r3Done!);
+        Assert.Equal(42.0, r4Value);
+        Assert.True((bool)r4Done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStar_ReturnValueUsedByOuterGenerator()
+    {
+        // Arrange
+        await using var engine = new JsEngine();
+
+        // Act
+        var temp = await engine.Evaluate("""
+
+                                                     function* inner() {
+                                                         yield 10;
+                                                         return 5;
+                                                     }
+                                                     function* outer() {
+                                                         const captured = yield* inner();
+                                                         yield captured;
+                                                     }
+                                                     let g = outer();
+                                                     let r1 = g.next();
+                                                     let r2 = g.next();
+                                                     let r3 = g.next();
+
+                                         """);
+
+        var firstValue = await engine.Evaluate("r1.value;");
+        var secondValue = await engine.Evaluate("r2.value;");
+        var thirdValue = await engine.Evaluate("r3.value;");
+        var firstDone = await engine.Evaluate("r1.done;");
+        var secondDone = await engine.Evaluate("r2.done;");
+        var thirdDone = await engine.Evaluate("r3.done;");
+
+        // Assert
+        Assert.Equal(10.0, firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal(5.0, secondValue);
+        Assert.False((bool)secondDone!);
+        Assert.Null(thirdValue);
+        Assert.True((bool)thirdDone!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task GeneratorExpression_CanBeAssigned()
     {
         // Arrange

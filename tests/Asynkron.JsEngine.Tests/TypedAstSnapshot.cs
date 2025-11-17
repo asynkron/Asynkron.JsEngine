@@ -287,6 +287,21 @@ internal static class TypedAstSnapshot
             case ObjectExpression objectExpression:
                 AppendObjectExpression(objectExpression, builder);
                 break;
+            case YieldExpression yieldExpression:
+                builder.Append("(yield");
+                if (yieldExpression.IsDelegated)
+                {
+                    builder.Append(" delegated");
+                }
+
+                if (yieldExpression.Expression is not null)
+                {
+                    builder.Append(' ');
+                    AppendExpression(yieldExpression.Expression, builder);
+                }
+
+                builder.Append(')');
+                break;
             default:
                 throw new NotSupportedException($"Snapshot does not handle expression '{expression.GetType().Name}'.");
         }

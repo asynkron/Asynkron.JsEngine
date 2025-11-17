@@ -334,12 +334,7 @@ internal static class TypedAstSupportAnalyzer
                         // runs, so simply validate the awaited operand here.
                         return VisitExpression(awaitExpression.Expression);
                     case YieldExpression yieldExpression:
-                        if (yieldExpression.IsDelegated)
-                        {
-                            return Fail("Delegated yield expressions are not supported by the typed evaluator yet.");
-                        }
-
-                        return VisitExpression(yieldExpression.Expression);
+                        return yieldExpression.Expression is null || VisitExpression(yieldExpression.Expression);
                     case SuperExpression:
                         return Fail("super expressions are not supported by the typed evaluator yet.");
                     default:

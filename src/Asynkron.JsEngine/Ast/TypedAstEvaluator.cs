@@ -1042,11 +1042,14 @@ public static class TypedAstEvaluator
     private static object? EvaluateYield(YieldExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
-        if (expression.IsDelegated)
-        {
-            throw new NotSupportedException("Delegated yield expressions are not supported by the typed evaluator yet.");
-        }
+        return expression.IsDelegated
+            ? EvaluateDelegatedYield(expression, environment, context)
+            : EvaluateSimpleYield(expression, environment, context);
+    }
 
+    private static object? EvaluateSimpleYield(YieldExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
         var yieldedValue = expression.Expression is null
             ? JsSymbols.Undefined
             : EvaluateExpression(expression.Expression, environment, context);
@@ -1055,11 +1058,7 @@ public static class TypedAstEvaluator
             return yieldedValue;
         }
 
-        if (!environment.TryGet(YieldTrackerSymbol, out var tracker) || tracker is not YieldTracker yieldTracker)
-        {
-            throw new InvalidOperationException("'yield' can only be used inside a generator function.");
-        }
-
+        var yieldTracker = GetYieldTracker(environment);
         if (!yieldTracker.ShouldYield())
         {
             return JsSymbols.Undefined;
@@ -1067,6 +1066,127 @@ public static class TypedAstEvaluator
 
         context.SetYield(yieldedValue);
         return yieldedValue;
+    }
+
+    private static object? EvaluateDelegatedYield(YieldExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        if (expression.Expression is null)
+        {
+            throw new InvalidOperationException("yield* requires an expression.");
+        }
+
+        var stateKey = GetDelegatedStateKey(expression);
+        var state = GetDelegatedState(stateKey, environment);
+
+        if (state is null)
+        {
+            var iterable = EvaluateExpression(expression.Expression, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return iterable;
+            }
+
+            state = CreateDelegatedState(iterable);
+            StoreDelegatedState(stateKey, environment, state);
+        }
+
+        var tracker = GetYieldTracker(environment);
+
+        while (true)
+        {
+            var (value, done) = state.MoveNext();
+            if (done)
+            {
+                ClearDelegatedState(stateKey, environment);
+                return value;
+            }
+
+            if (!tracker.ShouldYield())
+            {
+                continue;
+            }
+
+            context.SetYield(value);
+            return value;
+        }
+    }
+
+    private static YieldTracker GetYieldTracker(JsEnvironment environment)
+    {
+        if (!environment.TryGet(YieldTrackerSymbol, out var tracker) || tracker is not YieldTracker yieldTracker)
+        {
+            throw new InvalidOperationException("'yield' can only be used inside a generator function.");
+        }
+
+        return yieldTracker;
+    }
+
+    private static DelegatedYieldState CreateDelegatedState(object? iterable)
+    {
+        if (TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
+        {
+            return DelegatedYieldState.FromIterator(iterator);
+        }
+
+        var values = EnumerateValues(iterable);
+        return DelegatedYieldState.FromEnumerable(values);
+    }
+
+    private static Symbol? GetDelegatedStateKey(YieldExpression expression)
+    {
+        if (expression.Source is null)
+        {
+            return null;
+        }
+
+        var key = $"__yield_delegate_{expression.Source.StartPosition}_{expression.Source.EndPosition}";
+        return Symbol.Intern(key);
+    }
+
+    private static DelegatedYieldState? GetDelegatedState(Symbol? key, JsEnvironment environment)
+    {
+        if (key is null)
+        {
+            return null;
+        }
+
+        if (environment.TryGet(key, out var existing) && existing is DelegatedYieldState state)
+        {
+            return state;
+        }
+
+        return null;
+    }
+
+    private static void StoreDelegatedState(Symbol? key, JsEnvironment environment, DelegatedYieldState state)
+    {
+        if (key is null)
+        {
+            return;
+        }
+
+        if (environment.TryGet(key, out _))
+        {
+            environment.Assign(key, state);
+        }
+        else
+        {
+            environment.Define(key, state);
+        }
+    }
+
+    private static void ClearDelegatedState(Symbol? key, JsEnvironment environment)
+    {
+        if (key is null)
+        {
+            return;
+        }
+
+        if (environment.TryGet(key, out _))
+        {
+            environment.Assign(key, null);
+        }
     }
 
     private static object? EvaluateDestructuringAssignment(DestructuringAssignmentExpression expression,
@@ -3148,6 +3268,59 @@ public static class TypedAstEvaluator
             }
 
             environment.Define(parameter.Name, value);
+        }
+    }
+
+    private sealed class DelegatedYieldState
+    {
+        private readonly JsObject? _iterator;
+        private readonly IEnumerator<object?>? _enumerator;
+
+        private DelegatedYieldState(JsObject? iterator, IEnumerator<object?>? enumerator)
+        {
+            _iterator = iterator;
+            _enumerator = enumerator;
+        }
+
+        public static DelegatedYieldState FromIterator(JsObject iterator)
+        {
+            return new DelegatedYieldState(iterator, null);
+        }
+
+        public static DelegatedYieldState FromEnumerable(IEnumerable<object?> enumerable)
+        {
+            return new DelegatedYieldState(null, enumerable.GetEnumerator());
+        }
+
+        public (object? Value, bool Done) MoveNext()
+        {
+            if (_iterator is not null)
+            {
+                var nextResult = InvokeIteratorNext(_iterator);
+                if (nextResult is not JsObject resultObj)
+                {
+                    return (JsSymbols.Undefined, true);
+                }
+
+                var done = resultObj.TryGetProperty("done", out var doneValue) &&
+                           doneValue is bool completed && completed;
+                var value = resultObj.TryGetProperty("value", out var yielded)
+                    ? yielded
+                    : JsSymbols.Undefined;
+                return (value, done);
+            }
+
+            if (_enumerator is null)
+            {
+                return (JsSymbols.Undefined, true);
+            }
+
+            if (!_enumerator.MoveNext())
+            {
+                return (JsSymbols.Undefined, true);
+            }
+
+            return (_enumerator.Current, false);
         }
     }
 

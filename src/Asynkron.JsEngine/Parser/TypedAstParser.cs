@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
@@ -12,21 +11,14 @@ namespace Asynkron.JsEngine.Parser;
 /// implementation reaches feature parity with the legacy Cons parser we keep a
 /// fallback that reuses the existing parser + builder pipeline.
 /// </summary>
-public sealed class TypedAstParser
+public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, SExpressionAstBuilder? astBuilder = null)
 {
-    private readonly IReadOnlyList<Token> _tokens;
-    private readonly string _source;
-    private readonly SExpressionAstBuilder _astBuilder;
-    private static readonly bool DisableFallback =
+    private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
+    private readonly string _source = source ?? string.Empty;
+    private readonly SExpressionAstBuilder _astBuilder = astBuilder ?? new SExpressionAstBuilder();
+    private static readonly bool _disableFallback =
         string.Equals(Environment.GetEnvironmentVariable("ASYNKRON_DISABLE_TYPED_FALLBACK"), "1",
             StringComparison.Ordinal);
-
-    public TypedAstParser(IReadOnlyList<Token> tokens, string source, SExpressionAstBuilder? astBuilder = null)
-    {
-        _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
-        _source = source ?? string.Empty;
-        _astBuilder = astBuilder ?? new SExpressionAstBuilder();
-    }
 
     public ProgramNode ParseProgram()
     {
@@ -37,7 +29,7 @@ public sealed class TypedAstParser
         }
         catch (Exception ex) when (ex is NotSupportedException or ParseException)
         {
-            if (DisableFallback)
+            if (_disableFallback)
             {
                 throw;
             }
@@ -63,6 +55,10 @@ public sealed class TypedAstParser
         private readonly IReadOnlyList<Token> _tokens;
         private readonly string _source;
         private int _current;
+        private readonly Stack<FunctionContext> _functionContexts = new();
+
+        private bool InGeneratorContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsGenerator;
+        private bool InAsyncContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsAsync;
 
         public DirectParser(IReadOnlyList<Token> tokens, string source)
         {
@@ -204,9 +200,10 @@ public sealed class TypedAstParser
 
         private StatementNode ParseFunctionDeclaration(bool isAsync, Token functionKeyword)
         {
+            var isGenerator = Match(TokenType.Star);
             var nameToken = Consume(TokenType.Identifier, "Expected function name.");
             var name = Symbol.Intern(nameToken.Lexeme);
-            var function = ParseFunctionTail(name, functionKeyword, isAsync);
+            var function = ParseFunctionTail(name, functionKeyword, isAsync, isGenerator);
             var source = function.Source ?? CreateSourceReference(functionKeyword);
             return new FunctionDeclaration(source, name, function);
         }
@@ -710,6 +707,8 @@ public sealed class TypedAstParser
                     continue;
                 }
 
+                var isGeneratorMethod = Match(TokenType.Star);
+
                 if (Check(TokenType.Identifier))
                 {
                     var methodNameToken = Advance();
@@ -717,6 +716,12 @@ public sealed class TypedAstParser
 
                     if (Match(TokenType.Equal))
                     {
+                        if (isGeneratorMethod)
+                        {
+                            throw new ParseException("Class fields cannot be prefixed with '*'.", methodNameToken,
+                                _source);
+                        }
+
                         var initializer = ParseExpression();
                         Match(TokenType.Semicolon);
                         fields.Add(new ClassField(CreateSourceReference(methodNameToken), methodName, initializer,
@@ -736,16 +741,26 @@ public sealed class TypedAstParser
                             throw new ParseException("Class cannot declare multiple constructors.", Peek(), _source);
                         }
 
-                        constructor = ParseClassMethod(className, methodNameToken);
+                        if (isGeneratorMethod)
+                        {
+                            throw new ParseException("Constructor cannot be a generator.", methodNameToken, _source);
+                        }
+
+                        constructor = ParseClassMethod(className, methodNameToken, false);
                     }
                     else
                     {
-                        var function = ParseClassMethod(null, methodNameToken);
+                        var function = ParseClassMethod(null, methodNameToken, isGeneratorMethod);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Method,
                             methodName, function, isStatic));
                     }
 
                     continue;
+                }
+
+                if (isGeneratorMethod)
+                {
+                    throw new ParseException("Expected method name after '*'.", Peek(), _source);
                 }
 
                 throw new ParseException("Expected method, field, getter, or setter in class body.", Peek(), _source);
@@ -754,14 +769,15 @@ public sealed class TypedAstParser
             return (constructor, members.ToImmutable(), fields.ToImmutable());
         }
 
-        private FunctionExpression ParseClassMethod(Symbol? functionName, Token methodNameToken)
+        private FunctionExpression ParseClassMethod(Symbol? functionName, Token methodNameToken, bool isGenerator)
         {
             Consume(TokenType.LeftParen, "Expected '(' after method name.");
             var parameters = ParseParameterList();
             Consume(TokenType.RightParen, "Expected ')' after method parameters.");
+            using var _ = EnterFunctionContext(false, isGenerator);
             var body = ParseBlock();
             var source = body.Source ?? CreateSourceReference(methodNameToken);
-            return new FunctionExpression(source, functionName, parameters, body, false, false);
+            return new FunctionExpression(source, functionName, parameters, body, false, isGenerator);
         }
 
         private FunctionExpression CreateDefaultConstructor(Symbol? className)
@@ -988,6 +1004,7 @@ public sealed class TypedAstParser
         private ExportDefaultStatement ParseExportDefaultFunction(SourceReference? exportSource, Token functionToken,
             bool isAsync)
         {
+            var isGenerator = Match(TokenType.Star);
             Symbol? name = null;
             if (Check(TokenType.Identifier))
             {
@@ -995,7 +1012,7 @@ public sealed class TypedAstParser
                 name = Symbol.Intern(nameToken.Lexeme);
             }
 
-            var function = ParseFunctionTail(name, functionToken, isAsync);
+            var function = ParseFunctionTail(name, functionToken, isAsync, isGenerator);
             if (name is not null)
             {
                 var declaration = new FunctionDeclaration(function.Source ?? CreateSourceReference(functionToken), name,
@@ -1480,7 +1497,21 @@ public sealed class TypedAstParser
 
                 var keyword = Advance();
                 var isDelegated = Match(TokenType.Star);
-                var value = ParseAssignment();
+                ExpressionNode? value = null;
+                if (isDelegated)
+                {
+                    if (Check(TokenType.Semicolon) || CanInsertSemicolon())
+                    {
+                        throw new ParseException("yield* requires an expression.", keyword, _source);
+                    }
+
+                    value = ParseAssignment();
+                }
+                else if (!(Check(TokenType.Semicolon) || CanInsertSemicolon()))
+                {
+                    value = ParseAssignment();
+                }
+
                 return new YieldExpression(CreateSourceReference(keyword), value, isDelegated);
             }
 
@@ -1856,6 +1887,7 @@ public sealed class TypedAstParser
                     continue;
                 }
 
+                var isGeneratorMethod = Match(TokenType.Star);
                 var (key, isComputed, keySource) = ParseObjectPropertyKey();
 
                 ExpressionNode? value = null;
@@ -1866,16 +1898,28 @@ public sealed class TypedAstParser
                 {
                     var parameters = ParseParameterList();
                     Consume(TokenType.RightParen, "Expected ')' after method parameters.");
+                    using var _ = EnterFunctionContext(false, isGeneratorMethod);
                     var body = ParseBlock();
-                    method = new FunctionExpression(body.Source, null, parameters, body, false, false);
+                    method = new FunctionExpression(body.Source, null, parameters, body, false, isGeneratorMethod);
                     kind = ObjectMemberKind.Method;
                 }
                 else if (Match(TokenType.Colon))
                 {
+                    if (isGeneratorMethod)
+                    {
+                        throw new ParseException("Generator marker '*' must be followed by a method definition.",
+                            Peek(), _source);
+                    }
+
                     value = ParseExpression();
                 }
                 else
                 {
+                    if (isGeneratorMethod)
+                    {
+                        throw new ParseException("Generator shorthand properties are not supported.", Peek(), _source);
+                    }
+
                     if (key is not string shorthandName)
                     {
                         throw new ParseException("Shorthand properties must use identifiers.", Peek(), _source);
@@ -2011,6 +2055,7 @@ public sealed class TypedAstParser
         private ExpressionNode ParseFunctionExpression(Symbol? explicitName = null, bool isAsync = false)
         {
             var functionKeyword = Previous();
+            var isGenerator = Match(TokenType.Star);
             Symbol? name = explicitName;
             if (name is null && Check(TokenType.Identifier))
             {
@@ -2018,17 +2063,18 @@ public sealed class TypedAstParser
                 name = Symbol.Intern(nameToken.Lexeme);
             }
 
-            return ParseFunctionTail(name, functionKeyword, isAsync);
+            return ParseFunctionTail(name, functionKeyword, isAsync, isGenerator);
         }
 
-        private FunctionExpression ParseFunctionTail(Symbol? name, Token startToken, bool isAsync)
+        private FunctionExpression ParseFunctionTail(Symbol? name, Token startToken, bool isAsync, bool isGenerator)
         {
             Consume(TokenType.LeftParen, "Expected '(' after function name.");
             var parameters = ParseParameterList();
             Consume(TokenType.RightParen, "Expected ')' after parameters.");
+            using var _ = EnterFunctionContext(isAsync, isGenerator);
             var body = ParseBlock();
             var source = body.Source ?? CreateSourceReference(startToken);
-            return new FunctionExpression(source, name, parameters, body, isAsync, false);
+            return new FunctionExpression(source, name, parameters, body, isAsync, isGenerator);
         }
 
         private ImmutableArray<FunctionParameter> ParseParameterList()
@@ -2452,6 +2498,7 @@ public sealed class TypedAstParser
         private ExpressionNode ParseArrowFunctionBody(ImmutableArray<FunctionParameter> parameters, bool isAsync,
             Token? headToken, SourceReference? fallbackSource = null)
         {
+            using var _ = EnterFunctionContext(isAsync, false);
             BlockStatement body;
             if (Match(TokenType.LeftBrace))
             {
@@ -2711,6 +2758,17 @@ public sealed class TypedAstParser
 
         private bool IsYieldOrAwaitUsedAsIdentifier()
         {
+            var currentToken = Peek();
+            if (currentToken.Type == TokenType.Yield && InGeneratorContext)
+            {
+                return false;
+            }
+
+            if (currentToken.Type == TokenType.Await && InAsyncContext)
+            {
+                return false;
+            }
+
             var nextType = PeekNext().Type;
             return nextType is TokenType.Semicolon or TokenType.Comma or TokenType.RightParen or
                    TokenType.RightBracket or TokenType.RightBrace or TokenType.Colon or
@@ -2727,6 +2785,50 @@ public sealed class TypedAstParser
                    TokenType.GreaterGreaterGreaterEqual or TokenType.QuestionQuestion or
                    TokenType.QuestionQuestionEqual or TokenType.Question or TokenType.Dot or
                    TokenType.QuestionDot or TokenType.LeftBracket or TokenType.PlusPlus or TokenType.MinusMinus;
+        }
+
+        private FunctionContextScope EnterFunctionContext(bool isAsync, bool isGenerator)
+        {
+            _functionContexts.Push(new FunctionContext(isAsync, isGenerator));
+            return new FunctionContextScope(this);
+        }
+
+        private readonly struct FunctionContext
+        {
+            public FunctionContext(bool isAsync, bool isGenerator)
+            {
+                IsAsync = isAsync;
+                IsGenerator = isGenerator;
+            }
+
+            public bool IsAsync { get; }
+            public bool IsGenerator { get; }
+        }
+
+        private sealed class FunctionContextScope : IDisposable
+        {
+            private readonly DirectParser _parser;
+            private bool _disposed;
+
+            public FunctionContextScope(DirectParser parser)
+            {
+                _parser = parser;
+            }
+
+            public void Dispose()
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                if (_parser._functionContexts.Count > 0)
+                {
+                    _parser._functionContexts.Pop();
+                }
+
+                _disposed = true;
+            }
         }
 
         private SourceReference? CreateSourceReference(Token startToken)

@@ -165,7 +165,7 @@ public sealed record TemplatePart(SourceReference? Source, string? Text, Express
 /// <summary>
 /// Represents a yield expression inside a generator.
 /// </summary>
-public sealed record YieldExpression(SourceReference? Source, ExpressionNode Expression, bool IsDelegated)
+public sealed record YieldExpression(SourceReference? Source, ExpressionNode? Expression, bool IsDelegated)
     : ExpressionNode(Source);
 
 /// <summary>

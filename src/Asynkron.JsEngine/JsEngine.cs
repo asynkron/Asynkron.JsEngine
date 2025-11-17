@@ -236,8 +236,13 @@ public sealed class JsEngine : IAsyncDisposable
     {
         // All executable code flows through the typed AST pipeline so async/await
         // rewrites and other typed-only transformations are always applied.
-        var program = ParseInternal(source);
-        return CreateTypedParsedProgram(program);
+        var lexer = new Lexer(source);
+        var tokens = lexer.Tokenize();
+
+        var typedParser = new TypedAstParser(tokens, source, _astBuilder);
+        var typedProgram = typedParser.ParseProgram();
+        var parsedProgram = new ParsedProgram(typedProgram, tokens, source);
+        return CreateTypedParsedProgram(parsedProgram);
     }
 
     private Cons ParseInternal(string source)
@@ -253,12 +258,12 @@ public sealed class JsEngine : IAsyncDisposable
         return program;
     }
 
-    private ParsedProgram CreateTypedParsedProgram(Cons program)
+    private ParsedProgram CreateTypedParsedProgram(ParsedProgram parsedProgram)
     {
-        var typed = _astBuilder.BuildProgram(program);
+        var typed = parsedProgram.Typed;
         if (!TypedAstSupportAnalyzer.Supports(typed, out _))
         {
-            return CreateFallbackParsedProgram(program);
+            return CreateFallbackParsedProgram(parsedProgram);
         }
 
         typed = _typedConstantTransformer.Transform(typed);
@@ -272,18 +277,18 @@ public sealed class JsEngine : IAsyncDisposable
         }
         catch (NotSupportedException)
         {
-            return CreateFallbackParsedProgram(program);
+            return CreateFallbackParsedProgram(parsedProgram);
         }
 
-        return new ParsedProgram(program, typed);
+        return parsedProgram.WithTyped(typed);
     }
 
-    private ParsedProgram CreateFallbackParsedProgram(Cons program)
+    private ParsedProgram CreateFallbackParsedProgram(ParsedProgram parsedProgram)
     {
-
-        var fallbackTyped = _astBuilder.BuildProgram(program);
+        var sExpression = parsedProgram.EnsureSExpression();
+        var fallbackTyped = _astBuilder.BuildProgram(sExpression);
         fallbackTyped = _typedConstantTransformer.Transform(fallbackTyped);
-        return new ParsedProgram(program, fallbackTyped);
+        return parsedProgram.WithTyped(fallbackTyped, sExpression);
     }
 
     /// <summary>

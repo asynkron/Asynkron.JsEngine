@@ -1,13 +1,60 @@
+using System.Collections.Generic;
 using Asynkron.JsEngine.Lisp;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Bundles the transformed S-expression with its typed AST counterpart. The
-/// runtime now always executes the typed tree, but keeping the cons version
-/// alongside it lets upstream passes reuse the historical parsing and
-/// transformation tooling without re-parsing.
+/// Represents the parsed program that the runtime executes. The primary data is
+/// the typed AST, but callers can request the legacy Cons representation on
+/// demand for tooling or fallback transformations. The legacy tree is rebuilt
+/// lazily from the stored tokens so most execution paths never pay for it.
 /// </summary>
-/// <param name="SExpression">The transformed S-expression produced by the parser pipeline.</param>
-/// <param name="Typed">The typed AST built from the S-expression.</param>
-public sealed record ParsedProgram(Cons SExpression, ProgramNode Typed);
+public sealed class ParsedProgram
+{
+    private Cons? _sExpression;
+
+    public ParsedProgram(ProgramNode typed, IReadOnlyList<Token>? tokens = null, string? source = null,
+        Cons? sExpression = null)
+    {
+        Typed = typed ?? throw new ArgumentNullException(nameof(typed));
+        Tokens = tokens;
+        Source = source;
+        _sExpression = sExpression;
+    }
+
+    public ProgramNode Typed { get; }
+    internal IReadOnlyList<Token>? Tokens { get; }
+    internal string? Source { get; }
+
+    /// <summary>
+    /// Returns the legacy Cons representation, parsing it lazily if needed.
+    /// </summary>
+    public Cons EnsureSExpression()
+    {
+        if (_sExpression is not null)
+        {
+            return _sExpression;
+        }
+
+        if (Tokens is null || Source is null)
+        {
+            throw new InvalidOperationException(
+                "No legacy S-expression is available for this program. It may have been parsed outside the legacy pipeline.");
+        }
+
+        var parser = new Parser.Parser(Tokens, Source);
+        _sExpression = parser.ParseProgram();
+        return _sExpression;
+    }
+
+    internal ParsedProgram WithTyped(ProgramNode typed, Cons? explicitSExpression = null)
+    {
+        return new ParsedProgram(typed, Tokens, Source, explicitSExpression ?? _sExpression);
+    }
+
+    public static ParsedProgram FromSExpression(Cons sExpression, ProgramNode typed)
+    {
+        return new ParsedProgram(typed, null, null, sExpression);
+    }
+}

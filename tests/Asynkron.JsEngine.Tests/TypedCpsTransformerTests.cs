@@ -173,66 +173,68 @@ public class TypedCpsTransformerTests
 
     private static IEnumerable<StatementNode> EnumerateStatements(StatementNode statement)
     {
-        yield return statement;
-        switch (statement)
+        while (true)
         {
-            case BlockStatement block:
-                foreach (var child in block.Statements)
-                {
-                    foreach (var nested in EnumerateStatements(child))
+            yield return statement;
+            switch (statement)
+            {
+                case BlockStatement block:
+                    foreach (var child in block.Statements)
+                    {
+                        foreach (var nested in EnumerateStatements(child))
+                        {
+                            yield return nested;
+                        }
+                    }
+
+                    break;
+                case IfStatement ifStatement:
+                    foreach (var nested in EnumerateStatements(ifStatement.Then))
                     {
                         yield return nested;
                     }
-                }
-                break;
-            case IfStatement ifStatement:
-                foreach (var nested in EnumerateStatements(ifStatement.Then))
-                {
-                    yield return nested;
-                }
 
-                if (ifStatement.Else is not null)
-                {
-                    foreach (var nested in EnumerateStatements(ifStatement.Else))
+                    if (ifStatement.Else is not null)
+                    {
+                        statement = ifStatement.Else;
+                        continue;
+                    }
+
+                    break;
+                case TryStatement tryStatement:
+                    foreach (var nested in EnumerateStatements(tryStatement.TryBlock))
                     {
                         yield return nested;
                     }
-                }
 
-                break;
-            case TryStatement tryStatement:
-                foreach (var nested in EnumerateStatements(tryStatement.TryBlock))
-                {
-                    yield return nested;
-                }
-
-                if (tryStatement.Catch is not null)
-                {
-                    foreach (var nested in EnumerateStatements(tryStatement.Catch.Body))
+                    if (tryStatement.Catch is not null)
                     {
-                        yield return nested;
+                        foreach (var nested in EnumerateStatements(tryStatement.Catch.Body))
+                        {
+                            yield return nested;
+                        }
                     }
-                }
 
-                if (tryStatement.Finally is not null)
-                {
-                    foreach (var nested in EnumerateStatements(tryStatement.Finally))
+                    if (tryStatement.Finally is not null)
                     {
-                        yield return nested;
+                        statement = tryStatement.Finally;
+                        continue;
                     }
-                }
 
-                break;
-            case SwitchStatement switchStatement:
-                foreach (var switchCase in switchStatement.Cases)
-                {
-                    foreach (var nested in EnumerateStatements(switchCase.Body))
+                    break;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
                     {
-                        yield return nested;
+                        foreach (var nested in EnumerateStatements(switchCase.Body))
+                        {
+                            yield return nested;
+                        }
                     }
-                }
 
-                break;
+                    break;
+            }
+
+            break;
         }
     }
 

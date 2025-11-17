@@ -1198,6 +1198,10 @@ public sealed class TypedCpsTransformer
                     rewritten = RewriteForEachStatement(forEachStatement, remaining);
                     handledRemainder = true;
                     return true;
+                case WhileStatement whileStatement when ShouldRewriteWhile(whileStatement):
+                    rewritten = RewriteWhileStatement(whileStatement, remaining);
+                    handledRemainder = true;
+                    return true;
                 case TryStatement tryStatement:
                     if (TryRewriteTryStatement(tryStatement, remaining, out rewritten))
                     {
@@ -1278,6 +1282,11 @@ public sealed class TypedCpsTransformer
             };
         }
 
+        private static bool ShouldRewriteWhile(WhileStatement statement)
+        {
+            return StatementNeedsTransformation(statement);
+        }
+
         private ImmutableArray<StatementNode> RewriteForEachStatement(ForEachStatement statement,
             ImmutableArray<StatementNode> remaining)
         {
@@ -1302,6 +1311,30 @@ public sealed class TypedCpsTransformer
             var startCall = new ReturnStatement(null, startCallExpression);
 
             return [iteratorDeclaration, loopBreakDeclaration, loopCheckDeclaration, startCall];
+        }
+
+        private ImmutableArray<StatementNode> RewriteWhileStatement(WhileStatement statement,
+            ImmutableArray<StatementNode> remaining)
+        {
+            var loopCheckSymbol = Symbol.Intern($"__whileCheck{_temporaryId++}");
+            var loopResolveSymbol = Symbol.Intern($"__loopResolve{_temporaryId++}");
+            var loopBreakSymbol = Symbol.Intern($"__loopBreak{_temporaryId++}");
+
+            var afterLoopBlock = BuildAfterLoopBlock(remaining);
+            var loopBreakDeclaration = CreateLoopBreakFunction(loopBreakSymbol, afterLoopBlock);
+            var loopBodyStatements = ExtractBodyStatements(statement.Body);
+            var loopBodyBlock = BuildLoopBodyBlockFromStatements(loopBodyStatements, loopCheckSymbol,
+                loopResolveSymbol, loopBreakSymbol);
+            var afterLoopContinuationBlock = CreateLoopBreakInvocationBlock(loopBreakSymbol);
+            var loopCheckDeclaration = BuildWhileLoopCheckFunction(statement.Condition, loopCheckSymbol,
+                loopBreakSymbol, loopBodyBlock, afterLoopContinuationBlock);
+
+            var loopInvocation = new CallExpression(null, new IdentifierExpression(null, loopCheckSymbol),
+                ImmutableArray<CallArgument>.Empty, false);
+            var startCallExpression = AttachCatch(loopInvocation, _rejectIdentifier);
+            var startCall = new ReturnStatement(null, startCallExpression);
+
+            return [loopBreakDeclaration, loopCheckDeclaration, startCall];
         }
 
         private static VariableDeclaration CreateIteratorDeclaration(ForEachStatement statement, Symbol iteratorSymbol)
@@ -1350,10 +1383,19 @@ public sealed class TypedCpsTransformer
                 false, false);
             var assignment = CreateLoopBindingAssignment(statement, valueExpression);
             var extracted = ExtractBodyStatements(statement.Body);
-            var builder = ImmutableArray.CreateBuilder<StatementNode>(extracted.Length + 2);
+            var builder = ImmutableArray.CreateBuilder<StatementNode>(extracted.Length + 1);
             builder.Add(assignment);
             builder.AddRange(extracted);
-            var normalized = NormalizeStatements(builder.ToImmutable());
+            return BuildLoopBodyBlockFromStatements(builder.ToImmutable(), loopCheckSymbol, loopResolveSymbol, loopBreakSymbol);
+        }
+
+        private BlockStatement BuildLoopBodyBlockFromStatements(
+            ImmutableArray<StatementNode> statements,
+            Symbol loopCheckSymbol,
+            Symbol loopResolveSymbol,
+            Symbol loopBreakSymbol)
+        {
+            var normalized = NormalizeStatements(statements);
             var loopResolveDeclaration = CreateLoopResolveFunction(loopResolveSymbol, loopCheckSymbol);
             var previousBreakSymbol = _currentLoopBreakSymbol;
             _currentLoopBreakSymbol = loopBreakSymbol;
@@ -1365,10 +1407,10 @@ public sealed class TypedCpsTransformer
             var bodyRewriter = new AsyncFunctionRewriter(_owner, _isStrict, loopResolveSymbol, _rejectIdentifier);
             bodyRewriter._currentLoopBreakSymbol = loopBreakSymbol;
             var rewritten = bodyRewriter.Rewrite(loopBodyStatements);
-            var statements = ImmutableArray.CreateBuilder<StatementNode>(rewritten.Length + 1);
-            statements.Add(loopResolveDeclaration);
-            statements.AddRange(rewritten);
-            return new BlockStatement(null, statements.ToImmutable(), _isStrict);
+            var builder = ImmutableArray.CreateBuilder<StatementNode>(rewritten.Length + 1);
+            builder.Add(loopResolveDeclaration);
+            builder.AddRange(rewritten);
+            return new BlockStatement(null, builder.ToImmutable(), _isStrict);
         }
 
         private FunctionDeclaration CreateLoopResolveFunction(Symbol loopResolveSymbol, Symbol loopCheckSymbol)
@@ -1647,6 +1689,44 @@ public sealed class TypedCpsTransformer
             var loopCheckFunction = new FunctionExpression(null, loopCheckSymbol, ImmutableArray<FunctionParameter>.Empty,
                 body, false, false);
             return new FunctionDeclaration(null, loopCheckSymbol, loopCheckFunction);
+        }
+
+        private FunctionDeclaration BuildWhileLoopCheckFunction(ExpressionNode condition, Symbol loopCheckSymbol,
+            Symbol loopBreakSymbol, BlockStatement loopBodyBlock, BlockStatement afterLoopContinuationBlock)
+        {
+            var conditionStatement = BuildWhileConditionStatement(condition, loopBodyBlock, afterLoopContinuationBlock);
+            var body = conditionStatement is BlockStatement block
+                ? block
+                : new BlockStatement(null, [conditionStatement], _isStrict);
+            var functionExpression = new FunctionExpression(null, loopCheckSymbol,
+                ImmutableArray<FunctionParameter>.Empty, body, false, false);
+            return new FunctionDeclaration(null, loopCheckSymbol, functionExpression);
+        }
+
+        private StatementNode BuildWhileConditionStatement(ExpressionNode condition, BlockStatement loopBodyBlock,
+            BlockStatement afterLoopContinuationBlock)
+        {
+            if (!TryExtractAwait(condition, out var awaitExpression, out var rebuild))
+            {
+                return new IfStatement(null, condition, loopBodyBlock, afterLoopContinuationBlock);
+            }
+
+            var awaited = _owner.EnsureSupportedAwaitOperand(awaitExpression.Expression);
+            var awaitCall = CreateAwaitHelperCall(awaited);
+            var tempSymbol = Symbol.Intern($"__conditionValue{_temporaryId++}");
+            var placeholder = new IdentifierExpression(null, tempSymbol);
+            var rebuiltCondition = rebuild(placeholder);
+            var innerStatement = BuildWhileConditionStatement(rebuiltCondition, loopBodyBlock, afterLoopContinuationBlock);
+            var callbackBody = innerStatement is BlockStatement block
+                ? block
+                : new BlockStatement(null, [innerStatement], _isStrict);
+            var parameter = new FunctionParameter(null, tempSymbol, false, null, null);
+            var callback = new FunctionExpression(null, null, [parameter], callbackBody, false, false);
+            var thenTarget = new MemberExpression(null, awaitCall, new LiteralExpression(null, ThenPropertyName),
+                false, false);
+            var thenCall = new CallExpression(null, thenTarget, [new CallArgument(null, callback, false)], false);
+            var catchCall = AttachCatch(thenCall, _rejectIdentifier);
+            return new ReturnStatement(null, catchCall);
         }
 
         private ImmutableArray<StatementNode> RewriteExpression(

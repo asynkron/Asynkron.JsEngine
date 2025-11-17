@@ -92,8 +92,8 @@ public sealed class TypedAstParser
 
             if (Check(TokenType.Async) && CheckAhead(TokenType.Function))
             {
-                Advance(); // consume async
-                var functionToken = Advance(); // function
+                var asyncToken = Advance();
+                var functionToken = Advance();
                 return ParseFunctionDeclaration(true, functionToken);
             }
 
@@ -105,6 +105,41 @@ public sealed class TypedAstParser
             if (Match(TokenType.Return))
             {
                 return ParseReturnStatement();
+            }
+
+            if (Match(TokenType.If))
+            {
+                return ParseIfStatement();
+            }
+
+            if (Match(TokenType.While))
+            {
+                return ParseWhileStatement();
+            }
+
+            if (Match(TokenType.Do))
+            {
+                return ParseDoWhileStatement();
+            }
+
+            if (Match(TokenType.For))
+            {
+                return ParseForStatement(Previous());
+            }
+
+            if (Match(TokenType.Break))
+            {
+                return ParseBreakStatement();
+            }
+
+            if (Match(TokenType.Continue))
+            {
+                return ParseContinueStatement();
+            }
+
+            if (Match(TokenType.Throw))
+            {
+                return ParseThrowStatement();
             }
 
             if (Match(TokenType.LeftBrace))
@@ -153,6 +188,85 @@ public sealed class TypedAstParser
             return new ReturnStatement(CreateSourceReference(keyword), expression);
         }
 
+        private StatementNode ParseIfStatement()
+        {
+            var keyword = Previous();
+            Consume(TokenType.LeftParen, "Expected '(' after 'if'.");
+            var condition = ParseExpression();
+            Consume(TokenType.RightParen, "Expected ')' after condition.");
+            var thenBranch = ParseStatement();
+            StatementNode? elseBranch = null;
+            if (Match(TokenType.Else))
+            {
+                elseBranch = ParseStatement();
+            }
+
+            return new IfStatement(CreateSourceReference(keyword), condition, thenBranch, elseBranch);
+        }
+
+        private StatementNode ParseWhileStatement()
+        {
+            var keyword = Previous();
+            Consume(TokenType.LeftParen, "Expected '(' after 'while'.");
+            var condition = ParseExpression();
+            Consume(TokenType.RightParen, "Expected ')' after condition.");
+            var body = ParseStatement();
+            return new WhileStatement(CreateSourceReference(keyword), condition, body);
+        }
+
+        private StatementNode ParseDoWhileStatement()
+        {
+            var keyword = Previous();
+            var body = ParseStatement();
+            Consume(TokenType.While, "Expected 'while' after do-while body.");
+            Consume(TokenType.LeftParen, "Expected '(' after 'while'.");
+            var condition = ParseExpression();
+            Consume(TokenType.RightParen, "Expected ')' after condition.");
+            Consume(TokenType.Semicolon, "Expected ';' after do-while statement.");
+            return new DoWhileStatement(CreateSourceReference(keyword), body, condition);
+        }
+
+        private StatementNode ParseBreakStatement()
+        {
+            var keyword = Previous();
+            Symbol? label = null;
+            if (Check(TokenType.Identifier) && !HasLineTerminatorBefore())
+            {
+                var labelToken = Advance();
+                label = Symbol.Intern(labelToken.Lexeme);
+            }
+
+            Consume(TokenType.Semicolon, "Expected ';' after break statement.");
+            return new BreakStatement(CreateSourceReference(keyword), label);
+        }
+
+        private StatementNode ParseContinueStatement()
+        {
+            var keyword = Previous();
+            Symbol? label = null;
+            if (Check(TokenType.Identifier) && !HasLineTerminatorBefore())
+            {
+                var labelToken = Advance();
+                label = Symbol.Intern(labelToken.Lexeme);
+            }
+
+            Consume(TokenType.Semicolon, "Expected ';' after continue statement.");
+            return new ContinueStatement(CreateSourceReference(keyword), label);
+        }
+
+        private StatementNode ParseThrowStatement()
+        {
+            var keyword = Previous();
+            if (HasLineTerminatorBefore())
+            {
+                throw new ParseException("Illegal newline after 'throw'.", Peek(), _source);
+            }
+
+            var expression = ParseExpression();
+            Consume(TokenType.Semicolon, "Expected ';' after throw.");
+            return new ThrowStatement(CreateSourceReference(keyword), expression);
+        }
+
         private StatementNode ParseExpressionStatement()
         {
             var start = Peek();
@@ -161,7 +275,8 @@ public sealed class TypedAstParser
             return new ExpressionStatement(CreateSourceReference(start), expression);
         }
 
-        private StatementNode ParseVariableDeclaration(VariableKind kind)
+        private StatementNode ParseVariableDeclaration(VariableKind kind, bool requireSemicolon = true,
+            bool allowInitializerless = false)
         {
             var start = Previous();
             var declarators = ImmutableArray.CreateBuilder<VariableDeclarator>();
@@ -176,7 +291,7 @@ public sealed class TypedAstParser
                 {
                     initializer = ParseExpression();
                 }
-                else if (kind == VariableKind.Const)
+                else if (!allowInitializerless && kind == VariableKind.Const)
                 {
                     throw new ParseException("Const declarations require an initializer.", Peek(), _source);
                 }
@@ -185,7 +300,11 @@ public sealed class TypedAstParser
                 declarators.Add(new VariableDeclarator(CreateSourceReference(nameToken), target, initializer));
             } while (Match(TokenType.Comma));
 
-            Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
+            if (requireSemicolon)
+            {
+                Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
+            }
+
             return new VariableDeclaration(CreateSourceReference(start), kind, declarators.ToImmutable());
         }
 
@@ -213,6 +332,111 @@ public sealed class TypedAstParser
             return new BlockStatement(CreateSourceReference(startToken), statements.ToImmutable(), isStrict);
         }
 
+        private StatementNode ParseForStatement(Token forToken)
+        {
+            var isAwait = Match(TokenType.Await);
+            Consume(TokenType.LeftParen, "Expected '(' after 'for'.");
+
+            StatementNode? initializer = null;
+            VariableDeclaration? initializerDeclaration = null;
+            var firstClauseTerminated = false;
+
+            if (Match(TokenType.Semicolon))
+            {
+                firstClauseTerminated = true;
+            }
+            else
+            {
+                if (Match(TokenType.Let))
+                {
+                    initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Let,
+                        requireSemicolon: false, allowInitializerless: true);
+                    initializer = initializerDeclaration;
+                }
+                else if (Match(TokenType.Const))
+                {
+                    initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Const,
+                        requireSemicolon: false, allowInitializerless: true);
+                    initializer = initializerDeclaration;
+                }
+                else if (Match(TokenType.Var))
+                {
+                    initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Var,
+                        requireSemicolon: false, allowInitializerless: true);
+                    initializer = initializerDeclaration;
+                }
+                else
+                {
+                    var initExpr = ParseExpression();
+                    initializer = new ExpressionStatement(initExpr.Source, initExpr);
+                }
+            }
+
+            var isForEach = false;
+            ForEachKind eachKind = ForEachKind.Of;
+
+            if (!firstClauseTerminated)
+            {
+                if (isAwait)
+                {
+                    Consume(TokenType.Of, "Expected 'of' after 'await'.");
+                    isForEach = true;
+                    eachKind = ForEachKind.AwaitOf;
+                }
+                else if (Match(TokenType.Of))
+                {
+                    isForEach = true;
+                    eachKind = ForEachKind.Of;
+                }
+                else if (Match(TokenType.In))
+                {
+                    isForEach = true;
+                    eachKind = ForEachKind.In;
+                }
+            }
+
+            if (isForEach)
+            {
+                if (initializer is null)
+                {
+                    throw new ParseException("Missing loop target in for-each statement.", Peek(), _source);
+                }
+
+                var target = ExtractBindingTarget(initializer)
+                             ?? throw new NotSupportedException("Unsupported for-each binding target.");
+
+                var iterable = ParseExpression();
+                Consume(TokenType.RightParen, "Expected ')' after for-each header.");
+                var body = ParseStatement();
+                var declarationKind = initializerDeclaration?.Kind;
+                return new ForEachStatement(CreateSourceReference(forToken), target, iterable, body, eachKind,
+                    declarationKind);
+            }
+
+            if (!firstClauseTerminated)
+            {
+                Consume(TokenType.Semicolon, "Expected ';' after for-loop initializer.");
+            }
+
+            ExpressionNode? condition = null;
+            if (!Check(TokenType.Semicolon))
+            {
+                condition = ParseExpression();
+            }
+
+            Consume(TokenType.Semicolon, "Expected ';' after for-loop condition.");
+
+            ExpressionNode? increment = null;
+            if (!Check(TokenType.RightParen))
+            {
+                increment = ParseExpression();
+            }
+
+            Consume(TokenType.RightParen, "Expected ')' after for-loop clauses.");
+            var bodyStatement = ParseStatement();
+            return new ForStatement(CreateSourceReference(forToken), initializer, condition, increment, bodyStatement);
+        }
+
         #region Expressions
 
         private ExpressionNode ParseExpression()
@@ -232,7 +456,53 @@ public sealed class TypedAstParser
                     return new AssignmentExpression(expr.Source ?? value.Source, identifier.Name, value);
                 }
 
-                throw new NotSupportedException("Only simple identifier assignments are supported.");
+                if (expr is MemberExpression member)
+                {
+                    return CreateMemberAssignment(member, value);
+                }
+
+                throw new NotSupportedException("Unsupported assignment target.");
+            }
+
+            if (Match(TokenType.PlusEqual, TokenType.MinusEqual, TokenType.StarEqual, TokenType.StarStarEqual,
+                    TokenType.SlashEqual, TokenType.PercentEqual, TokenType.AmpEqual, TokenType.PipeEqual,
+                    TokenType.CaretEqual, TokenType.LessLessEqual, TokenType.GreaterGreaterEqual,
+                    TokenType.GreaterGreaterGreaterEqual, TokenType.AmpAmpEqual, TokenType.PipePipeEqual,
+                    TokenType.QuestionQuestionEqual))
+            {
+                var opToken = Previous();
+                var value = ParseAssignment();
+
+                ExpressionNode combined = opToken.Type switch
+                {
+                    TokenType.AmpAmpEqual => CreateBinaryExpression("&&", expr, value),
+                    TokenType.PipePipeEqual => CreateBinaryExpression("||", expr, value),
+                    TokenType.QuestionQuestionEqual => CreateBinaryExpression("??", expr, value),
+                    _ => CreateBinaryExpression(opToken.Type switch
+                    {
+                        TokenType.PlusEqual => "+",
+                        TokenType.MinusEqual => "-",
+                        TokenType.StarEqual => "*",
+                        TokenType.StarStarEqual => "**",
+                        TokenType.SlashEqual => "/",
+                        TokenType.PercentEqual => "%",
+                        TokenType.AmpEqual => "&",
+                        TokenType.PipeEqual => "|",
+                        TokenType.CaretEqual => "^",
+                        TokenType.LessLessEqual => "<<",
+                        TokenType.GreaterGreaterEqual => ">>",
+                        TokenType.GreaterGreaterGreaterEqual => ">>>",
+                        _ => throw new NotSupportedException($"Unsupported assignment operator '{opToken.Type}'.")
+                    }, expr, value)
+                };
+
+                return expr switch
+                {
+                    IdentifierExpression identifier => new AssignmentExpression(expr.Source ?? combined.Source,
+                        identifier.Name, combined),
+                    MemberExpression member => CreateMemberAssignment(member, combined),
+                    _ => throw new NotSupportedException("Unsupported assignment target.")
+                };
             }
 
             return expr;
@@ -453,6 +723,26 @@ public sealed class TypedAstParser
                 return new UnaryExpression(CreateSourceReference(Previous()), "+", ParseUnary(), true);
             }
 
+            if (Match(TokenType.Tilde))
+            {
+                return new UnaryExpression(CreateSourceReference(Previous()), "~", ParseUnary(), true);
+            }
+
+            if (Match(TokenType.Typeof))
+            {
+                return new UnaryExpression(CreateSourceReference(Previous()), "typeof", ParseUnary(), true);
+            }
+
+            if (Match(TokenType.Void))
+            {
+                return new UnaryExpression(CreateSourceReference(Previous()), "void", ParseUnary(), true);
+            }
+
+            if (Match(TokenType.Delete))
+            {
+                return new UnaryExpression(CreateSourceReference(Previous()), "delete", ParseUnary(), true);
+            }
+
             return ParsePostfix();
         }
 
@@ -504,6 +794,14 @@ public sealed class TypedAstParser
             if (Match(TokenType.Null))
             {
                 expr = new LiteralExpression(CreateSourceReference(Previous()), null);
+                return ParseCallSuffix(expr);
+            }
+
+            if (Match(TokenType.Undefined))
+            {
+                var token = Previous();
+                var symbol = JsSymbols.Undefined;
+                expr = new IdentifierExpression(CreateSourceReference(token), symbol);
                 return ParseCallSuffix(expr);
             }
 
@@ -570,6 +868,31 @@ public sealed class TypedAstParser
             if (Match(TokenType.New))
             {
                 return ParseNewExpression();
+            }
+
+            if (Check(TokenType.Undefined))
+            {
+                var token = Advance();
+                var symbol = JsSymbols.Undefined;
+                var undefinedExpr = new IdentifierExpression(CreateSourceReference(token), symbol);
+                return ParseCallSuffix(undefinedExpr);
+            }
+
+            if (Check(TokenType.Tilde) || Check(TokenType.Typeof) || Check(TokenType.Void) ||
+                Check(TokenType.Delete))
+            {
+                var token = Advance();
+                var operand = ParseUnary();
+                var op = token.Type switch
+                {
+                    TokenType.Tilde => "~",
+                    TokenType.Typeof => "typeof",
+                    TokenType.Void => "void",
+                    TokenType.Delete => "delete",
+                    _ => throw new InvalidOperationException()
+                };
+                var unary = new UnaryExpression(CreateSourceReference(token), op, operand, true);
+                return ParseCallSuffix(unary);
             }
 
             throw new NotSupportedException($"Token '{Peek().Type}' is not yet supported by the direct parser.");
@@ -821,6 +1144,11 @@ public sealed class TypedAstParser
 
         private ExpressionNode ParseNewExpression()
         {
+            if (!DisableFallback)
+            {
+                throw new NotSupportedException("New expressions are not yet fully supported by the typed parser.");
+            }
+
             var constructor = ParsePostfix();
             ImmutableArray<ExpressionNode> args;
             if (Match(TokenType.LeftParen))
@@ -846,6 +1174,36 @@ public sealed class TypedAstParser
         {
             var source = left.Source ?? right.Source;
             return new BinaryExpression(source, op, left, right);
+        }
+
+        private ExpressionNode CreateMemberAssignment(MemberExpression member, ExpressionNode value)
+        {
+            if (member.IsOptional)
+            {
+                throw new NotSupportedException("Cannot assign to optional chaining expressions.");
+            }
+
+            if (member.IsComputed)
+            {
+                return new IndexAssignmentExpression(member.Source ?? value.Source, member.Target, member.Property,
+                    value);
+            }
+
+            return new PropertyAssignmentExpression(member.Source ?? value.Source, member.Target, member.Property,
+                value, false);
+        }
+
+        private BindingTarget? ExtractBindingTarget(StatementNode initializer)
+        {
+            switch (initializer)
+            {
+                case VariableDeclaration { Declarators.Length: 1 } declaration:
+                    return declaration.Declarators[0].Target;
+                case ExpressionStatement { Expression: IdentifierExpression identifier }:
+                    return new IdentifierBinding(identifier.Source, identifier.Name);
+                default:
+                    return null;
+            }
         }
 
         private static bool IsKeyword(Token token)

@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Lisp;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine;
 
@@ -6,7 +7,7 @@ public sealed class JsEnvironment(
     JsEnvironment? enclosing = null,
     bool isFunctionScope = false,
     bool isStrict = false,
-    Cons? creatingExpression = null,
+    SourceReference? creatingSource = null,
     string? description = null)
 {
     private sealed class Binding(object? value, bool isConst)
@@ -19,7 +20,7 @@ public sealed class JsEnvironment(
     private readonly Dictionary<Symbol, Binding> _values = new();
     private readonly JsEnvironment? _enclosing = enclosing;
     private readonly bool _isFunctionScope = isFunctionScope;
-    private readonly Cons? _creatingExpression = creatingExpression;
+    private readonly SourceReference? _creatingSource = creatingSource;
     private readonly string? _description = description;
 
     /// <summary>
@@ -174,19 +175,14 @@ public sealed class JsEnvironment(
             iterations++;
 
             // Always add a frame if we have any identifying information
-            if (current._creatingExpression is not null || current._description is not null)
+            if (current._creatingSource is not null || current._description is not null)
             {
-                var hasExpression = current._creatingExpression is not null;
-                var operationType = hasExpression
-                    ? DetermineOperationType(current._creatingExpression)
-                    : DetermineOperationTypeFromDescription(current._description);
-                var description = current._description ??
-                                  GetExpressionDescription(current._creatingExpression, operationType);
-
+                var operationType = DetermineOperationTypeFromDescription(current._description);
+                var description = current._description ?? operationType;
                 frames.Add(new CallStackFrame(
                     operationType,
                     description,
-                    current._creatingExpression,
+                    current._creatingSource,
                     depth
                 ));
 
@@ -198,55 +194,6 @@ public sealed class JsEnvironment(
         }
 
         return frames;
-    }
-
-    /// <summary>
-    /// Determines the operation type from an S-expression.
-    /// </summary>
-    private static string DetermineOperationType(Cons? expression)
-    {
-        if (expression is null)
-        {
-            return "unknown";
-        }
-
-        if (expression.Head is not Symbol symbol)
-        {
-            return "expression";
-        }
-
-        if (ReferenceEquals(symbol, JsSymbols.Call))
-        {
-            return "call";
-        }
-
-        if (ReferenceEquals(symbol, JsSymbols.For))
-        {
-            return "for";
-        }
-
-        if (ReferenceEquals(symbol, JsSymbols.While))
-        {
-            return "while";
-        }
-
-        if (ReferenceEquals(symbol, JsSymbols.DoWhile))
-        {
-            return "do-while";
-        }
-
-        if (ReferenceEquals(symbol, JsSymbols.Function))
-        {
-            return "function";
-        }
-
-        if (ReferenceEquals(symbol, JsSymbols.Block))
-        {
-            return "block";
-        }
-
-        return symbol.Name;
-
     }
 
     private static string DetermineOperationTypeFromDescription(string? description)
@@ -266,55 +213,4 @@ public sealed class JsEnvironment(
             : firstToken.ToLowerInvariant();
     }
 
-    /// <summary>
-    /// Gets a human-readable description for an S-expression.
-    /// </summary>
-    private static string GetExpressionDescription(Cons? expression, string operationType)
-    {
-        if (expression is null)
-        {
-            return "unknown";
-        }
-
-        return operationType switch
-        {
-            "for" => "for loop",
-            "while" => "while loop",
-            "do-while" => "do-while loop",
-            "function" => GetFunctionName(expression),
-            "call" => GetCallDescription(expression),
-            "block" => "block",
-            _ => operationType
-        };
-    }
-
-    /// <summary>
-    /// Extracts the function name from a function S-expression.
-    /// </summary>
-    private static string GetFunctionName(Cons expression)
-    {
-        // (function name params body)
-        if (expression.Rest.Head is Symbol nameSymbol)
-        {
-            return $"function {nameSymbol.Name}";
-        }
-
-        return "anonymous function";
-    }
-
-    /// <summary>
-    /// Gets a description of a function call.
-    /// </summary>
-    private static string GetCallDescription(Cons expression)
-    {
-        // (call callee args...)
-        var callee = expression.Rest.Head;
-
-        if (callee is Symbol symbol)
-        {
-            return $"call to {symbol.Name}";
-        }
-
-        return "function call";
-    }
 }

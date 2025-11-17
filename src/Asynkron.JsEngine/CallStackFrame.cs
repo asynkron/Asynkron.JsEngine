@@ -1,4 +1,4 @@
-using Asynkron.JsEngine.Lisp;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine;
 
@@ -19,10 +19,9 @@ public sealed class CallStackFrame
     public string Description { get; }
 
     /// <summary>
-    /// Gets the S-expression being evaluated, if available.
-    /// This is the actual code structure being executed.
+    /// Gets the source location associated with this frame, if available.
     /// </summary>
-    public Cons? Expression { get; }
+    public SourceReference? Source { get; }
 
     /// <summary>
     /// Gets the depth of this frame in the call stack (0 for outermost/root).
@@ -34,13 +33,13 @@ public sealed class CallStackFrame
     /// </summary>
     /// <param name="operationType">The type of operation (e.g., "call", "function", "for", "while")</param>
     /// <param name="description">Human-readable description of what's happening</param>
-    /// <param name="expression">The S-expression being evaluated</param>
+    /// <param name="source">Source reference describing where the frame originated</param>
     /// <param name="depth">The depth in the call stack</param>
-    internal CallStackFrame(string operationType, string description, Cons? expression, int depth)
+    internal CallStackFrame(string operationType, string description, SourceReference? source, int depth)
     {
         OperationType = operationType;
         Description = description;
-        Expression = expression;
+        Source = source;
         Depth = depth;
     }
 

@@ -225,7 +225,7 @@ public static class TypedAstEvaluator
     private static object? EvaluateFor(ForStatement statement, JsEnvironment environment, EvaluationContext context,
         Symbol? loopLabel)
     {
-        var loopEnvironment = new JsEnvironment(environment, creatingExpression: null, description: "for-loop");
+        var loopEnvironment = new JsEnvironment(environment, creatingSource: statement.Source, description: "for-loop");
         object? lastValue = JsSymbols.Undefined;
 
         if (statement.Initializer is not null)
@@ -312,7 +312,7 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
-        var loopEnvironment = new JsEnvironment(environment, creatingExpression: null, description: "for-each-loop");
+        var loopEnvironment = new JsEnvironment(environment, creatingSource: statement.Source, description: "for-each-loop");
         object? lastValue = JsSymbols.Undefined;
 
         if (statement.Kind == ForEachKind.Of &&
@@ -367,7 +367,7 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
-        var loopEnvironment = new JsEnvironment(environment, creatingExpression: null, description: "for-await-of loop");
+        var loopEnvironment = new JsEnvironment(environment, creatingSource: statement.Source, description: "for-await-of loop");
         object? lastValue = JsSymbols.Undefined;
 
         if (TryGetIteratorFromProtocols(iterable, out var iterator))
@@ -660,7 +660,7 @@ public static class TypedAstEvaluator
         {
             var thrownValue = context.FlowValue;
             context.Clear();
-            var catchEnv = new JsEnvironment(environment, creatingExpression: null, description: "catch");
+            var catchEnv = new JsEnvironment(environment, creatingSource: statement.Catch.Body.Source, description: "catch");
             catchEnv.Define(statement.Catch.Binding, thrownValue);
             result = EvaluateBlock(statement.Catch.Body, catchEnv, context);
         }
@@ -3591,7 +3591,7 @@ public static class TypedAstEvaluator
             var description = function.Name is { } name
                 ? $"function* {name.Name}"
                 : "generator function";
-            var environment = new JsEnvironment(closure, true, function.Body.IsStrict, description: description);
+            var environment = new JsEnvironment(closure, true, function.Body.IsStrict, function.Source, description);
             environment.Define(JsSymbols.This, thisValue ?? new JsObject());
             environment.Define(YieldResumeContextSymbol, _resumeContext);
 
@@ -3774,7 +3774,7 @@ public static class TypedAstEvaluator
         {
             var context = new EvaluationContext();
             var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
-            var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, description: description);
+            var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
 
             // Bind `this`.
             environment.Define(JsSymbols.This, thisValue ?? new JsObject());

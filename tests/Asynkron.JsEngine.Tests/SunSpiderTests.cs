@@ -17,7 +17,6 @@ public class SunSpiderTests
     };
 
     [Theory(Timeout = 4000)]
-    // Passing scenarios (23)
     [InlineData("3d-cube.js", true)]
     [InlineData("3d-morph.js", true)]
     [InlineData("3d-raytrace.js", true)]
@@ -29,7 +28,7 @@ public class SunSpiderTests
     [InlineData("bitops-bits-in-byte.js", true)]
     [InlineData("bitops-bitwise-and.js", true)]
     [InlineData("bitops-nsieve-bits.js", true)]
-    //[InlineData("controlflow-recursive.js", false)]
+    [InlineData("controlflow-recursive.js", false)]
     [InlineData("crypto-md5.js", true)]
     [InlineData("crypto-sha1.js", true)]
     [InlineData("date-format-tofte.js", true)]
@@ -41,11 +40,10 @@ public class SunSpiderTests
     [InlineData("string-fasta.js", true)]
     [InlineData("string-unpack-code.js", true)]
     [InlineData("string-validate-input.js", true)]
-    // Known failures (4) - keep running so we notice improvements when they start passing again.
-  //  [InlineData("babel-standalone.js", false)] // Parser fails with a complex ternary expression.
-    [InlineData("crypto-aes.js", false)] // AES bit-manipulation still misbehaves.
-    [InlineData("date-format-xparb.js", false)] // Date formatting discrepancies.
- //   [InlineData("string-tagcloud.js", false)] // Parser still rejects valid syntax.
+    [InlineData("babel-standalone.js", true)]
+    [InlineData("crypto-aes.js", true)]
+    [InlineData("date-format-xparb.js", true)]
+    [InlineData("string-tagcloud.js", true)]
     public async Task SunSpider_Scripts_behave_as_expected(string filename, bool shouldSucceed)
     {
         var content = GetEmbeddedFile(filename);

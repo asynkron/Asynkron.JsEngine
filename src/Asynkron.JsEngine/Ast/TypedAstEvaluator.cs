@@ -1432,7 +1432,7 @@ public static class TypedAstEvaluator
     {
         return literal.Value switch
         {
-            RegexLiteralValue regex => new JsRegExp(regex.Pattern, regex.Flags),
+            RegexLiteralValue regex => StandardLibrary.CreateRegExpLiteral(regex.Pattern, regex.Flags),
             _ => literal.Value
         };
     }

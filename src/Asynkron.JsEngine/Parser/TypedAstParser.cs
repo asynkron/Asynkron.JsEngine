@@ -2472,7 +2472,19 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
                     if (Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace))
                     {
-                        var pattern = ParseBindingTarget("Expected binding pattern in parameter.");
+                        var bindingStart = _current;
+                        BindingTarget pattern;
+                        try
+                        {
+                            pattern = ParseBindingTarget("Expected binding pattern in parameter.");
+                        }
+                        catch (ParseException)
+                        {
+                            _current = start;
+                            parameters = default;
+                            return false;
+                        }
+
                         ExpressionNode? defaultValue = null;
                         if (!isRest && Match(TokenType.Equal))
                         {
@@ -2496,7 +2508,19 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                             return false;
                         }
 
-                        var nameToken = ConsumeParameterIdentifier("Expected parameter name.");
+                        var nameStart = _current;
+                        Token nameToken;
+                        try
+                        {
+                            nameToken = ConsumeParameterIdentifier("Expected parameter name.");
+                        }
+                        catch (ParseException)
+                        {
+                            _current = start;
+                            parameters = default;
+                            return false;
+                        }
+
                         ExpressionNode? defaultValue = null;
                         if (!isRest && Match(TokenType.Equal))
                         {

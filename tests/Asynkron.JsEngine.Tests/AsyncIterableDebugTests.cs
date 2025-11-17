@@ -1,4 +1,5 @@
 using Xunit.Abstractions;
+using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -560,5 +561,32 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
         output.WriteLine(transformedSexpr.ToString());
+    }
+
+    [Fact]
+    public async Task ForAwaitOf_WithBreak_ShowTypedTransformation()
+    {
+        const string source = """
+            async function test() {
+                let count = 0;
+                let arr = [1, 2, 3, 4, 5];
+                for await (let item of arr) {
+                    count = count + 1;
+                    if (item === 3) {
+                        break;
+                    }
+                }
+            }
+            """;
+
+        await using var engine = new JsEngine();
+        var (_, typedBefore, _) = engine.ParseWithTransformationSteps(source);
+
+        var transformer = new TypedCpsTransformer();
+        var transformed = transformer.Transform(typedBefore);
+
+        var snapshot = TypedAstSnapshot.Create(transformed);
+        output.WriteLine("=== TYPED AST SNAPSHOT ===");
+        output.WriteLine(snapshot);
     }
 }

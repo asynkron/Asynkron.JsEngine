@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Lisp;
@@ -103,6 +104,31 @@ public class TypedCpsTransformerTests
         AssertIdentifierOrMember(rejectCall.Callee, Symbol.Intern("__reject"), "__reject");
     }
 
+    [Fact]
+    public async Task ForAwaitLoop_WithBreak_RewritesControlFlow()
+    {
+        const string source = """
+            async function test() {
+                let arr = [1, 2, 3];
+                for await (let item of arr) {
+                    if (item === 2) {
+                        break;
+                    }
+                }
+            }
+            """;
+
+        await using var engine = new JsEngine();
+        var (_, typedBefore, _) = engine.ParseWithTransformationSteps(source);
+
+        var transformer = new TypedCpsTransformer();
+        var transformed = transformer.Transform(typedBefore);
+
+        var snapshot = TypedAstSnapshot.Create(transformed);
+        Console.WriteLine(snapshot);
+        Assert.DoesNotContain(GetAllStatements(transformed), static statement => statement is BreakStatement);
+    }
+
     // [Fact]
     // public void Typed_pipeline_matches_cons_pipeline_for_async_function()
     // {
@@ -133,6 +159,82 @@ public class TypedCpsTransformerTests
     //     var actualSnapshot = TypedAstSnapshot.Create(typedCps);
     //     Assert.Equal(expectedSnapshot, actualSnapshot);
     // }
+
+    private static IEnumerable<StatementNode> GetAllStatements(ProgramNode program)
+    {
+        foreach (var statement in program.Body)
+        {
+            foreach (var nested in EnumerateStatements(statement))
+            {
+                yield return nested;
+            }
+        }
+    }
+
+    private static IEnumerable<StatementNode> EnumerateStatements(StatementNode statement)
+    {
+        yield return statement;
+        switch (statement)
+        {
+            case BlockStatement block:
+                foreach (var child in block.Statements)
+                {
+                    foreach (var nested in EnumerateStatements(child))
+                    {
+                        yield return nested;
+                    }
+                }
+                break;
+            case IfStatement ifStatement:
+                foreach (var nested in EnumerateStatements(ifStatement.Then))
+                {
+                    yield return nested;
+                }
+
+                if (ifStatement.Else is not null)
+                {
+                    foreach (var nested in EnumerateStatements(ifStatement.Else))
+                    {
+                        yield return nested;
+                    }
+                }
+
+                break;
+            case TryStatement tryStatement:
+                foreach (var nested in EnumerateStatements(tryStatement.TryBlock))
+                {
+                    yield return nested;
+                }
+
+                if (tryStatement.Catch is not null)
+                {
+                    foreach (var nested in EnumerateStatements(tryStatement.Catch.Body))
+                    {
+                        yield return nested;
+                    }
+                }
+
+                if (tryStatement.Finally is not null)
+                {
+                    foreach (var nested in EnumerateStatements(tryStatement.Finally))
+                    {
+                        yield return nested;
+                    }
+                }
+
+                break;
+            case SwitchStatement switchStatement:
+                foreach (var switchCase in switchStatement.Cases)
+                {
+                    foreach (var nested in EnumerateStatements(switchCase.Body))
+                    {
+                        yield return nested;
+                    }
+                }
+
+                break;
+        }
+    }
 
     private static void AssertPromiseConstructor(ExpressionNode expression)
     {

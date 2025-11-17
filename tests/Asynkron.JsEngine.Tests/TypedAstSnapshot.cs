@@ -94,6 +94,18 @@ internal static class TypedAstSnapshot
 
                 builder.Append(')');
                 break;
+            case IfStatement ifStatement:
+                builder.Append("(if ");
+                AppendExpression(ifStatement.Condition, builder);
+                builder.Append(' ');
+                AppendStatement(ifStatement.Then, builder);
+                if (ifStatement.Else != null)
+                {
+                    builder.Append(' ');
+                    AppendStatement(ifStatement.Else, builder);
+                }
+                builder.Append(')');
+                break;
             default:
                 throw new NotSupportedException($"Snapshot does not handle statement '{statement.GetType().Name}'.");
         }
@@ -212,9 +224,49 @@ internal static class TypedAstSnapshot
             case FunctionExpression functionExpression:
                 AppendFunctionExpression(functionExpression, builder);
                 break;
+            case ArrayExpression arrayExpression:
+                AppendArrayExpression(arrayExpression, builder);
+                break;
+            case AssignmentExpression assignmentExpression:
+                builder.Append("(assign ");
+                builder.Append(assignmentExpression.Target);
+                builder.Append(' ');
+                AppendExpression(assignmentExpression.Value, builder);
+                builder.Append(')');
+                break;
+            case UnaryExpression unaryExpression:
+                builder.Append("(unary ");
+                builder.Append(unaryExpression.Operator);
+                builder.Append(' ');
+                AppendExpression(unaryExpression.Operand, builder);
+                builder.Append(')');
+                break;
             default:
                 throw new NotSupportedException($"Snapshot does not handle expression '{expression.GetType().Name}'.");
         }
+    }
+
+    private static void AppendArrayExpression(ArrayExpression arrayExpression, StringBuilder builder)
+    {
+        builder.Append("(array");
+        foreach (var element in arrayExpression.Elements)
+        {
+            builder.Append(' ');
+            if (element.Expression is null)
+            {
+                builder.Append("hole");
+                continue;
+            }
+
+            if (element.IsSpread)
+            {
+                builder.Append("...");
+            }
+
+            AppendExpression(element.Expression, builder);
+        }
+
+        builder.Append(')');
     }
 
     private static void AppendLiteralValue(object? value, StringBuilder builder)

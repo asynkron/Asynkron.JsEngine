@@ -18,6 +18,7 @@ namespace Asynkron.JsEngine.Ast;
 public static class TypedAstEvaluator
 {
     private static readonly Symbol YieldTrackerSymbol = Symbol.Intern("__yieldTracker__");
+    private static readonly Symbol YieldResumeContextSymbol = Symbol.Intern("__yieldResume__");
     private static readonly string IteratorSymbolPropertyName =
         $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
     public static object? EvaluateProgram(ProgramNode program, JsEnvironment environment)
@@ -95,6 +96,12 @@ public static class TypedAstEvaluator
         var value = statement.Expression is null
             ? null
             : EvaluateExpression(statement.Expression, environment, context);
+        if (context.IsYield)
+        {
+            // Defer completing the return until the pending yield chain resumes and finishes.
+            return value;
+        }
+
         context.SetReturn(value);
         return value;
     }
@@ -1059,9 +1066,9 @@ public static class TypedAstEvaluator
         }
 
         var yieldTracker = GetYieldTracker(environment);
-        if (!yieldTracker.ShouldYield())
+        if (!yieldTracker.ShouldYield(out var yieldIndex))
         {
-            return JsSymbols.Undefined;
+            return GetResumeValue(environment, yieldIndex);
         }
 
         context.SetYield(yieldedValue);
@@ -1102,7 +1109,7 @@ public static class TypedAstEvaluator
                 return value;
             }
 
-            if (!tracker.ShouldYield())
+            if (!tracker.ShouldYield(out _))
             {
                 continue;
             }
@@ -1186,6 +1193,43 @@ public static class TypedAstEvaluator
         if (environment.TryGet(key, out _))
         {
             environment.Assign(key, null);
+        }
+    }
+
+    private static object? GetResumeValue(JsEnvironment environment, int yieldIndex)
+    {
+        if (!environment.TryGet(YieldResumeContextSymbol, out var contextValue) ||
+            contextValue is not YieldResumeContext resumeContext)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        return resumeContext.TakeResumeValue(yieldIndex);
+    }
+
+    private sealed class YieldResumeContext
+    {
+        private readonly Dictionary<int, object?> _pending = new();
+
+        public void SetResumeValue(int yieldIndex, object? value)
+        {
+            _pending[yieldIndex] = value;
+        }
+
+        public object? TakeResumeValue(int yieldIndex)
+        {
+            if (_pending.TryGetValue(yieldIndex, out var value))
+            {
+                _pending.Remove(yieldIndex);
+                return value;
+            }
+
+            return JsSymbols.Undefined;
+        }
+
+        public void Clear()
+        {
+            _pending.Clear();
         }
     }
 
@@ -3365,12 +3409,13 @@ public static class TypedAstEvaluator
         private GeneratorState _state = GeneratorState.Start;
         private bool _done;
         private int _currentYieldIndex;
+        private readonly YieldResumeContext _resumeContext = new();
 
         public JsObject CreateGeneratorObject()
         {
             var iterator = new JsObject();
             iterator.SetProperty("next",
-                new HostFunction((_, args) => Next(args.Count > 0 ? args[0] : null)));
+                new HostFunction((_, args) => Next(args.Count > 0 ? args[0] : JsSymbols.Undefined)));
             iterator.SetProperty("return",
                 new HostFunction((_, args) => Return(args.Count > 0 ? args[0] : null)));
             iterator.SetProperty("throw",
@@ -3381,14 +3426,15 @@ public static class TypedAstEvaluator
 
         private object? Next(object? value)
         {
-            // TODO: Support feeding values back into the generator body via next(value).
-            _ = value;
             if (_done || _state == GeneratorState.Completed)
             {
                 _state = GeneratorState.Completed;
                 _done = true;
-                return CreateIteratorResult(null, true);
+                _resumeContext.Clear();
+                return CreateIteratorResult(value, true);
             }
+
+            var wasStart = _state == GeneratorState.Start;
 
             try
             {
@@ -3396,10 +3442,14 @@ public static class TypedAstEvaluator
 
                 _executionEnvironment ??= CreateExecutionEnvironment();
 
+                if (!wasStart && _currentYieldIndex > 0)
+                {
+                    _resumeContext.SetResumeValue(_currentYieldIndex - 1, value);
+                }
+
                 var context = new EvaluationContext();
                 _executionEnvironment.Define(YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
 
-                // NOTE: Sending values back into the generator via next(value) is not yet implemented.
                 var result = EvaluateBlock(function.Body, _executionEnvironment, context);
 
                 if (context.IsThrow)
@@ -3408,6 +3458,7 @@ public static class TypedAstEvaluator
                     context.Clear();
                     _state = GeneratorState.Completed;
                     _done = true;
+                    _resumeContext.Clear();
                     throw new ThrowSignal(thrown);
                 }
 
@@ -3426,17 +3477,20 @@ public static class TypedAstEvaluator
                     context.ClearReturn();
                     _state = GeneratorState.Completed;
                     _done = true;
+                    _resumeContext.Clear();
                     return CreateIteratorResult(returnValue, true);
                 }
 
                 _state = GeneratorState.Completed;
                 _done = true;
+                _resumeContext.Clear();
                 return CreateIteratorResult(result, true);
             }
             catch
             {
                 _state = GeneratorState.Completed;
                 _done = true;
+                _resumeContext.Clear();
                 throw;
             }
         }
@@ -3445,6 +3499,7 @@ public static class TypedAstEvaluator
         {
             _state = GeneratorState.Completed;
             _done = true;
+            _resumeContext.Clear();
             return CreateIteratorResult(value, true);
         }
 
@@ -3452,6 +3507,7 @@ public static class TypedAstEvaluator
         {
             _state = GeneratorState.Completed;
             _done = true;
+            _resumeContext.Clear();
             throw new ThrowSignal(error);
         }
 
@@ -3462,6 +3518,7 @@ public static class TypedAstEvaluator
                 : "generator function";
             var environment = new JsEnvironment(closure, true, function.Body.IsStrict, description: description);
             environment.Define(JsSymbols.This, thisValue ?? new JsObject());
+            environment.Define(YieldResumeContextSymbol, _resumeContext);
 
             if (function.Name is { } functionName)
             {

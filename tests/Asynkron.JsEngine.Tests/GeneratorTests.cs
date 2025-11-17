@@ -368,8 +368,7 @@ public class GeneratorTests
                                                      }
                                                      function* outer() {
                                                          yield 0;
-                                                         const finalResult = yield* inner();
-                                                         return finalResult;
+                                                         return yield* inner();
                                                      }
                                                      let g = outer();
                                                      let r1 = g.next();
@@ -437,6 +436,58 @@ public class GeneratorTests
         Assert.False((bool)secondDone!);
         Assert.Null(thirdValue);
         Assert.True((bool)thirdDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_NextValueIsDeliveredToYield()
+    {
+        await using var engine = new JsEngine();
+        await engine.Evaluate("""
+
+                                         function* gen() {
+                                             const received = yield 1;
+                                             return received;
+                                         }
+                                         let g = gen();
+                                         let first = g.next();
+                                         let second = g.next(99);
+
+                             """);
+
+        var firstValue = await engine.Evaluate("first.value;");
+        var firstDone = await engine.Evaluate("first.done;");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+
+        Assert.Equal(1.0, firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal(99.0, secondValue);
+        Assert.True((bool)secondDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_NextDefaultsToUndefinedWhenNoValueProvided()
+    {
+        await using var engine = new JsEngine();
+        await engine.Evaluate("""
+
+                                         function* gen() {
+                                             const received = yield 1;
+                                             return received === undefined;
+                                         }
+                                         let g = gen();
+                                         let first = g.next();
+                                         let second = g.next();
+
+                             """);
+
+        var firstDone = await engine.Evaluate("first.done;");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+
+        Assert.False((bool)firstDone!);
+        Assert.True((bool)secondValue!);
+        Assert.True((bool)secondDone!);
     }
 
     [Fact(Timeout = 2000)]

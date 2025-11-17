@@ -319,21 +319,24 @@ public sealed class TypedAstParser
 
             do
             {
-                var nameToken = ConsumeParameterIdentifier("Expected variable name.");
-                var name = Symbol.Intern(nameToken.Lexeme);
+                var target = ParseBindingTarget("Expected variable name.");
                 ExpressionNode? initializer = null;
+                var requiresInitializer = target is not IdentifierBinding;
 
                 if (Match(TokenType.Equal))
                 {
                     initializer = ParseExpression();
                 }
-                else if (!allowInitializerless && kind == VariableKind.Const)
+                else if (!allowInitializerless && (kind == VariableKind.Const || requiresInitializer))
                 {
-                    throw new ParseException("Const declarations require an initializer.", Peek(), _source);
+                    var message = requiresInitializer
+                        ? "Destructuring declarations require an initializer."
+                        : "Const declarations require an initializer.";
+                    throw new ParseException(message, Peek(), _source);
                 }
 
-                var target = new IdentifierBinding(CreateSourceReference(nameToken), name);
-                declarators.Add(new VariableDeclarator(CreateSourceReference(nameToken), target, initializer));
+                declarators.Add(new VariableDeclarator(target.Source ?? CreateSourceReference(start), target,
+                    initializer));
             } while (Match(TokenType.Comma));
 
             if (requireSemicolon)
@@ -342,6 +345,161 @@ public sealed class TypedAstParser
             }
 
             return new VariableDeclaration(CreateSourceReference(start), kind, declarators.ToImmutable());
+        }
+
+        private BindingTarget ParseBindingTarget(string errorMessage = "Expected binding target.")
+        {
+            if (Match(TokenType.LeftBracket))
+            {
+                return ParseArrayBindingPattern(Previous());
+            }
+
+            if (Match(TokenType.LeftBrace))
+            {
+                return ParseObjectBindingPattern(Previous());
+            }
+
+            var identifier = ConsumeBindingIdentifier(errorMessage);
+            var symbol = Symbol.Intern(identifier.Lexeme);
+            return new IdentifierBinding(CreateSourceReference(identifier), symbol);
+        }
+
+        private ArrayBinding ParseArrayBindingPattern(Token startToken)
+        {
+            var elements = ImmutableArray.CreateBuilder<ArrayBindingElement>();
+            BindingTarget? restTarget = null;
+
+            while (!Check(TokenType.RightBracket))
+            {
+                if (Match(TokenType.Comma))
+                {
+                    elements.Add(new ArrayBindingElement(null, null, null));
+                    continue;
+                }
+
+                if (Match(TokenType.DotDotDot))
+                {
+                    if (restTarget is not null)
+                    {
+                        throw new ParseException("Only one rest element is allowed in a binding pattern.", Peek(), _source);
+                    }
+
+                    restTarget = ParseBindingTarget("Expected identifier after '...'.");
+                    if (restTarget is not IdentifierBinding)
+                    {
+                        throw new ParseException("Rest element must be an identifier.", Peek(), _source);
+                    }
+
+                    break;
+                }
+
+                var elementTarget = ParseBindingTarget("Expected binding target in array pattern.");
+                ExpressionNode? defaultValue = null;
+                if (Match(TokenType.Equal))
+                {
+                    defaultValue = ParseAssignment();
+                }
+
+                elements.Add(new ArrayBindingElement(elementTarget.Source, elementTarget, defaultValue));
+                if (!Match(TokenType.Comma))
+                {
+                    break;
+                }
+            }
+
+            Consume(TokenType.RightBracket, "Expected ']' after array pattern.");
+            return new ArrayBinding(CreateSourceReference(startToken), elements.ToImmutable(), restTarget);
+        }
+
+        private ObjectBinding ParseObjectBindingPattern(Token startToken)
+        {
+            var properties = ImmutableArray.CreateBuilder<ObjectBindingProperty>();
+            BindingTarget? restTarget = null;
+
+            while (!Check(TokenType.RightBrace))
+            {
+                if (Match(TokenType.DotDotDot))
+                {
+                    if (restTarget is not null)
+                    {
+                        throw new ParseException("Only one rest element is allowed in a binding pattern.", Peek(), _source);
+                    }
+
+                    restTarget = ParseBindingTarget("Expected identifier after '...'.");
+                    if (restTarget is not IdentifierBinding)
+                    {
+                        throw new ParseException("Rest property must be an identifier.", Peek(), _source);
+                    }
+
+                    break;
+                }
+
+                var (name, canUseShorthand, nameToken) = ParseBindingPropertyName();
+                var source = CreateSourceReference(nameToken);
+                BindingTarget target;
+
+                if (Match(TokenType.Colon))
+                {
+                    target = ParseBindingTarget("Expected binding target after ':'.");
+                }
+                else
+                {
+                    if (!canUseShorthand)
+                    {
+                        throw new ParseException("Property name cannot use shorthand in binding pattern.", nameToken,
+                            _source);
+                    }
+
+                    var symbol = Symbol.Intern(name);
+                    target = new IdentifierBinding(source, symbol);
+                }
+
+                ExpressionNode? defaultValue = null;
+                if (Match(TokenType.Equal))
+                {
+                    defaultValue = ParseAssignment();
+                }
+
+                properties.Add(new ObjectBindingProperty(source, name, target, defaultValue));
+                if (!Match(TokenType.Comma))
+                {
+                    break;
+                }
+            }
+
+            Consume(TokenType.RightBrace, "Expected '}' after object pattern.");
+            return new ObjectBinding(CreateSourceReference(startToken), properties.ToImmutable(), restTarget);
+        }
+
+        private (string Name, bool CanUseShorthand, Token Token) ParseBindingPropertyName()
+        {
+            if (Match(TokenType.String))
+            {
+                var token = Previous();
+                var value = token.Literal?.ToString() ?? string.Empty;
+                return (value, false, token);
+            }
+
+            if (Match(TokenType.Number))
+            {
+                var token = Previous();
+                var value = Convert.ToString(token.Literal, CultureInfo.InvariantCulture) ?? token.Lexeme;
+                return (value, false, token);
+            }
+
+            if (Check(TokenType.Identifier))
+            {
+                var identifier = Advance();
+                return (identifier.Lexeme, true, identifier);
+            }
+
+            if (IsKeyword(Peek()))
+            {
+                var keyword = Advance();
+                return (keyword.Lexeme, false, keyword);
+            }
+
+            throw new ParseException("Expected property name.", Peek(), _source);
         }
 
         private StatementNode ParseSwitchStatement()
@@ -701,6 +859,13 @@ public sealed class TypedAstParser
 
             if (Match(TokenType.Default))
             {
+                if (Check(TokenType.Async) && CheckAhead(TokenType.Function))
+                {
+                    Advance(); // async
+                    var functionToken = Advance(); // function
+                    return ParseExportDefaultFunction(CreateSourceReference(keyword), functionToken, true);
+                }
+
                 if (Match(TokenType.Class))
                 {
                     Symbol? name = null;
@@ -725,9 +890,7 @@ public sealed class TypedAstParser
 
                 if (Match(TokenType.Function))
                 {
-                    var functionExpression = ParseFunctionExpression();
-                    return new ExportDefaultStatement(CreateSourceReference(keyword),
-                        new ExportDefaultExpression(CreateSourceReference(keyword), functionExpression));
+                    return ParseExportDefaultFunction(CreateSourceReference(keyword), Previous(), false);
                 }
 
                 var expression = ParseExpression();
@@ -819,6 +982,30 @@ public sealed class TypedAstParser
             } while (Match(TokenType.Comma) && !Check(TokenType.RightBrace));
 
             return builder.ToImmutable();
+        }
+
+        private ExportDefaultStatement ParseExportDefaultFunction(SourceReference? exportSource, Token functionToken,
+            bool isAsync)
+        {
+            Symbol? name = null;
+            if (Check(TokenType.Identifier))
+            {
+                var nameToken = Advance();
+                name = Symbol.Intern(nameToken.Lexeme);
+            }
+
+            var function = ParseFunctionTail(name, functionToken, isAsync);
+            if (name is not null)
+            {
+                var declaration = new FunctionDeclaration(function.Source ?? CreateSourceReference(functionToken), name,
+                    function);
+                return new ExportDefaultStatement(exportSource,
+                    new ExportDefaultDeclaration(exportSource, declaration));
+            }
+
+            Consume(TokenType.Semicolon, "Expected ';' after export default expression.");
+            return new ExportDefaultStatement(exportSource,
+                new ExportDefaultExpression(exportSource, function));
         }
 
         private BlockStatement ParseBlock(bool leftBraceConsumed = false)
@@ -973,6 +1160,18 @@ public sealed class TypedAstParser
                 {
                     return CreateMemberAssignment(member, value);
                 }
+
+                 if (expr is ArrayExpression arrayPattern)
+                 {
+                     var binding = ConvertArrayExpressionToBinding(arrayPattern);
+                     return new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value);
+                 }
+
+                 if (expr is ObjectExpression objectPattern)
+                 {
+                     var binding = ConvertObjectExpressionToBinding(objectPattern);
+                     return new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value);
+                 }
 
                 throw new NotSupportedException("Unsupported assignment target.");
             }
@@ -1276,38 +1475,38 @@ public sealed class TypedAstParser
             return expr;
         }
 
-        private ExpressionNode ParsePrimary()
+        private ExpressionNode ParsePrimary(bool allowCallSuffix = true)
         {
             ExpressionNode expr;
 
             if (Match(TokenType.Number))
             {
                 expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
-                return ParseCallSuffix(expr);
+                return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.String))
             {
                 expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
-                return ParseCallSuffix(expr);
+                return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.True))
             {
                 expr = new LiteralExpression(CreateSourceReference(Previous()), true);
-                return ParseCallSuffix(expr);
+                return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.False))
             {
                 expr = new LiteralExpression(CreateSourceReference(Previous()), false);
-                return ParseCallSuffix(expr);
+                return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.Null))
             {
                 expr = new LiteralExpression(CreateSourceReference(Previous()), null);
-                return ParseCallSuffix(expr);
+                return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.Undefined))
@@ -1315,41 +1514,45 @@ public sealed class TypedAstParser
                 var token = Previous();
                 var symbol = JsSymbols.Undefined;
                 expr = new IdentifierExpression(CreateSourceReference(token), symbol);
-                return ParseCallSuffix(expr);
+                return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.Identifier))
             {
                 var symbol = Symbol.Intern(Previous().Lexeme);
                 expr = new IdentifierExpression(CreateSourceReference(Previous()), symbol);
-                return ParseCallSuffix(expr);
+                return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.LeftParen))
             {
                 var grouped = ParseExpression();
                 Consume(TokenType.RightParen, "Expected ')' after expression.");
-                return ParseCallSuffix(grouped);
+                return ApplyCallSuffix(grouped, allowCallSuffix);
             }
 
             if (Match(TokenType.LeftBracket))
             {
-                return ParseArrayLiteral();
+                var array = ParseArrayLiteral();
+                return ApplyCallSuffix(array, allowCallSuffix);
             }
 
             if (Match(TokenType.LeftBrace))
             {
-                return ParseObjectLiteral();
+                var obj = ParseObjectLiteral();
+                return ApplyCallSuffix(obj, allowCallSuffix);
             }
 
             if (Match(TokenType.Function))
             {
-                return ParseFunctionExpression();
+                var function = ParseFunctionExpression();
+                return ApplyCallSuffix(function, allowCallSuffix);
             }
 
             if (Match(TokenType.Class))
             {
-                return ParseClassExpression();
+                var classExpr = ParseClassExpression();
+                return ApplyCallSuffix(classExpr, allowCallSuffix);
             }
 
             if (Match(TokenType.Async))
@@ -1358,34 +1561,39 @@ public sealed class TypedAstParser
                 if (Check(TokenType.Function))
                 {
                     Advance(); // function
-                    return ParseFunctionExpression(isAsync: true);
+                    var asyncFunction = ParseFunctionExpression(isAsync: true);
+                    return ApplyCallSuffix(asyncFunction, allowCallSuffix);
                 }
 
                 var asyncSymbol = Symbol.Intern(asyncToken.Lexeme);
                 var asyncIdent = new IdentifierExpression(CreateSourceReference(asyncToken), asyncSymbol);
-                return ParseCallSuffix(asyncIdent);
+                return ApplyCallSuffix(asyncIdent, allowCallSuffix);
             }
 
             if (Match(TokenType.Await))
             {
                 var awaitToken = Previous();
                 var awaitSymbol = Symbol.Intern(awaitToken.Lexeme);
-                return ParseCallSuffix(new IdentifierExpression(CreateSourceReference(awaitToken), awaitSymbol));
+                var awaitExpr = new IdentifierExpression(CreateSourceReference(awaitToken), awaitSymbol);
+                return ApplyCallSuffix(awaitExpr, allowCallSuffix);
             }
 
             if (Match(TokenType.This))
             {
-                return new ThisExpression(CreateSourceReference(Previous()));
+                var thisExpr = new ThisExpression(CreateSourceReference(Previous()));
+                return ApplyCallSuffix(thisExpr, allowCallSuffix);
             }
 
             if (Match(TokenType.Super))
             {
-                return new SuperExpression(CreateSourceReference(Previous()));
+                var superExpr = new SuperExpression(CreateSourceReference(Previous()));
+                return ApplyCallSuffix(superExpr, allowCallSuffix);
             }
 
             if (Match(TokenType.New))
             {
-                return ParseNewExpression();
+                var newExpr = ParseNewExpression();
+                return ApplyCallSuffix(newExpr, allowCallSuffix);
             }
 
             if (Check(TokenType.Undefined))
@@ -1410,7 +1618,7 @@ public sealed class TypedAstParser
                     _ => throw new InvalidOperationException()
                 };
                 var unary = new UnaryExpression(CreateSourceReference(token), op, operand, true);
-                return ParseCallSuffix(unary);
+                return ApplyCallSuffix(unary, allowCallSuffix);
             }
 
             throw new NotSupportedException($"Token '{Peek().Type}' is not yet supported by the direct parser.");
@@ -1443,6 +1651,11 @@ public sealed class TypedAstParser
             }
 
             return expression;
+        }
+
+        private ExpressionNode ApplyCallSuffix(ExpressionNode expression, bool allowCallSuffix)
+        {
+            return allowCallSuffix ? ParseCallSuffix(expression) : expression;
         }
 
         private ImmutableArray<CallArgument> ParseArgumentList()
@@ -1550,6 +1763,38 @@ public sealed class TypedAstParser
                     continue;
                 }
 
+                if (Check(TokenType.Get) && !IsGetOrSetPropertyName())
+                {
+                    Advance(); // get
+                    var (getterKey, getterIsComputed, getterKeySource) = ParseObjectPropertyKey();
+                    Consume(TokenType.LeftParen, "Expected '(' after getter name.");
+                    Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
+                    var body = ParseBlock();
+                    var function = new FunctionExpression(body.Source ?? getterKeySource, null,
+                        ImmutableArray<FunctionParameter>.Empty, body, false, false);
+                    members.Add(new ObjectMember(function.Source ?? getterKeySource, ObjectMemberKind.Getter, getterKey,
+                        null, function, getterIsComputed, false, null));
+                    continue;
+                }
+
+                if (Check(TokenType.Set) && !IsGetOrSetPropertyName())
+                {
+                    Advance(); // set
+                    var (setterKey, setterIsComputed, setterKeySource) = ParseObjectPropertyKey();
+                    Consume(TokenType.LeftParen, "Expected '(' after setter name.");
+                    var parameterToken = ConsumeParameterIdentifier("Expected parameter name in setter.");
+                    var parameterSymbol = Symbol.Intern(parameterToken.Lexeme);
+                    var parameter = new FunctionParameter(CreateSourceReference(parameterToken), parameterSymbol, false,
+                        null, null);
+                    Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
+                    var body = ParseBlock();
+                    var function = new FunctionExpression(body.Source ?? setterKeySource, null,
+                        ImmutableArray.Create(parameter), body, false, false);
+                    members.Add(new ObjectMember(function.Source ?? setterKeySource, ObjectMemberKind.Setter, setterKey,
+                        null, function, setterIsComputed, false, parameterSymbol));
+                    continue;
+                }
+
                 var (key, isComputed, keySource) = ParseObjectPropertyKey();
 
                 ExpressionNode? value = null;
@@ -1648,9 +1893,39 @@ public sealed class TypedAstParser
             do
             {
                 var isRest = Match(TokenType.DotDotDot);
-                var token = ConsumeParameterIdentifier("Expected parameter name.");
-                var name = Symbol.Intern(token.Lexeme);
-                builder.Add(new FunctionParameter(CreateSourceReference(token), name, isRest, null, null));
+                BindingTarget? pattern = null;
+                Symbol? name = null;
+                SourceReference? source;
+
+                if (Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace))
+                {
+                    if (isRest)
+                    {
+                        throw new ParseException("Rest parameters must be identifiers.", Peek(), _source);
+                    }
+
+                    var patternStart = Peek();
+                    pattern = ParseBindingTarget("Expected parameter pattern.");
+                    source = pattern.Source ?? CreateSourceReference(patternStart);
+                }
+                else
+                {
+                    var token = ConsumeParameterIdentifier("Expected parameter name.");
+                    name = Symbol.Intern(token.Lexeme);
+                    source = CreateSourceReference(token);
+                }
+
+                ExpressionNode? defaultValue = null;
+                if (!isRest && Match(TokenType.Equal))
+                {
+                    defaultValue = ParseAssignment();
+                }
+                else if (isRest && Check(TokenType.Equal))
+                {
+                    throw new ParseException("Rest parameters cannot have default values.", Peek(), _source);
+                }
+
+                builder.Add(new FunctionParameter(source, name, isRest, pattern, defaultValue));
                 if (isRest)
                 {
                     break;
@@ -1662,12 +1937,25 @@ public sealed class TypedAstParser
 
         private ExpressionNode ParseNewExpression()
         {
-            if (!DisableFallback)
+            var constructor = ParsePrimary(allowCallSuffix: false);
+
+            while (true)
             {
-                throw new NotSupportedException("New expressions are not yet fully supported by the typed parser.");
+                if (Match(TokenType.Dot))
+                {
+                    constructor = FinishDotAccess(constructor);
+                    continue;
+                }
+
+                if (Match(TokenType.LeftBracket))
+                {
+                    constructor = FinishIndexAccess(constructor);
+                    continue;
+                }
+
+                break;
             }
 
-            var constructor = ParsePostfix();
             ImmutableArray<ExpressionNode> args;
             if (Match(TokenType.LeftParen))
             {
@@ -1717,8 +2005,113 @@ public sealed class TypedAstParser
             {
                 case VariableDeclaration { Declarators.Length: 1 } declaration:
                     return declaration.Declarators[0].Target;
-                case ExpressionStatement { Expression: IdentifierExpression identifier }:
-                    return new IdentifierBinding(identifier.Source, identifier.Name);
+                case ExpressionStatement { Expression: ExpressionNode expression }:
+                    return TryConvertExpressionToBindingTarget(expression);
+                default:
+                    return null;
+            }
+        }
+
+        private BindingTarget? TryConvertExpressionToBindingTarget(ExpressionNode expression)
+        {
+            return expression switch
+            {
+                IdentifierExpression identifier => new IdentifierBinding(expression.Source, identifier.Name),
+                ArrayExpression array => ConvertArrayExpressionToBinding(array),
+                ObjectExpression obj => ConvertObjectExpressionToBinding(obj),
+                _ => null
+            };
+        }
+
+        private ArrayBinding ConvertArrayExpressionToBinding(ArrayExpression array)
+        {
+            var elements = ImmutableArray.CreateBuilder<ArrayBindingElement>();
+            BindingTarget? restTarget = null;
+
+            foreach (var element in array.Elements)
+            {
+                if (element.Expression is null)
+                {
+                    elements.Add(new ArrayBindingElement(null, null, null));
+                    continue;
+                }
+
+                if (element.IsSpread)
+                {
+                    if (restTarget is not null)
+                    {
+                        throw new NotSupportedException("Multiple rest elements are not allowed in destructuring patterns.");
+                    }
+
+                    var restBinding = ConvertExpressionToBindingTarget(element.Expression)
+                                      ?? throw new NotSupportedException("Invalid rest binding target.");
+                    if (restBinding is not IdentifierBinding)
+                    {
+                        throw new NotSupportedException("Rest binding must be an identifier.");
+                    }
+
+                    restTarget = restBinding;
+                    continue;
+                }
+
+                var target = ConvertExpressionToBindingTarget(element.Expression)
+                             ?? throw new NotSupportedException("Invalid destructuring target.");
+                elements.Add(new ArrayBindingElement(element.Source ?? target.Source, target, null));
+            }
+
+            return new ArrayBinding(array.Source, elements.ToImmutable(), restTarget);
+        }
+
+        private ObjectBinding ConvertObjectExpressionToBinding(ObjectExpression obj)
+        {
+            var properties = ImmutableArray.CreateBuilder<ObjectBindingProperty>();
+            BindingTarget? restTarget = null;
+
+            foreach (var member in obj.Members)
+            {
+                if (member.Kind == ObjectMemberKind.Spread)
+                {
+                    if (restTarget is not null)
+                    {
+                        throw new NotSupportedException("Multiple rest elements are not allowed in destructuring patterns.");
+                    }
+
+                    var restBinding = member.Value is null
+                        ? null
+                        : ConvertExpressionToBindingTarget(member.Value);
+                    if (restBinding is not IdentifierBinding identifierBinding)
+                    {
+                        throw new NotSupportedException("Rest property must be an identifier.");
+                    }
+
+                    restTarget = identifierBinding;
+                    continue;
+                }
+
+                if (member.Kind != ObjectMemberKind.Property || member.IsComputed || member.Key is not string name ||
+                    member.Value is null)
+                {
+                    throw new NotSupportedException("Invalid object destructuring pattern.");
+                }
+
+                var target = ConvertExpressionToBindingTarget(member.Value)
+                             ?? throw new NotSupportedException("Invalid object destructuring target.");
+                properties.Add(new ObjectBindingProperty(member.Source ?? obj.Source, name, target, null));
+            }
+
+            return new ObjectBinding(obj.Source, properties.ToImmutable(), restTarget);
+        }
+
+        private BindingTarget? ConvertExpressionToBindingTarget(ExpressionNode expression)
+        {
+            switch (expression)
+            {
+                case IdentifierExpression identifier:
+                    return new IdentifierBinding(expression.Source, identifier.Name);
+                case ArrayExpression array:
+                    return ConvertArrayExpressionToBinding(array);
+                case ObjectExpression obj:
+                    return ConvertObjectExpressionToBinding(obj);
                 default:
                     return null;
             }
@@ -1843,6 +2236,11 @@ public sealed class TypedAstParser
             throw new ParseException(message, Peek(), _source);
         }
 
+        private Token ConsumeBindingIdentifier(string message)
+        {
+            return ConsumeParameterIdentifier(message);
+        }
+
         private bool CheckForUseStrictDirective()
         {
             var saved = _current;
@@ -1903,6 +2301,16 @@ public sealed class TypedAstParser
             }
 
             return false;
+        }
+
+        private bool IsGetOrSetPropertyName()
+        {
+            if (_current + 1 >= _tokens.Count)
+            {
+                return false;
+            }
+
+            return _tokens[_current + 1].Type == TokenType.Colon;
         }
 
         private bool HasLineTerminatorBefore()

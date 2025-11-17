@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
@@ -1516,6 +1517,12 @@ public sealed class TypedAstParser
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
+            if (Match(TokenType.TemplateLiteral))
+            {
+                var templateExpr = ParseTemplateLiteralExpression(Previous());
+                return ApplyCallSuffix(templateExpr, allowCallSuffix);
+            }
+
             if (Match(TokenType.True))
             {
                 expr = new LiteralExpression(CreateSourceReference(Previous()), true);
@@ -1676,6 +1683,13 @@ public sealed class TypedAstParser
                 if (Match(TokenType.LeftBracket))
                 {
                     expression = FinishIndexAccess(expression);
+                    continue;
+                }
+
+                if (Check(TokenType.TemplateLiteral))
+                {
+                    var templateToken = Advance();
+                    expression = ParseTaggedTemplateExpression(expression, templateToken);
                     continue;
                 }
 
@@ -1862,6 +1876,94 @@ public sealed class TypedAstParser
 
             Consume(TokenType.RightBrace, "Expected '}' after object literal.");
             return new ObjectExpression(CreateSourceReference(startToken), members.ToImmutable());
+        }
+
+        private TemplateLiteralExpression ParseTemplateLiteralExpression(Token templateToken)
+        {
+            var parts = templateToken.Literal as List<object?> ?? new List<object?>();
+            var builder = ImmutableArray.CreateBuilder<TemplatePart>();
+
+            foreach (var part in parts)
+            {
+                if (part is string text)
+                {
+                    builder.Add(new TemplatePart(null, text, null));
+                }
+                else if (part is TemplateExpression expression)
+                {
+                    var parsedExpression = ParseTemplateInterpolation(expression.ExpressionText);
+                    builder.Add(new TemplatePart(parsedExpression.Source ?? CreateSourceReference(templateToken), null,
+                        parsedExpression));
+                }
+            }
+
+            return new TemplateLiteralExpression(CreateSourceReference(templateToken), builder.ToImmutable());
+        }
+
+        private TaggedTemplateExpression ParseTaggedTemplateExpression(ExpressionNode tagExpression, Token templateToken)
+        {
+            var parts = templateToken.Literal as List<object?> ?? new List<object?>();
+            var cookedStrings = new List<string>();
+            var rawStrings = new List<string>();
+            var expressions = ImmutableArray.CreateBuilder<ExpressionNode>();
+
+            foreach (var part in parts)
+            {
+                if (part is string text)
+                {
+                    cookedStrings.Add(text);
+                    rawStrings.Add(text);
+                }
+                else if (part is TemplateExpression expression)
+                {
+                    expressions.Add(ParseTemplateInterpolation(expression.ExpressionText));
+                }
+            }
+
+            while (cookedStrings.Count <= expressions.Count)
+            {
+                cookedStrings.Add(string.Empty);
+                rawStrings.Add(string.Empty);
+            }
+
+            var stringsArray = BuildTemplateStringsArray(cookedStrings, templateToken);
+            var rawStringsArray = BuildTemplateStringsArray(rawStrings, templateToken);
+
+            return new TaggedTemplateExpression(CreateSourceReference(templateToken), tagExpression, stringsArray,
+                rawStringsArray, expressions.ToImmutable());
+        }
+
+        private ArrayExpression BuildTemplateStringsArray(IReadOnlyList<string> values, Token templateToken)
+        {
+            var elements = ImmutableArray.CreateBuilder<ArrayElement>(values.Count);
+            foreach (var text in values)
+            {
+                var literal = new LiteralExpression(null, text);
+                elements.Add(new ArrayElement(null, literal, false));
+            }
+
+            return new ArrayExpression(CreateSourceReference(templateToken), elements.ToImmutable());
+        }
+
+        private ExpressionNode ParseTemplateInterpolation(string expressionText)
+        {
+            var trimmed = expressionText.Trim();
+            if (trimmed.Length == 0)
+            {
+                throw new ParseException("Empty expression inside template literal.", Peek(), _source);
+            }
+
+            var wrappedSource = $"{trimmed};";
+            var lexer = new Lexer(wrappedSource);
+            var tokens = lexer.Tokenize();
+            var embeddedParser = new TypedAstParser(tokens, wrappedSource);
+            var program = embeddedParser.ParseProgram();
+            if (program.Body.Length == 0 || program.Body[0] is not ExpressionStatement expressionStatement)
+            {
+                throw new ParseException("Template literal expressions must be valid expressions.", Peek(), _source);
+            }
+
+            return expressionStatement.Expression;
         }
 
         private (object key, bool isComputed, SourceReference? source) ParseObjectPropertyKey()

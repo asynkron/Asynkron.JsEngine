@@ -339,9 +339,13 @@ public static class TypedAstEvaluator
                 break;
             }
 
-            AssignLoopBinding(statement, value, loopEnvironment, environment, context);
+            var iterationEnvironment = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                ? new JsEnvironment(loopEnvironment, creatingSource: statement.Source, description: "for-each-iteration")
+                : loopEnvironment;
 
-            lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
+            AssignLoopBinding(statement, value, iterationEnvironment, environment, context);
+
+            lastValue = EvaluateStatement(statement.Body, iterationEnvironment, context);
 
             if (context.IsReturn || context.IsThrow)
             {
@@ -405,8 +409,12 @@ public static class TypedAstEvaluator
                     return JsSymbols.Undefined;
                 }
 
-                AssignLoopBinding(statement, awaitedValue, loopEnvironment, environment, context);
-                lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
+                var iterationEnvironment = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                    ? new JsEnvironment(loopEnvironment, creatingSource: statement.Source, description: "for-await-of iteration")
+                    : loopEnvironment;
+
+                AssignLoopBinding(statement, awaitedValue, iterationEnvironment, environment, context);
+                lastValue = EvaluateStatement(statement.Body, iterationEnvironment, context);
 
                 if (context.IsReturn || context.IsThrow)
                 {
@@ -485,8 +493,12 @@ public static class TypedAstEvaluator
                 ? yielded
                 : JsSymbols.Undefined;
 
-            AssignLoopBinding(statement, value, loopEnvironment, outerEnvironment, context);
-            lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
+            var iterationEnvironment = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                ? new JsEnvironment(loopEnvironment, creatingSource: statement.Source, description: "for-each-iteration")
+                : loopEnvironment;
+
+            AssignLoopBinding(statement, value, iterationEnvironment, outerEnvironment, context);
+            lastValue = EvaluateStatement(statement.Body, iterationEnvironment, context);
 
             if (context.IsReturn || context.IsThrow)
             {
@@ -4010,12 +4022,21 @@ public static class TypedAstEvaluator
                                 propagateThrow,
                                 propagateReturn,
                                 context,
-                                out var awaitedPromise);
+                                out _);
 
                             if (iteratorResult.IsDelegatedCompletion)
                             {
                                 var pendingKind = propagateThrow ? AbruptKind.Throw : AbruptKind.Return;
-                                var abruptValue = pendingKind == AbruptKind.Throw ? sendValue : iteratorResult.Value;
+                                object? abruptValue;
+                                if (pendingKind == AbruptKind.Throw && context.IsThrow)
+                                {
+                                    abruptValue = context.FlowValue;
+                                    context.Clear();
+                                }
+                                else
+                                {
+                                    abruptValue = pendingKind == AbruptKind.Throw ? sendValue : iteratorResult.Value;
+                                }
                                 if (!iteratorResult.Done)
                                 {
                                     yieldStarState.PendingAbrupt = pendingKind;
@@ -4050,7 +4071,7 @@ public static class TypedAstEvaluator
                                 return CompleteReturn(abruptValue);
                             }
 
-                            if (iteratorResult.Done)
+                            if (iteratorResult.Done && !propagateThrow && !propagateReturn)
                             {
                                 yieldStarState.State = null;
                                 yieldStarState.AwaitingResume = false;
@@ -4067,7 +4088,8 @@ public static class TypedAstEvaluator
                             yieldStarState.AwaitingResume = true;
                             _programCounter = currentIndex;
                             _state = GeneratorState.Suspended;
-                            return CreateIteratorResult(iteratorResult.Value, false);
+                            var resultDone = propagateReturn ? iteratorResult.Done : false;
+                            return CreateIteratorResult(iteratorResult.Value, resultDone);
                         }
 
                         continue;

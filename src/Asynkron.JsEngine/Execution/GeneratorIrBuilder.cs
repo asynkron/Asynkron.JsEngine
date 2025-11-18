@@ -71,6 +71,9 @@ internal sealed class GeneratorIrBuilder
             case BlockStatement block:
                 return TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
 
+            case IfStatement ifStatement:
+                return TryBuildIfStatement(ifStatement, nextIndex, out entryIndex, activeLabel);
+
             case EmptyStatement:
                 entryIndex = nextIndex;
                 return true;
@@ -142,6 +145,16 @@ internal sealed class GeneratorIrBuilder
             case ForEachStatement forEachStatement when (forEachStatement.Kind == ForEachKind.Of ||
                                                          forEachStatement.Kind == ForEachKind.AwaitOf) &&
                                                         IsSimpleForOfBinding(forEachStatement):
+                // For-of with block-scoped declarations (`let`/`const`) and closures
+                // requires per-iteration environments. The replay engine already
+                // models this correctly, so we currently fall back instead of
+                // hosting these loops on the IR path.
+                if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+                {
+                    entryIndex = -1;
+                    return false;
+                }
+
                 return forEachStatement.Kind == ForEachKind.AwaitOf
                     ? TryBuildForAwaitStatement(forEachStatement, nextIndex, out entryIndex, activeLabel)
                     : TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
@@ -169,6 +182,39 @@ internal sealed class GeneratorIrBuilder
                 entryIndex = -1;
                 return false;
         }
+    }
+
+    private bool TryBuildIfStatement(IfStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
+    {
+        if (ContainsYield(statement.Condition))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var instructionStart = _instructions.Count;
+
+        var elseEntry = nextIndex;
+        if (statement.Else is not null)
+        {
+            if (!TryBuildStatement(statement.Else, nextIndex, out elseEntry, activeLabel))
+            {
+                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+                entryIndex = -1;
+                return false;
+            }
+        }
+
+        if (!TryBuildStatement(statement.Then, nextIndex, out var thenEntry, activeLabel))
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        var branchIndex = Append(new BranchInstruction(statement.Condition, thenEntry, elseEntry));
+        entryIndex = branchIndex;
+        return true;
     }
 
     private bool TryBuildWhileStatement(WhileStatement statement, int nextIndex, out int entryIndex, Symbol? label)

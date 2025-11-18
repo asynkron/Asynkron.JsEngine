@@ -2257,21 +2257,12 @@ public static class TypedAstEvaluator
 
     private static bool IsNullish(object? value)
     {
-        return value is null || value is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Undefined);
+        return JsOps.IsNullish(value);
     }
 
     private static bool IsTruthy(object? value)
     {
-        return value switch
-        {
-            null => false,
-            Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined) => false,
-            bool b => b,
-            double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
-            float f => !float.IsNaN(f) && Math.Abs(f) > float.Epsilon,
-            string s => s.Length > 0,
-            _ => true
-        };
+        return JsOps.IsTruthy(value);
     }
 
     private static object? Add(object? left, object? right)
@@ -2725,59 +2716,12 @@ public static class TypedAstEvaluator
 
     private static string? ToPropertyName(object? value)
     {
-        return value switch
-        {
-            null => "null",
-            string s => s,
-            Symbol symbol => symbol.Name,
-            TypedAstSymbol jsSymbol => $"@@symbol:{jsSymbol.GetHashCode()}",
-            bool b => b ? "true" : "false",
-            int i => i.ToString(CultureInfo.InvariantCulture),
-            long l => l.ToString(CultureInfo.InvariantCulture),
-            double d when !double.IsNaN(d) && !double.IsInfinity(d) => d.ToString(CultureInfo.InvariantCulture),
-            _ => Convert.ToString(value, CultureInfo.InvariantCulture)
-        };
+        return JsOps.ToPropertyName(value);
     }
 
     private static bool TryResolveArrayIndex(object? candidate, out int index)
     {
-        switch (candidate)
-        {
-            case int i when i >= 0:
-                index = i;
-                return true;
-            case long l when l >= 0 && l <= int.MaxValue:
-                index = (int)l;
-                return true;
-            case double d when !double.IsNaN(d) && !double.IsInfinity(d):
-                if (d < 0)
-                {
-                    break;
-                }
-
-                var truncated = Math.Truncate(d);
-                if (Math.Abs(truncated - d) > double.Epsilon)
-                {
-                    break;
-                }
-
-                if (truncated > int.MaxValue)
-                {
-                    break;
-                }
-
-                index = (int)truncated;
-                return true;
-            case JsBigInt bigInt when bigInt.Value >= BigInteger.Zero && bigInt.Value <= int.MaxValue:
-                index = (int)bigInt.Value;
-                return true;
-            case string s when int.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0:
-                index = parsed;
-                return true;
-        }
-
-        index = 0;
-        return false;
+        return JsOps.TryResolveArrayIndex(candidate, out index);
     }
 
     private static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
@@ -3124,34 +3068,7 @@ public static class TypedAstEvaluator
 
     private static string GetTypeofString(object? value)
     {
-        if (value is null)
-        {
-            return "object";
-        }
-
-        if (value is Symbol sym && ReferenceEquals(sym, JsSymbols.Undefined))
-        {
-            return "undefined";
-        }
-
-        if (value is TypedAstSymbol)
-        {
-            return "symbol";
-        }
-
-        if (value is JsBigInt)
-        {
-            return "bigint";
-        }
-
-        return value switch
-        {
-            bool => "boolean",
-            double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
-            string => "string",
-            IJsCallable => "function",
-            _ => "object"
-        };
+        return JsOps.GetTypeofString(value);
     }
 
     private static void AssignBindingTarget(BindingTarget target, object? value, JsEnvironment environment,

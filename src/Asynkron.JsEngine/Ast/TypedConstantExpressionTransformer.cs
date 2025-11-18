@@ -1076,59 +1076,7 @@ public sealed class TypedConstantExpressionTransformer
 
     private static bool LooseEquals(object? left, object? right)
     {
-        if (left == null && right == null)
-        {
-            return true;
-        }
-
-        if (left == null || right == null)
-        {
-            return false;
-        }
-
-        var leftType = left.GetType();
-        var rightType = right.GetType();
-
-        if (leftType == rightType)
-        {
-            return StrictEquals(left, right);
-        }
-
-        if (left is double leftNum && right is string rightStr)
-        {
-            return leftNum == StringToNumber(rightStr);
-        }
-
-        if (left is string leftStr && right is double rightNum)
-        {
-            return StringToNumber(leftStr) == rightNum;
-        }
-
-        if (left is bool leftBool && right is double rightNumFromBool)
-        {
-            var leftNumeric = leftBool ? 1.0 : 0.0;
-            return leftNumeric == rightNumFromBool;
-        }
-
-        if (left is double leftNumFromBool && right is bool rightBool)
-        {
-            var rightNumeric = rightBool ? 1.0 : 0.0;
-            return leftNumFromBool == rightNumeric;
-        }
-
-        if (left is bool leftBoolToString && right is string rightStrFromBool)
-        {
-            var leftNumeric = leftBoolToString ? 1.0 : 0.0;
-            return leftNumeric == StringToNumber(rightStrFromBool);
-        }
-
-        if (left is string leftStrFromBool && right is bool rightBoolToString)
-        {
-            var rightNumeric = rightBoolToString ? 1.0 : 0.0;
-            return StringToNumber(leftStrFromBool) == rightNumeric;
-        }
-
-        return false;
+        return JsOps.LooseEquals(left, right);
     }
 
     private static double StringToNumber(string str)
@@ -1149,32 +1097,7 @@ public sealed class TypedConstantExpressionTransformer
 
     private static bool StrictEquals(object? left, object? right)
     {
-        if (left == null && right == null)
-        {
-            return true;
-        }
-
-        if (left == null || right == null)
-        {
-            return false;
-        }
-
-        if (left.GetType() != right.GetType())
-        {
-            return false;
-        }
-
-        if (left is double leftNum && right is double rightNum)
-        {
-            if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
-            {
-                return false;
-            }
-
-            return leftNum == rightNum;
-        }
-
-        return Equals(left, right);
+        return JsOps.StrictEquals(left, right);
     }
 
     private static int ToInt32(double value)

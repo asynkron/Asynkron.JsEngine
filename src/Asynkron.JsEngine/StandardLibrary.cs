@@ -2035,37 +2035,12 @@ public static class StandardLibrary
 
     private static bool IsTruthy(object? value)
     {
-        return value switch
-        {
-            null => false,
-            bool b => b,
-            double d => Math.Abs(d) > double.Epsilon,
-            string s => s.Length > 0,
-            _ => true
-        };
+        return JsOps.IsTruthy(value);
     }
 
     private static bool AreStrictlyEqual(object? left, object? right)
     {
-        if (left is null && right is null)
-        {
-            return true;
-        }
-
-        if (left is null || right is null)
-        {
-            return false;
-        }
-
-        var leftType = left.GetType();
-        var rightType = right.GetType();
-
-        if (leftType != rightType)
-        {
-            return false;
-        }
-
-        return Equals(left, right);
+        return JsOps.StrictEquals(left, right);
     }
 
     /// <summary>

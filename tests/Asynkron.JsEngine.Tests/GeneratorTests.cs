@@ -1665,6 +1665,7 @@ public class GeneratorTests
         var thirdValue = await engine.Evaluate("third.value;");
         var thirdDone = await engine.Evaluate("third.done;");
 
+        Console.WriteLine($"[InterpreterThrow] first=({firstValue},{firstDone}), second=({secondValue},{secondDone}), third=({thirdValue},{thirdDone})");
         var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
 
         Assert.Equal(1.0, firstValue);
@@ -1678,6 +1679,90 @@ public class GeneratorTests
 
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyNestedReturnIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                try {
+                    yield 1;
+                } finally {
+                    try {
+                        yield 2;
+                    } finally {
+                        yield 3;
+                    }
+                }
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("const mid = g.return(99);");
+        var midValue = await engine.Evaluate("mid.value;");
+        var midDone = await engine.Evaluate("mid.done;");
+
+        await engine.Evaluate("const third = g.next();");
+        var thirdValue = await engine.Evaluate("third.value;");
+        var thirdDone = await engine.Evaluate("third.done;");
+
+        await engine.Evaluate("const final = g.next();");
+        var finalValue = await engine.Evaluate("final.value;");
+        var finalDone = await engine.Evaluate("final.done;");
+
+        Assert.Equal(2.0, midValue);
+        Assert.False((bool)midDone!);
+        Assert.Equal(3.0, thirdValue);
+        Assert.False((bool)thirdDone!);
+        Assert.Equal(99.0, finalValue);
+        Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_TryFinallyNestedThrowInterpreter()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                try {
+                    yield 1;
+                } finally {
+                    try {
+                        yield 2;
+                    } finally {
+                        yield 3;
+                    }
+                }
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        var firstDone = await engine.Evaluate("first.done;");
+
+        await engine.Evaluate("const second = g.throw('boom');");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+
+        await engine.Evaluate("const third = g.next();");
+        var thirdValue = await engine.Evaluate("third.value;");
+        var thirdDone = await engine.Evaluate("third.done;");
+
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
+
+        Assert.Equal(1.0, firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal(2.0, secondValue);
+        Assert.False((bool)secondDone!);
+        Assert.Equal(3.0, thirdValue);
+        Assert.False((bool)thirdDone!);
+        Assert.Equal("boom", exception.ThrownValue);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_TryFinallyNestedReturnInterpreter()
     {
         await using var engine = new JsEngine();
 

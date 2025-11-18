@@ -1160,7 +1160,7 @@ public sealed class TypedCpsTransformer
                     if (_currentLoopBreakSymbol is { } breakSymbol &&
                         IsCallToSymbol(returnExpression, breakSymbol))
                     {
-                        rewritten = ImmutableArray.Create<StatementNode>(returnStatement);
+                        rewritten = [returnStatement];
                         handledRemainder = true;
                         return true;
                     }
@@ -1267,7 +1267,7 @@ public sealed class TypedCpsTransformer
                 combinedBuilder.AddRange(continuationBlock.Statements);
                 var catchBlock = new BlockStatement(null, combinedBuilder.ToImmutable(), catchClause.Body.IsStrict);
                 var catchParameters = catchClause.Binding is { } binding
-                    ? ImmutableArray.Create(new FunctionParameter(null, binding, false, null, null))
+                    ? [new FunctionParameter(null, binding, false, null, null)]
                     : ImmutableArray<FunctionParameter>.Empty;
                 var catchHandler = new FunctionExpression(null, null, catchParameters, catchBlock, false, false);
                 finalExpression = new CallExpression(null,
@@ -1275,7 +1275,7 @@ public sealed class TypedCpsTransformer
                     [new CallArgument(null, catchHandler, false)], false);
             }
 
-            rewritten = ImmutableArray.Create<StatementNode>(new ReturnStatement(null, finalExpression));
+            rewritten = [new ReturnStatement(null, finalExpression)];
             return true;
         }
 
@@ -1398,7 +1398,7 @@ public sealed class TypedCpsTransformer
             var loopBreakDeclaration = CreateLoopBreakFunction(loopBreakSymbol, afterLoopBlock);
             var incrementStatements = statement.Increment is null
                 ? ImmutableArray<StatementNode>.Empty
-                : ImmutableArray.Create<StatementNode>(new ExpressionStatement(null, statement.Increment));
+                : [new ExpressionStatement(null, statement.Increment)];
             var loopBodyStatements = ExtractBodyStatements(statement.Body);
             var loopBodyBlock = BuildLoopBodyBlockFromStatements(loopBodyStatements, loopCheckSymbol,
                 loopResolveSymbol, loopBreakSymbol, incrementStatements);

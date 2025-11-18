@@ -334,7 +334,7 @@ public static class StandardLibrary
 
         math["clz32"] = new HostFunction(args =>
         {
-            var number = args.Count > 0 ? args[0].ToNumber() : 0d;
+            var number = args.Count > 0 ? JsOps.ToNumber(args[0]) : 0d;
             var value = JsNumericConversions.ToUInt32(number);
             if (value == 0)
             {
@@ -346,8 +346,8 @@ public static class StandardLibrary
 
         math["imul"] = new HostFunction(args =>
         {
-            var left = args.Count > 0 ? args[0].ToNumber() : 0d;
-            var right = args.Count > 1 ? args[1].ToNumber() : 0d;
+            var left = args.Count > 0 ? JsOps.ToNumber(args[0]) : 0d;
+            var right = args.Count > 1 ? JsOps.ToNumber(args[1]) : 0d;
             var a = JsNumericConversions.ToInt32(left);
             var b = JsNumericConversions.ToInt32(right);
             return (double)(a * b);

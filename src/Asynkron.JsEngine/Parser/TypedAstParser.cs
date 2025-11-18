@@ -1944,7 +1944,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                     Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
                     var body = ParseBlock();
                     var function = new FunctionExpression(body.Source ?? setterKeySource, null,
-                        ImmutableArray.Create(parameter), body, false, false);
+                        [parameter], body, false, false);
                     members.Add(new ObjectMember(function.Source ?? setterKeySource, ObjectMemberKind.Setter, setterKey,
                         null, function, setterIsComputed, false, parameterSymbol));
                     continue;
@@ -2002,7 +2002,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
         private TemplateLiteralExpression ParseTemplateLiteralExpression(Token templateToken)
         {
-            var parts = templateToken.Literal as List<object?> ?? new List<object?>();
+            var parts = templateToken.Literal as List<object?> ?? [];
             var builder = ImmutableArray.CreateBuilder<TemplatePart>();
 
             foreach (var part in parts)
@@ -2024,7 +2024,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
         private TaggedTemplateExpression ParseTaggedTemplateExpression(ExpressionNode tagExpression, Token templateToken)
         {
-            var parts = templateToken.Literal as List<object?> ?? new List<object?>();
+            var parts = templateToken.Literal as List<object?> ?? [];
             var cookedStrings = new List<string>();
             var rawStrings = new List<string>();
             var expressions = ImmutableArray.CreateBuilder<ExpressionNode>();
@@ -2437,7 +2437,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
             var parameter = new FunctionParameter(CreateSourceReference(parameterToken),
                 Symbol.Intern(parameterToken.Lexeme), false, null, null);
-            arrowFunction = ParseArrowFunctionBody(ImmutableArray.Create(parameter), true, asyncToken);
+            arrowFunction = ParseArrowFunctionBody([parameter], true, asyncToken);
             return true;
         }
 
@@ -2605,7 +2605,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             {
                 var expression = ParseAssignment();
                 var returnStatement = new ReturnStatement(expression.Source, expression);
-                body = new BlockStatement(expression.Source, ImmutableArray.Create<StatementNode>(returnStatement), false);
+                body = new BlockStatement(expression.Source, [returnStatement], false);
             }
 
             var source = body.Source;
@@ -2628,7 +2628,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             if (parameterExpression is IdentifierExpression identifier)
             {
                 var parameter = new FunctionParameter(parameterExpression.Source, identifier.Name, false, null, null);
-                parameters = ImmutableArray.Create(parameter);
+                parameters = [parameter];
             }
             else
             {

@@ -22,6 +22,7 @@ public static class TypedAstEvaluator
 {
     private static readonly Symbol YieldTrackerSymbol = Symbol.Intern("__yieldTracker__");
     private static readonly Symbol YieldResumeContextSymbol = Symbol.Intern("__yieldResume__");
+    private static readonly Symbol GeneratorPendingCompletionSymbol = Symbol.Intern("__generatorPending__");
     private static readonly string IteratorSymbolPropertyName =
         $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
     private const string GeneratorBrandPropertyName = "__generator_brand__";
@@ -746,7 +747,8 @@ public static class TypedAstEvaluator
         {
             var thrownValue = context.FlowValue;
             context.Clear();
-            var catchEnv = new JsEnvironment(environment, creatingSource: statement.Catch.Body.Source, description: "catch");
+            var catchEnv = new JsEnvironment(environment, creatingSource: statement.Catch.Body.Source,
+                description: "catch");
             catchEnv.Define(statement.Catch.Binding, thrownValue);
             result = EvaluateBlock(statement.Catch.Body, catchEnv, context);
         }
@@ -754,11 +756,53 @@ public static class TypedAstEvaluator
         if (statement.Finally is not null)
         {
             var savedSignal = context.CurrentSignal;
+
+            GeneratorPendingCompletion? pending = null;
+            var isGenerator = IsGeneratorContext(environment);
+            if (isGenerator && savedSignal is not null)
+            {
+                pending = GetGeneratorPendingCompletion(environment);
+                switch (savedSignal)
+                {
+                    case ThrowFlowSignal throwSignal:
+                        pending.HasValue = true;
+                        pending.IsThrow = true;
+                        pending.IsReturn = false;
+                        pending.Value = throwSignal.Value;
+                        break;
+                    case ReturnSignal returnSignal:
+                        pending.HasValue = true;
+                        pending.IsThrow = false;
+                        pending.IsReturn = true;
+                        pending.Value = returnSignal.Value;
+                        break;
+                }
+            }
+
             context.Clear();
             _ = EvaluateBlock(statement.Finally, environment, context);
             if (context.CurrentSignal is null)
             {
-                RestoreSignal(context, savedSignal);
+                if (isGenerator && pending is not null && pending.HasValue)
+                {
+                    if (pending.IsThrow)
+                    {
+                        context.SetThrow(pending.Value);
+                    }
+                    else if (pending.IsReturn)
+                    {
+                        context.SetReturn(pending.Value);
+                    }
+
+                    pending.HasValue = false;
+                    pending.IsThrow = false;
+                    pending.IsReturn = false;
+                    pending.Value = null;
+                }
+                else
+                {
+                    RestoreSignal(context, savedSignal);
+                }
             }
         }
 
@@ -1386,6 +1430,33 @@ public static class TypedAstEvaluator
         return resumeContext.TakePayload(yieldIndex);
     }
 
+    private sealed class GeneratorPendingCompletion
+    {
+        public bool HasValue { get; set; }
+        public bool IsThrow { get; set; }
+        public bool IsReturn { get; set; }
+        public object? Value { get; set; }
+    }
+
+    private static bool IsGeneratorContext(JsEnvironment environment)
+    {
+        return environment.TryGet(YieldResumeContextSymbol, out var contextValue) &&
+               contextValue is YieldResumeContext;
+    }
+
+    private static GeneratorPendingCompletion GetGeneratorPendingCompletion(JsEnvironment environment)
+    {
+        if (environment.TryGet(GeneratorPendingCompletionSymbol, out var existing) &&
+            existing is GeneratorPendingCompletion pending)
+        {
+            return pending;
+        }
+
+        var created = new GeneratorPendingCompletion();
+        environment.DefineFunctionScoped(GeneratorPendingCompletionSymbol, created, hasInitializer: true);
+        return created;
+    }
+
     private sealed class YieldResumeContext
     {
         private readonly Dictionary<int, ResumePayload> _pending = new();
@@ -1629,8 +1700,8 @@ public static class TypedAstEvaluator
             "!" => !IsTruthy(operand),
             "+" => operand is JsBigInt
                 ? throw new Exception("Cannot convert a BigInt value to a number")
-                : operand.ToNumber(),
-            "-" => operand is JsBigInt bigInt ? (object)(-bigInt) : -operand.ToNumber(),
+                : JsOps.ToNumber(operand),
+            "-" => operand is JsBigInt bigInt ? (object)(-bigInt) : -JsOps.ToNumber(operand),
             "~" => BitwiseNot(operand),
             "void" => JsSymbols.Undefined,
             _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
@@ -2269,7 +2340,7 @@ public static class TypedAstEvaluator
     {
         if (left is string || right is string || left is JsObject || left is JsArray || right is JsObject || right is JsArray)
         {
-            return left.ToJsString() + right.ToJsString();
+            return JsOps.ToJsString(left) + JsOps.ToJsString(right);
         }
 
         if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
@@ -2282,7 +2353,7 @@ public static class TypedAstEvaluator
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
         }
 
-        return left.ToNumber() + right.ToNumber();
+        return JsOps.ToNumber(left) + JsOps.ToNumber(right);
     }
 
     private static object Subtract(object? left, object? right)
@@ -2336,174 +2407,17 @@ public static class TypedAstEvaluator
             throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
         }
 
-        return numericOp(left.ToNumber(), right.ToNumber());
+        return numericOp(JsOps.ToNumber(left), JsOps.ToNumber(right));
     }
 
     private static bool LooseEquals(object? left, object? right)
     {
-        while (true)
-        {
-            if (IsNullish(left) && IsNullish(right))
-            {
-                return true;
-            }
-
-            if (IsNullish(left) || IsNullish(right))
-            {
-                return false;
-            }
-
-            if (left?.GetType() == right?.GetType())
-            {
-                return StrictEquals(left, right);
-            }
-
-            if (left is JsBigInt leftBigInt && IsNumeric(right))
-            {
-                var rightNum = right.ToNumber();
-                if (double.IsNaN(rightNum) || double.IsInfinity(rightNum))
-                {
-                    return false;
-                }
-
-                if (rightNum == Math.Floor(rightNum))
-                {
-                    return leftBigInt.Value == new BigInteger(rightNum);
-                }
-
-                return false;
-            }
-
-            if (IsNumeric(left) && right is JsBigInt rightBigInt)
-            {
-                var leftNum = left.ToNumber();
-                if (double.IsNaN(leftNum) || double.IsInfinity(leftNum))
-                {
-                    return false;
-                }
-
-                if (leftNum == Math.Floor(leftNum))
-                {
-                    return new BigInteger(leftNum) == rightBigInt.Value;
-                }
-
-                return false;
-            }
-
-            switch (left)
-            {
-                case JsBigInt lbi when right is string str:
-                    try
-                    {
-                        var converted = new JsBigInt(str.Trim());
-                        return lbi == converted;
-                    }
-                    catch
-                    {
-                        return false;
-                    }
-                case string str2 when right is JsBigInt rbi:
-                    try
-                    {
-                        var converted = new JsBigInt(str2.Trim());
-                        return converted == rbi;
-                    }
-                    catch
-                    {
-                        return false;
-                    }
-            }
-
-            if (IsNumeric(left) && right is string)
-            {
-                return left.ToNumber().Equals(right.ToNumber());
-            }
-
-            switch (left)
-            {
-                case string when IsNumeric(right):
-                    return left.ToNumber().Equals(right.ToNumber());
-                case bool:
-                    left = left.ToNumber();
-                    continue;
-            }
-
-            if (right is bool)
-            {
-                right = right.ToNumber();
-                continue;
-            }
-
-            if (left is JsObject or JsArray)
-            {
-                if (IsNumeric(right))
-                {
-                    return left.ToNumber().Equals(right.ToNumber());
-                }
-
-                if (right is string rightString)
-                {
-                    return string.Equals(left.ToJsString(), rightString, StringComparison.Ordinal);
-                }
-            }
-
-            if (right is JsObject or JsArray)
-            {
-                if (IsNumeric(left))
-                {
-                    return left.ToNumber().Equals(right.ToNumber());
-                }
-
-                if (left is string leftString)
-                {
-                    return string.Equals(leftString, right.ToJsString(), StringComparison.Ordinal);
-                }
-            }
-
-            return StrictEquals(left, right);
-        }
+        return JsOps.LooseEquals(left, right);
     }
 
     private static bool StrictEquals(object? left, object? right)
     {
-        if (ReferenceEquals(left, right))
-        {
-            return left is not double d || !double.IsNaN(d);
-        }
-
-        if (left is null || right is null)
-        {
-            return false;
-        }
-
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
-        {
-            return leftBigInt == rightBigInt;
-        }
-
-        if ((left is JsBigInt && IsNumeric(right)) || (IsNumeric(left) && right is JsBigInt))
-        {
-            return false;
-        }
-
-        if (!IsNumeric(left) || !IsNumeric(right))
-        {
-            return left.GetType() == right.GetType() && Equals(left, right);
-        }
-
-        var leftNumber = left.ToNumber();
-        var rightNumber = right.ToNumber();
-        if (double.IsNaN(leftNumber) || double.IsNaN(rightNumber))
-        {
-            return false;
-        }
-
-        return leftNumber.Equals(rightNumber);
-    }
-
-    private static bool IsNumeric(object? value)
-    {
-        return value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
+        return JsOps.StrictEquals(left, right);
     }
 
     private static bool GreaterThan(object? left, object? right)
@@ -2551,7 +2465,7 @@ public static class TypedAstEvaluator
                 return bigIntOp(leftBigInt, rightBigInt);
             case JsBigInt lbi:
             {
-                var rightNum = right.ToNumber();
+                var rightNum = JsOps.ToNumber(right);
                 if (double.IsNaN(rightNum))
                 {
                     return false;
@@ -2565,7 +2479,7 @@ public static class TypedAstEvaluator
         {
             case JsBigInt rbi:
             {
-                var leftNum = left.ToNumber();
+                var leftNum = JsOps.ToNumber(left);
                 if (double.IsNaN(leftNum))
                 {
                     return false;
@@ -2574,7 +2488,7 @@ public static class TypedAstEvaluator
                 return mixedOp(new BigInteger(leftNum), rbi.Value);
             }
             default:
-                return numericOp(left.ToNumber(), right.ToNumber());
+                return numericOp(JsOps.ToNumber(left), JsOps.ToNumber(right));
         }
     }
 
@@ -2688,12 +2602,12 @@ public static class TypedAstEvaluator
 
     private static int ToInt32(object? value)
     {
-        return JsNumericConversions.ToInt32(value.ToNumber());
+        return JsNumericConversions.ToInt32(JsOps.ToNumber(value));
     }
 
     private static uint ToUInt32(object? value)
     {
-        return JsNumericConversions.ToUInt32(value.ToNumber());
+        return JsNumericConversions.ToUInt32(JsOps.ToNumber(value));
     }
 
     private static object IncrementValue(object? value)
@@ -2701,7 +2615,7 @@ public static class TypedAstEvaluator
         return value switch
         {
             JsBigInt bigInt => new JsBigInt(bigInt.Value + BigInteger.One),
-            _ => value.ToNumber() + 1
+            _ => JsOps.ToNumber(value) + 1
         };
     }
 
@@ -2710,7 +2624,7 @@ public static class TypedAstEvaluator
         return value switch
         {
             JsBigInt bigInt => new JsBigInt(bigInt.Value - BigInteger.One),
-            _ => value.ToNumber() - 1
+            _ => JsOps.ToNumber(value) - 1
         };
     }
 
@@ -2734,18 +2648,6 @@ public static class TypedAstEvaluator
         return JsOps.TryGetPropertyValue(target, propertyKey, out value);
     }
 
-    private static bool TryGetArrayLikeValue(object? target, object? propertyKey, out object? value)
-    {
-        // Delegate to JsOps for unified behavior
-        if (JsOps.TryGetPropertyValue(target, propertyKey, out value))
-        {
-            return true;
-        }
-
-        value = null;
-        return false;
-    }
-
     private static void AssignPropertyValue(object? target, object? propertyKey, object? value)
     {
         JsOps.AssignPropertyValue(target, propertyKey, value);
@@ -2754,18 +2656,6 @@ public static class TypedAstEvaluator
     private static void AssignPropertyValueByName(object? target, string propertyName, object? value)
     {
         JsOps.AssignPropertyValueByName(target, propertyName, value);
-    }
-
-    private static bool TryAssignArrayLikeValue(object? target, object? propertyKey, object? value)
-    {
-        // Keep behavior consistent by delegating to JsOps.AssignPropertyValue where appropriate
-        if (target is JsArray or TypedArrayBase)
-        {
-            JsOps.AssignPropertyValue(target, propertyKey, value);
-            return true;
-        }
-
-        return false;
     }
 
     private static bool DeletePropertyValue(object? target, object? propertyKey)
@@ -3231,7 +3121,7 @@ public static class TypedAstEvaluator
                 {
                     if (typedIndex >= 0 && typedIndex < typedArray.Length)
                     {
-                        typedArray.SetElement(typedIndex, newValue.ToNumber());
+                        typedArray.SetElement(typedIndex, JsOps.ToNumber(newValue));
                     }
                 });
         }

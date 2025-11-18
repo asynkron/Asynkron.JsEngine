@@ -7,12 +7,16 @@ namespace Asynkron.JsEngine;
 
 internal static class JsOps
 {
-    public static bool IsNullish(object? value)
+    public static bool IsNullish(this object? value)
     {
         return value is null || value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined);
     }
 
-    public static bool IsTruthy(object? value)
+    /// <summary>
+    /// ECMAScript-like ToBoolean semantics for engine values.
+    /// Kept in sync with <see cref="IsTruthy"/> which is the legacy name used throughout the codebase.
+    /// </summary>
+    public static bool ToBoolean(object? value)
     {
         return value switch
         {
@@ -24,6 +28,21 @@ internal static class JsOps
             string s => s.Length > 0,
             _ => true
         };
+    }
+
+    public static bool IsTruthy(object? value)
+    {
+        return ToBoolean(value);
+    }
+
+    public static double ToNumber(object? value)
+    {
+        return value.ToNumber();
+    }
+
+    public static string ToJsString(object? value)
+    {
+        return value.ToJsString();
     }
 
     public static bool StrictEquals(object? left, object? right)
@@ -53,8 +72,8 @@ internal static class JsOps
             return left.GetType() == right.GetType() && Equals(left, right);
         }
 
-        var ln = left.ToNumber();
-        var rn = right.ToNumber();
+        var ln = ToNumber(left);
+        var rn = ToNumber(right);
         if (double.IsNaN(ln) || double.IsNaN(rn))
         {
             return false;
@@ -84,7 +103,7 @@ internal static class JsOps
 
             if (left is JsBigInt lbi && IsNumeric(right))
             {
-                var rn = right.ToNumber();
+                var rn = ToNumber(right);
                 if (double.IsNaN(rn) || double.IsInfinity(rn))
                 {
                     return false;
@@ -100,7 +119,7 @@ internal static class JsOps
 
             if (IsNumeric(left) && right is JsBigInt rbi)
             {
-                var ln = left.ToNumber();
+                var ln = ToNumber(left);
                 if (double.IsNaN(ln) || double.IsInfinity(ln))
                 {
                     return false;
@@ -140,21 +159,21 @@ internal static class JsOps
 
             if (IsNumeric(left) && right is string)
             {
-                return left.ToNumber().Equals(right.ToNumber());
+                return ToNumber(left).Equals(ToNumber(right));
             }
 
             switch (left)
             {
                 case string when IsNumeric(right):
-                    return left.ToNumber().Equals(right.ToNumber());
+                    return ToNumber(left).Equals(ToNumber(right));
                 case bool:
-                    left = left.ToNumber();
+                    left = ToNumber(left);
                     continue;
             }
 
             if (right is bool)
             {
-                right = right.ToNumber();
+                right = ToNumber(right);
                 continue;
             }
 
@@ -162,12 +181,12 @@ internal static class JsOps
             {
                 if (IsNumeric(right))
                 {
-                    return left.ToNumber().Equals(right.ToNumber());
+                    return ToNumber(left).Equals(ToNumber(right));
                 }
 
                 if (right is string rs2)
                 {
-                    return string.Equals(left.ToJsString(), rs2, StringComparison.Ordinal);
+                    return string.Equals(ToJsString(left), rs2, StringComparison.Ordinal);
                 }
             }
 
@@ -175,12 +194,12 @@ internal static class JsOps
             {
                 if (IsNumeric(left))
                 {
-                    return left.ToNumber().Equals(right.ToNumber());
+                    return ToNumber(left).Equals(ToNumber(right));
                 }
 
                 if (left is string ls2)
                 {
-                    return string.Equals(ls2, right.ToJsString(), StringComparison.Ordinal);
+                    return string.Equals(ls2, ToJsString(right), StringComparison.Ordinal);
                 }
             }
 

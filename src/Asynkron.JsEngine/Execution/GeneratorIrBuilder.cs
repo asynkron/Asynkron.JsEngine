@@ -12,7 +12,7 @@ namespace Asynkron.JsEngine.Execution;
 /// </summary>
 internal sealed class GeneratorIrBuilder
 {
-    private readonly List<GeneratorInstruction> _instructions = new();
+    private readonly List<GeneratorInstruction> _instructions = [];
     private readonly Stack<LoopScope> _loopScopes = new();
     private int _resumeSlotCounter;
     private int _catchSlotCounter;
@@ -44,7 +44,7 @@ internal sealed class GeneratorIrBuilder
             return false;
         }
 
-        plan = new GeneratorPlan(_instructions.ToImmutableArray(), entryIndex);
+        plan = new GeneratorPlan([.._instructions], entryIndex);
         return true;
     }
 
@@ -66,121 +66,126 @@ internal sealed class GeneratorIrBuilder
 
     private bool TryBuildStatement(StatementNode statement, int nextIndex, out int entryIndex, Symbol? activeLabel = null)
     {
-        switch (statement)
+        while (true)
         {
-            case BlockStatement block:
-                return TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
+            switch (statement)
+            {
+                case BlockStatement block:
+                    return TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
 
-            case IfStatement ifStatement:
-                return TryBuildIfStatement(ifStatement, nextIndex, out entryIndex, activeLabel);
+                case IfStatement ifStatement:
+                    return TryBuildIfStatement(ifStatement, nextIndex, out entryIndex, activeLabel);
 
-            case EmptyStatement:
-                entryIndex = nextIndex;
-                return true;
+                case EmptyStatement:
+                    entryIndex = nextIndex;
+                    return true;
 
-            case ExpressionStatement { Expression: YieldExpression yieldExpression }:
-                if (yieldExpression.IsDelegated)
-                {
+                case ExpressionStatement { Expression: YieldExpression yieldExpression }:
+                    if (yieldExpression.IsDelegated)
+                    {
+                        if (ContainsYield(yieldExpression.Expression))
+                        {
+                            entryIndex = -1;
+                            return false;
+                        }
+
+                        entryIndex = AppendYieldStarSequence(yieldExpression, nextIndex, resultSlot: null);
+                        return true;
+                    }
+
                     if (ContainsYield(yieldExpression.Expression))
                     {
                         entryIndex = -1;
                         return false;
                     }
 
-                    entryIndex = AppendYieldStarSequence(yieldExpression, nextIndex, resultSlot: null);
+                    entryIndex = AppendYieldSequence(yieldExpression.Expression, nextIndex, resumeSlot: null);
                     return true;
-                }
 
-                if (ContainsYield(yieldExpression.Expression))
-                {
-                    entryIndex = -1;
-                    return false;
-                }
+                case ExpressionStatement expressionStatement:
+                    if (TryLowerYieldingAssignment(expressionStatement, nextIndex, out entryIndex))
+                    {
+                        return true;
+                    }
 
-                entryIndex = AppendYieldSequence(yieldExpression.Expression, nextIndex, resumeSlot: null);
-                return true;
+                    if (ContainsYield(expressionStatement.Expression))
+                    {
+                        entryIndex = -1;
+                        return false;
+                    }
 
-            case ExpressionStatement expressionStatement:
-                if (TryLowerYieldingAssignment(expressionStatement, nextIndex, out entryIndex))
-                {
+                    entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));
                     return true;
-                }
 
-                if (ContainsYield(expressionStatement.Expression))
-                {
-                    entryIndex = -1;
-                    return false;
-                }
+                case VariableDeclaration declaration:
+                    if (TryLowerYieldingDeclaration(declaration, nextIndex, out entryIndex))
+                    {
+                        return true;
+                    }
 
-                entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));
-                return true;
+                    if (DeclarationContainsYield(declaration))
+                    {
+                        entryIndex = -1;
+                        return false;
+                    }
 
-            case VariableDeclaration declaration:
-                if (TryLowerYieldingDeclaration(declaration, nextIndex, out entryIndex))
-                {
+                    entryIndex = Append(new StatementInstruction(nextIndex, declaration));
                     return true;
-                }
 
-                if (DeclarationContainsYield(declaration))
-                {
+                case WhileStatement whileStatement:
+                    return TryBuildWhileStatement(whileStatement, nextIndex, out entryIndex, activeLabel);
+
+                case DoWhileStatement doWhileStatement:
+                    return TryBuildDoWhileStatement(doWhileStatement, nextIndex, out entryIndex, activeLabel);
+
+                case ForStatement forStatement:
+                    return TryBuildForStatement(forStatement, nextIndex, out entryIndex, activeLabel);
+
+                case TryStatement tryStatement:
+                    return TryBuildTryStatement(tryStatement, nextIndex, out entryIndex, activeLabel);
+
+                case ForEachStatement forEachStatement when (forEachStatement.Kind == ForEachKind.Of || forEachStatement.Kind == ForEachKind.AwaitOf) && IsSimpleForOfBinding(forEachStatement):
+                    // For-of with block-scoped declarations (`let`/`const`) and closures
+                    // requires per-iteration environments. The replay engine already
+                    // models this correctly, so we currently fall back instead of
+                    // hosting these loops on the IR path.
+                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+                    {
+                        entryIndex = -1;
+                        return false;
+                    }
+
+                    return forEachStatement.Kind == ForEachKind.AwaitOf
+                        ? TryBuildForAwaitStatement(forEachStatement, nextIndex, out entryIndex, activeLabel)
+                        : TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
+
+                case ReturnStatement returnStatement:
+                    if (returnStatement.Expression is not null && ContainsYield(returnStatement.Expression))
+                    {
+                        entryIndex = -1;
+                        return false;
+                    }
+
+                    entryIndex = Append(new ReturnInstruction(returnStatement.Expression));
+                    return true;
+
+                case BreakStatement breakStatement:
+                    return TryBuildBreak(breakStatement, out entryIndex);
+
+                case ContinueStatement continueStatement:
+                    return TryBuildContinue(continueStatement, out entryIndex);
+
+                case LabeledStatement labeled:
+                    statement = labeled.Statement;
+                    activeLabel = labeled.Label;
+                    continue;
+
+                default:
                     entryIndex = -1;
                     return false;
-                }
+            }
 
-                entryIndex = Append(new StatementInstruction(nextIndex, declaration));
-                return true;
-
-            case WhileStatement whileStatement:
-                return TryBuildWhileStatement(whileStatement, nextIndex, out entryIndex, activeLabel);
-
-            case DoWhileStatement doWhileStatement:
-                return TryBuildDoWhileStatement(doWhileStatement, nextIndex, out entryIndex, activeLabel);
-
-            case ForStatement forStatement:
-                return TryBuildForStatement(forStatement, nextIndex, out entryIndex, activeLabel);
-
-            case TryStatement tryStatement:
-                return TryBuildTryStatement(tryStatement, nextIndex, out entryIndex, activeLabel);
-
-            case ForEachStatement forEachStatement when (forEachStatement.Kind == ForEachKind.Of ||
-                                                         forEachStatement.Kind == ForEachKind.AwaitOf) &&
-                                                        IsSimpleForOfBinding(forEachStatement):
-                // For-of with block-scoped declarations (`let`/`const`) and closures
-                // requires per-iteration environments. The replay engine already
-                // models this correctly, so we currently fall back instead of
-                // hosting these loops on the IR path.
-                if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
-                {
-                    entryIndex = -1;
-                    return false;
-                }
-
-                return forEachStatement.Kind == ForEachKind.AwaitOf
-                    ? TryBuildForAwaitStatement(forEachStatement, nextIndex, out entryIndex, activeLabel)
-                    : TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
-
-            case ReturnStatement returnStatement:
-                if (returnStatement.Expression is not null && ContainsYield(returnStatement.Expression))
-                {
-                    entryIndex = -1;
-                    return false;
-                }
-
-                entryIndex = Append(new ReturnInstruction(returnStatement.Expression));
-                return true;
-
-            case BreakStatement breakStatement:
-                return TryBuildBreak(breakStatement, out entryIndex);
-
-            case ContinueStatement continueStatement:
-                return TryBuildContinue(continueStatement, out entryIndex);
-
-            case LabeledStatement labeled:
-                return TryBuildStatement(labeled.Statement, nextIndex, out entryIndex, labeled.Label);
-
-            default:
-                entryIndex = -1;
-                return false;
+            break;
         }
     }
 
@@ -351,7 +356,7 @@ internal sealed class GeneratorIrBuilder
         var instructionStart = _instructions.Count;
         var exitIndex = nextIndex;
 
-        int finallyEntry = -1;
+        var finallyEntry = -1;
         if (hasFinally && statement.Finally is not null)
         {
             var endFinallyIndex = Append(new EndFinallyInstruction(exitIndex));
@@ -394,55 +399,64 @@ internal sealed class GeneratorIrBuilder
 
     private static bool ContainsTryStatement(StatementNode statement)
     {
-        switch (statement)
+        while (true)
         {
-            case TryStatement:
-                return true;
-            case BlockStatement block:
-                foreach (var s in block.Statements)
-                {
-                    if (ContainsTryStatement(s))
+            switch (statement)
+            {
+                case TryStatement:
+                    return true;
+                case BlockStatement block:
+                    foreach (var s in block.Statements)
+                    {
+                        if (ContainsTryStatement(s))
+                        {
+                            return true;
+                        }
+                    }
+
+                    break;
+                case IfStatement ifStatement:
+                    if (ContainsTryStatement(ifStatement.Then))
                     {
                         return true;
                     }
-                }
 
-                break;
-            case IfStatement ifStatement:
-                if (ContainsTryStatement(ifStatement.Then))
-                {
-                    return true;
-                }
-
-                if (ifStatement.Else is not null && ContainsTryStatement(ifStatement.Else))
-                {
-                    return true;
-                }
-
-                break;
-            case WhileStatement whileStatement:
-                return ContainsTryStatement(whileStatement.Body);
-            case DoWhileStatement doWhileStatement:
-                return ContainsTryStatement(doWhileStatement.Body);
-            case ForStatement forStatement:
-                return ContainsTryStatement(forStatement.Body);
-            case ForEachStatement forEachStatement:
-                return ContainsTryStatement(forEachStatement.Body);
-            case LabeledStatement labeledStatement:
-                return ContainsTryStatement(labeledStatement.Statement);
-            case SwitchStatement switchStatement:
-                foreach (var c in switchStatement.Cases)
-                {
-                    if (ContainsTryStatement(c.Body))
+                    if (ifStatement.Else is not null && ContainsTryStatement(ifStatement.Else))
                     {
                         return true;
                     }
-                }
 
-                break;
+                    break;
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    statement = forStatement.Body;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    statement = forEachStatement.Body;
+                    continue;
+                case LabeledStatement labeledStatement:
+                    statement = labeledStatement.Statement;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var c in switchStatement.Cases)
+                    {
+                        if (ContainsTryStatement(c.Body))
+                        {
+                            return true;
+                        }
+                    }
+
+                    break;
+            }
+
+            return false;
+            break;
         }
-
-        return false;
     }
 
     private bool TryBuildForOfStatement(ForEachStatement statement, int nextIndex, out int entryIndex, Symbol? label)
@@ -578,7 +592,7 @@ internal sealed class GeneratorIrBuilder
         };
         var rewrittenDeclaration = declaration with
         {
-            Declarators = ImmutableArray.Create(rewrittenDeclarator)
+            Declarators = [rewrittenDeclarator]
         };
 
         var declarationIndex = Append(new StatementInstruction(nextIndex, rewrittenDeclaration));
@@ -659,7 +673,7 @@ internal sealed class GeneratorIrBuilder
         {
             var declarator = new VariableDeclarator(statement.Source, statement.Target, valueExpression);
             bindingStatement = new VariableDeclaration(statement.Source, statement.DeclarationKind.Value,
-                ImmutableArray.Create(declarator));
+                [declarator]);
         }
 
         ImmutableArray<StatementNode> bodyStatements;
@@ -674,7 +688,7 @@ internal sealed class GeneratorIrBuilder
         }
         else
         {
-            bodyStatements = ImmutableArray.Create(bindingStatement, statement.Body);
+            bodyStatements = [bindingStatement, statement.Body];
         }
 
         return new BlockStatement(statement.Source, bodyStatements, isStrict);
@@ -728,7 +742,7 @@ internal sealed class GeneratorIrBuilder
         var declaration = new VariableDeclaration(
             clause.Source,
             VariableKind.Let,
-            ImmutableArray.Create(declarator));
+            [declarator]);
 
         var builder = ImmutableArray.CreateBuilder<StatementNode>();
         builder.Add(declaration);

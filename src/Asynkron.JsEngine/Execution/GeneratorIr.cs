@@ -30,6 +30,15 @@ internal sealed record ExpressionInstruction(int Next, ExpressionNode Expression
 internal sealed record YieldInstruction(int Next, ExpressionNode? YieldExpression) : GeneratorInstruction(Next);
 
 /// <summary>
+/// Represents a delegated <c>yield*</c> expression that iterates another iterable.
+/// </summary>
+internal sealed record YieldStarInstruction(
+    int Next,
+    ExpressionNode IterableExpression,
+    Symbol StateSlotSymbol,
+    Symbol? ResultSlotSymbol) : GeneratorInstruction(Next);
+
+/// <summary>
 /// Represents a return statement in the generator.
 /// </summary>
 internal sealed record ReturnInstruction(ExpressionNode? ReturnExpression) : GeneratorInstruction(-1);

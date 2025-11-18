@@ -3516,6 +3516,7 @@ public static class TypedAstEvaluator
         }
     }
 
+
     private sealed class TypedGeneratorFactory : IJsCallable
     {
         private readonly FunctionExpression _function;
@@ -3787,6 +3788,165 @@ public static class TypedAstEvaluator
                         _programCounter = yieldInstruction.Next;
                         _state = GeneratorState.Suspended;
                         return CreateIteratorResult(yieldedValue, false);
+
+                    case YieldStarInstruction yieldStarInstruction:
+                    {
+                        var currentIndex = _programCounter;
+                        if (!TryGetSymbolValue(environment, yieldStarInstruction.StateSlotSymbol, out var stateValue) ||
+                            stateValue is not YieldStarState yieldStarState)
+                        {
+                            yieldStarState = new YieldStarState();
+                            StoreSymbolValue(environment, yieldStarInstruction.StateSlotSymbol, yieldStarState);
+                        }
+
+                        if (yieldStarState.PendingAbrupt != AbruptKind.None)
+                        {
+                            var pendingKind = yieldStarState.PendingAbrupt;
+                            var pendingValue = yieldStarState.PendingValue;
+                            yieldStarState.PendingAbrupt = AbruptKind.None;
+                            yieldStarState.PendingValue = null;
+                            yieldStarState.State = null;
+                            yieldStarState.AwaitingResume = false;
+                            environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+
+                            if (pendingKind == AbruptKind.Throw)
+                            {
+                                if (HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment))
+                                {
+                                    continue;
+                                }
+
+                                _tryStack.Clear();
+                                throw new ThrowSignal(pendingValue);
+                            }
+
+                            if (pendingKind == AbruptKind.Return)
+                            {
+                                if (HandleAbruptCompletion(AbruptKind.Return, pendingValue, environment))
+                                {
+                                    continue;
+                                }
+
+                                return CompleteReturn(pendingValue);
+                            }
+                        }
+
+                        if (yieldStarState.State is null)
+                        {
+                            var yieldStarIterable =
+                                EvaluateExpression(yieldStarInstruction.IterableExpression, environment, context);
+                            if (context.IsThrow)
+                            {
+                                var thrown = context.FlowValue;
+                                context.Clear();
+                                if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                                {
+                                    continue;
+                                }
+
+                                _tryStack.Clear();
+                                throw new ThrowSignal(thrown);
+                            }
+
+                            yieldStarState.State = CreateDelegatedState(yieldStarIterable);
+                            yieldStarState.AwaitingResume = false;
+                        }
+
+                        while (true)
+                        {
+                            object? sendValue = JsSymbols.Undefined;
+                            var hasSendValue = false;
+                            var propagateThrow = false;
+                            var propagateReturn = false;
+
+                            if (yieldStarState.AwaitingResume)
+                            {
+                                var (delegatedResumeKind, delegatedResumePayload) = ConsumeResumeValue();
+                                switch (delegatedResumeKind)
+                                {
+                                    case ResumePayloadKind.Throw:
+                                        propagateThrow = true;
+                                        hasSendValue = true;
+                                        sendValue = delegatedResumePayload;
+                                        break;
+                                    case ResumePayloadKind.Return:
+                                        propagateReturn = true;
+                                        hasSendValue = true;
+                                        sendValue = delegatedResumePayload;
+                                        break;
+                                    default:
+                                        hasSendValue = true;
+                                        sendValue = delegatedResumePayload;
+                                        break;
+                                }
+                            }
+
+                            var iteratorResult = yieldStarState.State!.MoveNext(
+                                sendValue,
+                                hasSendValue,
+                                propagateThrow,
+                                propagateReturn);
+
+                            if (iteratorResult.IsDelegatedCompletion)
+                            {
+                                var pendingKind = propagateThrow ? AbruptKind.Throw : AbruptKind.Return;
+                                var abruptValue = pendingKind == AbruptKind.Throw ? sendValue : iteratorResult.Value;
+                                if (!iteratorResult.Done)
+                                {
+                                    yieldStarState.PendingAbrupt = pendingKind;
+                                    yieldStarState.PendingValue = sendValue;
+                                    yieldStarState.State = null;
+                                    yieldStarState.AwaitingResume = true;
+                                    _programCounter = currentIndex;
+                                    _state = GeneratorState.Suspended;
+                                    return CreateIteratorResult(iteratorResult.Value, false);
+                                }
+
+                                yieldStarState.State = null;
+                                yieldStarState.AwaitingResume = false;
+                                environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+
+                                if (pendingKind == AbruptKind.Throw)
+                                {
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, abruptValue, environment))
+                                    {
+                                        break;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(abruptValue);
+                                }
+
+                                if (HandleAbruptCompletion(AbruptKind.Return, abruptValue, environment))
+                                {
+                                    break;
+                                }
+
+                                return CompleteReturn(abruptValue);
+                            }
+
+                            if (iteratorResult.Done)
+                            {
+                                yieldStarState.State = null;
+                                yieldStarState.AwaitingResume = false;
+                                environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                if (yieldStarInstruction.ResultSlotSymbol is { } resultSlot)
+                                {
+                                    StoreSymbolValue(environment, resultSlot, iteratorResult.Value);
+                                }
+
+                                _programCounter = yieldStarInstruction.Next;
+                                break;
+                            }
+
+                            yieldStarState.AwaitingResume = true;
+                            _programCounter = currentIndex;
+                            _state = GeneratorState.Suspended;
+                            return CreateIteratorResult(iteratorResult.Value, false);
+                        }
+
+                        continue;
+                    }
 
                     case StoreResumeValueInstruction storeResumeValueInstruction:
                         var (resumeKind, resumePayload) = ConsumeResumeValue();
@@ -4353,6 +4513,14 @@ public static class TypedAstEvaluator
 
             public static PendingCompletion FromAbrupt(AbruptKind kind, object? value)
                 => new(kind, value, -1);
+        }
+
+        private sealed class YieldStarState
+        {
+            public DelegatedYieldState? State { get; set; }
+            public bool AwaitingResume { get; set; }
+            public AbruptKind PendingAbrupt { get; set; }
+            public object? PendingValue { get; set; }
         }
 
         private sealed class ForOfState

@@ -16,8 +16,10 @@ internal sealed class GeneratorIrBuilder
     private readonly Stack<LoopScope> _loopScopes = new();
     private int _resumeSlotCounter;
     private int _catchSlotCounter;
+    private int _yieldStarStateCounter;
     private const string ResumeSlotPrefix = "\u0001_resume";
     private const string CatchSlotPrefix = "\u0001_catch";
+    private const string YieldStarStatePrefix = "\u0001_yieldstar";
     private static readonly LiteralExpression TrueLiteralExpression = new(null, true);
 
     private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget);
@@ -74,7 +76,19 @@ internal sealed class GeneratorIrBuilder
                 return true;
 
             case ExpressionStatement { Expression: YieldExpression yieldExpression }:
-                if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+                if (yieldExpression.IsDelegated)
+                {
+                    if (ContainsYield(yieldExpression.Expression))
+                    {
+                        entryIndex = -1;
+                        return false;
+                    }
+
+                    entryIndex = AppendYieldStarSequence(yieldExpression, nextIndex, resultSlot: null);
+                    return true;
+                }
+
+                if (ContainsYield(yieldExpression.Expression))
                 {
                     entryIndex = -1;
                     return false;
@@ -409,7 +423,7 @@ internal sealed class GeneratorIrBuilder
             return false;
         }
 
-        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+        if (ContainsYield(yieldExpression.Expression))
         {
             entryIndex = -1;
             return false;
@@ -432,7 +446,9 @@ internal sealed class GeneratorIrBuilder
         };
 
         var declarationIndex = Append(new StatementInstruction(nextIndex, rewrittenDeclaration));
-        entryIndex = AppendYieldSequence(yieldExpression.Expression, declarationIndex, resumeSymbol);
+        entryIndex = yieldExpression.IsDelegated
+            ? AppendYieldStarSequence(yieldExpression, declarationIndex, resumeSymbol)
+            : AppendYieldSequence(yieldExpression.Expression, declarationIndex, resumeSymbol);
         return true;
     }
 
@@ -445,7 +461,7 @@ internal sealed class GeneratorIrBuilder
             return false;
         }
 
-        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+        if (ContainsYield(yieldExpression.Expression))
         {
             entryIndex = -1;
             return false;
@@ -462,7 +478,9 @@ internal sealed class GeneratorIrBuilder
         };
 
         var assignmentIndex = Append(new StatementInstruction(nextIndex, rewrittenStatement));
-        entryIndex = AppendYieldSequence(yieldExpression.Expression, assignmentIndex, resumeSymbol);
+        entryIndex = yieldExpression.IsDelegated
+            ? AppendYieldStarSequence(yieldExpression, assignmentIndex, resumeSymbol)
+            : AppendYieldSequence(yieldExpression.Expression, assignmentIndex, resumeSymbol);
         return true;
     }
 
@@ -542,10 +560,27 @@ internal sealed class GeneratorIrBuilder
         return Symbol.Intern(symbolName);
     }
 
+    private Symbol CreateYieldStarStateSymbol()
+    {
+        var symbolName = $"{YieldStarStatePrefix}{_yieldStarStateCounter++}";
+        return Symbol.Intern(symbolName);
+    }
+
     private int AppendYieldSequence(ExpressionNode? expression, int continuationIndex, Symbol? resumeSlot)
     {
         var storeIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
         return Append(new YieldInstruction(storeIndex, expression));
+    }
+
+    private int AppendYieldStarSequence(YieldExpression expression, int continuationIndex, Symbol? resultSlot)
+    {
+        if (expression.Expression is null)
+        {
+            throw new InvalidOperationException("yield* requires an expression.");
+        }
+
+        var stateSymbol = CreateYieldStarStateSymbol();
+        return Append(new YieldStarInstruction(continuationIndex, expression.Expression, stateSymbol, resultSlot));
     }
 
     private static BlockStatement BuildCatchBlock(CatchClause clause, Symbol catchSlotSymbol)

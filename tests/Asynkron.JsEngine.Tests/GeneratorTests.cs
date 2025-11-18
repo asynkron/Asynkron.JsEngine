@@ -441,6 +441,48 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarReceivesSentValuesIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* inner() {
+                const received = yield "inner";
+                yield received * 2;
+                return received * 3;
+            }
+            function* outer() {
+                const result = yield* inner();
+                yield `done:${result}`;
+            }
+            let g = outer();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        var firstDone = await engine.Evaluate("first.done;");
+
+        await engine.Evaluate("const second = g.next(5);");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+
+        await engine.Evaluate("const third = g.next();");
+        var thirdValue = await engine.Evaluate("third.value;");
+        var thirdDone = await engine.Evaluate("third.done;");
+
+        await engine.Evaluate("const final = g.next();");
+        var finalDone = await engine.Evaluate("final.done;");
+
+        Assert.Equal("inner", firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal(10.0, secondValue);
+        Assert.False((bool)secondDone!);
+        Assert.Equal("done:15", thirdValue);
+        Assert.False((bool)thirdDone!);
+        Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarThrowDeliversCleanupIr()
     {
         await using var engine = new JsEngine();

@@ -126,90 +126,91 @@ internal sealed class GeneratorIrBuilder
 
     private static bool ContainsYield(ExpressionNode? expression)
     {
-        switch (expression)
+        while (true)
         {
-            case null:
-                return false;
-            case YieldExpression:
-                return true;
-            case BinaryExpression binary:
-                return ContainsYield(binary.Left) || ContainsYield(binary.Right);
-            case ConditionalExpression conditional:
-                return ContainsYield(conditional.Test) ||
-                       ContainsYield(conditional.Consequent) ||
-                       ContainsYield(conditional.Alternate);
-            case CallExpression call:
-                if (ContainsYield(call.Callee))
-                {
+            switch (expression)
+            {
+                case null:
+                    return false;
+                case YieldExpression:
                     return true;
-                }
-
-                foreach (var argument in call.Arguments)
-                {
-                    if (ContainsYield(argument.Expression))
+                case BinaryExpression binary:
+                    return ContainsYield(binary.Left) || ContainsYield(binary.Right);
+                case ConditionalExpression conditional:
+                    return ContainsYield(conditional.Test) || ContainsYield(conditional.Consequent) || ContainsYield(conditional.Alternate);
+                case CallExpression call:
+                    if (ContainsYield(call.Callee))
                     {
                         return true;
                     }
-                }
 
-                return false;
-            case NewExpression @new:
-                if (ContainsYield(@new.Constructor))
-                {
-                    return true;
-                }
+                    foreach (var argument in call.Arguments)
+                    {
+                        if (ContainsYield(argument.Expression))
+                        {
+                            return true;
+                        }
+                    }
 
-                foreach (var argument in @new.Arguments)
-                {
-                    if (ContainsYield(argument))
+                    return false;
+                case NewExpression @new:
+                    if (ContainsYield(@new.Constructor))
                     {
                         return true;
                     }
-                }
 
-                return false;
-            case MemberExpression member:
-                return ContainsYield(member.Target) || ContainsYield(member.Property);
-            case AssignmentExpression assignment:
-                return ContainsYield(assignment.Value);
-            case PropertyAssignmentExpression propertyAssignment:
-                return ContainsYield(propertyAssignment.Target) ||
-                       ContainsYield(propertyAssignment.Property) ||
-                       ContainsYield(propertyAssignment.Value);
-            case IndexAssignmentExpression indexAssignment:
-                return ContainsYield(indexAssignment.Target) ||
-                       ContainsYield(indexAssignment.Index) ||
-                       ContainsYield(indexAssignment.Value);
-            case SequenceExpression sequence:
-                return ContainsYield(sequence.Left) || ContainsYield(sequence.Right);
-            case UnaryExpression unary:
-                return ContainsYield(unary.Operand);
-            case ArrayExpression array:
-                foreach (var element in array.Elements)
-                {
-                    if (element.Expression is not null && ContainsYield(element.Expression))
+                    foreach (var argument in @new.Arguments)
                     {
-                        return true;
+                        if (ContainsYield(argument))
+                        {
+                            return true;
+                        }
                     }
-                }
 
-                return false;
-            case ObjectExpression obj:
-                foreach (var member in obj.Members)
-                {
-                    if (member.Value is not null && ContainsYield(member.Value))
+                    return false;
+                case MemberExpression member:
+                    return ContainsYield(member.Target) || ContainsYield(member.Property);
+                case AssignmentExpression assignment:
+                    expression = assignment.Value;
+                    continue;
+                case PropertyAssignmentExpression propertyAssignment:
+                    return ContainsYield(propertyAssignment.Target) || ContainsYield(propertyAssignment.Property) || ContainsYield(propertyAssignment.Value);
+                case IndexAssignmentExpression indexAssignment:
+                    return ContainsYield(indexAssignment.Target) || ContainsYield(indexAssignment.Index) || ContainsYield(indexAssignment.Value);
+                case SequenceExpression sequence:
+                    return ContainsYield(sequence.Left) || ContainsYield(sequence.Right);
+                case UnaryExpression unary:
+                    expression = unary.Operand;
+                    continue;
+                case ArrayExpression array:
+                    foreach (var element in array.Elements)
                     {
-                        return true;
+                        if (element.Expression is not null && ContainsYield(element.Expression))
+                        {
+                            return true;
+                        }
                     }
-                }
 
-                return false;
-            case FunctionExpression:
-            case ClassExpression:
-                // Nested functions/classes can capture yield expressions that should be handled within their own scope.
-                return false;
-            default:
-                return false;
+                    return false;
+                case ObjectExpression obj:
+                    foreach (var member in obj.Members)
+                    {
+                        if (member.Value is not null && ContainsYield(member.Value))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case FunctionExpression:
+                case ClassExpression:
+                    // Nested functions/classes can capture yield expressions that should be handled within their own scope.
+                    return false;
+                default:
+                    return false;
+            }
+
+            break;
         }
     }
 

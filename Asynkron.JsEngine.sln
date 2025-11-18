@@ -19,6 +19,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SExpressionDemo", "examples
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NpmPackageDemo", "examples\NpmPackageDemo\NpmPackageDemo.csproj", "{5C097776-AC94-46C7-B257-5CC4DD39DF67}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".meta", ".meta", "{77806389-A6B4-4A95-9671-AC93E23FD073}"
+	ProjectSection(SolutionItems) = preProject
+		continue.md = continue.md
+		AGENTS.md = AGENTS.md
+		README.md = README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

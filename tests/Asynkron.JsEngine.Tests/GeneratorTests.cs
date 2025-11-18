@@ -976,7 +976,7 @@ public class GeneratorTests
         Assert.True((bool)done!);
     }
 
-    [Fact(Skip = "Nested try/finally rethrow not yet implemented", Timeout = 2000)]
+    [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyNestedThrowIr()
     {
         await using var engine = new JsEngine();
@@ -1019,7 +1019,7 @@ public class GeneratorTests
         Assert.Equal("boom", exception.ThrownValue);
     }
 
-    [Fact(Skip = "Nested try/finally return propagation not yet implemented", Timeout = 2000)]
+    [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyNestedReturnIr()
     {
         await using var engine = new JsEngine();
@@ -1056,6 +1056,79 @@ public class GeneratorTests
         Assert.False((bool)midDone!);
         Assert.Equal(3.0, thirdValue);
         Assert.False((bool)thirdDone!);
+        Assert.Equal(99.0, finalValue);
+        Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_TryFinallyThrowMidFinalIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                try {
+                    yield 1;
+                } finally {
+                    yield "cleanup-a";
+                    yield "cleanup-b";
+                }
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("const firstCleanup = g.throw('boom');");
+        var firstValue = await engine.Evaluate("firstCleanup.value;");
+        var firstDone = await engine.Evaluate("firstCleanup.done;");
+
+        await engine.Evaluate("const secondCleanup = g.throw('override');");
+        var secondValue = await engine.Evaluate("secondCleanup.value;");
+        var secondDone = await engine.Evaluate("secondCleanup.done;");
+
+        var finalThrow = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
+
+        Assert.Equal("cleanup-a", firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal("cleanup-b", secondValue);
+        Assert.False((bool)secondDone!);
+        Assert.Equal("override", finalThrow.ThrownValue);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_TryFinallyReturnMidFinalIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                try {
+                    yield 1;
+                } finally {
+                    yield "cleanup-a";
+                    yield "cleanup-b";
+                }
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("const firstCleanup = g.return(42);");
+        var firstValue = await engine.Evaluate("firstCleanup.value;");
+        var firstDone = await engine.Evaluate("firstCleanup.done;");
+
+        await engine.Evaluate("const secondCleanup = g.return(99);");
+        var secondValue = await engine.Evaluate("secondCleanup.value;");
+        var secondDone = await engine.Evaluate("secondCleanup.done;");
+
+        await engine.Evaluate("const finalResult = g.next();");
+        var finalValue = await engine.Evaluate("finalResult.value;");
+        var finalDone = await engine.Evaluate("finalResult.done;");
+
+        Assert.Equal("cleanup-a", firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal("cleanup-b", secondValue);
+        Assert.False((bool)secondDone!);
         Assert.Equal(99.0, finalValue);
         Assert.True((bool)finalDone!);
     }

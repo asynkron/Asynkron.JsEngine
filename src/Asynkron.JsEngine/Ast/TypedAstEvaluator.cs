@@ -4265,11 +4265,17 @@ public static class TypedAstEvaluator
                     return true;
                 }
 
-                if (frame.FinallyIndex >= 0 && !frame.FinallyScheduled)
+                if (frame.FinallyIndex >= 0)
                 {
-                    frame.FinallyScheduled = true;
+                    if (!frame.FinallyScheduled)
+                    {
+                        frame.FinallyScheduled = true;
+                        frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
+                        _programCounter = frame.FinallyIndex;
+                        return true;
+                    }
+
                     frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
-                    _programCounter = frame.FinallyIndex;
                     return true;
                 }
 

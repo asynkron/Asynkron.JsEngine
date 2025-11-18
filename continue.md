@@ -13,10 +13,29 @@
 
 ## Next Iteration Plan
 
-1. **Nested Try/Finally IR Parity**
-   - Align generator `try/finally` semantics (both replay and IR paths) so `Generator_TryFinallyNestedThrowIr` and `Generator_TryFinallyNestedReturnIr` see the same completion value as the spec: a pending `.throw/.return` survives all nested `finally` yields and is only applied once the outermost finalizer completes (unless overridden by an inner `throw/return` in `finally`).
-   - Audit how `HandleAbruptCompletion` + `PendingCompletion` interact with `YieldInstruction` / `YieldStarInstruction` so abrupt completions never get “downgraded” when multiple `finally` blocks re-schedule the same completion.
+1. **Unify Generator Semantics (Replay + IR)**
+   - Refactor generator `try/catch/finally` so the replay engine and IR interpreter share a common model for pending completions:
+     - Introduce a “pending completion” concept in the replay path (mirroring IR `TryFrame.PendingCompletion`) so a `.throw/.return` captured before entering `finally` survives all nested `finally` yields and is only applied once the outermost finalizer completes (unless overridden by an inner `throw/return` in `finally`).
+     - Use the shared model to bring `Generator_TryFinallyNestedThrowIr` and `Generator_TryFinallyNestedReturnIr` to green on both paths without relying on ad‑hoc fallbacks.
+   - While doing this, audit how `HandleAbruptCompletion` + `PendingCompletion` interact with `YieldInstruction` / `YieldStarInstruction` so abrupt completions never get “downgraded” when multiple `finally` blocks re-schedule the same completion.
 
-2. **Async Await Scheduling**
-   - `TryAwaitPromise` currently blocks the managed thread until a promise settles. Investigate integrating the event queue (e.g., resume generators via `ScheduleTask`) so long-running promises yield control instead of blocking.
-   - Explore exposing instrumentation hooks (trace or debug) so we can observe nested awaits inside generators and detect potential starvation.
+2. **Expand IR Coverage to Match Replay**
+   - Identify remaining generator constructs that only run on the replay engine today (complex `yield` placements, nested `try` inside `finally`, any other shapes documented in `GENERATOR_IR_LIMITATIONS.md`).
+   - Incrementally extend `GeneratorIrBuilder` + IR interpreter to cover those shapes while reusing the unified completion model from step 1, so all existing generator tests can run on the IR path without semantic drift.
+
+3. **Make Fallbacks Explicit and Measurable**
+   - Add lightweight instrumentation (trace or counters) around IR lowering so we know when a generator body falls back to replay and why (e.g., “contains nested try in finally”, “yield inside unsupported expression shape”).
+   - Use this to drive a small “no‑fallback” test set (e.g., all `Generator_*Ir` tests) that must lower to IR; any fallback within that set should be treated as a regression.
+
+4. **Sunset the Replay Generator Path**
+   - Once all generator constructs we care about either:
+     - successfully lower to IR with spec‑correct semantics, or
+     - are explicitly rejected at parse time as unsupported,
+     replace the replay engine for generators with a thin compatibility shim (or remove it entirely):
+     - Make `GeneratorIrBuilder` the only execution path for supported generator bodies; fail fast (with a clear error) when the builder cannot produce a plan.
+     - Remove `YieldTracker` / `YieldResumeContext`‑based replay logic for generators once all tests are green on IR and we have no remaining legitimate fallbacks.
+
+5. **Async Await Scheduling (Post‑Sunset)**
+   - After the replay generator is no longer in the hot path, revisit `TryAwaitPromise` and generator scheduling:
+     - Integrate the event queue (e.g., resume generators via `ScheduleTask`) so long-running promises in generators don’t block the managed thread.
+     - Optionally expose instrumentation hooks (trace or debug) so we can observe nested awaits inside generators and detect potential starvation.

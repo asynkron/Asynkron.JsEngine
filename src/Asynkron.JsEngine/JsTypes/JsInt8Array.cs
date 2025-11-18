@@ -31,7 +31,6 @@ public sealed class JsInt8Array(JsArrayBuffer buffer, int byteOffset, int length
     public override void SetElement(int index, double value)
     {
         CheckBounds(index);
-        // Convert to int32 then to sbyte (matches JavaScript behavior)
         var intValue = double.IsNaN(value) ? 0 : (int)value;
         _buffer.Buffer[GetByteIndex(index)] = (byte)(sbyte)intValue;
     }
@@ -44,14 +43,8 @@ public sealed class JsInt8Array(JsArrayBuffer buffer, int byteOffset, int length
         return new JsInt8Array(_buffer, newByteOffset, newLength);
     }
 
-    public JsInt8Array Slice(int begin, int end)
+    protected override TypedArrayBase CreateNewSameType(int length)
     {
-        var (start, finalEnd) = NormalizeSliceIndices(begin, end);
-        var newLength = Math.Max(finalEnd - start, 0);
-        var newArray = FromLength(newLength);
-
-        for (var i = 0; i < newLength; i++) newArray.SetElement(i, GetElement(start + i));
-
-        return newArray;
+        return FromLength(length);
     }
 }

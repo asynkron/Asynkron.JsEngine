@@ -31,7 +31,6 @@ public sealed class JsUint8ClampedArray(JsArrayBuffer buffer, int byteOffset, in
     public override void SetElement(int index, double value)
     {
         CheckBounds(index);
-        // Clamp to 0-255 range, with proper rounding
         byte clampedValue;
         if (double.IsNaN(value))
         {
@@ -46,7 +45,6 @@ public sealed class JsUint8ClampedArray(JsArrayBuffer buffer, int byteOffset, in
             clampedValue = 255;
         }
         else
-            // Round to nearest, ties to even (matches JavaScript spec)
         {
             clampedValue = (byte)Math.Round(value, MidpointRounding.ToEven);
         }
@@ -62,14 +60,9 @@ public sealed class JsUint8ClampedArray(JsArrayBuffer buffer, int byteOffset, in
         return new JsUint8ClampedArray(_buffer, newByteOffset, newLength);
     }
 
-    public JsUint8ClampedArray Slice(int begin, int end)
+    protected override TypedArrayBase CreateNewSameType(int length)
     {
-        var (start, finalEnd) = NormalizeSliceIndices(begin, end);
-        var newLength = Math.Max(finalEnd - start, 0);
-        var newArray = FromLength(newLength);
-
-        for (var i = 0; i < newLength; i++) newArray.SetElement(i, GetElement(start + i));
-
-        return newArray;
+        return FromLength(length);
     }
+
 }

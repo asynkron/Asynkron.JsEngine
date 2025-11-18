@@ -31,6 +31,11 @@ public sealed class JsInt16Array(JsArrayBuffer buffer, int byteOffset, int lengt
         return BinaryPrimitives.ReadInt16LittleEndian(span);
     }
 
+    protected override TypedArrayBase CreateNewSameType(int length)
+    {
+        return FromLength(length);
+    }
+
     public override void SetElement(int index, double value)
     {
         CheckBounds(index);
@@ -47,14 +52,4 @@ public sealed class JsInt16Array(JsArrayBuffer buffer, int byteOffset, int lengt
         return new JsInt16Array(_buffer, newByteOffset, newLength);
     }
 
-    public JsInt16Array Slice(int begin, int end)
-    {
-        var (start, finalEnd) = NormalizeSliceIndices(begin, end);
-        var newLength = Math.Max(finalEnd - start, 0);
-        var newArray = FromLength(newLength);
-
-        for (var i = 0; i < newLength; i++) newArray.SetElement(i, GetElement(start + i));
-
-        return newArray;
-    }
 }

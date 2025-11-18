@@ -146,6 +146,20 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     /// </summary>
     public abstract TypedArrayBase Subarray(int begin, int end);
 
+    protected abstract TypedArrayBase CreateNewSameType(int length);
+
+    public TypedArrayBase Slice(int begin, int end)
+    {
+        var (start, finalEnd) = NormalizeSliceIndices(begin, end);
+        var newLength = Math.Max(finalEnd - start, 0);
+        var newArray = CreateNewSameType(newLength);
+        for (var i = 0; i < newLength; i++)
+        {
+            newArray.SetElement(i, GetElement(start + i));
+        }
+        return newArray;
+    }
+
     /// <summary>
     /// Gets the element at the specified index as a double (for JavaScript compatibility).
     /// </summary>
@@ -329,18 +343,6 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
     private static object CreateSlice(TypedArrayBase typedArray, int begin, int end)
     {
-        return typedArray switch
-        {
-            JsInt8Array arr => arr.Slice(begin, end),
-            JsUint8Array arr => arr.Slice(begin, end),
-            JsUint8ClampedArray arr => arr.Slice(begin, end),
-            JsInt16Array arr => arr.Slice(begin, end),
-            JsUint16Array arr => arr.Slice(begin, end),
-            JsInt32Array arr => arr.Slice(begin, end),
-            JsUint32Array arr => arr.Slice(begin, end),
-            JsFloat32Array arr => arr.Slice(begin, end),
-            JsFloat64Array arr => arr.Slice(begin, end),
-            _ => throw new InvalidOperationException($"Unknown typed array type: {typedArray.GetType()}")
-        };
+        return typedArray.Slice(begin, end);
     }
 }

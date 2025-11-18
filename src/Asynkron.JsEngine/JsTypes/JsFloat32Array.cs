@@ -31,6 +31,11 @@ public sealed class JsFloat32Array(JsArrayBuffer buffer, int byteOffset, int len
         return BinaryPrimitives.ReadSingleLittleEndian(span);
     }
 
+    protected override TypedArrayBase CreateNewSameType(int length)
+    {
+        return FromLength(length);
+    }
+
     public override void SetElement(int index, double value)
     {
         CheckBounds(index);
@@ -47,14 +52,4 @@ public sealed class JsFloat32Array(JsArrayBuffer buffer, int byteOffset, int len
         return new JsFloat32Array(_buffer, newByteOffset, newLength);
     }
 
-    public JsFloat32Array Slice(int begin, int end)
-    {
-        var (start, finalEnd) = NormalizeSliceIndices(begin, end);
-        var newLength = Math.Max(finalEnd - start, 0);
-        var newArray = FromLength(newLength);
-
-        for (var i = 0; i < newLength; i++) newArray.SetElement(i, GetElement(start + i));
-
-        return newArray;
-    }
 }

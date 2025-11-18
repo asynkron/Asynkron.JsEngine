@@ -223,6 +223,12 @@ internal static class JsOps
         };
     }
 
+    public static string GetRequiredPropertyName(object? value)
+    {
+        return ToPropertyName(value)
+               ?? throw new InvalidOperationException("Property name cannot be null.");
+    }
+
     public static bool TryResolveArrayIndex(object? candidate, out int index)
     {
         switch (candidate)
@@ -386,8 +392,7 @@ internal static class JsOps
             return;
         }
 
-        var propertyName = ToPropertyName(propertyKey)
-                           ?? throw new InvalidOperationException("Property name cannot be null.");
+        var propertyName = GetRequiredPropertyName(propertyKey);
 
         AssignPropertyValueByName(target, propertyName, value);
     }

@@ -1632,8 +1632,7 @@ public static class TypedAstEvaluator
             return arrayValue;
         }
 
-        var propertyName = ToPropertyName(propertyValue)
-                           ?? throw new InvalidOperationException("Property name cannot be null.");
+        var propertyName = JsOps.GetRequiredPropertyName(propertyValue);
 
         return TryGetPropertyValue(target, propertyName, out var value)
             ? value
@@ -1897,8 +1896,7 @@ public static class TypedAstEvaluator
                 return (JsSymbols.Undefined, null, true);
             }
 
-            var propertyName = ToPropertyName(property)
-                               ?? throw new InvalidOperationException("Property name cannot be null.");
+            var propertyName = JsOps.GetRequiredPropertyName(property);
             if (!TryGetPropertyValue(target, propertyName, out var value))
             {
                 return (JsSymbols.Undefined, target, false);
@@ -2196,8 +2194,7 @@ public static class TypedAstEvaluator
             return string.Empty;
         }
 
-        return ToPropertyName(keyValue)
-               ?? throw new InvalidOperationException("Property name cannot be null.");
+        return JsOps.GetRequiredPropertyName(keyValue);
     }
 
     private static object? EvaluateTemplateLiteral(TemplateLiteralExpression expression, JsEnvironment environment,
@@ -2797,8 +2794,7 @@ public static class TypedAstEvaluator
 
     private static bool InOperator(object? property, object? target)
     {
-        var propertyName = ToPropertyName(property)
-                           ?? throw new InvalidOperationException("Property name cannot be null.");
+        var propertyName = JsOps.GetRequiredPropertyName(property);
         return TryGetPropertyValue(target, propertyName, out _);
     }
 
@@ -3126,8 +3122,7 @@ public static class TypedAstEvaluator
                 });
         }
 
-        var propertyName = ToPropertyName(propertyValue)
-                           ?? throw new InvalidOperationException("Property name cannot be null.");
+        var propertyName = JsOps.GetRequiredPropertyName(propertyValue);
 
         return new AssignmentReference(
             () => TryGetPropertyValue(target, propertyName, out var value) ? value : JsSymbols.Undefined,

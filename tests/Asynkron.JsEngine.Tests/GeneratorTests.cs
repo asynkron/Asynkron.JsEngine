@@ -637,6 +637,83 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_ForAwaitAsyncIteratorThrowsIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeAsync(values) {
+                return {
+                    [Symbol.asyncIterator]() {
+                        let index = 0;
+                        return {
+                            next() {
+                                if (index < values.length) {
+                                    const value = values[index++];
+                                    return Promise.resolve({ value, done: false });
+                                }
+                                return Promise.resolve({ value: undefined, done: true });
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* gen() {
+                for await (const value of makeAsync([1, 2])) {
+                    yield value;
+                }
+            }
+
+            let g = gen();
+        """);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await engine.Evaluate("g.next();"));
+        Assert.Contains("Async iteration with promises requires async function context", exception.Message);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForAwaitPromiseValuesAreNotAwaitedIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makePromiseValues(values) {
+                return {
+                    [Symbol.asyncIterator]() {
+                        let index = 0;
+                        return {
+                            next() {
+                                if (index < values.length) {
+                                    const value = Promise.resolve(values[index++]);
+                                    return { value, done: false };
+                                }
+
+                                return { value: undefined, done: true };
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* gen() {
+                const seen = [];
+                for await (const value of makePromiseValues([3, 4])) {
+                    seen.push(typeof value?.then === "function");
+                }
+                yield seen.join(",");
+            }
+
+            let g = gen();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var summary = await engine.Evaluate("first.value;");
+        Assert.Equal("true,true", summary);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_NextValueIsDeliveredToYield()
     {
         await using var engine = new JsEngine();

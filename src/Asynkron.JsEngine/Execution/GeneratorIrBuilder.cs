@@ -13,6 +13,8 @@ namespace Asynkron.JsEngine.Execution;
 internal sealed class GeneratorIrBuilder
 {
     private readonly List<GeneratorInstruction> _instructions = new();
+    private int _resumeSlotCounter;
+    private const string ResumeSlotPrefix = "\u0001_resume";
 
     private GeneratorIrBuilder()
     {
@@ -72,7 +74,7 @@ internal sealed class GeneratorIrBuilder
                     return false;
                 }
 
-                entryIndex = Append(new YieldInstruction(nextIndex, yieldExpression.Expression));
+                entryIndex = AppendYieldSequence(yieldExpression.Expression, nextIndex, resumeSlot: null);
                 return true;
 
             case ExpressionStatement expressionStatement:
@@ -86,6 +88,11 @@ internal sealed class GeneratorIrBuilder
                 return true;
 
             case VariableDeclaration declaration:
+                if (TryLowerYieldingDeclaration(declaration, nextIndex, out entryIndex))
+                {
+                    return true;
+                }
+
                 if (DeclarationContainsYield(declaration))
                 {
                     entryIndex = -1;
@@ -94,6 +101,9 @@ internal sealed class GeneratorIrBuilder
 
                 entryIndex = Append(new StatementInstruction(nextIndex, declaration));
                 return true;
+
+            case WhileStatement whileStatement:
+                return TryBuildWhileStatement(whileStatement, nextIndex, out entryIndex);
 
             case ReturnStatement returnStatement:
                 if (returnStatement.Expression is not null && ContainsYield(returnStatement.Expression))
@@ -111,6 +121,72 @@ internal sealed class GeneratorIrBuilder
         }
     }
 
+    private bool TryBuildWhileStatement(WhileStatement statement, int nextIndex, out int entryIndex)
+    {
+        if (ContainsYield(statement.Condition))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var instructionStart = _instructions.Count;
+        var jumpIndex = Append(new JumpInstruction(-1));
+
+        if (!TryBuildStatement(statement.Body, jumpIndex, out var bodyEntry))
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        var branchIndex = Append(new BranchInstruction(statement.Condition, bodyEntry, nextIndex));
+        _instructions[jumpIndex] = new JumpInstruction(branchIndex);
+        entryIndex = branchIndex;
+        return true;
+    }
+
+    private bool TryLowerYieldingDeclaration(VariableDeclaration declaration, int nextIndex, out int entryIndex)
+    {
+        if (declaration.Declarators.Length != 1)
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var declarator = declaration.Declarators[0];
+        if (declarator.Initializer is not YieldExpression yieldExpression)
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        if (declarator.Target is not IdentifierBinding)
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var resumeSymbol = CreateResumeSlotSymbol();
+        var rewrittenDeclarator = declarator with
+        {
+            Initializer = new IdentifierExpression(yieldExpression.Source, resumeSymbol)
+        };
+        var rewrittenDeclaration = declaration with
+        {
+            Declarators = ImmutableArray.Create(rewrittenDeclarator)
+        };
+
+        var declarationIndex = Append(new StatementInstruction(nextIndex, rewrittenDeclaration));
+        entryIndex = AppendYieldSequence(yieldExpression.Expression, declarationIndex, resumeSymbol);
+        return true;
+    }
+
     private static bool DeclarationContainsYield(VariableDeclaration declaration)
     {
         foreach (var declarator in declaration.Declarators)
@@ -122,6 +198,18 @@ internal sealed class GeneratorIrBuilder
         }
 
         return false;
+    }
+
+    private Symbol CreateResumeSlotSymbol()
+    {
+        var symbolName = $"{ResumeSlotPrefix}{_resumeSlotCounter++}";
+        return Symbol.Intern(symbolName);
+    }
+
+    private int AppendYieldSequence(ExpressionNode? expression, int continuationIndex, Symbol? resumeSlot)
+    {
+        var storeIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
+        return Append(new YieldInstruction(storeIndex, expression));
     }
 
     private static bool ContainsYield(ExpressionNode? expression)

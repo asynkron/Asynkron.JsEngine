@@ -685,6 +685,51 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_WhileLoopsExecuteWithIrPlan()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* loop(limit) {
+                let i = 0;
+                while (i < limit) {
+                    yield i;
+                    i = i + 1;
+                }
+            }
+            let g = loop(3);
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.next().value;");
+        var third = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(0.0, first);
+        Assert.Equal(1.0, second);
+        Assert.Equal(2.0, third);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_IrPathReceivesSentValues()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* echoTwice() {
+                const sent = yield 1;
+                yield sent * 2;
+            }
+            let g = echoTwice();
+        """);
+
+        await engine.Evaluate("g.next();");
+        var doubled = await engine.Evaluate("g.next(9).value;");
+        Assert.Equal(18.0, doubled);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ParseGeneratorSyntax_FunctionStar()
     {
         // Arrange

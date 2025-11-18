@@ -39,3 +39,13 @@ internal sealed record ReturnInstruction(ExpressionNode? ReturnExpression) : Gen
 /// </summary>
 internal sealed record BranchInstruction(ExpressionNode Condition, int ConsequentIndex, int AlternateIndex)
     : GeneratorInstruction(-1);
+
+/// <summary>
+/// Represents an unconditional jump to another instruction index.
+/// </summary>
+internal sealed record JumpInstruction(int TargetIndex) : GeneratorInstruction(TargetIndex);
+
+/// <summary>
+/// Stores the most recent <c>.next(value)</c> payload into a synthetic slot (or discards it) before execution continues.
+/// </summary>
+internal sealed record StoreResumeValueInstruction(int Next, Symbol? TargetSymbol) : GeneratorInstruction(Next);

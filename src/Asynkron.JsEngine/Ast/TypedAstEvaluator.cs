@@ -3561,6 +3561,8 @@ public static class TypedAstEvaluator
         private int _currentYieldIndex;
         private readonly YieldResumeContext _resumeContext = new();
         private int _programCounter;
+        private bool _hasPendingResumeValue;
+        private object? _pendingResumeValue = JsSymbols.Undefined;
 
         public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
             IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
@@ -3672,6 +3674,7 @@ public static class TypedAstEvaluator
                 throw new InvalidOperationException("No generator plan available.");
             }
 
+            var wasStart = _state == GeneratorState.Start;
             if (_done || _state == GeneratorState.Completed)
             {
                 _done = true;
@@ -3691,6 +3694,7 @@ public static class TypedAstEvaluator
             }
 
             _state = GeneratorState.Executing;
+            PreparePendingResumeValue(mode, resumeValue, wasStart);
 
             var environment = EnsureExecutionEnvironment();
             var context = EnsureEvaluationContext();
@@ -3738,6 +3742,41 @@ public static class TypedAstEvaluator
                         _programCounter = yieldInstruction.Next;
                         _state = GeneratorState.Suspended;
                         return CreateIteratorResult(yieldedValue, false);
+
+                    case StoreResumeValueInstruction storeResumeValueInstruction:
+                        var pendingValue = ConsumeResumeValue();
+                        if (storeResumeValueInstruction.TargetSymbol is { } resumeSymbol)
+                        {
+                            if (environment.TryGet(resumeSymbol, out _))
+                            {
+                                environment.Assign(resumeSymbol, pendingValue);
+                            }
+                            else
+                            {
+                                environment.Define(resumeSymbol, pendingValue);
+                            }
+                        }
+
+                        _programCounter = storeResumeValueInstruction.Next;
+                        continue;
+
+                    case JumpInstruction jumpInstruction:
+                        _programCounter = jumpInstruction.TargetIndex;
+                        continue;
+
+                    case BranchInstruction branchInstruction:
+                        var testValue = EvaluateExpression(branchInstruction.Condition, environment, context);
+                        if (context.IsThrow)
+                        {
+                            var thrownBranch = context.FlowValue;
+                            context.Clear();
+                            throw new ThrowSignal(thrownBranch);
+                        }
+
+                        _programCounter = IsTruthy(testValue)
+                            ? branchInstruction.ConsequentIndex
+                            : branchInstruction.AlternateIndex;
+                        continue;
 
                     case ReturnInstruction returnInstruction:
                         var returnValue = returnInstruction.ReturnExpression is null
@@ -3874,6 +3913,32 @@ public static class TypedAstEvaluator
                 ResumeMode.Throw => throw new ThrowSignal(value),
                 _ => CreateIteratorResult(value, true)
             };
+        }
+
+        private void PreparePendingResumeValue(ResumeMode mode, object? resumeValue, bool wasStart)
+        {
+            if (mode != ResumeMode.Next || wasStart)
+            {
+                _pendingResumeValue = JsSymbols.Undefined;
+                _hasPendingResumeValue = false;
+                return;
+            }
+
+            _pendingResumeValue = resumeValue;
+            _hasPendingResumeValue = true;
+        }
+
+        private object? ConsumeResumeValue()
+        {
+            if (!_hasPendingResumeValue)
+            {
+                return JsSymbols.Undefined;
+            }
+
+            var value = _pendingResumeValue;
+            _pendingResumeValue = JsSymbols.Undefined;
+            _hasPendingResumeValue = false;
+            return value;
         }
 
         private enum ResumeMode

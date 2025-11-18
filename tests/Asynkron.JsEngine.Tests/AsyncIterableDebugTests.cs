@@ -1,5 +1,6 @@
 using Xunit.Abstractions;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -115,31 +116,22 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString_NoAsync()
     {
-        // Test without async function wrapper - as shown in ForAwaitOf_RequiresAsyncFunction
+        // This scenario is now a parse error in strict ECMAScript:
+        // for-await-of cannot appear outside an async context.
         await using var engine = new JsEngine();
 
-        engine.SetGlobalFunction("log", args =>
+        await Assert.ThrowsAsync<ParseException>(async () =>
         {
-            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
-            output.WriteLine($"LOG: {message}");
-            return null;
+            await engine.Evaluate("""
+
+                                       let result = "";
+                                       for await (let char of "hello") {
+                                           result = result + char;
+                                       }
+                                       result;
+
+                               """);
         });
-
-        var result = await engine.Evaluate("""
-
-                                                       let result = "";
-                                                       log("Before for-await");
-                                                       for await (let char of "hello") {
-                                                           log("In loop, char: " + char);
-                                                           result = result + char;
-                                                       }
-                                                       log("After for-await");
-                                                       result;
-
-                                           """);
-
-        output.WriteLine($"Final result: '{result}'");
-        Assert.Equal("hello", result);
     }
 
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.

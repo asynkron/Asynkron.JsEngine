@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Parser;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -215,20 +216,20 @@ public class AsyncIterationTests(ITestOutputHelper output)
     {
         await using var engine = new JsEngine();
 
-        // for await...of must be used inside an async function
-        // This should work in our current implementation even outside async
-        // but in strict JavaScript it would require async context
-        var result = await engine.Evaluate("""
+        // for await...of must be used inside an async function.
+        // In spec-compliant ECMAScript this construct is a parse-time error.
+        await Assert.ThrowsAsync<ParseException>(async () =>
+        {
+            await engine.Evaluate("""
 
-                                                       let result = "";
-                                                       for await (let item of ["x", "y"]) {
-                                                           result = result + item;
-                                                       }
-                                                       result;
+                                       let result = "";
+                                       for await (let item of ["x", "y"]) {
+                                           result = result + item;
+                                       }
+                                       result;
 
-                                           """);
-
-        Assert.Equal("xy", result);
+                               """);
+        });
     }
 
     [Fact(Timeout = 2000)]

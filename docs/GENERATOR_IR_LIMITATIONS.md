@@ -33,8 +33,7 @@ The following tests lock our current expectations for the IR and fallback paths:
 
 - `Generator_YieldStarDelegatesValues`, `Generator_YieldStarReceivesSentValuesIr`, `Generator_YieldStarThrowDeliversCleanupIr`, `Generator_YieldStarReturnDeliversCleanupIr`, `Generator_YieldStarThrowContinuesWhenIteratorResumesIr`, and `Generator_YieldStarReturnDoneFalseContinuesIr` ensure delegated `yield*` expressions stay on the IR path, forward `.next/.throw/.return` payloads to the underlying iterator (even when the delegate reports `done: false`), and still unwind nested `try/finally` stacks.
 - `Generator_YieldStarThrowRequiresIteratorResultObjectIr`, `Generator_YieldStarReturnRequiresIteratorResultObjectIr`, and their interpreter twins ensure both execution paths reject delegates whose `.throw/.return` helpers return non-object completion records (matching ECMAScript’s TypeError guardrail).
-- `Generator_ForAwaitFallsBackIr`, `Generator_ForAwaitAsyncIteratorAwaitsValuesIr`, `Generator_ForAwaitPromiseValuesAreAwaitedIr`, and `Generator_ForAwaitAsyncIteratorRejectsPropagatesIr` prove `for await...of` loops now await promise-returning iterators even outside async functions and surface rejections as `ThrowSignal`s.
-- All other `Generator_*Ir` tests listed in `continue.md` execute on the IR path and assert catch/finally semantics, loop unwinding, and resume behavior.
+- All remaining `Generator_*Ir` tests listed in `continue.md` execute on the IR path and assert catch/finally semantics, loop unwinding, and resume behavior. `for await...of` is now treated as a pure async-iteration construct and is tested separately under `AsyncIterationTests` / `AsyncIterableDebugTests` using spec-compliant async functions.
 
 ## Known gaps & future work
 

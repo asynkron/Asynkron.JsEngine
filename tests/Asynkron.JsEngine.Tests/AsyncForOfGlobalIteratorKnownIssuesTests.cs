@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Parser;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -75,36 +76,38 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
 
         output.WriteLine("=== ForAwaitOf_WithSyncIteratorNoAsync ===");
 
-        var result = await engine.Evaluate("""
+        await Assert.ThrowsAsync<ParseException>(async () =>
+        {
+            await engine.Evaluate("""
 
-                                                       let result = "";
+                                       let result = "";
 
-                                                       // Object with only sync iterator (Symbol.iterator)
-                                                       let syncIterable = {
-                                                           [Symbol.iterator]() {
-                                                               let values = ["x", "y", "z"];
-                                                               let index = 0;
-                                                               return {
-                                                                   next() {
-                                                                       if (index < values.length) {
-                                                                           return { value: values[index++], done: false };
-                                                                       }
-                                                                       return { done: true };
-                                                                   }
-                                                               };
-                                                           }
-                                                       };
-
-                                                       for await (let item of syncIterable) {
-                                                           result = result + item;
+                                       // Object with only sync iterator (Symbol.iterator)
+                                       let syncIterable = {
+                                           [Symbol.iterator]() {
+                                               let values = ["x", "y", "z"];
+                                               let index = 0;
+                                               return {
+                                                   next() {
+                                                       if (index < values.length) {
+                                                           return { value: values[index++], done: false };
                                                        }
+                                                       return { done: true };
+                                                   }
+                                               };
+                                           }
+                                       };
 
-                                                       result;
+                                       for await (let item of syncIterable) {
+                                           result = result + item;
+                                       }
 
-                                           """);
+                                       result;
 
-        output.WriteLine($"Final result without async wrapper: '{result}'");
-        Assert.Equal("xyz", result);
+                               """);
+        });
+
+        output.WriteLine("For-await-of without async context correctly throws a parse error.");
     }
 
     /// <summary>

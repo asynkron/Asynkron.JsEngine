@@ -1018,7 +1018,16 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
         private StatementNode ParseForStatement(Token forToken)
         {
-            var isAwait = Match(TokenType.Await);
+            var isAwait = false;
+            if (Match(TokenType.Await))
+            {
+                if (!InAsyncContext)
+                {
+                    throw new ParseException("'for await...of' is only allowed inside async functions.", Previous(), _source);
+                }
+
+                isAwait = true;
+            }
             Consume(TokenType.LeftParen, "Expected '(' after 'for'.");
 
             StatementNode? initializer = null;

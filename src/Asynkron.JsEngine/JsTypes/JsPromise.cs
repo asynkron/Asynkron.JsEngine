@@ -80,86 +80,80 @@ public sealed class JsPromise(JsEngine engine)
 
         foreach (var (onFulfilled, onRejected, nextPromise) in handlersToProcess)
         {
-            engine.ScheduleTask(async () =>
+            try
             {
-                try
+                if (_state == PromiseState.Fulfilled)
                 {
-                    if (_state == PromiseState.Fulfilled)
+                    if (onFulfilled != null)
                     {
-                        if (onFulfilled != null)
-                        {
-                            var result = onFulfilled.Invoke([_value], null);
+                        var result = onFulfilled.Invoke([_value], null);
 
-                            // If the result is a promise (JsObject with "then" method), chain it
-                            if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
-                                thenMethod is IJsCallable thenCallable)
-                            {
-                                thenCallable.Invoke([
-                                    new HostFunction(args =>
-                                    {
-                                        nextPromise.Resolve(args.Count > 0 ? args[0] : null);
-                                        return null;
-                                    }),
-                                    new HostFunction(args =>
-                                    {
-                                        nextPromise.Reject(args.Count > 0 ? args[0] : null);
-                                        return null;
-                                    })
-                                ], resultObj);
-                            }
-                            else
-                            {
-                                nextPromise.Resolve(result);
-                            }
+                        // If the result is a promise (JsObject with "then" method), chain it
+                        if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
+                            thenMethod is IJsCallable thenCallable)
+                        {
+                            thenCallable.Invoke([
+                                new HostFunction(args =>
+                                {
+                                    nextPromise.Resolve(args.Count > 0 ? args[0] : null);
+                                    return null;
+                                }),
+                                new HostFunction(args =>
+                                {
+                                    nextPromise.Reject(args.Count > 0 ? args[0] : null);
+                                    return null;
+                                })
+                            ], resultObj);
                         }
                         else
                         {
-                            nextPromise.Resolve(_value);
+                            nextPromise.Resolve(result);
                         }
                     }
-                    else if (_state == PromiseState.Rejected)
+                    else
                     {
-                        if (onRejected != null)
-                        {
-                            var result = onRejected.Invoke([_value], null);
+                        nextPromise.Resolve(_value);
+                    }
+                }
+                else if (_state == PromiseState.Rejected)
+                {
+                    if (onRejected != null)
+                    {
+                        var result = onRejected.Invoke([_value], null);
 
-                            // If the result is a promise (JsObject with "then" method), chain it
-                            if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
-                                thenMethod is IJsCallable thenCallable)
-                            {
-                                thenCallable.Invoke([
-                                    new HostFunction(args =>
-                                    {
-                                        nextPromise.Resolve(args.Count > 0 ? args[0] : null);
-                                        return null;
-                                    }),
-                                    new HostFunction(args =>
-                                    {
-                                        nextPromise.Reject(args.Count > 0 ? args[0] : null);
-                                        return null;
-                                    })
-                                ], resultObj);
-                            }
-                            else
-                                // Rejection handler executed successfully, resolve next promise
-                            {
-                                nextPromise.Resolve(result);
-                            }
+                        // If the result is a promise (JsObject with "then" method), chain it
+                        if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
+                            thenMethod is IJsCallable thenCallable)
+                        {
+                            thenCallable.Invoke([
+                                new HostFunction(args =>
+                                {
+                                    nextPromise.Resolve(args.Count > 0 ? args[0] : null);
+                                    return null;
+                                }),
+                                new HostFunction(args =>
+                                {
+                                    nextPromise.Reject(args.Count > 0 ? args[0] : null);
+                                    return null;
+                                })
+                            ], resultObj);
                         }
                         else
                         {
-                            // No rejection handler, propagate rejection
-                            nextPromise.Reject(_value);
+                            nextPromise.Resolve(result);
                         }
                     }
+                    else
+                    {
+                        // No rejection handler, propagate rejection
+                        nextPromise.Reject(_value);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    nextPromise.Reject(ex.Message);
-                }
-
-                await Task.CompletedTask.ConfigureAwait(false);
-            });
+            }
+            catch (Exception ex)
+            {
+                nextPromise.Reject(ex.Message);
+            }
         }
     }
 }

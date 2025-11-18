@@ -605,6 +605,7 @@ public class GeneratorTests
 
             let seen = [];
             function* gen() {
+                seen = [];
                 for await (const value of makeAsync([3, 4])) {
                     seen.push(value);
                     yield value * 10;
@@ -637,7 +638,7 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Generator_ForAwaitAsyncIteratorThrowsIr()
+    public async Task Generator_ForAwaitAsyncIteratorAwaitsValuesIr()
     {
         await using var engine = new JsEngine();
 
@@ -661,20 +662,36 @@ public class GeneratorTests
 
             function* gen() {
                 for await (const value of makeAsync([1, 2])) {
-                    yield value;
+                    yield value * 10;
                 }
+                return "done";
             }
 
             let g = gen();
         """);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await engine.Evaluate("g.next();"));
-        Assert.Contains("Async iteration with promises requires async function context", exception.Message);
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        var firstDone = await engine.Evaluate("first.done;");
+
+        await engine.Evaluate("const second = g.next();");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+
+        await engine.Evaluate("const final = g.next();");
+        var finalValue = await engine.Evaluate("final.value;");
+        var finalDone = await engine.Evaluate("final.done;");
+
+        Assert.Equal(10.0, firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal(20.0, secondValue);
+        Assert.False((bool)secondDone!);
+        Assert.Equal("done", finalValue);
+        Assert.True((bool)finalDone!);
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Generator_ForAwaitPromiseValuesAreNotAwaitedIr()
+    public async Task Generator_ForAwaitPromiseValuesAreAwaitedIr()
     {
         await using var engine = new JsEngine();
 
@@ -698,11 +715,11 @@ public class GeneratorTests
             }
 
             function* gen() {
-                const seen = [];
+                const collected = [];
                 for await (const value of makePromiseValues([3, 4])) {
-                    seen.push(typeof value?.then === "function");
+                    collected.push(value);
                 }
-                yield seen.join(",");
+                yield collected.join(",");
             }
 
             let g = gen();
@@ -710,7 +727,53 @@ public class GeneratorTests
 
         await engine.Evaluate("const first = g.next();");
         var summary = await engine.Evaluate("first.value;");
-        Assert.Equal("true,true", summary);
+        Assert.Equal("3,4", summary);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForAwaitAsyncIteratorRejectsPropagatesIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeAsync(values) {
+                return {
+                    [Symbol.asyncIterator]() {
+                        let index = 0;
+                        return {
+                            next() {
+                                if (index < values.length) {
+                                    const value = values[index++];
+                                    return Promise.resolve({ value, done: false });
+                                }
+
+                                if (index === values.length) {
+                                    index++;
+                                    return Promise.reject("boom");
+                                }
+
+                                return Promise.resolve({ value: undefined, done: true });
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* gen() {
+                for await (const value of makeAsync([1])) {
+                    yield value;
+                }
+            }
+
+            let g = gen();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        Assert.Equal(1.0, firstValue);
+
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
+        Assert.Equal("boom", exception.ThrownValue);
     }
 
     [Fact(Timeout = 2000)]

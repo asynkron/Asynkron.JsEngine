@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -139,7 +140,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Register debug function as a debug-aware host function
         _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));
 
-        _ = ProcessEventQueue();
+        _ = Task.Run(ProcessEventQueue);
     }
 
     /// <summary>
@@ -440,7 +441,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     private async Task ProcessEventQueue()
     {
-        await foreach (var x in _eventQueue.Reader.ReadAllAsync())
+        await foreach (var x in _eventQueue.Reader.ReadAllAsync().ConfigureAwait(false))
         {
             try
             {

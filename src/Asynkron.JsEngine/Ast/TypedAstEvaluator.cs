@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Threading.Tasks;
 using System.Globalization;
 using System.Numerics;
 using Asynkron.JsEngine.Converters;
@@ -376,19 +377,18 @@ public static class TypedAstEvaluator
             while (!context.ShouldStopEvaluation)
             {
                 var nextResult = InvokeIteratorNext(iterator!);
-                if (nextResult is not JsObject resultObj)
+                if (!TryAwaitPromise(nextResult, context, out var awaitedNextResult))
+                {
+                    return JsSymbols.Undefined;
+                }
+
+                if (awaitedNextResult is not JsObject resultObj)
                 {
                     break;
                 }
 
-                if (IsPromiseLike(resultObj))
-                {
-                    throw new InvalidOperationException(
-                        "Async iteration with promises requires async function context. Use for await...of inside an async function.");
-                }
-
-                var done = resultObj.TryGetProperty("done", out var doneValue) && doneValue is bool completed && completed;
-                if (done)
+                if (resultObj.TryGetProperty("done", out var doneValue) &&
+                    doneValue is bool completed && completed)
                 {
                     break;
                 }
@@ -398,7 +398,12 @@ public static class TypedAstEvaluator
                     continue;
                 }
 
-                AssignLoopBinding(statement, value, loopEnvironment, environment, context);
+                if (!TryAwaitPromise(value, context, out var awaitedValue))
+                {
+                    return JsSymbols.Undefined;
+                }
+
+                AssignLoopBinding(statement, awaitedValue, loopEnvironment, environment, context);
                 lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
 
                 if (context.IsReturn || context.IsThrow)
@@ -428,7 +433,12 @@ public static class TypedAstEvaluator
                 break;
             }
 
-            AssignLoopBinding(statement, value, loopEnvironment, environment, context);
+            if (!TryAwaitPromise(value, context, out var awaitedValue))
+            {
+                return JsSymbols.Undefined;
+            }
+
+            AssignLoopBinding(statement, awaitedValue, loopEnvironment, environment, context);
             lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
 
             if (context.IsReturn || context.IsThrow)
@@ -563,6 +573,70 @@ public static class TypedAstEvaluator
     {
         return candidate is JsObject jsObject && jsObject.TryGetProperty("then", out var thenValue) &&
                thenValue is IJsCallable;
+    }
+
+    private static bool TryAwaitPromise(object? candidate, EvaluationContext context, out object? resolvedValue)
+    {
+        resolvedValue = candidate;
+
+        while (resolvedValue is JsObject promiseObj && IsPromiseLike(promiseObj))
+        {
+            if (!promiseObj.TryGetProperty("then", out var thenValue) || thenValue is not IJsCallable thenCallable)
+            {
+                break;
+            }
+
+            var tcs = new TaskCompletionSource<(bool Success, object? Value)>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+            var onFulfilled = new HostFunction(args =>
+            {
+                var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                tcs.TrySetResult((true, value));
+                return null;
+            });
+
+            var onRejected = new HostFunction(args =>
+            {
+                var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                tcs.TrySetResult((false, value));
+                return null;
+            });
+
+            try
+            {
+                thenCallable.Invoke([onFulfilled, onRejected], promiseObj);
+            }
+            catch (Exception ex)
+            {
+                context.SetThrow(ex.Message);
+                resolvedValue = JsSymbols.Undefined;
+                return false;
+            }
+
+            (bool Success, object? Value) awaited;
+            try
+            {
+                awaited = tcs.Task.GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                context.SetThrow(ex.Message);
+                resolvedValue = JsSymbols.Undefined;
+                return false;
+            }
+
+            if (!awaited.Success)
+            {
+                context.SetThrow(awaited.Value);
+                resolvedValue = JsSymbols.Undefined;
+                return false;
+            }
+
+            resolvedValue = awaited.Value;
+        }
+
+        return true;
     }
 
     private static void AssignLoopBinding(ForEachStatement statement, object? value, JsEnvironment loopEnvironment,

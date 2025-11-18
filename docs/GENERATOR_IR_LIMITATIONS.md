@@ -32,8 +32,7 @@ When a construct falls back, execution uses `EvaluateYield` / `EvaluateDelegated
 The following tests lock our current expectations for the IR and fallback paths:
 
 - `Generator_YieldStarDelegatesValues`, `Generator_YieldStarReceivesSentValuesIr`, `Generator_YieldStarThrowDeliversCleanupIr`, and `Generator_YieldStarReturnDeliversCleanupIr` ensure delegated `yield*` expressions stay on the IR path, forward `.next/.throw/.return` payloads to the underlying iterator, and still unwind nested `try/finally` stacks.
-- `Generator_ForAwaitFallsBackIr` proves a generator that contains `for await...of` continues to execute by reusing the replay path (the loop body still yields transformed values even though no IR plan exists).
-- `Generator_ForAwaitAsyncIteratorThrowsIr` and `Generator_ForAwaitPromiseValuesAreNotAwaitedIr` document the current async-iteration limitations: iterators whose `.next()` method returns a promise trigger a host-side `InvalidOperationException`, and promise-valued payloads are surfaced to user code without awaiting.
+- `Generator_ForAwaitFallsBackIr`, `Generator_ForAwaitAsyncIteratorAwaitsValuesIr`, `Generator_ForAwaitPromiseValuesAreAwaitedIr`, and `Generator_ForAwaitAsyncIteratorRejectsPropagatesIr` prove `for await...of` loops now await promise-returning iterators even outside async functions and surface rejections as `ThrowSignal`s.
 - All other `Generator_*Ir` tests listed in `continue.md` execute on the IR path and assert catch/finally semantics, loop unwinding, and resume behavior.
 
 ## Known gaps & future work

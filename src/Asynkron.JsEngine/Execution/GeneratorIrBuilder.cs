@@ -125,6 +125,11 @@ internal sealed class GeneratorIrBuilder
             case TryStatement tryStatement:
                 return TryBuildTryStatement(tryStatement, nextIndex, out entryIndex, activeLabel);
 
+            case ForEachStatement forEachStatement when forEachStatement.Kind == ForEachKind.Of &&
+                                                        forEachStatement.Kind != ForEachKind.AwaitOf &&
+                                                        IsSimpleForOfBinding(forEachStatement):
+                return TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
+
             case ReturnStatement returnStatement:
                 if (returnStatement.Expression is not null && ContainsYield(returnStatement.Expression))
                 {
@@ -161,7 +166,9 @@ internal sealed class GeneratorIrBuilder
         var instructionStart = _instructions.Count;
         var jumpIndex = Append(new JumpInstruction(-1));
 
-        var scope = new LoopScope(label, jumpIndex, nextIndex);
+        var continueTarget = jumpIndex;
+        var breakTarget = nextIndex;
+        var scope = new LoopScope(label, continueTarget, breakTarget);
         _loopScopes.Push(scope);
 
         var bodyBuilt = TryBuildStatement(statement.Body, jumpIndex, out var bodyEntry);
@@ -191,7 +198,9 @@ internal sealed class GeneratorIrBuilder
         var instructionStart = _instructions.Count;
         var conditionJumpIndex = Append(new JumpInstruction(-1));
 
-        var scope = new LoopScope(label, conditionJumpIndex, nextIndex);
+        var continueTarget = conditionJumpIndex;
+        var breakTarget = nextIndex;
+        var scope = new LoopScope(label, continueTarget, breakTarget);
         _loopScopes.Push(scope);
         var bodyBuilt = TryBuildStatement(statement.Body, conditionJumpIndex, out var bodyEntry, label);
         _loopScopes.Pop();
@@ -229,6 +238,7 @@ internal sealed class GeneratorIrBuilder
 
         var conditionJumpIndex = Append(new JumpInstruction(-1));
         var continueTarget = conditionJumpIndex;
+        var breakTarget = nextIndex;
 
         if (statement.Increment is not null)
         {
@@ -236,7 +246,7 @@ internal sealed class GeneratorIrBuilder
             continueTarget = Append(new StatementInstruction(conditionJumpIndex, incrementStatement));
         }
 
-        var scope = new LoopScope(label, continueTarget, nextIndex);
+        var scope = new LoopScope(label, continueTarget, breakTarget);
         _loopScopes.Push(scope);
         var bodyBuilt = TryBuildStatement(statement.Body, continueTarget, out var bodyEntry, label);
         _loopScopes.Pop();
@@ -320,6 +330,46 @@ internal sealed class GeneratorIrBuilder
         return true;
     }
 
+    private bool TryBuildForOfStatement(ForEachStatement statement, int nextIndex, out int entryIndex, Symbol? label)
+    {
+        if (ContainsYield(statement.Iterable))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        if (!IsSimpleForOfBinding(statement))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var instructionStart = _instructions.Count;
+        var iteratorSymbol = Symbol.Intern($"__forOf_iter_{instructionStart}");
+        var valueSymbol = Symbol.Intern($"__forOf_value_{instructionStart}");
+
+        var moveNextIndex = Append(new ForOfMoveNextInstruction(iteratorSymbol, valueSymbol, nextIndex, -1));
+        var perIterationBlock = CreateForOfIterationBlock(statement, valueSymbol);
+
+        var scope = new LoopScope(label, moveNextIndex, nextIndex);
+        _loopScopes.Push(scope);
+        var bodyBuilt = TryBuildStatement(perIterationBlock, moveNextIndex, out var iterationEntry, label);
+        _loopScopes.Pop();
+
+        if (!bodyBuilt)
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        _instructions[moveNextIndex] = ((ForOfMoveNextInstruction)_instructions[moveNextIndex]) with { Next = iterationEntry };
+
+        var initIndex = Append(new ForOfInitInstruction(statement.Iterable, iteratorSymbol, moveNextIndex));
+        entryIndex = initIndex;
+        return true;
+    }
+
     private bool TryBuildBreak(BreakStatement statement, out int entryIndex)
     {
         if (!TryResolveBreakTarget(statement.Label, out var target))
@@ -328,7 +378,7 @@ internal sealed class GeneratorIrBuilder
             return false;
         }
 
-        entryIndex = Append(new JumpInstruction(target));
+        entryIndex = Append(new BreakInstruction(target));
         return true;
     }
 
@@ -340,7 +390,7 @@ internal sealed class GeneratorIrBuilder
             return false;
         }
 
-        entryIndex = Append(new JumpInstruction(target));
+        entryIndex = Append(new ContinueInstruction(target));
         return true;
     }
 
@@ -433,6 +483,57 @@ internal sealed class GeneratorIrBuilder
     {
         var symbolName = $"{ResumeSlotPrefix}{_resumeSlotCounter++}";
         return Symbol.Intern(symbolName);
+    }
+
+    private static bool IsSimpleForOfBinding(ForEachStatement statement)
+    {
+        // We now allow identifier or destructuring targets for all declaration kinds.
+        return statement.Target is not null;
+    }
+
+    private static StatementNode CreateForOfIterationBlock(ForEachStatement statement, Symbol valueSymbol)
+    {
+        var valueExpression = new IdentifierExpression(statement.Source, valueSymbol);
+        StatementNode bindingStatement;
+
+        if (statement.DeclarationKind is null)
+        {
+            bindingStatement = new ExpressionStatement(statement.Source,
+                CreateAssignmentExpression(statement.Target, valueExpression));
+        }
+        else
+        {
+            var declarator = new VariableDeclarator(statement.Source, statement.Target, valueExpression);
+            bindingStatement = new VariableDeclaration(statement.Source, statement.DeclarationKind.Value,
+                ImmutableArray.Create(declarator));
+        }
+
+        ImmutableArray<StatementNode> bodyStatements;
+        var isStrict = false;
+        if (statement.Body is BlockStatement block)
+        {
+            var builder = ImmutableArray.CreateBuilder<StatementNode>(block.Statements.Length + 1);
+            builder.Add(bindingStatement);
+            builder.AddRange(block.Statements);
+            bodyStatements = builder.ToImmutable();
+            isStrict = block.IsStrict;
+        }
+        else
+        {
+            bodyStatements = ImmutableArray.Create(bindingStatement, statement.Body);
+        }
+
+        return new BlockStatement(statement.Source, bodyStatements, isStrict);
+    }
+
+    private static ExpressionNode CreateAssignmentExpression(BindingTarget target, ExpressionNode valueExpression)
+    {
+        return target switch
+        {
+            IdentifierBinding identifier => new AssignmentExpression(target.Source, identifier.Name, valueExpression),
+            ArrayBinding or ObjectBinding => new DestructuringAssignmentExpression(target.Source, target, valueExpression),
+            _ => throw new NotSupportedException($"Unsupported for-of binding target '{target.GetType().Name}'.")
+        };
     }
 
     private Symbol CreateCatchSlotSymbol()

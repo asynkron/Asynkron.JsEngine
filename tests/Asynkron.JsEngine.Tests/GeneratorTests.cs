@@ -945,6 +945,178 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_TryFinallyNestedBreakIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                const log = [];
+                outer: while (true) {
+                    try {
+                        break outer;
+                    } finally {
+                        try {
+                            log.push("inner");
+                            break outer;
+                        } finally {
+                            log.push("after");
+                        }
+                    }
+                }
+                yield log.join(",");
+            }
+            let g = gen();
+        """);
+
+        var value = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal("inner,after", value);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Skip = "Nested try/finally rethrow not yet implemented", Timeout = 2000)]
+    public async Task Generator_TryFinallyNestedThrowIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                try {
+                    yield 1;
+                } finally {
+                    try {
+                        yield 2;
+                    } finally {
+                        yield 3;
+                    }
+                }
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        var firstDone = await engine.Evaluate("first.done;");
+
+        await engine.Evaluate("const second = g.throw('boom');");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+
+        await engine.Evaluate("const third = g.next();");
+        var thirdValue = await engine.Evaluate("third.value;");
+        var thirdDone = await engine.Evaluate("third.done;");
+
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
+
+        Assert.Equal(1.0, firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal(2.0, secondValue);
+        Assert.False((bool)secondDone!);
+        Assert.Equal(3.0, thirdValue);
+        Assert.False((bool)thirdDone!);
+        Assert.Equal("boom", exception.ThrownValue);
+    }
+
+    [Fact(Skip = "Nested try/finally return propagation not yet implemented", Timeout = 2000)]
+    public async Task Generator_TryFinallyNestedReturnIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                try {
+                    yield 1;
+                } finally {
+                    try {
+                        yield 2;
+                    } finally {
+                        yield 3;
+                    }
+                }
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("const mid = g.return(99);");
+        var midValue = await engine.Evaluate("mid.value;");
+        var midDone = await engine.Evaluate("mid.done;");
+
+        await engine.Evaluate("const third = g.next();");
+        var thirdValue = await engine.Evaluate("third.value;");
+        var thirdDone = await engine.Evaluate("third.done;");
+
+        await engine.Evaluate("const final = g.next();");
+        var finalValue = await engine.Evaluate("final.value;");
+        var finalDone = await engine.Evaluate("final.done;");
+
+        Assert.Equal(2.0, midValue);
+        Assert.False((bool)midDone!);
+        Assert.Equal(3.0, thirdValue);
+        Assert.False((bool)thirdDone!);
+        Assert.Equal(99.0, finalValue);
+        Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_BreakRunsFinallyIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let hits = 0;
+            function* gen() {
+                while (true) {
+                    try {
+                        break;
+                    } finally {
+                        hits = hits + 1;
+                    }
+                }
+                yield hits;
+            }
+            let g = gen();
+        """);
+
+        var value = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(1.0, value);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ContinueRunsFinallyIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let hits = 0;
+            function* gen() {
+                let i = 0;
+                while (i < 3) {
+                    try {
+                        i = i + 1;
+                        continue;
+                    } finally {
+                        hits = hits + 1;
+                    }
+                }
+                yield hits;
+            }
+            let g = gen();
+        """);
+
+        var value = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(3.0, value);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_DoWhileLoopsExecuteWithIrPlan()
     {
         await using var engine = new JsEngine();
@@ -1019,6 +1191,111 @@ public class GeneratorTests
         Assert.Equal(0.0, first);
         Assert.Equal(2.0, second);
         Assert.Equal(4.0, third);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForOfYieldsValuesIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                for (var value of [1, 2, 3]) {
+                    yield value;
+                }
+            }
+            let g = gen();
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.next().value;");
+        var third = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(1.0, first);
+        Assert.Equal(2.0, second);
+        Assert.Equal(3.0, third);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForOfBreaksEarlyIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                let count = 0;
+                for (var value of [1, 2, 3, 4]) {
+                    if (value === 3) {
+                        break;
+                    }
+                    count = count + value;
+                    yield value;
+                }
+                yield count;
+            }
+            let g = gen();
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.next().value;");
+        var sum = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(1.0, first);
+        Assert.Equal(2.0, second);
+        Assert.Equal(3.0, sum);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForOfLetCreatesNewBindingIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                const callbacks = [];
+                for (let value of [1, 2]) {
+                    callbacks.push(() => value);
+                }
+                yield callbacks[0]();
+                yield callbacks[1]();
+            }
+            let g = gen();
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(1.0, first);
+        Assert.Equal(2.0, second);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForOfDestructuringIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                for (const { value } of [{ value: 3 }, { value: 4 }]) {
+                    yield value;
+                }
+            }
+            let g = gen();
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(3.0, first);
+        Assert.Equal(4.0, second);
         Assert.True((bool)done!);
     }
 

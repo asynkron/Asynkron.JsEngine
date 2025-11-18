@@ -51,6 +51,16 @@ internal sealed record JumpInstruction(int TargetIndex) : GeneratorInstruction(T
 internal sealed record StoreResumeValueInstruction(int Next, Symbol? TargetSymbol) : GeneratorInstruction(Next);
 
 /// <summary>
+/// Represents a <c>break</c> statement.
+/// </summary>
+internal sealed record BreakInstruction(int TargetIndex) : GeneratorInstruction(TargetIndex);
+
+/// <summary>
+/// Represents a <c>continue</c> statement.
+/// </summary>
+internal sealed record ContinueInstruction(int TargetIndex) : GeneratorInstruction(TargetIndex);
+
+/// <summary>
 /// Marks the beginning of a <c>try</c> region.
 /// </summary>
 internal sealed record EnterTryInstruction(int Next, int HandlerIndex, Symbol? CatchSlotSymbol, int FinallyIndex)
@@ -65,3 +75,15 @@ internal sealed record LeaveTryInstruction(int Next) : GeneratorInstruction(Next
 /// Marks the end of a <c>finally</c> block so pending completions can resume.
 /// </summary>
 internal sealed record EndFinallyInstruction(int Next) : GeneratorInstruction(Next);
+
+/// <summary>
+/// Initializes the iterator for a <c>for...of</c> loop.
+/// </summary>
+internal sealed record ForOfInitInstruction(ExpressionNode IterableExpression, Symbol IteratorSlot, int Next)
+    : GeneratorInstruction(Next);
+
+/// <summary>
+/// Advances the iterator for a <c>for...of</c> loop.
+/// </summary>
+internal sealed record ForOfMoveNextInstruction(Symbol IteratorSlot, Symbol ValueSlot, int BreakIndex, int Next)
+    : GeneratorInstruction(Next);

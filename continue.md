@@ -3,20 +3,17 @@
 ## Current State
 - IR now includes `JumpInstruction` and `StoreResumeValueInstruction`, so `.next(value)` payloads are captured without replaying statements.
 - The builder lowers blocks, expression statements, `while`, `do/while`, classic `for` loops (with labels), variable declarations, plain assignments (`target = yield <expr>`), and now `try/catch/finally` statements by emitting hidden slots and explicit IR instructions.
-- Loop scopes track break/continue targets, so both unlabeled and labeled `break`/`continue` statements become jumps inside the plan.
+- Loop scopes track break/continue targets and now emit dedicated `BreakInstruction`/`ContinueInstruction` nodes so loop exits unwind active `finally` blocks before resuming.
 - `StoreResumeValueInstruction` now consumes pending `.next/.throw/.return` payloads; `.throw`/`.return` flow through the interpreter before short-circuiting so try/catch/finally blocks can observe them, and a try-frame stack guarantees finally blocks execute during abrupt completion.
-- Tests `Generator_TryCatchHandlesThrowIr`, `Generator_TryFinallyRunsOnReturnIr`, `Generator_TryFinallyRunsOnThrowIr`, `Generator_DoWhileLoopsExecuteWithIrPlan`, `Generator_ForLoopsExecuteWithIrPlan`, `Generator_ForLoopContinueRunsIncrement`, `Generator_AssignmentReceivesSentValuesIr`, `Generator_ReturnSkipsRemainingStatementsIr`, and `Generator_ThrowSkipsRemainingStatementsIr` cover the new IR behavior.
+- Tests `Generator_TryCatchHandlesThrowIr`, `Generator_TryFinallyRunsOnReturnIr`, `Generator_TryFinallyRunsOnThrowIr`, `Generator_BreakRunsFinallyIr`, `Generator_ContinueRunsFinallyIr`, `Generator_DoWhileLoopsExecuteWithIrPlan`, `Generator_ForLoopsExecuteWithIrPlan`, `Generator_ForLoopContinueRunsIncrement`, `Generator_AssignmentReceivesSentValuesIr`, `Generator_ReturnSkipsRemainingStatementsIr`, and `Generator_ThrowSkipsRemainingStatementsIr` cover the new IR behavior.
 
 ## Next Iteration Plan
 
-1. **Abrupt Completion Coverage**
-   - Revisit how `break`/`continue` (currently emitted as raw jumps) interact with `finally` blocks so loop exits still trigger cleanup.
-   - Ensure nested try/finally stacks handle combinations of `break`, `continue`, and `return` the same way as the replay interpreter.
+1. **Advanced Exception Coverage**
+   - Nested try/finally with multiple yields still fails to rethrow (see skipped tests `Generator_TryFinallyNestedThrowIr` and `Generator_TryFinallyNestedReturnIr`); fix the interpreter so pending `.throw/.return` survives nested finally blocks.
+   - Add regression scenarios for `.throw`/`.return` delivered mid-finalizer once the above is fixed.
+   - Evaluate whether `try/finally` inside `catch` needs extra metadata (e.g., separate catch-value slots) to prevent stale values when nested.
 
-2. **Additional Constructs**
-   - Lower simple `for...of` (non-async) loops onto the IR path, reusing the existing iterator helpers and honoring labeled `break`/`continue`.
-   - Keep rejecting `yield*`, nested yields inside complex expressions, and async iteration until the control-flow model can cover them.
-
-3. **Testing & Guardrails**
-   - Expand coverage for nested try/finally scenarios, `break/continue` inside finally blocks, and `.throw/.return` delivered mid-finalizer.
-   - Add tests for the eventual `for...of` lowering plus negative tests that confirm unsupported constructs still fall back.
+2. **Guardrails**
+   - Confirm unsupported constructs still fall back cleanly (e.g., `yield*`, `for await`) and add negative tests if needed.
+   - Document remaining gaps (async generators, `for...of` with destructuring, etc.) so future iterations know the boundaries.

@@ -3668,6 +3668,41 @@ public static class TypedAstEvaluator
             return result;
         }
 
+        private static ForOfState CreateForOfState(object? iterable)
+        {
+            if (TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
+            {
+                return new ForOfState(iterator, null);
+            }
+
+            var enumerable = EnumerateValues(iterable);
+            return new ForOfState(null, enumerable.GetEnumerator());
+        }
+
+        private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? value)
+        {
+            if (environment.TryGet(symbol, out _))
+            {
+                environment.Assign(symbol, value);
+            }
+            else
+            {
+                environment.Define(symbol, value);
+            }
+        }
+
+        private static bool TryGetSymbolValue(JsEnvironment environment, Symbol symbol, out object? value)
+        {
+            if (environment.TryGet(symbol, out var existing))
+            {
+                value = existing;
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
         private object? ExecutePlan(ResumeMode mode, object? resumeValue)
         {
             if (_plan is null)
@@ -3838,6 +3873,17 @@ public static class TypedAstEvaluator
                             return CompleteReturn(pending.Value);
                         }
 
+                        if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
+                        {
+                            if (HandleAbruptCompletion(pending.Kind, pending.Value, environment))
+                            {
+                                continue;
+                            }
+
+                            _programCounter = pending.Value is int idx ? idx : endFinallyInstruction.Next;
+                            continue;
+                        }
+
                         if (HandleAbruptCompletion(AbruptKind.Throw, pending.Value, environment))
                         {
                             continue;
@@ -3845,6 +3891,76 @@ public static class TypedAstEvaluator
 
                         _tryStack.Clear();
                         throw new ThrowSignal(pending.Value);
+
+                    case ForOfInitInstruction forOfInitInstruction:
+                        var iterableValue = EvaluateExpression(forOfInitInstruction.IterableExpression, environment, context);
+                        if (context.IsThrow)
+                        {
+                            var initThrown = context.FlowValue;
+                            context.Clear();
+                            if (HandleAbruptCompletion(AbruptKind.Throw, initThrown, environment))
+                            {
+                                continue;
+                            }
+
+                            _tryStack.Clear();
+                            throw new ThrowSignal(initThrown);
+                        }
+
+                        var state = CreateForOfState(iterableValue);
+                        StoreSymbolValue(environment, forOfInitInstruction.IteratorSlot, state);
+                        _programCounter = forOfInitInstruction.Next;
+                        continue;
+
+                    case ForOfMoveNextInstruction forOfMoveNextInstruction:
+                        if (!TryGetSymbolValue(environment, forOfMoveNextInstruction.IteratorSlot, out var iteratorState) ||
+                            iteratorState is not ForOfState forOfState)
+                        {
+                            _programCounter = forOfMoveNextInstruction.BreakIndex;
+                            continue;
+                        }
+
+                        object? currentValue;
+                        if (forOfState.Iterator is JsObject iteratorObj)
+                        {
+                            var nextResult = InvokeIteratorNext(iteratorObj);
+                            if (nextResult is not JsObject resultObj)
+                            {
+                                _programCounter = forOfMoveNextInstruction.BreakIndex;
+                                continue;
+                            }
+
+                            var done = resultObj.TryGetProperty("done", out var doneValue) &&
+                                       doneValue is bool completed && completed;
+                            if (done)
+                            {
+                                _programCounter = forOfMoveNextInstruction.BreakIndex;
+                                continue;
+                            }
+
+                            currentValue = resultObj.TryGetProperty("value", out var yielded)
+                                ? yielded
+                                : JsSymbols.Undefined;
+                        }
+                        else if (forOfState.Enumerator is IEnumerator<object?> enumerator)
+                        {
+                            if (!enumerator.MoveNext())
+                            {
+                                _programCounter = forOfMoveNextInstruction.BreakIndex;
+                                continue;
+                            }
+
+                            currentValue = enumerator.Current;
+                        }
+                        else
+                        {
+                            _programCounter = forOfMoveNextInstruction.BreakIndex;
+                            continue;
+                        }
+
+                        StoreSymbolValue(environment, forOfMoveNextInstruction.ValueSlot, currentValue);
+                        _programCounter = forOfMoveNextInstruction.Next;
+                        continue;
 
                     case JumpInstruction jumpInstruction:
                         _programCounter = jumpInstruction.TargetIndex;
@@ -3868,6 +3984,24 @@ public static class TypedAstEvaluator
                         _programCounter = IsTruthy(testValue)
                             ? branchInstruction.ConsequentIndex
                             : branchInstruction.AlternateIndex;
+                        continue;
+
+                    case BreakInstruction breakInstruction:
+                        if (HandleAbruptCompletion(AbruptKind.Break, breakInstruction.TargetIndex, environment))
+                        {
+                            continue;
+                        }
+
+                        _programCounter = breakInstruction.TargetIndex;
+                        continue;
+
+                    case ContinueInstruction continueInstruction:
+                        if (HandleAbruptCompletion(AbruptKind.Continue, continueInstruction.TargetIndex, environment))
+                        {
+                            continue;
+                        }
+
+                        _programCounter = continueInstruction.TargetIndex;
                         continue;
 
                     case ReturnInstruction returnInstruction:
@@ -4181,7 +4315,9 @@ public static class TypedAstEvaluator
         {
             None,
             Return,
-            Throw
+            Throw,
+            Break,
+            Continue
         }
 
         private sealed class TryFrame
@@ -4211,6 +4347,18 @@ public static class TypedAstEvaluator
 
             public static PendingCompletion FromAbrupt(AbruptKind kind, object? value)
                 => new(kind, value, -1);
+        }
+
+        private sealed class ForOfState
+        {
+            public ForOfState(JsObject? iterator, IEnumerator<object?>? enumerator)
+            {
+                Iterator = iterator;
+                Enumerator = enumerator;
+            }
+
+            public JsObject? Iterator { get; }
+            public IEnumerator<object?>? Enumerator { get; }
         }
 
     }

@@ -1529,7 +1529,9 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
             if (Check(TokenType.Await))
             {
-                if (IsYieldOrAwaitUsedAsIdentifier())
+                // Outside of an async context, 'await' should behave like an identifier
+                // (script semantics). Only async functions may use await-expressions.
+                if (!InAsyncContext || IsYieldOrAwaitUsedAsIdentifier())
                 {
                     return ParsePostfix();
                 }

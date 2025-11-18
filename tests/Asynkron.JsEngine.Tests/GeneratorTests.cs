@@ -441,6 +441,160 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarThrowDeliversCleanupIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let log = [];
+            function* inner() {
+                try {
+                    yield 1;
+                    yield 2;
+                } finally {
+                    log.push("inner-finally");
+                    yield "inner-cleanup";
+                }
+            }
+            function* outer() {
+                try {
+                    yield* inner();
+                } finally {
+                    log.push("outer-finally");
+                    yield "outer-cleanup";
+                }
+            }
+            let g = outer();
+        """);
+
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("const innerCleanup = g.throw('boom');");
+        var innerCleanupValue = await engine.Evaluate("innerCleanup.value;");
+        var innerCleanupDone = await engine.Evaluate("innerCleanup.done;");
+
+        await engine.Evaluate("const outerCleanup = g.next();");
+        var outerCleanupValue = await engine.Evaluate("outerCleanup.value;");
+        var outerCleanupDone = await engine.Evaluate("outerCleanup.done;");
+
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
+        var logTranscript = await engine.Evaluate("log.join(',');");
+
+        Assert.Equal("inner-cleanup", innerCleanupValue);
+        Assert.False((bool)innerCleanupDone!);
+        Assert.Equal("outer-cleanup", outerCleanupValue);
+        Assert.False((bool)outerCleanupDone!);
+        Assert.Equal("boom", exception.ThrownValue);
+        Assert.Equal("inner-finally,outer-finally", logTranscript);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarReturnDeliversCleanupIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let returnLog = [];
+            function* inner() {
+                try {
+                    yield 1;
+                    yield 2;
+                } finally {
+                    returnLog.push("inner-finally");
+                    yield "inner-cleanup";
+                }
+            }
+            function* outer() {
+                try {
+                    yield* inner();
+                } finally {
+                    returnLog.push("outer-finally");
+                    yield "outer-cleanup";
+                }
+            }
+            let g = outer();
+        """);
+
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("const innerCleanup = g.return(99);");
+        var innerCleanupValue = await engine.Evaluate("innerCleanup.value;");
+        var innerCleanupDone = await engine.Evaluate("innerCleanup.done;");
+
+        await engine.Evaluate("const outerCleanup = g.next();");
+        var outerCleanupValue = await engine.Evaluate("outerCleanup.value;");
+        var outerCleanupDone = await engine.Evaluate("outerCleanup.done;");
+
+        await engine.Evaluate("const finalResult = g.next();");
+        var finalValue = await engine.Evaluate("finalResult.value;");
+        var finalDone = await engine.Evaluate("finalResult.done;");
+        var transcript = await engine.Evaluate("returnLog.join(',');");
+
+        Assert.Equal("inner-cleanup", innerCleanupValue);
+        Assert.False((bool)innerCleanupDone!);
+        Assert.Equal("outer-cleanup", outerCleanupValue);
+        Assert.False((bool)outerCleanupDone!);
+        Assert.Equal(99.0, finalValue);
+        Assert.True((bool)finalDone!);
+        Assert.Equal("inner-finally,outer-finally", transcript);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForAwaitFallsBackIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeAsync(values) {
+                return {
+                    [Symbol.asyncIterator]() {
+                        let index = 0;
+                        return {
+                            next() {
+                                if (index < values.length) {
+                                    const value = values[index++];
+                                    return { value, done: false };
+                                }
+                                return { value: undefined, done: true };
+                            }
+                        };
+                    }
+                };
+            }
+
+            let seen = [];
+            function* gen() {
+                for await (const value of makeAsync([3, 4])) {
+                    seen.push(value);
+                    yield value * 10;
+                }
+                return seen.join("-");
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        var firstDone = await engine.Evaluate("first.done;");
+
+        await engine.Evaluate("const second = g.next();");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+
+        await engine.Evaluate("const final = g.next();");
+        var finalValue = await engine.Evaluate("final.value;");
+        var finalDone = await engine.Evaluate("final.done;");
+        var seenTranscript = await engine.Evaluate("seen.join(',');");
+
+        Assert.Equal(30.0, firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal(40.0, secondValue);
+        Assert.False((bool)secondDone!);
+        Assert.Equal("3-4", finalValue);
+        Assert.True((bool)finalDone!);
+        Assert.Equal("3,4", seenTranscript);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_NextValueIsDeliveredToYield()
     {
         await using var engine = new JsEngine();
@@ -1131,6 +1285,95 @@ public class GeneratorTests
         Assert.False((bool)secondDone!);
         Assert.Equal(99.0, finalValue);
         Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_CatchFinallyNestedThrowIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let catchFinallyLog = [];
+            function* gen() {
+                try {
+                    yield 1;
+                } catch (err) {
+                    catchFinallyLog.push(`catch:${err}`);
+                    try {
+                        yield `body:${err}`;
+                    } finally {
+                        catchFinallyLog.push(`finally:${err}`);
+                        yield `cleanup:${err}`;
+                    }
+                }
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("const body = g.throw('boom');");
+        var bodyValue = await engine.Evaluate("body.value;");
+        var bodyDone = await engine.Evaluate("body.done;");
+
+        await engine.Evaluate("const cleanup = g.throw('override');");
+        var cleanupValue = await engine.Evaluate("cleanup.value;");
+        var cleanupDone = await engine.Evaluate("cleanup.done;");
+
+        var finalThrow = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
+        var transcript = await engine.Evaluate("catchFinallyLog.join(',');");
+
+        Assert.Equal("body:boom", bodyValue);
+        Assert.False((bool)bodyDone!);
+        Assert.Equal("cleanup:boom", cleanupValue);
+        Assert.False((bool)cleanupDone!);
+        Assert.Equal("override", finalThrow.ThrownValue);
+        Assert.Equal("catch:boom,finally:boom", transcript);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_CatchFinallyNestedReturnIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let catchFinallyReturnLog = [];
+            function* gen() {
+                try {
+                    yield 1;
+                } catch (err) {
+                    catchFinallyReturnLog.push(`catch:${err}`);
+                    try {
+                        yield `body:${err}`;
+                    } finally {
+                        catchFinallyReturnLog.push(`finally:${err}`);
+                        yield `cleanup:${err}`;
+                    }
+                }
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("const body = g.throw('boom');");
+        var bodyValue = await engine.Evaluate("body.value;");
+        var bodyDone = await engine.Evaluate("body.done;");
+
+        await engine.Evaluate("const cleanup = g.return(99);");
+        var cleanupValue = await engine.Evaluate("cleanup.value;");
+        var cleanupDone = await engine.Evaluate("cleanup.done;");
+
+        await engine.Evaluate("const finalResult = g.next();");
+        var finalValue = await engine.Evaluate("finalResult.value;");
+        var finalDone = await engine.Evaluate("finalResult.done;");
+        var transcript = await engine.Evaluate("catchFinallyReturnLog.join(',');");
+
+        Assert.Equal("body:boom", bodyValue);
+        Assert.False((bool)bodyDone!);
+        Assert.Equal("cleanup:boom", cleanupValue);
+        Assert.False((bool)cleanupDone!);
+        Assert.Equal(99.0, finalValue);
+        Assert.True((bool)finalDone!);
+        Assert.Equal("catch:boom,finally:boom", transcript);
     }
 
     [Fact(Timeout = 2000)]

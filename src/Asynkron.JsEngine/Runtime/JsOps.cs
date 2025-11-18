@@ -278,4 +278,186 @@ internal static class JsOps
     {
         return value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
     }
+
+    public static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
+    {
+        if (target is IJsPropertyAccessor propertyAccessor)
+        {
+            return propertyAccessor.TryGetProperty(propertyName, out value);
+        }
+
+        switch (target)
+        {
+            case double num:
+                var numberWrapper = StandardLibrary.CreateNumberWrapper(num);
+                if (numberWrapper.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+
+                break;
+            case string str:
+                if (propertyName == "length")
+                {
+                    value = (double)str.Length;
+                    return true;
+                }
+
+                if (int.TryParse(propertyName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) &&
+                    index >= 0 && index < str.Length)
+                {
+                    value = str[index].ToString();
+                    return true;
+                }
+
+                var stringWrapper = StandardLibrary.CreateStringWrapper(str);
+                if (stringWrapper.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+
+                break;
+        }
+
+        value = null;
+        return false;
+    }
+
+    public static bool TryGetPropertyValue(object? target, object? propertyKey, out object? value)
+    {
+        if (TryGetArrayLikeValue(target, propertyKey, out value))
+        {
+            return true;
+        }
+
+        var propertyName = ToPropertyName(propertyKey);
+        if (propertyName is null)
+        {
+            value = Symbols.Undefined;
+            return true;
+        }
+
+        return TryGetPropertyValue(target, propertyName, out value);
+    }
+
+    private static bool TryGetArrayLikeValue(object? target, object? propertyKey, out object? value)
+    {
+        if (target is JsArray jsArray && TryResolveArrayIndex(propertyKey, out var arrayIndex))
+        {
+            value = jsArray.GetElement(arrayIndex);
+            return true;
+        }
+
+        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex))
+        {
+            value = typedIndex >= 0 && typedIndex < typedArray.Length
+                ? typedArray.GetElement(typedIndex)
+                : Symbols.Undefined;
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    public static void AssignPropertyValue(object? target, object? propertyKey, object? value)
+    {
+        if (TryAssignArrayLikeValue(target, propertyKey, value))
+        {
+            return;
+        }
+
+        var propertyName = ToPropertyName(propertyKey)
+                           ?? throw new InvalidOperationException("Property name cannot be null.");
+
+        AssignPropertyValueByName(target, propertyName, value);
+    }
+
+    public static void AssignPropertyValueByName(object? target, string propertyName, object? value)
+    {
+        if (target is IJsPropertyAccessor accessor)
+        {
+            accessor.SetProperty(propertyName, value);
+            return;
+        }
+
+        throw new InvalidOperationException($"Cannot assign property '{propertyName}' on value '{target}'.");
+    }
+
+    private static bool TryAssignArrayLikeValue(object? target, object? propertyKey, object? value)
+    {
+        if (target is JsArray jsArray && TryResolveArrayIndex(propertyKey, out var index))
+        {
+            jsArray.SetElement(index, value);
+            return true;
+        }
+
+        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex))
+        {
+            if (typedIndex < 0 || typedIndex >= typedArray.Length)
+            {
+                return true;
+            }
+
+            var numericValue = value switch
+            {
+                double d => d,
+                int i => i,
+                long l => l,
+                float f => f,
+                bool b => b ? 1.0 : 0.0,
+                null => 0.0,
+                _ => 0.0
+            };
+
+            typedArray.SetElement(typedIndex, numericValue);
+            return true;
+        }
+
+        return false;
+    }
+
+    public static bool DeletePropertyValue(object? target, object? propertyKey)
+    {
+        if (target is JsArray jsArray)
+        {
+            if (TryResolveArrayIndex(propertyKey, out var arrayIndex))
+            {
+                return jsArray.DeleteElement(arrayIndex);
+            }
+
+            var propertyName = ToPropertyName(propertyKey);
+            return propertyName is null || jsArray.DeleteProperty(propertyName);
+        }
+
+        if (target is TypedArrayBase typedArray)
+        {
+            if (TryResolveArrayIndex(propertyKey, out _))
+            {
+                return false;
+            }
+
+            var propertyName = ToPropertyName(propertyKey);
+            return propertyName is null || typedArray.DeleteProperty(propertyName);
+        }
+
+        var resolvedName = ToPropertyName(propertyKey);
+        if (resolvedName is null)
+        {
+            return true;
+        }
+
+        if (target is JsObject jsObject)
+        {
+            if (!jsObject.ContainsKey(resolvedName))
+            {
+                return true;
+            }
+
+            return jsObject.Remove(resolvedName);
+        }
+
+        // Deleting primitives or other non-object values is a no-op that succeeds
+        return true;
+    }
 }

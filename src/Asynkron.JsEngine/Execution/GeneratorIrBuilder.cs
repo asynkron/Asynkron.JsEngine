@@ -348,15 +348,6 @@ internal sealed class GeneratorIrBuilder
             return false;
         }
 
-        // Nested try/finally inside a finally block has subtle completion ordering.
-        // Until the IR interpreter models that fully, we fall back to the replay
-        // engine for such shapes to preserve correct semantics.
-        if (hasFinally && statement.Finally is not null && ContainsTryStatement(statement.Finally))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
         var instructionStart = _instructions.Count;
         var exitIndex = nextIndex;
 

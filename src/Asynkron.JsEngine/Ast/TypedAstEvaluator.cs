@@ -24,6 +24,8 @@ public static class TypedAstEvaluator
     private static readonly Symbol YieldResumeContextSymbol = Symbol.Intern("__yieldResume__");
     private static readonly string IteratorSymbolPropertyName =
         $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
+    private const string GeneratorBrandPropertyName = "__generator_brand__";
+    private static readonly object GeneratorBrandMarker = new();
     public static object? EvaluateProgram(ProgramNode program, JsEnvironment environment)
     {
         var context = new EvaluationContext { SourceReference = program.Source };
@@ -553,20 +555,17 @@ public static class TypedAstEvaluator
         return callable.Invoke(args, iterator);
     }
 
-    private static JsObject? InvokeIteratorMethod(JsObject iterator, string methodName, object? argument)
+    private static bool TryInvokeIteratorMethod(JsObject iterator, string methodName, object? argument,
+        out object? result)
     {
-        if (!iterator.TryGetProperty(methodName, out var methodValue))
+        result = null;
+        if (!iterator.TryGetProperty(methodName, out var methodValue) || methodValue is not IJsCallable callable)
         {
-            return null;
+            return false;
         }
 
-        if (methodValue is not IJsCallable callable)
-        {
-            return null;
-        }
-
-        var result = callable.Invoke([argument], iterator);
-        return result as JsObject;
+        result = callable.Invoke([argument], iterator);
+        return true;
     }
 
     private static bool IsPromiseLike(object? candidate)
@@ -1220,7 +1219,14 @@ public static class TypedAstEvaluator
             var iteratorResult = state.MoveNext(pendingSend,
                 hasPendingSend && !pendingThrow && !pendingReturn,
                 pendingThrow,
-                pendingReturn);
+                pendingReturn,
+                context,
+                out var awaitedPromise);
+
+            if (awaitedPromise && context.IsThrow)
+            {
+                return JsSymbols.Undefined;
+            }
             pendingSend = null;
             hasPendingSend = false;
             pendingThrow = false;
@@ -3507,58 +3513,93 @@ public static class TypedAstEvaluator
     {
         private readonly JsObject? _iterator;
         private readonly IEnumerator<object?>? _enumerator;
+        private readonly bool _isGeneratorObject;
 
-        private DelegatedYieldState(JsObject? iterator, IEnumerator<object?>? enumerator)
+        private DelegatedYieldState(JsObject? iterator, IEnumerator<object?>? enumerator, bool isGeneratorObject)
         {
             _iterator = iterator;
             _enumerator = enumerator;
+            _isGeneratorObject = isGeneratorObject;
         }
 
         public static DelegatedYieldState FromIterator(JsObject iterator)
         {
-            return new DelegatedYieldState(iterator, null);
+            return new DelegatedYieldState(iterator, null, IsGeneratorObject(iterator));
         }
 
         public static DelegatedYieldState FromEnumerable(IEnumerable<object?> enumerable)
         {
-            return new DelegatedYieldState(null, enumerable.GetEnumerator());
+            return new DelegatedYieldState(null, enumerable.GetEnumerator(), false);
         }
 
         public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow) MoveNext(
             object? sendValue,
             bool hasSendValue,
             bool propagateThrow,
-            bool propagateReturn)
+            bool propagateReturn,
+            EvaluationContext context,
+            out bool awaitedPromise)
         {
+            awaitedPromise = false;
             if (_iterator is not null)
             {
                 JsObject? nextResult;
+                object? candidate = null;
+                var methodInvoked = false;
                 if (propagateThrow)
                 {
-                    nextResult = InvokeIteratorMethod(_iterator, "throw", sendValue ?? JsSymbols.Undefined);
+                    methodInvoked = TryInvokeIteratorMethod(_iterator, "throw", sendValue ?? JsSymbols.Undefined,
+                        out candidate);
                 }
                 else if (propagateReturn)
                 {
-                    nextResult = InvokeIteratorMethod(_iterator, "return", sendValue ?? JsSymbols.Undefined);
+                    methodInvoked = TryInvokeIteratorMethod(_iterator, "return", sendValue ?? JsSymbols.Undefined,
+                        out candidate);
                 }
                 else
                 {
-                    var raw = InvokeIteratorNext(_iterator, sendValue, hasSendValue);
-                    nextResult = raw as JsObject;
+                    candidate = InvokeIteratorNext(_iterator, sendValue, hasSendValue);
                 }
 
-                if (nextResult is null)
+                if (!methodInvoked && candidate is null)
                 {
                     return (JsSymbols.Undefined, true, propagateThrow, propagateThrow);
                 }
+
+                if (methodInvoked && candidate is null)
+                {
+                    throw new ThrowSignal("Iterator result is not an object.");
+                }
+
+                var nextCandidate = candidate ?? throw new InvalidOperationException("Iterator result missing.");
+                object? awaitedCandidate;
+                if (nextCandidate is JsObject promiseCandidate && IsPromiseLike(promiseCandidate))
+                {
+                    awaitedPromise = true;
+                    if (!TryAwaitPromise(promiseCandidate, context, out awaitedCandidate))
+                    {
+                        return (JsSymbols.Undefined, true, true, propagateThrow);
+                    }
+                }
+                else
+                {
+                    awaitedCandidate = nextCandidate;
+                }
+
+                if (awaitedCandidate is not JsObject resolvedObject)
+                {
+                    throw new ThrowSignal("Iterator result is not an object.");
+                }
+
+                nextResult = resolvedObject;
 
                 var done = nextResult.TryGetProperty("done", out var doneValue) &&
                            doneValue is bool completed && completed;
                 var value = nextResult.TryGetProperty("value", out var yielded)
                     ? yielded
                     : JsSymbols.Undefined;
-                var delegatedCompletion = (propagateThrow || propagateReturn) && done;
-                var propagateThrowResult = propagateThrow && done;
+                var delegatedCompletion = _isGeneratorObject && (propagateThrow || propagateReturn);
+                var propagateThrowResult = _isGeneratorObject && propagateThrow && done;
                 return (value, done, delegatedCompletion, propagateThrowResult);
             }
 
@@ -3588,6 +3629,12 @@ public static class TypedAstEvaluator
             }
 
             return (_enumerator.Current, false, false, false);
+        }
+
+        private static bool IsGeneratorObject(JsObject iterator)
+        {
+            return iterator.TryGetProperty(GeneratorBrandPropertyName, out var brand) &&
+                   ReferenceEquals(brand, GeneratorBrandMarker);
         }
     }
 
@@ -3667,6 +3714,7 @@ public static class TypedAstEvaluator
             iterator.SetProperty("throw",
                 new HostFunction((_, args) => Throw(args.Count > 0 ? args[0] : null)));
             iterator.SetProperty(IteratorSymbolPropertyName, new HostFunction((_, _) => iterator));
+            iterator.SetProperty(GeneratorBrandPropertyName, GeneratorBrandMarker);
             return iterator;
         }
 
@@ -3960,7 +4008,9 @@ public static class TypedAstEvaluator
                                 sendValue,
                                 hasSendValue,
                                 propagateThrow,
-                                propagateReturn);
+                                propagateReturn,
+                                context,
+                                out var awaitedPromise);
 
                             if (iteratorResult.IsDelegatedCompletion)
                             {

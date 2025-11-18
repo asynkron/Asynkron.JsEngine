@@ -636,6 +636,417 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarThrowRequiresIteratorResultObjectIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                return { value: "initial", done: false };
+                            },
+                            throw(err) {
+                                return "not-an-object";
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                yield* makeIterator();
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("g.next();");
+        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.throw('boom');"));
+        Assert.Equal("Iterator result is not an object.", signal.ThrownValue);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarReturnRequiresIteratorResultObjectIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                return { value: "initial", done: false };
+                            },
+                            return(value) {
+                                return 42;
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                yield* makeIterator();
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("g.next();");
+        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.return('done');"));
+        Assert.Equal("Iterator result is not an object.", signal.ThrownValue);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarThrowRequiresIteratorResultObjectInterpreter()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                return { value: "initial", done: false };
+                            },
+                            throw(err) {
+                                return "not-an-object";
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                if (false) {
+                    yield "never";
+                }
+                yield* makeIterator();
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("g.next();");
+        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.throw('boom');"));
+        Assert.Equal("Iterator result is not an object.", signal.ThrownValue);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarReturnRequiresIteratorResultObjectInterpreter()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                return { value: "initial", done: false };
+                            },
+                            return(value) {
+                                return 42;
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                if (false) {
+                    yield "never";
+                }
+                yield* makeIterator();
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("g.next();");
+        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.return('done');"));
+        Assert.Equal("Iterator result is not an object.", signal.ThrownValue);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarThrowAwaitedPromiseIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                let index = 0;
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                if (index++ === 0) {
+                                    return { value: "initial", done: false };
+                                }
+                                return { value: "done", done: true };
+                            },
+                            throw(err) {
+                                return Promise.resolve({ value: `handled:${err}`, done: false });
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                yield* makeIterator();
+                yield "after";
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        Assert.Equal("initial", firstValue);
+
+        await engine.Evaluate("const second = g.throw('boom');");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+        Assert.Equal("handled:boom", secondValue);
+        Assert.False((bool)secondDone!);
+
+        await engine.Evaluate("const third = g.next();");
+        var thirdValue = await engine.Evaluate("third.value;");
+        Assert.Equal("after", thirdValue);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarThrowAwaitedPromiseInterpreter()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                let index = 0;
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                if (index++ === 0) {
+                                    return { value: "initial", done: false };
+                                }
+                                return { value: "done", done: true };
+                            },
+                            throw(err) {
+                                return Promise.resolve({ value: `handled:${err}`, done: false });
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                if (false) {
+                    yield "never";
+                }
+                yield* makeIterator();
+                yield "after";
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        Assert.Equal("initial", firstValue);
+
+        await engine.Evaluate("const second = g.throw('boom');");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+        Assert.Equal("handled:boom", secondValue);
+        Assert.False((bool)secondDone!);
+
+        await engine.Evaluate("const third = g.next();");
+        var thirdValue = await engine.Evaluate("third.value;");
+        Assert.Equal("after", thirdValue);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarThrowPromiseRejectsIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                return { value: "initial", done: false };
+                            },
+                            throw(err) {
+                                return Promise.reject(`reject:${err}`);
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                yield* makeIterator();
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("g.next();");
+        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.throw('boom');"));
+        Assert.Equal("reject:boom", signal.ThrownValue);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarThrowPromiseRejectsInterpreter()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                return { value: "initial", done: false };
+                            },
+                            throw(err) {
+                                return Promise.reject(`reject:${err}`);
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                if (false) {
+                    yield "never";
+                }
+                yield* makeIterator();
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("g.next();");
+        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.throw('boom');"));
+        Assert.Equal("reject:boom", signal.ThrownValue);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarReturnAwaitedPromiseIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                let closed = false;
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                if (closed) {
+                                    return { value: "finished", done: true };
+                                }
+                                return { value: 1, done: false };
+                            },
+                            return(value) {
+                                closed = true;
+                                return Promise.resolve({ value: value + 100, done: true });
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                const result = yield* makeIterator();
+                return `result:${result}`;
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        Assert.Equal(1.0, firstValue);
+
+        await engine.Evaluate("const second = g.return(5);");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+        Assert.Equal(105.0, secondValue);
+        Assert.True((bool)secondDone!);
+
+        await engine.Evaluate("const final = g.next();");
+        var finalValue = await engine.Evaluate("final.value;");
+        var finalDone = await engine.Evaluate("final.done;");
+        Assert.Equal("result:finished", finalValue);
+        Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarReturnAwaitedPromiseInterpreter()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                let closed = false;
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                if (closed) {
+                                    return { value: "finished", done: true };
+                                }
+                                return { value: 1, done: false };
+                            },
+                            return(value) {
+                                closed = true;
+                                return Promise.resolve({ value: value + 100, done: true });
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                if (false) {
+                    yield "never";
+                }
+                const result = yield* makeIterator();
+                return `result:${result}`;
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        Assert.Equal(1.0, firstValue);
+
+        await engine.Evaluate("const second = g.return(5);");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+        Assert.Equal(105.0, secondValue);
+        Assert.True((bool)secondDone!);
+
+        await engine.Evaluate("const final = g.next();");
+        var finalValue = await engine.Evaluate("final.value;");
+        var finalDone = await engine.Evaluate("final.done;");
+        Assert.Equal("result:finished", finalValue);
+        Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarReturnDoneFalseContinuesIr()
     {
         await using var engine = new JsEngine();

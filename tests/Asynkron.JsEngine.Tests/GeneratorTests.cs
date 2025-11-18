@@ -856,6 +856,95 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_TryCatchHandlesThrowIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                try {
+                    yield 1;
+                    yield 2;
+                } catch (err) {
+                    yield err + 1;
+                }
+            }
+            let g = gen();
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.throw(5).value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(1.0, first);
+        Assert.Equal(6.0, second);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_TryFinallyRunsOnReturnIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* cleanup() {
+                try {
+                    yield 1;
+                } finally {
+                    yield 2;
+                }
+            }
+            let g = cleanup();
+        """);
+
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("let closeResult = g.return(42);");
+        var closeValue = await engine.Evaluate("closeResult.value;");
+        var closeDone = await engine.Evaluate("closeResult.done;");
+
+        await engine.Evaluate("let finalResult = g.next();");
+        var finalValue = await engine.Evaluate("finalResult.value;");
+        var finalDone = await engine.Evaluate("finalResult.done;");
+
+        Assert.Equal(2.0, closeValue);
+        Assert.False((bool)closeDone!);
+        Assert.Equal(42.0, finalValue);
+        Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_TryFinallyRunsOnThrowIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let flag = 0;
+            function* gen() {
+                try {
+                    yield 1;
+                } finally {
+                    flag = 1;
+                    yield 2;
+                }
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("let throwResult = g.throw('boom');");
+        var cleanupValue = await engine.Evaluate("throwResult.value;");
+        var cleanupDone = await engine.Evaluate("throwResult.done;");
+
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
+        var flagValue = await engine.Evaluate("flag;");
+
+        Assert.Equal(2.0, cleanupValue);
+        Assert.False((bool)cleanupDone!);
+        Assert.Equal("boom", exception.ThrownValue);
+        Assert.Equal(1.0, flagValue);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_DoWhileLoopsExecuteWithIrPlan()
     {
         await using var engine = new JsEngine();

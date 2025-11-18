@@ -49,3 +49,19 @@ internal sealed record JumpInstruction(int TargetIndex) : GeneratorInstruction(T
 /// Stores the most recent <c>.next(value)</c> payload into a synthetic slot (or discards it) before execution continues.
 /// </summary>
 internal sealed record StoreResumeValueInstruction(int Next, Symbol? TargetSymbol) : GeneratorInstruction(Next);
+
+/// <summary>
+/// Marks the beginning of a <c>try</c> region.
+/// </summary>
+internal sealed record EnterTryInstruction(int Next, int HandlerIndex, Symbol? CatchSlotSymbol, int FinallyIndex)
+    : GeneratorInstruction(Next);
+
+/// <summary>
+/// Marks normal completion of a <c>try</c> or <c>catch</c> block.
+/// </summary>
+internal sealed record LeaveTryInstruction(int Next) : GeneratorInstruction(Next);
+
+/// <summary>
+/// Marks the end of a <c>finally</c> block so pending completions can resume.
+/// </summary>
+internal sealed record EndFinallyInstruction(int Next) : GeneratorInstruction(Next);

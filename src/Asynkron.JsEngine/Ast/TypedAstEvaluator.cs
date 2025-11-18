@@ -3563,6 +3563,7 @@ public static class TypedAstEvaluator
         private int _programCounter;
         private object? _pendingResumeValue = JsSymbols.Undefined;
         private ResumePayloadKind _pendingResumeKind;
+        private readonly Stack<TryFrame> _tryStack = new();
 
         public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
             IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
@@ -3705,6 +3706,12 @@ public static class TypedAstEvaluator
                         {
                             var thrown = context.FlowValue;
                             context.Clear();
+                            if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                            {
+                                continue;
+                            }
+
+                            _tryStack.Clear();
                             throw new ThrowSignal(thrown);
                         }
 
@@ -3712,10 +3719,12 @@ public static class TypedAstEvaluator
                         {
                             var returnSignalValue = context.FlowValue;
                             context.ClearReturn();
-                        _programCounter = -1;
-                        _state = GeneratorState.Completed;
-                        _done = true;
-                        return CreateIteratorResult(returnSignalValue, true);
+                            if (HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
+                            {
+                                continue;
+                            }
+
+                            return CompleteReturn(returnSignalValue);
                         }
 
                         _programCounter = statementInstruction.Next;
@@ -3730,6 +3739,12 @@ public static class TypedAstEvaluator
                             {
                                 var thrown = context.FlowValue;
                                 context.Clear();
+                                if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                                {
+                                    continue;
+                                }
+
+                                _tryStack.Clear();
                                 throw new ThrowSignal(thrown);
                             }
                         }
@@ -3764,8 +3779,12 @@ public static class TypedAstEvaluator
                         {
                             var thrownPayload = context.FlowValue;
                             context.Clear();
-                            _state = GeneratorState.Completed;
-                            _done = true;
+                            if (HandleAbruptCompletion(AbruptKind.Throw, thrownPayload, environment))
+                            {
+                                continue;
+                            }
+
+                            _tryStack.Clear();
                             throw new ThrowSignal(thrownPayload);
                         }
 
@@ -3773,14 +3792,59 @@ public static class TypedAstEvaluator
                         {
                             var resumeReturnValue = context.FlowValue;
                             context.ClearReturn();
-                            _programCounter = -1;
-                            _state = GeneratorState.Completed;
-                            _done = true;
-                            return CreateIteratorResult(resumeReturnValue, true);
+                            if (HandleAbruptCompletion(AbruptKind.Return, resumeReturnValue, environment))
+                            {
+                                continue;
+                            }
+
+                            return CompleteReturn(resumeReturnValue);
                         }
 
                         _programCounter = storeResumeValueInstruction.Next;
                         continue;
+
+                    case EnterTryInstruction enterTryInstruction:
+                        PushTryFrame(enterTryInstruction, environment);
+                        _programCounter = enterTryInstruction.Next;
+                        continue;
+
+                    case LeaveTryInstruction leaveTryInstruction:
+                        CompleteTryNormally(leaveTryInstruction.Next);
+                        continue;
+
+                    case EndFinallyInstruction endFinallyInstruction:
+                        if (_tryStack.Count == 0)
+                        {
+                            _programCounter = endFinallyInstruction.Next;
+                            continue;
+                        }
+
+                        var completedFrame = _tryStack.Pop();
+                        var pending = completedFrame.PendingCompletion;
+                        if (pending.Kind == AbruptKind.None)
+                        {
+                            var target = pending.ResumeTarget >= 0 ? pending.ResumeTarget : endFinallyInstruction.Next;
+                            _programCounter = target;
+                            continue;
+                        }
+
+                        if (pending.Kind == AbruptKind.Return)
+                        {
+                            if (HandleAbruptCompletion(AbruptKind.Return, pending.Value, environment))
+                            {
+                                continue;
+                            }
+
+                            return CompleteReturn(pending.Value);
+                        }
+
+                        if (HandleAbruptCompletion(AbruptKind.Throw, pending.Value, environment))
+                        {
+                            continue;
+                        }
+
+                        _tryStack.Clear();
+                        throw new ThrowSignal(pending.Value);
 
                     case JumpInstruction jumpInstruction:
                         _programCounter = jumpInstruction.TargetIndex;
@@ -3792,6 +3856,12 @@ public static class TypedAstEvaluator
                         {
                             var thrownBranch = context.FlowValue;
                             context.Clear();
+                            if (HandleAbruptCompletion(AbruptKind.Throw, thrownBranch, environment))
+                            {
+                                continue;
+                            }
+
+                            _tryStack.Clear();
                             throw new ThrowSignal(thrownBranch);
                         }
 
@@ -3801,10 +3871,19 @@ public static class TypedAstEvaluator
                         continue;
 
                     case ReturnInstruction returnInstruction:
+                        var returnValue = returnInstruction.ReturnExpression is null
+                            ? JsSymbols.Undefined
+                            : EvaluateExpression(returnInstruction.ReturnExpression, environment, context);
                         if (context.IsThrow)
                         {
                             var pendingThrow = context.FlowValue;
                             context.Clear();
+                            if (HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
+                            {
+                                continue;
+                            }
+
+                            _tryStack.Clear();
                             throw new ThrowSignal(pendingThrow);
                         }
 
@@ -3812,18 +3891,18 @@ public static class TypedAstEvaluator
                         {
                             var pendingReturn = context.FlowValue;
                             context.ClearReturn();
-                            _programCounter = -1;
-                            _state = GeneratorState.Completed;
-                            _done = true;
-                            return CreateIteratorResult(pendingReturn, true);
+                            returnValue = pendingReturn;
                         }
 
-                        var returnValue = returnInstruction.ReturnExpression is null
-                            ? JsSymbols.Undefined
-                            : EvaluateExpression(returnInstruction.ReturnExpression, environment, context);
+                        if (HandleAbruptCompletion(AbruptKind.Return, returnValue, environment))
+                        {
+                            continue;
+                        }
+
                         _programCounter = -1;
                         _state = GeneratorState.Completed;
                         _done = true;
+                        _tryStack.Clear();
                         return CreateIteratorResult(returnValue, true);
 
                     default:
@@ -3833,6 +3912,7 @@ public static class TypedAstEvaluator
 
             _state = GeneratorState.Completed;
             _done = true;
+            _tryStack.Clear();
             return CreateIteratorResult(JsSymbols.Undefined, true);
         }
 
@@ -3995,6 +4075,85 @@ public static class TypedAstEvaluator
             return (kind, value);
         }
 
+        private void PushTryFrame(EnterTryInstruction instruction, JsEnvironment environment)
+        {
+            var frame = new TryFrame(instruction.HandlerIndex, instruction.CatchSlotSymbol, instruction.FinallyIndex);
+            if (instruction.CatchSlotSymbol is { } slot && !environment.TryGet(slot, out _))
+            {
+                environment.Define(slot, JsSymbols.Undefined);
+            }
+
+            _tryStack.Push(frame);
+        }
+
+        private void CompleteTryNormally(int resumeTarget)
+        {
+            if (_tryStack.Count == 0)
+            {
+                _programCounter = resumeTarget;
+                return;
+            }
+
+            var frame = _tryStack.Peek();
+            if (frame.FinallyIndex >= 0 && !frame.FinallyScheduled)
+            {
+                frame.FinallyScheduled = true;
+                frame.PendingCompletion = PendingCompletion.FromNormal(resumeTarget);
+                _programCounter = frame.FinallyIndex;
+                return;
+            }
+
+            _tryStack.Pop();
+            _programCounter = resumeTarget;
+        }
+
+        private bool HandleAbruptCompletion(AbruptKind kind, object? value, JsEnvironment environment)
+        {
+            while (_tryStack.Count > 0)
+            {
+                var frame = _tryStack.Peek();
+                if (kind == AbruptKind.Throw && frame.HandlerIndex >= 0 && !frame.CatchUsed)
+                {
+                    frame.CatchUsed = true;
+                    if (frame.CatchSlotSymbol is { } slot)
+                    {
+                        if (environment.TryGet(slot, out _))
+                        {
+                            environment.Assign(slot, value);
+                        }
+                        else
+                        {
+                            environment.Define(slot, value);
+                        }
+                    }
+
+                    _programCounter = frame.HandlerIndex;
+                    return true;
+                }
+
+                if (frame.FinallyIndex >= 0 && !frame.FinallyScheduled)
+                {
+                    frame.FinallyScheduled = true;
+                    frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
+                    _programCounter = frame.FinallyIndex;
+                    return true;
+                }
+
+                _tryStack.Pop();
+            }
+
+            return false;
+        }
+
+        private object? CompleteReturn(object? value)
+        {
+            _programCounter = -1;
+            _state = GeneratorState.Completed;
+            _done = true;
+            _tryStack.Clear();
+            return CreateIteratorResult(value, true);
+        }
+
         private enum ResumeMode
         {
             Next,
@@ -4016,6 +4175,42 @@ public static class TypedAstEvaluator
             Value,
             Throw,
             Return
+        }
+
+        private enum AbruptKind
+        {
+            None,
+            Return,
+            Throw
+        }
+
+        private sealed class TryFrame
+        {
+            public TryFrame(int handlerIndex, Symbol? catchSlotSymbol, int finallyIndex)
+            {
+                HandlerIndex = handlerIndex;
+                CatchSlotSymbol = catchSlotSymbol;
+                FinallyIndex = finallyIndex;
+                PendingCompletion = PendingCompletion.None;
+            }
+
+            public int HandlerIndex { get; }
+            public Symbol? CatchSlotSymbol { get; }
+            public int FinallyIndex { get; }
+            public bool CatchUsed { get; set; }
+            public bool FinallyScheduled { get; set; }
+            public PendingCompletion PendingCompletion { get; set; }
+        }
+
+        private readonly record struct PendingCompletion(AbruptKind Kind, object? Value, int ResumeTarget)
+        {
+            public static PendingCompletion None { get; } = new(AbruptKind.None, null, -1);
+
+            public static PendingCompletion FromNormal(int resumeTarget)
+                => new(AbruptKind.None, null, resumeTarget);
+
+            public static PendingCompletion FromAbrupt(AbruptKind kind, object? value)
+                => new(kind, value, -1);
         }
 
     }

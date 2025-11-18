@@ -15,7 +15,9 @@ internal sealed class GeneratorIrBuilder
     private readonly List<GeneratorInstruction> _instructions = new();
     private readonly Stack<LoopScope> _loopScopes = new();
     private int _resumeSlotCounter;
+    private int _catchSlotCounter;
     private const string ResumeSlotPrefix = "\u0001_resume";
+    private const string CatchSlotPrefix = "\u0001_catch";
     private static readonly LiteralExpression TrueLiteralExpression = new(null, true);
 
     private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget);
@@ -119,6 +121,9 @@ internal sealed class GeneratorIrBuilder
 
             case ForStatement forStatement:
                 return TryBuildForStatement(forStatement, nextIndex, out entryIndex, activeLabel);
+
+            case TryStatement tryStatement:
+                return TryBuildTryStatement(tryStatement, nextIndex, out entryIndex, activeLabel);
 
             case ReturnStatement returnStatement:
                 if (returnStatement.Expression is not null && ContainsYield(returnStatement.Expression))
@@ -261,6 +266,60 @@ internal sealed class GeneratorIrBuilder
         return true;
     }
 
+    private bool TryBuildTryStatement(TryStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
+    {
+        var hasCatch = statement.Catch is not null;
+        var hasFinally = statement.Finally is not null;
+        if (!hasCatch && !hasFinally)
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var instructionStart = _instructions.Count;
+        var exitIndex = nextIndex;
+
+        int finallyEntry = -1;
+        if (hasFinally && statement.Finally is not null)
+        {
+            var endFinallyIndex = Append(new EndFinallyInstruction(exitIndex));
+            if (!TryBuildStatement(statement.Finally, endFinallyIndex, out finallyEntry, activeLabel))
+            {
+                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+                entryIndex = -1;
+                return false;
+            }
+        }
+
+        var leaveNext = hasFinally ? finallyEntry : exitIndex;
+        var leaveTryIndex = Append(new LeaveTryInstruction(leaveNext));
+
+        int catchEntry = -1;
+        Symbol? catchSlotSymbol = null;
+        if (hasCatch && statement.Catch is not null)
+        {
+            catchSlotSymbol = CreateCatchSlotSymbol();
+            var catchBlock = BuildCatchBlock(statement.Catch, catchSlotSymbol);
+            if (!TryBuildStatement(catchBlock, leaveTryIndex, out catchEntry, activeLabel))
+            {
+                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+                entryIndex = -1;
+                return false;
+            }
+        }
+
+        if (!TryBuildStatement(statement.TryBlock, leaveTryIndex, out var tryEntry, activeLabel))
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        var enterTryIndex = Append(new EnterTryInstruction(tryEntry, catchEntry, catchSlotSymbol, finallyEntry));
+        entryIndex = enterTryIndex;
+        return true;
+    }
+
     private bool TryBuildBreak(BreakStatement statement, out int entryIndex)
     {
         if (!TryResolveBreakTarget(statement.Label, out var target))
@@ -376,10 +435,34 @@ internal sealed class GeneratorIrBuilder
         return Symbol.Intern(symbolName);
     }
 
+    private Symbol CreateCatchSlotSymbol()
+    {
+        var symbolName = $"{CatchSlotPrefix}{_catchSlotCounter++}";
+        return Symbol.Intern(symbolName);
+    }
+
     private int AppendYieldSequence(ExpressionNode? expression, int continuationIndex, Symbol? resumeSlot)
     {
         var storeIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
         return Append(new YieldInstruction(storeIndex, expression));
+    }
+
+    private static BlockStatement BuildCatchBlock(CatchClause clause, Symbol catchSlotSymbol)
+    {
+        var declarator = new VariableDeclarator(
+            clause.Source,
+            new IdentifierBinding(clause.Source, clause.Binding),
+            new IdentifierExpression(clause.Source, catchSlotSymbol));
+        var declaration = new VariableDeclaration(
+            clause.Source,
+            VariableKind.Let,
+            ImmutableArray.Create(declarator));
+
+        var builder = ImmutableArray.CreateBuilder<StatementNode>();
+        builder.Add(declaration);
+        builder.AddRange(clause.Body.Statements);
+
+        return clause.Body with { Statements = builder.ToImmutableArray() };
     }
 
     private bool TryResolveBreakTarget(Symbol? label, out int target)

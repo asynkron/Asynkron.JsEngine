@@ -348,6 +348,15 @@ internal sealed class GeneratorIrBuilder
             return false;
         }
 
+        // Nested try/finally inside a finally block has subtle completion ordering.
+        // Until the IR interpreter models that fully, we fall back to the replay
+        // engine for such shapes to preserve correct semantics.
+        if (hasFinally && statement.Finally is not null && ContainsTryStatement(statement.Finally))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
         var instructionStart = _instructions.Count;
         var exitIndex = nextIndex;
 
@@ -363,7 +372,7 @@ internal sealed class GeneratorIrBuilder
             }
         }
 
-        var leaveNext = hasFinally ? finallyEntry : exitIndex;
+        var leaveNext = exitIndex;
         var leaveTryIndex = Append(new LeaveTryInstruction(leaveNext));
 
         int catchEntry = -1;
@@ -390,6 +399,59 @@ internal sealed class GeneratorIrBuilder
         var enterTryIndex = Append(new EnterTryInstruction(tryEntry, catchEntry, catchSlotSymbol, finallyEntry));
         entryIndex = enterTryIndex;
         return true;
+    }
+
+    private static bool ContainsTryStatement(StatementNode statement)
+    {
+        switch (statement)
+        {
+            case TryStatement:
+                return true;
+            case BlockStatement block:
+                foreach (var s in block.Statements)
+                {
+                    if (ContainsTryStatement(s))
+                    {
+                        return true;
+                    }
+                }
+
+                break;
+            case IfStatement ifStatement:
+                if (ContainsTryStatement(ifStatement.Then))
+                {
+                    return true;
+                }
+
+                if (ifStatement.Else is not null && ContainsTryStatement(ifStatement.Else))
+                {
+                    return true;
+                }
+
+                break;
+            case WhileStatement whileStatement:
+                return ContainsTryStatement(whileStatement.Body);
+            case DoWhileStatement doWhileStatement:
+                return ContainsTryStatement(doWhileStatement.Body);
+            case ForStatement forStatement:
+                return ContainsTryStatement(forStatement.Body);
+            case ForEachStatement forEachStatement:
+                return ContainsTryStatement(forEachStatement.Body);
+            case LabeledStatement labeledStatement:
+                return ContainsTryStatement(labeledStatement.Statement);
+            case SwitchStatement switchStatement:
+                foreach (var c in switchStatement.Cases)
+                {
+                    if (ContainsTryStatement(c.Body))
+                    {
+                        return true;
+                    }
+                }
+
+                break;
+        }
+
+        return false;
     }
 
     private bool TryBuildForOfStatement(ForEachStatement statement, int nextIndex, out int entryIndex, Symbol? label)

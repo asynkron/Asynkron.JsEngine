@@ -4163,6 +4163,7 @@ public static class TypedAstEvaluator
 
                         var completedFrame = _tryStack.Pop();
                         var pending = completedFrame.PendingCompletion;
+                        // Console.WriteLine($"[IR] EndFinally: pending={pending.Kind}, value={pending.Value}, resume={pending.ResumeTarget}, stack={_tryStack.Count}");
                         if (pending.Kind == AbruptKind.None)
                         {
                             var target = pending.ResumeTarget >= 0 ? pending.ResumeTarget : endFinallyInstruction.Next;
@@ -4680,6 +4681,7 @@ public static class TypedAstEvaluator
 
         private bool HandleAbruptCompletion(AbruptKind kind, object? value, JsEnvironment environment)
         {
+            // Console.WriteLine($"[IR] HandleAbruptCompletion kind={kind}, value={value}, stack={_tryStack.Count}");
             while (_tryStack.Count > 0)
             {
                 var frame = _tryStack.Peek();

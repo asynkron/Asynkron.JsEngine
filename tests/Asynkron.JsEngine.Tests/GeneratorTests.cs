@@ -837,6 +837,150 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_AssignmentReceivesSentValuesIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* assignGen() {
+                let sent = 0;
+                sent = yield 1;
+                yield sent * 3;
+            }
+            let g = assignGen();
+        """);
+
+        await engine.Evaluate("g.next();");
+        var second = await engine.Evaluate("g.next(4).value;");
+        Assert.Equal(12.0, second);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_DoWhileLoopsExecuteWithIrPlan()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* doLoop(limit) {
+                let i = 0;
+                do {
+                    yield i;
+                    i = i + 1;
+                } while (i < limit);
+            }
+            let g = doLoop(2);
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(0.0, first);
+        Assert.Equal(1.0, second);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForLoopsExecuteWithIrPlan()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* forLoop(limit) {
+                for (let i = 0; i < limit; i = i + 1) {
+                    yield i;
+                }
+            }
+            let g = forLoop(3);
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.next().value;");
+        var third = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(0.0, first);
+        Assert.Equal(1.0, second);
+        Assert.Equal(2.0, third);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForLoopContinueRunsIncrement()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* evens(limit) {
+                for (let i = 0; i < limit; i = i + 1) {
+                    if ((i % 2) === 1) {
+                        continue;
+                    }
+                    yield i;
+                }
+            }
+            let g = evens(5);
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.next().value;");
+        var third = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(0.0, first);
+        Assert.Equal(2.0, second);
+        Assert.Equal(4.0, third);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ReturnSkipsRemainingStatementsIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let updates = 0;
+            function* stopEarly() {
+                yield 1;
+                updates = updates + 1;
+                return updates;
+            }
+            let g = stopEarly();
+        """);
+
+        await engine.Evaluate("g.next();");
+        await engine.Evaluate("var returnResult = g.return(42);");
+        var resultValue = await engine.Evaluate("returnResult.value;");
+        var resultDone = await engine.Evaluate("returnResult.done;");
+        var updates = await engine.Evaluate("updates;");
+
+        Assert.Equal(42.0, resultValue);
+        Assert.True((bool)resultDone!);
+        Assert.Equal(0.0, updates);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ThrowSkipsRemainingStatementsIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let updates = 0;
+            function* thrower() {
+                yield 1;
+                updates = updates + 1;
+            }
+            let g = thrower();
+        """);
+
+        await engine.Evaluate("g.next();");
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.throw('boom');"));
+        var updates = await engine.Evaluate("updates;");
+        Assert.Equal("boom", exception.ThrownValue);
+        Assert.Equal(0.0, updates);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ParseGeneratorSyntax_FunctionStar()
     {
         // Arrange

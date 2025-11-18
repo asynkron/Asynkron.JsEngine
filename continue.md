@@ -2,21 +2,21 @@
 
 ## Current State
 - IR now includes `JumpInstruction` and `StoreResumeValueInstruction`, so `.next(value)` payloads are captured without replaying statements.
-- The builder lowers blocks, expression statements, `while` loops (labeled or unlabeled), and variable declarations whose initializer is a direct `yield`, synthesizing hidden slots for resume values.
-- Loop scopes now track break/continue targets, so both unlabeled and labeled `break`/`continue` statements are emitted as jumps in the plan.
-- The interpreter executes the new instruction types, stages pending resume payloads, and still falls back to the replay runner for unsupported programs.
-- Tests `Generator_WhileLoopsExecuteWithIrPlan`, `Generator_IrPathReceivesSentValues`, and the new break/continue cases validate the IR path.
+- The builder lowers blocks, expression statements, `while`, `do/while`, and classic `for` loops (including labeled forms), variable declarations, and plain assignments of the form `target = yield <expr>`, creating hidden resume slots as needed.
+- Loop scopes track break/continue targets, so both unlabeled and labeled `break`/`continue` statements become jumps inside the plan.
+- `StoreResumeValueInstruction` now consumes pending `.next/.throw/.return` payloads; `.throw`/`.return` flow through the interpreter before short-circuiting so upcoming try/catch support can observe them.
+- Tests `Generator_IrPathReceivesSentValues`, `Generator_AssignmentReceivesSentValuesIr`, `Generator_DoWhileLoopsExecuteWithIrPlan`, `Generator_ForLoopsExecuteWithIrPlan`, `Generator_ForLoopContinueRunsIncrement`, `Generator_ReturnSkipsRemainingStatementsIr`, `Generator_ThrowSkipsRemainingStatementsIr`, and the loop-control cases exercise the new IR behavior.
 
 ## Next Iteration Plan
 
-1. **Resume Propagation**
-   - Support direct assignments that contain `yield` (e.g., `value = yield expr;`) by reusing the resume-slot mechanism instead of forcing fallback.
-   - Route `.throw(value)` / `.return(value)` payloads through the IR interpreter so try/catch/finally blocks can observe them without replaying.
+1. **Exception Propagation**
+   - Add IR lowering for `try/catch/finally` so `.throw/.return` payloads delivered via `StoreResumeValueInstruction` can be intercepted mid-plan.
+   - Decide whether we need explicit instructions (e.g., `EnterTry`, `LeaveTry`, `EndFinally`) or can re-use statement instructions while pushing/popping a try stack during interpretation.
 
-2. **Loop Coverage**
-   - Lower `do/while` and classic `for` loops using the existing branch/jump primitives and loop-scope bookkeeping.
-   - Keep rejecting constructs we still can’t lower (`yield*`, nested yields in expressions, `for...of`, try/finally) so unsupported programs fall back cleanly.
+2. **Additional Constructs**
+   - Explore lowering simple `for...of` (non-async) loops using existing iterator helpers once try/catch handling lands.
+   - Continue rejecting `yield*`, nested yields inside complex expressions, and `try/finally` until the new IR can faithfully represent them.
 
-3. **Testing**
-   - Add IR-path tests for assignment-style `yield` consumption and for `.throw`/`.return` interacting with try/catch.
-   - Add regression tests for `do/while` and `for` loops once supported, plus edge cases around nested labeled loops.
+3. **Testing & Guardrails**
+   - Add IR-path tests for try/catch/finally once emitted, ensuring `.throw/.return` interactions, nested loops, and finally blocks behave identically to the fallback interpreter.
+   - Cover `for...of` and fallback behavior once supported, keeping labeled `break/continue` validated via regression tests.

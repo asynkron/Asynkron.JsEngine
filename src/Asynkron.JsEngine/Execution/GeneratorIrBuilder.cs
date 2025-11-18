@@ -16,6 +16,7 @@ internal sealed class GeneratorIrBuilder
     private readonly Stack<LoopScope> _loopScopes = new();
     private int _resumeSlotCounter;
     private const string ResumeSlotPrefix = "\u0001_resume";
+    private static readonly LiteralExpression TrueLiteralExpression = new(null, true);
 
     private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget);
 
@@ -81,6 +82,11 @@ internal sealed class GeneratorIrBuilder
                 return true;
 
             case ExpressionStatement expressionStatement:
+                if (TryLowerYieldingAssignment(expressionStatement, nextIndex, out entryIndex))
+                {
+                    return true;
+                }
+
                 if (ContainsYield(expressionStatement.Expression))
                 {
                     entryIndex = -1;
@@ -108,6 +114,12 @@ internal sealed class GeneratorIrBuilder
             case WhileStatement whileStatement:
                 return TryBuildWhileStatement(whileStatement, nextIndex, out entryIndex, activeLabel);
 
+            case DoWhileStatement doWhileStatement:
+                return TryBuildDoWhileStatement(doWhileStatement, nextIndex, out entryIndex, activeLabel);
+
+            case ForStatement forStatement:
+                return TryBuildForStatement(forStatement, nextIndex, out entryIndex, activeLabel);
+
             case ReturnStatement returnStatement:
                 if (returnStatement.Expression is not null && ContainsYield(returnStatement.Expression))
                 {
@@ -124,8 +136,8 @@ internal sealed class GeneratorIrBuilder
             case ContinueStatement continueStatement:
                 return TryBuildContinue(continueStatement, out entryIndex);
 
-            case LabeledStatement labeled when labeled.Statement is WhileStatement labeledWhile:
-                return TryBuildWhileStatement(labeledWhile, nextIndex, out entryIndex, labeled.Label);
+            case LabeledStatement labeled:
+                return TryBuildStatement(labeled.Statement, nextIndex, out entryIndex, labeled.Label);
 
             default:
                 entryIndex = -1;
@@ -160,6 +172,92 @@ internal sealed class GeneratorIrBuilder
         var branchIndex = Append(new BranchInstruction(statement.Condition, bodyEntry, nextIndex));
         _instructions[jumpIndex] = new JumpInstruction(branchIndex);
         entryIndex = branchIndex;
+        return true;
+    }
+
+    private bool TryBuildDoWhileStatement(DoWhileStatement statement, int nextIndex, out int entryIndex, Symbol? label)
+    {
+        if (ContainsYield(statement.Condition))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var instructionStart = _instructions.Count;
+        var conditionJumpIndex = Append(new JumpInstruction(-1));
+
+        var scope = new LoopScope(label, conditionJumpIndex, nextIndex);
+        _loopScopes.Push(scope);
+        var bodyBuilt = TryBuildStatement(statement.Body, conditionJumpIndex, out var bodyEntry, label);
+        _loopScopes.Pop();
+
+        if (!bodyBuilt)
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        var branchIndex = Append(new BranchInstruction(statement.Condition, bodyEntry, nextIndex));
+        _instructions[conditionJumpIndex] = new JumpInstruction(branchIndex);
+
+        entryIndex = bodyEntry;
+        return true;
+    }
+
+    private bool TryBuildForStatement(ForStatement statement, int nextIndex, out int entryIndex, Symbol? label)
+    {
+        var instructionStart = _instructions.Count;
+
+        var conditionExpression = statement.Condition ?? TrueLiteralExpression;
+        if (ContainsYield(conditionExpression))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        if (statement.Increment is not null && ContainsYield(statement.Increment))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var conditionJumpIndex = Append(new JumpInstruction(-1));
+        var continueTarget = conditionJumpIndex;
+
+        if (statement.Increment is not null)
+        {
+            var incrementStatement = new ExpressionStatement(statement.Increment.Source, statement.Increment);
+            continueTarget = Append(new StatementInstruction(conditionJumpIndex, incrementStatement));
+        }
+
+        var scope = new LoopScope(label, continueTarget, nextIndex);
+        _loopScopes.Push(scope);
+        var bodyBuilt = TryBuildStatement(statement.Body, continueTarget, out var bodyEntry, label);
+        _loopScopes.Pop();
+
+        if (!bodyBuilt)
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        var branchIndex = Append(new BranchInstruction(conditionExpression, bodyEntry, nextIndex));
+        _instructions[conditionJumpIndex] = new JumpInstruction(branchIndex);
+
+        var loopEntry = bodyEntry;
+        if (statement.Initializer is not null)
+        {
+            if (!TryBuildStatement(statement.Initializer, loopEntry, out loopEntry))
+            {
+                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+                entryIndex = -1;
+                return false;
+            }
+        }
+
+        entryIndex = loopEntry;
         return true;
     }
 
@@ -226,6 +324,36 @@ internal sealed class GeneratorIrBuilder
 
         var declarationIndex = Append(new StatementInstruction(nextIndex, rewrittenDeclaration));
         entryIndex = AppendYieldSequence(yieldExpression.Expression, declarationIndex, resumeSymbol);
+        return true;
+    }
+
+    private bool TryLowerYieldingAssignment(ExpressionStatement statement, int nextIndex, out int entryIndex)
+    {
+        if (statement.Expression is not AssignmentExpression assignment ||
+            assignment.Value is not YieldExpression yieldExpression)
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var resumeSymbol = CreateResumeSlotSymbol();
+        var rewrittenAssignment = assignment with
+        {
+            Value = new IdentifierExpression(yieldExpression.Source, resumeSymbol)
+        };
+        var rewrittenStatement = statement with
+        {
+            Expression = rewrittenAssignment
+        };
+
+        var assignmentIndex = Append(new StatementInstruction(nextIndex, rewrittenStatement));
+        entryIndex = AppendYieldSequence(yieldExpression.Expression, assignmentIndex, resumeSymbol);
         return true;
     }
 

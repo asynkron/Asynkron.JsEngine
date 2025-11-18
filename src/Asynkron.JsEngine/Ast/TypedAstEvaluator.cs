@@ -3561,8 +3561,8 @@ public static class TypedAstEvaluator
         private int _currentYieldIndex;
         private readonly YieldResumeContext _resumeContext = new();
         private int _programCounter;
-        private bool _hasPendingResumeValue;
         private object? _pendingResumeValue = JsSymbols.Undefined;
+        private ResumePayloadKind _pendingResumeKind;
 
         public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
             IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
@@ -3681,16 +3681,11 @@ public static class TypedAstEvaluator
                 return FinishExternalCompletion(mode, resumeValue);
             }
 
-            if (mode == ResumeMode.Throw)
+            if ((mode == ResumeMode.Throw || mode == ResumeMode.Return) && wasStart)
             {
+                _state = GeneratorState.Completed;
                 _done = true;
-                throw new ThrowSignal(resumeValue);
-            }
-
-            if (mode == ResumeMode.Return)
-            {
-                _done = true;
-                return CreateIteratorResult(resumeValue, true);
+                return FinishExternalCompletion(mode, resumeValue);
             }
 
             _state = GeneratorState.Executing;
@@ -3744,17 +3739,44 @@ public static class TypedAstEvaluator
                         return CreateIteratorResult(yieldedValue, false);
 
                     case StoreResumeValueInstruction storeResumeValueInstruction:
-                        var pendingValue = ConsumeResumeValue();
-                        if (storeResumeValueInstruction.TargetSymbol is { } resumeSymbol)
+                        var (resumeKind, resumePayload) = ConsumeResumeValue();
+                        if (resumeKind == ResumePayloadKind.Throw)
+                        {
+                            context.SetThrow(resumePayload);
+                        }
+                        else if (resumeKind == ResumePayloadKind.Return)
+                        {
+                            context.SetReturn(resumePayload);
+                        }
+                        else if (storeResumeValueInstruction.TargetSymbol is { } resumeSymbol)
                         {
                             if (environment.TryGet(resumeSymbol, out _))
                             {
-                                environment.Assign(resumeSymbol, pendingValue);
+                                environment.Assign(resumeSymbol, resumePayload);
                             }
                             else
                             {
-                                environment.Define(resumeSymbol, pendingValue);
+                                environment.Define(resumeSymbol, resumePayload);
                             }
+                        }
+
+                        if (context.IsThrow)
+                        {
+                            var thrownPayload = context.FlowValue;
+                            context.Clear();
+                            _state = GeneratorState.Completed;
+                            _done = true;
+                            throw new ThrowSignal(thrownPayload);
+                        }
+
+                        if (context.IsReturn)
+                        {
+                            var resumeReturnValue = context.FlowValue;
+                            context.ClearReturn();
+                            _programCounter = -1;
+                            _state = GeneratorState.Completed;
+                            _done = true;
+                            return CreateIteratorResult(resumeReturnValue, true);
                         }
 
                         _programCounter = storeResumeValueInstruction.Next;
@@ -3779,6 +3801,23 @@ public static class TypedAstEvaluator
                         continue;
 
                     case ReturnInstruction returnInstruction:
+                        if (context.IsThrow)
+                        {
+                            var pendingThrow = context.FlowValue;
+                            context.Clear();
+                            throw new ThrowSignal(pendingThrow);
+                        }
+
+                        if (context.IsReturn)
+                        {
+                            var pendingReturn = context.FlowValue;
+                            context.ClearReturn();
+                            _programCounter = -1;
+                            _state = GeneratorState.Completed;
+                            _done = true;
+                            return CreateIteratorResult(pendingReturn, true);
+                        }
+
                         var returnValue = returnInstruction.ReturnExpression is null
                             ? JsSymbols.Undefined
                             : EvaluateExpression(returnInstruction.ReturnExpression, environment, context);
@@ -3917,28 +3956,43 @@ public static class TypedAstEvaluator
 
         private void PreparePendingResumeValue(ResumeMode mode, object? resumeValue, bool wasStart)
         {
-            if (mode != ResumeMode.Next || wasStart)
+            if (wasStart)
             {
+                _pendingResumeKind = ResumePayloadKind.None;
                 _pendingResumeValue = JsSymbols.Undefined;
-                _hasPendingResumeValue = false;
                 return;
             }
 
-            _pendingResumeValue = resumeValue;
-            _hasPendingResumeValue = true;
+            switch (mode)
+            {
+                case ResumeMode.Throw:
+                    _pendingResumeKind = ResumePayloadKind.Throw;
+                    _pendingResumeValue = resumeValue;
+                    break;
+                case ResumeMode.Return:
+                    _pendingResumeKind = ResumePayloadKind.Return;
+                    _pendingResumeValue = resumeValue;
+                    break;
+                default:
+                    _pendingResumeKind = ResumePayloadKind.Value;
+                    _pendingResumeValue = resumeValue;
+                    break;
+            }
         }
 
-        private object? ConsumeResumeValue()
+        private (ResumePayloadKind Kind, object? Value) ConsumeResumeValue()
         {
-            if (!_hasPendingResumeValue)
+            var kind = _pendingResumeKind;
+            var value = _pendingResumeValue;
+            _pendingResumeKind = ResumePayloadKind.None;
+            _pendingResumeValue = JsSymbols.Undefined;
+
+            if (kind == ResumePayloadKind.None)
             {
-                return JsSymbols.Undefined;
+                return (ResumePayloadKind.Value, JsSymbols.Undefined);
             }
 
-            var value = _pendingResumeValue;
-            _pendingResumeValue = JsSymbols.Undefined;
-            _hasPendingResumeValue = false;
-            return value;
+            return (kind, value);
         }
 
         private enum ResumeMode
@@ -3954,6 +4008,14 @@ public static class TypedAstEvaluator
             Suspended,
             Executing,
             Completed
+        }
+
+        private enum ResumePayloadKind
+        {
+            None,
+            Value,
+            Throw,
+            Return
         }
 
     }

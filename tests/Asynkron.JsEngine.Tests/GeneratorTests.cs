@@ -685,6 +685,113 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_BreakStatementExitsLoop()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* breakExample() {
+                let i = 0;
+                while (i < 5) {
+                    yield i;
+                    break;
+                }
+                yield 99;
+            }
+            let g = breakExample();
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(0.0, first);
+        Assert.Equal(99.0, second);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ContinueStatementSkipsLoopBody()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* continueExample() {
+                let i = 0;
+                while (i < 2) {
+                    i = i + 1;
+                    continue;
+                    yield 123;
+                }
+                yield i;
+            }
+            let g = continueExample();
+        """);
+
+        var value = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(2.0, value);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_LabeledBreakTargetsOuterLoop()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* labeledBreak() {
+                let outer = 0;
+                outerLoop: while (outer < 3) {
+                    let inner = 0;
+                    while (inner < 3) {
+                        yield inner;
+                        break outerLoop;
+                    }
+                    outer = outer + 1;
+                }
+                yield outer;
+            }
+            let g = labeledBreak();
+        """);
+
+        var first = await engine.Evaluate("g.next().value;");
+        var second = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(0.0, first);
+        Assert.Equal(0.0, second);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_LabeledContinueTargetsOuterLoop()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* labeledContinue() {
+                let count = 0;
+                outer: while (count < 2) {
+                    count = count + 1;
+                    inner: while (true) {
+                        continue outer;
+                    }
+                }
+                yield count;
+            }
+            let g = labeledContinue();
+        """);
+
+        var value = await engine.Evaluate("g.next().value;");
+        var done = await engine.Evaluate("g.next().done;");
+
+        Assert.Equal(2.0, value);
+        Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_WhileLoopsExecuteWithIrPlan()
     {
         await using var engine = new JsEngine();

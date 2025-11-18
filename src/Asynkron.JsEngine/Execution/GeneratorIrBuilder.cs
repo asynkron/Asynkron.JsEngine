@@ -13,8 +13,11 @@ namespace Asynkron.JsEngine.Execution;
 internal sealed class GeneratorIrBuilder
 {
     private readonly List<GeneratorInstruction> _instructions = new();
+    private readonly Stack<LoopScope> _loopScopes = new();
     private int _resumeSlotCounter;
     private const string ResumeSlotPrefix = "\u0001_resume";
+
+    private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget);
 
     private GeneratorIrBuilder()
     {
@@ -56,7 +59,7 @@ internal sealed class GeneratorIrBuilder
         return true;
     }
 
-    private bool TryBuildStatement(StatementNode statement, int nextIndex, out int entryIndex)
+    private bool TryBuildStatement(StatementNode statement, int nextIndex, out int entryIndex, Symbol? activeLabel = null)
     {
         switch (statement)
         {
@@ -103,7 +106,7 @@ internal sealed class GeneratorIrBuilder
                 return true;
 
             case WhileStatement whileStatement:
-                return TryBuildWhileStatement(whileStatement, nextIndex, out entryIndex);
+                return TryBuildWhileStatement(whileStatement, nextIndex, out entryIndex, activeLabel);
 
             case ReturnStatement returnStatement:
                 if (returnStatement.Expression is not null && ContainsYield(returnStatement.Expression))
@@ -115,13 +118,22 @@ internal sealed class GeneratorIrBuilder
                 entryIndex = Append(new ReturnInstruction(returnStatement.Expression));
                 return true;
 
+            case BreakStatement breakStatement:
+                return TryBuildBreak(breakStatement, out entryIndex);
+
+            case ContinueStatement continueStatement:
+                return TryBuildContinue(continueStatement, out entryIndex);
+
+            case LabeledStatement labeled when labeled.Statement is WhileStatement labeledWhile:
+                return TryBuildWhileStatement(labeledWhile, nextIndex, out entryIndex, labeled.Label);
+
             default:
                 entryIndex = -1;
                 return false;
         }
     }
 
-    private bool TryBuildWhileStatement(WhileStatement statement, int nextIndex, out int entryIndex)
+    private bool TryBuildWhileStatement(WhileStatement statement, int nextIndex, out int entryIndex, Symbol? label)
     {
         if (ContainsYield(statement.Condition))
         {
@@ -132,7 +144,13 @@ internal sealed class GeneratorIrBuilder
         var instructionStart = _instructions.Count;
         var jumpIndex = Append(new JumpInstruction(-1));
 
-        if (!TryBuildStatement(statement.Body, jumpIndex, out var bodyEntry))
+        var scope = new LoopScope(label, jumpIndex, nextIndex);
+        _loopScopes.Push(scope);
+
+        var bodyBuilt = TryBuildStatement(statement.Body, jumpIndex, out var bodyEntry);
+        _loopScopes.Pop();
+
+        if (!bodyBuilt)
         {
             _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
             entryIndex = -1;
@@ -142,6 +160,30 @@ internal sealed class GeneratorIrBuilder
         var branchIndex = Append(new BranchInstruction(statement.Condition, bodyEntry, nextIndex));
         _instructions[jumpIndex] = new JumpInstruction(branchIndex);
         entryIndex = branchIndex;
+        return true;
+    }
+
+    private bool TryBuildBreak(BreakStatement statement, out int entryIndex)
+    {
+        if (!TryResolveBreakTarget(statement.Label, out var target))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        entryIndex = Append(new JumpInstruction(target));
+        return true;
+    }
+
+    private bool TryBuildContinue(ContinueStatement statement, out int entryIndex)
+    {
+        if (!TryResolveContinueTarget(statement.Label, out var target))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        entryIndex = Append(new JumpInstruction(target));
         return true;
     }
 
@@ -210,6 +252,60 @@ internal sealed class GeneratorIrBuilder
     {
         var storeIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
         return Append(new YieldInstruction(storeIndex, expression));
+    }
+
+    private bool TryResolveBreakTarget(Symbol? label, out int target)
+    {
+        if (_loopScopes.Count == 0)
+        {
+            target = -1;
+            return false;
+        }
+
+        if (label is null)
+        {
+            target = _loopScopes.Peek().BreakTarget;
+            return true;
+        }
+
+        foreach (var scope in _loopScopes)
+        {
+            if (scope.Label is not null && ReferenceEquals(scope.Label, label))
+            {
+                target = scope.BreakTarget;
+                return true;
+            }
+        }
+
+        target = -1;
+        return false;
+    }
+
+    private bool TryResolveContinueTarget(Symbol? label, out int target)
+    {
+        if (_loopScopes.Count == 0)
+        {
+            target = -1;
+            return false;
+        }
+
+        if (label is null)
+        {
+            target = _loopScopes.Peek().ContinueTarget;
+            return true;
+        }
+
+        foreach (var scope in _loopScopes)
+        {
+            if (scope.Label is not null && ReferenceEquals(scope.Label, label))
+            {
+                target = scope.ContinueTarget;
+                return true;
+            }
+        }
+
+        target = -1;
+        return false;
     }
 
     private static bool ContainsYield(ExpressionNode? expression)

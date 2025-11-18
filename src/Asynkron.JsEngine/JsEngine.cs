@@ -219,7 +219,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// folding or CPS rewrites. This is primarily used by tests and tooling
     /// that need to inspect the raw syntax tree produced by the typed parser.
     /// </summary>
-    public ProgramNode Parse([LanguageInjection("javascript")] string source)
+    public ProgramNode Parse(string source)
     {
         return ParseTypedProgram(source);
     }
@@ -229,7 +229,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// typed AST. This is primarily used by the evaluator so we avoid rebuilding the typed
     /// tree multiple times.
     /// </summary>
-    internal ParsedProgram ParseForExecution([LanguageInjection("javascript")] string source)
+    internal ParsedProgram ParseForExecution(string source)
     {
         var typedProgram = ParseTypedProgram(source);
         typedProgram = _typedConstantTransformer.Transform(typedProgram);
@@ -257,8 +257,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// Parses JavaScript source code and returns the typed AST at each major
     /// transformation stage (original, constant folded, CPS-transformed).
     /// </summary>
-    public (ProgramNode original, ProgramNode constantFolded, ProgramNode cpsTransformed) ParseWithTransformationSteps(
-        [LanguageInjection("javascript")] string source)
+    public (ProgramNode original, ProgramNode constantFolded, ProgramNode cpsTransformed) ParseWithTransformationSteps(string source)
     {
         var original = ParseTypedProgram(source);
         var constantFolded = _typedConstantTransformer.Transform(original);
@@ -286,7 +285,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// This ensures all code executes through the event loop, maintaining proper
     /// single-threaded execution semantics.
     /// </summary>
-    public Task<object?> Evaluate([LanguageInjection("javascript")] string source)
+    public Task<object?> Evaluate(string source)
     {
         var program = ParseForExecution(source);
         return Evaluate(program);
@@ -382,7 +381,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     /// <param name="source">The JavaScript source code to execute</param>
     /// <returns>A task that completes when all scheduled events have been processed</returns>
-    public async Task<object?> Run([LanguageInjection("javascript")] string source)
+    public async Task<object?> Run(string source)
     {
         // Schedule evaluation on the event queue
         var evaluateTask = Evaluate(source);

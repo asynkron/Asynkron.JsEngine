@@ -207,6 +207,78 @@ internal static class JsOps
         }
     }
 
+    public static bool GreaterThan(object? left, object? right)
+    {
+        return PerformComparisonOperation(left, right,
+            (l, r) => l > r,
+            (l, r) => l > r,
+            (l, r) => l > r);
+    }
+
+    public static bool GreaterThanOrEqual(object? left, object? right)
+    {
+        return PerformComparisonOperation(left, right,
+            (l, r) => l >= r,
+            (l, r) => l >= r,
+            (l, r) => l >= r);
+    }
+
+    public static bool LessThan(object? left, object? right)
+    {
+        return PerformComparisonOperation(left, right,
+            (l, r) => l < r,
+            (l, r) => l < r,
+            (l, r) => l < r);
+    }
+
+    public static bool LessThanOrEqual(object? left, object? right)
+    {
+        return PerformComparisonOperation(left, right,
+            (l, r) => l <= r,
+            (l, r) => l <= r,
+            (l, r) => l <= r);
+    }
+
+    private static bool PerformComparisonOperation(
+        object? left,
+        object? right,
+        Func<JsBigInt, JsBigInt, bool> bigIntOp,
+        Func<BigInteger, BigInteger, bool> mixedOp,
+        Func<double, double, bool> numericOp)
+    {
+        switch (left)
+        {
+            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
+                return bigIntOp(leftBigInt, rightBigInt);
+            case JsBigInt lbi:
+            {
+                var rightNum = ToNumber(right);
+                if (double.IsNaN(rightNum))
+                {
+                    return false;
+                }
+
+                return mixedOp(lbi.Value, new BigInteger(rightNum));
+            }
+        }
+
+        switch (right)
+        {
+            case JsBigInt rbi:
+            {
+                var leftNum = ToNumber(left);
+                if (double.IsNaN(leftNum))
+                {
+                    return false;
+                }
+
+                return mixedOp(new BigInteger(leftNum), rbi.Value);
+            }
+            default:
+                return numericOp(ToNumber(left), ToNumber(right));
+        }
+    }
+
     public static string? ToPropertyName(object? value)
     {
         return value switch

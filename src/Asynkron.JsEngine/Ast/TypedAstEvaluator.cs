@@ -1657,7 +1657,11 @@ public static class TypedAstEvaluator
     {
         if (expression.Operator is "++" or "--")
         {
-            var reference = ResolveReference(expression.Operand, environment, context);
+            var reference = AssignmentReferenceResolver.Resolve(
+                expression.Operand,
+                environment,
+                context,
+                EvaluateExpression);
             var currentValue = reference.GetValue();
             var updatedValue = expression.Operator == "++"
                 ? IncrementValue(currentValue)
@@ -1749,10 +1753,10 @@ public static class TypedAstEvaluator
             "!=" => !LooseEquals(left, right),
             "===" => StrictEquals(left, right),
             "!==" => !StrictEquals(left, right),
-            "<" => LessThan(left, right),
-            "<=" => LessThanOrEqual(left, right),
-            ">" => GreaterThan(left, right),
-            ">=" => GreaterThanOrEqual(left, right),
+            "<" => JsOps.LessThan(left, right),
+            "<=" => JsOps.LessThanOrEqual(left, right),
+            ">" => JsOps.GreaterThan(left, right),
+            ">=" => JsOps.GreaterThanOrEqual(left, right),
             "&" => BitwiseAnd(left, right),
             "|" => BitwiseOr(left, right),
             "^" => BitwiseXor(left, right),
@@ -2417,78 +2421,6 @@ public static class TypedAstEvaluator
         return JsOps.StrictEquals(left, right);
     }
 
-    private static bool GreaterThan(object? left, object? right)
-    {
-        return PerformComparisonOperation(left, right,
-            (l, r) => l > r,
-            (l, r) => l > r,
-            (l, r) => l > r);
-    }
-
-    private static bool GreaterThanOrEqual(object? left, object? right)
-    {
-        return PerformComparisonOperation(left, right,
-            (l, r) => l >= r,
-            (l, r) => l >= r,
-            (l, r) => l >= r);
-    }
-
-    private static bool LessThan(object? left, object? right)
-    {
-        return PerformComparisonOperation(left, right,
-            (l, r) => l < r,
-            (l, r) => l < r,
-            (l, r) => l < r);
-    }
-
-    private static bool LessThanOrEqual(object? left, object? right)
-    {
-        return PerformComparisonOperation(left, right,
-            (l, r) => l <= r,
-            (l, r) => l <= r,
-            (l, r) => l <= r);
-    }
-
-    private static bool PerformComparisonOperation(
-        object? left,
-        object? right,
-        Func<JsBigInt, JsBigInt, bool> bigIntOp,
-        Func<BigInteger, BigInteger, bool> mixedOp,
-        Func<double, double, bool> numericOp)
-    {
-        switch (left)
-        {
-            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
-                return bigIntOp(leftBigInt, rightBigInt);
-            case JsBigInt lbi:
-            {
-                var rightNum = JsOps.ToNumber(right);
-                if (double.IsNaN(rightNum))
-                {
-                    return false;
-                }
-
-                return mixedOp(lbi.Value, new BigInteger(rightNum));
-            }
-        }
-
-        switch (right)
-        {
-            case JsBigInt rbi:
-            {
-                var leftNum = JsOps.ToNumber(left);
-                if (double.IsNaN(leftNum))
-                {
-                    return false;
-                }
-
-                return mixedOp(new BigInteger(leftNum), rbi.Value);
-            }
-            default:
-                return numericOp(JsOps.ToNumber(left), JsOps.ToNumber(right));
-        }
-    }
-
     private static object BitwiseAnd(object? left, object? right)
     {
         return PerformBigIntOrInt32Operation(left, right,
@@ -3035,7 +2967,7 @@ public static class TypedAstEvaluator
 
     private static bool IsNullOrUndefined(object? value)
     {
-        return value is null || value is Symbol symbol && ReferenceEquals(symbol, JsSymbols.Undefined);
+        return JsOps.IsNullish(value);
     }
 
     private enum BindingMode
@@ -3066,67 +2998,6 @@ public static class TypedAstEvaluator
                 context.SetThrow(throwSignal.Value);
                 break;
         }
-    }
-
-    private readonly record struct AssignmentReference(Func<object?> GetValue, Action<object?> SetValue);
-
-    private static AssignmentReference ResolveReference(ExpressionNode expression, JsEnvironment environment,
-        EvaluationContext context)
-    {
-        return expression switch
-        {
-            IdentifierExpression identifier => new AssignmentReference(
-                () => environment.Get(identifier.Name),
-                value => environment.Assign(identifier.Name, value)),
-            MemberExpression member => ResolveMemberReference(member, environment, context),
-            UnaryExpression { Operator: "++" or "--" } unary =>
-                ResolveReference(unary.Operand, environment, context),
-            _ => throw new NotSupportedException("Unsupported assignment target.")
-        };
-    }
-
-    private static AssignmentReference ResolveMemberReference(MemberExpression member, JsEnvironment environment,
-        EvaluationContext context)
-    {
-        var target = EvaluateExpression(member.Target, environment, context);
-        if (context.ShouldStopEvaluation)
-        {
-            return new AssignmentReference(() => JsSymbols.Undefined, _ => { });
-        }
-
-        var propertyValue = EvaluateExpression(member.Property, environment, context);
-        if (context.ShouldStopEvaluation)
-        {
-            return new AssignmentReference(() => JsSymbols.Undefined, _ => { });
-        }
-
-        if (target is JsArray jsArray && TryResolveArrayIndex(propertyValue, out var arrayIndex))
-        {
-            return new AssignmentReference(
-                () => jsArray.GetElement(arrayIndex),
-                newValue => jsArray.SetElement(arrayIndex, newValue));
-        }
-
-        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyValue, out var typedIndex))
-        {
-            return new AssignmentReference(
-                () => typedIndex >= 0 && typedIndex < typedArray.Length
-                    ? typedArray.GetElement(typedIndex)
-                    : JsSymbols.Undefined,
-                newValue =>
-                {
-                    if (typedIndex >= 0 && typedIndex < typedArray.Length)
-                    {
-                        typedArray.SetElement(typedIndex, JsOps.ToNumber(newValue));
-                    }
-                });
-        }
-
-        var propertyName = JsOps.GetRequiredPropertyName(propertyValue);
-
-        return new AssignmentReference(
-            () => TryGetPropertyValue(target, propertyName, out var value) ? value : JsSymbols.Undefined,
-            newValue => AssignPropertyValueByName(target, propertyName, newValue));
     }
 
     private static void BindFunctionParameters(FunctionExpression function, IReadOnlyList<object?> arguments,

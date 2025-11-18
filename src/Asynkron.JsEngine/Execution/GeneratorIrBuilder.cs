@@ -21,6 +21,7 @@ internal sealed class GeneratorIrBuilder
     private const string CatchSlotPrefix = "\u0001_catch";
     private const string YieldStarStatePrefix = "\u0001_yieldstar";
     private static readonly LiteralExpression TrueLiteralExpression = new(null, true);
+    private string? _failureReason;
 
     private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget);
 
@@ -28,10 +29,68 @@ internal sealed class GeneratorIrBuilder
     {
     }
 
+    private bool TryBuildIfWithYieldCondition(IfStatement statement, YieldExpression yieldExpression, int nextIndex,
+        out int entryIndex, Symbol? activeLabel)
+    {
+        // Only handle non-delegated `yield` used directly as the condition,
+        // and reject nested `yield` inside the yielded expression for now.
+        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var instructionStart = _instructions.Count;
+
+        var resumeSymbol = CreateResumeSlotSymbol();
+        var conditionIdentifier = new IdentifierExpression(yieldExpression.Source, resumeSymbol);
+        var rewrittenIf = new IfStatement(statement.Source, conditionIdentifier, statement.Then, statement.Else);
+
+        // When control reaches the rewritten if, we need the pending resume
+        // value in the slot that backs the condition.
+        var ifEntryNext = nextIndex;
+        var ifBuilt = TryBuildIfStatement(rewrittenIf, ifEntryNext, out var ifEntryIndex, activeLabel);
+        if (!ifBuilt)
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        // Prefix the if with a yield sequence that:
+        //   - yields the original expression (if any), and
+        //   - stores the resume payload into the resume slot.
+        entryIndex = AppendYieldSequence(yieldExpression.Expression, ifEntryIndex, resumeSymbol);
+        return true;
+    }
+
+    private bool TryBuildReturnWithYield(ReturnStatement statement, YieldExpression yieldExpression, int nextIndex,
+        out int entryIndex)
+    {
+        // Only handle non-delegated yield used directly as the return expression,
+        // and reject nested yield inside the yielded expression for now.
+        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var resumeSymbol = CreateResumeSlotSymbol();
+        var returnExpression = new IdentifierExpression(yieldExpression.Source, resumeSymbol);
+
+        // Build a return that uses the resume slot value, then prefix it with
+        // a yield sequence that captures the resume payload into that slot.
+        var returnIndex = Append(new ReturnInstruction(returnExpression));
+        entryIndex = AppendYieldSequence(yieldExpression.Expression, returnIndex, resumeSymbol);
+        return true;
+    }
+
     public static bool TryBuild(FunctionExpression function, out GeneratorPlan plan)
     {
         var builder = new GeneratorIrBuilder();
-        return builder.TryBuildInternal(function, out plan);
+        var succeeded = builder.TryBuildInternal(function, out plan);
+        GeneratorIrDiagnostics.ReportResult(function, succeeded, builder._failureReason);
+        return succeeded;
     }
 
     private bool TryBuildInternal(FunctionExpression function, out GeneratorPlan plan)
@@ -41,6 +100,7 @@ internal sealed class GeneratorIrBuilder
         if (!TryBuildStatementList(function.Body.Statements, implicitReturnIndex, out var entryIndex))
         {
             plan = default!;
+            _failureReason ??= "Statement list contains unsupported construct.";
             return false;
         }
 
@@ -56,6 +116,7 @@ internal sealed class GeneratorIrBuilder
             if (!TryBuildStatement(statements[i], currentNext, out currentNext))
             {
                 entryIndex = -1;
+                _failureReason ??= $"Unsupported statement '{statements[i].GetType().Name}'.";
                 return false;
             }
         }
@@ -74,6 +135,16 @@ internal sealed class GeneratorIrBuilder
                     return TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
 
                 case IfStatement ifStatement:
+                    // Handle simple `if (yield <expr>)` by rewriting the condition
+                    // to use a resume slot fed by a dedicated yield sequence.
+                    if (ifStatement.Condition is YieldExpression yieldCondition)
+                    {
+                        if (TryBuildIfWithYieldCondition(ifStatement, yieldCondition, nextIndex, out entryIndex, activeLabel))
+                        {
+                            return true;
+                        }
+                    }
+
                     return TryBuildIfStatement(ifStatement, nextIndex, out entryIndex, activeLabel);
 
                 case EmptyStatement:
@@ -160,6 +231,12 @@ internal sealed class GeneratorIrBuilder
                         : TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
                 case ReturnStatement returnStatement:
+                    if (returnStatement.Expression is YieldExpression yieldReturn &&
+                        TryBuildReturnWithYield(returnStatement, yieldReturn, nextIndex, out entryIndex))
+                    {
+                        return true;
+                    }
+
                     if (returnStatement.Expression is not null && ContainsYield(returnStatement.Expression))
                     {
                         entryIndex = -1;

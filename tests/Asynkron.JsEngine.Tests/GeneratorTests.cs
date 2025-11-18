@@ -2251,6 +2251,65 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_ReturnYieldIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                return yield "first";
+            }
+            let g = gen();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        var firstDone = await engine.Evaluate("first.done;");
+
+        await engine.Evaluate("const second = g.next('then');");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+
+        Assert.Equal("first", firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal("then", secondValue);
+        Assert.True((bool)secondDone!);
+    }
+    [Fact(Timeout = 2000)]
+    public async Task Generator_IfConditionYieldIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                let log = [];
+                if (yield "first") {
+                    log.push("then");
+                } else {
+                    log.push("else");
+                }
+                return log.join(",");
+            }
+            let g = gen();
+        """);
+
+        // First next yields the condition value
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        var firstDone = await engine.Evaluate("first.done;");
+
+        // Resume with truthy value so the then-branch executes
+        await engine.Evaluate("const second = g.next(true);");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+
+        Assert.Equal("first", firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal("then", secondValue);
+        Assert.True((bool)secondDone!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ParseGeneratorSyntax_FunctionStar()
     {
         // Arrange

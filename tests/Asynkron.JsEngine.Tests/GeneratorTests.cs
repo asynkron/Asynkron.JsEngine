@@ -581,6 +581,112 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarThrowContinuesWhenIteratorResumesIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                let index = 0;
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                if (index === 0) {
+                                    index++;
+                                    return { value: "initial", done: false };
+                                }
+                                return { value: "done", done: true };
+                            },
+                            throw(err) {
+                                return { value: `handled:${err}`, done: false };
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                yield* makeIterator();
+                yield "after";
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        Assert.Equal("initial", firstValue);
+
+        await engine.Evaluate("const second = g.throw('boom');");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+        Assert.Equal("handled:boom", secondValue);
+        Assert.False((bool)secondDone!);
+
+        await engine.Evaluate("const third = g.next();");
+        var thirdValue = await engine.Evaluate("third.value;");
+        var thirdDone = await engine.Evaluate("third.done;");
+        Assert.Equal("after", thirdValue);
+        Assert.False((bool)thirdDone!);
+
+        await engine.Evaluate("const final = g.next();");
+        var finalDone = await engine.Evaluate("final.done;");
+        Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarReturnDoneFalseContinuesIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                let closed = false;
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                if (closed) {
+                                    return { value: "finished", done: true };
+                                }
+                                return { value: 1, done: false };
+                            },
+                            return(value) {
+                                closed = true;
+                                return { value: value + 100, done: false };
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                const result = yield* makeIterator();
+                return `result:${result}`;
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        Assert.Equal(1.0, firstValue);
+
+        await engine.Evaluate("const second = g.return(5);");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+        Assert.Equal(105.0, secondValue);
+        Assert.False((bool)secondDone!);
+
+        await engine.Evaluate("const final = g.next();");
+        var finalValue = await engine.Evaluate("final.value;");
+        var finalDone = await engine.Evaluate("final.done;");
+        Assert.Equal("result:finished", finalValue);
+        Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_ForAwaitFallsBackIr()
     {
         await using var engine = new JsEngine();

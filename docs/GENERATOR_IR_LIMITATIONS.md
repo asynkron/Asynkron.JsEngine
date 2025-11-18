@@ -31,15 +31,14 @@ When a construct falls back, execution uses `EvaluateYield` / `EvaluateDelegated
 
 The following tests lock our current expectations for the IR and fallback paths:
 
-- `Generator_YieldStarDelegatesValues`, `Generator_YieldStarReceivesSentValuesIr`, `Generator_YieldStarThrowDeliversCleanupIr`, and `Generator_YieldStarReturnDeliversCleanupIr` ensure delegated `yield*` expressions stay on the IR path, forward `.next/.throw/.return` payloads to the underlying iterator, and still unwind nested `try/finally` stacks.
+- `Generator_YieldStarDelegatesValues`, `Generator_YieldStarReceivesSentValuesIr`, `Generator_YieldStarThrowDeliversCleanupIr`, `Generator_YieldStarReturnDeliversCleanupIr`, `Generator_YieldStarThrowContinuesWhenIteratorResumesIr`, and `Generator_YieldStarReturnDoneFalseContinuesIr` ensure delegated `yield*` expressions stay on the IR path, forward `.next/.throw/.return` payloads to the underlying iterator (even when the delegate reports `done: false`), and still unwind nested `try/finally` stacks.
 - `Generator_ForAwaitFallsBackIr`, `Generator_ForAwaitAsyncIteratorAwaitsValuesIr`, `Generator_ForAwaitPromiseValuesAreAwaitedIr`, and `Generator_ForAwaitAsyncIteratorRejectsPropagatesIr` prove `for await...of` loops now await promise-returning iterators even outside async functions and surface rejections as `ThrowSignal`s.
 - All other `Generator_*Ir` tests listed in `continue.md` execute on the IR path and assert catch/finally semantics, loop unwinding, and resume behavior.
 
 ## Known gaps & future work
 
 - While the IR path now hosts `yield*`, delegated `.throw` / `.return` handling still reuses the simplified `DelegatedYieldState`, so we do not yet model the full ECMAScript algorithm (for example, if `iterator.throw` returns a non-completion object). More spec-focused tests are required.
-- Async iteration via `for await...of` only works for iterables whose `next()` synchronously returns `{ value, done }`. The evaluator throws if the iterator produces promises, and we skip bridging to async functions entirely (see `EvaluateForAwaitOf`).
+- Awaiting promise-returning iterators currently blocks the managed thread until the promise settles (we synchronously wait on a `TaskCompletionSource`). Integrating the event queue so long-running promises yield back to the host remains future work.
 - There is no IR support for async generators (`async function*`), so adding those will require both parser work and a coroutine-aware interpreter.
-- `for await...of` on IR would require a new instruction set that (a) materializes the async iterator, (b) awaits the promise returned by `.next()`, and (c) integrates with the JS event loop so `.throw`/`.return` can propagate through pending `await`s. Today none of that scheduling exists in the IR interpreter.
 
 Use this file when triaging future bugs or planning work: if a generator construct isn’t in the supported list above, it is expected to fall back to the replay engine until we extend the IR.

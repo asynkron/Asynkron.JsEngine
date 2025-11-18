@@ -96,3 +96,15 @@ internal sealed record ForOfInitInstruction(ExpressionNode IterableExpression, S
 /// </summary>
 internal sealed record ForOfMoveNextInstruction(Symbol IteratorSlot, Symbol ValueSlot, int BreakIndex, int Next)
     : GeneratorInstruction(Next);
+
+/// <summary>
+/// Initializes the iterator for a <c>for await...of</c> loop.
+/// </summary>
+internal sealed record ForAwaitInitInstruction(ExpressionNode IterableExpression, Symbol IteratorSlot, int Next)
+    : GeneratorInstruction(Next);
+
+/// <summary>
+/// Advances the iterator for a <c>for await...of</c> loop.
+/// </summary>
+internal sealed record ForAwaitMoveNextInstruction(Symbol IteratorSlot, Symbol ValueSlot, int BreakIndex, int Next)
+    : GeneratorInstruction(Next);

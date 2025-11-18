@@ -139,10 +139,12 @@ internal sealed class GeneratorIrBuilder
             case TryStatement tryStatement:
                 return TryBuildTryStatement(tryStatement, nextIndex, out entryIndex, activeLabel);
 
-            case ForEachStatement forEachStatement when forEachStatement.Kind == ForEachKind.Of &&
-                                                        forEachStatement.Kind != ForEachKind.AwaitOf &&
+            case ForEachStatement forEachStatement when (forEachStatement.Kind == ForEachKind.Of ||
+                                                         forEachStatement.Kind == ForEachKind.AwaitOf) &&
                                                         IsSimpleForOfBinding(forEachStatement):
-                return TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
+                return forEachStatement.Kind == ForEachKind.AwaitOf
+                    ? TryBuildForAwaitStatement(forEachStatement, nextIndex, out entryIndex, activeLabel)
+                    : TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
             case ReturnStatement returnStatement:
                 if (returnStatement.Expression is not null && ContainsYield(returnStatement.Expression))
@@ -380,6 +382,41 @@ internal sealed class GeneratorIrBuilder
         _instructions[moveNextIndex] = ((ForOfMoveNextInstruction)_instructions[moveNextIndex]) with { Next = iterationEntry };
 
         var initIndex = Append(new ForOfInitInstruction(statement.Iterable, iteratorSymbol, moveNextIndex));
+        entryIndex = initIndex;
+        return true;
+    }
+
+    private bool TryBuildForAwaitStatement(ForEachStatement statement, int nextIndex, out int entryIndex,
+        Symbol? label)
+    {
+        if (ContainsYield(statement.Iterable))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var instructionStart = _instructions.Count;
+        var iteratorSymbol = Symbol.Intern($"__forAwait_iter_{instructionStart}");
+        var valueSymbol = Symbol.Intern($"__forAwait_value_{instructionStart}");
+
+        var moveNextIndex = Append(new ForAwaitMoveNextInstruction(iteratorSymbol, valueSymbol, nextIndex, -1));
+        var perIterationBlock = CreateForOfIterationBlock(statement, valueSymbol);
+
+        var scope = new LoopScope(label, moveNextIndex, nextIndex);
+        _loopScopes.Push(scope);
+        var bodyBuilt = TryBuildStatement(perIterationBlock, moveNextIndex, out var iterationEntry, label);
+        _loopScopes.Pop();
+
+        if (!bodyBuilt)
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        _instructions[moveNextIndex] = ((ForAwaitMoveNextInstruction)_instructions[moveNextIndex]) with { Next = iterationEntry };
+
+        var initIndex = Append(new ForAwaitInitInstruction(statement.Iterable, iteratorSymbol, moveNextIndex));
         entryIndex = initIndex;
         return true;
     }

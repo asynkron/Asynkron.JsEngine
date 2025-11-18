@@ -10,11 +10,10 @@
 
 ## Next Iteration Plan
 
-1. **For-Await IR Execution**
-   - Move the new promise-aware behavior into the generator IR path so `for await...of` loops no longer fall back to the legacy evaluator. This likely means adding dedicated instructions to await iterator results/value payloads and wiring them into the event queue.
-   - Ensure awaited promises resume the generator without replay, and propagate `.throw/.return` through the iterator (including rejection paths). Use the new tests (`Generator_ForAwaitAsyncIteratorAwaitsValuesIr`, `Generator_ForAwaitPromiseValuesAreAwaitedIr`, `Generator_ForAwaitAsyncIteratorRejectsPropagatesIr`) as the acceptance bar.
-   - Once IR support lands, clean up the legacy evaluator hook to just be a fallback and update docs to reflect the expanded fast path.
-
-2. **Delegated Spec Parity**
+1. **Delegated Spec Parity**
    - Add coverage for exotic `iterator.throw/return` combinations (e.g., custom iterators that return non-completion objects) and adjust the new `YieldStarInstruction` pipeline if gaps surface.
    - Document any remaining differences between our delegated semantics and the ECMAScript algorithm so future work can focus on spec compliance.
+
+2. **Async Await Scheduling**
+   - `TryAwaitPromise` currently blocks the managed thread until a promise settles. Investigate integrating the event queue (e.g., resume generators via `ScheduleTask`) so long-running promises yield control instead of blocking.
+   - Explore exposing instrumentation hooks (trace or debug) so we can observe nested awaits inside generators and detect potential starvation.

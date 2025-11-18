@@ -3557,8 +3557,9 @@ public static class TypedAstEvaluator
                 var value = nextResult.TryGetProperty("value", out var yielded)
                     ? yielded
                     : JsSymbols.Undefined;
-                var delegatedCompletion = propagateThrow || propagateReturn;
-                return (value, done, delegatedCompletion, propagateThrow);
+                var delegatedCompletion = (propagateThrow || propagateReturn) && done;
+                var propagateThrowResult = propagateThrow && done;
+                return (value, done, delegatedCompletion, propagateThrowResult);
             }
 
             if (_enumerator is null)
@@ -4194,6 +4195,136 @@ public static class TypedAstEvaluator
 
                         StoreSymbolValue(environment, forOfMoveNextInstruction.ValueSlot, currentValue);
                         _programCounter = forOfMoveNextInstruction.Next;
+                        continue;
+
+                    case ForAwaitInitInstruction forAwaitInitInstruction:
+                        var awaitIterable =
+                            EvaluateExpression(forAwaitInitInstruction.IterableExpression, environment, context);
+                        if (context.IsThrow)
+                        {
+                            var initThrownAwait = context.FlowValue;
+                            context.Clear();
+                            if (HandleAbruptCompletion(AbruptKind.Throw, initThrownAwait, environment))
+                            {
+                                continue;
+                            }
+
+                            _tryStack.Clear();
+                            throw new ThrowSignal(initThrownAwait);
+                        }
+
+                        var awaitState = CreateForOfState(awaitIterable);
+                        StoreSymbolValue(environment, forAwaitInitInstruction.IteratorSlot, awaitState);
+                        _programCounter = forAwaitInitInstruction.Next;
+                        continue;
+
+                    case ForAwaitMoveNextInstruction forAwaitMoveNextInstruction:
+                        if (!TryGetSymbolValue(environment, forAwaitMoveNextInstruction.IteratorSlot, out var awaitIteratorState) ||
+                            awaitIteratorState is not ForOfState forAwaitState)
+                        {
+                            _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                            continue;
+                        }
+
+                        object? awaitedValue;
+                        if (forAwaitState.Iterator is JsObject awaitIteratorObj)
+                        {
+                            var nextResult = InvokeIteratorNext(awaitIteratorObj);
+                            if (!TryAwaitPromise(nextResult, context, out var awaitedNextResult))
+                            {
+                                if (context.IsThrow)
+                                {
+                                    var thrownAwait = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(thrownAwait);
+                                }
+
+                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                continue;
+                            }
+
+                            if (awaitedNextResult is not JsObject awaitResultObj)
+                            {
+                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                continue;
+                            }
+
+                            var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
+                                            awaitDoneValue is bool awaitCompleted && awaitCompleted;
+                            if (doneAwait)
+                            {
+                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                continue;
+                            }
+
+                            var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
+                                ? yieldedAwait
+                                : JsSymbols.Undefined;
+                            if (!TryAwaitPromise(rawValue, context, out var fullyAwaitedValue))
+                            {
+                                if (context.IsThrow)
+                                {
+                                    var thrownAwaitValue = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitValue, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(thrownAwaitValue);
+                                }
+
+                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                continue;
+                            }
+
+                            awaitedValue = fullyAwaitedValue;
+                        }
+                        else if (forAwaitState.Enumerator is IEnumerator<object?> awaitEnumerator)
+                        {
+                            if (!awaitEnumerator.MoveNext())
+                            {
+                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                continue;
+                            }
+
+                            var enumerated = awaitEnumerator.Current;
+                            if (!TryAwaitPromise(enumerated, context, out var awaitedEnumerated))
+                            {
+                                if (context.IsThrow)
+                                {
+                                    var thrownAwaitEnum = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitEnum, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(thrownAwaitEnum);
+                                }
+
+                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                continue;
+                            }
+
+                            awaitedValue = awaitedEnumerated;
+                        }
+                        else
+                        {
+                            _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                            continue;
+                        }
+
+                        StoreSymbolValue(environment, forAwaitMoveNextInstruction.ValueSlot, awaitedValue);
+                        _programCounter = forAwaitMoveNextInstruction.Next;
                         continue;
 
                     case JumpInstruction jumpInstruction:

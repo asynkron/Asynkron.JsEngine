@@ -3474,7 +3474,8 @@ public static class TypedAstEvaluator
                             StoreSymbolValue(environment, yieldStarInstruction.StateSlotSymbol, yieldStarState);
                         }
 
-                        if (yieldStarState.PendingAbrupt != AbruptKind.None)
+                        if (yieldStarState.PendingAbrupt != AbruptKind.None &&
+                            _pendingResumeKind is not ResumePayloadKind.Throw and not ResumePayloadKind.Return)
                         {
                             var pendingKind = yieldStarState.PendingAbrupt;
                             var pendingValue = yieldStarState.PendingValue;
@@ -3581,7 +3582,6 @@ public static class TypedAstEvaluator
                                 {
                                     yieldStarState.PendingAbrupt = pendingKind;
                                     yieldStarState.PendingValue = sendValue;
-                                    yieldStarState.State = null;
                                     yieldStarState.AwaitingResume = true;
                                     _programCounter = currentIndex;
                                     _state = GeneratorState.Suspended;

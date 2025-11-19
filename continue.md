@@ -10,16 +10,13 @@
 - Tests `Generator_IfConditionYieldIr` and `Generator_ReturnYieldIr` lock in IR semantics for `if (yield <expr>)` and `return yield <expr>` so resume payloads are threaded through the IR pending-completion model rather than via replay.
 - `for await...of` remains on the replay path, but tests `Generator_ForAwaitFallsBackIr`, `Generator_ForAwaitAsyncIteratorAwaitsValuesIr`, `Generator_ForAwaitPromiseValuesAreAwaitedIr`, and `Generator_ForAwaitAsyncIteratorRejectsPropagatesIr` verify that async iterators and promise-valued elements are awaited and that rejections surface as `ThrowSignal`s.
 - All generator IR tests, including nested `try/finally` cases (`Generator_TryFinallyNestedThrowIr`, `Generator_TryFinallyNestedReturnIr`), are now green and exercise the IR pending-completion model.
+- New tests `Generator_YieldStarNestedTryFinallyThrowMidFinalIr` and `Generator_YieldStarNestedTryFinallyReturnMidFinalIr` combine `yield*` with nested `try/finally` and mid-final `.throw/.return`, and `YieldStarInstruction` now preserves pending abrupt completions across multiple `finally` frames so later resumes override earlier ones without downgrading throws/returns.
 - `GeneratorIrDiagnostics` exposes lightweight counters for IR plan attempts/successes/failures, and `Generator_ForOfYieldsValuesIr_UsesIrPlan` asserts that plain `for...of` with `var` is always hosted on the IR path (no silent fallbacks).
 - `docs/GENERATOR_IR_LIMITATIONS.md` captures which generator constructs lower to IR, which ones intentionally fall back, and what follow-up work is still open.
 
 ## Next Iteration Plan
 
-1. **Audit Complex Yield + Finally Interactions**
-   - Add targeted tests that combine `yield*` and nested `try/finally` (including mid-final `.throw/.return`) and verify that both IR and replay paths preserve pending completions without “downgrading” abrupt completions when multiple `finally` blocks re-schedule the same completion.
-   - Confirm that any such shapes either run correctly on the IR path or are explicitly documented as replay-only/unsupported in `GENERATOR_IR_LIMITATIONS.md`.
-
-2. **Eliminate Replay-Only IR Gaps**
+1. **Eliminate Replay-Only IR Gaps**
    - Enumerate generator shapes that still fall back to the replay engine (e.g., `for...of` with `let`/`const` + closures, nested `try` inside `finally`, more complex `yield` placements flagged by `ContainsYield`).
    - For each shape, decide whether it should be:
      - fully supported on the IR path (and update `GeneratorIrBuilder` + IR interpreter accordingly), or
@@ -33,16 +30,16 @@
      - Update `CreateForOfIterationBlock` so closures over the loop variable capture the per-iteration binding rather than a single shared slot.
      - Flip `Generator_ForOfLetCreatesNewBindingIr_FallsBackToReplay` / `Generator_ForOfDestructuringIr_FallsBackToReplay` into “uses IR plan” tests once the implementation is correct, and add a `Generator_ForOfLetCreatesNewBindingIr_UsesIrPlan` assertion via `GeneratorIrDiagnostics`.
 
-3. **Enforce No-Fallback for Supported Generators**
+2. **Enforce No-Fallback for Supported Generators**
    - Use `GeneratorIrDiagnostics` in tests to assert that all `Generator_*Ir` scenarios actually build IR plans (no failures recorded for the supported set).
    - For any newly IR-hosted shapes (from step 2), add “uses IR plan” tests similar to `Generator_ForOfYieldsValuesIr_UsesIrPlan` so future regressions are caught.
 
-4. **Sunset the Replay Generator Path**
+3. **Sunset the Replay Generator Path**
    - Once the supported generator surface is fully IR-hosted and covered by no-fallback tests:
      - Make generator creation treat `GeneratorIrBuilder.TryBuild` failures for supported shapes as hard errors (or parse-time rejections), rather than silently falling back to replay.
      - Remove the generator replay machinery from `TypedAstEvaluator` (`YieldTracker`, `YieldResumeContext`, and generator-specific replay branches), leaving at most a thin compatibility shim for explicitly unsupported constructs.
 
-5. **Async Await Scheduling (Post‑Sunset)**
+4. **Async Await Scheduling (Post‑Sunset)**
    - After the replay generator is no longer in the hot path, revisit `TryAwaitPromise` and generator scheduling:
      - Integrate the event queue (e.g., resume generators via `ScheduleTask`) so long-running promises in generators don’t block the managed thread.
      - Optionally expose instrumentation hooks (trace or debug) so we can observe nested awaits inside generators and detect potential starvation.

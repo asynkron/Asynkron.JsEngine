@@ -1099,6 +1099,135 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarNestedTryFinallyThrowMidFinalIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let log = [];
+            function* inner() {
+                try {
+                    yield 1;
+                } finally {
+                    log.push("inner-finally-1");
+                    yield "inner-cleanup-1";
+                    log.push("inner-finally-2");
+                    yield "inner-cleanup-2";
+                }
+            }
+            function* outer() {
+                try {
+                    yield* inner();
+                } finally {
+                    log.push("outer-finally-1");
+                    yield "outer-cleanup-1";
+                    log.push("outer-finally-2");
+                    yield "outer-cleanup-2";
+                }
+            }
+            let g = outer();
+        """);
+
+        await engine.Evaluate("g.next();");
+
+        await engine.Evaluate("const innerCleanup1 = g.throw('boom');");
+        var innerCleanup1Value = await engine.Evaluate("innerCleanup1.value;");
+        var innerCleanup1Done = await engine.Evaluate("innerCleanup1.done;");
+
+        await engine.Evaluate("const innerCleanup2 = g.throw('override');");
+        var innerCleanup2Value = await engine.Evaluate("innerCleanup2.value;");
+        var innerCleanup2Done = await engine.Evaluate("innerCleanup2.done;");
+
+        await engine.Evaluate("const outerCleanup1 = g.next();");
+        var outerCleanup1Value = await engine.Evaluate("outerCleanup1.value;");
+        var outerCleanup1Done = await engine.Evaluate("outerCleanup1.done;");
+
+        await engine.Evaluate("const outerCleanup2 = g.next();");
+        var outerCleanup2Value = await engine.Evaluate("outerCleanup2.value;");
+        var outerCleanup2Done = await engine.Evaluate("outerCleanup2.done;");
+
+        var finalThrow = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
+        var transcript = await engine.Evaluate("log.join(',');");
+
+        Assert.Equal("inner-cleanup-1", innerCleanup1Value);
+        Assert.False((bool)innerCleanup1Done!);
+        Assert.Equal("inner-cleanup-2", innerCleanup2Value);
+        Assert.False((bool)innerCleanup2Done!);
+        Assert.Equal("outer-cleanup-1", outerCleanup1Value);
+        Assert.False((bool)outerCleanup1Done!);
+        Assert.Equal("outer-cleanup-2", outerCleanup2Value);
+        Assert.False((bool)outerCleanup2Done!);
+        Assert.Equal("override", finalThrow.ThrownValue);
+        Assert.Equal("inner-finally-1,inner-finally-2,outer-finally-1,outer-finally-2", transcript);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarNestedTryFinallyReturnMidFinalIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let log = [];
+            function* inner() {
+                try {
+                    yield 1;
+                } finally {
+                    log.push("inner-finally-1");
+                    yield "inner-cleanup-1";
+                    log.push("inner-finally-2");
+                    yield "inner-cleanup-2";
+                }
+            }
+            function* outer() {
+                try {
+                    yield* inner();
+                } finally {
+                    log.push("outer-finally-1");
+                    yield "outer-cleanup-1";
+                    log.push("outer-finally-2");
+                    yield "outer-cleanup-2";
+                }
+            }
+            let g = outer();
+        """);
+
+        await engine.Evaluate("g.next();");
+
+        await engine.Evaluate("const innerCleanup1 = g.return(42);");
+        var innerCleanup1Value = await engine.Evaluate("innerCleanup1.value;");
+        var innerCleanup1Done = await engine.Evaluate("innerCleanup1.done;");
+
+        await engine.Evaluate("const innerCleanup2 = g.return(99);");
+        var innerCleanup2Value = await engine.Evaluate("innerCleanup2.value;");
+        var innerCleanup2Done = await engine.Evaluate("innerCleanup2.done;");
+
+        await engine.Evaluate("const outerCleanup1 = g.next();");
+        var outerCleanup1Value = await engine.Evaluate("outerCleanup1.value;");
+        var outerCleanup1Done = await engine.Evaluate("outerCleanup1.done;");
+
+        await engine.Evaluate("const outerCleanup2 = g.next();");
+        var outerCleanup2Value = await engine.Evaluate("outerCleanup2.value;");
+        var outerCleanup2Done = await engine.Evaluate("outerCleanup2.done;");
+
+        await engine.Evaluate("const finalResult = g.next();");
+        var finalValue = await engine.Evaluate("finalResult.value;");
+        var finalDone = await engine.Evaluate("finalResult.done;");
+        var transcript = await engine.Evaluate("log.join(',');");
+
+        Assert.Equal("inner-cleanup-1", innerCleanup1Value);
+        Assert.False((bool)innerCleanup1Done!);
+        Assert.Equal("inner-cleanup-2", innerCleanup2Value);
+        Assert.False((bool)innerCleanup2Done!);
+        Assert.Equal("outer-cleanup-1", outerCleanup1Value);
+        Assert.False((bool)outerCleanup1Done!);
+        Assert.Equal("outer-cleanup-2", outerCleanup2Value);
+        Assert.False((bool)outerCleanup2Done!);
+        Assert.Equal(99.0, finalValue);
+        Assert.True((bool)finalDone!);
+        Assert.Equal("inner-finally-1,inner-finally-2,outer-finally-1,outer-finally-2", transcript);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_NextValueIsDeliveredToYield()
     {
         await using var engine = new JsEngine();

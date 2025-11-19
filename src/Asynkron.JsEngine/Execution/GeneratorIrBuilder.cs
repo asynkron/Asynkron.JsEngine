@@ -10,7 +10,11 @@ namespace Asynkron.JsEngine.Execution;
 /// More complex control flow (if/loops/try/yield inside expressions) is detected and reported as unsupported so the
 /// engine can fall back to the legacy replay runner.
 /// </summary>
-internal sealed class GeneratorIrBuilder
+/// <summary>
+/// Builds generator IR plans for synchronous generator functions. Async generators are not
+/// implemented yet; async <c>function*</c> bodies always fall back to the replay engine.
+/// </summary>
+internal sealed class SyncGeneratorIrBuilder
 {
     private readonly List<GeneratorInstruction> _instructions = [];
     private readonly Stack<LoopScope> _loopScopes = new();
@@ -25,7 +29,7 @@ internal sealed class GeneratorIrBuilder
 
     private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget);
 
-    private GeneratorIrBuilder()
+    private SyncGeneratorIrBuilder()
     {
     }
 
@@ -85,11 +89,11 @@ internal sealed class GeneratorIrBuilder
         return true;
     }
 
-    public static bool TryBuild(FunctionExpression function, out GeneratorPlan plan)
+    public static bool TryBuild(FunctionExpression function, out GeneratorPlan plan, out string? failureReason)
     {
-        var builder = new GeneratorIrBuilder();
+        var builder = new SyncGeneratorIrBuilder();
         var succeeded = builder.TryBuildInternal(function, out plan);
-        GeneratorIrDiagnostics.ReportResult(function, succeeded, builder._failureReason);
+        failureReason = builder._failureReason;
         return succeeded;
     }
 

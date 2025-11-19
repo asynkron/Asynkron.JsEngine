@@ -2453,6 +2453,31 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_VariableInitializerWithMultipleYields_FallsBackToReplayIr()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                let log = [];
+                let value = (yield "a") + (yield "b");
+                log.push(value);
+                return log[0];
+            }
+            let g = gen();
+        """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(1, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(1, failed);
+        Assert.Equal("Variable declaration contains unsupported yield shape.", GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_ReturnSkipsRemainingStatementsIr()
     {
         await using var engine = new JsEngine();

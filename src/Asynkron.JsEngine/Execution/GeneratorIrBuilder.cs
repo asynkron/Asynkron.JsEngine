@@ -230,17 +230,12 @@ internal sealed class SyncGeneratorIrBuilder
                 case ForEachStatement forEachStatement
                     when forEachStatement.Kind == ForEachKind.Of && IsSimpleForOfBinding(forEachStatement):
                     // For-of with block-scoped bindings and closures requires per-iteration lexical environments.
-                    // Until the IR models that directly, we route yield-free for-of bodies through the
-                    // existing evaluator (no generator yields involved) and treat yielding bodies as unsupported.
-                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+                    // When the loop body and iterable are yield-free, we can safely delegate to the typed evaluator
+                    // (no generator yields inside the loop), preserving correct closure capture semantics.
+                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const &&
+                        !StatementContainsYield(forEachStatement.Body) &&
+                        !ContainsYield(forEachStatement.Iterable))
                     {
-                        if (StatementContainsYield(forEachStatement.Body) || ContainsYield(forEachStatement.Iterable))
-                        {
-                            entryIndex = -1;
-                            _failureReason ??= "for...of with block-scoped bindings and yields is not yet supported by generator IR.";
-                            return false;
-                        }
-
                         entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
                         return true;
                     }

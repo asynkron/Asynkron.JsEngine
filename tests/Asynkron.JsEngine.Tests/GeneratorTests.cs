@@ -702,77 +702,6 @@ public class GeneratorTests
         Assert.Equal("Iterator result is not an object.", signal.ThrownValue);
     }
 
-    [Fact(Timeout = 2000)]
-    public async Task Generator_YieldStarThrowRequiresIteratorResultObjectInterpreter()
-    {
-        await using var engine = new JsEngine();
-
-        await engine.Evaluate("""
-            function makeIterator() {
-                return {
-                    [Symbol.iterator]() {
-                        return {
-                            next() {
-                                return { value: "initial", done: false };
-                            },
-                            throw(err) {
-                                return "not-an-object";
-                            }
-                        };
-                    }
-                };
-            }
-
-            function* outer() {
-                if (false) {
-                    yield "never";
-                }
-                yield* makeIterator();
-            }
-
-            let g = outer();
-        """);
-
-        await engine.Evaluate("g.next();");
-        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.throw('boom');"));
-        Assert.Equal("Iterator result is not an object.", signal.ThrownValue);
-    }
-
-    [Fact(Timeout = 2000)]
-    public async Task Generator_YieldStarReturnRequiresIteratorResultObjectInterpreter()
-    {
-        await using var engine = new JsEngine();
-
-        await engine.Evaluate("""
-            function makeIterator() {
-                return {
-                    [Symbol.iterator]() {
-                        return {
-                            next() {
-                                return { value: "initial", done: false };
-                            },
-                            return(value) {
-                                return 42;
-                            }
-                        };
-                    }
-                };
-            }
-
-            function* outer() {
-                if (false) {
-                    yield "never";
-                }
-                yield* makeIterator();
-            }
-
-            let g = outer();
-        """);
-
-        await engine.Evaluate("g.next();");
-        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.return('done');"));
-        Assert.Equal("Iterator result is not an object.", signal.ThrownValue);
-    }
 
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarThrowAwaitedPromiseIr()
@@ -822,56 +751,6 @@ public class GeneratorTests
         Assert.Equal("after", thirdValue);
     }
 
-    [Fact(Timeout = 2000)]
-    public async Task Generator_YieldStarThrowAwaitedPromiseInterpreter()
-    {
-        await using var engine = new JsEngine();
-
-        await engine.Evaluate("""
-            function makeIterator() {
-                let index = 0;
-                return {
-                    [Symbol.iterator]() {
-                        return {
-                            next() {
-                                if (index++ === 0) {
-                                    return { value: "initial", done: false };
-                                }
-                                return { value: "done", done: true };
-                            },
-                            throw(err) {
-                                return Promise.resolve({ value: `handled:${err}`, done: false });
-                            }
-                        };
-                    }
-                };
-            }
-
-            function* outer() {
-                if (false) {
-                    yield "never";
-                }
-                yield* makeIterator();
-                yield "after";
-            }
-
-            let g = outer();
-        """);
-
-        await engine.Evaluate("const first = g.next();");
-        var firstValue = await engine.Evaluate("first.value;");
-        Assert.Equal("initial", firstValue);
-
-        await engine.Evaluate("const second = g.throw('boom');");
-        var secondValue = await engine.Evaluate("second.value;");
-        var secondDone = await engine.Evaluate("second.done;");
-        Assert.Equal("handled:boom", secondValue);
-        Assert.False((bool)secondDone!);
-
-        await engine.Evaluate("const third = g.next();");
-        var thirdValue = await engine.Evaluate("third.value;");
-        Assert.Equal("after", thirdValue);
-    }
 
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarThrowPromiseRejectsIr()
@@ -906,41 +785,6 @@ public class GeneratorTests
         Assert.Equal("reject:boom", signal.ThrownValue);
     }
 
-    [Fact(Timeout = 2000)]
-    public async Task Generator_YieldStarThrowPromiseRejectsInterpreter()
-    {
-        await using var engine = new JsEngine();
-
-        await engine.Evaluate("""
-            function makeIterator() {
-                return {
-                    [Symbol.iterator]() {
-                        return {
-                            next() {
-                                return { value: "initial", done: false };
-                            },
-                            throw(err) {
-                                return Promise.reject(`reject:${err}`);
-                            }
-                        };
-                    }
-                };
-            }
-
-            function* outer() {
-                if (false) {
-                    yield "never";
-                }
-                yield* makeIterator();
-            }
-
-            let g = outer();
-        """);
-
-        await engine.Evaluate("g.next();");
-        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.throw('boom');"));
-        Assert.Equal("reject:boom", signal.ThrownValue);
-    }
 
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarReturnAwaitedPromiseIr()
@@ -993,59 +837,6 @@ public class GeneratorTests
         Assert.True((bool)finalDone!);
     }
 
-    [Fact(Timeout = 2000)]
-    public async Task Generator_YieldStarReturnAwaitedPromiseInterpreter()
-    {
-        await using var engine = new JsEngine();
-
-        await engine.Evaluate("""
-            function makeIterator() {
-                let closed = false;
-                return {
-                    [Symbol.iterator]() {
-                        return {
-                            next() {
-                                if (closed) {
-                                    return { value: "finished", done: true };
-                                }
-                                return { value: 1, done: false };
-                            },
-                            return(value) {
-                                closed = true;
-                                return Promise.resolve({ value: value + 100, done: true });
-                            }
-                        };
-                    }
-                };
-            }
-
-            function* outer() {
-                if (false) {
-                    yield "never";
-                }
-                const result = yield* makeIterator();
-                return `result:${result}`;
-            }
-
-            let g = outer();
-        """);
-
-        await engine.Evaluate("const first = g.next();");
-        var firstValue = await engine.Evaluate("first.value;");
-        Assert.Equal(1.0, firstValue);
-
-        await engine.Evaluate("const second = g.return(5);");
-        var secondValue = await engine.Evaluate("second.value;");
-        var secondDone = await engine.Evaluate("second.done;");
-        Assert.Equal(105.0, secondValue);
-        Assert.True((bool)secondDone!);
-
-        await engine.Evaluate("const final = g.next();");
-        var finalValue = await engine.Evaluate("final.value;");
-        var finalDone = await engine.Evaluate("final.done;");
-        Assert.Equal("result:finished", finalValue);
-        Assert.True((bool)finalDone!);
-    }
 
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarReturnDoneFalseContinuesIr()
@@ -2547,20 +2338,25 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Generator_VariableInitializerWithMultipleYields_FallsBackToReplayIr()
+    public async Task Generator_VariableInitializerWithMultipleYields_UnsupportedIr()
     {
         GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
-        await engine.Evaluate("""
-            function* gen() {
-                let log = [];
-                let value = (yield "a") + (yield "b");
-                log.push(value);
-                return log[0];
-            }
-            let g = gen();
-        """);
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+        {
+            await engine.Evaluate("""
+                function* gen() {
+                    let log = [];
+                    let value = (yield "a") + (yield "b");
+                    log.push(value);
+                    return log[0];
+                }
+                let g = gen();
+            """);
+        });
+
+        Assert.Contains("Variable declaration contains unsupported yield shape.", ex.Message);
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
@@ -2572,19 +2368,24 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Generator_IfConditionComplexYield_FallsBackToReplayIr()
+    public async Task Generator_IfConditionComplexYield_UnsupportedIr()
     {
         GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
-        await engine.Evaluate("""
-            function* gen() {
-                if (1 + (yield "a")) {
-                    yield "then";
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+        {
+            await engine.Evaluate("""
+                function* gen() {
+                    if (1 + (yield "a")) {
+                        yield "then";
+                    }
                 }
-            }
-            let g = gen();
-        """);
+                let g = gen();
+            """);
+        });
+
+        Assert.Contains("If condition contains unsupported yield shape.", ex.Message);
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
@@ -2596,19 +2397,24 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Generator_ForConditionYield_FallsBackToReplayIr()
+    public async Task Generator_ForConditionYield_UnsupportedIr()
     {
         GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
-        await engine.Evaluate("""
-            function* gen() {
-                for (let i = 0; (yield "cond"); i = i + 1) {
-                    yield i;
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+        {
+            await engine.Evaluate("""
+                function* gen() {
+                    for (let i = 0; (yield "cond"); i = i + 1) {
+                        yield i;
+                    }
                 }
-            }
-            let g = gen();
-        """);
+                let g = gen();
+            """);
+        });
+
+        Assert.Contains("For condition contains unsupported yield shape.", ex.Message);
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
@@ -2851,8 +2657,195 @@ public class GeneratorTests
         var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected at least one core IR shape to lower to IR.");
-        // Some generator constructs still fall back to the replay path,
-        // so this test only asserts that at least one IR plan succeeded.
+        Assert.Equal(0, failed);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForAwaitFallsBackIr()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Run("""
+                                     let result = "";
+                                     let arr = ["a", "b", "c"];
+
+                                     async function test() {
+                                         for await (let item of arr) {
+                                             result = result + item;
+                                         }
+                                     }
+
+                                     test();
+
+                         """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        // for await...of does not use generator IR; it stays on the
+        // replay/async path, so no IR plans should have been attempted.
+        Assert.Equal(0, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(0, failed);
+
+        var result = await engine.Evaluate("result;");
+        Assert.Equal("abc", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForAwaitAsyncIteratorAwaitsValuesIr()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Run("""
+                                     let result = "";
+
+                                     // Custom object with async iterator
+                                     let asyncIterable = {
+                                         [Symbol.asyncIterator]() {
+                                             let count = 0;
+                                             return {
+                                                 next() {
+                                                     count = count + 1;
+                                                     if (count <= 3) {
+                                                         return Promise.resolve({ value: count, done: false });
+                                                     } else {
+                                                         return Promise.resolve({ done: true });
+                                                     }
+                                                 }
+                                             };
+                                         }
+                                     };
+
+                                     async function test() {
+                                         for await (let num of asyncIterable) {
+                                             result = result + num;
+                                         }
+                                     }
+
+                                     test();
+
+                         """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        // Async iteration executes without engaging generator IR.
+        Assert.Equal(0, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(0, failed);
+
+        var result = await engine.Evaluate("result;");
+        Assert.Equal("123", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForAwaitPromiseValuesAreAwaitedIr()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Run("""
+                                     let result = "";
+                                     // For-await-of can iterate arrays, but won't automatically await promise values.
+                                     // This works if we await them manually in the loop body.
+                                     let promises = [
+                                         Promise.resolve("a"),
+                                         Promise.resolve("b"),
+                                         Promise.resolve("c")
+                                     ];
+
+                                     async function test() {
+                                         for await (let promise of promises) {
+                                             let item = await promise;
+                                             result = result + item;
+                                         }
+                                     }
+
+                                     test();
+
+                         """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(0, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(0, failed);
+
+        var result = await engine.Evaluate("result;");
+        Assert.Equal("abc", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForAwaitAsyncIteratorRejectsPropagatesIr()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+        var errorCaught = false;
+
+        engine.SetGlobalFunction("log", args =>
+        {
+            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            Console.WriteLine($"LOG: {message}");
+            return null;
+        });
+
+        engine.SetGlobalFunction("markError", args =>
+        {
+            errorCaught = true;
+            Console.WriteLine("LOG: Error caught!");
+            return null;
+        });
+
+        await engine.Run("""
+
+                                     let asyncIterable = {
+                                         [Symbol.asyncIterator]() {
+                                             let count = 0;
+                                             return {
+                                                 next() {
+                                                     count = count + 1;
+                                                     log("Iterator next() called, count: " + count);
+                                                     if (count === 2) {
+                                                         log("Rejecting at count 2");
+                                                         return Promise.reject("test error");
+                                                     }
+                                                     if (count <= 3) {
+                                                         log("Resolving with value: " + count);
+                                                         return Promise.resolve({ value: count, done: false });
+                                                     }
+                                                     log("Done iterating");
+                                                     return Promise.resolve({ done: true });
+                                                 }
+                                             };
+                                         }
+                                     };
+
+                                     async function test() {
+                                         log("Starting test function");
+                                         try {
+                                             log("Starting for-await-of loop");
+                                             for await (let num of asyncIterable) {
+                                                 log("Got num in loop: " + num);
+                                             }
+                                             log("Loop completed without error");
+                                         } catch (e) {
+                                             log("Caught error: " + e);
+                                             markError();
+                                         }
+                                         log("Test function complete");
+                                     }
+
+                                     test();
+
+                         """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(0, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(0, failed);
+        Assert.True(errorCaught);
     }
 
     [Fact(Timeout = 2000)]

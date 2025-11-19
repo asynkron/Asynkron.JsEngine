@@ -71,9 +71,10 @@ internal sealed class SyncGeneratorIrBuilder
     private bool TryBuildReturnWithYield(ReturnStatement statement, YieldExpression yieldExpression, int nextIndex,
         out int entryIndex)
     {
-        // Only handle non-delegated yield used directly as the return expression,
-        // and reject nested yield inside the yielded expression for now.
-        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+        // Only handle simple `yield` / `yield*` used directly as the return
+        // expression, and reject nested `yield` inside the yielded expression
+        // for now.
+        if (ContainsYield(yieldExpression.Expression))
         {
             entryIndex = -1;
             return false;
@@ -83,9 +84,15 @@ internal sealed class SyncGeneratorIrBuilder
         var returnExpression = new IdentifierExpression(yieldExpression.Source, resumeSymbol);
 
         // Build a return that uses the resume slot value, then prefix it with
-        // a yield sequence that captures the resume payload into that slot.
+        // either:
+        //   - a simple yield sequence that captures the resume payload into
+        //     that slot (`return yield <expr>;`), or
+        //   - a delegated yield* sequence that stores the delegate's final
+        //     completion value into the slot (`return yield* <expr>;`).
         var returnIndex = Append(new ReturnInstruction(returnExpression));
-        entryIndex = AppendYieldSequence(yieldExpression.Expression, returnIndex, resumeSymbol);
+        entryIndex = yieldExpression.IsDelegated
+            ? AppendYieldStarSequence(yieldExpression, returnIndex, resumeSymbol)
+            : AppendYieldSequence(yieldExpression.Expression, returnIndex, resumeSymbol);
         return true;
     }
 

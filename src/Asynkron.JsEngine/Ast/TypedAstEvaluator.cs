@@ -3249,11 +3249,14 @@ public static class TypedAstEvaluator
             _thisValue = thisValue;
             _callable = callable;
 
-            if (GeneratorIrBuilder.TryBuild(function, out var plan))
+            if (!GeneratorIrBuilder.TryBuild(function, out var plan, out var failureReason))
             {
-                _plan = plan;
-                _programCounter = plan.EntryPoint;
+                var reason = failureReason ?? "Generator contains unsupported construct for IR.";
+                throw new NotSupportedException($"Generator IR not implemented for this function: {reason}");
             }
+
+            _plan = plan;
+            _programCounter = plan.EntryPoint;
         }
 
         public JsObject CreateGeneratorObject()
@@ -3272,32 +3275,17 @@ public static class TypedAstEvaluator
 
         private object? Next(object? value)
         {
-            if (_plan is not null)
-            {
-                return ExecutePlan(ResumeMode.Next, value);
-            }
-
-            return ResumeGenerator(ResumeMode.Next, value);
+            return ExecutePlan(ResumeMode.Next, value);
         }
 
         private object? Return(object? value)
         {
-            if (_plan is not null)
-            {
-                return ExecutePlan(ResumeMode.Return, value);
-            }
-
-            return ResumeGenerator(ResumeMode.Return, value);
+            return ExecutePlan(ResumeMode.Return, value);
         }
 
         private object? Throw(object? error)
         {
-            if (_plan is not null)
-            {
-                return ExecutePlan(ResumeMode.Throw, error);
-            }
-
-            return ResumeGenerator(ResumeMode.Throw, error);
+            return ExecutePlan(ResumeMode.Throw, error);
         }
 
         private JsEnvironment CreateExecutionEnvironment()

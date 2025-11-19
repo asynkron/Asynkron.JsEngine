@@ -18,7 +18,7 @@
 ## Next Iteration Plan
 
 1. **Eliminate Replay-Only IR Gaps**
-   - Enumerate generator shapes that still fall back to the replay engine (e.g., nested `try` inside `finally`, `for await...of` in generators, more complex `yield` placements flagged by `ContainsYield`).
+   - Enumerate generator shapes that still fall back to the replay engine (e.g., `for await...of` in generators, more complex `yield` placements flagged by `ContainsYield`).
    - For each shape, decide whether it should be:
      - fully supported on the IR path (and update `GeneratorIrBuilder` + IR interpreter accordingly), or
      - explicitly rejected at parse/analysis time with a clear error so we never silently rely on replay.

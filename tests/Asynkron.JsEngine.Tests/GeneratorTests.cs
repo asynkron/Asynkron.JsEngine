@@ -1101,6 +1101,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarNestedTryFinallyThrowMidFinalIr()
     {
+        GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
         await engine.Evaluate("""
@@ -1127,6 +1128,11 @@ public class GeneratorTests
             }
             let g = outer();
         """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected yield* nested try/finally generator to lower to IR.");
+        Assert.Equal(0, failed);
 
         await engine.Evaluate("g.next();");
 
@@ -1164,6 +1170,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarNestedTryFinallyReturnMidFinalIr()
     {
+        GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
         await engine.Evaluate("""
@@ -1190,6 +1197,11 @@ public class GeneratorTests
             }
             let g = outer();
         """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected yield* nested try/finally generator to lower to IR.");
+        Assert.Equal(0, failed);
 
         await engine.Evaluate("g.next();");
 
@@ -1643,6 +1655,27 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_AssignmentReceivesSentValuesIr_UsesIrPlan()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* assignGen() {
+                let sent = 0;
+                sent = yield 1;
+                yield sent * 3;
+            }
+            let g = assignGen();
+        """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected assignment-with-yield generator to lower to IR.");
+        Assert.Equal(0, failed);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_TryCatchHandlesThrowIr()
     {
         await using var engine = new JsEngine();
@@ -1666,6 +1699,30 @@ public class GeneratorTests
         Assert.Equal(1.0, first);
         Assert.Equal(6.0, second);
         Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_TryCatchHandlesThrowIr_UsesIrPlan()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                try {
+                    yield 1;
+                    yield 2;
+                } catch (err) {
+                    yield err + 1;
+                }
+            }
+            let g = gen();
+        """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected try/catch generator to lower to IR.");
+        Assert.Equal(0, failed);
     }
 
     [Fact(Timeout = 2000)]
@@ -1732,6 +1789,31 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_TryFinallyRunsOnThrowIr_UsesIrPlan()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            let flag = 0;
+            function* gen() {
+                try {
+                    yield 1;
+                } finally {
+                    flag = 1;
+                    yield 2;
+                }
+            }
+            let g = gen();
+        """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected try/finally generator to lower to IR.");
+        Assert.Equal(0, failed);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyNestedBreakIr()
     {
         await using var engine = new JsEngine();
@@ -1766,6 +1848,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyNestedThrowIr()
     {
+        GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
         await engine.Evaluate("""
@@ -1782,6 +1865,11 @@ public class GeneratorTests
             }
             let g = gen();
         """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected nested try/finally generator to lower to IR.");
+        Assert.Equal(0, failed);
 
         await engine.Evaluate("const first = g.next();");
         var firstValue = await engine.Evaluate("first.value;");
@@ -1810,6 +1898,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyNestedReturnIr()
     {
+        GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
         await engine.Evaluate("""
@@ -1826,6 +1915,11 @@ public class GeneratorTests
             }
             let g = gen();
         """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected nested try/finally generator to lower to IR.");
+        Assert.Equal(0, failed);
 
         await engine.Evaluate("g.next();");
         await engine.Evaluate("const mid = g.return(99);");
@@ -2757,8 +2851,8 @@ public class GeneratorTests
         var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected at least one core IR shape to lower to IR.");
-        // Some core shapes are still replay-only (e.g. for-of with let/const),
-        // so we only assert that at least one IR plan succeeded here.
+        // Some generator constructs still fall back to the replay path,
+        // so this test only asserts that at least one IR plan succeeded.
     }
 
     [Fact(Timeout = 2000)]

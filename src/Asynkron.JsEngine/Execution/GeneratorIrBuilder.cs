@@ -229,6 +229,22 @@ internal sealed class SyncGeneratorIrBuilder
 
                 case ForEachStatement forEachStatement
                     when forEachStatement.Kind == ForEachKind.Of && IsSimpleForOfBinding(forEachStatement):
+                    // For-of with block-scoped bindings and closures requires per-iteration lexical environments.
+                    // Until the IR models that directly, we route yield-free for-of bodies through the
+                    // existing evaluator (no generator yields involved) and treat yielding bodies as unsupported.
+                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+                    {
+                        if (StatementContainsYield(forEachStatement.Body) || ContainsYield(forEachStatement.Iterable))
+                        {
+                            entryIndex = -1;
+                            _failureReason ??= "for...of with block-scoped bindings and yields is not yet supported by generator IR.";
+                            return false;
+                        }
+
+                        entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
+                        return true;
+                    }
+
                     return TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
                 case ForEachStatement forEachStatement
@@ -586,6 +602,154 @@ internal sealed class SyncGeneratorIrBuilder
             }
 
             return false;
+        }
+    }
+
+    private static bool StatementContainsYield(StatementNode statement)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case BlockStatement block:
+                    foreach (var s in block.Statements)
+                    {
+                        if (StatementContainsYield(s))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+
+                case ExpressionStatement expressionStatement:
+                    return ContainsYield(expressionStatement.Expression);
+
+                case VariableDeclaration declaration:
+                    return DeclarationContainsYield(declaration);
+
+                case IfStatement ifStatement:
+                    if (ContainsYield(ifStatement.Condition))
+                    {
+                        return true;
+                    }
+
+                    if (StatementContainsYield(ifStatement.Then))
+                    {
+                        return true;
+                    }
+
+                    if (ifStatement.Else is not null && StatementContainsYield(ifStatement.Else))
+                    {
+                        return true;
+                    }
+
+                    return false;
+
+                case WhileStatement whileStatement:
+                    if (ContainsYield(whileStatement.Condition))
+                    {
+                        return true;
+                    }
+
+                    statement = whileStatement.Body;
+                    continue;
+
+                case DoWhileStatement doWhileStatement:
+                    if (ContainsYield(doWhileStatement.Condition))
+                    {
+                        return true;
+                    }
+
+                    statement = doWhileStatement.Body;
+                    continue;
+
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is ExpressionStatement initExpr &&
+                        ContainsYield(initExpr.Expression))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Initializer is VariableDeclaration initDecl &&
+                        DeclarationContainsYield(initDecl))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Condition is not null && ContainsYield(forStatement.Condition))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Increment is not null && ContainsYield(forStatement.Increment))
+                    {
+                        return true;
+                    }
+
+                    statement = forStatement.Body;
+                    continue;
+
+                case ForEachStatement forEachStatement:
+                    if (ContainsYield(forEachStatement.Iterable))
+                    {
+                        return true;
+                    }
+
+                    statement = forEachStatement.Body;
+                    continue;
+
+                case ReturnStatement returnStatement:
+                    return returnStatement.Expression is not null &&
+                           ContainsYield(returnStatement.Expression);
+
+                case SwitchStatement switchStatement:
+                    if (ContainsYield(switchStatement.Discriminant))
+                    {
+                        return true;
+                    }
+
+                    foreach (var c in switchStatement.Cases)
+                    {
+                        if (c.Test is not null && ContainsYield(c.Test))
+                        {
+                            return true;
+                        }
+
+                        if (StatementContainsYield(c.Body))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+
+                case TryStatement tryStatement:
+                    if (StatementContainsYield(tryStatement.TryBlock))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Catch is not null && StatementContainsYield(tryStatement.Catch.Body))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Finally is not null && StatementContainsYield(tryStatement.Finally))
+                    {
+                        return true;
+                    }
+
+                    return false;
+
+                case LabeledStatement labeledStatement:
+                    statement = labeledStatement.Statement;
+                    continue;
+
+                // Break/continue/throw etc. cannot contain yield directly.
+                default:
+                    return false;
+            }
         }
     }
 

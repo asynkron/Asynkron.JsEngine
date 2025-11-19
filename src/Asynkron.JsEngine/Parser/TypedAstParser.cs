@@ -32,6 +32,11 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         private bool InGeneratorContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsGenerator;
         private bool InAsyncContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsAsync;
 
+        // Controls whether the `in` token is treated as a relational operator inside
+        // expressions. For `for (x in y)` we temporarily disable `in` as an operator
+        // so the parser can recognize the for-in / for-of shape.
+        private bool _allowInExpressions = true;
+
         public ProgramNode ParseProgram()
         {
             var statements = ImmutableArray.CreateBuilder<StatementNode>();
@@ -1060,8 +1065,19 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 }
                 else
                 {
-                    var initExpr = ParseExpression();
-                    initializer = new ExpressionStatement(initExpr.Source, initExpr);
+                    // In the for-loop initializer we must not treat `in` as a relational
+                    // operator so we can distinguish `for (x in y)` from `for (x; ...)`.
+                    var previousAllowIn = _allowInExpressions;
+                    _allowInExpressions = false;
+                    try
+                    {
+                        var initExpr = ParseExpression();
+                        initializer = new ExpressionStatement(initExpr.Source, initExpr);
+                    }
+                    finally
+                    {
+                        _allowInExpressions = previousAllowIn;
+                    }
                 }
             }
 
@@ -1362,10 +1378,23 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         {
             var expr = ParseShift();
 
-            while (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual,
-                       TokenType.Instanceof, TokenType.In))
+            while (true)
             {
-                var token = Previous();
+                Token token;
+                if (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual,
+                          TokenType.Instanceof))
+                {
+                    token = Previous();
+                }
+                else if (_allowInExpressions && Match(TokenType.In))
+                {
+                    token = Previous();
+                }
+                else
+                {
+                    break;
+                }
+
                 var op = token.Type switch
                 {
                     TokenType.Greater => ">",
@@ -1816,18 +1845,30 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         {
             var arguments = ImmutableArray.CreateBuilder<CallArgument>();
 
+            // Handle empty argument list: "()"
             if (Check(TokenType.RightParen))
             {
                 Consume(TokenType.RightParen, "Expected ')' after arguments.");
                 return arguments.ToImmutable();
             }
 
-            do
+            // Parse first argument
+            var isSpread = Match(TokenType.DotDotDot);
+            var expr = ParseExpression(false);
+            arguments.Add(new CallArgument(expr.Source, expr, isSpread));
+
+            // Parse subsequent arguments, allowing a trailing comma
+            while (Match(TokenType.Comma))
             {
-                var isSpread = Match(TokenType.DotDotDot);
-                var expr = ParseExpression(false);
+                if (Check(TokenType.RightParen))
+                {
+                    break;
+                }
+
+                isSpread = Match(TokenType.DotDotDot);
+                expr = ParseExpression(false);
                 arguments.Add(new CallArgument(expr.Source, expr, isSpread));
-            } while (Match(TokenType.Comma));
+            }
 
             Consume(TokenType.RightParen, "Expected ')' after arguments.");
             return arguments.ToImmutable();

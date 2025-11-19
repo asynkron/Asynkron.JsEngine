@@ -8,4 +8,5 @@ public static class Symbols
     public static readonly Symbol Undefined = Symbol.Intern("undefined");
     public static readonly Symbol This = Symbol.Intern("this");
     public static readonly Symbol Super = Symbol.Intern("super");
+    public static readonly Symbol Arguments = Symbol.Intern("arguments");
 }

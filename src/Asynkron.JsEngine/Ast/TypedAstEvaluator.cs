@@ -2979,6 +2979,17 @@ public static class TypedAstEvaluator
         DefineParameter
     }
 
+    private static JsArray CreateArgumentsArray(IReadOnlyList<object?> arguments)
+    {
+        var array = new JsArray();
+        for (var i = 0; i < arguments.Count; i++)
+        {
+            array.Push(arguments[i]);
+        }
+
+        return array;
+    }
+
     private static void RestoreSignal(EvaluationContext context, ISignal? signal)
     {
         switch (signal)
@@ -3296,6 +3307,10 @@ public static class TypedAstEvaluator
             var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
             environment.Define(JsSymbols.This, _thisValue ?? new JsObject());
             environment.Define(YieldResumeContextSymbol, _resumeContext);
+
+            // Define `arguments` inside generator functions so generator bodies
+            // can observe the values they were invoked with.
+            environment.Define(JsSymbols.Arguments, CreateArgumentsArray(_arguments));
 
             if (_function.Name is { } functionName)
             {
@@ -4383,6 +4398,12 @@ public static class TypedAstEvaluator
                 var binding = new SuperBinding(_superConstructor, _superPrototype, thisValue);
                 environment.Define(JsSymbols.Super, binding);
             }
+
+            // Define `arguments` so non-arrow function bodies can observe the
+            // arguments they were called with. Arrow functions are also
+            // represented as FunctionExpression for now, so this behaves like a
+            // per-call arguments array rather than a lexical binding.
+            environment.Define(JsSymbols.Arguments, CreateArgumentsArray(arguments));
 
             // Named function expressions should see their name inside the body.
             if (_function.Name is { } functionName)

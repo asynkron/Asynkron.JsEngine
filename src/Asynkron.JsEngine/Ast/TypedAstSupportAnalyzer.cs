@@ -153,8 +153,6 @@ internal static class TypedAstSupportAnalyzer
                     default:
                         return Fail($"Statement '{statement.GetType().Name}' is not supported by the typed evaluator yet.");
                 }
-
-                break;
             }
         }
 
@@ -340,8 +338,6 @@ internal static class TypedAstSupportAnalyzer
                     default:
                         return Fail($"Expression '{expression.GetType().Name}' is not supported by the typed evaluator yet.");
                 }
-
-                break;
             }
         }
 

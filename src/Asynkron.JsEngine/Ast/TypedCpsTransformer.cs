@@ -262,7 +262,6 @@ public sealed class TypedCpsTransformer
             }
 
             return false;
-            break;
         }
     }
 

@@ -265,8 +265,6 @@ internal sealed class GeneratorIrBuilder
                     _failureReason ??= $"Unsupported statement '{statement.GetType().Name}'.";
                     return false;
             }
-
-            break;
         }
     }
 
@@ -541,7 +539,6 @@ internal sealed class GeneratorIrBuilder
             }
 
             return false;
-            break;
         }
     }
 
@@ -976,8 +973,6 @@ internal sealed class GeneratorIrBuilder
                 default:
                     return false;
             }
-
-            break;
         }
     }
 

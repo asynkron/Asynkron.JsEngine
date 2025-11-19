@@ -25,6 +25,13 @@
      - fully supported on the IR path (and update `GeneratorIrBuilder` + IR interpreter accordingly), or
      - explicitly rejected at parse/analysis time with a clear error so we never silently rely on replay.
    - Add or extend `Generator_*Ir` tests (and interpreter twins where appropriate) to lock in the chosen semantics.
+   - In particular, for `for...of` with `let`/`const` + closures:
+     - Design per-iteration lexical environments in the IR interpreter so each iteration gets its own block environment (matching the replay engine and spec semantics for loop-scoped bindings).
+     - Adjust `GeneratorIrBuilder.TryBuildStatement` and `TryBuildForOfStatement` so that:
+       - `for...of` with `let`/`const` no longer falls back by default, and
+       - the generated IR explicitly switches into a fresh per-iteration environment before executing the loop body.
+     - Update `CreateForOfIterationBlock` so closures over the loop variable capture the per-iteration binding rather than a single shared slot.
+     - Flip `Generator_ForOfLetCreatesNewBindingIr_FallsBackToReplay` / `Generator_ForOfDestructuringIr_FallsBackToReplay` into “uses IR plan” tests once the implementation is correct, and add a `Generator_ForOfLetCreatesNewBindingIr_UsesIrPlan` assertion via `GeneratorIrDiagnostics`.
 
 3. **Enforce No-Fallback for Supported Generators**
    - Use `GeneratorIrDiagnostics` in tests to assert that all `Generator_*Ir` scenarios actually build IR plans (no failures recorded for the supported set).

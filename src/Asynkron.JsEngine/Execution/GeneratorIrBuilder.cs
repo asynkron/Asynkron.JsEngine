@@ -306,8 +306,42 @@ internal sealed class SyncGeneratorIrBuilder
         return true;
     }
 
+    private bool TryBuildWhileWithYieldCondition(WhileStatement statement, YieldExpression yieldExpression,
+        int nextIndex, out int entryIndex, Symbol? label)
+    {
+        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var instructionStart = _instructions.Count;
+
+        var resumeSymbol = CreateResumeSlotSymbol();
+        var conditionIdentifier = new IdentifierExpression(yieldExpression.Source, resumeSymbol);
+        var rewrittenWhile = new WhileStatement(statement.Source, conditionIdentifier, statement.Body);
+
+        if (!TryBuildWhileLoop(rewrittenWhile, nextIndex, out var whileEntryIndex, label))
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        entryIndex = AppendYieldSequence(yieldExpression.Expression, whileEntryIndex, resumeSymbol);
+        return true;
+    }
+
     private bool TryBuildWhileStatement(WhileStatement statement, int nextIndex, out int entryIndex, Symbol? label)
     {
+        if (statement.Condition is YieldExpression yieldCondition)
+        {
+            if (TryBuildWhileWithYieldCondition(statement, yieldCondition, nextIndex, out entryIndex, label))
+            {
+                return true;
+            }
+        }
+
         if (ContainsYield(statement.Condition))
         {
             entryIndex = -1;
@@ -315,6 +349,11 @@ internal sealed class SyncGeneratorIrBuilder
             return false;
         }
 
+        return TryBuildWhileLoop(statement, nextIndex, out entryIndex, label);
+    }
+
+    private bool TryBuildWhileLoop(WhileStatement statement, int nextIndex, out int entryIndex, Symbol? label)
+    {
         var instructionStart = _instructions.Count;
         var jumpIndex = Append(new JumpInstruction(-1));
 

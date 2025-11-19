@@ -15,12 +15,9 @@ internal static class GeneratorIrBuilder
         bool succeeded;
         string? failureReason;
 
-        if (function.IsAsync)
+        if (function.IsAsync && function.IsGenerator)
         {
-            // Async generator IR is not implemented yet; force replay.
-            plan = default!;
-            succeeded = false;
-            failureReason = "Async generator IR not implemented; using replay.";
+            succeeded = AsyncGeneratorIrBuilder.TryBuild(function, out plan, out failureReason);
         }
         else
         {
@@ -31,4 +28,3 @@ internal static class GeneratorIrBuilder
         return succeeded;
     }
 }
-

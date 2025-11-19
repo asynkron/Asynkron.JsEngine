@@ -2478,6 +2478,54 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_IfConditionComplexYield_FallsBackToReplayIr()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                if (1 + (yield "a")) {
+                    yield "then";
+                }
+            }
+            let g = gen();
+        """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(1, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(1, failed);
+        Assert.Equal("If condition contains unsupported yield shape.", GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForConditionYield_FallsBackToReplayIr()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                for (let i = 0; (yield "cond"); i = i + 1) {
+                    yield i;
+                }
+            }
+            let g = gen();
+        """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(1, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(1, failed);
+        Assert.Equal("For condition contains unsupported yield shape.", GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_ReturnSkipsRemainingStatementsIr()
     {
         await using var engine = new JsEngine();
@@ -2572,6 +2620,31 @@ public class GeneratorTests
         var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected if(yield ...) generator to lower to IR.");
+        Assert.Equal(0, failed);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_WhileConditionYieldIr_UsesIrPlan()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                let log = [];
+                let count = 0;
+                while (yield "probe") {
+                    log.push(count);
+                    count = count + 1;
+                }
+                return log.join(",");
+            }
+            let g = gen();
+        """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected while(yield ...) generator to lower to IR.");
         Assert.Equal(0, failed);
     }
 

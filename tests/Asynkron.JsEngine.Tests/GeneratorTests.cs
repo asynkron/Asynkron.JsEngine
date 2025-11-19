@@ -2426,6 +2426,128 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_WhileConditionYield_UnsupportedIr()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+        {
+            await engine.Evaluate("""
+                function* gen() {
+                    while (1 + (yield "a")) {
+                        yield "then";
+                    }
+                }
+                let g = gen();
+            """);
+        });
+
+        Assert.Contains("While condition contains unsupported yield shape.", ex.Message);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(1, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(1, failed);
+        Assert.Equal("While condition contains unsupported yield shape.", GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_DoWhileConditionYield_UnsupportedIr()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+        {
+            await engine.Evaluate("""
+                function* gen() {
+                    do {
+                        yield "body";
+                    } while (1 + (yield "cond"));
+                }
+                let g = gen();
+            """);
+        });
+
+        Assert.Contains("Do/while condition contains unsupported yield shape.", ex.Message);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(1, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(1, failed);
+        Assert.Equal("Do/while condition contains unsupported yield shape.", GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForIncrementYield_UnsupportedIr()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+        {
+            await engine.Evaluate("""
+                function* gen() {
+                    for (let i = 0; i < 3; i = i + (yield "step")) {
+                        yield i;
+                    }
+                }
+                let g = gen();
+            """);
+        });
+
+        Assert.Contains("For increment contains unsupported yield shape.", ex.Message);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(1, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(1, failed);
+        Assert.Equal("For increment contains unsupported yield shape.", GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_SwitchStatement_UnsupportedIr()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+        {
+            await engine.Evaluate("""
+                function* gen() {
+                    const x = yield 1;
+                    switch (x) {
+                        case 1:
+                            yield "one";
+                            break;
+                        default:
+                            yield "other";
+                            break;
+                    }
+                }
+                let g = gen();
+            """);
+        });
+
+        Assert.Contains("Unsupported statement 'SwitchStatement'.", ex.Message);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(1, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(1, failed);
+        Assert.Equal("Unsupported statement 'SwitchStatement'.", GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_ReturnSkipsRemainingStatementsIr()
     {
         await using var engine = new JsEngine();

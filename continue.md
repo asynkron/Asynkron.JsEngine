@@ -11,29 +11,23 @@
 - `for await...of` remains on the replay path, but tests `Generator_ForAwaitFallsBackIr`, `Generator_ForAwaitAsyncIteratorAwaitsValuesIr`, `Generator_ForAwaitPromiseValuesAreAwaitedIr`, and `Generator_ForAwaitAsyncIteratorRejectsPropagatesIr` verify that async iterators and promise-valued elements are awaited and that rejections surface as `ThrowSignal`s.
 - All generator IR tests, including nested `try/finally` cases (`Generator_TryFinallyNestedThrowIr`, `Generator_TryFinallyNestedReturnIr`), are now green and exercise the IR pending-completion model.
 - New tests `Generator_YieldStarNestedTryFinallyThrowMidFinalIr` and `Generator_YieldStarNestedTryFinallyReturnMidFinalIr` combine `yield*` with nested `try/finally` and mid-final `.throw/.return`, and `YieldStarInstruction` now preserves pending abrupt completions across multiple `finally` frames so later resumes override earlier ones without downgrading throws/returns.
-- `Generator_ForOfLetCreatesNewBindingIr_UsesIrPlan`, `Generator_ForOfDestructuringIr_UsesIrPlan`, and `Generator_VariableInitializerWithMultipleYields_FallsBackToReplayIr` now lock in that `for...of` with block-scoped bindings (including destructuring and closures) is hosted on the IR path, while complex `yield` in variable initializers still deliberately falls back to the replay engine.
+- `Generator_ForOfLetCreatesNewBindingIr_UsesIrPlan` and `Generator_ForOfDestructuringIr_UsesIrPlan` now lock in that `for...of` with block-scoped bindings (including destructuring and closures) is hosted on the IR path.
+- The replay-based generator path has been removed: `TypedGeneratorInstance` now requires `GeneratorIrBuilder.TryBuild` to succeed and throws a `NotSupportedException` with a detailed reason when IR construction fails.
+- Gap-coverage tests `Generator_VariableInitializerWithMultipleYields_UnsupportedIr`, `Generator_IfConditionComplexYield_UnsupportedIr`, `Generator_ForConditionYield_UnsupportedIr`, `Generator_WhileConditionYield_UnsupportedIr`, `Generator_DoWhileConditionYield_UnsupportedIr`, `Generator_ForIncrementYield_UnsupportedIr`, and `Generator_SwitchStatement_UnsupportedIr` now document the remaining unsupported `yield` placements and switch statements in generators by asserting clear failure reasons from `GeneratorIrDiagnostics`.
 - `GeneratorIrDiagnostics` exposes lightweight counters for IR plan attempts/successes/failures, and `Generator_ForOfYieldsValuesIr_UsesIrPlan` asserts that plain `for...of` with `var` is always hosted on the IR path (no silent fallbacks).
 - `docs/GENERATOR_IR_LIMITATIONS.md` captures which generator constructs lower to IR, which ones intentionally fall back, and what follow-up work is still open.
 
 ## Next Iteration Plan
 
-1. **Eliminate Replay-Only IR Gaps**
-   - Enumerate generator shapes that still fall back to the replay engine (e.g., `for await...of` in generators, more complex `yield` placements flagged by `ContainsYield`).
-   - For each shape, decide whether it should be:
-     - fully supported on the IR path (and update `GeneratorIrBuilder` + IR interpreter accordingly), or
-     - explicitly rejected at parse/analysis time with a clear error so we never silently rely on replay.
-   - Add or extend `Generator_*Ir` tests (and interpreter twins where appropriate) to lock in the chosen semantics.
+1. **Grow IR Coverage for Unsupported Generator Shapes**
+   - Use the new `_UnsupportedIr` tests (variable initialisers with multiple `yield`s, complex loop conditions/increments, and `switch` statements) as a checklist for extending `SyncGeneratorIrBuilder` and the IR interpreter to cover more `yield` placements.
+   - As individual shapes become supported on the IR path, convert the corresponding tests from `_UnsupportedIr` to `*Ir` / `*Ir_UsesIrPlan` variants and update `docs/GENERATOR_IR_LIMITATIONS.md` accordingly.
 
-2. **Enforce No-Fallback for Supported Generators**
-   - Use `GeneratorIrDiagnostics` in tests to assert that all `Generator_*Ir` scenarios actually build IR plans (no failures recorded for the supported set).
-   - For any newly IR-hosted shapes (from step 2), add “uses IR plan” tests similar to `Generator_ForOfYieldsValuesIr_UsesIrPlan` so future regressions are caught.
+2. **Introduce Async Generator IR**
+   - Replace the `AsyncGeneratorIrBuilder` placeholder with a real IR lowering for async generator functions so `for await...of` loops and async iterator patterns can run on the IR path rather than the legacy evaluator.
+   - Extend the async iteration tests to assert IR usage via `GeneratorIrDiagnostics` once async generator IR is in place.
 
-3. **Sunset the Replay Generator Path**
-   - Once the supported generator surface is fully IR-hosted and covered by no-fallback tests:
-     - Make generator creation treat `GeneratorIrBuilder.TryBuild` failures for supported shapes as hard errors (or parse-time rejections), rather than silently falling back to replay.
-     - Remove the generator replay machinery from `TypedAstEvaluator` (`YieldTracker`, `YieldResumeContext`, and generator-specific replay branches), leaving at most a thin compatibility shim for explicitly unsupported constructs.
-
-4. **Async Await Scheduling (Post‑Sunset)**
-   - After the replay generator is no longer in the hot path, revisit `TryAwaitPromise` and generator scheduling:
+3. **Async Await Scheduling**
+   - Revisit `TryAwaitPromise` and generator scheduling now that the replay generator path has been removed:
      - Integrate the event queue (e.g., resume generators via `ScheduleTask`) so long-running promises in generators don’t block the managed thread.
      - Optionally expose instrumentation hooks (trace or debug) so we can observe nested awaits inside generators and detect potential starvation.

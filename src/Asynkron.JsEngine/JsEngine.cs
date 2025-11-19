@@ -14,6 +14,7 @@ public sealed class JsEngine : IAsyncDisposable
 {
     private readonly TaskCompletionSource _doneTcs = new();
     private readonly JsEnvironment _global = new(isFunctionScope: true);
+    private readonly JsObject _globalObject = new();
 
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
@@ -39,6 +40,16 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public JsEngine()
     {
+        // Bind the global `this` value to a dedicated JS object so that
+        // top-level `this` behaves like the global object (e.g. for UMD
+        // wrappers such as babel-standalone).
+        _global.Define(Symbols.This, _globalObject);
+
+        // Expose common aliases for the global object that many libraries
+        // expect to exist (Node-style `global`, standard `globalThis`).
+        SetGlobal("globalThis", _globalObject);
+        SetGlobal("global", _globalObject);
+
         // Register standard library objects
         SetGlobal("console", StandardLibrary.CreateConsoleObject());
         SetGlobal("Math", StandardLibrary.CreateMathObject());
@@ -355,7 +366,12 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     private void SetGlobal(string name, object? value)
     {
-        _global.Define(Symbol.Intern(name), value);
+        var symbol = Symbol.Intern(name);
+        _global.Define(symbol, value);
+
+        // Also mirror globals onto the global object so that code using
+        // `this.foo` or `global.foo` can see host-provided bindings.
+        _globalObject.SetProperty(name, value);
     }
 
     /// <summary>

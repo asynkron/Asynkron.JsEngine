@@ -2,38 +2,38 @@
 
 ## Current State
 - IR now includes `JumpInstruction`, `StoreResumeValueInstruction`, and a delegated `YieldStarInstruction`, so `.next/.throw/.return` payloads are captured without replaying statements and delegated iterators remain on the IR fast path.
-- The builder lowers blocks, expression statements (including `yield*`), `while`, `do/while`, classic `for` loops (with labels), `if/else`, variable declarations, plain assignments (`target = yield <expr>`), and `try/catch/finally` statements by emitting hidden slots and explicit IR instructions.
+- The builder lowers blocks, expression statements (including `yield*`), `while`, `do/while`, classic `for` loops (with labels), `if/else`, variable declarations, plain assignments (`target = yield <expr>`), simple `if (yield <expr>)` conditions, `return yield <expr>` statements, and `try/catch/finally` statements by emitting hidden slots and explicit IR instructions.
 - Loop scopes track break/continue targets and now emit dedicated `BreakInstruction`/`ContinueInstruction` nodes so loop exits unwind active `finally` blocks before resuming, including across delegated `yield*` frames.
 - `StoreResumeValueInstruction` consumes pending `.next/.throw/.return` payloads; `.throw`/`.return` flow through the interpreter before short-circuiting so try/catch/finally blocks can observe them, and a try-frame stack guarantees finally blocks execute during abrupt completion (including nested finalizers and mid-final `.throw/.return` overrides).
 - Delegated `yield*` now awaits promise-returning iterator completions on both paths: `DelegatedYieldState.MoveNext` feeds promise-like `next/throw/return` results through `TryAwaitPromise`, and the IR `YieldStarInstruction` path now plumbs delegated `.throw/.return` completion (including async rejections) back through `HandleAbruptCompletion` and `CompleteReturn` so generators see the final completion record rather than the inner cleanup value.
 - Tests `Generator_YieldStar_DelegatesValues`, `Generator_YieldStar_ReturnValueUsedByOuterGenerator`, `Generator_YieldStarReceivesSentValuesIr`, `Generator_YieldStarThrowDeliversCleanupIr`, `Generator_YieldStarReturnDeliversCleanupIr`, `Generator_YieldStarThrowContinuesWhenIteratorResumesIr`, `Generator_YieldStarThrowRequiresIteratorResultObjectIr`, `Generator_YieldStarReturnRequiresIteratorResultObjectIr`, `Generator_YieldStarThrowRequiresIteratorResultObjectInterpreter`, `Generator_YieldStarReturnRequiresIteratorResultObjectInterpreter`, `Generator_YieldStarThrowAwaitedPromiseIr`, `Generator_YieldStarThrowAwaitedPromiseInterpreter`, `Generator_YieldStarThrowPromiseRejectsIr`, `Generator_YieldStarThrowPromiseRejectsInterpreter`, `Generator_YieldStarReturnAwaitedPromiseIr`, `Generator_YieldStarReturnAwaitedPromiseInterpreter`, and `Generator_YieldStarReturnDoneFalseContinuesIr` now lock in delegated `.next/.throw/.return` semantics for synchronous iterators, promise-returning completions, and rejection propagation (IR + interpreter).
+- Tests `Generator_IfConditionYieldIr` and `Generator_ReturnYieldIr` lock in IR semantics for `if (yield <expr>)` and `return yield <expr>` so resume payloads are threaded through the IR pending-completion model rather than via replay.
 - `for await...of` remains on the replay path, but tests `Generator_ForAwaitFallsBackIr`, `Generator_ForAwaitAsyncIteratorAwaitsValuesIr`, `Generator_ForAwaitPromiseValuesAreAwaitedIr`, and `Generator_ForAwaitAsyncIteratorRejectsPropagatesIr` verify that async iterators and promise-valued elements are awaited and that rejections surface as `ThrowSignal`s.
 - All generator IR tests, including nested `try/finally` cases (`Generator_TryFinallyNestedThrowIr`, `Generator_TryFinallyNestedReturnIr`), are now green and exercise the IR pending-completion model.
+- `GeneratorIrDiagnostics` exposes lightweight counters for IR plan attempts/successes/failures, and `Generator_ForOfYieldsValuesIr_UsesIrPlan` asserts that plain `for...of` with `var` is always hosted on the IR path (no silent fallbacks).
 - `docs/GENERATOR_IR_LIMITATIONS.md` captures which generator constructs lower to IR, which ones intentionally fall back, and what follow-up work is still open.
 
 ## Next Iteration Plan
 
-1. **Unify Generator Semantics (Replay + IR)**
-   - Replay and IR now both treat `.throw/.return` that enter `try/finally` as pending completions which survive nested `finally` yields and are only re-applied after the outermost finalizer completes (unless overridden by an inner `throw/return` in `finally`), as exercised by:
-     - `Generator_TryFinallyNestedThrowIr` / `Generator_TryFinallyNestedReturnIr` (IR path) and
-     - `Generator_TryFinallyNestedThrowInterpreter` / `Generator_TryFinallyNestedReturnInterpreter` (replay path).
-   - Next follow-up here is to audit how `HandleAbruptCompletion` + `PendingCompletion` interact with `YieldInstruction` / `YieldStarInstruction` for more complex shapes (e.g., `yield*` inside nested `try/finally`) so abrupt completions never get “downgraded” when multiple `finally` blocks re-schedule the same completion.
+1. **Audit Complex Yield + Finally Interactions**
+   - Add targeted tests that combine `yield*` and nested `try/finally` (including mid-final `.throw/.return`) and verify that both IR and replay paths preserve pending completions without “downgrading” abrupt completions when multiple `finally` blocks re-schedule the same completion.
+   - Confirm that any such shapes either run correctly on the IR path or are explicitly documented as replay-only/unsupported in `GENERATOR_IR_LIMITATIONS.md`.
 
-2. **Expand IR Coverage to Match Replay**
-   - Identify remaining generator constructs that only run on the replay engine today (complex `yield` placements, nested `try` inside `finally`, any other shapes documented in `GENERATOR_IR_LIMITATIONS.md`).
-   - Incrementally extend `GeneratorIrBuilder` + IR interpreter to cover those shapes while reusing the unified completion model from step 1, so all existing generator tests can run on the IR path without semantic drift.
+2. **Eliminate Replay-Only IR Gaps**
+   - Enumerate generator shapes that still fall back to the replay engine (e.g., `for...of` with `let`/`const` + closures, nested `try` inside `finally`, more complex `yield` placements flagged by `ContainsYield`).
+   - For each shape, decide whether it should be:
+     - fully supported on the IR path (and update `GeneratorIrBuilder` + IR interpreter accordingly), or
+     - explicitly rejected at parse/analysis time with a clear error so we never silently rely on replay.
+   - Add or extend `Generator_*Ir` tests (and interpreter twins where appropriate) to lock in the chosen semantics.
 
-3. **Make Fallbacks Explicit and Measurable**
-   - Add lightweight instrumentation (trace or counters) around IR lowering so we know when a generator body falls back to replay and why (e.g., “contains nested try in finally”, “yield inside unsupported expression shape”).
-   - Use this to drive a small “no‑fallback” test set (e.g., all `Generator_*Ir` tests) that must lower to IR; any fallback within that set should be treated as a regression.
+3. **Enforce No-Fallback for Supported Generators**
+   - Use `GeneratorIrDiagnostics` in tests to assert that all `Generator_*Ir` scenarios actually build IR plans (no failures recorded for the supported set).
+   - For any newly IR-hosted shapes (from step 2), add “uses IR plan” tests similar to `Generator_ForOfYieldsValuesIr_UsesIrPlan` so future regressions are caught.
 
 4. **Sunset the Replay Generator Path**
-   - Once all generator constructs we care about either:
-     - successfully lower to IR with spec‑correct semantics, or
-     - are explicitly rejected at parse time as unsupported,
-     replace the replay engine for generators with a thin compatibility shim (or remove it entirely):
-     - Make `GeneratorIrBuilder` the only execution path for supported generator bodies; fail fast (with a clear error) when the builder cannot produce a plan.
-     - Remove `YieldTracker` / `YieldResumeContext`‑based replay logic for generators once all tests are green on IR and we have no remaining legitimate fallbacks.
+   - Once the supported generator surface is fully IR-hosted and covered by no-fallback tests:
+     - Make generator creation treat `GeneratorIrBuilder.TryBuild` failures for supported shapes as hard errors (or parse-time rejections), rather than silently falling back to replay.
+     - Remove the generator replay machinery from `TypedAstEvaluator` (`YieldTracker`, `YieldResumeContext`, and generator-specific replay branches), leaving at most a thin compatibility shim for explicitly unsupported constructs.
 
 5. **Async Await Scheduling (Post‑Sunset)**
    - After the replay generator is no longer in the hot path, revisit `TryAwaitPromise` and generator scheduling:

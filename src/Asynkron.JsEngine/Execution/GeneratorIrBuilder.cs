@@ -197,6 +197,7 @@ internal sealed class GeneratorIrBuilder
                     if (DeclarationContainsYield(declaration))
                     {
                         entryIndex = -1;
+                        _failureReason ??= "Variable declaration contains unsupported yield shape.";
                         return false;
                     }
 
@@ -223,6 +224,7 @@ internal sealed class GeneratorIrBuilder
                     if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
                     {
                         entryIndex = -1;
+                        _failureReason ??= "for...of with block-scoped bindings falls back to replay.";
                         return false;
                     }
 
@@ -240,6 +242,7 @@ internal sealed class GeneratorIrBuilder
                     if (returnStatement.Expression is not null && ContainsYield(returnStatement.Expression))
                     {
                         entryIndex = -1;
+                        _failureReason ??= "Return expression contains unsupported yield shape.";
                         return false;
                     }
 
@@ -259,6 +262,7 @@ internal sealed class GeneratorIrBuilder
 
                 default:
                     entryIndex = -1;
+                    _failureReason ??= $"Unsupported statement '{statement.GetType().Name}'.";
                     return false;
             }
 
@@ -271,6 +275,7 @@ internal sealed class GeneratorIrBuilder
         if (ContainsYield(statement.Condition))
         {
             entryIndex = -1;
+            _failureReason ??= "If condition contains unsupported yield shape.";
             return false;
         }
 
@@ -304,6 +309,7 @@ internal sealed class GeneratorIrBuilder
         if (ContainsYield(statement.Condition))
         {
             entryIndex = -1;
+            _failureReason ??= "While condition contains unsupported yield shape.";
             return false;
         }
 
@@ -336,6 +342,7 @@ internal sealed class GeneratorIrBuilder
         if (ContainsYield(statement.Condition))
         {
             entryIndex = -1;
+            _failureReason ??= "Do/while condition contains unsupported yield shape.";
             return false;
         }
 
@@ -371,12 +378,14 @@ internal sealed class GeneratorIrBuilder
         if (ContainsYield(conditionExpression))
         {
             entryIndex = -1;
+            _failureReason ??= "For condition contains unsupported yield shape.";
             return false;
         }
 
         if (statement.Increment is not null && ContainsYield(statement.Increment))
         {
             entryIndex = -1;
+            _failureReason ??= "For increment contains unsupported yield shape.";
             return false;
         }
 

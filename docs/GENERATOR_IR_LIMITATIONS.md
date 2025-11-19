@@ -24,6 +24,7 @@ The builder deliberately rejects the following constructs, forcing execution to 
 | `for await (... of ...)` loops | Builder guards out `ForEachKind.AwaitOf` so async iterables remain on the legacy path. | `GeneratorIrBuilder.TryBuildStatement` |
 | Async generator functions (`async function*`) | The typed evaluator doesn’t implement async generators at all, so IR never engages. | `TypedGeneratorFactory` + parser |
 | Any `yield` that appears inside unsupported expression shapes (e.g. `yield` buried in arithmetic, ternaries, etc.) | `ContainsYield` checks bubble up and abort lowering to preserve correctness. | `GeneratorIrBuilder.ContainsYield*` helpers |
+| `for...of` with `let`/`const` bindings (including closures and destructuring) | Per-iteration lexical environments for block-scoped bindings are currently modeled only by the replay engine; the IR builder deliberately falls back to avoid incorrect closure capture. | `GeneratorIrBuilder.TryBuildStatement`, `Generator_ForOfLetCreatesNewBindingIr_FallsBackToReplay`, `Generator_ForOfDestructuringIr_FallsBackToReplay` |
 
 When a construct falls back, execution uses `EvaluateYield` / `EvaluateDelegatedYield` inside `TypedAstEvaluator`. That path replays the function body but still honors `.next(value)`, `.throw(value)`, and `.return(value)` resume payloads via `YieldTracker` + `YieldResumeContext`.
 

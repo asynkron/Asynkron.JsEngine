@@ -1,4 +1,5 @@
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.Execution;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -2124,6 +2125,74 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_ForOfYieldsValuesIr_UsesIrPlan()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                for (var value of [1, 2, 3]) {
+                    yield value;
+                }
+            }
+            let g = gen();
+        """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected at least one IR plan to be built.");
+        Assert.Equal(0, failed);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForLoopsExecuteWithIrPlan_UsesIrPlan()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* forLoop(limit) {
+                for (let i = 0; i < limit; i = i + 1) {
+                    yield i;
+                }
+            }
+            let g = forLoop(3);
+        """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected forLoop generator to lower to IR.");
+        Assert.Equal(0, failed);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarReceivesSentValuesIr_UsesIrPlan()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* inner() {
+                let received = [];
+                received.push(yield 1);
+                received.push(yield 2);
+                return received.join(",");
+            }
+            function* outer() {
+                const result = yield* inner();
+                return result;
+            }
+            let g = outer();
+        """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected yield* outer generator to lower to IR.");
+        Assert.Equal(0, failed);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_ForOfBreaksEarlyIr()
     {
         await using var engine = new JsEngine();
@@ -2181,6 +2250,33 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_ForOfLetCreatesNewBindingIr_FallsBackToReplay()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                const callbacks = [];
+                for (let value of [1, 2]) {
+                    callbacks.push(() => value);
+                }
+                yield callbacks[0]();
+                yield callbacks[1]();
+            }
+            let g = gen();
+        """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(1, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(1, failed);
+        Assert.Equal("for...of with block-scoped bindings falls back to replay.", GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_ForOfDestructuringIr()
     {
         await using var engine = new JsEngine();
@@ -2201,6 +2297,30 @@ public class GeneratorTests
         Assert.Equal(3.0, first);
         Assert.Equal(4.0, second);
         Assert.True((bool)done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForOfDestructuringIr_FallsBackToReplay()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                for (const { value } of [{ value: 3 }, { value: 4 }]) {
+                    yield value;
+                }
+            }
+            let g = gen();
+        """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(1, attempts);
+        Assert.Equal(0, succeeded);
+        Assert.Equal(1, failed);
+        Assert.Equal("for...of with block-scoped bindings falls back to replay.", GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
     }
 
     [Fact(Timeout = 2000)]
@@ -2274,6 +2394,50 @@ public class GeneratorTests
         Assert.False((bool)firstDone!);
         Assert.Equal("then", secondValue);
         Assert.True((bool)secondDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_IfConditionYieldIr_UsesIrPlan()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                let log = [];
+                if (yield "first") {
+                    log.push("then");
+                } else {
+                    log.push("else");
+                }
+                return log.join(",");
+            }
+            let g = gen();
+        """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected if(yield ...) generator to lower to IR.");
+        Assert.Equal(0, failed);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ReturnYieldIr_UsesIrPlan()
+    {
+        GeneratorIrDiagnostics.Reset();
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* gen() {
+                return yield "first";
+            }
+            let g = gen();
+        """);
+
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.True(succeeded >= 1, "Expected return yield generator to lower to IR.");
+        Assert.Equal(0, failed);
     }
     [Fact(Timeout = 2000)]
     public async Task Generator_IfConditionYieldIr()

@@ -220,21 +220,18 @@ internal sealed class SyncGeneratorIrBuilder
                 case TryStatement tryStatement:
                     return TryBuildTryStatement(tryStatement, nextIndex, out entryIndex, activeLabel);
 
-                case ForEachStatement forEachStatement when (forEachStatement.Kind == ForEachKind.Of || forEachStatement.Kind == ForEachKind.AwaitOf) && IsSimpleForOfBinding(forEachStatement):
-                    // For-of with block-scoped declarations (`let`/`const`) and closures
-                    // requires per-iteration environments. The replay engine already
-                    // models this correctly, so we currently fall back instead of
-                    // hosting these loops on the IR path.
-                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= "for...of with block-scoped bindings falls back to replay.";
-                        return false;
-                    }
+                case ForEachStatement forEachStatement
+                    when forEachStatement.Kind == ForEachKind.Of && IsSimpleForOfBinding(forEachStatement):
+                    return TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
-                    return forEachStatement.Kind == ForEachKind.AwaitOf
-                        ? TryBuildForAwaitStatement(forEachStatement, nextIndex, out entryIndex, activeLabel)
-                        : TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
+                case ForEachStatement forEachStatement
+                    when forEachStatement.Kind == ForEachKind.AwaitOf && IsSimpleForOfBinding(forEachStatement):
+                    // `for await...of` loops in generators remain on the replay
+                    // path for now so async iteration semantics are modeled by
+                    // the existing evaluator and event queue.
+                    entryIndex = -1;
+                    _failureReason ??= "for await...of in generators falls back to replay.";
+                    return false;
 
                 case ReturnStatement returnStatement:
                     if (returnStatement.Expression is YieldExpression yieldReturn &&

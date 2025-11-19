@@ -11,25 +11,18 @@
 - `for await...of` remains on the replay path, but tests `Generator_ForAwaitFallsBackIr`, `Generator_ForAwaitAsyncIteratorAwaitsValuesIr`, `Generator_ForAwaitPromiseValuesAreAwaitedIr`, and `Generator_ForAwaitAsyncIteratorRejectsPropagatesIr` verify that async iterators and promise-valued elements are awaited and that rejections surface as `ThrowSignal`s.
 - All generator IR tests, including nested `try/finally` cases (`Generator_TryFinallyNestedThrowIr`, `Generator_TryFinallyNestedReturnIr`), are now green and exercise the IR pending-completion model.
 - New tests `Generator_YieldStarNestedTryFinallyThrowMidFinalIr` and `Generator_YieldStarNestedTryFinallyReturnMidFinalIr` combine `yield*` with nested `try/finally` and mid-final `.throw/.return`, and `YieldStarInstruction` now preserves pending abrupt completions across multiple `finally` frames so later resumes override earlier ones without downgrading throws/returns.
-- `Generator_ForOfLetCreatesNewBindingIr_FallsBackToReplay`, `Generator_ForOfDestructuringIr_FallsBackToReplay`, and `Generator_VariableInitializerWithMultipleYields_FallsBackToReplayIr` now lock in which generator shapes still deliberately fall back to the replay engine (`for...of` with block-scoped bindings, destructuring in `for...of`, and complex `yield` in variable initializers).
+- `Generator_ForOfLetCreatesNewBindingIr_UsesIrPlan`, `Generator_ForOfDestructuringIr_UsesIrPlan`, and `Generator_VariableInitializerWithMultipleYields_FallsBackToReplayIr` now lock in that `for...of` with block-scoped bindings (including destructuring and closures) is hosted on the IR path, while complex `yield` in variable initializers still deliberately falls back to the replay engine.
 - `GeneratorIrDiagnostics` exposes lightweight counters for IR plan attempts/successes/failures, and `Generator_ForOfYieldsValuesIr_UsesIrPlan` asserts that plain `for...of` with `var` is always hosted on the IR path (no silent fallbacks).
 - `docs/GENERATOR_IR_LIMITATIONS.md` captures which generator constructs lower to IR, which ones intentionally fall back, and what follow-up work is still open.
 
 ## Next Iteration Plan
 
 1. **Eliminate Replay-Only IR Gaps**
-   - Enumerate generator shapes that still fall back to the replay engine (e.g., `for...of` with `let`/`const` + closures, nested `try` inside `finally`, more complex `yield` placements flagged by `ContainsYield`).
+   - Enumerate generator shapes that still fall back to the replay engine (e.g., nested `try` inside `finally`, `for await...of` in generators, more complex `yield` placements flagged by `ContainsYield`).
    - For each shape, decide whether it should be:
      - fully supported on the IR path (and update `GeneratorIrBuilder` + IR interpreter accordingly), or
      - explicitly rejected at parse/analysis time with a clear error so we never silently rely on replay.
    - Add or extend `Generator_*Ir` tests (and interpreter twins where appropriate) to lock in the chosen semantics.
-   - In particular, for `for...of` with `let`/`const` + closures:
-     - Design per-iteration lexical environments in the IR interpreter so each iteration gets its own block environment (matching the replay engine and spec semantics for loop-scoped bindings).
-     - Adjust `GeneratorIrBuilder.TryBuildStatement` and `TryBuildForOfStatement` so that:
-       - `for...of` with `let`/`const` no longer falls back by default, and
-       - the generated IR explicitly switches into a fresh per-iteration environment before executing the loop body.
-     - Update `CreateForOfIterationBlock` so closures over the loop variable capture the per-iteration binding rather than a single shared slot.
-     - Flip `Generator_ForOfLetCreatesNewBindingIr_FallsBackToReplay` / `Generator_ForOfDestructuringIr_FallsBackToReplay` into “uses IR plan” tests once the implementation is correct, and add a `Generator_ForOfLetCreatesNewBindingIr_UsesIrPlan` assertion via `GeneratorIrDiagnostics`.
 
 2. **Enforce No-Fallback for Supported Generators**
    - Use `GeneratorIrDiagnostics` in tests to assert that all `Generator_*Ir` scenarios actually build IR plans (no failures recorded for the supported set).

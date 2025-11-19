@@ -2379,7 +2379,7 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Generator_ForOfLetCreatesNewBindingIr_FallsBackToReplay()
+    public async Task Generator_ForOfLetCreatesNewBindingIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
@@ -2399,10 +2399,10 @@ public class GeneratorTests
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
         Assert.Equal(1, attempts);
-        Assert.Equal(0, succeeded);
-        Assert.Equal(1, failed);
-        Assert.Equal("for...of with block-scoped bindings falls back to replay.", GeneratorIrDiagnostics.LastFailureReason);
-        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+        Assert.Equal(1, succeeded);
+        Assert.Equal(0, failed);
+        Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
     }
 
     [Fact(Timeout = 2000)]
@@ -2429,7 +2429,7 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Generator_ForOfDestructuringIr_FallsBackToReplay()
+    public async Task Generator_ForOfDestructuringIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
@@ -2446,10 +2446,10 @@ public class GeneratorTests
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
         Assert.Equal(1, attempts);
-        Assert.Equal(0, succeeded);
-        Assert.Equal(1, failed);
-        Assert.Equal("for...of with block-scoped bindings falls back to replay.", GeneratorIrDiagnostics.LastFailureReason);
-        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+        Assert.Equal(1, succeeded);
+        Assert.Equal(0, failed);
+        Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
     }
 
     [Fact(Timeout = 2000)]

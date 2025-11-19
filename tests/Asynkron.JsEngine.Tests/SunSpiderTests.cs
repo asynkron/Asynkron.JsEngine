@@ -50,16 +50,7 @@ public class SunSpiderTests
         var timeout = HighBudgetScripts.Contains(filename)
             ? TimeSpan.FromSeconds(4)
             : TimeSpan.FromSeconds(3);
-        var exception = await Record.ExceptionAsync(() => RunTest(content).WaitAsync(timeout));
-
-        if (shouldSucceed)
-        {
-            Assert.True(exception is null, $"{filename} is expected to run without errors.");
-        }
-        else
-        {
-            Assert.True(exception is not null, $"{filename} currently fails and should keep surfacing the issue until fixed.");
-        }
+        await RunTest(content).WaitAsync(timeout);
     }
 
     private static async Task RunTest(string source)

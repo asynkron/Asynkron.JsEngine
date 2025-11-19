@@ -54,6 +54,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("console", StandardLibrary.CreateConsoleObject());
         SetGlobal("Math", StandardLibrary.CreateMathObject());
         SetGlobal("Number", StandardLibrary.CreateNumberConstructor());
+        SetGlobal("Boolean", StandardLibrary.CreateBooleanConstructor());
         SetGlobal("String", StandardLibrary.CreateStringConstructor());
         SetGlobal("Object", StandardLibrary.CreateObjectConstructor());
         SetGlobal("Array", StandardLibrary.CreateArrayConstructor());

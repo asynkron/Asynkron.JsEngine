@@ -385,6 +385,14 @@ internal static class JsOps
 
         switch (target)
         {
+            case bool b:
+                var booleanWrapper = StandardLibrary.CreateBooleanWrapper(b);
+                if (booleanWrapper.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+
+                break;
             case double num:
                 var numberWrapper = StandardLibrary.CreateNumberWrapper(num);
                 if (numberWrapper.TryGetProperty(propertyName, out value))

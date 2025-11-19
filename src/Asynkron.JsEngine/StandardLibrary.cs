@@ -10,6 +10,14 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public static class StandardLibrary
 {
+    // Shared prototypes for primitive wrapper objects so that host-provided
+    // globals like Boolean.prototype can be extended from JavaScript and still
+    // be visible via auto-boxing of primitives.
+    internal static JsObject? BooleanPrototype;
+    internal static JsObject? NumberPrototype;
+    internal static JsObject? StringPrototype;
+    internal static JsObject? ObjectPrototype;
+
     /// <summary>
     /// Converts a JavaScript value to its string representation, handling functions appropriately.
     /// </summary>
@@ -2044,6 +2052,46 @@ public static class StandardLibrary
     }
 
     /// <summary>
+    /// Creates the Boolean constructor function.
+    /// </summary>
+    public static HostFunction CreateBooleanConstructor()
+    {
+        // Boolean(value) -> boolean primitive using ToBoolean semantics.
+        var booleanConstructor = new HostFunction(args =>
+        {
+            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+            return JsOps.ToBoolean(value);
+        });
+
+        // Expose Boolean.prototype so user code can attach methods (e.g.
+        // Boolean.prototype.toJSONString in string-tagcloud.js).
+        var prototype = new JsObject();
+        BooleanPrototype = prototype;
+        booleanConstructor.SetProperty("prototype", prototype);
+
+        return booleanConstructor;
+    }
+
+    /// <summary>
+    /// Creates a wrapper object for a boolean primitive so that auto-boxed
+    /// booleans can see methods added to Boolean.prototype.
+    /// </summary>
+    public static JsObject CreateBooleanWrapper(bool value)
+    {
+        var booleanObj = new JsObject
+        {
+            ["__value__"] = value
+        };
+
+        if (BooleanPrototype is not null)
+        {
+            booleanObj.SetPrototype(BooleanPrototype);
+        }
+
+        return booleanObj;
+    }
+
+    /// <summary>
     /// Creates a Promise constructor with static methods.
     /// </summary>
     public static IJsCallable CreatePromiseConstructor(JsEngine engine)
@@ -2338,6 +2386,10 @@ public static class StandardLibrary
         var stringObj = new JsObject();
         stringObj["__value__"] = str;
         stringObj["length"] = (double)str.Length;
+        if (StringPrototype is not null)
+        {
+            stringObj.SetPrototype(StringPrototype);
+        }
         AddStringMethods(stringObj, str);
         return stringObj;
     }
@@ -2923,6 +2975,10 @@ public static class StandardLibrary
     {
         var numberObj = new JsObject();
         numberObj["__value__"] = num;
+        if (NumberPrototype is not null)
+        {
+            numberObj.SetPrototype(NumberPrototype);
+        }
         AddNumberMethods(numberObj, num);
         return numberObj;
     }
@@ -3127,6 +3183,37 @@ public static class StandardLibrary
             // For primitives, wrap in an object (simplified - just return a new object)
             return new JsObject();
         });
+
+        // Capture Object.prototype so Object.prototype methods can be attached
+        // and used with call/apply patterns.
+        if (objectConstructor.TryGetProperty("prototype", out var objectProto) &&
+            objectProto is JsObject objectProtoObj)
+        {
+            ObjectPrototype = objectProtoObj;
+
+            // Object.prototype.hasOwnProperty
+            objectProtoObj.SetProperty("hasOwnProperty", new HostFunction((thisValue, args) =>
+            {
+                if (thisValue is not JsObject obj)
+                {
+                    return false;
+                }
+
+                if (args.Count == 0)
+                {
+                    return false;
+                }
+
+                var propertyName = JsOps.ToPropertyName(args[0]);
+                if (propertyName is null)
+                {
+                    return false;
+                }
+
+                // Only own properties; JsObject.ContainsKey checks own keys.
+                return obj.ContainsKey(propertyName);
+            }));
+        }
 
         // Object.keys(obj)
         objectConstructor.SetProperty("keys", new HostFunction(args =>
@@ -4124,6 +4211,14 @@ public static class StandardLibrary
             return double.NaN;
         });
 
+        // Remember Number.prototype so that number wrapper objects can see
+        // methods attached from user code (e.g. Number.prototype.toJSONString).
+        if (numberConstructor.TryGetProperty("prototype", out var numberProto) &&
+            numberProto is JsObject numberProtoObj)
+        {
+            NumberPrototype = numberProtoObj;
+        }
+
         // Number.isInteger(value)
         numberConstructor.SetProperty("isInteger", new HostFunction(args =>
         {
@@ -4381,6 +4476,14 @@ public static class StandardLibrary
 
             return value.ToString() ?? "";
         });
+
+        // Remember String.prototype so that string wrapper objects can see
+        // methods attached from user code (e.g. String.prototype.toJSONString).
+        if (stringConstructor.TryGetProperty("prototype", out var stringProto) &&
+            stringProto is JsObject stringProtoObj)
+        {
+            StringPrototype = stringProtoObj;
+        }
 
         // String.fromCodePoint(...codePoints)
         stringConstructor.SetProperty("fromCodePoint", new HostFunction(args =>

@@ -1784,8 +1784,30 @@ public static class TypedAstEvaluator
 
         if (callee is not IJsCallable callable)
         {
+            // Special-case Function.prototype.apply / call patterns such as
+            // Object.prototype.hasOwnProperty.apply(target, args).
+            if (expression.Callee is MemberExpression member &&
+                member.Property is LiteralExpression { Value: string propertyName } &&
+                thisValue is IJsCallable targetFunction)
+            {
+                if (string.Equals(propertyName, "apply", StringComparison.Ordinal))
+                {
+                    Console.Error.WriteLine("[EvaluateCall] Handling Function.prototype.apply pattern.");
+                    return InvokeWithApply(targetFunction, expression.Arguments, environment, context);
+                }
+
+                if (string.Equals(propertyName, "call", StringComparison.Ordinal))
+                {
+                    Console.Error.WriteLine("[EvaluateCall] Handling Function.prototype.call pattern.");
+                    return InvokeWithCall(targetFunction, expression.Arguments, environment, context);
+                }
+            }
+
+            var typeName = callee?.GetType().Name ?? "null";
+            var sourceInfo = GetSourceInfo(context, expression.Source);
+            Console.Error.WriteLine($"[EvaluateCall] Non-callable callee type={typeName}{sourceInfo}");
             throw new InvalidOperationException(
-                $"Attempted to call a non-callable value of type '{callee?.GetType().Name ?? "null"}'.");
+                $"Attempted to call a non-callable value of type '{typeName}'.{sourceInfo}");
         }
 
         var arguments = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
@@ -1853,6 +1875,80 @@ public static class TypedAstEvaluator
         return builder.Count == builder.Capacity
             ? builder.MoveToImmutable()
             : builder.ToImmutable();
+    }
+
+    private static object? InvokeWithApply(IJsCallable targetFunction,
+        ImmutableArray<CallArgument> callArguments,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        object? thisArg = JsSymbols.Undefined;
+        if (callArguments.Length > 0)
+        {
+            thisArg = EvaluateExpression(callArguments[0].Expression, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsSymbols.Undefined;
+            }
+        }
+
+        var argsBuilder = ImmutableArray.CreateBuilder<object?>();
+        if (callArguments.Length > 1)
+        {
+            var argsArray = EvaluateExpression(callArguments[1].Expression, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsSymbols.Undefined;
+            }
+
+            foreach (var item in EnumerateSpread(argsArray))
+            {
+                argsBuilder.Add(item);
+            }
+        }
+
+        if (targetFunction is IJsEnvironmentAwareCallable envAware)
+        {
+            envAware.CallingJsEnvironment = environment;
+        }
+
+        var frozenArguments = FreezeArguments(argsBuilder);
+        return targetFunction.Invoke(frozenArguments, thisArg);
+    }
+
+    private static object? InvokeWithCall(IJsCallable targetFunction,
+        ImmutableArray<CallArgument> callArguments,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        object? thisArg = JsSymbols.Undefined;
+        var argsBuilder = ImmutableArray.CreateBuilder<object?>();
+
+        for (var i = 0; i < callArguments.Length; i++)
+        {
+            var argValue = EvaluateExpression(callArguments[i].Expression, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsSymbols.Undefined;
+            }
+
+            if (i == 0)
+            {
+                thisArg = argValue;
+            }
+            else
+            {
+                argsBuilder.Add(argValue);
+            }
+        }
+
+        if (targetFunction is IJsEnvironmentAwareCallable envAware)
+        {
+            envAware.CallingJsEnvironment = environment;
+        }
+
+        var frozenArguments = FreezeArguments(argsBuilder);
+        return targetFunction.Invoke(frozenArguments, thisArg);
     }
 
     private static (object? Callee, object? ThisValue, bool SkippedOptional) EvaluateCallTarget(ExpressionNode callee,

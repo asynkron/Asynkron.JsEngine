@@ -1197,6 +1197,7 @@ public static class TypedAstEvaluator
             TemplateLiteralExpression template => EvaluateTemplateLiteral(template, environment, context),
             TaggedTemplateExpression taggedTemplate =>
                 EvaluateTaggedTemplate(taggedTemplate, environment, context),
+            AwaitExpression awaitExpression => EvaluateAwait(awaitExpression, environment, context),
             YieldExpression yieldExpression => EvaluateYield(yieldExpression, environment, context),
             ThisExpression => environment.Get(JsSymbols.This),
             SuperExpression => throw new InvalidOperationException(
@@ -1236,6 +1237,28 @@ public static class TypedAstEvaluator
             context.SetThrow(errorObject);
             return errorObject;
         }
+    }
+
+    private static object? EvaluateAwait(AwaitExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        // Evaluate the awaited expression.
+        var value = EvaluateExpression(expression.Expression, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        // If it's a promise-like object, await it via TryAwaitPromise; otherwise
+        // treat it as an already-resolved value.
+        if (!TryAwaitPromise(value, context, out var awaitedValue))
+        {
+            // TryAwaitPromise will have set context.IsThrow on rejection; the
+            // caller's control flow (loops/try) will observe that and handle it.
+            return JsSymbols.Undefined;
+        }
+
+        return awaitedValue;
     }
 
     private static object? EvaluateYield(YieldExpression expression, JsEnvironment environment,

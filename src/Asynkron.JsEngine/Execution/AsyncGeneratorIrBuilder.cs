@@ -3,17 +3,18 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
-/// Placeholder IR builder for async generator functions. Async generator IR is
-/// not implemented yet, so this builder always reports failure and forces the
-/// engine to stay on the replay path.
+/// IR builder for async generator functions.
+/// For now async generators share the same IR surface as synchronous
+/// generators; the difference is in how their iterator methods (`next`,
+/// `throw`, `return`) are exposed to JavaScript (they return Promises). This
+/// builder delegates to the synchronous generator IR builder so async
+/// <c>function*</c> bodies benefit from the same instruction set and control
+/// flow lowering as regular generators.
 /// </summary>
 internal static class AsyncGeneratorIrBuilder
 {
     public static bool TryBuild(FunctionExpression function, out GeneratorPlan plan, out string? failureReason)
     {
-        plan = default!;
-        failureReason = "Async generator IR not implemented; using replay.";
-        return false;
+        return SyncGeneratorIrBuilder.TryBuild(function, out plan, out failureReason);
     }
 }
-

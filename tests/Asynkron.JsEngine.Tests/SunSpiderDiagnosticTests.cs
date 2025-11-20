@@ -265,6 +265,64 @@ __diagDecryptedText = decryptedText;
         output.WriteLine("decryptedText head = " + head);
     }
 
+    [Fact(Timeout = 10000)]
+    public async Task Babel_Debug_Diagnose_CreateDebugEnableLoad()
+    {
+        await using var engine = new JsEngine();
+
+        var content = SunSpiderTests.GetEmbeddedFile("babel-standalone.js");
+
+        const string marker = "createDebug.enable(createDebug.load());";
+        if (!content.Contains(marker, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Failed to find createDebug.enable(createDebug.load()) marker.");
+        }
+
+        content = content.Replace(
+            marker,
+            """
+globalThis.__diagTypeCreateDebug = typeof createDebug;
+globalThis.__diagTypeEnable = typeof createDebug.enable;
+globalThis.__diagTypeLoad = typeof createDebug.load;
+globalThis.__diagEnableIsCallable = typeof createDebug.enable === "function";
+globalThis.__diagLoadIsCallable = typeof createDebug.load === "function";
+try {
+  globalThis.__diagEnableResult = createDebug.enable(createDebug.load());
+  globalThis.__diagCallSucceeded = true;
+} catch (e) {
+  globalThis.__diagCallSucceeded = false;
+  globalThis.__diagError = e;
+}
+      createDebug.enable(createDebug.load());
+"""
+        );
+
+        try
+        {
+            await engine.Evaluate(content);
+        }
+        catch (ThrowSignal ex)
+        {
+            output.WriteLine("ThrowSignal: " + ex.ThrownValue);
+        }
+
+        var typeCreateDebug = await engine.Evaluate("__diagTypeCreateDebug;");
+        var typeEnable = await engine.Evaluate("__diagTypeEnable;");
+        var typeLoad = await engine.Evaluate("__diagTypeLoad;");
+        var enableIsCallable = await engine.Evaluate("__diagEnableIsCallable;");
+        var loadIsCallable = await engine.Evaluate("__diagLoadIsCallable;");
+        var callSucceeded = await engine.Evaluate("__diagCallSucceeded;");
+        var error = await engine.Evaluate("__diagError;");
+
+        output.WriteLine("typeof createDebug        = " + typeCreateDebug);
+        output.WriteLine("typeof createDebug.enable = " + typeEnable);
+        output.WriteLine("typeof createDebug.load   = " + typeLoad);
+        output.WriteLine("enable is callable        = " + enableIsCallable);
+        output.WriteLine("load is callable          = " + loadIsCallable);
+        output.WriteLine("callSucceeded             = " + callSucceeded);
+        output.WriteLine("error                     = " + error);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task DateFormat_Eval_DefinesCallablePrototypeMethod()
     {

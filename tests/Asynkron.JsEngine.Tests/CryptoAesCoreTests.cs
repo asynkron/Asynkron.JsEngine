@@ -33,5 +33,33 @@ public class CryptoAesCoreTests
 
         Assert.Equal(expectedHex, hex);
     }
-}
 
+    [Fact(Timeout = 2000)]
+    public async Task Ctr_Roundtrip_ShortPlaintext_Works()
+    {
+        var script = SunSpiderTests.GetEmbeddedFile("crypto-aes.js");
+
+        await using var engine = new JsEngine();
+        await engine.Evaluate(script);
+
+        // Stabilise the nonce used by AESEncryptCtr so the roundtrip is deterministic.
+        await engine.Evaluate(@"
+            Date = function() {
+                this.getTime = function() { return 0; };
+            };
+        ");
+
+        const string ctrTest = @"
+            var __ctrPlain = 'HELLO AES CTR';
+            var __ctrCipher = AESEncryptCtr(__ctrPlain, 'secret-password', 128);
+            var __ctrDecrypted = AESDecryptCtr(__ctrCipher, 'secret-password', 128);
+        ";
+
+        await engine.Evaluate(ctrTest);
+
+        var plain = await engine.Evaluate("__ctrPlain;") as string;
+        var decrypted = await engine.Evaluate("__ctrDecrypted;") as string;
+
+        Assert.Equal(plain, decrypted);
+    }
+}

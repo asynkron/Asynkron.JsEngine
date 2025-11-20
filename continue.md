@@ -25,7 +25,6 @@
 1. **Make Remaining SunSpider/Babel Tests Green**
    - Finish `babel-standalone.js` by fixing the remaining `debug` integration bug around `createDebug.enable(createDebug.load())` / `createDebug.formatArgs.call(self, args)`, so no call sites see a non-callable `Symbol`/`undefined` instead of a function.
    - Fix the semantic discrepancy in `string-tagcloud.js` where the computed tag cloud length is too small; diagnose and correct the underlying string/regex/random logic rather than loosening the assertion.
-   - Bring `crypto-aes.js` into line by fixing any AES CTR / numeric / Date/bitwise corner cases so the benchmark output matches the reference script exactly.
 
 2. **Tighten Generator IR Diagnostics and Tests**
    - De-flake `Generator_*_UnsupportedIr` tests by isolating `GeneratorIrDiagnostics` per test (or serialising the tests) so concurrent generator IR activity can’t affect their attempt/success/failure assertions.

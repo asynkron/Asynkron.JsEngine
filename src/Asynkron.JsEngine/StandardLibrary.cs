@@ -4685,27 +4685,29 @@ public static class StandardLibrary
             var result = new System.Text.StringBuilder();
             foreach (var arg in args)
             {
-                if (arg is double d)
+                var num = JsOps.ToNumber(arg);
+                if (double.IsNaN(num) || double.IsInfinity(num))
                 {
-                    var codePoint = (int)d;
-                    // Validate code point range
-                    if (codePoint is < 0 or > 0x10FFFF)
-                    {
-                        throw new Exception("RangeError: Invalid code point " + codePoint);
-                    }
+                    continue;
+                }
 
-                    // Handle surrogate pairs for code points > 0xFFFF
-                    if (codePoint <= 0xFFFF)
-                    {
-                        result.Append((char)codePoint);
-                    }
-                    else
-                    {
-                        // Convert to surrogate pair
-                        codePoint -= 0x10000;
-                        result.Append((char)(0xD800 + (codePoint >> 10)));
-                        result.Append((char)(0xDC00 + (codePoint & 0x3FF)));
-                    }
+                var codePoint = (int)num;
+                // Validate code point range
+                if (codePoint is < 0 or > 0x10FFFF)
+                {
+                    throw new Exception("RangeError: Invalid code point " + codePoint);
+                }
+
+                // Handle surrogate pairs for code points > 0xFFFF
+                if (codePoint <= 0xFFFF)
+                {
+                    result.Append((char)codePoint);
+                }
+                else
+                {
+                    codePoint -= 0x10000;
+                    result.Append((char)(0xD800 + (codePoint >> 10)));
+                    result.Append((char)(0xDC00 + (codePoint & 0x3FF)));
                 }
             }
 
@@ -4723,11 +4725,14 @@ public static class StandardLibrary
             var result = new System.Text.StringBuilder();
             foreach (var arg in args)
             {
-                if (arg is double d)
+                var num = JsOps.ToNumber(arg);
+                if (double.IsNaN(num) || double.IsInfinity(num))
                 {
-                    var charCode = (int)d & 0xFFFF; // Limit to 16-bit range
-                    result.Append((char)charCode);
+                    continue;
                 }
+
+                var charCode = (int)num & 0xFFFF; // Limit to 16-bit range
+                result.Append((char)charCode);
             }
 
             return result.ToString();

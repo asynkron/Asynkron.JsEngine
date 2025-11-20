@@ -257,6 +257,21 @@ unescCtrlChars = __origUnescCtrlChars;
 
         var content = SunSpiderTests.GetEmbeddedFile("babel-standalone.js");
 
+        // Capture the type of createDebug.enable immediately after it is
+        // assigned inside setup$2 so we can see if it starts life as a
+        // callable or if it is already corrupted.
+        const string enableAssign = "      createDebug.enable = enable;";
+        if (content.Contains(enableAssign, StringComparison.Ordinal))
+        {
+            content = content.Replace(
+                enableAssign,
+                """
+      createDebug.enable = enable;
+      globalThis.__diagInitialEnableType = typeof createDebug.enable;
+"""
+            );
+        }
+
         const string marker = "createDebug.enable(createDebug.load());";
         if (!content.Contains(marker, StringComparison.Ordinal))
         {
@@ -271,14 +286,9 @@ globalThis.__diagTypeEnable = typeof createDebug.enable;
 globalThis.__diagTypeLoad = typeof createDebug.load;
 globalThis.__diagEnableIsCallable = typeof createDebug.enable === "function";
 globalThis.__diagLoadIsCallable = typeof createDebug.load === "function";
-try {
-  globalThis.__diagEnableResult = createDebug.enable(createDebug.load());
-  globalThis.__diagCallSucceeded = true;
-} catch (e) {
-  globalThis.__diagCallSucceeded = false;
-  globalThis.__diagError = e;
-}
-      createDebug.enable(createDebug.load());
+// Intentionally do NOT call createDebug.enable here to avoid crashing
+// the host; we only care about the types at this point.
+// createDebug.enable(createDebug.load());
 """
         );
 
@@ -294,18 +304,15 @@ try {
         var typeCreateDebug = await engine.Evaluate("__diagTypeCreateDebug;");
         var typeEnable = await engine.Evaluate("__diagTypeEnable;");
         var typeLoad = await engine.Evaluate("__diagTypeLoad;");
+        var initialEnableType = await engine.Evaluate("__diagInitialEnableType;");
         var enableIsCallable = await engine.Evaluate("__diagEnableIsCallable;");
         var loadIsCallable = await engine.Evaluate("__diagLoadIsCallable;");
-        var callSucceeded = await engine.Evaluate("__diagCallSucceeded;");
-        var error = await engine.Evaluate("__diagError;");
-
         output.WriteLine("typeof createDebug        = " + typeCreateDebug);
         output.WriteLine("typeof createDebug.enable = " + typeEnable);
         output.WriteLine("typeof createDebug.load   = " + typeLoad);
+        output.WriteLine("initial enable type       = " + initialEnableType);
         output.WriteLine("enable is callable        = " + enableIsCallable);
         output.WriteLine("load is callable          = " + loadIsCallable);
-        output.WriteLine("callSucceeded             = " + callSucceeded);
-        output.WriteLine("error                     = " + error);
     }
 
     [Fact(Timeout = 5000)]

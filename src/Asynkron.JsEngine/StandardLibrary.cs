@@ -717,6 +717,59 @@ public static class StandardLibrary
         // Date.now() - returns milliseconds since epoch
         date["now"] = new HostFunction(args => { return (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); });
 
+        // Date.UTC(...) - returns time value (ms since epoch) for the given UTC date/time components.
+        date["UTC"] = new HostFunction(args =>
+        {
+            if (args.Count == 0)
+            {
+                return double.NaN;
+            }
+
+            double ToNumberOrNaN(object? v)
+            {
+                return v is double d ? d : double.NaN;
+            }
+
+            var y = ToNumberOrNaN(args[0]);
+            var m = args.Count > 1 ? ToNumberOrNaN(args[1]) : 0;
+            var dt = args.Count > 2 ? ToNumberOrNaN(args[2]) : 1;
+            var h = args.Count > 3 ? ToNumberOrNaN(args[3]) : 0;
+            var min = args.Count > 4 ? ToNumberOrNaN(args[4]) : 0;
+            var s = args.Count > 5 ? ToNumberOrNaN(args[5]) : 0;
+            var ms = args.Count > 6 ? ToNumberOrNaN(args[6]) : 0;
+
+            if (double.IsNaN(y) || double.IsNaN(m) || double.IsNaN(dt) ||
+                double.IsNaN(h) || double.IsNaN(min) || double.IsNaN(s) || double.IsNaN(ms))
+            {
+                return double.NaN;
+            }
+
+            // ECMAScript: years 0–99 are interpreted as 1900–1999.
+            var year = (int)y;
+            if (0 <= year && year <= 99)
+            {
+                year += 1900;
+            }
+
+            var month = (int)m + 1; // JS months are 0-based
+            var day = (int)dt;
+            var hour = (int)h;
+            var minute = (int)min;
+            var second = (int)s;
+            var millisecond = (int)ms;
+
+            try
+            {
+                var utcDate = new DateTime(year, month, day, hour, minute, second, millisecond, DateTimeKind.Utc);
+                var dto = new DateTimeOffset(utcDate);
+                return (double)dto.ToUnixTimeMilliseconds();
+            }
+            catch
+            {
+                return double.NaN;
+            }
+        });
+
         // Date.parse() - parses a date string
         date["parse"] = new HostFunction(args =>
         {
@@ -791,6 +844,13 @@ public static class StandardLibrary
                 : TimeZoneInfo.Local.StandardName;
 
             return $"{weekday} {month} {day} {year} {time} GMT{offset} ({timeZone})";
+        }
+
+        static string FormatUtcToJsUtcString(DateTimeOffset utcTime)
+        {
+            // Match Node/ECMAScript style: "Thu, 01 Jan 1970 00:00:00 GMT"
+            var culture = System.Globalization.CultureInfo.InvariantCulture;
+            return utcTime.UtcDateTime.ToString("ddd, dd MMM yyyy HH:mm:ss 'GMT'", culture);
         }
 
         dateConstructor = new HostFunction((thisValue, args) =>
@@ -1003,6 +1063,129 @@ public static class StandardLibrary
                 }
 
                 return "Invalid Date";
+            });
+
+            // UTC-based accessors
+            dateInstance["getUTCFullYear"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj)
+                {
+                    var utc = GetUtcTimeFromInternalDate(obj);
+                    return (double)utc.Year;
+                }
+
+                return double.NaN;
+            });
+
+            dateInstance["getUTCMonth"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj)
+                {
+                    var utc = GetUtcTimeFromInternalDate(obj);
+                    return (double)(utc.Month - 1); // JS months are 0-indexed
+                }
+
+                return double.NaN;
+            });
+
+            dateInstance["getUTCDate"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj)
+                {
+                    var utc = GetUtcTimeFromInternalDate(obj);
+                    return (double)utc.Day;
+                }
+
+                return double.NaN;
+            });
+
+            dateInstance["getUTCDay"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj)
+                {
+                    var utc = GetUtcTimeFromInternalDate(obj);
+                    return (double)utc.DayOfWeek;
+                }
+
+                return double.NaN;
+            });
+
+            dateInstance["getUTCHours"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj)
+                {
+                    var utc = GetUtcTimeFromInternalDate(obj);
+                    return (double)utc.Hour;
+                }
+
+                return double.NaN;
+            });
+
+            dateInstance["getUTCMinutes"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj)
+                {
+                    var utc = GetUtcTimeFromInternalDate(obj);
+                    return (double)utc.Minute;
+                }
+
+                return double.NaN;
+            });
+
+            dateInstance["getUTCSeconds"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj)
+                {
+                    var utc = GetUtcTimeFromInternalDate(obj);
+                    return (double)utc.Second;
+                }
+
+                return double.NaN;
+            });
+
+            dateInstance["getUTCMilliseconds"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj)
+                {
+                    var utc = GetUtcTimeFromInternalDate(obj);
+                    return (double)utc.Millisecond;
+                }
+
+                return double.NaN;
+            });
+
+            // Formatting helpers
+            dateInstance["toUTCString"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var utc = ConvertMillisecondsToUtc(ms);
+                    return FormatUtcToJsUtcString(utc);
+                }
+
+                return "Invalid Date";
+            });
+
+            dateInstance["toJSON"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    var dt = ConvertMillisecondsToUtc(ms);
+                    return dt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture);
+                }
+
+                return null;
+            });
+
+            // valueOf() – mirrors getTime()
+            dateInstance["valueOf"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
+                {
+                    return ms;
+                }
+
+                return double.NaN;
             });
 
             return dateInstance;

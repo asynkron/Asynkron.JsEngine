@@ -7,8 +7,8 @@ The typed generator interpreter now runs **entirely on an IR-backed state machin
 IR lowering succeeds when a generator body only contains:
 
 - Block/empty statements, including standalone `yield` and `yield*` expressions.
-- Variable declarations with simple bindings (identifier or destructuring) where initializer expressions are free of `yield`.
-- Classic `while`, `do/while`, and `for` loops (with labels) whose header expressions are `yield`-free.
+- Variable declarations with simple bindings (identifier or destructuring) where initializer expressions are free of `yield`, or the initializer is a single `yield` / `yield*` whose result is assigned via a hidden resume slot.
+- Classic `while`, `do/while`, and `for` loops (with labels) whose header expressions are `yield`-free, or whose conditions contain a single non-delegated `yield` that can be factored out into a per-iteration `yield` + resume slot pattern (e.g. `while (yield "probe")` or `while (1 + (yield "probe"))`).
 - `try/catch/finally` statements, including nested loops and labeled `break/continue`.
 - Plain assignment statements of the form `target = yield <expr>`.
 - Basic `for...of` loops that iterate over synchronous iterables, including loops with `var` / `let` / `const`
@@ -24,7 +24,7 @@ The builder deliberately rejects the following constructs, causing generator cre
 |-----------|--------------------|----------------|
 | `for await (... of ...)` loops | Generator IR is currently scoped to synchronous generators; async iteration is handled by the async/CPS pipeline instead. | `GeneratorIrBuilder.TryBuildStatement` |
 | Async generator functions (`async function*`) | Async generators are not yet implemented in the typed evaluator, so IR never engages and the shape is rejected up front. | `TypedGeneratorFactory` + parser |
-| Any `yield` that appears inside unsupported expression shapes (e.g. `yield` buried in arithmetic, ternaries, etc.) | `ContainsYield` checks bubble up and abort lowering to preserve correctness until those shapes are modeled. | `GeneratorIrBuilder.ContainsYield*` helpers |
+| Any `yield` that appears inside unsupported expression shapes (e.g. multiple `yield`s in the same expression, nested `yield` inside the operand of another `yield`) | `ContainsYield` checks bubble up and abort lowering to preserve correctness until those shapes are modeled. Single non-delegated `yield` occurrences in conditions and simple assignments are now rewritten into IR-friendly patterns. | `GeneratorIrBuilder.ContainsYield*` helpers + `TryRewriteConditionWithSingleYield` |
 
 ## Documented behavior
 

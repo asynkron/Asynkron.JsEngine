@@ -43486,14 +43486,32 @@ globalThis = global = window = parent = this;
 	      // In this harness we only need babel-standalone to load
 	      // successfully; we do not depend on its full parser. To
 	      // avoid exercising incomplete parser integrations in the
-	      // host engine, provide a minimal stub that returns an
-	      // empty Program node.
+	      // host engine, provide a minimal stub that returns a
+	      // single expression statement so template helpers and
+	      // other callers see a structurally valid AST.
+	      var sourceType = options && options.sourceType || "script";
 	      return {
 	        type: "File",
 	        program: {
 	          type: "Program",
-	          body: [],
-	          sourceType: options && options.sourceType || "script"
+	          start: 0,
+	          end: 1,
+	          body: [
+	            {
+	              type: "ExpressionStatement",
+	              start: 1,
+	              end: 1,
+	              expression: {
+	                type: "NumericLiteral",
+	                start: 1,
+	                end: 1,
+	                value: 0,
+	                raw: "0"
+	              }
+	            }
+	          ],
+	          directives: [],
+          sourceType: sourceType
 	        },
 	        errors: []
 	      };
@@ -66314,8 +66332,12 @@ globalThis = global = window = parent = this;
         }
   
         debug.namespace = namespace;
-        debug.useColors = createDebug.useColors();
-        debug.color = createDebug.selectColor(namespace);
+        debug.useColors = typeof createDebug.useColors === 'function'
+          ? createDebug.useColors()
+          : false;
+        debug.color = typeof createDebug.selectColor === 'function'
+          ? createDebug.selectColor(namespace)
+          : undefined;
         debug.extend = extend;
         debug.destroy = createDebug.destroy;
         Object.defineProperty(debug, 'enabled', {
@@ -66422,7 +66444,9 @@ globalThis = global = window = parent = this;
         console.warn('Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.');
       }
   
-      createDebug.enable(createDebug.load());
+      if (typeof createDebug.enable === 'function' && typeof createDebug.load === 'function') {
+        createDebug.enable(createDebug.load());
+      }
       return createDebug;
     }
   
@@ -89522,11 +89546,9 @@ globalThis = global = window = parent = this;
     }
   
     function makeSafeToCall(fun) {
-      if (fun) {
-        defProp(fun, "call", fun.call);
-        defProp(fun, "apply", fun.apply);
-      }
-  
+      // In this harness host functions already provide
+      // safe `.call` / `.apply` helpers via the runtime,
+      // so we can simply return the function unchanged.
       return fun;
     }
   

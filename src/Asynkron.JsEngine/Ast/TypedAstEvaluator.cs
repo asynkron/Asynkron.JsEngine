@@ -323,6 +323,20 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
+        // In JavaScript, `for...in` requires an object value; iterating
+        // over `null` or `undefined` throws a TypeError. Treat other
+        // non-object values as errors as well so engine bugs surface
+        // as JavaScript throws rather than host exceptions.
+        if (statement.Kind == ForEachKind.In &&
+            iterable is not JsObject &&
+            iterable is not JsArray &&
+            iterable is not string &&
+            iterable is not null &&
+            !ReferenceEquals(iterable, JsSymbols.Undefined))
+        {
+            throw new ThrowSignal("Cannot iterate properties of non-object value.");
+        }
+
         var loopEnvironment = new JsEnvironment(environment, creatingSource: statement.Source, description: "for-each-loop");
         object? lastValue = JsSymbols.Undefined;
 

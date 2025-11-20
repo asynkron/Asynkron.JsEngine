@@ -516,8 +516,9 @@ public static class StandardLibrary
 
         // Function.call: when used as `fn.call(thisArg, ...args)` the
         // target function is `fn` (the `this` value). We implement this
-        // directly so that binding `Function.call` produces helpers that
-        // behave like `Function.prototype.call`.
+        // directly so that binding `Function.call` or
+        // `Function.prototype.call` produces helpers that behave like
+        // `Function.prototype.call`.
         var callHelper = new HostFunction((thisValue, args) =>
         {
             if (thisValue is not IJsCallable target)
@@ -541,6 +542,14 @@ public static class StandardLibrary
         });
 
         functionConstructor.SetProperty("call", callHelper);
+
+        // Provide a minimal `Function.prototype` object that exposes the
+        // same call helper so patterns like
+        // `Function.prototype.call.bind(Object.prototype.hasOwnProperty)`
+        // work as expected.
+        var functionPrototype = new JsObject();
+        functionPrototype.SetProperty("call", callHelper);
+        functionConstructor.SetProperty("prototype", functionPrototype);
 
         return functionConstructor;
     }
@@ -1529,39 +1538,7 @@ public static class StandardLibrary
         }));
 
         // slice
-        array.SetProperty("slice", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            var start = 0;
-            var end = jsArray.Items.Count;
-
-            if (args.Count > 0 && args[0] is double startD)
-            {
-                start = (int)startD;
-                if (start < 0)
-                {
-                    start = Math.Max(0, jsArray.Items.Count + start);
-                }
-            }
-
-            if (args.Count > 1 && args[1] is double endD)
-            {
-                end = (int)endD;
-                if (end < 0)
-                {
-                    end = Math.Max(0, jsArray.Items.Count + end);
-                }
-            }
-
-            var result = new JsArray();
-            for (var i = start; i < Math.Min(end, jsArray.Items.Count); i++) result.Push(jsArray.Items[i]);
-            AddArrayMethods(result);
-            return result;
-        }));
+        array.SetProperty("slice", new HostFunction((thisValue, args) => ArraySlice(thisValue, args)));
 
         // shift
         array.SetProperty("shift", new HostFunction((thisValue, args) =>
@@ -2114,6 +2091,44 @@ public static class StandardLibrary
             AddArrayMethods(result);
             return result;
         }));
+    }
+
+    private static object? ArraySlice(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return null;
+        }
+
+        var start = 0;
+        var end = jsArray.Items.Count;
+
+        if (args.Count > 0 && args[0] is double startD)
+        {
+            start = (int)startD;
+            if (start < 0)
+            {
+                start = Math.Max(0, jsArray.Items.Count + start);
+            }
+        }
+
+        if (args.Count > 1 && args[1] is double endD)
+        {
+            end = (int)endD;
+            if (end < 0)
+            {
+                end = Math.Max(0, jsArray.Items.Count + end);
+            }
+        }
+
+        var result = new JsArray();
+        for (var i = start; i < Math.Min(end, jsArray.Items.Count); i++)
+        {
+            result.Push(jsArray.Items[i]);
+        }
+
+        AddArrayMethods(result);
+        return result;
     }
 
     private static void FlattenArray(JsArray source, JsArray target, int depth)
@@ -3411,6 +3426,26 @@ public static class StandardLibrary
         {
             ObjectPrototype = objectProtoObj;
 
+            // Object.prototype.toString
+            var objectToString = new HostFunction((thisValue, args) =>
+            {
+                var tag = thisValue switch
+                {
+                    null => "Null",
+                    JsObject => "Object",
+                    JsArray => "Array",
+                    string => "String",
+                    double => "Number",
+                    bool => "Boolean",
+                    _ when ReferenceEquals(thisValue, Symbols.Undefined) => "Undefined",
+                    _ => "Object"
+                };
+
+                return $"[object {tag}]";
+            });
+
+            objectProtoObj.SetProperty("toString", objectToString);
+
             // Object.prototype.hasOwnProperty
             var hasOwn = new HostFunction((thisValue, args) =>
             {
@@ -4014,6 +4049,15 @@ public static class StandardLibrary
             return arr;
         }));
 
+        // Expose core Array prototype methods (such as slice) on
+        // Array.prototype so patterns like `Array.prototype.slice.call`
+        // work against array-like values (e.g. `arguments`).
+        if (arrayConstructor.TryGetProperty("prototype", out var prototypeValue) &&
+            prototypeValue is JsObject prototypeObject)
+        {
+            prototypeObject.SetProperty("slice", new HostFunction((thisValue, args) => ArraySlice(thisValue, args)));
+        }
+
         return arrayConstructor;
     }
 
@@ -4578,6 +4622,27 @@ public static class StandardLibrary
             numberProto is JsObject numberProtoObj)
         {
             NumberPrototype = numberProtoObj;
+
+            numberProtoObj.SetProperty("toString", new HostFunction((thisValue, args) =>
+            {
+                var num = JsOps.ToNumber(thisValue);
+                if (double.IsNaN(num))
+                {
+                    return "NaN";
+                }
+
+                if (double.IsPositiveInfinity(num))
+                {
+                    return "Infinity";
+                }
+
+                if (double.IsNegativeInfinity(num))
+                {
+                    return "-Infinity";
+                }
+
+                return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }));
         }
 
         // Number.isInteger(value)
@@ -4839,11 +4904,55 @@ public static class StandardLibrary
         });
 
         // Remember String.prototype so that string wrapper objects can see
-        // methods attached from user code (e.g. String.prototype.toJSONString).
+        // methods attached from user code (e.g. String.prototype.toJSONString),
+        // and provide a minimal shared implementation of core helpers such as
+        // String.prototype.slice for use with call/apply patterns.
         if (stringConstructor.TryGetProperty("prototype", out var stringProto) &&
             stringProto is JsObject stringProtoObj)
         {
             StringPrototype = stringProtoObj;
+
+            stringProtoObj.SetProperty("slice", new HostFunction((thisValue, args) =>
+            {
+                var str = JsValueToString(thisValue);
+                if (str is null)
+                {
+                    return "";
+                }
+
+                if (args.Count == 0)
+                {
+                    return str;
+                }
+
+                var start = args[0] is double d1 ? (int)d1 : 0;
+                var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : str.Length;
+
+                if (start < 0)
+                {
+                    start = Math.Max(0, str.Length + start);
+                }
+                else
+                {
+                    start = Math.Min(start, str.Length);
+                }
+
+                if (end < 0)
+                {
+                    end = Math.Max(0, str.Length + end);
+                }
+                else
+                {
+                    end = Math.Min(end, str.Length);
+                }
+
+                if (start >= end)
+                {
+                    return "";
+                }
+
+                return str.Substring(start, end - start);
+            }));
         }
 
         // String.fromCodePoint(...codePoints)

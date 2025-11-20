@@ -14,22 +14,17 @@
 - `Generator_ForOfLetCreatesNewBindingIr_UsesIrPlan` and `Generator_ForOfDestructuringIr_UsesIrPlan` now lock in that `for...of` with block-scoped bindings (including destructuring and closures) is hosted on the IR path.
 - The replay-based generator path has been removed: `TypedGeneratorInstance` now requires `GeneratorIrBuilder.TryBuild` to succeed and throws a `NotSupportedException` with a detailed reason when IR construction fails.
 - Gap-coverage tests `Generator_VariableInitializerWithMultipleYields_UnsupportedIr`, `Generator_IfConditionComplexYield_UnsupportedIr`, `Generator_ForConditionYield_UnsupportedIr`, `Generator_WhileConditionYield_UnsupportedIr`, `Generator_DoWhileConditionYield_UnsupportedIr`, `Generator_ForIncrementYield_UnsupportedIr`, and `Generator_SwitchStatement_UnsupportedIr` now document the remaining unsupported `yield` placements and switch statements in generators by asserting clear failure reasons from `GeneratorIrDiagnostics`.
-- `GeneratorIrDiagnostics` exposes lightweight counters for IR plan attempts/successes/failures, and `Generator_ForOfYieldsValuesIr_UsesIrPlan` asserts that plain `for...of` with `var` is always hosted on the IR path (no silent fallbacks).
+- `GeneratorIrDiagnostics` exposes lightweight counters for IR plan attempts/successes/failures, and `Generator_ForOfYieldsValuesIr_UsesIrPlan` asserts that plain `for...of` with `var` is always hosted on the IR path (no silent fallbacks). The `_UnsupportedIr` tests now exercise specific unsupported shapes without relying on global attempt counts, reducing flakiness when unrelated generators run in the same test session.
 - `docs/GENERATOR_IR_LIMITATIONS.md` captures which generator constructs lower to IR, which ones intentionally fall back, and what follow-up work is still open.
 - Date instances now use the constructor-created prototype chain instead of copying methods, fixing the `date-format-xparb.js` SunSpider failure caused by `this[func]()` seeing an undefined prototype method, and keeping dynamically-added `Date.prototype` methods visible to existing instances.
 - A minimal `Function` constructor and `Function.call` helper have been added so patterns like `Function.call.bind(Object.prototype.hasOwnProperty)` behave as expected, and a stub `localStorage` object is exposed globally so `babel-standalone.js` can probe storage without throwing.
 - Program-level and function-level function declarations are now hoisted via `HoistVarDeclarations`/`HoistFromStatement`, so cases like `exports.formatArgs = formatArgs;` before the `function formatArgs(...) {}` body in Babel’s bundled `debug` module resolve correctly rather than throwing `Undefined symbol` at module initialisation.
 
-## Next Iteration Plan
+# Next Iteration Plan
 
-1. **Tighten Generator IR Diagnostics and Tests**
-   - De-flake `Generator_*_UnsupportedIr` tests by isolating `GeneratorIrDiagnostics` per test (or serialising the tests) so concurrent generator IR activity can’t affect their attempt/success/failure assertions.
-   - Keep the `_UnsupportedIr` tests as the authoritative checklist for extending IR coverage, but relax them to avoid hard-coding global counters that are sensitive to unrelated generators.
-
-2. **Grow IR Coverage for Unsupported Generator Shapes**
+1. **Grow IR Coverage for Unsupported Generator Shapes**
    - Use the existing `_UnsupportedIr` tests (complex `yield` in conditions/increments and `switch` statements) as the driver for extending `SyncGeneratorIrBuilder` and the IR interpreter.
    - As shapes become supported, flip the corresponding tests to `*Ir` / `*Ir_UsesIrPlan` variants and update `docs/GENERATOR_IR_LIMITATIONS.md`.
-
-3. **Async Generator IR (Follow-Up)**
+2. **Async Generator IR (Follow-Up)**
    - Replace the `AsyncGeneratorIrBuilder` placeholder with a real lowering for async generator functions so `for await...of` loops and async iterator patterns can run on the IR path instead of the legacy evaluator.
    - Extend async iteration tests to assert IR usage via `GeneratorIrDiagnostics` once the async generator IR path is implemented.

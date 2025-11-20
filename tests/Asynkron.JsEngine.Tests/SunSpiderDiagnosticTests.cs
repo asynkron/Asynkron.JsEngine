@@ -195,6 +195,76 @@ var __anchorCount = (tagcloud.match(/<a /g) || []).length;
         output.WriteLine("anchorCount = " + anchors);
     }
 
+    [Fact(Timeout = 10000)]
+    public async Task CryptoAes_Diagnose_CoreVsEscaping()
+    {
+        await using var engine = new JsEngine();
+
+        var content = SunSpiderTests.GetEmbeddedFile("crypto-aes.js");
+
+        // Replace escCtrlChars/unescCtrlChars with identity versions so we can
+        // see whether the AES core (Cipher/AESEncryptCtr/AESDecryptCtr) is
+        // correct independent of escaping.
+        content = content.Replace(
+            "function escCtrlChars(str) {  // escape control chars which might cause problems handling ciphertext",
+            "function escCtrlChars(str) {  // diagnostic identity escape\n  return str; }\n\n// original impl removed for diagnosis\nfunction __escCtrlChars_original(str)"
+        );
+
+        content = content.Replace(
+            "function unescCtrlChars(str) {  // unescape potentially problematic control characters",
+            "function unescCtrlChars(str) {  // diagnostic identity unescape\n  return str; }\n\n// original impl removed for diagnosis\nfunction __unescCtrlChars_original(str)"
+        );
+
+        // Capture the cipherText and decryptedText into globals for inspection.
+        const string marker = "var cipherText = AESEncryptCtr(plainText, password, 256);";
+        if (content.Contains(marker, StringComparison.Ordinal))
+        {
+            content = content.Replace(
+                marker,
+                """
+var cipherText = AESEncryptCtr(plainText, password, 256);
+__diagCipherText = cipherText;
+"""
+            );
+        }
+
+        const string decryptMarker = "var decryptedText = AESDecryptCtr(cipherText, password, 256);";
+        if (content.Contains(decryptMarker, StringComparison.Ordinal))
+        {
+            content = content.Replace(
+                decryptMarker,
+                """
+var decryptedText = AESDecryptCtr(cipherText, password, 256);
+__diagDecryptedText = decryptedText;
+"""
+            );
+        }
+
+        try
+        {
+            await engine.Evaluate(content);
+        }
+        catch (ThrowSignal ex)
+        {
+            output.WriteLine("ThrowSignal: " + ex.ThrownValue);
+        }
+
+        var diagCipher = await engine.Evaluate("__diagCipherText;");
+        var diagPlain = await engine.Evaluate("plainText;");
+        var diagDecrypted = await engine.Evaluate("__diagDecryptedText;");
+
+        output.WriteLine("plainText length   = " + diagPlain?.ToString()?.Length);
+        output.WriteLine("cipherText length  = " + diagCipher?.ToString()?.Length);
+        output.WriteLine("decryptedText len  = " + diagDecrypted?.ToString()?.Length);
+
+        // Log the first 80 chars of decrypted text for visual comparison.
+        await engine.Evaluate(@"
+            __diagDecryptedHead = __diagDecryptedText.substring(0, 80);
+        ");
+        var head = await engine.Evaluate("__diagDecryptedHead;");
+        output.WriteLine("decryptedText head = " + head);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task DateFormat_Eval_DefinesCallablePrototypeMethod()
     {

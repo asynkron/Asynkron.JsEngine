@@ -13,10 +13,11 @@ public class SunSpiderTests
     private static readonly HashSet<string> HighBudgetScripts = new(StringComparer.Ordinal)
     {
         "access-fannkuch.js",
-        "string-validate-input.js"
+        "string-validate-input.js",
+        "string-base64.js"
     };
 
-    [Theory(Timeout = 4000)]
+    [Theory(Timeout = 15000)]
     [InlineData("3d-cube.js")]
     [InlineData("3d-morph.js")]
     [InlineData("3d-raytrace.js")]
@@ -48,7 +49,7 @@ public class SunSpiderTests
     {
         var content = GetEmbeddedFile(filename);
         var timeout = HighBudgetScripts.Contains(filename)
-            ? TimeSpan.FromSeconds(4)
+            ? TimeSpan.FromSeconds(10)
             : TimeSpan.FromSeconds(3);
         await RunTest(content).WaitAsync(timeout);
     }

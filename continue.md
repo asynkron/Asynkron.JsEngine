@@ -22,12 +22,16 @@
 - Date instances now use the constructor-created prototype chain instead of copying methods, fixing the `date-format-xparb.js` SunSpider failure caused by `this[func]()` seeing an undefined prototype method, and keeping dynamically-added `Date.prototype` methods visible to existing instances.
 - A minimal `Function` constructor and `Function.call` helper have been added so patterns like `Function.call.bind(Object.prototype.hasOwnProperty)` behave as expected, and a stub `localStorage` object is exposed globally so `babel-standalone.js` can probe storage without throwing.
 - Program-level and function-level function declarations are now hoisted via `HoistVarDeclarations`/`HoistFromStatement`, so cases like `exports.formatArgs = formatArgs;` before the `function formatArgs(...) {}` body in Babel’s bundled `debug` module resolve correctly rather than throwing `Undefined symbol` at module initialisation.
+- `Date` built-ins now expose a more complete surface for common usage patterns: `Date.UTC` matches Node’s millisecond outputs (including the 0–99 year offset behaviour), instances support both local (`getFullYear` etc.) and UTC getters (`getUTCFullYear` etc.), and formatting helpers (`toISOString`, `toUTCString`, `toJSON`, `valueOf`) behave consistently with Node for ISO and UTC strings.
 
 # Next Iteration Plan
 
-1. **Grow IR Coverage for Unsupported Generator Shapes**
-   - Use the existing `_UnsupportedIr` tests (complex `yield` in conditions/increments and complex `switch` layouts) as the driver for extending `SyncGeneratorIrBuilder` and the IR interpreter.
+1. **Split Generator IR into Lowering + Codegen**
+   - Introduce a `GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst` pre-pass that rewrites complex `yield` placements (conditions, increments, assignments, declarations, and simple multi-yield expressions) into a normalized, generator-friendly AST or rejects unsupported shapes with clear reasons, so `SyncGeneratorIrBuilder` can assume a simplified surface.
+   - Gradually migrate existing yield-rewrite helpers (`TryRewriteConditionWithSingleYield`, `TryLowerYieldingDeclaration`, `TryLowerYieldingAssignment`, etc.) from `SyncGeneratorIrBuilder` into the new lowering pass, keeping behaviour identical but reducing builder complexity.
+2. **Grow IR Coverage for Remaining Unsupported Generator Shapes**
+   - Use the `_UnsupportedIr` tests (complex `yield` in increments and complex `switch` layouts) as the driver for extending the normalized surface and the IR interpreter once lowering is in place.
    - As shapes become supported, flip the corresponding tests to `*Ir` / `*Ir_UsesIrPlan` variants and update `docs/GENERATOR_IR_LIMITATIONS.md`.
-2. **Async Generator IR (Follow-Up)**
-   - Replace the `AsyncGeneratorIrBuilder` placeholder with a real lowering for async generator functions so `for await...of` loops and async iterator patterns can run on the IR path instead of the legacy evaluator.
+3. **Async Generator IR (Follow-Up)**
+   - Replace the `AsyncGeneratorIrBuilder` placeholder with a real lowering path for `async function*`, reusing the generic suspend-point lowering patterns from the generator yield-lowering pass where possible so `await` and `yield` share the same normalization strategy.
    - Extend async iteration tests to assert IR usage via `GeneratorIrDiagnostics` once the async generator IR path is implemented.

@@ -142,9 +142,20 @@ internal sealed class SyncGeneratorIrBuilder
 
     public static bool TryBuild(FunctionExpression function, out GeneratorPlan plan, out string? failureReason)
     {
+        // First run the generator yield-lowering pre-pass so that SyncGeneratorIrBuilder
+        // can assume a simplified, generator-friendly AST. The lowerer currently acts
+        // as a no-op scaffold; yield normalization logic will be migrated here
+        // incrementally.
+        if (!GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var lowerFailure))
+        {
+            plan = default!;
+            failureReason = lowerFailure;
+            return false;
+        }
+
         var builder = new SyncGeneratorIrBuilder();
-        var succeeded = builder.TryBuildInternal(function, out plan);
-        failureReason = builder._failureReason;
+        var succeeded = builder.TryBuildInternal(lowered, out plan);
+        failureReason = builder._failureReason ?? lowerFailure;
         return succeeded;
     }
 

@@ -202,47 +202,32 @@ var __anchorCount = (tagcloud.match(/<a /g) || []).length;
 
         var content = SunSpiderTests.GetEmbeddedFile("crypto-aes.js");
 
-        // Replace escCtrlChars/unescCtrlChars with identity versions so we can
-        // see whether the AES core (Cipher/AESEncryptCtr/AESDecryptCtr) is
-        // correct independent of escaping.
-        content = content.Replace(
-            "function escCtrlChars(str) {  // escape control chars which might cause problems handling ciphertext",
-            "function escCtrlChars(str) {  // diagnostic identity escape\n  return str; }\n\n// original impl removed for diagnosis\nfunction __escCtrlChars_original(str)"
-        );
-
-        content = content.Replace(
-            "function unescCtrlChars(str) {  // unescape potentially problematic control characters",
-            "function unescCtrlChars(str) {  // diagnostic identity unescape\n  return str; }\n\n// original impl removed for diagnosis\nfunction __unescCtrlChars_original(str)"
-        );
-
-        // Capture the cipherText and decryptedText into globals for inspection.
-        const string marker = "var cipherText = AESEncryptCtr(plainText, password, 256);";
-        if (content.Contains(marker, StringComparison.Ordinal))
-        {
-            content = content.Replace(
-                marker,
-                """
-var cipherText = AESEncryptCtr(plainText, password, 256);
-__diagCipherText = cipherText;
-"""
-            );
-        }
-
-        const string decryptMarker = "var decryptedText = AESDecryptCtr(cipherText, password, 256);";
-        if (content.Contains(decryptMarker, StringComparison.Ordinal))
-        {
-            content = content.Replace(
-                decryptMarker,
-                """
-var decryptedText = AESDecryptCtr(cipherText, password, 256);
-__diagDecryptedText = decryptedText;
-"""
-            );
-        }
-
         try
         {
             await engine.Evaluate(content);
+
+            // Override escCtrlChars/unescCtrlChars at runtime with identity
+            // versions so we can inspect the AES core + CTR behaviour without
+            // any escaping effects.
+            const string diagScript = """
+__diagPlainText = plainText;
+__diagPassword = password;
+
+__origEscCtrlChars = escCtrlChars;
+__origUnescCtrlChars = unescCtrlChars;
+
+escCtrlChars = function(str) { return str; };
+unescCtrlChars = function(str) { return str; };
+
+__diagCipherText = AESEncryptCtr(__diagPlainText, __diagPassword, 256);
+__diagDecryptedText = AESDecryptCtr(__diagCipherText, __diagPassword, 256);
+
+// restore originals in case anything else depends on them
+escCtrlChars = __origEscCtrlChars;
+unescCtrlChars = __origUnescCtrlChars;
+""";
+
+            await engine.Evaluate(diagScript);
         }
         catch (ThrowSignal ex)
         {

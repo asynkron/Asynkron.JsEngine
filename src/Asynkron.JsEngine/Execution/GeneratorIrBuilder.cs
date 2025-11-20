@@ -274,6 +274,16 @@ internal sealed class SyncGeneratorIrBuilder
                 case ForStatement forStatement:
                     return TryBuildForStatement(forStatement, nextIndex, out entryIndex, activeLabel);
 
+                case SwitchStatement switchStatement:
+                    if (TryBuildSwitchStatement(switchStatement, nextIndex, out entryIndex, activeLabel))
+                    {
+                        return true;
+                    }
+
+                    entryIndex = -1;
+                    _failureReason ??= "Unsupported statement 'SwitchStatement'.";
+                    return false;
+
                 case TryStatement tryStatement:
                     return TryBuildTryStatement(tryStatement, nextIndex, out entryIndex, activeLabel);
 
@@ -754,6 +764,168 @@ internal sealed class SyncGeneratorIrBuilder
 
         var enterTryIndex = Append(new EnterTryInstruction(tryEntry, catchEntry, catchSlotSymbol, finallyEntry));
         entryIndex = enterTryIndex;
+        return true;
+    }
+
+    private bool TryBuildSwitchStatement(SwitchStatement statement, int nextIndex, out int entryIndex,
+        Symbol? activeLabel)
+    {
+        // For now we support switch statements whose discriminant and case
+        // tests are yield-free, and whose case bodies only contain at most a
+        // single trailing unlabeled `break;` at top level. More complex break
+        // shapes (including non-trailing `break` and default clauses that
+        // are not last) continue to be rejected.
+        if (ContainsYield(statement.Discriminant))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        foreach (var switchCase in statement.Cases)
+        {
+            if (switchCase.Test is not null && ContainsYield(switchCase.Test))
+            {
+                entryIndex = -1;
+                return false;
+            }
+        }
+
+        // Enforce at most a single default clause, and only in the final
+        // position. JavaScript evaluates switch by first selecting the
+        // matching case clause (preferring explicit case tests and only
+        // using default if no case matches) and then executing the case
+        // body with fallthrough. Our lowering models this behaviour only
+        // when default is in the canonical tail position.
+        var defaultIndex = -1;
+        for (var i = 0; i < statement.Cases.Length; i++)
+        {
+            if (statement.Cases[i].Test is null)
+            {
+                if (defaultIndex != -1)
+                {
+                    entryIndex = -1;
+                    _failureReason ??= "Switch statement contains multiple default clauses.";
+                    return false;
+                }
+
+                defaultIndex = i;
+            }
+        }
+
+        if (defaultIndex != -1 && defaultIndex != statement.Cases.Length - 1)
+        {
+            entryIndex = -1;
+            _failureReason ??= "Switch statement default clause must be last.";
+            return false;
+        }
+
+        var instructionStart = _instructions.Count;
+        var discriminantSymbol = Symbol.Intern($"__switch_disc_{instructionStart}");
+        var matchedSymbol = Symbol.Intern($"__switch_matched_{instructionStart}");
+        var doneSymbol = Symbol.Intern($"__switch_done_{instructionStart}");
+
+        var statements = ImmutableArray.CreateBuilder<StatementNode>();
+
+        // const __discN = <discriminant>;
+        var discBinding = new IdentifierBinding(statement.Source, discriminantSymbol);
+        var discDeclarator = new VariableDeclarator(statement.Source, discBinding, statement.Discriminant);
+        var discDeclaration = new VariableDeclaration(statement.Source, VariableKind.Const, [discDeclarator]);
+        statements.Add(discDeclaration);
+
+        // let __matchedN = false;
+        var matchedBinding = new IdentifierBinding(statement.Source, matchedSymbol);
+        var matchedInitializer = new LiteralExpression(statement.Source, false);
+        var matchedDeclarator = new VariableDeclarator(statement.Source, matchedBinding, matchedInitializer);
+        var matchedDeclaration = new VariableDeclaration(statement.Source, VariableKind.Let, [matchedDeclarator]);
+        statements.Add(matchedDeclaration);
+
+        // let __doneN = false;
+        var doneBinding = new IdentifierBinding(statement.Source, doneSymbol);
+        var doneInitializer = new LiteralExpression(statement.Source, false);
+        var doneDeclarator = new VariableDeclarator(statement.Source, doneBinding, doneInitializer);
+        var doneDeclaration = new VariableDeclaration(statement.Source, VariableKind.Let, [doneDeclarator]);
+        statements.Add(doneDeclaration);
+
+        foreach (var switchCase in statement.Cases)
+        {
+            var body = switchCase.Body;
+            var bodyStatements = body.Statements;
+
+            // Only support a single trailing unlabeled break at top level.
+            var hasTrailingBreak = false;
+            if (bodyStatements.Length > 0 &&
+                bodyStatements[^1] is BreakStatement trailingBreak &&
+                trailingBreak.Label is null)
+            {
+                hasTrailingBreak = true;
+                for (var i = 0; i < bodyStatements.Length - 1; i++)
+                {
+                    if (bodyStatements[i] is BreakStatement)
+                    {
+                        _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+                        entryIndex = -1;
+                        return false;
+                    }
+                }
+            }
+
+            // Build condition: !__done && !__matched && (disc === test) or
+            //                 !__done && !__matched for default case.
+            var notDone = new UnaryExpression(statement.Source, "!",
+                new IdentifierExpression(statement.Source, doneSymbol), true);
+            var notMatched = new UnaryExpression(statement.Source, "!",
+                new IdentifierExpression(statement.Source, matchedSymbol), true);
+            ExpressionNode matchCondition = new BinaryExpression(statement.Source, "&&", notDone, notMatched);
+
+            if (switchCase.Test is not null)
+            {
+                var discIdentifier = new IdentifierExpression(statement.Source, discriminantSymbol);
+                var equalTest = new BinaryExpression(statement.Source, "===",
+                    discIdentifier, switchCase.Test);
+                matchCondition = new BinaryExpression(statement.Source, "&&", matchCondition, equalTest);
+            }
+
+            // if (matchCondition) { __matchedN = true; }
+            var setMatchedAssignment = new AssignmentExpression(statement.Source, matchedSymbol,
+                new LiteralExpression(statement.Source, true));
+            var setMatchedStatement = new ExpressionStatement(statement.Source, setMatchedAssignment);
+            var setMatchedBlock = new BlockStatement(statement.Source, [setMatchedStatement], body.IsStrict);
+            statements.Add(new IfStatement(statement.Source, matchCondition, setMatchedBlock, null));
+
+            // Execution guard: if (!__done && __matched) { ...case body... }
+            var notDoneExec = new UnaryExpression(statement.Source, "!",
+                new IdentifierExpression(statement.Source, doneSymbol), true);
+            var matchedIdentifier = new IdentifierExpression(statement.Source, matchedSymbol);
+            var execCondition = new BinaryExpression(statement.Source, "&&", notDoneExec, matchedIdentifier);
+
+            var execBuilder = ImmutableArray.CreateBuilder<StatementNode>();
+            var copyCount = hasTrailingBreak ? bodyStatements.Length - 1 : bodyStatements.Length;
+            for (var i = 0; i < copyCount; i++)
+            {
+                execBuilder.Add(bodyStatements[i]);
+            }
+
+            if (hasTrailingBreak)
+            {
+                var setDoneAssignment = new AssignmentExpression(statement.Source, doneSymbol,
+                    new LiteralExpression(statement.Source, true));
+                execBuilder.Add(new ExpressionStatement(statement.Source, setDoneAssignment));
+            }
+
+            var execBlock = new BlockStatement(body.Source, execBuilder.ToImmutable(), body.IsStrict);
+            statements.Add(new IfStatement(statement.Source, execCondition, execBlock, null));
+        }
+
+        var isStrict = statement.Cases.Length > 0 && statement.Cases[0].Body.IsStrict;
+        var lowered = new BlockStatement(statement.Source, statements.ToImmutable(), isStrict);
+
+        if (!TryBuildStatement(lowered, nextIndex, out entryIndex, activeLabel))
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
         return true;
     }
 

@@ -7,6 +7,9 @@ The typed generator interpreter now runs **entirely on an IR-backed state machin
 IR lowering succeeds when a generator body only contains:
 
 - Block/empty statements, including standalone `yield` and `yield*` expressions.
+- `switch` statements whose discriminant and case test expressions are yield-free, with at most a single
+  `default` clause in the final position and case bodies that contain no `break` except for an optional
+  single trailing unlabeled `break;` per case (fallthrough between cases is preserved).
 - Variable declarations with simple bindings (identifier or destructuring) where initializer expressions are free of `yield`, or the initializer is a single `yield` / `yield*` whose result is assigned via a hidden resume slot.
 - Classic `while`, `do/while`, and `for` loops (with labels) whose header expressions are `yield`-free, or whose conditions contain a single non-delegated `yield` that can be factored out into a per-iteration `yield` + resume slot pattern (e.g. `while (yield "probe")` or `while (1 + (yield "probe"))`).
 - `try/catch/finally` statements, including nested loops and labeled `break/continue`.

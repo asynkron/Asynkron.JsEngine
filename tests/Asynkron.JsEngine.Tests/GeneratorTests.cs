@@ -2489,6 +2489,82 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_SwitchStatementIr_UsesIrPlan()
+    {
+        await using var engine = new JsEngine();
+
+        GeneratorIrDiagnostics.Reset();
+        await engine.Evaluate("""
+            function* gen() {
+                const x = yield 1;
+                switch (x) {
+                    case 1:
+                        yield "one";
+                        break;
+                    default:
+                        yield "other";
+                        break;
+                }
+            }
+            let g = gen();
+        """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(1, attempts);
+        Assert.Equal(1, succeeded);
+        Assert.Equal(0, failed);
+        Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_SwitchStatementSemanticsIr()
+    {
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function* describe(value) {
+                switch (value) {
+                    case 1:
+                        yield "one";
+                        break;
+                    case 2:
+                    case 3:
+                        yield "few";
+                        break;
+                    default:
+                        yield "many";
+                        break;
+                }
+            }
+
+            let g1 = describe(1);
+            let g2 = describe(2);
+            let g3 = describe(3);
+            let g4 = describe(10);
+        """);
+
+        var first = await engine.Evaluate("g1.next().value;");
+        var firstDone = await engine.Evaluate("g1.next().done;");
+        var second = await engine.Evaluate("g2.next().value;");
+        var secondDone = await engine.Evaluate("g2.next().done;");
+        var third = await engine.Evaluate("g3.next().value;");
+        var thirdDone = await engine.Evaluate("g3.next().done;");
+        var fourth = await engine.Evaluate("g4.next().value;");
+        var fourthDone = await engine.Evaluate("g4.next().done;");
+
+        Assert.Equal("one", first);
+        Assert.True((bool)firstDone!);
+        Assert.Equal("few", second);
+        Assert.True((bool)secondDone!);
+        Assert.Equal("few", third);
+        Assert.True((bool)thirdDone!);
+        Assert.Equal("many", fourth);
+        Assert.True((bool)fourthDone!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_SwitchStatement_UnsupportedIr()
     {
         GeneratorIrDiagnostics.Reset();
@@ -2500,11 +2576,11 @@ public class GeneratorTests
                 function* gen() {
                     const x = yield 1;
                     switch (x) {
+                        default:
+                            yield "default";
+                            break;
                         case 1:
                             yield "one";
-                            break;
-                        default:
-                            yield "other";
                             break;
                     }
                 }
@@ -2512,14 +2588,14 @@ public class GeneratorTests
             """);
         });
 
-        Assert.Contains("Unsupported statement 'SwitchStatement'.", ex.Message);
+        Assert.Contains("Switch statement default clause must be last.", ex.Message);
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
         Assert.Equal(1, attempts);
         Assert.Equal(0, succeeded);
         Assert.Equal(1, failed);
-        Assert.Equal("Unsupported statement 'SwitchStatement'.", GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Equal("Switch statement default clause must be last.", GeneratorIrDiagnostics.LastFailureReason);
         Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
     }
 

@@ -10,7 +10,9 @@ IR lowering succeeds when a generator body only contains:
 - `switch` statements whose discriminant and case test expressions are yield-free, with at most a single
   `default` clause in the final position and case bodies that contain no `break` except for an optional
   single trailing unlabeled `break;` per case (fallthrough between cases is preserved).
-- Variable declarations with simple bindings (identifier or destructuring) where initializer expressions are free of `yield`, or the initializer is a single `yield` / `yield*` whose result is assigned via a hidden resume slot.
+- Variable declarations with simple bindings (identifier or destructuring) where initializer expressions are free of `yield`, or the initializer is either:
+  - a single `yield` / `yield*` whose result is assigned via a hidden resume slot, or
+  - a binary expression whose left and right operands are simple (non-delegated) `yield` expressions whose operands contain no nested `yield` (e.g. `let value = (yield "a") + (yield "b");`).
 - Classic `while`, `do/while`, and `for` loops (with labels) whose header expressions are `yield`-free, or whose conditions/increments contain a single non-delegated `yield` that can be factored out into a per-iteration `yield` + resume slot pattern (e.g. `while (yield "probe")`, `while (1 + (yield "probe"))`, or `for (...; ...; i = i + (yield "step"))`).
 - `try/catch/finally` statements, including nested loops and labeled `break/continue`.
 - Plain assignment statements of the form `target = yield <expr>`.

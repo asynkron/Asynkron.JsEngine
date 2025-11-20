@@ -2338,33 +2338,47 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Generator_VariableInitializerWithMultipleYields_UnsupportedIr()
+    public async Task Generator_VariableInitializerWithMultipleYieldsIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
-        var ex = await Assert.ThrowsAsync<NotSupportedException>(async () =>
-        {
-            await engine.Evaluate("""
-                function* gen() {
-                    let log = [];
-                    let value = (yield "a") + (yield "b");
-                    log.push(value);
-                    return log[0];
-                }
-                let g = gen();
-            """);
-        });
-
-        Assert.Contains("Variable declaration contains unsupported yield shape.", ex.Message);
+        GeneratorIrDiagnostics.Reset();
+        await engine.Evaluate("""
+            function* gen() {
+                let log = [];
+                let value = (yield "a") + (yield "b");
+                log.push(value);
+                return log[0];
+            }
+            let g = gen();
+        """);
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
         Assert.Equal(1, attempts);
-        Assert.Equal(0, succeeded);
-        Assert.Equal(1, failed);
-        Assert.Equal("Variable declaration contains unsupported yield shape.", GeneratorIrDiagnostics.LastFailureReason);
-        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+        Assert.Equal(1, succeeded);
+        Assert.Equal(0, failed);
+        Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        var firstDone = await engine.Evaluate("first.done;");
+
+        await engine.Evaluate("const second = g.next(10);");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+
+        await engine.Evaluate("const third = g.next(32);");
+        var thirdValue = await engine.Evaluate("third.value;");
+        var thirdDone = await engine.Evaluate("third.done;");
+
+        Assert.Equal("a", firstValue);
+        Assert.False((bool)firstDone!);
+        Assert.Equal("b", secondValue);
+        Assert.False((bool)secondDone!);
+        Assert.Equal(42.0, thirdValue);
+        Assert.True((bool)thirdDone!);
     }
 
     [Fact(Timeout = 2000)]

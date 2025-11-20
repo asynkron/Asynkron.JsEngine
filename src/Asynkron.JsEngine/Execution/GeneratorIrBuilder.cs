@@ -1254,39 +1254,78 @@ internal sealed class SyncGeneratorIrBuilder
         }
 
         var declarator = declaration.Declarators[0];
-        if (declarator.Initializer is not YieldExpression yieldExpression)
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        if (ContainsYield(yieldExpression.Expression))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
         if (declarator.Target is not IdentifierBinding)
         {
             entryIndex = -1;
             return false;
         }
 
-        var resumeSymbol = CreateResumeSlotSymbol();
-        var rewrittenDeclarator = declarator with
+        // Simple case: single `yield` / `yield*` used directly as the initializer.
+        if (declarator.Initializer is YieldExpression yieldExpression)
         {
-            Initializer = new IdentifierExpression(yieldExpression.Source, resumeSymbol)
-        };
-        var rewrittenDeclaration = declaration with
-        {
-            Declarators = [rewrittenDeclarator]
-        };
+            if (ContainsYield(yieldExpression.Expression))
+            {
+                entryIndex = -1;
+                return false;
+            }
 
-        var declarationIndex = Append(new StatementInstruction(nextIndex, rewrittenDeclaration));
-        entryIndex = yieldExpression.IsDelegated
-            ? AppendYieldStarSequence(yieldExpression, declarationIndex, resumeSymbol)
-            : AppendYieldSequence(yieldExpression.Expression, declarationIndex, resumeSymbol);
-        return true;
+            var resumeSymbol = CreateResumeSlotSymbol();
+            var rewrittenDeclarator = declarator with
+            {
+                Initializer = new IdentifierExpression(yieldExpression.Source, resumeSymbol)
+            };
+            var rewrittenDeclaration = declaration with
+            {
+                Declarators = [rewrittenDeclarator]
+            };
+
+            var declarationIndex = Append(new StatementInstruction(nextIndex, rewrittenDeclaration));
+            entryIndex = yieldExpression.IsDelegated
+                ? AppendYieldStarSequence(yieldExpression, declarationIndex, resumeSymbol)
+                : AppendYieldSequence(yieldExpression.Expression, declarationIndex, resumeSymbol);
+            return true;
+        }
+
+        // Multi-yield initializer: currently support a binary expression whose left and right
+        // operands are simple (non-delegated) `yield` expressions whose operands do not contain
+        // nested `yield`. The initializer is rewritten to reference two resume slots, and the
+        // yields are emitted in source order before the declaration executes.
+        if (declarator.Initializer is BinaryExpression binary &&
+            binary.Left is YieldExpression leftYield &&
+            binary.Right is YieldExpression rightYield)
+        {
+            if (leftYield.IsDelegated || rightYield.IsDelegated ||
+                ContainsYield(leftYield.Expression) || ContainsYield(rightYield.Expression))
+            {
+                entryIndex = -1;
+                return false;
+            }
+
+            var leftResume = CreateResumeSlotSymbol();
+            var rightResume = CreateResumeSlotSymbol();
+
+            var leftIdentifier = new IdentifierExpression(leftYield.Source, leftResume);
+            var rightIdentifier = new IdentifierExpression(rightYield.Source, rightResume);
+            var rewrittenInitializer = binary with { Left = leftIdentifier, Right = rightIdentifier };
+
+            var rewrittenDeclarator = declarator with
+            {
+                Initializer = rewrittenInitializer
+            };
+            var rewrittenDeclaration = declaration with
+            {
+                Declarators = [rewrittenDeclarator]
+            };
+
+            var declarationIndex = Append(new StatementInstruction(nextIndex, rewrittenDeclaration));
+            var rightYieldIndex = AppendYieldSequence(rightYield.Expression, declarationIndex, rightResume);
+            var leftYieldIndex = AppendYieldSequence(leftYield.Expression, rightYieldIndex, leftResume);
+            entryIndex = leftYieldIndex;
+            return true;
+        }
+
+        entryIndex = -1;
+        return false;
     }
 
     private bool TryLowerYieldingAssignment(ExpressionStatement statement, int nextIndex, out int entryIndex)

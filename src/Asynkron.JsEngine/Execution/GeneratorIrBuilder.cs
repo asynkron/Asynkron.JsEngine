@@ -614,19 +614,31 @@ internal sealed class SyncGeneratorIrBuilder
     {
         var instructionStart = _instructions.Count;
 
-        var conditionExpression = statement.Condition ?? TrueLiteralExpression;
-        if (ContainsYield(conditionExpression))
-        {
-            entryIndex = -1;
-            _failureReason ??= "For condition contains unsupported yield shape.";
-            return false;
-        }
+        ExpressionNode conditionExpression;
+        YieldExpression? yieldCondition = null;
+        Symbol? conditionResumeSlot = null;
 
-        if (statement.Increment is not null && ContainsYield(statement.Increment))
+        if (statement.Condition is null)
         {
-            entryIndex = -1;
-            _failureReason ??= "For increment contains unsupported yield shape.";
-            return false;
+            conditionExpression = TrueLiteralExpression;
+        }
+        else if (ContainsYield(statement.Condition))
+        {
+            conditionResumeSlot = CreateResumeSlotSymbol();
+            if (!TryRewriteConditionWithSingleYield(statement.Condition, conditionResumeSlot,
+                    out var yieldExpr, out var rewrittenCondition))
+            {
+                entryIndex = -1;
+                _failureReason ??= "For condition contains unsupported yield shape.";
+                return false;
+            }
+
+            yieldCondition = yieldExpr;
+            conditionExpression = rewrittenCondition;
+        }
+        else
+        {
+            conditionExpression = statement.Condition;
         }
 
         var conditionJumpIndex = Append(new JumpInstruction(-1));
@@ -636,7 +648,20 @@ internal sealed class SyncGeneratorIrBuilder
         if (statement.Increment is not null)
         {
             var incrementStatement = new ExpressionStatement(statement.Increment.Source, statement.Increment);
-            continueTarget = Append(new StatementInstruction(conditionJumpIndex, incrementStatement));
+            if (ContainsYield(statement.Increment))
+            {
+                if (!TryBuildStatement(incrementStatement, conditionJumpIndex, out continueTarget))
+                {
+                    _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+                    entryIndex = -1;
+                    _failureReason ??= "For increment contains unsupported yield shape.";
+                    return false;
+                }
+            }
+            else
+            {
+                continueTarget = Append(new StatementInstruction(conditionJumpIndex, incrementStatement));
+            }
         }
 
         var scope = new LoopScope(label, continueTarget, breakTarget);
@@ -652,7 +677,17 @@ internal sealed class SyncGeneratorIrBuilder
         }
 
         var branchIndex = Append(new BranchInstruction(conditionExpression, bodyEntry, nextIndex));
-        _instructions[conditionJumpIndex] = new JumpInstruction(branchIndex);
+
+        if (yieldCondition is not null)
+        {
+            var yieldEntryIndex =
+                AppendYieldSequence(yieldCondition.Expression, branchIndex, conditionResumeSlot);
+            _instructions[conditionJumpIndex] = new JumpInstruction(yieldEntryIndex);
+        }
+        else
+        {
+            _instructions[conditionJumpIndex] = new JumpInstruction(branchIndex);
+        }
 
         var loopEntry = bodyEntry;
         if (statement.Initializer is not null)

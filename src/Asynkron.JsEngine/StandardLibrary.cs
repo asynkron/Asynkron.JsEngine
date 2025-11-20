@@ -2662,17 +2662,110 @@ public static class StandardLibrary
                 return str;
             }
 
-            // Check if first argument is a RegExp (JsObject with __regex__ property)
-            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) &&
-                regexValue is JsRegExp regex)
+            var search = args[0];
+            var replacement = args[1];
+
+            // Function-replacer form: str.replace(pattern, (match) => ...)
+            if (replacement is IJsCallable replacer)
             {
-                var replaceValue = args[1]?.ToString() ?? "";
-                if (regex.Global)
+                // Regex search
+                if (search is JsObject regexObj &&
+                    regexObj.TryGetProperty("__regex__", out var regexValue) &&
+                    regexValue is JsRegExp regex)
                 {
-                    return System.Text.RegularExpressions.Regex.Replace(str, regex.Pattern, replaceValue);
+                    var dotNetRegex = new System.Text.RegularExpressions.Regex(regex.Pattern);
+                    var result = new System.Text.StringBuilder();
+                    var lastIndex = 0;
+
+                    if (regex.Global)
+                    {
+                        var matches = dotNetRegex.Matches(str);
+                        if (matches.Count == 0)
+                        {
+                            return str;
+                        }
+
+                        foreach (System.Text.RegularExpressions.Match match in matches)
+                        {
+                            if (!match.Success)
+                            {
+                                continue;
+                            }
+
+                            if (match.Index > lastIndex)
+                            {
+                                result.Append(str.AsSpan(lastIndex, match.Index - lastIndex));
+                            }
+
+                            var replacementValue = replacer.Invoke([match.Value], str);
+                            var replacementString = replacementValue.ToJsString();
+                            result.Append(replacementString);
+
+                            lastIndex = match.Index + match.Length;
+                        }
+                    }
+                    else
+                    {
+                        var match = dotNetRegex.Match(str);
+                        if (!match.Success)
+                        {
+                            return str;
+                        }
+
+                        if (match.Index > 0)
+                        {
+                            result.Append(str.AsSpan(0, match.Index));
+                        }
+
+                        var replacementValue = replacer.Invoke([match.Value], str);
+                        var replacementString = replacementValue.ToJsString();
+                        result.Append(replacementString);
+
+                        lastIndex = match.Index + match.Length;
+                    }
+
+                    if (lastIndex < str.Length)
+                    {
+                        result.Append(str.AsSpan(lastIndex));
+                    }
+
+                    return result.ToString();
                 }
 
-                var match = System.Text.RegularExpressions.Regex.Match(str, regex.Pattern);
+                // String search with function replacer: only first occurrence
+                var searchValueFunc = search?.ToString() ?? "";
+                if (searchValueFunc.Length == 0)
+                {
+                    var replacementValue = replacer.Invoke([""], str);
+                    var replacementString = replacementValue.ToJsString();
+                    return replacementString + str;
+                }
+
+                var idx = str.IndexOf(searchValueFunc, StringComparison.Ordinal);
+                if (idx < 0)
+                {
+                    return str;
+                }
+
+                var prefix = str.Substring(0, idx);
+                var suffix = str.Substring(idx + searchValueFunc.Length);
+                var replacedSegment = replacer.Invoke([searchValueFunc], str).ToJsString();
+                return prefix + replacedSegment + suffix;
+            }
+
+            // Non-function replacer: existing behavior.
+
+            // Check if first argument is a RegExp (JsObject with __regex__ property)
+            if (search is JsObject regexObj2 && regexObj2.TryGetProperty("__regex__", out var regexValue2) &&
+                regexValue2 is JsRegExp regex2)
+            {
+                var replaceValue = replacement?.ToString() ?? "";
+                if (regex2.Global)
+                {
+                    return System.Text.RegularExpressions.Regex.Replace(str, regex2.Pattern, replaceValue);
+                }
+
+                var match = System.Text.RegularExpressions.Regex.Match(str, regex2.Pattern);
                 if (match.Success)
                 {
                     return string.Concat(str.AsSpan(0, match.Index), replaceValue, str.AsSpan(match.Index + match.Length));
@@ -2682,8 +2775,8 @@ public static class StandardLibrary
             }
 
             // String replacement (only first occurrence)
-            var searchValue = args[0]?.ToString() ?? "";
-            var replaceStr = args[1]?.ToString() ?? "";
+            var searchValue = search?.ToString() ?? "";
+            var replaceStr = replacement?.ToString() ?? "";
             var index = str.IndexOf(searchValue, StringComparison.Ordinal);
             if (index == -1)
             {

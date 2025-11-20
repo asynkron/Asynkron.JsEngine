@@ -169,6 +169,32 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
         }
     }
 
+    [Fact(Timeout = 10000)]
+    public async Task StringTagcloud_Diagnose()
+    {
+        await using var engine = new JsEngine();
+
+        var content = SunSpiderTests.GetEmbeddedFile("string-tagcloud.js");
+
+        var marker = "if (tagcloud.length < expectedMinLength)";
+        var idx = content.IndexOf(marker, StringComparison.Ordinal);
+        if (idx >= 0)
+        {
+            content = content[..idx] + @"
+var __tagcloudLength = tagcloud.length;
+var __anchorCount = (tagcloud.match(/<a /g) || []).length;
+";
+        }
+
+        await engine.Evaluate(content);
+
+        var length = await engine.Evaluate("__tagcloudLength;");
+        var anchors = await engine.Evaluate("__anchorCount;");
+
+        output.WriteLine("tagcloud.length = " + length);
+        output.WriteLine("anchorCount = " + anchors);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task DateFormat_Eval_DefinesCallablePrototypeMethod()
     {

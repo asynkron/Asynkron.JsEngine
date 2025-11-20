@@ -16,6 +16,9 @@
 - Gap-coverage tests `Generator_VariableInitializerWithMultipleYields_UnsupportedIr`, `Generator_IfConditionComplexYield_UnsupportedIr`, `Generator_ForConditionYield_UnsupportedIr`, `Generator_WhileConditionYield_UnsupportedIr`, `Generator_DoWhileConditionYield_UnsupportedIr`, `Generator_ForIncrementYield_UnsupportedIr`, and `Generator_SwitchStatement_UnsupportedIr` now document the remaining unsupported `yield` placements and switch statements in generators by asserting clear failure reasons from `GeneratorIrDiagnostics`.
 - `GeneratorIrDiagnostics` exposes lightweight counters for IR plan attempts/successes/failures, and `Generator_ForOfYieldsValuesIr_UsesIrPlan` asserts that plain `for...of` with `var` is always hosted on the IR path (no silent fallbacks).
 - `docs/GENERATOR_IR_LIMITATIONS.md` captures which generator constructs lower to IR, which ones intentionally fall back, and what follow-up work is still open.
+- Date instances now use the constructor-created prototype chain instead of copying methods, fixing the `date-format-xparb.js` SunSpider failure caused by `this[func]()` seeing an undefined prototype method, and keeping dynamically-added `Date.prototype` methods visible to existing instances.
+- A minimal `Function` constructor and `Function.call` helper have been added so patterns like `Function.call.bind(Object.prototype.hasOwnProperty)` behave as expected, and a stub `localStorage` object is exposed globally so `babel-standalone.js` can probe storage without throwing.
+- Program-level and function-level function declarations are now hoisted via `HoistVarDeclarations`/`HoistFromStatement`, so cases like `exports.formatArgs = formatArgs;` before the `function formatArgs(...) {}` body in Babel’s bundled `debug` module resolve correctly rather than throwing `Undefined symbol` at module initialisation.
 
 ## Next Iteration Plan
 
@@ -24,7 +27,7 @@
    - Instrument `TypedAstEvaluator` and `JsOps.TryGetPropertyValue` to log `o[Symbol.iterator]` / `o["@@iterator"]` lookups for the repro, so we can see exactly when a truthy, non-callable internal `Symbol` is being exposed instead of a function or `undefined`.
    - Ensure that for arrays, strings, regenerator-style iterator prototypes, and async iterator helpers, the engine always stores iterator methods as callable values under the correct symbol-keyed property (and never exposes internal `Ast.Symbol` instances as iterator values).
    - Tighten symbol-keyed property resolution so `o[Symbol.iterator]` / `o[Symbol.asyncIterator]` either resolve to a callable `IJsCallable` or are treated as `undefined`, allowing Babel’s helpers to fall back cleanly to `@@iterator`/array-like code paths instead of attempting to call a non-callable sentinel.
-   - Validate the changes against the minimal repro and then against the SunSpider/Babel tests, updating documentation to record the new iterator semantics and any remaining limitations.
+   - Validate the changes against the minimal repro and then against the SunSpider/Babel tests, updating documentation to record the new iterator semantics and any remaining limitations. (In progress: `_createForOfIteratorHelperLoose` now passes via `BabelIteratorHelperTests`, and `babel-standalone.js` no longer fails on `arguments`, `this`, or iterator helpers, but still trips the debug integration around `createDebug.enable(createDebug.load())` and uses of `createDebug.formatArgs`.)
 
 2. **Grow IR Coverage for Unsupported Generator Shapes**
    - Use the new `_UnsupportedIr` tests (variable initialisers with multiple `yield`s, complex loop conditions/increments, and `switch` statements) as a checklist for extending `SyncGeneratorIrBuilder` and the IR interpreter to cover more `yield` placements.

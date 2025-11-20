@@ -112,6 +112,9 @@ public sealed class JsEngine : IAsyncDisposable
         // Register WeakSet constructor
         SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
 
+        // Minimal browser-like storage object used by debug/babel-standalone.
+        SetGlobal("localStorage", StandardLibrary.CreateLocalStorageObject());
+
         // Register ArrayBuffer and TypedArray constructors
         SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor());
         SetGlobal("DataView", StandardLibrary.CreateDataViewConstructor());

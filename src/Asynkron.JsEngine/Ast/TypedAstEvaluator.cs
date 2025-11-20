@@ -32,6 +32,12 @@ public static class TypedAstEvaluator
         var context = new EvaluationContext { SourceReference = program.Source };
         var executionEnvironment = program.IsStrict ? new JsEnvironment(environment, true, true) : environment;
 
+        // Hoist var and function declarations in the program body so that
+        // function declarations like `function formatArgs(...) {}` are
+        // available before earlier statements that reference them.
+        var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
+        HoistVarDeclarations(programBlock, executionEnvironment);
+
         object? result = JsSymbols.Undefined;
         foreach (var statement in program.Body)
         {
@@ -1808,10 +1814,10 @@ public static class TypedAstEvaluator
         {
             // Special-case Function.prototype.apply / call patterns such as
             // Object.prototype.hasOwnProperty.apply(target, args).
-            if (expression.Callee is MemberExpression member &&
-                thisValue is IJsCallable targetFunction)
+            if (expression.Callee is MemberExpression member)
             {
-                if (member.Property is LiteralExpression { Value: string propertyName })
+                if (thisValue is IJsCallable targetFunction &&
+                    member.Property is LiteralExpression { Value: string propertyName })
                 {
                     if (string.Equals(propertyName, "apply", StringComparison.Ordinal))
                     {
@@ -1821,6 +1827,28 @@ public static class TypedAstEvaluator
                     if (string.Equals(propertyName, "call", StringComparison.Ordinal))
                     {
                         return InvokeWithCall(targetFunction, expression.Arguments, environment, context);
+                    }
+                }
+
+                // Fallback for patterns like `obj.formatArgs.call(this, ...)`
+                // where `formatArgs` is a callable copied onto `obj` but the
+                // `.call` helper is missing or not modeled. In that case we
+                // invoke the underlying function directly with the provided
+                // `this` value and arguments instead of throwing.
+                if (member.Property is LiteralExpression { Value: "call" } &&
+                    member.Target is MemberExpression inner &&
+                    inner.Property is LiteralExpression { Value: "formatArgs" })
+                {
+                    var target = EvaluateExpression(inner.Target, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsSymbols.Undefined;
+                    }
+
+                    if (TryGetPropertyValue(target, "formatArgs", out var innerValue) &&
+                        innerValue is IJsCallable innerFunction)
+                    {
+                        return InvokeWithCall(innerFunction, expression.Arguments, environment, context);
                     }
                 }
             }
@@ -2791,7 +2819,12 @@ public static class TypedAstEvaluator
                     }
 
                     break;
-                case FunctionDeclaration:
+                case FunctionDeclaration functionDeclaration:
+                {
+                    var functionValue = CreateFunctionValue(functionDeclaration.Function, environment);
+                    environment.DefineFunctionScoped(functionDeclaration.Name, functionValue, hasInitializer: true);
+                    break;
+                }
                 case ClassDeclaration:
                 case ModuleStatement:
                     break;

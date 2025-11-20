@@ -11,7 +11,7 @@ IR lowering succeeds when a generator body only contains:
   `default` clause in the final position and case bodies that contain no `break` except for an optional
   single trailing unlabeled `break;` per case (fallthrough between cases is preserved).
 - Variable declarations with simple bindings (identifier or destructuring) where initializer expressions are free of `yield`, or the initializer is a single `yield` / `yield*` whose result is assigned via a hidden resume slot.
-- Classic `while`, `do/while`, and `for` loops (with labels) whose header expressions are `yield`-free, or whose conditions contain a single non-delegated `yield` that can be factored out into a per-iteration `yield` + resume slot pattern (e.g. `while (yield "probe")` or `while (1 + (yield "probe"))`).
+- Classic `while`, `do/while`, and `for` loops (with labels) whose header expressions are `yield`-free, or whose conditions/increments contain a single non-delegated `yield` that can be factored out into a per-iteration `yield` + resume slot pattern (e.g. `while (yield "probe")`, `while (1 + (yield "probe"))`, or `for (...; ...; i = i + (yield "step"))`).
 - `try/catch/finally` statements, including nested loops and labeled `break/continue`.
 - Plain assignment statements of the form `target = yield <expr>`.
 - Basic `for...of` loops that iterate over synchronous iterables, including loops with `var` / `let` / `const`

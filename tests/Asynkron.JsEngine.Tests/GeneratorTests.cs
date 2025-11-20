@@ -2460,7 +2460,31 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Generator_ForIncrementYield_UnsupportedIr()
+    public async Task Generator_ForIncrementYieldIr_UsesIrPlan()
+    {
+        await using var engine = new JsEngine();
+
+        GeneratorIrDiagnostics.Reset();
+        await engine.Evaluate("""
+            function* gen() {
+                for (let i = 0; i < 3; i = i + (yield "step")) {
+                    yield i;
+                }
+            }
+            let g = gen();
+        """);
+
+        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+
+        Assert.Equal(1, attempts);
+        Assert.Equal(1, succeeded);
+        Assert.Equal(0, failed);
+        Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
+        Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForIncrementMultipleYields_UnsupportedIr()
     {
         GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
@@ -2469,7 +2493,7 @@ public class GeneratorTests
         {
             await engine.Evaluate("""
                 function* gen() {
-                    for (let i = 0; i < 3; i = i + (yield "step")) {
+                    for (let i = 0; i < 3; i = (yield "a") + (yield "b")) {
                         yield i;
                     }
                 }

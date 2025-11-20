@@ -656,19 +656,27 @@ internal sealed class SyncGeneratorIrBuilder
 
         if (statement.Increment is not null)
         {
-            var incrementStatement = new ExpressionStatement(statement.Increment.Source, statement.Increment);
             if (ContainsYield(statement.Increment))
             {
-                if (!TryBuildStatement(incrementStatement, conditionJumpIndex, out continueTarget))
+                var resumeSlot = CreateResumeSlotSymbol();
+                if (!TryRewriteConditionWithSingleYield(statement.Increment, resumeSlot,
+                        out var yieldExpression, out var rewrittenIncrement))
                 {
                     _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
                     entryIndex = -1;
                     _failureReason ??= "For increment contains unsupported yield shape.";
                     return false;
                 }
+
+                var incrementStatement = new ExpressionStatement(statement.Increment.Source, rewrittenIncrement);
+                var incrementIndex = Append(new StatementInstruction(conditionJumpIndex, incrementStatement));
+                var yieldEntryIndex =
+                    AppendYieldSequence(yieldExpression.Expression, incrementIndex, resumeSlot);
+                continueTarget = yieldEntryIndex;
             }
             else
             {
+                var incrementStatement = new ExpressionStatement(statement.Increment.Source, statement.Increment);
                 continueTarget = Append(new StatementInstruction(conditionJumpIndex, incrementStatement));
             }
         }

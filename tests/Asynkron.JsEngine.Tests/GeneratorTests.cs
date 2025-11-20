@@ -2368,32 +2368,24 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Generator_IfConditionComplexYield_UnsupportedIr()
+    public async Task Generator_IfConditionComplexYieldIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
-        var ex = await Assert.ThrowsAsync<NotSupportedException>(async () =>
-        {
-            await engine.Evaluate("""
-                function* gen() {
-                    if (1 + (yield "a")) {
-                        yield "then";
-                    }
+        await engine.Evaluate("""
+            function* gen() {
+                if (1 + (yield "a")) {
+                    yield "then";
                 }
-                let g = gen();
-            """);
-        });
+            }
+            let g = gen();
+        """);
 
-        Assert.Contains("If condition contains unsupported yield shape.", ex.Message);
+        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
-
-        Assert.Equal(1, attempts);
-        Assert.Equal(0, succeeded);
-        Assert.Equal(1, failed);
-        Assert.Equal("If condition contains unsupported yield shape.", GeneratorIrDiagnostics.LastFailureReason);
-        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+        Assert.True(succeeded >= 1, "Expected if (1 + (yield ...)) generator to lower to IR.");
+        Assert.Equal(0, failed);
     }
 
     [Fact(Timeout = 2000)]

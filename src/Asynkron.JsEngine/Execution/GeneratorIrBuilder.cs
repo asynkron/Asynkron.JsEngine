@@ -190,14 +190,20 @@ internal sealed class SyncGeneratorIrBuilder
                     return TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
 
                 case IfStatement ifStatement:
-                    // Handle simple `if (yield <expr>)` by rewriting the condition
-                    // to use a resume slot fed by a dedicated yield sequence.
-                    if (ifStatement.Condition is YieldExpression yieldCondition)
+                    // Handle conditions that contain a single non-delegated `yield`
+                    // by rewriting the condition to use a resume slot fed by a
+                    // dedicated yield sequence. Purely yield-free conditions go
+                    // through the regular if lowering.
+                    if (ifStatement.Condition is not null && ContainsYield(ifStatement.Condition))
                     {
-                        if (TryBuildIfWithYieldCondition(ifStatement, yieldCondition, nextIndex, out entryIndex, activeLabel))
+                        if (TryBuildIfWithConditionYield(ifStatement, nextIndex, out entryIndex, activeLabel))
                         {
                             return true;
                         }
+
+                        entryIndex = -1;
+                        _failureReason ??= "If condition contains unsupported yield shape.";
+                        return false;
                     }
 
                     return TryBuildIfStatement(ifStatement, nextIndex, out entryIndex, activeLabel);
@@ -333,13 +339,6 @@ internal sealed class SyncGeneratorIrBuilder
 
     private bool TryBuildIfStatement(IfStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
     {
-        if (ContainsYield(statement.Condition))
-        {
-            entryIndex = -1;
-            _failureReason ??= "If condition contains unsupported yield shape.";
-            return false;
-        }
-
         var instructionStart = _instructions.Count;
 
         var elseEntry = nextIndex;

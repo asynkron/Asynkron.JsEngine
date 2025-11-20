@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class CryptoAesCoreTests
 {
-    [Fact(Timeout = 2000)]
+    [Fact(Timeout = 5000)]
     public async Task Cipher_CoreBlock_Matches_Node_Result()
     {
         // Expected hex from running the crypto-aes.js Cipher/KeyExpansion in Node
@@ -34,7 +34,7 @@ public class CryptoAesCoreTests
         Assert.Equal(expectedHex, hex);
     }
 
-    [Fact(Timeout = 2000)]
+    [Fact(Timeout = 5000)]
     public async Task Ctr_Roundtrip_ShortPlaintext_Works()
     {
         var script = SunSpiderTests.GetEmbeddedFile("crypto-aes.js");

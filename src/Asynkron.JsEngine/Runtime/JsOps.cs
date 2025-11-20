@@ -446,21 +446,7 @@ internal static class JsOps
             return true;
         }
 
-        if (!TryGetPropertyValue(target, propertyName, out value))
-        {
-            return false;
-        }
-
-        // If the lookup was via a symbol key, and the resolved value is not
-        // callable or an iterator object (no next method), treat it as absent.
-        if (propertyKey is TypedAstSymbol &&
-            value is not IJsCallable &&
-            value is not JsObject { } jsObjWhenIteratorDoesntMatter)
-        {
-            value = Symbols.Undefined;
-        }
-
-        return true;
+        return TryGetPropertyValue(target, propertyName, out value);
     }
 
     private static bool TryGetArrayLikeValue(object? target, object? propertyKey, out object? value)

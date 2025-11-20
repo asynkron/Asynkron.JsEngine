@@ -26,7 +26,7 @@ public class StrictModeTests
         // In strict mode, assigning to an undefined variable should throw a ReferenceError
         await using var engine = new JsEngine();
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("""
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                             "use strict";
                             undeclaredVariable = 10;
@@ -60,7 +60,7 @@ public class StrictModeTests
     {
         await using var engine = new JsEngine();
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("""
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                             function testFunction() {
                                 "use strict";

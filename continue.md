@@ -22,18 +22,14 @@
 
 ## Next Iteration Plan
 
-1. **Make Remaining SunSpider/Babel Tests Green**
-   - Finish `babel-standalone.js` by fixing the remaining `debug` integration bug around `createDebug.enable(createDebug.load())` / `createDebug.formatArgs.call(self, args)`, so no call sites see a non-callable `Symbol`/`undefined` instead of a function.
-   - Fix the semantic discrepancy in `string-tagcloud.js` where the computed tag cloud length is too small; diagnose and correct the underlying string/regex/random logic rather than loosening the assertion.
-
-2. **Tighten Generator IR Diagnostics and Tests**
+1. **Tighten Generator IR Diagnostics and Tests**
    - De-flake `Generator_*_UnsupportedIr` tests by isolating `GeneratorIrDiagnostics` per test (or serialising the tests) so concurrent generator IR activity can’t affect their attempt/success/failure assertions.
    - Keep the `_UnsupportedIr` tests as the authoritative checklist for extending IR coverage, but relax them to avoid hard-coding global counters that are sensitive to unrelated generators.
 
-3. **Grow IR Coverage for Unsupported Generator Shapes**
+2. **Grow IR Coverage for Unsupported Generator Shapes**
    - Use the existing `_UnsupportedIr` tests (complex `yield` in conditions/increments and `switch` statements) as the driver for extending `SyncGeneratorIrBuilder` and the IR interpreter.
    - As shapes become supported, flip the corresponding tests to `*Ir` / `*Ir_UsesIrPlan` variants and update `docs/GENERATOR_IR_LIMITATIONS.md`.
 
-4. **Async Generator IR (Follow-Up)**
+3. **Async Generator IR (Follow-Up)**
    - Replace the `AsyncGeneratorIrBuilder` placeholder with a real lowering for async generator functions so `for await...of` loops and async iterator patterns can run on the IR path instead of the legacy evaluator.
    - Extend async iteration tests to assert IR usage via `GeneratorIrDiagnostics` once the async generator IR path is implemented.

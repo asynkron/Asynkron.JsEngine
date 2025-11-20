@@ -46,7 +46,7 @@ public sealed class TypedCpsTransformer
         {
             switch (statement)
             {
-                case FunctionDeclaration { Function.IsAsync: true }:
+                case FunctionDeclaration { Function.IsAsync: true, Function.IsGenerator: false }:
                     return true;
                 case FunctionDeclaration functionDeclaration:
                     return FunctionNeedsTransformation(functionDeclaration.Function);
@@ -143,7 +143,7 @@ public sealed class TypedCpsTransformer
 
     private static bool FunctionNeedsTransformation(FunctionExpression function)
     {
-        if (function.IsAsync)
+        if (function.IsAsync && !function.IsGenerator)
         {
             return true;
         }
@@ -160,7 +160,8 @@ public sealed class TypedCpsTransformer
                 case AwaitExpression:
                     return true;
                 case FunctionExpression functionExpression:
-                    return functionExpression.IsAsync || StatementNeedsTransformation(functionExpression.Body);
+                    return (functionExpression.IsAsync && !functionExpression.IsGenerator) ||
+                           StatementNeedsTransformation(functionExpression.Body);
                 case BinaryExpression binaryExpression:
                     return ExpressionNeedsTransformation(binaryExpression.Left) || ExpressionNeedsTransformation(binaryExpression.Right);
                 case UnaryExpression unaryExpression:
@@ -469,14 +470,9 @@ public sealed class TypedCpsTransformer
 
     private FunctionExpression TransformFunctionExpression(FunctionExpression function)
     {
-        if (!function.IsAsync)
+        if (!function.IsAsync || function.IsGenerator)
         {
             return function;
-        }
-
-        if (function.IsGenerator)
-        {
-            throw new NotSupportedException("Typed CPS transformer does not handle async generators yet.");
         }
 
         var transformedBody = RewriteAsyncBody(function.Body);

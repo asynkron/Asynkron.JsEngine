@@ -1136,6 +1136,11 @@ public static class TypedAstEvaluator
     {
         if (functionExpression.IsGenerator)
         {
+            if (functionExpression.IsAsync)
+            {
+                return new AsyncGeneratorFactory(functionExpression, environment);
+            }
+
             return new TypedGeneratorFactory(functionExpression, environment);
         }
 
@@ -3446,6 +3451,36 @@ public static class TypedAstEvaluator
         }
     }
 
+    private sealed class AsyncGeneratorFactory : IJsCallable
+    {
+        private readonly FunctionExpression _function;
+        private readonly JsEnvironment _closure;
+
+        public AsyncGeneratorFactory(FunctionExpression function, JsEnvironment closure)
+        {
+            if (!function.IsGenerator || !function.IsAsync)
+            {
+                throw new ArgumentException("Factory can only wrap async generator functions.", nameof(function));
+            }
+
+            _function = function;
+            _closure = closure;
+        }
+
+        public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+        {
+            var instance = new AsyncGeneratorInstance(_function, _closure, arguments, thisValue, this);
+            return instance.CreateAsyncIteratorObject();
+        }
+
+        public override string ToString()
+        {
+            return _function.Name is { } name
+                ? $"[AsyncGeneratorFunction: {name.Name}]"
+                : "[AsyncGeneratorFunction]";
+        }
+    }
+
     private sealed class TypedGeneratorInstance
     {
         private readonly FunctionExpression _function;
@@ -4571,6 +4606,117 @@ public static class TypedAstEvaluator
             public IEnumerator<object?>? Enumerator { get; }
         }
 
+    }
+
+    private sealed class AsyncGeneratorInstance
+    {
+        private readonly FunctionExpression _function;
+        private readonly JsEnvironment _closure;
+        private readonly IReadOnlyList<object?> _arguments;
+        private readonly object? _thisValue;
+        private readonly IJsCallable _callable;
+        private readonly JsObject _innerIterator;
+
+        public AsyncGeneratorInstance(FunctionExpression function, JsEnvironment closure,
+            IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
+        {
+            _function = function;
+            _closure = closure;
+            _arguments = arguments;
+            _thisValue = thisValue;
+            _callable = callable;
+
+            // Reuse the sync generator IR plan and runtime to execute the body.
+            // Async semantics are modeled by wrapping iterator methods in Promises.
+            var inner = new TypedGeneratorInstance(function, closure, arguments, thisValue, callable);
+            _innerIterator = inner.CreateGeneratorObject();
+        }
+
+        public JsObject CreateAsyncIteratorObject()
+        {
+            var asyncIterator = new JsObject();
+
+            asyncIterator.SetProperty("next",
+                new HostFunction((_, args) => CreateStepPromise("next",
+                    args.Count > 0 ? args[0] : JsSymbols.Undefined)));
+
+            asyncIterator.SetProperty("return",
+                new HostFunction((_, args) => CreateStepPromise("return",
+                    args.Count > 0 ? args[0] : null)));
+
+            asyncIterator.SetProperty("throw",
+                new HostFunction((_, args) => CreateStepPromise("throw",
+                    args.Count > 0 ? args[0] : null)));
+
+            // asyncIterator[Symbol.asyncIterator] returns itself.
+            var asyncSymbol = TypedAstSymbol.For("Symbol.asyncIterator");
+            var asyncKey = $"@@symbol:{asyncSymbol.GetHashCode()}";
+            asyncIterator.SetProperty(asyncKey, new HostFunction((thisValue, _) => thisValue));
+
+            return asyncIterator;
+        }
+
+        private object? CreateStepPromise(string methodName, object? argument)
+        {
+            // Look up the global Promise constructor from the closure environment.
+            if (!_closure.TryGet(Symbol.Intern("Promise"), out var promiseCtorObj) ||
+                promiseCtorObj is not IJsCallable promiseCtor)
+            {
+                throw new InvalidOperationException("Promise constructor is not available in the current environment.");
+            }
+
+            var executor = new HostFunction((_, execArgs) =>
+            {
+                if (execArgs.Count < 2 ||
+                    execArgs[0] is not IJsCallable resolve ||
+                    execArgs[1] is not IJsCallable reject)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    var result = InvokeInnerIterator(methodName, argument);
+                    resolve.Invoke(result is null ? [] : new[] { result }, null);
+                }
+                catch (ThrowSignal ex)
+                {
+                    reject.Invoke(new object?[] { ex.ThrownValue }, null);
+                }
+                catch (Exception ex)
+                {
+                    reject.Invoke(new object?[] { ex.Message }, null);
+                }
+
+                return null;
+            });
+
+            var promiseObj = promiseCtor.Invoke(new object?[] { executor }, null);
+            return promiseObj;
+        }
+
+        private object? InvokeInnerIterator(string methodName, object? argument)
+        {
+            if (!_innerIterator.TryGetProperty(methodName, out var method) || method is not IJsCallable callable)
+            {
+                // For missing throw/return, fall back to next() semantics when appropriate.
+                if (methodName == "next" &&
+                    _innerIterator.TryGetProperty("next", out var next) &&
+                    next is IJsCallable nextCallable)
+                {
+                    callable = nextCallable;
+                }
+                else
+                {
+                    return new JsObject(); // Fallback: empty iterator result.
+                }
+            }
+
+            var args = argument is null || ReferenceEquals(argument, JsSymbols.Undefined)
+                ? Array.Empty<object?>()
+                : new[] { argument };
+            return callable.Invoke(args, _innerIterator);
+        }
     }
 
     private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor

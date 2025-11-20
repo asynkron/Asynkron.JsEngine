@@ -1,5 +1,9 @@
 # CPS Transformation Pipeline Integration - Quick Reference
 
+> **Legacy note (2025):** This document explains CPS transformation in terms of the original S-expression pipeline.
+> The production runtime now applies CPS on the typed AST (`TypedCpsTransformer`) before evaluation by
+> `TypedAstEvaluator`. The control-flow ideas remain valid, but references to `Cons`/S-expressions are historical.
+
 ## Where Does CPS Transformation Happen?
 
 **Answer: Directly after the initial parse, before evaluation.**

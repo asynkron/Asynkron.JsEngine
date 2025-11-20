@@ -1,6 +1,12 @@
 # Architecture Overview
 
-This document describes the internal architecture and design decisions of Asynkron.JsEngine.
+> **Legacy note (2025):** The runtime now parses and executes exclusively through the typed AST pipeline (`TypedAstParser`,
+> `TypedAstEvaluator`, generator IR, and the CPS transformer). The cons-based S-expression evaluator described below is
+> historical architecture and is no longer on the execution path. The high-level ideas still apply, but concrete types
+> (`Cons`, `Evaluator`, `Environment` etc.) have been superseded by the typed counterparts (`ProgramNode`, `StatementNode`,
+> `JsEnvironment`, `TypedAstEvaluator`).
+
+This document describes the original internal architecture and design decisions of Asynkron.JsEngine.
 
 ## Table of Contents
 

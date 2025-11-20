@@ -1,5 +1,9 @@
 # Control Flow Alternatives: Beyond Exception-Based Signals
 
+> **Legacy note (2025):** This document explores control-flow strategies in the original S-expression interpreter.
+> The runtime now implements control flow in the typed AST evaluator and generator IR, but the patterns and trade-offs
+> discussed here still apply conceptually.
+
 ## Executive Summary
 
 This document explores alternative approaches to implementing control flow statements (return, break, continue) in expression-first JavaScript interpreters. Currently, Asynkron.JsEngine uses exceptions (`ReturnSignal`, `BreakSignal`, `ContinueSignal`) as a mechanism to "teleport" out of deeply nested execution contexts back to the appropriate call-site. While this approach works, it has performance implications and architectural considerations that warrant exploring alternatives.

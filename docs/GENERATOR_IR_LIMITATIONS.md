@@ -1,6 +1,6 @@
-# Generator IR: Supported Surface & Fallbacks
+# Generator IR: Supported Surface & Rejections
 
-The typed generator interpreter exposes an IR-backed fast path for a well-defined subset of JavaScript constructs. Anything outside that envelope must fall back to the legacy replay runner in `TypedAstEvaluator`, which replays the generator body and uses a `YieldTracker` to re-deliver resume payloads. This document captures the current boundaries so contributors know when a generator will *not* be lowered to IR and what behavior is guaranteed today.
+The typed generator interpreter now runs **entirely on an IR-backed state machine** for the supported subset of JavaScript constructs. Generator functions must successfully lower to IR at creation time; unsupported shapes are rejected with a `NotSupportedException` and no legacy replay runner is used. This document captures the current boundaries so contributors know which generators *do* get IR plans and which ones are currently rejected.
 
 ## What IR currently covers
 
@@ -16,17 +16,15 @@ IR lowering succeeds when a generator body only contains:
 
 See `GeneratorIrBuilder` for the full matching logic.
 
-## Guaranteed fallbacks
+## Currently rejected shapes
 
-The builder deliberately rejects the following constructs, forcing execution to stay on the replay engine:
+The builder deliberately rejects the following constructs, causing generator creation to fail with a clear `Generator IR not implemented for this function: ...` message:
 
-| Construct | Why it falls back | Code reference |
-|-----------|-------------------|----------------|
-| `for await (... of ...)` loops | Builder guards out `ForEachKind.AwaitOf` so async iterables remain on the legacy path. | `GeneratorIrBuilder.TryBuildStatement` |
-| Async generator functions (`async function*`) | The typed evaluator doesn’t implement async generators at all, so IR never engages. | `TypedGeneratorFactory` + parser |
-| Any `yield` that appears inside unsupported expression shapes (e.g. `yield` buried in arithmetic, ternaries, etc.) | `ContainsYield` checks bubble up and abort lowering to preserve correctness. | `GeneratorIrBuilder.ContainsYield*` helpers |
-
-When a construct falls back, execution uses `EvaluateYield` / `EvaluateDelegatedYield` inside `TypedAstEvaluator`. That path replays the function body but still honors `.next(value)`, `.throw(value)`, and `.return(value)` resume payloads via `YieldTracker` + `YieldResumeContext`.
+| Construct | Why it is rejected | Code reference |
+|-----------|--------------------|----------------|
+| `for await (... of ...)` loops | Generator IR is currently scoped to synchronous generators; async iteration is handled by the async/CPS pipeline instead. | `GeneratorIrBuilder.TryBuildStatement` |
+| Async generator functions (`async function*`) | Async generators are not yet implemented in the typed evaluator, so IR never engages and the shape is rejected up front. | `TypedGeneratorFactory` + parser |
+| Any `yield` that appears inside unsupported expression shapes (e.g. `yield` buried in arithmetic, ternaries, etc.) | `ContainsYield` checks bubble up and abort lowering to preserve correctness until those shapes are modeled. | `GeneratorIrBuilder.ContainsYield*` helpers |
 
 ## Documented behavior
 
@@ -34,7 +32,7 @@ The following tests lock our current expectations for the IR and fallback paths:
 
 - `Generator_YieldStarDelegatesValues`, `Generator_YieldStarReceivesSentValuesIr`, `Generator_YieldStarThrowDeliversCleanupIr`, `Generator_YieldStarReturnDeliversCleanupIr`, `Generator_YieldStarThrowContinuesWhenIteratorResumesIr`, and `Generator_YieldStarReturnDoneFalseContinuesIr` ensure delegated `yield*` expressions stay on the IR path, forward `.next/.throw/.return` payloads to the underlying iterator (even when the delegate reports `done: false`), and still unwind nested `try/finally` stacks.
 - `Generator_YieldStarThrowRequiresIteratorResultObjectIr`, `Generator_YieldStarReturnRequiresIteratorResultObjectIr`, and their interpreter twins ensure both execution paths reject delegates whose `.throw/.return` helpers return non-object completion records (matching ECMAScript’s TypeError guardrail).
-- All remaining `Generator_*Ir` tests listed in `continue.md` execute on the IR path and assert catch/finally semantics, loop unwinding, and resume behavior. `for await...of` is now treated as a pure async-iteration construct and is tested separately under `AsyncIterationTests` / `AsyncIterableDebugTests` using spec-compliant async functions.
+- All remaining `Generator_*Ir` tests listed in `continue.md` execute on the IR path and assert catch/finally semantics, loop unwinding, and resume behavior. `for await...of` is treated as a pure async-iteration construct and is tested separately under `AsyncIterationTests` / `AsyncIterableDebugTests` using spec-compliant async functions.
 
 ## Known gaps & future work
 
@@ -42,4 +40,4 @@ The following tests lock our current expectations for the IR and fallback paths:
 - Awaiting promise-returning iterators currently blocks the managed thread until the promise settles (we synchronously wait on a `TaskCompletionSource`). Integrating the event queue so long-running promises yield back to the host remains future work.
 - There is no IR support for async generators (`async function*`), so adding those will require both parser work and a coroutine-aware interpreter.
 
-Use this file when triaging future bugs or planning work: if a generator construct isn’t in the supported list above, it is expected to fall back to the replay engine until we extend the IR.
+Use this file when triaging future bugs or planning work: if a generator construct isn’t in the supported list above, it is expected to be rejected at generator creation time until we extend the IR.

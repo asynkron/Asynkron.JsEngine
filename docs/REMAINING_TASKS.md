@@ -61,10 +61,9 @@ All remaining features are **highly specialized** and rarely used in typical Jav
 5. **Async Iteration** (15-25 hours) - for await...of loops
 6. **Dynamic Imports** (10-20 hours) - import() function
 
-### ⚠️ Typed pipeline gaps discovered during generator work
-- `yield*` currently streams delegated values correctly but **does not yet propagate `.throw()` / `.return()` resumption values** the way the spec requires. The typed evaluator replays the generator from the start with a yield-skip counter, which means a delegated `.throw()` never re-enters the original `try/catch` body that produced the outstanding `yield`. Fixing this will require richer suspension state (instruction pointer + pending completion type) rather than the current replay model.
-- Until the evaluator grows a true resumption model, **we simply cannot add tests that assert `yield*` catches a delegated `.throw()` or honors `iterator.return()` — the typed evaluator is the only pipeline now, so every such test would fail until the resumption work lands**.
-- Tracked as follow-up in `TypedAstEvaluator`: capture the suspension offset, resume into the original `yield` site, and teach `yield*` to call `iterator.throw`/`iterator.return` with that richer state so delegated completion values survive.
+### ⚠️ Typed pipeline status after generator IR
+- Generator functions now run on an explicit IR-backed state machine. `yield*` delegates values and `.next/.throw/.return` payloads through `GeneratorPlan` + `DelegatedYieldState`, and the old replay-based generator model described in earlier docs has been removed.
+- Spec gaps and remaining limitations for generator IR are tracked centrally in `GENERATOR_IR_LIMITATIONS.md`. Use that file (and the `Generator_*Ir` / `Generator_*UnsupportedIr` tests) as the source of truth when planning future generator work.
 
 **Total effort for all 6: 135-230 hours**
 

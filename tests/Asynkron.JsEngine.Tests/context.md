@@ -2,7 +2,7 @@
 
 xUnit tests covering the JavaScript execution engine. The suite exercises:
 
-- Lexing and parsing into `Cons`-based S-expressions.
+- Lexing and parsing into a typed AST (program / statement / expression nodes) via `TypedAstParser`.
 - Evaluation of arithmetic, assignments (including property writes), expression statements, logical operators with
   short-circuit semantics, object literal/property behaviour, prototype chaining, array literals with indexed
   reads/writes (plus `length` semantics), the `new` constructor form, class declarations (including `extends`/`super`

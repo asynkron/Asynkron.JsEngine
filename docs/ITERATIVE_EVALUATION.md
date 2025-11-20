@@ -1,5 +1,9 @@
 # Iterative Evaluation: Transforming from Recursive to Iterative
 
+> **Legacy note (2025):** This document analyses how the original recursive S-expression evaluator could be made
+> iterative. The production engine now evaluates typed ASTs and uses IR for generators, so the concrete `Cons`-based
+> snippets are historical; the iterative patterns themselves are still relevant.
+
 ## Executive Summary
 
 This document explores how the current recursive S-expression evaluator in Asynkron.JsEngine could be transformed from a **recursive tree-walking interpreter** into an **iterative loop-based evaluator**. This transformation eliminates recursion by maintaining an explicit stack or work queue. This is an **educational document** - it explains the concepts, approaches, and trade-offs without implementing them.

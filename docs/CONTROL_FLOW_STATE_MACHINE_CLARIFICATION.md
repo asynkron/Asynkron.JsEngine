@@ -1,5 +1,9 @@
 # State Machine Approach Clarification
 
+> **Legacy note (2025):** This note discusses control-flow patterns for the original S-expression evaluator. The current
+> engine uses a typed AST (`TypedAstEvaluator`) plus generator IR to model control flow, but the context-based control
+> flow ideas here still apply conceptually.
+
 ## The Confusion
 
 In `CONTROL_FLOW_ALTERNATIVES.md`, I described an approach called "State Machine with Control Flags". This name can be misleading because it suggests transforming S-expressions into state machines, but that's **NOT** what this approach does.

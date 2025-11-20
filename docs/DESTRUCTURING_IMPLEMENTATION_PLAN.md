@@ -1,5 +1,9 @@
 # Destructuring Implementation Plan
 
+> **Legacy note (2025):** This plan is written against the original `Cons`/S-expression evaluator. Destructuring is
+> now implemented in the typed AST evaluator; treat the cons-based signatures and examples below as historical design
+> notes rather than a description of the current runtime code.
+
 ## Overview
 
 Destructuring is a JavaScript feature that allows unpacking values from arrays or properties from objects into distinct variables. This document outlines the implementation plan for adding destructuring support to Asynkron.JsEngine.

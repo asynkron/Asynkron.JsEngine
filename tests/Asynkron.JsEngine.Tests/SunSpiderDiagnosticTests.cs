@@ -257,41 +257,6 @@ unescCtrlChars = __origUnescCtrlChars;
 
         var content = SunSpiderTests.GetEmbeddedFile("babel-standalone.js");
 
-        // Capture the type of createDebug.enable immediately after it is
-        // assigned inside setup$2 so we can see if it starts life as a
-        // callable or if it is already corrupted.
-        const string enableAssign = "      createDebug.enable = enable;";
-        if (content.Contains(enableAssign, StringComparison.Ordinal))
-        {
-            content = content.Replace(
-                enableAssign,
-                """
-      createDebug.enable = enable;
-      globalThis.__diagInitialEnableType = typeof createDebug.enable;
-"""
-            );
-        }
-
-        const string marker = "createDebug.enable(createDebug.load());";
-        if (!content.Contains(marker, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Failed to find createDebug.enable(createDebug.load()) marker.");
-        }
-
-        content = content.Replace(
-            marker,
-            """
-globalThis.__diagTypeCreateDebug = typeof createDebug;
-globalThis.__diagTypeEnable = typeof createDebug.enable;
-globalThis.__diagTypeLoad = typeof createDebug.load;
-globalThis.__diagEnableIsCallable = typeof createDebug.enable === "function";
-globalThis.__diagLoadIsCallable = typeof createDebug.load === "function";
-// Intentionally do NOT call createDebug.enable here to avoid crashing
-// the host; we only care about the types at this point.
-// createDebug.enable(createDebug.load());
-"""
-        );
-
         try
         {
             await engine.Evaluate(content);
@@ -300,19 +265,96 @@ globalThis.__diagLoadIsCallable = typeof createDebug.load === "function";
         {
             output.WriteLine("ThrowSignal: " + ex.ThrownValue);
         }
+    }
 
-        var typeCreateDebug = await engine.Evaluate("__diagTypeCreateDebug;");
-        var typeEnable = await engine.Evaluate("__diagTypeEnable;");
-        var typeLoad = await engine.Evaluate("__diagTypeLoad;");
-        var initialEnableType = await engine.Evaluate("__diagInitialEnableType;");
-        var enableIsCallable = await engine.Evaluate("__diagEnableIsCallable;");
-        var loadIsCallable = await engine.Evaluate("__diagLoadIsCallable;");
-        output.WriteLine("typeof createDebug        = " + typeCreateDebug);
-        output.WriteLine("typeof createDebug.enable = " + typeEnable);
-        output.WriteLine("typeof createDebug.load   = " + typeLoad);
-        output.WriteLine("initial enable type       = " + initialEnableType);
-        output.WriteLine("enable is callable        = " + enableIsCallable);
-        output.WriteLine("load is callable          = " + loadIsCallable);
+    [Fact(Timeout = 5000)]
+    public async Task Babel_Debug_Minimal_Setup_PopulatesFormatters()
+    {
+        const string script = """
+            function setup(env) {
+                function createDebug(namespace) {
+                    function debug() { }
+                    return debug;
+                }
+
+                createDebug.debug = createDebug;
+                createDebug.enable = function (namespaces) { };
+                createDebug.load = function () { return ""; };
+                createDebug.formatters = {};
+
+                return createDebug;
+            }
+
+            function common(env) { return setup(env); }
+
+            (function () {
+                var module = { exports: {} };
+                var exports = module.exports;
+
+                exports.formatArgs = function formatArgs() { };
+                exports.save = function save() { };
+                exports.load = function load() { };
+                exports.useColors = function useColors() { return false; };
+                exports.storage = {};
+                exports.destroy = function destroy() { };
+                exports.colors = [];
+
+                module.exports = common(exports);
+                var formatters = module.exports.formatters;
+                formatters.j = function (v) { return JSON.stringify(v); };
+
+                globalThis.__diagTypeModuleExports = typeof module.exports;
+                globalThis.__diagTypeFormatters = typeof module.exports.formatters;
+                globalThis.__diagTypeFormatterJ = typeof module.exports.formatters.j;
+            })();
+            """;
+
+        await using var engine = new JsEngine();
+        await engine.Evaluate(script);
+
+        var typeModuleExports = await engine.Evaluate("globalThis.__diagTypeModuleExports;");
+        var typeFormatters = await engine.Evaluate("globalThis.__diagTypeFormatters;");
+        var typeFormatterJ = await engine.Evaluate("globalThis.__diagTypeFormatterJ;");
+
+        Assert.Equal("function", typeModuleExports);
+        Assert.Equal("object", typeFormatters);
+        Assert.Equal("function", typeFormatterJ);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ObjectLiteral_Inherits_ObjectPrototype()
+    {
+        const string script = """
+            var obj = { foo: 1 };
+            globalThis.__diagHasOwnType = typeof obj.hasOwnProperty;
+            """;
+
+        await using var engine = new JsEngine();
+        await engine.Evaluate(script);
+
+        var hasOwnType = await engine.Evaluate("globalThis.__diagHasOwnType;");
+        Assert.Equal("function", hasOwnType);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ForIn_HasOwnProperty_Guard_Works()
+    {
+        const string script = """
+            var colorName = { red: [255, 0, 0], green: [0, 255, 0] };
+            var reverse = {};
+            for (var key in colorName) {
+                if (colorName.hasOwnProperty(key)) {
+                    reverse[colorName[key]] = key;
+                }
+            }
+            globalThis.__diagReverseKeyCount = Object.keys(reverse).length;
+            """;
+
+        await using var engine = new JsEngine();
+        await engine.Evaluate(script);
+
+        var count = await engine.Evaluate("globalThis.__diagReverseKeyCount;");
+        Assert.Equal(2d, count);
     }
 
     [Fact(Timeout = 5000)]

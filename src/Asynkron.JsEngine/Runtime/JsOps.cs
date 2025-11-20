@@ -308,7 +308,7 @@ internal static class JsOps
             case int i when i >= 0:
                 index = i;
                 return true;
-            case long l when l >= 0 && l <= int.MaxValue:
+            case long l and >= 0 when l <= int.MaxValue:
                 index = (int)l;
                 return true;
             case double d when !double.IsNaN(d) && !double.IsInfinity(d):

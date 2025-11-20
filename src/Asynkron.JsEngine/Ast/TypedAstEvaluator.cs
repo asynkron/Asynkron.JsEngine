@@ -1196,8 +1196,27 @@ public static class TypedAstEvaluator
             return targetValue;
         }
 
-        environment.Assign(expression.Target, targetValue);
-        return targetValue;
+        try
+        {
+            environment.Assign(expression.Target, targetValue);
+            return targetValue;
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+        {
+            object? errorObject = ex.Message;
+
+            // If a ReferenceError constructor is available, use it to
+            // create a proper JS error instance so user code can catch
+            // and inspect it.
+            if (environment.TryGet(Symbol.Intern("ReferenceError"), out var ctor) &&
+                ctor is IJsCallable callable)
+            {
+                errorObject = callable.Invoke([ex.Message], JsSymbols.Undefined);
+            }
+
+            context.SetThrow(errorObject);
+            return errorObject;
+        }
     }
 
     private static object? EvaluateYield(YieldExpression expression, JsEnvironment environment,
@@ -1857,10 +1876,11 @@ public static class TypedAstEvaluator
             var sourceInfo = GetSourceInfo(context, expression.Source);
             var symbolName = callee is Symbol sym ? sym.Name : null;
             var symbolSuffix = symbolName is null ? string.Empty : $" (symbol '{symbolName}')";
+            var calleeDescription = DescribeCallee(expression.Callee);
             Console.Error.WriteLine(
-                $"[EvaluateCall] Non-callable callee type={typeName}, thisValueType={thisValue?.GetType().Name ?? "null"}{symbolSuffix}{sourceInfo}");
+                $"[EvaluateCall] Non-callable callee={calleeDescription}, type={typeName}, thisValueType={thisValue?.GetType().Name ?? "null"}{symbolSuffix}{sourceInfo}");
             throw new InvalidOperationException(
-                $"Attempted to call a non-callable value of type '{typeName}'{symbolSuffix}.{sourceInfo}");
+                $"Attempted to call a non-callable value '{calleeDescription}' of type '{typeName}'{symbolSuffix}.{sourceInfo}");
         }
 
         var arguments = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
@@ -2212,10 +2232,36 @@ public static class TypedAstEvaluator
         return array;
     }
 
+    private static string DescribeCallee(ExpressionNode expression)
+    {
+        return expression switch
+        {
+            IdentifierExpression id => id.Name.Name,
+            MemberExpression member => $"{DescribeCallee(member.Target)}.{DescribeMemberName(member.Property)}",
+            CallExpression call => $"{DescribeCallee(call.Callee)}(...)",
+            _ => expression.GetType().Name
+        };
+    }
+
+    private static string DescribeMemberName(ExpressionNode property)
+    {
+        return property switch
+        {
+            LiteralExpression { Value: string s } => s,
+            IdentifierExpression id => id.Name.Name,
+            _ => property.GetType().Name
+        };
+    }
+
     private static object? EvaluateObject(ObjectExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
         var obj = new JsObject();
+        if (StandardLibrary.ObjectPrototype is { } objectProto)
+        {
+            obj.SetPrototype(objectProto);
+        }
+
         foreach (var member in expression.Members)
         {
             switch (member.Kind)

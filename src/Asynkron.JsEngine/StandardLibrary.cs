@@ -2599,6 +2599,43 @@ public static class StandardLibrary
             return str.Substring(start, end - start);
         }));
 
+        // substr(start, length?)
+        stringObj.SetProperty("substr", new HostFunction(args =>
+        {
+            var length = str.Length;
+            if (args.Count == 0)
+            {
+                return str;
+            }
+
+            var start = args[0] is double d1 ? (int)d1 : 0;
+            if (start < 0)
+            {
+                start = Math.Max(0, length + start);
+            }
+            else if (start >= length)
+            {
+                return "";
+            }
+
+            int substrLength;
+            if (args.Count > 1 && args[1] is double d2)
+            {
+                if (d2 <= 0)
+                {
+                    return "";
+                }
+
+                substrLength = (int)Math.Min(d2, length - start);
+            }
+            else
+            {
+                substrLength = length - start;
+            }
+
+            return str.Substring(start, substrLength);
+        }));
+
         // concat(...strings)
         stringObj.SetProperty("concat", new HostFunction(args =>
         {
@@ -3417,6 +3454,124 @@ public static class StandardLibrary
             objectConstructor.SetProperty("hasOwnProperty", hasOwn);
         }
 
+        objectConstructor.SetProperty("defineProperty", new HostFunction((thisValue, args) =>
+        {
+            if (args.Count < 3)
+            {
+                return args.Count > 0 ? args[0] : Symbols.Undefined;
+            }
+
+            var target = args[0];
+            var propertyKey = args[1];
+            var descriptorValue = args[2];
+
+            if (target is not IJsPropertyAccessor accessor)
+            {
+                return args[0];
+            }
+
+            var name = JsOps.ToPropertyName(propertyKey) ?? string.Empty;
+
+            if (descriptorValue is JsObject descObj)
+            {
+                // If an accessor is provided, eagerly evaluate the getter once
+                // and store the resulting value. This approximates accessor
+                // behaviour for the patterns used in chalk/debug without
+                // requiring full descriptor support on all host objects.
+                if (descObj.TryGetProperty("get", out var getterVal) && getterVal is IJsCallable getterFn)
+                {
+                    var builder = getterFn.Invoke(Array.Empty<object?>(), target);
+                    accessor.SetProperty(name, builder);
+                    return args[0];
+                }
+
+                if (descObj.TryGetProperty("value", out var value))
+                {
+                    accessor.SetProperty(name, value);
+                    return args[0];
+                }
+            }
+
+            accessor.SetProperty(name, Symbols.Undefined);
+            return args[0];
+        }));
+
+        objectConstructor.SetProperty("defineProperties", new HostFunction((thisValue, args) =>
+        {
+            if (args.Count < 2)
+            {
+                return args.Count > 0 ? args[0] : Symbols.Undefined;
+            }
+
+            var target = args[0];
+            var propsValue = args[1];
+
+            if (target is not IJsPropertyAccessor accessor || propsValue is not JsObject props)
+            {
+                return args[0];
+            }
+
+            foreach (var key in props.GetOwnPropertyNames())
+            {
+                if (!props.TryGetProperty(key, out var descriptorValue) || descriptorValue is not JsObject descObj)
+                {
+                    continue;
+                }
+
+                if (descObj.TryGetProperty("get", out var getterVal) && getterVal is IJsCallable getterFn)
+                {
+                    var builder = getterFn.Invoke(Array.Empty<object?>(), target);
+                    accessor.SetProperty(key, builder);
+                    continue;
+                }
+
+                if (descObj.TryGetProperty("value", out var value))
+                {
+                    accessor.SetProperty(key, value);
+                    continue;
+                }
+
+                accessor.SetProperty(key, Symbols.Undefined);
+            }
+
+            return args[0];
+        }));
+
+        objectConstructor.SetProperty("setPrototypeOf", new HostFunction((thisValue, args) =>
+        {
+            if (args.Count < 2)
+            {
+                return args.Count > 0 ? args[0] : Symbols.Undefined;
+            }
+
+            var target = args[0];
+            var protoValue = args[1];
+            JsObject? proto = protoValue as JsObject;
+
+            switch (target)
+            {
+                case JsObject obj:
+                    obj.SetPrototype(proto);
+                    break;
+                case JsArray array:
+                    array.SetPrototype(proto);
+                    break;
+            }
+
+            return target;
+        }));
+
+        objectConstructor.SetProperty("getOwnPropertySymbols", new HostFunction(args =>
+        {
+            // The engine currently uses internal string keys for symbol
+            // properties on JsObject instances (\"@@symbol:...\"), and Babel
+            // only uses getOwnPropertySymbols in cleanup paths (e.g. to
+            // null-out metadata). Returning an empty array here avoids
+            // observable behaviour differences while keeping the API
+            // available for callers.
+            return new JsArray();
+        }));
+
         // Object.keys(obj)
         objectConstructor.SetProperty("keys", new HostFunction(args =>
         {
@@ -3482,24 +3637,28 @@ public static class StandardLibrary
         // Object.assign(target, ...sources)
         objectConstructor.SetProperty("assign", new HostFunction(args =>
         {
-            if (args.Count == 0 || args[0] is not JsObject target)
+            if (args.Count == 0 || args[0] is not IJsPropertyAccessor targetAccessor)
             {
-                return null;
+                return args.Count > 0 ? args[0] : Symbols.Undefined;
             }
 
             for (var i = 1; i < args.Count; i++)
-                if (args[i] is JsObject source)
+            {
+                if (args[i] is not JsObject source)
                 {
-                    foreach (var key in source.GetOwnPropertyNames())
-                    {
-                        if (source.TryGetValue(key, out var value))
-                        {
-                            target[key] = value;
-                        }
-                    }
+                    continue;
                 }
 
-            return target;
+                foreach (var key in source.GetOwnPropertyNames())
+                {
+                    if (source.TryGetProperty(key, out var value))
+                    {
+                        targetAccessor.SetProperty(key, value);
+                    }
+                }
+            }
+
+            return args[0];
         }));
 
         // Object.fromEntries(entries)

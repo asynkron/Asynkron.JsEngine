@@ -38,6 +38,32 @@ public sealed class JsArray : IJsPropertyAccessor
     /// </summary>
     public int Length => _items.Count;
 
+    public override string ToString()
+    {
+        // Match the behaviour of Array.prototype.toString / join with
+        // the default separator so arrays used as property keys (e.g.
+        // reverse[colorName[key]] in Babel’s color modules) produce a
+        // stable comma-joined string rather than a CLR type name.
+        if (_items.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string>(_items.Count);
+        foreach (var item in _items)
+        {
+            if (ReferenceEquals(item, ArrayHole) || item is null || ReferenceEquals(item, Symbols.Undefined))
+            {
+                parts.Add(string.Empty);
+                continue;
+            }
+
+            parts.Add(Convert.ToString(item, CultureInfo.InvariantCulture) ?? string.Empty);
+        }
+
+        return string.Join(",", parts);
+    }
+
     /// <summary>
     /// Gets an element at the specified index (alias for GetElement)
     /// </summary>

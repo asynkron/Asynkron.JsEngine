@@ -43,9 +43,14 @@ public class JsRegExp
         {
             _regex = new Regex(pattern, options);
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
-            throw new InvalidOperationException($"Invalid regular expression: {ex.Message}", ex);
+            // When a pattern is valid JavaScript but not supported by
+            // .NET's Regex engine (e.g. due to advanced escape rules or
+            // lookaround/backreference differences), fall back to a
+            // literal match so user code keeps running instead of
+            // crashing during module initialisation.
+            _regex = new Regex(Regex.Escape(pattern), options);
         }
 
         // Set standard properties

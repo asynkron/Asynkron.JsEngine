@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.Ast;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -29,7 +31,65 @@ public sealed class HostFunction : IJsCallable, IJsPropertyAccessor
 
     public bool TryGetProperty(string name, out object? value)
     {
-        return _properties.TryGetProperty(name, out value);
+        if (_properties.TryGetProperty(name, out value))
+        {
+            return true;
+        }
+
+        // Provide minimal Function.prototype-style helpers for host functions:
+        // fn.call(thisArg, ...args), fn.apply(thisArg, argsArray), fn.bind(thisArg, ...boundArgs)
+        var callable = (IJsCallable)this;
+        switch (name)
+        {
+            case "call":
+                value = new HostFunction((_, args) =>
+                {
+                    var thisArg = args.Count > 0 ? args[0] : Symbols.Undefined;
+                    var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : Array.Empty<object?>();
+                    return callable.Invoke(callArgs, thisArg);
+                });
+                return true;
+
+            case "apply":
+                value = new HostFunction((_, args) =>
+                {
+                    var thisArg = args.Count > 0 ? args[0] : Symbols.Undefined;
+                    var argList = new List<object?>();
+                    if (args.Count > 1 && args[1] is JsArray jsArray)
+                    {
+                        foreach (var item in jsArray.Items)
+                        {
+                            argList.Add(item);
+                        }
+                    }
+
+                    return callable.Invoke(argList.ToArray(), thisArg);
+                });
+                return true;
+
+            case "bind":
+                value = new HostFunction((_, args) =>
+                {
+                    var boundThis = args.Count > 0 ? args[0] : Symbols.Undefined;
+                    var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : Array.Empty<object?>();
+
+                    return new HostFunction((innerThis, innerArgs) =>
+                    {
+                        var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
+                        boundArgs.CopyTo(finalArgs, 0);
+                        for (var i = 0; i < innerArgs.Count; i++)
+                        {
+                            finalArgs[boundArgs.Length + i] = innerArgs[i];
+                        }
+
+                        return callable.Invoke(finalArgs, boundThis);
+                    });
+                });
+                return true;
+        }
+
+        value = null;
+        return false;
     }
 
     public void SetProperty(string name, object? value)

@@ -1787,25 +1787,25 @@ public static class TypedAstEvaluator
             // Special-case Function.prototype.apply / call patterns such as
             // Object.prototype.hasOwnProperty.apply(target, args).
             if (expression.Callee is MemberExpression member &&
-                member.Property is LiteralExpression { Value: string propertyName } &&
                 thisValue is IJsCallable targetFunction)
             {
-                if (string.Equals(propertyName, "apply", StringComparison.Ordinal))
+                if (member.Property is LiteralExpression { Value: string propertyName })
                 {
-                    Console.Error.WriteLine("[EvaluateCall] Handling Function.prototype.apply pattern.");
-                    return InvokeWithApply(targetFunction, expression.Arguments, environment, context);
-                }
+                    if (string.Equals(propertyName, "apply", StringComparison.Ordinal))
+                    {
+                        return InvokeWithApply(targetFunction, expression.Arguments, environment, context);
+                    }
 
-                if (string.Equals(propertyName, "call", StringComparison.Ordinal))
-                {
-                    Console.Error.WriteLine("[EvaluateCall] Handling Function.prototype.call pattern.");
-                    return InvokeWithCall(targetFunction, expression.Arguments, environment, context);
+                    if (string.Equals(propertyName, "call", StringComparison.Ordinal))
+                    {
+                        return InvokeWithCall(targetFunction, expression.Arguments, environment, context);
+                    }
                 }
             }
 
             var typeName = callee?.GetType().Name ?? "null";
             var sourceInfo = GetSourceInfo(context, expression.Source);
-            Console.Error.WriteLine($"[EvaluateCall] Non-callable callee type={typeName}{sourceInfo}");
+            Console.Error.WriteLine($"[EvaluateCall] Non-callable callee type={typeName}, thisValueType={thisValue?.GetType().Name ?? "null"}{sourceInfo}");
             throw new InvalidOperationException(
                 $"Attempted to call a non-callable value of type '{typeName}'.{sourceInfo}");
         }
@@ -4582,7 +4582,66 @@ public static class TypedAstEvaluator
 
         public bool TryGetProperty(string name, out object? value)
         {
-            return _properties.TryGetProperty(name, out value);
+            if (_properties.TryGetProperty(name, out value))
+            {
+                return true;
+            }
+
+            // Provide minimal Function.prototype-style helpers for typed
+            // functions so patterns like fn.call/apply/bind work for code
+            // emitted by tools like Babel/regenerator.
+            var callable = (IJsCallable)this;
+            switch (name)
+            {
+                case "call":
+                    value = new HostFunction((_, args) =>
+                    {
+                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : Array.Empty<object?>();
+                        return callable.Invoke(callArgs, thisArg);
+                    });
+                    return true;
+
+                case "apply":
+                    value = new HostFunction((_, args) =>
+                    {
+                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var argList = new List<object?>();
+                        if (args.Count > 1 && args[1] is JsArray jsArray)
+                        {
+                            foreach (var item in jsArray.Items)
+                            {
+                                argList.Add(item);
+                            }
+                        }
+
+                        return callable.Invoke(argList.ToArray(), thisArg);
+                    });
+                    return true;
+
+                case "bind":
+                    value = new HostFunction((_, args) =>
+                    {
+                        var boundThis = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : Array.Empty<object?>();
+
+                        return new HostFunction((innerThis, innerArgs) =>
+                        {
+                            var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
+                            boundArgs.CopyTo(finalArgs, 0);
+                            for (var i = 0; i < innerArgs.Count; i++)
+                            {
+                                finalArgs[boundArgs.Length + i] = innerArgs[i];
+                            }
+
+                            return callable.Invoke(finalArgs, boundThis);
+                        });
+                    });
+                    return true;
+            }
+
+            value = null;
+            return false;
         }
 
         public void SetProperty(string name, object? value)

@@ -430,6 +430,10 @@ internal static class JsOps
 
     public static bool TryGetPropertyValue(object? target, object? propertyKey, out object? value)
     {
+        // Special-case TypedAstSymbol keys used for @@iterator / @@asyncIterator
+        // so that non-callable values are treated as missing, allowing helpers
+        // like Babel's _createForOfIteratorHelperLoose to fall back to their
+        // Array/@@iterator code paths instead of attempting to call a symbol.
         if (TryGetArrayLikeValue(target, propertyKey, out value))
         {
             return true;
@@ -442,7 +446,21 @@ internal static class JsOps
             return true;
         }
 
-        return TryGetPropertyValue(target, propertyName, out value);
+        if (!TryGetPropertyValue(target, propertyName, out value))
+        {
+            return false;
+        }
+
+        // If the lookup was via a symbol key, and the resolved value is not
+        // callable or an iterator object (no next method), treat it as absent.
+        if (propertyKey is TypedAstSymbol &&
+            value is not IJsCallable &&
+            value is not JsObject { } jsObjWhenIteratorDoesntMatter)
+        {
+            value = Symbols.Undefined;
+        }
+
+        return true;
     }
 
     private static bool TryGetArrayLikeValue(object? target, object? propertyKey, out object? value)

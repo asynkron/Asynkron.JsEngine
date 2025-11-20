@@ -19,15 +19,22 @@
 
 ## Next Iteration Plan
 
-1. **Grow IR Coverage for Unsupported Generator Shapes**
+1. **Normalize Symbol/Iterator Semantics for Babel/Regenerator**
+   - Extract a minimal repro of Babel’s `_createForOfIteratorHelperLoose` and the regenerator `runtime_1` block (particularly `iteratorSymbol = $Symbol.iterator || "@@iterator"` and `IteratorPrototype[iteratorSymbol] = …`) and run it in isolation against the engine.
+   - Instrument `TypedAstEvaluator` and `JsOps.TryGetPropertyValue` to log `o[Symbol.iterator]` / `o["@@iterator"]` lookups for the repro, so we can see exactly when a truthy, non-callable internal `Symbol` is being exposed instead of a function or `undefined`.
+   - Ensure that for arrays, strings, regenerator-style iterator prototypes, and async iterator helpers, the engine always stores iterator methods as callable values under the correct symbol-keyed property (and never exposes internal `Ast.Symbol` instances as iterator values).
+   - Tighten symbol-keyed property resolution so `o[Symbol.iterator]` / `o[Symbol.asyncIterator]` either resolve to a callable `IJsCallable` or are treated as `undefined`, allowing Babel’s helpers to fall back cleanly to `@@iterator`/array-like code paths instead of attempting to call a non-callable sentinel.
+   - Validate the changes against the minimal repro and then against the SunSpider/Babel tests, updating documentation to record the new iterator semantics and any remaining limitations.
+
+2. **Grow IR Coverage for Unsupported Generator Shapes**
    - Use the new `_UnsupportedIr` tests (variable initialisers with multiple `yield`s, complex loop conditions/increments, and `switch` statements) as a checklist for extending `SyncGeneratorIrBuilder` and the IR interpreter to cover more `yield` placements.
    - As individual shapes become supported on the IR path, convert the corresponding tests from `_UnsupportedIr` to `*Ir` / `*Ir_UsesIrPlan` variants and update `docs/GENERATOR_IR_LIMITATIONS.md` accordingly.
 
-2. **Introduce Async Generator IR**
+3. **Introduce Async Generator IR**
    - Replace the `AsyncGeneratorIrBuilder` placeholder with a real IR lowering for async generator functions so `for await...of` loops and async iterator patterns can run on the IR path rather than the legacy evaluator.
    - Extend the async iteration tests to assert IR usage via `GeneratorIrDiagnostics` once async generator IR is in place.
 
-3. **Async Await Scheduling**
+4. **Async Await Scheduling**
    - Revisit `TryAwaitPromise` and generator scheduling now that the replay generator path has been removed:
      - Integrate the event queue (e.g., resume generators via `ScheduleTask`) so long-running promises in generators don’t block the managed thread.
      - Optionally expose instrumentation hooks (trace or debug) so we can observe nested awaits inside generators and detect potential starvation.

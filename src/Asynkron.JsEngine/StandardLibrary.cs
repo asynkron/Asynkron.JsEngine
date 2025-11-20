@@ -3377,11 +3377,6 @@ public static class StandardLibrary
             // Object.prototype.hasOwnProperty
             var hasOwn = new HostFunction((thisValue, args) =>
             {
-                if (thisValue is not JsObject obj)
-                {
-                    return false;
-                }
-
                 if (args.Count == 0)
                 {
                     return false;
@@ -3393,8 +3388,26 @@ public static class StandardLibrary
                     return false;
                 }
 
-                // Only own properties; JsObject.ContainsKey checks own keys.
-                return obj.ContainsKey(propertyName);
+                switch (thisValue)
+                {
+                    case JsObject obj:
+                        // Only own properties; JsObject.ContainsKey checks own keys.
+                        return obj.ContainsKey(propertyName);
+                    case JsArray array:
+                        if (string.Equals(propertyName, "length", StringComparison.Ordinal))
+                        {
+                            return true;
+                        }
+
+                        if (JsOps.TryResolveArrayIndex(propertyName, out var index))
+                        {
+                            return array.HasOwnIndex(index);
+                        }
+
+                        return false;
+                    default:
+                        return false;
+                }
             });
 
             objectProtoObj.SetProperty("hasOwnProperty", hasOwn);

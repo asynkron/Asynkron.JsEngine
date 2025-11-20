@@ -109,6 +109,20 @@ public sealed class JsArray : IJsPropertyAccessor
         return ReferenceEquals(item, ArrayHole) ? Symbols.Undefined : item;
     }
 
+    /// <summary>
+    /// Returns true if the given index is an own data property on this array
+    /// (i.e. within bounds and not a hole).
+    /// </summary>
+    public bool HasOwnIndex(int index)
+    {
+        if (index < 0 || index >= _items.Count)
+        {
+            return false;
+        }
+
+        return !ReferenceEquals(_items[index], ArrayHole);
+    }
+
     public void SetElement(int index, object? value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);

@@ -53,6 +53,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Register standard library objects
         SetGlobal("console", StandardLibrary.CreateConsoleObject());
         SetGlobal("Math", StandardLibrary.CreateMathObject());
+        SetGlobal("Function", StandardLibrary.CreateFunctionConstructor());
         SetGlobal("Number", StandardLibrary.CreateNumberConstructor());
         SetGlobal("Boolean", StandardLibrary.CreateBooleanConstructor());
         SetGlobal("String", StandardLibrary.CreateStringConstructor());

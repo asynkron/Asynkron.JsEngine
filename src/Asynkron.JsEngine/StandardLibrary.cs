@@ -501,6 +501,51 @@ public static class StandardLibrary
     }
 
     /// <summary>
+    /// Creates a minimal Function constructor with a callable `Function`
+    /// value and a `Function.call` helper that can be used with patterns
+    /// like <c>Function.call.bind(Object.prototype.hasOwnProperty)</c>.
+    /// </summary>
+    public static IJsCallable CreateFunctionConstructor()
+    {
+        // Minimal Function constructor: for now we ignore the body and
+        // arguments and just return a no-op function value.
+        var functionConstructor = new HostFunction((thisValue, args) =>
+        {
+            return new HostFunction((innerThis, innerArgs) => Symbols.Undefined);
+        });
+
+        // Function.call: when used as `fn.call(thisArg, ...args)` the
+        // target function is `fn` (the `this` value). We implement this
+        // directly so that binding `Function.call` produces helpers that
+        // behave like `Function.prototype.call`.
+        var callHelper = new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not IJsCallable target)
+            {
+                return Symbols.Undefined;
+            }
+
+            object? thisArg = Symbols.Undefined;
+            var callArgs = Array.Empty<object?>();
+
+            if (args.Count > 0)
+            {
+                thisArg = args[0];
+                if (args.Count > 1)
+                {
+                    callArgs = args.Skip(1).ToArray();
+                }
+            }
+
+            return target.Invoke(callArgs, thisArg);
+        });
+
+        functionConstructor.SetProperty("call", callHelper);
+
+        return functionConstructor;
+    }
+
+    /// <summary>
     /// Creates a Console object with common logging methods.
     /// </summary>
     public static JsObject CreateConsoleObject()
@@ -686,7 +731,10 @@ public static class StandardLibrary
 
         dateConstructor = new HostFunction((thisValue, args) =>
         {
-            var dateInstance = new JsObject();
+            // For `new Date(...)`, the typed evaluator creates the instance
+            // object and passes it as `thisValue`. Reuse that object so it
+            // keeps the correct prototype chain (Date.prototype).
+            var dateInstance = thisValue as JsObject ?? new JsObject();
 
             DateTimeOffset dateTime;
 
@@ -892,19 +940,6 @@ public static class StandardLibrary
 
                 return "Invalid Date";
             });
-
-            // Copy methods from Date.prototype to this instance
-            // This allows Date.prototype.methodName = function() {...} to work
-            if (dateConstructor != null && dateConstructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue is JsObject prototype)
-            {
-                foreach (var propName in prototype.GetOwnPropertyNames())
-                {
-                    if (prototype.TryGetProperty(propName, out var propValue))
-                    {
-                        dateInstance.SetProperty(propName, propValue);
-                    }
-                }
-            }
 
             return dateInstance;
         });
@@ -3192,7 +3227,7 @@ public static class StandardLibrary
             ObjectPrototype = objectProtoObj;
 
             // Object.prototype.hasOwnProperty
-            objectProtoObj.SetProperty("hasOwnProperty", new HostFunction((thisValue, args) =>
+            var hasOwn = new HostFunction((thisValue, args) =>
             {
                 if (thisValue is not JsObject obj)
                 {
@@ -3212,7 +3247,13 @@ public static class StandardLibrary
 
                 // Only own properties; JsObject.ContainsKey checks own keys.
                 return obj.ContainsKey(propertyName);
-            }));
+            });
+
+            objectProtoObj.SetProperty("hasOwnProperty", hasOwn);
+
+            // Also expose Object.hasOwnProperty so patterns like
+            // Object.hasOwnProperty.call(obj, key) behave as expected.
+            objectConstructor.SetProperty("hasOwnProperty", hasOwn);
         }
 
         // Object.keys(obj)

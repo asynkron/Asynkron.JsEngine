@@ -168,4 +168,111 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
             throw;
         }
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task DateFormat_Eval_DefinesCallablePrototypeMethod()
+    {
+        const string script = """
+            Date.parseFunctions = {count:0};
+            Date.parseRegexes = [];
+            Date.formatFunctions = {count:0};
+
+            // Minimal helpers required by the date-format-xparb.js snippet
+            String.escape = function(ch) { return ch; };
+            Date.getFormatCode = function(character) { return "'X' + "; };
+
+            Date.createNewFormat = function(format) {
+                var funcName = "format" + Date.formatFunctions.count++;
+                Date.formatFunctions[format] = funcName;
+                var code = "Date.prototype." + funcName + " = function(){return ";
+                var special = false;
+                var ch = '';
+                for (var i = 0; i < format.length; ++i) {
+                    ch = format.charAt(i);
+                    if (!special && ch == "\\") {
+                        special = true;
+                    }
+                    else if (special) {
+                        special = false;
+                        code += "'" + String.escape(ch) + "' + ";
+                    }
+                    else {
+                        code += Date.getFormatCode(ch);
+                    }
+                }
+                eval(code.substring(0, code.length - 3) + ";}");
+            };
+
+            Date.createNewFormat("d");
+
+            var formatKey = "d";
+            var funcName = Date.formatFunctions[formatKey];
+            globalFunc = funcName;
+            globalDate = new Date(0);
+            globalMethod = globalDate[funcName];
+            """;
+
+        await using var engine = new JsEngine();
+        await engine.Evaluate(script);
+
+        var funcName = await engine.Evaluate("globalFunc;");
+        Assert.IsType<string>(funcName);
+
+        var method = await engine.Evaluate("globalMethod;");
+        Assert.NotNull(method);
+        Assert.IsAssignableFrom<IJsCallable>(method);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DateFormat_SimpleRepro_DoesNotUseSymbolAsCallee()
+    {
+        const string script = """
+            Date.parseFunctions = {count:0};
+            Date.parseRegexes = [];
+            Date.formatFunctions = {count:0};
+
+            String.escape = function(ch) { return ch; };
+            Date.getFormatCode = function(character) {
+                if (character === "d") {
+                    return "'DAY' + ";
+                }
+                return "'' + ";
+            };
+
+            Date.createNewFormat = function(format) {
+                var funcName = "format" + Date.formatFunctions.count++;
+                Date.formatFunctions[format] = funcName;
+                var code = "Date.prototype." + funcName + " = function(){return ";
+                var special = false;
+                var ch = '';
+                for (var i = 0; i < format.length; ++i) {
+                    ch = format.charAt(i);
+                    if (!special && ch == "\\") {
+                        special = true;
+                    }
+                    else if (special) {
+                        special = false;
+                        code += "'" + String.escape(ch) + "' + ";
+                    }
+                    else {
+                        code += Date.getFormatCode(ch);
+                    }
+                }
+                eval(code.substring(0, code.length - 3) + ";}");
+            };
+
+            Date.prototype.dateFormat = function(format) {
+                if (Date.formatFunctions[format] == null) {
+                    Date.createNewFormat(format);
+                }
+                var func = Date.formatFunctions[format];
+                return this[func]();
+            };
+
+            var result = new Date(0).dateFormat("d");
+            """;
+
+        await using var engine = new JsEngine();
+        await engine.Evaluate(script);
+    }
 }

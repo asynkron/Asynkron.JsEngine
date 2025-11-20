@@ -60,4 +60,19 @@ public class BabelIteratorHelperTests
         Assert.Equal(2.0, second);
         Assert.Equal(3.0, third);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task ObjectHasOwnProperty_Call_Works()
+    {
+        const string script = """
+            const obj = { foo: 1 };
+            const result = Object.hasOwnProperty.call(obj, "foo");
+        """;
+
+        await using var engine = new JsEngine();
+        await engine.Evaluate(script);
+
+        var result = await engine.Evaluate("result;");
+        Assert.Equal(true, result);
+    }
 }

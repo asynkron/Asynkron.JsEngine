@@ -1604,6 +1604,28 @@ public static class TypedAstEvaluator
     private static object? EvaluateMember(MemberExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
+        // Fast-path well-known symbol properties so expressions like
+        // Symbol.iterator and Symbol.asyncIterator produce real JS symbol
+        // values that can be used as keys (e.g. o[Symbol.iterator]).
+        if (!expression.IsComputed &&
+            expression.Target is IdentifierExpression symbolIdentifier &&
+            string.Equals(symbolIdentifier.Name.Name, "Symbol", StringComparison.Ordinal) &&
+            expression.Property is LiteralExpression { Value: string symbolProp })
+        {
+            return symbolProp switch
+            {
+                "iterator" => TypedAstSymbol.For("Symbol.iterator"),
+                "asyncIterator" => TypedAstSymbol.For("Symbol.asyncIterator"),
+                _ => EvaluateDefaultMember(expression, environment, context)
+            };
+        }
+
+        return EvaluateDefaultMember(expression, environment, context);
+    }
+
+    private static object? EvaluateDefaultMember(MemberExpression expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
         if (expression.Target is SuperExpression)
         {
             var (memberValue, _) = ResolveSuperMember(expression, environment, context);
@@ -1805,9 +1827,12 @@ public static class TypedAstEvaluator
 
             var typeName = callee?.GetType().Name ?? "null";
             var sourceInfo = GetSourceInfo(context, expression.Source);
-            Console.Error.WriteLine($"[EvaluateCall] Non-callable callee type={typeName}, thisValueType={thisValue?.GetType().Name ?? "null"}{sourceInfo}");
+            var symbolName = callee is Symbol sym ? sym.Name : null;
+            var symbolSuffix = symbolName is null ? string.Empty : $" (symbol '{symbolName}')";
+            Console.Error.WriteLine(
+                $"[EvaluateCall] Non-callable callee type={typeName}, thisValueType={thisValue?.GetType().Name ?? "null"}{symbolSuffix}{sourceInfo}");
             throw new InvalidOperationException(
-                $"Attempted to call a non-callable value of type '{typeName}'.{sourceInfo}");
+                $"Attempted to call a non-callable value of type '{typeName}'{symbolSuffix}.{sourceInfo}");
         }
 
         var arguments = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);

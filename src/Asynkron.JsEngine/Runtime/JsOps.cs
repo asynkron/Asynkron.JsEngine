@@ -646,8 +646,14 @@ internal static class JsOps
     {
         if (target is JsArray jsArray && TryResolveArrayIndex(propertyKey, out var arrayIndex, context))
         {
-            value = jsArray.GetElement(arrayIndex);
-            return true;
+            if (arrayIndex >= 0 && jsArray.HasOwnIndex((uint)arrayIndex))
+            {
+                value = jsArray.GetElement(arrayIndex);
+                return true;
+            }
+
+            value = null;
+            return false;
         }
 
         if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
@@ -665,14 +671,27 @@ internal static class JsOps
     public static void AssignPropertyValue(object? target, object? propertyKey, object? value,
         EvaluationContext? context = null)
     {
-        if (TryAssignArrayLikeValue(target, propertyKey, value, context))
+        try
         {
-            return;
+            if (TryAssignArrayLikeValue(target, propertyKey, value, context))
+            {
+                return;
+            }
+
+            var propertyName = GetRequiredPropertyName(propertyKey, context);
+
+            AssignPropertyValueByName(target, propertyName, value);
         }
+        catch (ThrowSignal signal)
+        {
+            if (context is not null)
+            {
+                context.SetThrow(signal.ThrownValue);
+                return;
+            }
 
-        var propertyName = GetRequiredPropertyName(propertyKey, context);
-
-        AssignPropertyValueByName(target, propertyName, value);
+            throw;
+        }
     }
 
     public static void AssignPropertyValueByName(object? target, string propertyName, object? value)

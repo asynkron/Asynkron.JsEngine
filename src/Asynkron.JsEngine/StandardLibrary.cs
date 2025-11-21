@@ -23,6 +23,7 @@ public static class StandardLibrary
     internal static JsObject? ErrorPrototype;
     internal static JsObject? TypeErrorPrototype;
     internal static HostFunction? TypeErrorConstructor;
+    internal static HostFunction? RangeErrorConstructor;
 
     /// <summary>
     /// Converts a JavaScript value to its string representation, handling functions appropriately.
@@ -5525,6 +5526,11 @@ public static class StandardLibrary
         {
             TypeErrorPrototype = prototype;
             TypeErrorConstructor = errorConstructor;
+        }
+
+        if (string.Equals(errorType, "RangeError", StringComparison.Ordinal))
+        {
+            RangeErrorConstructor = errorConstructor;
         }
 
         // Function.name

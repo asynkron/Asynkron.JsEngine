@@ -1,6 +1,7 @@
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -121,7 +122,7 @@ public sealed class JsArray : IJsObjectLike
         {
             if (!TryCoerceLength(value, out var newLength))
             {
-                throw new InvalidOperationException("RangeError: Invalid array length");
+                throw CreateRangeError("Invalid array length");
             }
 
             SetExplicitLength(newLength);
@@ -403,7 +404,7 @@ public sealed class JsArray : IJsObjectLike
     {
         if (candidateLength > MaxArrayLength)
         {
-            throw new InvalidOperationException("RangeError: Invalid array length");
+            throw CreateRangeError("Invalid array length");
         }
 
         if (candidateLength > _length)
@@ -417,7 +418,7 @@ public sealed class JsArray : IJsObjectLike
     {
         if (newLength > MaxArrayLength)
         {
-            throw new InvalidOperationException("RangeError: Invalid array length");
+            throw CreateRangeError("Invalid array length");
         }
 
         _length = newLength;
@@ -537,5 +538,22 @@ public sealed class JsArray : IJsObjectLike
 
         length = (uint)truncated;
         return true;
+    }
+
+    private static ThrowSignal CreateRangeError(string message)
+    {
+        if (StandardLibrary.RangeErrorConstructor is IJsCallable ctor)
+        {
+            var errorObj = ctor.Invoke([message], null);
+            return new ThrowSignal(errorObj);
+        }
+
+        var fallback = new JsObject
+        {
+            ["name"] = "RangeError",
+            ["message"] = message
+        };
+
+        return new ThrowSignal(fallback);
     }
 }

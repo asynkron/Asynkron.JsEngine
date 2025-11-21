@@ -287,6 +287,40 @@ public class AsyncIterationTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ForAwaitOf_AllowsAwaitAfterLoop()
+    {
+        await using var engine = new JsEngine();
+
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
+        await engine.Run("""
+
+                                     let log = [];
+
+                                     async function* inner() {
+                                         const a = await __delay(10, "a");
+                                         log.push("inner:" + a);
+                                         yield a;
+                                     }
+
+                                     async function run() {
+                                         log.push("outer:start");
+                                         for await (const value of inner()) {
+                                             log.push("outer:value:" + value);
+                                         }
+                                         const b = await __delay(10, "b");
+                                         log.push("outer:after:" + b);
+                                     }
+
+                                     run();
+
+                         """);
+
+        var result = await engine.Evaluate("log.join('|');");
+        Assert.Equal("outer:start|inner:a|outer:value:a|outer:after:b", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithCustomAsyncIterator()
     {
         await using var engine = new JsEngine();

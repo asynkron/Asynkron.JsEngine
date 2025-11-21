@@ -412,16 +412,32 @@ internal static class GeneratorYieldLowerer
 
             YieldExpression? incrementYield = null;
             ExpressionNode? rewrittenIncrement = null;
-            var incrementHasYield = forStatement.Increment is not null &&
-                                    TryRewriteConditionWithSingleYield(forStatement.Increment,
-                                        out incrementYield, out rewrittenIncrement);
+            YieldExpression? incrementYieldLeft = null;
+            YieldExpression? incrementYieldRight = null;
+            BinaryExpression? incrementBinary = null;
+            Symbol? incrementAssignmentTarget = null;
+            var incrementHasYield = false;
+            var incrementHasTwoYields = false;
 
-            if (forStatement.Increment is not null && ContainsYield(forStatement.Increment) && !incrementHasYield)
+            if (forStatement.Increment is not null)
             {
-                return false;
+                incrementHasYield = TryRewriteConditionWithSingleYield(forStatement.Increment,
+                    out incrementYield, out rewrittenIncrement);
+
+                if (!incrementHasYield &&
+                    TryRewriteIncrementWithTwoYields(forStatement.Increment,
+                        out incrementYieldLeft, out incrementYieldRight, out incrementBinary, out incrementAssignmentTarget))
+                {
+                    incrementHasTwoYields = true;
+                }
+
+                if (ContainsYield(forStatement.Increment) && !incrementHasYield && !incrementHasTwoYields)
+                {
+                    return false;
+                }
             }
 
-            if (!conditionHasYield && !incrementHasYield)
+            if (!conditionHasYield && !incrementHasYield && !incrementHasTwoYields)
             {
                 return false;
             }
@@ -444,11 +460,23 @@ internal static class GeneratorYieldLowerer
             }
 
             IdentifierBinding? incrementResumeIdentifier = null;
+            IdentifierBinding? incrementResumeLeftIdentifier = null;
+            IdentifierBinding? incrementResumeRightIdentifier = null;
             if (incrementHasYield && incrementYield is not null)
             {
                 incrementResumeIdentifier = CreateResumeIdentifier();
                 statements.Add(new VariableDeclaration(incrementYield.Source, VariableKind.Let,
                     [new VariableDeclarator(incrementYield.Source, incrementResumeIdentifier, null)]));
+            }
+            else if (incrementHasTwoYields && incrementYieldLeft is not null && incrementYieldRight is not null)
+            {
+                incrementResumeLeftIdentifier = CreateResumeIdentifier();
+                incrementResumeRightIdentifier = CreateResumeIdentifier();
+
+                statements.Add(new VariableDeclaration(incrementYieldLeft.Source, VariableKind.Let,
+                    [new VariableDeclarator(incrementYieldLeft.Source, incrementResumeLeftIdentifier, null)]));
+                statements.Add(new VariableDeclaration(incrementYieldRight.Source, VariableKind.Let,
+                    [new VariableDeclarator(incrementYieldRight.Source, incrementResumeRightIdentifier, null)]));
             }
 
             var loopStatements = ImmutableArray.CreateBuilder<StatementNode>();
@@ -486,6 +514,33 @@ internal static class GeneratorYieldLowerer
 
                 var substitutedIncrement =
                     SubstituteResumeIdentifier(rewrittenIncrement!, incrementResumeIdentifier.Name);
+                loopStatements.Add(new ExpressionStatement(forStatement.Increment!.Source, substitutedIncrement));
+            }
+            else if (incrementHasTwoYields && incrementYieldLeft is not null && incrementYieldRight is not null &&
+                     incrementBinary is not null && incrementResumeLeftIdentifier is not null &&
+                     incrementResumeRightIdentifier is not null)
+            {
+                loopStatements.Add(new ExpressionStatement(incrementYieldLeft.Source,
+                    new AssignmentExpression(incrementYieldLeft.Source, incrementResumeLeftIdentifier.Name,
+                        new YieldExpression(incrementYieldLeft.Source, incrementYieldLeft.Expression,
+                            incrementYieldLeft.IsDelegated))));
+
+                loopStatements.Add(new ExpressionStatement(incrementYieldRight.Source,
+                    new AssignmentExpression(incrementYieldRight.Source, incrementResumeRightIdentifier.Name,
+                        new YieldExpression(incrementYieldRight.Source, incrementYieldRight.Expression,
+                            incrementYieldRight.IsDelegated))));
+
+                ExpressionNode substitutedIncrement = new BinaryExpression(incrementBinary.Source, incrementBinary.Operator,
+                    new IdentifierExpression(incrementYieldLeft.Source, incrementResumeLeftIdentifier.Name),
+                    new IdentifierExpression(incrementYieldRight.Source, incrementResumeRightIdentifier.Name));
+
+                if (incrementAssignmentTarget is not null)
+                {
+                    substitutedIncrement = new AssignmentExpression(forStatement.Increment!.Source,
+                        incrementAssignmentTarget,
+                        substitutedIncrement);
+                }
+
                 loopStatements.Add(new ExpressionStatement(forStatement.Increment!.Source, substitutedIncrement));
             }
             else if (forStatement.Increment is not null)
@@ -847,6 +902,48 @@ internal static class GeneratorYieldLowerer
 
             yieldExpression = singleYield;
             rewrittenCondition = rewrittenConditionInternal;
+            return true;
+        }
+
+        private static bool TryRewriteIncrementWithTwoYields(ExpressionNode expression,
+            out YieldExpression leftYield, out YieldExpression rightYield, out BinaryExpression incrementBinary,
+            out Symbol? assignmentTarget)
+        {
+            leftYield = null!;
+            rightYield = null!;
+            incrementBinary = null!;
+            assignmentTarget = null;
+
+            BinaryExpression? binary = null;
+
+            switch (expression)
+            {
+                case BinaryExpression asBinary:
+                    binary = asBinary;
+                    break;
+                case AssignmentExpression { Value: BinaryExpression assignBinary } assignment when assignment.Target is not null:
+                    assignmentTarget = assignment.Target;
+                    binary = assignBinary;
+                    break;
+                default:
+                    return false;
+            }
+
+            if (!TryRewriteConditionWithSingleYield(binary.Left, out var left, out _) ||
+                !TryRewriteConditionWithSingleYield(binary.Right, out var right, out _))
+            {
+                return false;
+            }
+
+            if (left.IsDelegated || right.IsDelegated ||
+                ContainsYield(left.Expression) || ContainsYield(right.Expression))
+            {
+                return false;
+            }
+
+            leftYield = left;
+            rightYield = right;
+            incrementBinary = binary;
             return true;
         }
 

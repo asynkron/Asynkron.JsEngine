@@ -118,6 +118,155 @@ public class GeneratorYieldLowererTests
     }
 
     [Fact]
+    public void Lowerer_DoesNotRewriteDelegatedYieldCondition()
+    {
+        var ifStatement = new IfStatement(
+            null,
+            new YieldExpression(null, new LiteralExpression(null, "a"), true),
+            new ExpressionStatement(null, new LiteralExpression(null, 1)),
+            null);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("gen"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, ImmutableArray.Create<StatementNode>(ifStatement), false),
+            false,
+            true);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        Assert.Single(statements);
+
+        var loweredIf = Assert.IsType<IfStatement>(statements[0]);
+        var loweredCondition = Assert.IsType<YieldExpression>(loweredIf.Condition);
+        Assert.True(loweredCondition.IsDelegated);
+        Assert.Equal("a", Assert.IsType<LiteralExpression>(loweredCondition.Expression).Value);
+    }
+
+    [Fact]
+    public void Lowerer_DoesNotRewriteMultiYieldCondition()
+    {
+        var condition = new BinaryExpression(
+            null,
+            "&&",
+            new YieldExpression(null, new LiteralExpression(null, "left"), false),
+            new YieldExpression(null, new LiteralExpression(null, "right"), false));
+
+        var ifStatement = new IfStatement(
+            null,
+            condition,
+            new ExpressionStatement(null, new LiteralExpression(null, 1)),
+            null);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("gen"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, ImmutableArray.Create<StatementNode>(ifStatement), false),
+            false,
+            true);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        Assert.Single(statements);
+
+        var loweredIf = Assert.IsType<IfStatement>(statements[0]);
+        var loweredCondition = Assert.IsType<BinaryExpression>(loweredIf.Condition);
+        Assert.IsType<YieldExpression>(loweredCondition.Left);
+        Assert.IsType<YieldExpression>(loweredCondition.Right);
+    }
+
+    [Fact]
+    public void Lowerer_DoesNotRewriteNestedFunctionYields()
+    {
+        var innerReturn = new ReturnStatement(null,
+            new YieldExpression(null, new LiteralExpression(null, "inner"), false));
+        var innerFunction = new FunctionExpression(
+            null,
+            Symbol.Intern("inner"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, ImmutableArray.Create<StatementNode>(innerReturn), false),
+            false,
+            true);
+
+        var expressionStatement = new ExpressionStatement(null, innerFunction);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("gen"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, ImmutableArray.Create<StatementNode>(expressionStatement), false),
+            false,
+            true);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        var loweredExpression = Assert.IsType<ExpressionStatement>(Assert.Single(statements)).Expression;
+        var loweredInner = Assert.IsType<FunctionExpression>(loweredExpression);
+        var innerStatements = loweredInner.Body.Statements;
+        Assert.Single(innerStatements);
+        var innerReturnStmt = Assert.IsType<ReturnStatement>(innerStatements[0]);
+        Assert.IsType<YieldExpression>(innerReturnStmt.Expression);
+    }
+
+    [Fact]
+    public void Lowerer_RewritesIfConditionYieldInSubexpression()
+    {
+        var condition = new BinaryExpression(
+            null,
+            "+",
+            new LiteralExpression(null, 1),
+            new YieldExpression(null, new LiteralExpression(null, "side"), false));
+
+        var ifStatement = new IfStatement(
+            null,
+            condition,
+            new ExpressionStatement(null, new LiteralExpression(null, 1)),
+            null);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("gen"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, ImmutableArray.Create<StatementNode>(ifStatement), false),
+            false,
+            true);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        Assert.Equal(3, statements.Length);
+
+        var tempDecl = Assert.IsType<VariableDeclaration>(statements[0]);
+        var tempBinding = Assert.IsType<IdentifierBinding>(Assert.Single(tempDecl.Declarators).Target);
+
+        var tempAssign = Assert.IsType<ExpressionStatement>(statements[1]);
+        var yieldExpr = Assert.IsType<YieldExpression>(Assert.IsType<AssignmentExpression>(tempAssign.Expression).Value);
+        Assert.Equal("side", Assert.IsType<LiteralExpression>(yieldExpr.Expression).Value);
+
+        var loweredIf = Assert.IsType<IfStatement>(statements[2]);
+        var loweredCondition = Assert.IsType<BinaryExpression>(loweredIf.Condition);
+        var right = Assert.IsType<IdentifierExpression>(loweredCondition.Right);
+        Assert.Equal(tempBinding.Name, right.Name);
+    }
+
+    [Fact]
     public void Lowerer_RewritesWhileConditionYield()
     {
         var whileStatement = new WhileStatement(
@@ -161,6 +310,46 @@ public class GeneratorYieldLowererTests
         Assert.IsType<BreakStatement>(breakCheck.Then);
 
         Assert.IsType<BlockStatement>(loweredBody.Statements[2]);
+    }
+
+    [Fact]
+    public void Lowerer_RewritesDoWhileConditionYield()
+    {
+        var doWhile = new DoWhileStatement(
+            null,
+            new ExpressionStatement(null, new LiteralExpression(null, "body")),
+            new YieldExpression(null, new LiteralExpression(null, "probe"), false));
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("gen"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, ImmutableArray.Create<StatementNode>(doWhile), false),
+            false,
+            true);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        Assert.Equal(2, statements.Length);
+
+        var tempDecl = Assert.IsType<VariableDeclaration>(statements[0]);
+        var tempBinding = Assert.IsType<IdentifierBinding>(Assert.Single(tempDecl.Declarators).Target);
+
+        var loweredDoWhile = Assert.IsType<DoWhileStatement>(statements[1]);
+        var loweredBody = Assert.IsType<BlockStatement>(loweredDoWhile.Body);
+        Assert.Equal(2, loweredBody.Statements.Length);
+
+        var assign = Assert.IsType<ExpressionStatement>(loweredBody.Statements[1]);
+        var assignExpr = Assert.IsType<AssignmentExpression>(assign.Expression);
+        Assert.Equal(tempBinding.Name, assignExpr.Target);
+        Assert.IsType<YieldExpression>(assignExpr.Value);
+
+        var loweredCondition = Assert.IsType<IdentifierExpression>(loweredDoWhile.Condition);
+        Assert.Equal(tempBinding.Name, loweredCondition.Name);
     }
 
     [Fact]
@@ -238,5 +427,128 @@ public class GeneratorYieldLowererTests
         var incValue = Assert.IsType<BinaryExpression>(incExpr.Value);
         var incRight = Assert.IsType<IdentifierExpression>(incValue.Right);
         Assert.Equal(incTemp.Name, incRight.Name);
+    }
+
+    [Fact]
+    public void Lowerer_RewritesForIncrementWithTwoYields()
+    {
+        var iSymbol = Symbol.Intern("i");
+        var initializer = new VariableDeclaration(
+            null,
+            VariableKind.Let,
+            [new VariableDeclarator(null, new IdentifierBinding(null, iSymbol), new LiteralExpression(null, 0))]);
+
+        var increment = new BinaryExpression(
+            null,
+            "+",
+            new YieldExpression(null, new LiteralExpression(null, "a"), false),
+            new YieldExpression(null, new LiteralExpression(null, "b"), false));
+
+        var forStatement = new ForStatement(
+            null,
+            initializer,
+            new BinaryExpression(null, "<", new IdentifierExpression(null, iSymbol), new LiteralExpression(null, 1)),
+            increment,
+            new ExpressionStatement(null, new LiteralExpression(null, "body")));
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("gen"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, ImmutableArray.Create<StatementNode>(forStatement), false),
+            false,
+            true);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        Assert.Equal(4, statements.Length);
+
+        Assert.IsType<VariableDeclaration>(statements[0]); // initializer
+
+        var incTempDecl1 = Assert.IsType<VariableDeclaration>(statements[1]);
+        var incTemp1 = Assert.IsType<IdentifierBinding>(Assert.Single(incTempDecl1.Declarators).Target);
+        var incTempDecl2 = Assert.IsType<VariableDeclaration>(statements[2]);
+        var incTemp2 = Assert.IsType<IdentifierBinding>(Assert.Single(incTempDecl2.Declarators).Target);
+
+        Assert.StartsWith("__yield_lower_resume", incTemp1.Name.Name);
+        Assert.StartsWith("__yield_lower_resume", incTemp2.Name.Name);
+        Assert.NotEqual(incTemp1.Name, incTemp2.Name);
+
+        var loweredWhile = Assert.IsType<WhileStatement>(statements[3]);
+        var loopBlock = Assert.IsType<BlockStatement>(loweredWhile.Body);
+
+        // condition break
+        var breakCheck = Assert.IsType<IfStatement>(loopBlock.Statements[0]);
+        Assert.IsType<UnaryExpression>(breakCheck.Condition);
+
+        // body
+        Assert.IsType<BlockStatement>(loopBlock.Statements[1]);
+
+        // increment yields and final increment expression
+        var incAssign1 = Assert.IsType<ExpressionStatement>(loopBlock.Statements[2]);
+        var incAssignExpr1 = Assert.IsType<AssignmentExpression>(incAssign1.Expression);
+        Assert.Equal(incTemp1.Name, incAssignExpr1.Target);
+        Assert.IsType<YieldExpression>(incAssignExpr1.Value);
+
+        var incAssign2 = Assert.IsType<ExpressionStatement>(loopBlock.Statements[3]);
+        var incAssignExpr2 = Assert.IsType<AssignmentExpression>(incAssign2.Expression);
+        Assert.Equal(incTemp2.Name, incAssignExpr2.Target);
+        Assert.IsType<YieldExpression>(incAssignExpr2.Value);
+
+        var finalInc = Assert.IsType<ExpressionStatement>(loopBlock.Statements[4]);
+        var finalIncExpr = Assert.IsType<BinaryExpression>(finalInc.Expression);
+        Assert.IsType<IdentifierExpression>(finalIncExpr.Left);
+        Assert.IsType<IdentifierExpression>(finalIncExpr.Right);
+    }
+
+    [Fact]
+    public void Lowerer_RewritesMultiYieldInitializerIntoSeparateTempBindings()
+    {
+        var targetSymbol = Symbol.Intern("value");
+        var initializer = new BinaryExpression(
+            null,
+            "+",
+            new YieldExpression(null, new LiteralExpression(null, "a"), false),
+            new YieldExpression(null, new LiteralExpression(null, "b"), false));
+
+        var declaration = new VariableDeclaration(
+            null,
+            VariableKind.Const,
+            [new VariableDeclarator(null, new IdentifierBinding(null, targetSymbol), initializer)]);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("gen"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, ImmutableArray.Create<StatementNode>(declaration), false),
+            false,
+            true);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        Assert.Equal(3, statements.Length);
+
+        var firstDecl = Assert.IsType<VariableDeclaration>(statements[0]);
+        var firstTemp = Assert.IsType<IdentifierBinding>(Assert.Single(firstDecl.Declarators).Target);
+
+        var secondDecl = Assert.IsType<VariableDeclaration>(statements[1]);
+        var secondTemp = Assert.IsType<IdentifierBinding>(Assert.Single(secondDecl.Declarators).Target);
+
+        Assert.NotEqual(firstTemp.Name, secondTemp.Name);
+
+        var finalDecl = Assert.IsType<VariableDeclaration>(statements[2]);
+        var finalInit = Assert.IsType<BinaryExpression>(Assert.Single(finalDecl.Declarators).Initializer);
+        var leftId = Assert.IsType<IdentifierExpression>(finalInit.Left);
+        var rightId = Assert.IsType<IdentifierExpression>(finalInit.Right);
+        Assert.Equal(firstTemp.Name, leftId.Name);
+        Assert.Equal(secondTemp.Name, rightId.Name);
     }
 }

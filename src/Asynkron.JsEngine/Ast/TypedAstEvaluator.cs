@@ -336,6 +336,7 @@ public static class TypedAstEvaluator
         // non-object values as errors as well so engine bugs surface
         // as JavaScript throws rather than host exceptions.
         if (statement.Kind == ForEachKind.In &&
+            iterable is not IJsObjectLike &&
             iterable is not JsObject &&
             iterable is not JsArray &&
             iterable is not string &&
@@ -725,34 +726,37 @@ public static class TypedAstEvaluator
 
     private static IEnumerable<object?> EnumeratePropertyKeys(object? value)
     {
-        if (value is JsObject jsObject)
+        switch (value)
         {
-            foreach (var key in jsObject.GetOwnPropertyNames())
+            case JsArray array:
             {
-                yield return key;
+                for (var i = 0; i < array.Items.Count; i++)
+                {
+                    yield return i.ToString(CultureInfo.InvariantCulture);
+                }
+
+                yield break;
             }
 
-            yield break;
-        }
-
-        if (value is JsArray array)
-        {
-            for (var i = 0; i < array.Items.Count; i++)
+            case string s:
             {
-                yield return i.ToString(CultureInfo.InvariantCulture);
+                for (var i = 0; i < s.Length; i++)
+                {
+                    yield return i.ToString(CultureInfo.InvariantCulture);
+                }
+
+                yield break;
             }
 
-            yield break;
-        }
-
-        if (value is string s)
-        {
-            for (var i = 0; i < s.Length; i++)
+            case IJsObjectLike accessor:
             {
-                yield return i.ToString(CultureInfo.InvariantCulture);
-            }
+                foreach (var key in accessor.GetOwnPropertyNames())
+                {
+                    yield return key;
+                }
 
-            yield break;
+                yield break;
+            }
         }
 
         throw new InvalidOperationException("Cannot iterate properties of non-object value.");

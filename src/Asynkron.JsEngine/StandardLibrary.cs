@@ -3674,6 +3674,8 @@ public static class StandardLibrary
                         }
 
                         return false;
+                    case IJsObjectLike accessor:
+                        return accessor.GetOwnPropertyDescriptor(propertyName) is not null;
                     default:
                         return false;
                 }

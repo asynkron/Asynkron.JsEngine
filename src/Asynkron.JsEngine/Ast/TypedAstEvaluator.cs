@@ -1671,7 +1671,7 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
-        AssignPropertyValue(target, property, value);
+        AssignPropertyValue(target, property, value, context);
         return value;
     }
 
@@ -1702,7 +1702,7 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
-        AssignPropertyValue(target, index, value);
+        AssignPropertyValue(target, index, value, context);
         return value;
     }
 
@@ -1772,15 +1772,24 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
-        if (TryGetPropertyValue(target, propertyValue, out var arrayValue))
+        if (TryGetPropertyValue(target, propertyValue, out var arrayValue, context))
         {
-            return arrayValue;
+            return context.ShouldStopEvaluation ? JsSymbols.Undefined : arrayValue;
         }
 
-        var propertyName = JsOps.GetRequiredPropertyName(propertyValue);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
 
-        return TryGetPropertyValue(target, propertyName, out var value)
-            ? value
+        var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        return TryGetPropertyValue(target, propertyName, out var value, context)
+            ? context.ShouldStopEvaluation ? JsSymbols.Undefined : value
             : JsSymbols.Undefined;
     }
 
@@ -1908,7 +1917,7 @@ public static class TypedAstEvaluator
             "<<" => LeftShift(left, right),
             ">>" => RightShift(left, right),
             ">>>" => UnsignedRightShift(left, right),
-            "in" => InOperator(left, right),
+            "in" => InOperator(left, right, context),
             "instanceof" => InstanceofOperator(left, right),
             _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
         };
@@ -2167,10 +2176,22 @@ public static class TypedAstEvaluator
                 return (JsSymbols.Undefined, null, true);
             }
 
-            var propertyName = JsOps.GetRequiredPropertyName(property);
-            if (!TryGetPropertyValue(target, propertyName, out var value))
+            var propertyName = JsOps.GetRequiredPropertyName(property, context);
+            if (context.ShouldStopEvaluation)
             {
-                return (JsSymbols.Undefined, target, false);
+                return (JsSymbols.Undefined, null, true);
+            }
+
+            if (!TryGetPropertyValue(target, propertyName, out var value, context))
+            {
+                return context.ShouldStopEvaluation
+                    ? (JsSymbols.Undefined, null, true)
+                    : (JsSymbols.Undefined, target, false);
+            }
+
+            if (context.ShouldStopEvaluation)
+            {
+                return (JsSymbols.Undefined, null, true);
             }
 
             return (value, target, false);
@@ -2228,7 +2249,7 @@ public static class TypedAstEvaluator
                 return false;
             }
 
-            return DeletePropertyValue(target, propertyValue);
+            return DeletePropertyValue(target, propertyValue, context);
         }
 
         // Deleting identifiers is a no-op in strict mode; return false to indicate failure.
@@ -2491,7 +2512,8 @@ public static class TypedAstEvaluator
             return string.Empty;
         }
 
-        return JsOps.GetRequiredPropertyName(keyValue);
+        var propertyName = JsOps.GetRequiredPropertyName(keyValue, context);
+        return context.ShouldStopEvaluation ? string.Empty : propertyName;
     }
 
     private static object? EvaluateTemplateLiteral(TemplateLiteralExpression expression, JsEnvironment environment,
@@ -2850,14 +2872,14 @@ public static class TypedAstEvaluator
         };
     }
 
-    private static string? ToPropertyName(object? value)
+    private static string? ToPropertyName(object? value, EvaluationContext? context = null)
     {
-        return JsOps.ToPropertyName(value);
+        return JsOps.ToPropertyName(value, context);
     }
 
-    private static bool TryResolveArrayIndex(object? candidate, out int index)
+    private static bool TryResolveArrayIndex(object? candidate, out int index, EvaluationContext? context = null)
     {
-        return JsOps.TryResolveArrayIndex(candidate, out index);
+        return JsOps.TryResolveArrayIndex(candidate, out index, context);
     }
 
     private static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
@@ -2865,14 +2887,16 @@ public static class TypedAstEvaluator
         return JsOps.TryGetPropertyValue(target, propertyName, out value);
     }
 
-    private static bool TryGetPropertyValue(object? target, object? propertyKey, out object? value)
+    private static bool TryGetPropertyValue(object? target, object? propertyKey, out object? value,
+        EvaluationContext? context = null)
     {
-        return JsOps.TryGetPropertyValue(target, propertyKey, out value);
+        return JsOps.TryGetPropertyValue(target, propertyKey, out value, context);
     }
 
-    private static void AssignPropertyValue(object? target, object? propertyKey, object? value)
+    private static void AssignPropertyValue(object? target, object? propertyKey, object? value,
+        EvaluationContext? context = null)
     {
-        JsOps.AssignPropertyValue(target, propertyKey, value);
+        JsOps.AssignPropertyValue(target, propertyKey, value, context);
     }
 
     private static void AssignPropertyValueByName(object? target, string propertyName, object? value)
@@ -2880,9 +2904,9 @@ public static class TypedAstEvaluator
         JsOps.AssignPropertyValueByName(target, propertyName, value);
     }
 
-    private static bool DeletePropertyValue(object? target, object? propertyKey)
+    private static bool DeletePropertyValue(object? target, object? propertyKey, EvaluationContext? context = null)
     {
-        return JsOps.DeletePropertyValue(target, propertyKey);
+        return JsOps.DeletePropertyValue(target, propertyKey, context);
     }
 
     private static void HoistVarDeclarations(BlockStatement block, JsEnvironment environment)
@@ -3022,10 +3046,15 @@ public static class TypedAstEvaluator
         }
     }
 
-    private static bool InOperator(object? property, object? target)
+    private static bool InOperator(object? property, object? target, EvaluationContext context)
     {
-        var propertyName = JsOps.GetRequiredPropertyName(property);
-        return TryGetPropertyValue(target, propertyName, out _);
+        var propertyName = JsOps.GetRequiredPropertyName(property, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return false;
+        }
+
+        return TryGetPropertyValue(target, propertyName, out _, context);
     }
 
     private static bool InstanceofOperator(object? left, object? right)
@@ -3214,9 +3243,14 @@ public static class TypedAstEvaluator
             return (JsSymbols.Undefined, binding);
         }
 
-        var propertyName = ToPropertyName(propertyValue)
+        var propertyName = ToPropertyName(propertyValue, context)
                            ?? throw new InvalidOperationException(
                                $"Property name cannot be null.{GetSourceInfo(context, expression.Source)}");
+
+        if (context.ShouldStopEvaluation)
+        {
+            return (JsSymbols.Undefined, binding);
+        }
 
         if (!binding.TryGetProperty(propertyName, out var value))
         {

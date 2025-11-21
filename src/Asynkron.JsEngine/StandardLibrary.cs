@@ -19,6 +19,9 @@ public static class StandardLibrary
     internal static JsObject? StringPrototype;
     internal static JsObject? ObjectPrototype;
     internal static JsObject? FunctionPrototype;
+    internal static JsObject? ErrorPrototype;
+    internal static JsObject? TypeErrorPrototype;
+    internal static HostFunction? TypeErrorConstructor;
 
     /// <summary>
     /// Converts a JavaScript value to its string representation, handling functions appropriately.
@@ -561,6 +564,46 @@ public static class StandardLibrary
         {
             functionPrototype.SetPrototype(ObjectPrototype);
         }
+        var hasInstanceKey = $"@@symbol:{TypedAstSymbol.For("Symbol.hasInstance").GetHashCode()}";
+        functionPrototype.SetProperty(hasInstanceKey, new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not IJsCallable)
+            {
+                throw new InvalidOperationException("Function.prototype[@@hasInstance] called on non-callable value.");
+            }
+
+            var candidate = args.Count > 0 ? args[0] : Symbols.Undefined;
+            if (candidate is not JsObject obj)
+            {
+                return false;
+            }
+
+            JsObject? targetPrototype = null;
+            if (thisValue is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("prototype", out var protoVal) &&
+                protoVal is JsObject protoObj)
+            {
+                targetPrototype = protoObj;
+            }
+
+            if (targetPrototype is null)
+            {
+                return false;
+            }
+
+            var cursor = obj;
+            while (cursor is not null)
+            {
+                if (ReferenceEquals(cursor, targetPrototype))
+                {
+                    return true;
+                }
+
+                cursor = cursor.Prototype;
+            }
+
+            return false;
+        }));
         FunctionPrototype = functionPrototype;
         functionConstructor.SetProperty("prototype", functionPrototype);
         functionConstructor.Properties.SetPrototype(functionPrototype);
@@ -2359,10 +2402,21 @@ public static class StandardLibrary
     public static HostFunction CreateBooleanConstructor()
     {
         // Boolean(value) -> boolean primitive using ToBoolean semantics.
-        var booleanConstructor = new HostFunction(args =>
+        var booleanConstructor = new HostFunction((thisValue, args) =>
         {
             var value = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return JsOps.ToBoolean(value);
+            var coerced = JsOps.ToBoolean(value);
+
+            // When called with `new`, thisValue is the newly-created object;
+            // store the primitive value so property lookups (e.g. ToPropertyName)
+            // can recover it.
+            if (thisValue is JsObject obj)
+            {
+                obj.SetProperty("__value__", coerced);
+                return obj;
+            }
+
+            return coerced;
         });
 
         // Expose Boolean.prototype so user code can attach methods (e.g.
@@ -3636,6 +3690,31 @@ public static class StandardLibrary
         {
             ObjectPrototype = objectProtoObj;
 
+            if (FunctionPrototype is not null)
+            {
+                FunctionPrototype.SetPrototype(objectProtoObj);
+            }
+
+            if (BooleanPrototype is not null)
+            {
+                BooleanPrototype.SetPrototype(objectProtoObj);
+            }
+
+            if (NumberPrototype is not null)
+            {
+                NumberPrototype.SetPrototype(objectProtoObj);
+            }
+
+            if (StringPrototype is not null)
+            {
+                StringPrototype.SetPrototype(objectProtoObj);
+            }
+
+            if (ErrorPrototype is not null && ErrorPrototype.Prototype is null)
+            {
+                ErrorPrototype.SetPrototype(objectProtoObj);
+            }
+
             // Object.prototype.toString
             var objectToString = new HostFunction((thisValue, args) =>
             {
@@ -4804,51 +4883,29 @@ public static class StandardLibrary
     public static HostFunction CreateNumberConstructor()
     {
         // Number constructor
-        var numberConstructor = new HostFunction(args =>
+        var numberConstructor = new HostFunction((thisValue, args) =>
         {
             if (args.Count == 0)
             {
+                if (thisValue is JsObject objZero)
+                {
+                    objZero.SetProperty("__value__", 0d);
+                    return objZero;
+                }
+
                 return 0d;
             }
 
             var value = args[0];
-            // Convert to number
-            if (value is double d)
+            var result = JsOps.ToNumber(value);
+
+            if (thisValue is JsObject obj)
             {
-                return d;
+                obj.SetProperty("__value__", result);
+                return obj;
             }
 
-            if (value is string s)
-            {
-                if (string.IsNullOrWhiteSpace(s))
-                {
-                    return 0d;
-                }
-
-                if (double.TryParse(s, System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out var parsed))
-                {
-                    return parsed;
-                }
-
-                return double.NaN;
-            }
-
-            if (value is bool b)
-            {
-                return b ? 1d : 0d;
-            }
-
-            if (value == null)
-            {
-                return 0d;
-            }
-
-            if (ReferenceEquals(value, Symbols.Undefined))
-            {
-            }
-
-            return double.NaN;
+            return result;
         });
 
         // Remember Number.prototype so that number wrapper objects can see
@@ -5101,41 +5158,32 @@ public static class StandardLibrary
     public static HostFunction CreateStringConstructor()
     {
         // String constructor
-        var stringConstructor = new HostFunction(args =>
+        var stringConstructor = new HostFunction((thisValue, args) =>
         {
-            if (args.Count == 0)
+            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var str = value switch
             {
-                return "";
+                string s => s,
+                double d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                bool b => b ? "true" : "false",
+                null => "null",
+                Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => "undefined",
+                _ => value?.ToString() ?? string.Empty
+            };
+
+            if (thisValue is JsObject obj)
+            {
+                obj.SetProperty("__value__", str);
+                obj.SetProperty("length", (double)str.Length);
+                if (StringPrototype is not null)
+                {
+                    obj.SetPrototype(StringPrototype);
+                }
+
+                return obj;
             }
 
-            var value = args[0];
-            // Convert to string
-            if (value is string s)
-            {
-                return s;
-            }
-
-            if (value is double d)
-            {
-                return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
-
-            if (value is bool b)
-            {
-                return b ? "true" : "false";
-            }
-
-            if (value == null)
-            {
-                return "null";
-            }
-
-            if (ReferenceEquals(value, Symbols.Undefined))
-            {
-                return "undefined";
-            }
-
-            return value.ToString() ?? "";
+            return str;
         });
 
         // Remember String.prototype so that string wrapper objects can see
@@ -5346,27 +5394,58 @@ public static class StandardLibrary
     /// </summary>
     public static HostFunction CreateErrorConstructor(string errorType = "Error")
     {
+        JsObject? prototype = null;
+
         var errorConstructor = new HostFunction((thisValue, args) =>
         {
-            var errorObj = new JsObject();
             var message = args.Count > 0 && args[0] != null ? args[0]!.ToString() : "";
+            var errorObj = thisValue as JsObject ?? new JsObject();
+
+            if (prototype is not null && errorObj.Prototype is null)
+            {
+                errorObj.SetPrototype(prototype);
+            }
 
             errorObj["name"] = errorType;
             errorObj["message"] = message;
-            errorObj["toString"] = new HostFunction((errThis, toStringArgs) =>
-            {
-                if (errThis is JsObject err)
-                {
-                    var name = err.TryGetValue("name", out var n) ? n?.ToString() : errorType;
-                    var msg = err.TryGetValue("message", out var m) ? m?.ToString() : "";
-                    return string.IsNullOrEmpty(msg) ? name : $"{name}: {msg}";
-                }
-
-                return errorType;
-            });
 
             return errorObj;
         });
+
+        prototype = new JsObject();
+        if (!string.Equals(errorType, "Error", StringComparison.Ordinal) && ErrorPrototype is not null)
+        {
+            prototype.SetPrototype(ErrorPrototype);
+        }
+        else if (ObjectPrototype is not null)
+        {
+            prototype.SetPrototype(ObjectPrototype);
+        }
+
+        prototype.SetProperty("toString", new HostFunction((errThis, toStringArgs) =>
+        {
+            if (errThis is JsObject err)
+            {
+                var name = err.TryGetValue("name", out var n) ? n?.ToString() : errorType;
+                var msg = err.TryGetValue("message", out var m) ? m?.ToString() : "";
+                return string.IsNullOrEmpty(msg) ? name : $"{name}: {msg}";
+            }
+
+            return errorType;
+        }));
+
+        errorConstructor.SetProperty("prototype", prototype);
+
+        if (string.Equals(errorType, "Error", StringComparison.Ordinal))
+        {
+            ErrorPrototype = prototype;
+        }
+
+        if (string.Equals(errorType, "TypeError", StringComparison.Ordinal))
+        {
+            TypeErrorPrototype = prototype;
+            TypeErrorConstructor = errorConstructor;
+        }
 
         return errorConstructor;
     }

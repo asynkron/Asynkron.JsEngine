@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -24,12 +25,20 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike
 
         _handler = (_, args) => handler(args);
         _properties.SetProperty("prototype", new JsObject());
+        if (StandardLibrary.FunctionPrototype is not null)
+        {
+            _properties.SetPrototype(StandardLibrary.FunctionPrototype);
+        }
     }
 
     public HostFunction(Func<object?, IReadOnlyList<object?>, object?> handler)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
         _properties.SetProperty("prototype", new JsObject());
+        if (StandardLibrary.FunctionPrototype is not null)
+        {
+            _properties.SetPrototype(StandardLibrary.FunctionPrototype);
+        }
     }
 
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)

@@ -279,29 +279,192 @@ internal static class JsOps
         }
     }
 
-    public static string? ToPropertyName(object? value)
+    public static string? ToPropertyName(object? value, EvaluationContext? context = null)
     {
-        return value switch
+        switch (value)
         {
-            null => "null",
-            string s => s,
-            Symbol symbol => symbol.Name,
-            TypedAstSymbol jsSymbol => $"@@symbol:{jsSymbol.GetHashCode()}",
-            bool b => b ? "true" : "false",
-            int i => i.ToString(CultureInfo.InvariantCulture),
-            long l => l.ToString(CultureInfo.InvariantCulture),
-            double d when !double.IsNaN(d) && !double.IsInfinity(d) => d.ToString(CultureInfo.InvariantCulture),
-            _ => Convert.ToString(value, CultureInfo.InvariantCulture)
-        };
+            case null:
+                return "null";
+            case string s:
+                return s;
+            case Symbol symbol:
+                return symbol.Name;
+            case TypedAstSymbol jsSymbol:
+                return $"@@symbol:{jsSymbol.GetHashCode()}";
+            case bool b:
+                return b ? "true" : "false";
+            case JsObject jsObj when jsObj.TryGetValue("__value__", out var inner):
+                return ToPropertyName(inner, context);
+            case int i:
+                return i.ToString(CultureInfo.InvariantCulture);
+            case long l:
+                return l.ToString(CultureInfo.InvariantCulture);
+            case double d when !double.IsNaN(d) && !double.IsInfinity(d):
+                return d.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (value is IJsPropertyAccessor accessor &&
+            TryConvertObjectToPropertyKey(accessor, out var primitive, context))
+        {
+            return ToPropertyName(primitive, context);
+        }
+
+        if (context is not null && context.IsThrow)
+        {
+            return null;
+        }
+
+        return Convert.ToString(value, CultureInfo.InvariantCulture);
     }
 
-    public static string GetRequiredPropertyName(object? value)
+    private static bool TryConvertObjectToPropertyKey(IJsPropertyAccessor accessor, out object? key,
+        EvaluationContext? context)
     {
-        return ToPropertyName(value)
-               ?? throw new InvalidOperationException("Property name cannot be null.");
+        key = null;
+
+        var attempted = false;
+
+        if (TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context))
+        {
+            attempted = true;
+            if (IsPropertyKeyPrimitive(toStringResult))
+            {
+                key = toStringResult;
+                return true;
+            }
+        }
+
+        if (context is not null && context.IsThrow)
+        {
+            key = null;
+            return false;
+        }
+
+        if (TryInvokePropertyMethod(accessor, "valueOf", out var valueOfResult, context))
+        {
+            attempted = true;
+            if (IsPropertyKeyPrimitive(valueOfResult))
+            {
+                key = valueOfResult;
+                return true;
+            }
+        }
+
+        if (context is not null && context.IsThrow)
+        {
+            key = null;
+            return false;
+        }
+
+        if (attempted)
+        {
+            key = null;
+
+            var error = CreateTypeError("Cannot convert object to property key");
+            if (context is not null)
+            {
+                context.SetThrow(error);
+                return false;
+            }
+
+            throw new ThrowSignal(error);
+        }
+
+        return false;
     }
 
-    public static bool TryResolveArrayIndex(object? candidate, out int index)
+    private static bool IsPropertyKeyPrimitive(object? candidate)
+    {
+        if (candidate is JsObject jsObj && jsObj.TryGetValue("__value__", out var inner))
+        {
+            candidate = inner;
+        }
+
+        return candidate is null or string or bool or double or float or decimal or int or uint
+            or long or ulong or short or ushort or byte or sbyte or Symbol or TypedAstSymbol
+            or JsBigInt;
+    }
+
+    private static bool TryInvokePropertyMethod(IJsPropertyAccessor accessor, string methodName, out object? result,
+        EvaluationContext? context)
+    {
+        result = null;
+        if (!accessor.TryGetProperty(methodName, out var method) || method is not IJsCallable callable)
+        {
+            return false;
+        }
+
+        try
+        {
+            result = callable.Invoke(Array.Empty<object?>(), accessor);
+            return true;
+        }
+        catch (ThrowSignal signal)
+        {
+            if (context is not null)
+            {
+                context.SetThrow(signal.ThrownValue);
+                return true;
+            }
+
+            throw;
+        }
+    }
+
+    private static object CreateTypeError(string message)
+    {
+        if (StandardLibrary.TypeErrorConstructor is not null)
+        {
+            JsObject? prototype = null;
+            if (StandardLibrary.TypeErrorConstructor.TryGetProperty("prototype", out var protoVal) &&
+                protoVal is JsObject protoObj)
+            {
+                prototype = protoObj;
+            }
+
+            var created = StandardLibrary.TypeErrorConstructor.Invoke([message], new JsObject());
+            if (created is JsObject jsObj)
+            {
+                if (prototype is not null && jsObj.Prototype is null)
+                {
+                    jsObj.SetPrototype(prototype);
+                }
+
+                return jsObj;
+            }
+        }
+
+        var fallback = new JsObject();
+        if (StandardLibrary.TypeErrorPrototype is not null)
+        {
+            fallback.SetPrototype(StandardLibrary.TypeErrorPrototype);
+        }
+        else if (StandardLibrary.ErrorPrototype is not null)
+        {
+            fallback.SetPrototype(StandardLibrary.ErrorPrototype);
+        }
+        else if (StandardLibrary.ObjectPrototype is not null)
+        {
+            fallback.SetPrototype(StandardLibrary.ObjectPrototype);
+        }
+
+        fallback.SetProperty("name", "TypeError");
+        fallback.SetProperty("message", message);
+        return fallback;
+    }
+
+    public static string GetRequiredPropertyName(object? value, EvaluationContext? context = null)
+    {
+        var name = ToPropertyName(value, context);
+        if (context is not null && context.IsThrow)
+        {
+            return string.Empty;
+        }
+
+        return name ?? throw new InvalidOperationException("Property name cannot be null.");
+    }
+
+    public static bool TryResolveArrayIndex(object? candidate, out int index, EvaluationContext? context = null)
     {
         switch (candidate)
         {
@@ -333,6 +496,17 @@ internal static class JsOps
             case string s when int.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0:
                 index = parsed;
                 return true;
+        }
+
+        if (candidate is JsObject jsObj && jsObj.TryGetValue("__value__", out var innerValue))
+        {
+            return TryResolveArrayIndex(innerValue, out index, context);
+        }
+
+        var coerced = ToPropertyName(candidate, context);
+        if (coerced is not null && !ReferenceEquals(coerced, candidate))
+        {
+            return TryResolveArrayIndex(coerced, out index, context);
         }
 
         index = 0;
@@ -428,18 +602,36 @@ internal static class JsOps
         return false;
     }
 
-    public static bool TryGetPropertyValue(object? target, object? propertyKey, out object? value)
+    public static bool TryGetPropertyValue(object? target, object? propertyKey, out object? value,
+        EvaluationContext? context = null)
     {
+        if (context is not null && context.IsThrow)
+        {
+            value = Symbols.Undefined;
+            return false;
+        }
+
         // Special-case TypedAstSymbol keys used for @@iterator / @@asyncIterator
         // so that non-callable values are treated as missing, allowing helpers
         // like Babel's _createForOfIteratorHelperLoose to fall back to their
         // Array/@@iterator code paths instead of attempting to call a symbol.
-        if (TryGetArrayLikeValue(target, propertyKey, out value))
+        if (TryGetArrayLikeValue(target, propertyKey, out value, context))
         {
             return true;
         }
 
-        var propertyName = ToPropertyName(propertyKey);
+        if (context is not null && context.IsThrow)
+        {
+            value = Symbols.Undefined;
+            return false;
+        }
+
+        var propertyName = ToPropertyName(propertyKey, context);
+        if (context is not null && context.IsThrow)
+        {
+            value = Symbols.Undefined;
+            return false;
+        }
         if (propertyName is null)
         {
             value = Symbols.Undefined;
@@ -449,15 +641,16 @@ internal static class JsOps
         return TryGetPropertyValue(target, propertyName, out value);
     }
 
-    private static bool TryGetArrayLikeValue(object? target, object? propertyKey, out object? value)
+    private static bool TryGetArrayLikeValue(object? target, object? propertyKey, out object? value,
+        EvaluationContext? context)
     {
-        if (target is JsArray jsArray && TryResolveArrayIndex(propertyKey, out var arrayIndex))
+        if (target is JsArray jsArray && TryResolveArrayIndex(propertyKey, out var arrayIndex, context))
         {
             value = jsArray.GetElement(arrayIndex);
             return true;
         }
 
-        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex))
+        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
         {
             value = typedIndex >= 0 && typedIndex < typedArray.Length
                 ? typedArray.GetElement(typedIndex)
@@ -469,14 +662,15 @@ internal static class JsOps
         return false;
     }
 
-    public static void AssignPropertyValue(object? target, object? propertyKey, object? value)
+    public static void AssignPropertyValue(object? target, object? propertyKey, object? value,
+        EvaluationContext? context = null)
     {
-        if (TryAssignArrayLikeValue(target, propertyKey, value))
+        if (TryAssignArrayLikeValue(target, propertyKey, value, context))
         {
             return;
         }
 
-        var propertyName = GetRequiredPropertyName(propertyKey);
+        var propertyName = GetRequiredPropertyName(propertyKey, context);
 
         AssignPropertyValueByName(target, propertyName, value);
     }
@@ -492,15 +686,16 @@ internal static class JsOps
         throw new InvalidOperationException($"Cannot assign property '{propertyName}' on value '{target}'.");
     }
 
-    private static bool TryAssignArrayLikeValue(object? target, object? propertyKey, object? value)
+    private static bool TryAssignArrayLikeValue(object? target, object? propertyKey, object? value,
+        EvaluationContext? context)
     {
-        if (target is JsArray jsArray && TryResolveArrayIndex(propertyKey, out var index))
+        if (target is JsArray jsArray && TryResolveArrayIndex(propertyKey, out var index, context))
         {
             jsArray.SetElement(index, value);
             return true;
         }
 
-        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex))
+        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
         {
             if (typedIndex < 0 || typedIndex >= typedArray.Length)
             {
@@ -525,31 +720,31 @@ internal static class JsOps
         return false;
     }
 
-    public static bool DeletePropertyValue(object? target, object? propertyKey)
+    public static bool DeletePropertyValue(object? target, object? propertyKey, EvaluationContext? context = null)
     {
         if (target is JsArray jsArray)
         {
-            if (TryResolveArrayIndex(propertyKey, out var arrayIndex))
+            if (TryResolveArrayIndex(propertyKey, out var arrayIndex, context))
             {
                 return jsArray.DeleteElement(arrayIndex);
             }
 
-            var propertyName = ToPropertyName(propertyKey);
+            var propertyName = ToPropertyName(propertyKey, context);
             return propertyName is null || jsArray.DeleteProperty(propertyName);
         }
 
         if (target is TypedArrayBase typedArray)
         {
-            if (TryResolveArrayIndex(propertyKey, out _))
+            if (TryResolveArrayIndex(propertyKey, out _, context))
             {
                 return false;
             }
 
-            var propertyName = ToPropertyName(propertyKey);
+            var propertyName = ToPropertyName(propertyKey, context);
             return propertyName is null || typedArray.DeleteProperty(propertyName);
         }
 
-        var resolvedName = ToPropertyName(propertyKey);
+        var resolvedName = ToPropertyName(propertyKey, context);
         if (resolvedName is null)
         {
             return true;

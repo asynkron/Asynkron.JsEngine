@@ -43,14 +43,14 @@ internal static class AssignmentReferenceResolver
             return new AssignmentReference(() => JsSymbols.Undefined, _ => { });
         }
 
-        if (target is JsArray jsArray && JsOps.TryResolveArrayIndex(propertyValue, out var arrayIndex))
+        if (target is JsArray jsArray && JsOps.TryResolveArrayIndex(propertyValue, out var arrayIndex, context))
         {
             return new AssignmentReference(
                 () => jsArray.GetElement(arrayIndex),
                 newValue => jsArray.SetElement(arrayIndex, newValue));
         }
 
-        if (target is TypedArrayBase typedArray && JsOps.TryResolveArrayIndex(propertyValue, out var typedIndex))
+        if (target is TypedArrayBase typedArray && JsOps.TryResolveArrayIndex(propertyValue, out var typedIndex, context))
         {
             return new AssignmentReference(
                 () => typedIndex >= 0 && typedIndex < typedArray.Length
@@ -65,7 +65,7 @@ internal static class AssignmentReferenceResolver
                 });
         }
 
-        var propertyName = JsOps.GetRequiredPropertyName(propertyValue);
+        var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
 
         return new AssignmentReference(
             () => JsOps.TryGetPropertyValue(target, propertyName, out var value) ? value : JsSymbols.Undefined,

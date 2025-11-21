@@ -438,9 +438,17 @@ namespace Asynkron.JsEngine;
 
         // Also mirror globals onto the global object so that code using
         // `this.foo` or `global.foo` can see host-provided bindings.
-        if (value is HostFunction hostFunction && hostFunction.Realm is null)
+        if (value is HostFunction hostFunction)
         {
-            hostFunction.Realm = _globalObject;
+            if (hostFunction.Realm is null)
+            {
+                hostFunction.Realm = _globalObject;
+            }
+
+            if (StandardLibrary.FunctionPrototype is not null && hostFunction.Properties.Prototype is null)
+            {
+                hostFunction.Properties.SetPrototype(StandardLibrary.FunctionPrototype);
+            }
         }
         _globalObject.SetProperty(name, value);
     }

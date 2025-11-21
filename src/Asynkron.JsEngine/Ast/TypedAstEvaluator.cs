@@ -1257,7 +1257,21 @@ public static class TypedAstEvaluator
     private static object? EvaluateAwait(AwaitExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
-        throw new InvalidOperationException("AwaitExpression should have been lowered by the CPS transformer.");
+        var awaited = EvaluateExpression(expression.Expression, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return awaited;
+        }
+
+        if (!TryAwaitPromise(awaited, context, out var resolved))
+        {
+            // TryAwaitPromise signals errors via the evaluation context; the
+            // resolved value is undefined in that case and the caller will
+            // observe the pending throw/return.
+            return resolved;
+        }
+
+        return resolved;
     }
 
     private static object? EvaluateYield(YieldExpression expression, JsEnvironment environment,

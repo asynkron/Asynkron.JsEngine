@@ -34,8 +34,14 @@ Then continue working on the project as per the instructions given in that file.
 Whenever some task is completed, remove it from the continue.md file and update the file with the new next steps.
 So we get a form of rolling window of next steps to be done.
 
-## Avoid longwinded answers
+## Avoid long-winded answers
 
 When answering, try to be concise and to the point. Avoid longwinded explanations and unnecessary details.
 
 Focus on producing code, not driving conversations.
+
+## Thread blocking
+
+You may never ever ever use thread blocking calls like Task.Wait(), Task.Result, or Thread.Sleep().
+If you ever think that is the way to go, then there is a larger design issue that needs to be resolved.
+

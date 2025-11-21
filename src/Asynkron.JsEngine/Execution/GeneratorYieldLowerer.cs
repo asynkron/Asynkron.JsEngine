@@ -62,6 +62,27 @@ internal static class GeneratorYieldLowerer
                     continue;
                 }
 
+                if (TryRewriteReturnWithYield(statement, out var returnRewrite))
+                {
+                    builder.AddRange(returnRewrite);
+                    changed = true;
+                    continue;
+                }
+
+                if (TryRewriteYieldingAssignment(statement, out var rewrittenAssignment))
+                {
+                    builder.AddRange(rewrittenAssignment);
+                    changed = true;
+                    continue;
+                }
+
+                if (TryRewriteYieldingDeclaration(statement, out var declarationRewrite))
+                {
+                    builder.AddRange(declarationRewrite);
+                    changed = true;
+                    continue;
+                }
+
                 if (TryRewriteVariableDeclaration(statement, isStrict, out var replacement))
                 {
                     builder.AddRange(replacement);
@@ -73,6 +94,68 @@ internal static class GeneratorYieldLowerer
             }
 
             return changed ? builder.ToImmutable() : statements;
+        }
+
+        private bool TryRewriteReturnWithYield(StatementNode statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            if (statement is not ReturnStatement { Expression: YieldExpression yieldExpression })
+            {
+                replacement = default;
+                return false;
+            }
+
+            if (ContainsYield(yieldExpression.Expression))
+            {
+                replacement = default;
+                return false;
+            }
+
+            var resumeIdentifier = CreateResumeIdentifier();
+            var declareResume = new VariableDeclaration(statement.Source, VariableKind.Let,
+                [new VariableDeclarator(statement.Source, resumeIdentifier, null)]);
+            var assignResume = new ExpressionStatement(yieldExpression.Source,
+                new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
+                    new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated)));
+            var loweredReturn = new ReturnStatement(statement.Source,
+                new IdentifierExpression(yieldExpression.Source, resumeIdentifier.Name));
+
+            replacement = ImmutableArray.Create<StatementNode>(declareResume, assignResume, loweredReturn);
+            return true;
+        }
+
+        private bool TryRewriteYieldingDeclaration(StatementNode statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            if (statement is not VariableDeclaration { Declarators.Length: 1 } declaration ||
+                declaration.Declarators[0] is not { } declarator ||
+                declarator.Initializer is not YieldExpression yieldExpression)
+            {
+                replacement = default;
+                return false;
+            }
+
+            if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+            {
+                replacement = default;
+                return false;
+            }
+
+            var resumeIdentifier = CreateResumeIdentifier();
+            var rewrittenDeclarator = declarator with
+            {
+                Initializer = new IdentifierExpression(yieldExpression.Source, resumeIdentifier.Name)
+            };
+            var rewrittenDeclaration = declaration with { Declarators = [rewrittenDeclarator] };
+
+            replacement = ImmutableArray.Create<StatementNode>(
+                new VariableDeclaration(declaration.Source, VariableKind.Let,
+                    [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]),
+                new ExpressionStatement(yieldExpression.Source,
+                    new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
+                        new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated))),
+                rewrittenDeclaration);
+            return true;
         }
 
         private bool TryRewriteVariableDeclaration(StatementNode statement, bool isStrict,
@@ -126,6 +209,42 @@ internal static class GeneratorYieldLowerer
             return true;
         }
 
+        private bool TryRewriteYieldingAssignment(StatementNode statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            if (statement is not ExpressionStatement { Expression: AssignmentExpression assignment } expressionStatement ||
+                assignment.Value is not YieldExpression yieldExpression)
+            {
+                replacement = default;
+                return false;
+            }
+
+            if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+            {
+                replacement = default;
+                return false;
+            }
+
+            var resumeIdentifier = CreateResumeIdentifier();
+            var rewrittenAssignment = assignment with
+            {
+                Value = new IdentifierExpression(yieldExpression.Source, resumeIdentifier.Name)
+            };
+
+            var rewrittenStatement = expressionStatement with { Expression = rewrittenAssignment };
+
+            replacement = ImmutableArray.Create<StatementNode>(
+                new VariableDeclaration(
+                    expressionStatement.Source,
+                    VariableKind.Let,
+                    [new VariableDeclarator(expressionStatement.Source, resumeIdentifier, null)]),
+                new ExpressionStatement(yieldExpression.Source,
+                    new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
+                        new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated))),
+                rewrittenStatement);
+            return true;
+        }
+
         private bool TryRewriteConditionalWithYield(StatementNode statement, bool isStrict,
             out ImmutableArray<StatementNode> replacement)
         {
@@ -159,10 +278,15 @@ internal static class GeneratorYieldLowerer
                         Else = rewrittenElse
                     };
 
+                    var declareResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
+                        [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]);
+                    var assignResume = new ExpressionStatement(yieldExpression.Source,
+                        new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
+                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated)));
+
                     replacement = ImmutableArray.Create<StatementNode>(
-                        new VariableDeclaration(ifStatement.Source, VariableKind.Let,
-                            [new VariableDeclarator(yieldExpression.Source, resumeIdentifier,
-                                new YieldExpression(yieldExpression.Source, yieldExpression.Expression, false))]),
+                        declareResume,
+                        assignResume,
                         loweredIf);
                     return true;
                 }
@@ -184,8 +308,11 @@ internal static class GeneratorYieldLowerer
                     var rewrittenBody = RewriteEmbedded(whileStatement.Body, isStrict);
 
                     var declareResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
-                        [new VariableDeclarator(yieldExpression.Source, resumeIdentifier,
-                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression, false))]);
+                        [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]);
+
+                    var assignResume = new ExpressionStatement(yieldExpression.Source,
+                        new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
+                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated)));
 
                     var breakCheck = new IfStatement(whileStatement.Source,
                         new UnaryExpression(whileStatement.Source, "!",
@@ -194,14 +321,14 @@ internal static class GeneratorYieldLowerer
                         null);
 
                     var loopBlock = new BlockStatement(whileStatement.Source,
-                        ImmutableArray.Create<StatementNode>(declareResume, breakCheck, rewrittenBody),
+                        ImmutableArray.Create<StatementNode>(assignResume, breakCheck, rewrittenBody),
                         isStrict);
 
                     var loweredWhile = new WhileStatement(whileStatement.Source,
                         new LiteralExpression(whileStatement.Source, true),
                         loopBlock);
 
-                    replacement = ImmutableArray.Create<StatementNode>(loweredWhile);
+                    replacement = ImmutableArray.Create<StatementNode>(declareResume, loweredWhile);
                     return true;
                 }
 
@@ -221,9 +348,11 @@ internal static class GeneratorYieldLowerer
                     var resumeIdentifier = CreateResumeIdentifier();
                     var rewrittenBody = RewriteEmbedded(doWhileStatement.Body, isStrict);
 
-                    var assignResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
-                        [new VariableDeclarator(yieldExpression.Source, resumeIdentifier,
-                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression, false))]);
+                    var declareResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
+                        [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]);
+                    var assignResume = new ExpressionStatement(yieldExpression.Source,
+                        new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
+                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated)));
 
                     var loopBodyStatements = ImmutableArray.Create<StatementNode>(
                         rewrittenBody,
@@ -235,7 +364,7 @@ internal static class GeneratorYieldLowerer
                         loweredBody,
                         SubstituteResumeIdentifier(rewrittenCondition, resumeIdentifier.Name));
 
-                    replacement = ImmutableArray.Create<StatementNode>(loweredDoWhile);
+                    replacement = ImmutableArray.Create<StatementNode>(declareResume, loweredDoWhile);
 
                     return true;
                 }

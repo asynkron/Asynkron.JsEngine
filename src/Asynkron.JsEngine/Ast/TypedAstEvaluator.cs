@@ -23,6 +23,7 @@ public static class TypedAstEvaluator
     private static readonly Symbol YieldTrackerSymbol = Symbol.Intern("__yieldTracker__");
     private static readonly Symbol YieldResumeContextSymbol = Symbol.Intern("__yieldResume__");
     private static readonly Symbol GeneratorPendingCompletionSymbol = Symbol.Intern("__generatorPending__");
+    private static readonly Symbol GeneratorInstanceSymbol = Symbol.Intern("__generatorInstance__");
     private static readonly string IteratorSymbolPropertyName =
         $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
     private const string GeneratorBrandPropertyName = "__generator_brand__";
@@ -1263,11 +1264,20 @@ public static class TypedAstEvaluator
             return awaited;
         }
 
+        // Async generators execute on the generator IR path via TypedGeneratorInstance.
+        // When an await expression runs under that executor, the execution environment
+        // carries a back-reference to the active generator instance so we can surface
+        // pending promises instead of blocking.
+        if (environment.TryGet(GeneratorInstanceSymbol, out var instanceObj) &&
+            instanceObj is TypedGeneratorInstance generator)
+        {
+            return generator.EvaluateAwaitInGenerator(awaited, environment, context);
+        }
+
+        // Fallback: legacy synchronous await helper used by non-IR paths. This keeps
+        // behaviour unchanged for any remaining callers that still rely on it.
         if (!TryAwaitPromise(awaited, context, out var resolved))
         {
-            // TryAwaitPromise signals errors via the evaluation context; the
-            // resolved value is undefined in that case and the caller will
-            // observe the pending throw/return.
             return resolved;
         }
 
@@ -3534,9 +3544,14 @@ public static class TypedAstEvaluator
         private int _currentYieldIndex;
         private readonly YieldResumeContext _resumeContext = new();
         private int _programCounter;
+        private int _currentInstructionIndex;
         private object? _pendingResumeValue = JsSymbols.Undefined;
         private ResumePayloadKind _pendingResumeKind;
         private readonly Stack<TryFrame> _tryStack = new();
+
+        private sealed class PendingAwaitException : Exception
+        {
+        }
 
         public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
             IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
@@ -3654,6 +3669,7 @@ public static class TypedAstEvaluator
             var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
             environment.Define(JsSymbols.This, _thisValue ?? new JsObject());
             environment.Define(YieldResumeContextSymbol, _resumeContext);
+            environment.Define(GeneratorInstanceSymbol, this);
 
             // Define `arguments` inside generator functions so generator bodies
             // can observe the values they were invoked with.
@@ -3753,11 +3769,14 @@ public static class TypedAstEvaluator
             var environment = EnsureExecutionEnvironment();
             var context = EnsureEvaluationContext();
 
-            while (_programCounter >= 0 && _programCounter < _plan.Instructions.Length)
+            try
             {
-                var instruction = _plan.Instructions[_programCounter];
-                switch (instruction)
+                while (_programCounter >= 0 && _programCounter < _plan.Instructions.Length)
                 {
+                    _currentInstructionIndex = _programCounter;
+                    var instruction = _plan.Instructions[_programCounter];
+                    switch (instruction)
+                    {
                     case StatementInstruction statementInstruction:
                         EvaluateStatement(statementInstruction.Statement, environment, context);
                         if (context.IsThrow)
@@ -4388,7 +4407,15 @@ public static class TypedAstEvaluator
 
                     default:
                         throw new InvalidOperationException($"Unsupported generator instruction {instruction.GetType().Name}");
+                    }
                 }
+            }
+            catch (PendingAwaitException)
+            {
+                // A pending await surfaced from within the generator body.
+                // ExecuteAsyncStep will translate the pending promise into a
+                // Pending step result for AsyncGeneratorInstance.
+                return CreateIteratorResult(JsSymbols.Undefined, false);
             }
 
             _state = GeneratorState.Completed;
@@ -4513,6 +4540,42 @@ public static class TypedAstEvaluator
                 ResumeMode.Throw => throw new ThrowSignal(value),
                 _ => CreateIteratorResult(value, true)
             };
+        }
+
+        internal object? EvaluateAwaitInGenerator(object? awaitedValue, JsEnvironment environment,
+            EvaluationContext context)
+        {
+            // When not executing under async-aware stepping, fall back to the
+            // legacy blocking helper so synchronous generators remain usable.
+            if (!_asyncStepMode)
+            {
+                if (!TryAwaitPromise(awaitedValue, context, out var resolvedSync))
+                {
+                    return resolvedSync;
+                }
+
+                return resolvedSync;
+            }
+
+            // Async-aware mode: surface promise-like values as pending steps
+            // so AsyncGeneratorInstance can resume via the event queue.
+            if (!TryAwaitPromiseOrSchedule(awaitedValue, context, out var resolved))
+            {
+                if (_pendingPromise is JsObject)
+                {
+                    // Record the current instruction as the resume point and
+                    // signal the executor to surface a pending step.
+                    _state = GeneratorState.Suspended;
+                    _programCounter = _currentInstructionIndex;
+                    throw new PendingAwaitException();
+                }
+
+                // If TryAwaitPromiseOrSchedule reported an error via the context,
+                // let the caller observe the pending throw/return.
+                return resolved;
+            }
+
+            return resolved;
         }
 
         private bool TryAwaitPromiseOrSchedule(object? candidate, EvaluationContext context, out object? resolvedValue)

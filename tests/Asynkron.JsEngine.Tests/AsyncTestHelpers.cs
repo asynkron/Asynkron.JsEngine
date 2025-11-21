@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Execution;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -22,33 +23,41 @@ internal static class AsyncTestHelpers
             }
 
             var value = args.Count > 1 ? args[1] : null;
-            var promiseLike = new JsObject();
-
-            promiseLike.SetProperty("then", new HostFunction((thisValue, thenArgs) =>
+            var promiseConstructor = StandardLibrary.CreatePromiseConstructor(engine);
+            if (promiseConstructor is not IJsCallable promiseCtor)
             {
-                var onFulfilled = thenArgs.Count > 0 ? thenArgs[0] as IJsCallable : null;
-                var onRejected = thenArgs.Count > 1 ? thenArgs[1] as IJsCallable : null;
+                return null;
+            }
+
+            var executor = new HostFunction((_, execArgs) =>
+            {
+                if (execArgs.Count < 2 ||
+                    execArgs[0] is not IJsCallable resolve ||
+                    execArgs[1] is not IJsCallable reject)
+                {
+                    return null;
+                }
 
                 engine.ScheduleTask(async () =>
                 {
                     try
                     {
                         await Task.Delay(ms).ConfigureAwait(false);
-                        onFulfilled?.Invoke(new object?[] { value }, promiseLike);
+                        resolve.Invoke(new object?[] { value }, null);
                     }
                     catch (Exception ex)
                     {
-                        onRejected?.Invoke(new object?[] { ex.Message }, promiseLike);
+                        reject.Invoke(new object?[] { ex.Message }, null);
                     }
 
                     await Task.CompletedTask.ConfigureAwait(false);
                 });
 
-                return promiseLike;
-            }));
+                return null;
+            });
 
-            return promiseLike;
+            var promiseObj = promiseCtor.Invoke(new object?[] { executor }, null);
+            return promiseObj;
         });
     }
 }
-

@@ -4206,7 +4206,19 @@ public static class StandardLibrary
                 throw new Exception("Object.getPrototypeOf: target must be an object.");
             }
 
-            return obj.Prototype ?? (object?)Symbols.Undefined;
+            var proto = obj.Prototype ?? (object?)Symbols.Undefined;
+            if (proto is not JsObject &&
+                obj is HostFunction hostFunction &&
+                hostFunction.Realm is JsObject realm &&
+                realm.TryGetProperty("Function", out var fnVal) &&
+                fnVal is IJsPropertyAccessor fnAccessor &&
+                fnAccessor.TryGetProperty("prototype", out var fnProtoObj) &&
+                fnProtoObj is JsObject fnProto)
+            {
+                proto = fnProto;
+            }
+
+            return proto;
         }));
 
         // Object.defineProperty(obj, prop, descriptor)
@@ -4295,6 +4307,13 @@ public static class StandardLibrary
             AddArrayMethods(array);
             return array;
         });
+
+        // Ensure Array.[[Prototype]] is %FunctionPrototype% even if the shared
+        // prototype was not available when the HostFunction was created.
+        if (FunctionPrototype is not null)
+        {
+            arrayConstructor.Properties.SetPrototype(FunctionPrototype);
+        }
 
         // Array.isArray(value)
         arrayConstructor.SetProperty("isArray", new HostFunction(args =>

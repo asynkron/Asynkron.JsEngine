@@ -52,6 +52,15 @@ namespace Asynkron.JsEngine;
     /// </summary>
     public JsEngine()
     {
+        // Reset shared standard-library prototypes for each engine instance so
+        // built-ins in different realms do not share cross-engine singletons.
+        StandardLibrary.BooleanPrototype = null;
+        StandardLibrary.NumberPrototype = null;
+        StandardLibrary.StringPrototype = null;
+        StandardLibrary.ObjectPrototype = null;
+        StandardLibrary.FunctionPrototype = null;
+        StandardLibrary.ErrorPrototype = null;
+        StandardLibrary.TypeErrorPrototype = null;
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).

@@ -38,7 +38,5 @@
    - Async generators now reuse the sync generator IR plan via `TypedGeneratorInstance`, surface pending promises from `await` expressions and `for await...of` loops through `AsyncGeneratorStepResult.Pending`, and resume via `AsyncGeneratorInstance` using the engine’s event queue. Nested awaits inside async generators (including `__delay`) and `for await...of` inside async generator bodies are hosted on the non-blocking IR path.
    - **Unify async iteration paths**
      - Replace remaining uses of the blocking `TryAwaitPromise` helper in non-IR async iteration (`EvaluateForAwaitOf`, CPS async helpers) with the non-blocking `TryAwaitPromiseOrSchedule` + event-queue model so plain `async function` + `for await...of` can safely use `__delay(1)` without thread blocking.
-   - **Polish nested async generators**
-     - Fix the remaining gap in scenarios like `AsyncGenerator_DelayedAwaitNestedGenerators`, where an `async function*` uses `for await...of` over another async generator and then performs an `await` after the loop, ensuring the post-loop `await` and final `yield` also execute on the IR + pending-promise path.
    - **Diagnostics and tests**
      - Extend `AsyncGeneratorTests` and `AsyncIterationTests` with cases that detect real non-blocking behaviour (including `__delay(1)` in both async functions and async generators) and add async-aware diagnostics so we can assert that async generators and `for await...of` loops are using the IR + pending-promise executor rather than any legacy blocking behaviour.

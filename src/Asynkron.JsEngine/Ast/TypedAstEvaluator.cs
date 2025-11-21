@@ -5072,34 +5072,8 @@ public static class TypedAstEvaluator
                         reject.Invoke(new object?[] { step.Value }, null);
                         break;
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
-                    {
-                        if (step.PendingPromise is not JsObject pendingPromise ||
-                            !pendingPromise.TryGetProperty("then", out var thenValue) ||
-                            thenValue is not IJsCallable thenCallable)
-                        {
-                            reject.Invoke(new object?[] { "Awaited value is not a promise" }, null);
-                            break;
-                        }
-
-                        var onFulfilled = new HostFunction(args =>
-                        {
-                            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
-                            var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Next, value);
-                            ResolveFromStep(resumed, resolve, reject);
-                            return null;
-                        });
-
-                        var onRejected = new HostFunction(args =>
-                        {
-                            var reason = args.Count > 0 ? args[0] : JsSymbols.Undefined;
-                            var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Throw, reason);
-                            ResolveFromStep(resumed, resolve, reject);
-                            return null;
-                        });
-
-                        thenCallable.Invoke(new object?[] { onFulfilled, onRejected }, pendingPromise);
+                        HandlePendingStep(step, resolve, reject);
                         break;
-                    }
                 }
 
                 return null;
@@ -5117,7 +5091,7 @@ public static class TypedAstEvaluator
             return result;
         }
 
-        private static void ResolveFromStep(
+        private void ResolveFromStep(
             TypedGeneratorInstance.AsyncGeneratorStepResult step,
             IJsCallable resolve,
             IJsCallable reject)
@@ -5135,11 +5109,41 @@ public static class TypedAstEvaluator
                     reject.Invoke(new object?[] { step.Value }, null);
                     break;
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
-                    // Nested pending from a resumed step is unexpected with the
-                    // current lowering; treat as an error for now.
-                    reject.Invoke(new object?[] { "Nested pending await in async generator step." }, null);
+                    HandlePendingStep(step, resolve, reject);
                     break;
             }
+        }
+
+        private void HandlePendingStep(
+            TypedGeneratorInstance.AsyncGeneratorStepResult step,
+            IJsCallable resolve,
+            IJsCallable reject)
+        {
+            if (step.PendingPromise is not JsObject pendingPromise ||
+                !pendingPromise.TryGetProperty("then", out var thenValue) ||
+                thenValue is not IJsCallable thenCallable)
+            {
+                reject.Invoke(new object?[] { "Awaited value is not a promise" }, null);
+                return;
+            }
+
+            var onFulfilled = new HostFunction(args =>
+            {
+                var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Next, value);
+                ResolveFromStep(resumed, resolve, reject);
+                return null;
+            });
+
+            var onRejected = new HostFunction(args =>
+            {
+                var reason = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Throw, reason);
+                ResolveFromStep(resumed, resolve, reject);
+                return null;
+            });
+
+            thenCallable.Invoke(new object?[] { onFulfilled, onRejected }, pendingPromise);
         }
     }
 

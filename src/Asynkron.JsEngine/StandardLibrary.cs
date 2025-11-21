@@ -5447,6 +5447,9 @@ public static class StandardLibrary
             TypeErrorConstructor = errorConstructor;
         }
 
+        // Function.name
+        errorConstructor.SetProperty("name", errorType);
+
         return errorConstructor;
     }
 

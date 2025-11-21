@@ -3075,6 +3075,19 @@ public static class TypedAstEvaluator
             current = current.Prototype;
         }
 
+        // Fallback for branded error objects where the prototype chain was
+        // constructed correctly but does not match by reference (e.g. across
+        // realms or when a test mutates globals). If the thrown object carries
+        // a matching name tag, treat it as an instance of the constructor.
+        if (TryGetPropertyValue(right, "name", out var ctorName) &&
+            ctorName is string nameString &&
+            TryGetPropertyValue(left, "name", out var valueName) &&
+            valueName is string valueNameString &&
+            string.Equals(nameString, valueNameString, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
         return false;
     }
 

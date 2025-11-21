@@ -1258,20 +1258,21 @@ public static class TypedAstEvaluator
     private static object? EvaluateAwait(AwaitExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
+        // Async generators execute on the generator IR path via TypedGeneratorInstance.
+        // When an await expression runs under that executor, the execution environment
+        // carries a back-reference to the active generator instance so we can surface
+        // pending promises instead of blocking. In that case the generator instance
+        // is responsible for evaluating the awaited expression and managing resume.
+        if (environment.TryGet(GeneratorInstanceSymbol, out var instanceObj) &&
+            instanceObj is TypedGeneratorInstance generator)
+        {
+            return generator.EvaluateAwaitInGenerator(expression, environment, context);
+        }
+
         var awaited = EvaluateExpression(expression.Expression, environment, context);
         if (context.ShouldStopEvaluation)
         {
             return awaited;
-        }
-
-        // Async generators execute on the generator IR path via TypedGeneratorInstance.
-        // When an await expression runs under that executor, the execution environment
-        // carries a back-reference to the active generator instance so we can surface
-        // pending promises instead of blocking.
-        if (environment.TryGet(GeneratorInstanceSymbol, out var instanceObj) &&
-            instanceObj is TypedGeneratorInstance generator)
-        {
-            return generator.EvaluateAwaitInGenerator(awaited, environment, context);
         }
 
         // Fallback: legacy synchronous await helper used by non-IR paths. This keeps
@@ -1453,7 +1454,7 @@ public static class TypedAstEvaluator
         return DelegatedYieldState.FromEnumerable(values);
     }
 
-    private static Symbol? GetDelegatedStateKey(YieldExpression expression)
+        private static Symbol? GetDelegatedStateKey(YieldExpression expression)
     {
         if (expression.Source is null)
         {
@@ -1461,6 +1462,17 @@ public static class TypedAstEvaluator
         }
 
         var key = $"__yield_delegate_{expression.Source.StartPosition}_{expression.Source.EndPosition}";
+        return Symbol.Intern(key);
+    }
+
+    private static Symbol? GetAwaitStateKey(AwaitExpression expression)
+    {
+        if (expression.Source is null)
+        {
+            return null;
+        }
+
+        var key = $"__await_state_{expression.Source.StartPosition}_{expression.Source.EndPosition}";
         return Symbol.Intern(key);
     }
 
@@ -3553,6 +3565,14 @@ public static class TypedAstEvaluator
         {
         }
 
+        private sealed class AwaitState
+        {
+            public bool HasResult { get; set; }
+            public object? Result { get; set; }
+        }
+
+        private Symbol? _pendingAwaitKey;
+
         public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
             IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
         {
@@ -3768,6 +3788,38 @@ public static class TypedAstEvaluator
 
             var environment = EnsureExecutionEnvironment();
             var context = EnsureEvaluationContext();
+
+            // If we are resuming after a pending await, thread the resolved
+            // value into the per-site await state so subsequent evaluations
+            // of the AwaitExpression see the fulfilled value instead of the
+            // original promise object.
+            if (_pendingAwaitKey is { } awaitKey)
+            {
+                var (kind, value) = ConsumeResumeValue();
+                if (kind == ResumePayloadKind.Value)
+                {
+                    if (environment.TryGet(awaitKey, out var stateObj) && stateObj is AwaitState state)
+                    {
+                        state.HasResult = true;
+                        state.Result = value;
+                        environment.Assign(awaitKey, state);
+                    }
+                    else
+                    {
+                        var newState = new AwaitState { HasResult = true, Result = value };
+                        if (environment.TryGet(awaitKey, out _))
+                        {
+                            environment.Assign(awaitKey, newState);
+                        }
+                        else
+                        {
+                            environment.Define(awaitKey, newState);
+                        }
+                    }
+                }
+
+                _pendingAwaitKey = null;
+            }
 
             try
             {
@@ -4542,14 +4594,20 @@ public static class TypedAstEvaluator
             };
         }
 
-        internal object? EvaluateAwaitInGenerator(object? awaitedValue, JsEnvironment environment,
+        internal object? EvaluateAwaitInGenerator(AwaitExpression expression, JsEnvironment environment,
             EvaluationContext context)
         {
             // When not executing under async-aware stepping, fall back to the
             // legacy blocking helper so synchronous generators remain usable.
             if (!_asyncStepMode)
             {
-                if (!TryAwaitPromise(awaitedValue, context, out var resolvedSync))
+                var awaitedValueSync = EvaluateExpression(expression.Expression, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return awaitedValueSync;
+                }
+
+                if (!TryAwaitPromise(awaitedValueSync, context, out var resolvedSync))
                 {
                     return resolvedSync;
                 }
@@ -4557,14 +4615,55 @@ public static class TypedAstEvaluator
                 return resolvedSync;
             }
 
+            // Async-aware mode: use per-site await state so we don't re-run
+            // side-effecting expressions after the promise has resolved.
+            var awaitKey = GetAwaitStateKey(expression);
+            AwaitState? existingState = null;
+            if (awaitKey is not null &&
+                environment.TryGet(awaitKey, out var stateObj) &&
+                stateObj is AwaitState state &&
+                state.HasResult)
+            {
+                // Await has already completed; reuse the resolved value.
+                return state.Result;
+            }
+
+            var awaitedValue = EvaluateExpression(expression.Expression, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return awaitedValue;
+            }
+
+            if (awaitKey is not null)
+            {
+                if (environment.TryGet(awaitKey, out var existing) && existing is AwaitState found)
+                {
+                    existingState = found;
+                }
+                else
+                {
+                    existingState = new AwaitState();
+                }
+
+                if (environment.TryGet(awaitKey, out _))
+                {
+                    environment.Assign(awaitKey, existingState);
+                }
+                else
+                {
+                    environment.Define(awaitKey, existingState);
+                }
+            }
+
             // Async-aware mode: surface promise-like values as pending steps
             // so AsyncGeneratorInstance can resume via the event queue.
             if (!TryAwaitPromiseOrSchedule(awaitedValue, context, out var resolved))
             {
-                if (_pendingPromise is JsObject)
+                if (_pendingPromise is JsObject && awaitKey is not null)
                 {
-                    // Record the current instruction as the resume point and
-                    // signal the executor to surface a pending step.
+                    // Remember which await site is pending so we can stash the
+                    // resolved value on resume.
+                    _pendingAwaitKey = awaitKey;
                     _state = GeneratorState.Suspended;
                     _programCounter = _currentInstructionIndex;
                     throw new PendingAwaitException();

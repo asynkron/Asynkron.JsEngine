@@ -45,3 +45,6 @@ Focus on producing code, not driving conversations.
 You may never ever ever use thread blocking calls like Task.Wait(), Task.Result, or Thread.Sleep().
 If you ever think that is the way to go, then there is a larger design issue that needs to be resolved.
 
+## Unsupported features
+
+When you encounter an unsupported language/runtime feature or AST shape, fail fast by throwing a `NotSupportedException` (with a clear reason) instead of silently degrading behaviour or falling back to partial implementations. All such unsupported paths should be explicit so issues surface upfront and can be fixed properly.

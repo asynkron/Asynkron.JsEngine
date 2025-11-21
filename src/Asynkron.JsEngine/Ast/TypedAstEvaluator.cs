@@ -408,8 +408,8 @@ public static class TypedAstEvaluator
                 var awaitedNextResult = nextResult;
                 if (IsPromiseLike(awaitedNextResult))
                 {
-                    throw new InvalidOperationException(
-                        "Asynchronous promise resolution is not supported in the non-CPS for-await-of evaluator.");
+                    throw new NotSupportedException(
+                        "for await...of in this context must be lowered via the async CPS/iterator helpers; promise-valued iterator results are not supported in the direct evaluator.");
                 }
 
                 if (awaitedNextResult is not JsObject resultObj)
@@ -434,8 +434,8 @@ public static class TypedAstEvaluator
 
                 if (IsPromiseLike(value))
                 {
-                    throw new InvalidOperationException(
-                        "Asynchronous promise resolution is not supported in the non-CPS for-await-of evaluator.");
+                    throw new NotSupportedException(
+                        "for await...of in this context must be lowered via the async CPS/iterator helpers; promise-valued iteration values are not supported in the direct evaluator.");
                 }
 
                 AssignLoopBinding(statement, value, iterationEnvironment, environment, context);
@@ -470,8 +470,8 @@ public static class TypedAstEvaluator
 
             if (IsPromiseLike(value))
             {
-                throw new InvalidOperationException(
-                    "Asynchronous promise resolution is not supported in the non-CPS for-await-of evaluator.");
+                throw new NotSupportedException(
+                    "for await...of in this context must be lowered via the async CPS/iterator helpers; promise-valued iteration values are not supported in the direct evaluator.");
             }
 
             AssignLoopBinding(statement, value, loopEnvironment, environment, context);
@@ -1279,14 +1279,19 @@ public static class TypedAstEvaluator
             return awaited;
         }
 
-        // Fallback: legacy synchronous await helper used by non-IR paths. This keeps
-        // behaviour unchanged for any remaining callers that still rely on it.
-        if (!TryAwaitPromise(awaited, context, out var resolved))
+        // Non-IR async functions should have been rewritten by the CPS transformer
+        // to use Promise-based helpers (__await, __getAsyncIterator, etc.) so this
+        // direct await evaluator should never see real promise objects. If it does,
+        // treat it as an unsupported execution path rather than attempting any
+        // synchronous waiting.
+        if (IsPromiseLike(awaited))
         {
-            return resolved;
+            throw new NotSupportedException(
+                "Await in this context must be lowered via the async CPS transformer; promise-valued awaits are not supported in the direct evaluator.");
         }
 
-        return resolved;
+        // For non-promise values, await is effectively a no-op.
+        return awaited;
     }
 
     private static object? EvaluateYield(YieldExpression expression, JsEnvironment environment,

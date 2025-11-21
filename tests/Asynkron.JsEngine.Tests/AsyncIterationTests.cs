@@ -11,13 +11,15 @@ public class AsyncIterationTests(ITestOutputHelper output)
         // Test that regular for-of with await in body works
         await using var engine = new JsEngine();
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         await engine.Run("""
 
                                      let result = "";
                                      let promises = [
-                                         Promise.resolve("a"),
-                                         Promise.resolve("b"),
-                                         Promise.resolve("c")
+                                         __delay(1, "a"),
+                                         __delay(1, "b"),
+                                         __delay(1, "c")
                                      ];
 
                                      async function test() {
@@ -254,6 +256,8 @@ public class AsyncIterationTests(ITestOutputHelper output)
         // Currently, promises in arrays are treated as objects, not awaited.
         await using var engine = new JsEngine();
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         await engine.Run("""
 
                                      let result = "";
@@ -261,9 +265,9 @@ public class AsyncIterationTests(ITestOutputHelper output)
                                      // For-await-of can iterate arrays, but won't automatically await promise values
                                      // This works if we await them manually in the loop body
                                      let promises = [
-                                         Promise.resolve("a"),
-                                         Promise.resolve("b"),
-                                         Promise.resolve("c")
+                                         __delay(1, "a"),
+                                         __delay(1, "b"),
+                                         __delay(1, "c")
                                      ];
 
                                      async function test() {
@@ -287,6 +291,8 @@ public class AsyncIterationTests(ITestOutputHelper output)
     {
         await using var engine = new JsEngine();
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         await engine.Run("""
 
                                      let result = "";
@@ -299,9 +305,9 @@ public class AsyncIterationTests(ITestOutputHelper output)
                                                  next() {
                                                      count = count + 1;
                                                      if (count <= 3) {
-                                                         return Promise.resolve({ value: count, done: false });
+                                                         return __delay(1, { value: count, done: false });
                                                      } else {
-                                                         return Promise.resolve({ done: true });
+                                                         return __delay(1, { done: true });
                                                      }
                                                  }
                                              };
@@ -508,13 +514,15 @@ public class AsyncIterationTests(ITestOutputHelper output)
         // Test that regular for-of with await in body works, using __debug() to inspect state
         await using var engine = new JsEngine();
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         await engine.Run("""
 
                                      let result = "";
                                      let promises = [
-                                         Promise.resolve("a"),
-                                         Promise.resolve("b"),
-                                         Promise.resolve("c")
+                                         __delay(1, "a"),
+                                         __delay(1, "b"),
+                                         __delay(1, "c")
                                      ];
 
                                      async function test() {

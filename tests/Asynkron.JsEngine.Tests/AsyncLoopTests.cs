@@ -10,6 +10,8 @@ public class AsyncLoopTests
     {
         await using var engine = new JsEngine();
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         await engine.Run("""
 
                                      let result = "";
@@ -20,7 +22,7 @@ public class AsyncLoopTests
                                                  continue;
                                              }
 
-                                             result = result + await Promise.resolve(i);
+                                             result = result + await __delay(1, i);
                                          }
                                      }
 
@@ -37,6 +39,8 @@ public class AsyncLoopTests
     {
         await using var engine = new JsEngine();
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         await engine.Run("""
 
                                      let result = "";
@@ -44,7 +48,7 @@ public class AsyncLoopTests
 
                                      async function test() {
                                          do {
-                                             result = result + await Promise.resolve(i);
+                                             result = result + await __delay(1, i);
                                              if (i === 1) {
                                                  break;
                                              }

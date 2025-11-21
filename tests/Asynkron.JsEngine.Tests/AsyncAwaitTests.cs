@@ -66,7 +66,7 @@ public class AsyncAwaitTests
         var program = engine.Parse("""
 
                                                async function test() {
-                                                   let result = await Promise.resolve(42);
+                                                   let result = await __delay(1, 42);
                                                    return result;
                                                }
 
@@ -119,6 +119,8 @@ public class AsyncAwaitTests
         await using var engine = new JsEngine();
         var result = "";
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         engine.SetGlobalFunction("captureResult", args =>
         {
             if (args.Count > 0)
@@ -133,7 +135,7 @@ public class AsyncAwaitTests
         await engine.Run("""
 
                                      async function test() {
-                                         let value = await Promise.resolve(42);
+                                         let value = await __delay(1, 42);
                                          return value;
                                      }
 
@@ -154,6 +156,8 @@ public class AsyncAwaitTests
         await using var engine = new JsEngine();
         var result = "";
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         engine.SetGlobalFunction("captureResult", args =>
         {
             if (args.Count > 0)
@@ -168,8 +172,8 @@ public class AsyncAwaitTests
         await engine.Run("""
 
                                      async function test() {
-                                         let a = await Promise.resolve(10);
-                                         let b = await Promise.resolve(20);
+                                         let a = await __delay(1, 10);
+                                         let b = await __delay(1, 20);
                                          return a + b;
                                      }
 
@@ -190,6 +194,8 @@ public class AsyncAwaitTests
         await using var engine = new JsEngine();
         var result = "";
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         engine.SetGlobalFunction("captureResult", args =>
         {
             if (args.Count > 0)
@@ -204,7 +210,7 @@ public class AsyncAwaitTests
         await engine.Run("""
 
                                      async function test() {
-                                         let value = (await Promise.resolve(10)) + (await Promise.resolve(20));
+                                         let value = (await __delay(1, 10)) + (await __delay(1, 20));
                                          return value;
                                      }
 
@@ -444,6 +450,8 @@ public class AsyncAwaitTests
         await using var engine = new JsEngine();
         var result = "";
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         engine.SetGlobalFunction("captureResult", args =>
         {
             if (args.Count > 0)
@@ -458,9 +466,9 @@ public class AsyncAwaitTests
         await engine.Run("""
 
                                      async function test() {
-                                         let a = await Promise.resolve(5);
-                                         let b = await Promise.resolve(a + 3);
-                                         let c = await Promise.resolve(b * 2);
+                                         let a = await __delay(1, 5);
+                                         let b = await __delay(1, a + 3);
+                                         let c = await __delay(1, b * 2);
                                          return c;
                                      }
 
@@ -772,6 +780,8 @@ public class AsyncAwaitTests
         await using var engine = new JsEngine();
         var result = "";
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         engine.SetGlobalFunction("captureResult", args =>
         {
             if (args.Count > 0)
@@ -786,7 +796,7 @@ public class AsyncAwaitTests
         await engine.Run("""
 
                                      function bar() {
-                                         return Promise.resolve(10);
+                                         return __delay(1, 10);
                                      }
 
                                      async function foo() {

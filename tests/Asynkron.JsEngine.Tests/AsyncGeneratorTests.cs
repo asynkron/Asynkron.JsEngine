@@ -38,14 +38,16 @@ public class AsyncGeneratorTests(ITestOutputHelper output)
     {
         await using var engine = new JsEngine();
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         await engine.Run("""
             let log = [];
 
             async function* gen() {
-                const first = await Promise.resolve("a");
+                const first = await __delay(1, "a");
                 log.push("before-yield:" + first);
                 yield first;
-                const second = await Promise.resolve("b");
+                const second = await __delay(1, "b");
                 log.push("after-first-yield:" + second);
                 yield second;
             }
@@ -96,13 +98,15 @@ public class AsyncGeneratorTests(ITestOutputHelper output)
     {
         await using var engine = new JsEngine();
 
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
         await engine.Run("""
             let log = [];
 
             async function* gen() {
                 let i = 0;
                 while (i < 2) {
-                    await Promise.resolve();
+                    await __delay(1);
                     log.push("while:" + i);
                     yield "w" + i;
                     i = i + 1;
@@ -110,7 +114,7 @@ public class AsyncGeneratorTests(ITestOutputHelper output)
 
                 let j = 0;
                 do {
-                    await Promise.resolve();
+                    await __delay(1);
                     log.push("do:" + j);
                     yield "d" + j;
                     j = j + 1;
@@ -308,5 +312,149 @@ public class AsyncGeneratorTests(ITestOutputHelper output)
         var result = await engine.Evaluate("log.join(',');");
         Assert.Equal("a,b,c", result);
     }
-}
 
+    [Fact(Timeout = 2000)]
+    public async Task AsyncGenerator_DelayedAwaitInsideBody_UsesHostDelay()
+    {
+        await using var engine = new JsEngine();
+
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
+        await engine.Run("""
+            let log = [];
+
+            async function* gen() {
+                log.push("start");
+                const first = await __delay(10, "x");
+                log.push("after-first-await:" + first);
+                yield first;
+                const second = await __delay(10, "y");
+                log.push("after-second-await:" + second);
+                yield second;
+            }
+
+            async function run() {
+                for await (const value of gen()) {
+                    log.push("yielded:" + value);
+                }
+            }
+
+            run();
+        """);
+
+        var result = await engine.Evaluate("log.join('|');");
+        Assert.Equal(
+            "start|after-first-await:x|yielded:x|after-second-await:y|yielded:y",
+            result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncGenerator_DelayedAwaitInLoopBody()
+    {
+        await using var engine = new JsEngine();
+
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
+        await engine.Run("""
+            let log = [];
+
+            async function* gen() {
+                let i = 0;
+                while (i < 3) {
+                    const v = await __delay(10, "v" + i);
+                    log.push("loop:" + i);
+                    yield v;
+                    i = i + 1;
+                }
+            }
+
+            async function run() {
+                for await (const value of gen()) {
+                    log.push("yielded:" + value);
+                }
+            }
+
+            run();
+        """);
+
+        var result = await engine.Evaluate("log.join('|');");
+        Assert.Equal(
+            "loop:0|yielded:v0|loop:1|yielded:v1|loop:2|yielded:v2",
+            result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncGenerator_DelayedAwaitNestedGenerators()
+    {
+        await using var engine = new JsEngine();
+
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
+        await engine.Run("""
+            let log = [];
+
+            async function* inner() {
+                const a = await __delay(10, "a");
+                log.push("inner:" + a);
+                yield a;
+            }
+
+            async function* outer() {
+                log.push("outer:start");
+                for await (const value of inner()) {
+                    log.push("outer:value:" + value);
+                    yield value;
+                }
+                const b = await __delay(10, "b");
+                log.push("outer:after:" + b);
+                yield b;
+            }
+
+            async function run() {
+                for await (const value of outer()) {
+                    log.push("yielded:" + value);
+                }
+            }
+
+            run();
+        """);
+
+        var result = await engine.Evaluate("log.join('|');");
+        Assert.Equal(
+            "outer:start|inner:a|outer:value:a|yielded:a|outer:after:b|yielded:b",
+            result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncGenerator_DelayedAwaitBetweenYields()
+    {
+        await using var engine = new JsEngine();
+
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
+        await engine.Run("""
+            let log = [];
+
+            async function* gen() {
+                log.push("before-first-yield");
+                yield "first";
+                const x = await __delay(10, "x");
+                log.push("after-await:" + x);
+                yield "second";
+            }
+
+            async function run() {
+                for await (const value of gen()) {
+                    log.push("yielded:" + value);
+                }
+            }
+
+            run();
+        """);
+
+        var result = await engine.Evaluate("log.join('|');");
+        Assert.Equal(
+            "before-first-yield|yielded:first|after-await:x|yielded:second",
+            result);
+    }
+}

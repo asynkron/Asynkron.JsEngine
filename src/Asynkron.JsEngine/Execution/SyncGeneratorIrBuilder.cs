@@ -486,8 +486,7 @@ internal sealed class SyncGeneratorIrBuilder
         // For now we support switch statements whose discriminant and case
         // tests are yield-free, and whose case bodies only contain at most a
         // single trailing unlabeled `break;` at top level. More complex break
-        // shapes (including non-trailing `break` and default clauses that
-        // are not last) continue to be rejected.
+        // shapes (including non-trailing `break`) continue to be rejected.
         if (ContainsYield(statement.Discriminant))
         {
             entryIndex = -1;
@@ -503,12 +502,12 @@ internal sealed class SyncGeneratorIrBuilder
             }
         }
 
-        // Enforce at most a single default clause, and only in the final
-        // position. JavaScript evaluates switch by first selecting the
-        // matching case clause (preferring explicit case tests and only
-        // using default if no case matches) and then executing the case
-        // body with fallthrough. Our lowering models this behaviour only
-        // when default is in the canonical tail position.
+        // Enforce at most a single default clause. JavaScript evaluates switch
+        // by first selecting the matching case clause (preferring explicit case
+        // tests and only using default if no case matches) and then executing
+        // the case body with fallthrough. The default clause can appear in any
+        // position; execution begins at the selected clause and falls through
+        // to later clauses until a break is hit or the switch ends.
         var defaultIndex = -1;
         for (var i = 0; i < statement.Cases.Length; i++)
         {
@@ -525,16 +524,9 @@ internal sealed class SyncGeneratorIrBuilder
             }
         }
 
-        if (defaultIndex != -1 && defaultIndex != statement.Cases.Length - 1)
-        {
-            entryIndex = -1;
-            _failureReason ??= "Switch statement default clause must be last.";
-            return false;
-        }
-
         var instructionStart = _instructions.Count;
         var discriminantSymbol = Symbol.Intern($"__switch_disc_{instructionStart}");
-        var matchedSymbol = Symbol.Intern($"__switch_matched_{instructionStart}");
+        var matchIndexSymbol = Symbol.Intern($"__switch_match_{instructionStart}");
         var doneSymbol = Symbol.Intern($"__switch_done_{instructionStart}");
 
         var statements = ImmutableArray.CreateBuilder<StatementNode>();
@@ -545,12 +537,12 @@ internal sealed class SyncGeneratorIrBuilder
         var discDeclaration = new VariableDeclaration(statement.Source, VariableKind.Const, [discDeclarator]);
         statements.Add(discDeclaration);
 
-        // let __matchedN = false;
-        var matchedBinding = new IdentifierBinding(statement.Source, matchedSymbol);
-        var matchedInitializer = new LiteralExpression(statement.Source, false);
-        var matchedDeclarator = new VariableDeclarator(statement.Source, matchedBinding, matchedInitializer);
-        var matchedDeclaration = new VariableDeclaration(statement.Source, VariableKind.Let, [matchedDeclarator]);
-        statements.Add(matchedDeclaration);
+        // let __matchN = -1;
+        var matchBinding = new IdentifierBinding(statement.Source, matchIndexSymbol);
+        var matchInitializer = new LiteralExpression(statement.Source, -1);
+        var matchDeclarator = new VariableDeclarator(statement.Source, matchBinding, matchInitializer);
+        var matchDeclaration = new VariableDeclaration(statement.Source, VariableKind.Let, [matchDeclarator]);
+        statements.Add(matchDeclaration);
 
         // let __doneN = false;
         var doneBinding = new IdentifierBinding(statement.Source, doneSymbol);
@@ -559,8 +551,48 @@ internal sealed class SyncGeneratorIrBuilder
         var doneDeclaration = new VariableDeclaration(statement.Source, VariableKind.Let, [doneDeclarator]);
         statements.Add(doneDeclaration);
 
-        foreach (var switchCase in statement.Cases)
+        // Matching phase: set __matchN to the first matching case index.
+        for (var i = 0; i < statement.Cases.Length; i++)
         {
+            var switchCase = statement.Cases[i];
+            if (switchCase.Test is null)
+            {
+                continue;
+            }
+
+            var matchUnset = new BinaryExpression(statement.Source, "===",
+                new IdentifierExpression(statement.Source, matchIndexSymbol),
+                new LiteralExpression(statement.Source, -1));
+            var discIdentifier = new IdentifierExpression(statement.Source, discriminantSymbol);
+            var equalTest = new BinaryExpression(statement.Source, "===",
+                discIdentifier, switchCase.Test);
+            var combinedTest = new BinaryExpression(statement.Source, "&&", matchUnset, equalTest);
+
+            var setMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
+                new LiteralExpression(statement.Source, i));
+            var setMatchStatement = new ExpressionStatement(statement.Source, setMatch);
+            statements.Add(new IfStatement(statement.Source, combinedTest,
+                new BlockStatement(statement.Source, [setMatchStatement], statement.Cases[0].Body.IsStrict),
+                null));
+        }
+
+        // If still unmatched, fall back to default (if any).
+        if (defaultIndex != -1)
+        {
+            var stillUnmatched = new BinaryExpression(statement.Source, "===",
+                new IdentifierExpression(statement.Source, matchIndexSymbol),
+                new LiteralExpression(statement.Source, -1));
+            var setDefaultMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
+                new LiteralExpression(statement.Source, defaultIndex));
+            var setDefaultStatement = new ExpressionStatement(statement.Source, setDefaultMatch);
+            statements.Add(new IfStatement(statement.Source, stillUnmatched,
+                new BlockStatement(statement.Source, [setDefaultStatement], statement.Cases[0].Body.IsStrict),
+                null));
+        }
+
+        for (var caseIndex = 0; caseIndex < statement.Cases.Length; caseIndex++)
+        {
+            var switchCase = statement.Cases[caseIndex];
             var body = switchCase.Body;
             var bodyStatements = body.Statements;
 
@@ -582,34 +614,17 @@ internal sealed class SyncGeneratorIrBuilder
                 }
             }
 
-            // Build condition: !__done && !__matched && (disc === test) or
-            //                 !__done && !__matched for default case.
-            var notDone = new UnaryExpression(statement.Source, "!",
-                new IdentifierExpression(statement.Source, doneSymbol), true);
-            var notMatched = new UnaryExpression(statement.Source, "!",
-                new IdentifierExpression(statement.Source, matchedSymbol), true);
-            ExpressionNode matchCondition = new BinaryExpression(statement.Source, "&&", notDone, notMatched);
-
-            if (switchCase.Test is not null)
-            {
-                var discIdentifier = new IdentifierExpression(statement.Source, discriminantSymbol);
-                var equalTest = new BinaryExpression(statement.Source, "===",
-                    discIdentifier, switchCase.Test);
-                matchCondition = new BinaryExpression(statement.Source, "&&", matchCondition, equalTest);
-            }
-
-            // if (matchCondition) { __matchedN = true; }
-            var setMatchedAssignment = new AssignmentExpression(statement.Source, matchedSymbol,
-                new LiteralExpression(statement.Source, true));
-            var setMatchedStatement = new ExpressionStatement(statement.Source, setMatchedAssignment);
-            var setMatchedBlock = new BlockStatement(statement.Source, [setMatchedStatement], body.IsStrict);
-            statements.Add(new IfStatement(statement.Source, matchCondition, setMatchedBlock, null));
-
-            // Execution guard: if (!__done && __matched) { ...case body... }
+            // Execution guard: if (!__done && __matchN != -1 && __matchN <= caseIndex) { ...body... }
             var notDoneExec = new UnaryExpression(statement.Source, "!",
                 new IdentifierExpression(statement.Source, doneSymbol), true);
-            var matchedIdentifier = new IdentifierExpression(statement.Source, matchedSymbol);
-            var execCondition = new BinaryExpression(statement.Source, "&&", notDoneExec, matchedIdentifier);
+            var matchSet = new BinaryExpression(statement.Source, "!==",
+                new IdentifierExpression(statement.Source, matchIndexSymbol),
+                new LiteralExpression(statement.Source, -1));
+            var matchReached = new BinaryExpression(statement.Source, "<=",
+                new IdentifierExpression(statement.Source, matchIndexSymbol),
+                new LiteralExpression(statement.Source, caseIndex));
+            var matchGuard = new BinaryExpression(statement.Source, "&&", matchSet, matchReached);
+            var execCondition = new BinaryExpression(statement.Source, "&&", notDoneExec, matchGuard);
 
             var execBuilder = ImmutableArray.CreateBuilder<StatementNode>();
             var copyCount = hasTrailingBreak ? bodyStatements.Length - 1 : bodyStatements.Length;

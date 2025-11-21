@@ -2355,8 +2355,8 @@ public class GeneratorTests
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
-        Assert.Equal(1, attempts);
-        Assert.Equal(1, succeeded);
+        Assert.Equal(2, attempts);
+        Assert.Equal(2, succeeded);
         Assert.Equal(0, failed);
         Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
         Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
@@ -2514,8 +2514,8 @@ public class GeneratorTests
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
-        Assert.Equal(1, attempts);
-        Assert.Equal(1, succeeded);
+        Assert.Equal(2, attempts);
+        Assert.Equal(2, succeeded);
         Assert.Equal(0, failed);
         Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
         Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
@@ -2572,8 +2572,8 @@ public class GeneratorTests
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
-        Assert.Equal(1, attempts);
-        Assert.Equal(1, succeeded);
+        Assert.Equal(2, attempts);
+        Assert.Equal(2, succeeded);
         Assert.Equal(0, failed);
         Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
         Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
@@ -2626,38 +2626,47 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Generator_SwitchStatement_UnsupportedIr()
+    public async Task Generator_SwitchStatementDefaultNotLastIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
-        var ex = await Assert.ThrowsAsync<NotSupportedException>(async () =>
-        {
-            await engine.Evaluate("""
-                function* gen() {
-                    const x = yield 1;
-                    switch (x) {
-                        default:
-                            yield "default";
-                            break;
-                        case 1:
-                            yield "one";
-                            break;
-                    }
+        await engine.Evaluate("""
+            function* gen() {
+                const x = yield 1;
+                switch (x) {
+                    default:
+                        yield "default";
+                        break;
+                    case 1:
+                        yield "one";
+                        break;
                 }
-                let g = gen();
-            """);
-        });
-
-        Assert.Contains("Switch statement default clause must be last.", ex.Message);
+            }
+            let g1 = gen();
+            let g2 = gen();
+        """);
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
-        Assert.Equal(1, attempts);
-        Assert.Equal(0, succeeded);
-        Assert.Equal(1, failed);
-        Assert.Equal("Switch statement default clause must be last.", GeneratorIrDiagnostics.LastFailureReason);
-        Assert.Equal("gen", GeneratorIrDiagnostics.LastFunctionDescription);
+        Assert.Equal(2, attempts);
+        Assert.Equal(2, succeeded);
+        Assert.Equal(0, failed);
+
+        await engine.Evaluate("const first = g1.next();");
+        await engine.Evaluate("const second = g1.next(1);");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+
+        await engine.Evaluate("g2.next();");
+        await engine.Evaluate("const third = g2.next(2);");
+        var thirdValue = await engine.Evaluate("third.value;");
+        var thirdDone = await engine.Evaluate("third.done;");
+
+        Assert.Equal("one", secondValue);
+        Assert.False((bool)secondDone!);
+        Assert.Equal("default", thirdValue);
+        Assert.False((bool)thirdDone!);
     }
 
     [Fact(Timeout = 2000)]

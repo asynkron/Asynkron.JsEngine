@@ -1247,29 +1247,7 @@ public static class TypedAstEvaluator
     private static object? EvaluateAwait(AwaitExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
-        // WAITING ON FULL ASYNC/AWAIT + ASYNC GENERATOR IR SUPPORT:
-        // This path currently performs a synchronous, blocking wait on promise-like
-        // values via TryAwaitPromise. Once we have a proper non-blocking async
-        // execution pipeline, this should be rewritten to schedule continuations
-        // instead of blocking the current thread.
-        //
-        // Evaluate the awaited expression.
-        var value = EvaluateExpression(expression.Expression, environment, context);
-        if (context.ShouldStopEvaluation)
-        {
-            return JsSymbols.Undefined;
-        }
-
-        // If it's a promise-like object, await it via TryAwaitPromise; otherwise
-        // treat it as an already-resolved value.
-        if (!TryAwaitPromise(value, context, out var awaitedValue))
-        {
-            // TryAwaitPromise will have set context.IsThrow on rejection; the
-            // caller's control flow (loops/try) will observe that and handle it.
-            return JsSymbols.Undefined;
-        }
-
-        return awaitedValue;
+        throw new InvalidOperationException("AwaitExpression should have been lowered by the CPS transformer.");
     }
 
     private static object? EvaluateYield(YieldExpression expression, JsEnvironment environment,
@@ -4177,6 +4155,7 @@ public static class TypedAstEvaluator
                         continue;
 
                     case ForAwaitMoveNextInstruction forAwaitMoveNextInstruction:
+                        var forAwaitIndex = _programCounter;
                         if (!TryGetSymbolValue(environment, forAwaitMoveNextInstruction.IteratorSlot, out var awaitIteratorState) ||
                             awaitIteratorState is not ForOfState forAwaitState)
                         {
@@ -4190,6 +4169,13 @@ public static class TypedAstEvaluator
                             var nextResult = InvokeIteratorNext(awaitIteratorObj);
                             if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNextResult))
                             {
+                                if (_asyncStepMode && _pendingPromise is JsObject)
+                                {
+                                    _state = GeneratorState.Suspended;
+                                    _programCounter = forAwaitIndex;
+                                    return CreateIteratorResult(JsSymbols.Undefined, false);
+                                }
+
                                 if (context.IsThrow)
                                 {
                                     var thrownAwait = context.FlowValue;
@@ -4226,6 +4212,13 @@ public static class TypedAstEvaluator
                                 : JsSymbols.Undefined;
                             if (!TryAwaitPromiseOrSchedule(rawValue, context, out var fullyAwaitedValue))
                             {
+                                if (_asyncStepMode && _pendingPromise is JsObject)
+                                {
+                                    _state = GeneratorState.Suspended;
+                                    _programCounter = forAwaitIndex;
+                                    return CreateIteratorResult(JsSymbols.Undefined, false);
+                                }
+
                                 if (context.IsThrow)
                                 {
                                     var thrownAwaitValue = context.FlowValue;
@@ -4256,6 +4249,13 @@ public static class TypedAstEvaluator
                             var enumerated = awaitEnumerator.Current;
                             if (!TryAwaitPromiseOrSchedule(enumerated, context, out var awaitedEnumerated))
                             {
+                                if (_asyncStepMode && _pendingPromise is JsObject)
+                                {
+                                    _state = GeneratorState.Suspended;
+                                    _programCounter = forAwaitIndex;
+                                    return CreateIteratorResult(JsSymbols.Undefined, false);
+                                }
+
                                 if (context.IsThrow)
                                 {
                                     var thrownAwaitEnum = context.FlowValue;
@@ -4491,13 +4491,29 @@ public static class TypedAstEvaluator
             };
         }
 
-        // Placeholder for a future non-blocking await helper. For now this
-        // simply delegates to TryAwaitPromise so behaviour remains unchanged,
-        // but the instance-level indirection allows the generator IR to opt
-        // into a pending-promise model later using _asyncStepMode/_pendingPromise.
         private bool TryAwaitPromiseOrSchedule(object? candidate, EvaluationContext context, out object? resolvedValue)
         {
-            return TryAwaitPromise(candidate, context, out resolvedValue);
+            // When not running under async-generator step execution, keep the
+            // existing blocking semantics.
+            if (!_asyncStepMode)
+            {
+                return TryAwaitPromise(candidate, context, out resolvedValue);
+            }
+
+            // Async-aware mode: if this is a promise-like object, surface it as
+            // a pending step instead of blocking. The actual Pending result is
+            // produced by ExecuteAsyncStep after ExecutePlan returns.
+            if (candidate is JsObject promiseObj && IsPromiseLike(promiseObj))
+            {
+                _pendingPromise = promiseObj;
+                resolvedValue = JsSymbols.Undefined;
+                return false;
+            }
+
+            // Non-promise value in async mode: no need to suspend, just pass
+            // the value through.
+            resolvedValue = candidate;
+            return true;
         }
 
         private void PreparePendingResumeValue(ResumeMode mode, object? resumeValue, bool wasStart)

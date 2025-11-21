@@ -126,6 +126,617 @@ internal static class GeneratorYieldLowerer
             return true;
         }
 
+        private bool TryRewriteConditionalWithYield(StatementNode statement, bool isStrict,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            switch (statement)
+            {
+                case IfStatement ifStatement:
+                {
+                    if (!TryRewriteConditionWithSingleYield(ifStatement.Condition, out var yieldExpression,
+                            out var rewrittenCondition))
+                    {
+                        return false;
+                    }
+
+                    if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+                    {
+                        return false;
+                    }
+
+                    var resumeIdentifier = CreateResumeIdentifier();
+                    var rewrittenThen = RewriteEmbedded(ifStatement.Then, isStrict);
+                    var rewrittenElse = ifStatement.Else is null
+                        ? null
+                        : RewriteEmbedded(ifStatement.Else, isStrict);
+
+                    var loweredIf = ifStatement with
+                    {
+                        Condition = SubstituteResumeIdentifier(rewrittenCondition, resumeIdentifier.Name),
+                        Then = rewrittenThen,
+                        Else = rewrittenElse
+                    };
+
+                    replacement = ImmutableArray.Create<StatementNode>(
+                        new VariableDeclaration(ifStatement.Source, VariableKind.Let,
+                            [new VariableDeclarator(yieldExpression.Source, resumeIdentifier,
+                                new YieldExpression(yieldExpression.Source, yieldExpression.Expression, false))]),
+                        loweredIf);
+                    return true;
+                }
+
+                case WhileStatement whileStatement:
+                {
+                    if (!TryRewriteConditionWithSingleYield(whileStatement.Condition, out var yieldExpression,
+                            out var rewrittenCondition))
+                    {
+                        return false;
+                    }
+
+                    if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+                    {
+                        return false;
+                    }
+
+                    var resumeIdentifier = CreateResumeIdentifier();
+                    var rewrittenBody = RewriteEmbedded(whileStatement.Body, isStrict);
+
+                    var declareResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
+                        [new VariableDeclarator(yieldExpression.Source, resumeIdentifier,
+                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression, false))]);
+
+                    var breakCheck = new IfStatement(whileStatement.Source,
+                        new UnaryExpression(whileStatement.Source, "!",
+                            SubstituteResumeIdentifier(rewrittenCondition, resumeIdentifier.Name), true),
+                        new BreakStatement(whileStatement.Source, null),
+                        null);
+
+                    var loopBlock = new BlockStatement(whileStatement.Source,
+                        ImmutableArray.Create<StatementNode>(declareResume, breakCheck, rewrittenBody),
+                        isStrict);
+
+                    var loweredWhile = new WhileStatement(whileStatement.Source,
+                        new LiteralExpression(whileStatement.Source, true),
+                        loopBlock);
+
+                    replacement = ImmutableArray.Create<StatementNode>(loweredWhile);
+                    return true;
+                }
+
+                case DoWhileStatement doWhileStatement:
+                {
+                    if (!TryRewriteConditionWithSingleYield(doWhileStatement.Condition, out var yieldExpression,
+                            out var rewrittenCondition))
+                    {
+                        return false;
+                    }
+
+                    if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
+                    {
+                        return false;
+                    }
+
+                    var resumeIdentifier = CreateResumeIdentifier();
+                    var rewrittenBody = RewriteEmbedded(doWhileStatement.Body, isStrict);
+
+                    var assignResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
+                        [new VariableDeclarator(yieldExpression.Source, resumeIdentifier,
+                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression, false))]);
+
+                    var loopBodyStatements = ImmutableArray.Create<StatementNode>(
+                        rewrittenBody,
+                        assignResume);
+
+                    var loweredBody = new BlockStatement(doWhileStatement.Source, loopBodyStatements, isStrict);
+
+                    var loweredDoWhile = new DoWhileStatement(doWhileStatement.Source,
+                        loweredBody,
+                        SubstituteResumeIdentifier(rewrittenCondition, resumeIdentifier.Name));
+
+                    replacement = ImmutableArray.Create<StatementNode>(loweredDoWhile);
+
+                    return true;
+                }
+
+                default:
+                    return false;
+            }
+        }
+
+        private static bool TryRewriteConditionWithSingleYield(ExpressionNode expression,
+            out YieldExpression yieldExpression, out ExpressionNode rewrittenCondition)
+        {
+            yieldExpression = null!;
+            rewrittenCondition = null!;
+            YieldExpression? singleYield = null;
+            var found = false;
+
+            bool Rewrite(ExpressionNode? expr, out ExpressionNode rewritten)
+            {
+                switch (expr)
+                {
+                    case null:
+                        rewritten = null!;
+                        return true;
+                    case YieldExpression y:
+                        if (found)
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        if (y.IsDelegated || ContainsYield(y.Expression))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        found = true;
+                        singleYield = y;
+                        rewritten = new IdentifierExpression(y.Source, PlaceholderSymbol);
+                        return true;
+
+                    case BinaryExpression binary:
+                        if (!Rewrite(binary.Left, out var left) || !Rewrite(binary.Right, out var right))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        rewritten = ReferenceEquals(left, binary.Left) && ReferenceEquals(right, binary.Right)
+                            ? binary
+                            : binary with { Left = left, Right = right };
+                        return true;
+
+                    case ConditionalExpression conditional:
+                        if (!Rewrite(conditional.Test, out var test) ||
+                            !Rewrite(conditional.Consequent, out var cons) ||
+                            !Rewrite(conditional.Alternate, out var alt))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        rewritten = ReferenceEquals(test, conditional.Test) &&
+                                    ReferenceEquals(cons, conditional.Consequent) &&
+                                    ReferenceEquals(alt, conditional.Alternate)
+                        ? conditional
+                        : conditional with { Test = test, Consequent = cons, Alternate = alt };
+                        return true;
+
+                    case CallExpression call:
+                        if (!Rewrite(call.Callee, out var callee))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        var callArgs = call.Arguments;
+                        if (call.Arguments.Length > 0)
+                        {
+                            var argBuilder = ImmutableArray.CreateBuilder<CallArgument>(call.Arguments.Length);
+                            var changed = false;
+                            foreach (var arg in call.Arguments)
+                            {
+                                if (!Rewrite(arg.Expression, out var argExpr))
+                                {
+                                    rewritten = null!;
+                                    return false;
+                                }
+
+                                if (ReferenceEquals(argExpr, arg.Expression))
+                                {
+                                    argBuilder.Add(arg);
+                                }
+                                else
+                                {
+                                    argBuilder.Add(arg with { Expression = argExpr });
+                                    changed = true;
+                                }
+                            }
+
+                            if (changed || !ReferenceEquals(callee, call.Callee))
+                            {
+                                callArgs = argBuilder.ToImmutable();
+                            }
+                        }
+
+                        rewritten = ReferenceEquals(callee, call.Callee) && ReferenceEquals(callArgs, call.Arguments)
+                            ? call
+                            : call with { Callee = callee, Arguments = callArgs };
+                        return true;
+
+                    case NewExpression @new:
+                        if (!Rewrite(@new.Constructor, out var ctor))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        var newArgs = @new.Arguments;
+                        if (@new.Arguments.Length > 0)
+                        {
+                            var argBuilder = ImmutableArray.CreateBuilder<ExpressionNode>(@new.Arguments.Length);
+                            var changed = false;
+                            foreach (var arg in @new.Arguments)
+                            {
+                                if (!Rewrite(arg, out var argExpr))
+                                {
+                                    rewritten = null!;
+                                    return false;
+                                }
+
+                                if (ReferenceEquals(argExpr, arg))
+                                {
+                                    argBuilder.Add(arg);
+                                }
+                                else
+                                {
+                                    argBuilder.Add(argExpr);
+                                    changed = true;
+                                }
+                            }
+
+                            if (changed || !ReferenceEquals(ctor, @new.Constructor))
+                            {
+                                newArgs = argBuilder.ToImmutable();
+                            }
+                        }
+
+                        rewritten = ReferenceEquals(ctor, @new.Constructor) && ReferenceEquals(newArgs, @new.Arguments)
+                            ? @new
+                            : @new with { Constructor = ctor, Arguments = newArgs };
+                        return true;
+
+                    case MemberExpression member:
+                        if (!Rewrite(member.Target, out var target) ||
+                            !Rewrite(member.Property, out var prop))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        rewritten = ReferenceEquals(target, member.Target) && ReferenceEquals(prop, member.Property)
+                            ? member
+                            : member with { Target = target, Property = prop };
+                        return true;
+
+                    case AssignmentExpression assignment:
+                        if (!Rewrite(assignment.Value, out var valueExpr))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        rewritten = ReferenceEquals(valueExpr, assignment.Value)
+                            ? assignment
+                            : assignment with { Value = valueExpr };
+                        return true;
+
+                    case PropertyAssignmentExpression propertyAssignment:
+                        if (!Rewrite(propertyAssignment.Target, out var patTarget) ||
+                            !Rewrite(propertyAssignment.Property, out var patProp) ||
+                            !Rewrite(propertyAssignment.Value, out var patValue))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        rewritten = ReferenceEquals(patTarget, propertyAssignment.Target) &&
+                                    ReferenceEquals(patProp, propertyAssignment.Property) &&
+                                    ReferenceEquals(patValue, propertyAssignment.Value)
+                            ? propertyAssignment
+                            : propertyAssignment with
+                            {
+                                Target = patTarget, Property = patProp, Value = patValue
+                            };
+                        return true;
+
+                    case IndexAssignmentExpression indexAssignment:
+                        if (!Rewrite(indexAssignment.Target, out var idxTarget) ||
+                            !Rewrite(indexAssignment.Index, out var idxIndex) ||
+                            !Rewrite(indexAssignment.Value, out var idxValue))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        rewritten = ReferenceEquals(idxTarget, indexAssignment.Target) &&
+                                    ReferenceEquals(idxIndex, indexAssignment.Index) &&
+                                    ReferenceEquals(idxValue, indexAssignment.Value)
+                            ? indexAssignment
+                            : indexAssignment with
+                            {
+                                Target = idxTarget, Index = idxIndex, Value = idxValue
+                            };
+                        return true;
+
+                    case SequenceExpression sequence:
+                        if (!Rewrite(sequence.Left, out var leftSeq) ||
+                            !Rewrite(sequence.Right, out var rightSeq))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        rewritten = ReferenceEquals(leftSeq, sequence.Left) && ReferenceEquals(rightSeq, sequence.Right)
+                            ? sequence
+                            : sequence with { Left = leftSeq, Right = rightSeq };
+                        return true;
+
+                    case UnaryExpression unary:
+                        if (!Rewrite(unary.Operand, out var operand))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        rewritten = ReferenceEquals(operand, unary.Operand)
+                            ? unary
+                            : unary with { Operand = operand };
+                        return true;
+
+                    case ArrayExpression array:
+                        if (array.Elements.IsDefaultOrEmpty)
+                        {
+                            rewritten = array;
+                            return true;
+                        }
+
+                        {
+                            var builder = ImmutableArray.CreateBuilder<ArrayElement>(array.Elements.Length);
+                            var changed = false;
+                            foreach (var element in array.Elements)
+                            {
+                                if (element.Expression is null)
+                                {
+                                    builder.Add(element);
+                                    continue;
+                                }
+
+                                if (!Rewrite(element.Expression, out var elemExpr))
+                                {
+                                    rewritten = null!;
+                                    return false;
+                                }
+
+                                if (ReferenceEquals(elemExpr, element.Expression))
+                                {
+                                    builder.Add(element);
+                                }
+                                else
+                                {
+                                    builder.Add(element with { Expression = elemExpr });
+                                    changed = true;
+                                }
+                            }
+
+                            rewritten = changed
+                                ? array with { Elements = builder.ToImmutable() }
+                                : array;
+                            return true;
+                        }
+
+                    case ObjectExpression obj:
+                        if (obj.Members.IsDefaultOrEmpty)
+                        {
+                            rewritten = obj;
+                            return true;
+                        }
+
+                        {
+                            var builder = ImmutableArray.CreateBuilder<ObjectMember>(obj.Members.Length);
+                            var changed = false;
+                            foreach (var member in obj.Members)
+                            {
+                                ExpressionNode? memberValue = member.Value;
+                                if (member.Value is not null)
+                                {
+                                    if (!Rewrite(member.Value, out var memberValueExpr))
+                                    {
+                                        rewritten = null!;
+                                        return false;
+                                    }
+
+                                    memberValue = memberValueExpr;
+                                }
+
+                                if (ReferenceEquals(memberValue, member.Value))
+                                {
+                                    builder.Add(member);
+                                }
+                                else
+                                {
+                                    builder.Add(member with { Value = memberValue });
+                                    changed = true;
+                                }
+                            }
+
+                            rewritten = changed
+                                ? obj with { Members = builder.ToImmutable() }
+                                : obj;
+                            return true;
+                        }
+
+                    case FunctionExpression:
+                    case ClassExpression:
+                        rewritten = expr;
+                        return true;
+
+                    default:
+                        if (ContainsYield(expr))
+                        {
+                            rewritten = null!;
+                            return false;
+                        }
+
+                        rewritten = expr;
+                        return true;
+                }
+            }
+
+            if (!Rewrite(expression, out var rewrittenConditionInternal))
+            {
+                return false;
+            }
+
+            if (!found || singleYield is null)
+            {
+                return false;
+            }
+
+            yieldExpression = singleYield;
+            rewrittenCondition = rewrittenConditionInternal;
+            return true;
+        }
+
+        private BlockStatement RewriteEmbedded(StatementNode statement, bool isStrict)
+        {
+            if (statement is BlockStatement block)
+            {
+                return RewriteBlock(block);
+            }
+
+            var rewrittenStatements = RewriteStatements(ImmutableArray.Create(statement), isStrict);
+            if (rewrittenStatements.Length == 1 && rewrittenStatements[0] is BlockStatement singleBlock)
+            {
+                return singleBlock;
+            }
+
+            return new BlockStatement(statement.Source, rewrittenStatements, isStrict);
+        }
+
+        private static ExpressionNode SubstituteResumeIdentifier(ExpressionNode condition, Symbol resumeSymbol)
+        {
+            return ReplacePlaceholder(condition, resumeSymbol);
+        }
+
+        private static ExpressionNode ReplacePlaceholder(ExpressionNode expression, Symbol resumeSymbol)
+        {
+            switch (expression)
+            {
+                case IdentifierExpression { Name: { } name } when ReferenceEquals(name, PlaceholderSymbol):
+                    return new IdentifierExpression(expression.Source, resumeSymbol);
+                case BinaryExpression binary:
+                    return binary with
+                    {
+                        Left = ReplacePlaceholder(binary.Left, resumeSymbol),
+                        Right = ReplacePlaceholder(binary.Right, resumeSymbol)
+                    };
+                case ConditionalExpression conditional:
+                    return conditional with
+                    {
+                        Test = ReplacePlaceholder(conditional.Test, resumeSymbol),
+                        Consequent = ReplacePlaceholder(conditional.Consequent, resumeSymbol),
+                        Alternate = ReplacePlaceholder(conditional.Alternate, resumeSymbol)
+                    };
+                case CallExpression call:
+                {
+                    var args = call.Arguments;
+                    if (args.Length > 0)
+                    {
+                        var builder = ImmutableArray.CreateBuilder<CallArgument>(args.Length);
+                        foreach (var arg in args)
+                        {
+                            builder.Add(arg with
+                            {
+                                Expression = ReplacePlaceholder(arg.Expression, resumeSymbol)
+                            });
+                        }
+
+                        args = builder.ToImmutable();
+                    }
+
+                    return call with
+                    {
+                        Callee = ReplacePlaceholder(call.Callee, resumeSymbol),
+                        Arguments = args
+                    };
+                }
+                case NewExpression @new:
+                {
+                    var builder = ImmutableArray.CreateBuilder<ExpressionNode>(@new.Arguments.Length);
+                    foreach (var arg in @new.Arguments)
+                    {
+                        builder.Add(ReplacePlaceholder(arg, resumeSymbol));
+                    }
+
+                    return @new with
+                    {
+                        Constructor = ReplacePlaceholder(@new.Constructor, resumeSymbol),
+                        Arguments = builder.ToImmutable()
+                    };
+                }
+                case MemberExpression member:
+                    return member with
+                    {
+                        Target = ReplacePlaceholder(member.Target, resumeSymbol),
+                        Property = ReplacePlaceholder(member.Property, resumeSymbol)
+                    };
+                case AssignmentExpression assignment:
+                    return assignment with
+                    {
+                        Value = ReplacePlaceholder(assignment.Value, resumeSymbol)
+                    };
+                case PropertyAssignmentExpression propertyAssignment:
+                    return propertyAssignment with
+                    {
+                        Target = ReplacePlaceholder(propertyAssignment.Target, resumeSymbol),
+                        Property = ReplacePlaceholder(propertyAssignment.Property, resumeSymbol),
+                        Value = ReplacePlaceholder(propertyAssignment.Value, resumeSymbol)
+                    };
+                case IndexAssignmentExpression indexAssignment:
+                    return indexAssignment with
+                    {
+                        Target = ReplacePlaceholder(indexAssignment.Target, resumeSymbol),
+                        Index = ReplacePlaceholder(indexAssignment.Index, resumeSymbol),
+                        Value = ReplacePlaceholder(indexAssignment.Value, resumeSymbol)
+                    };
+                case SequenceExpression sequence:
+                    return sequence with
+                    {
+                        Left = ReplacePlaceholder(sequence.Left, resumeSymbol),
+                        Right = ReplacePlaceholder(sequence.Right, resumeSymbol)
+                    };
+                case UnaryExpression unary:
+                    return unary with
+                    {
+                        Operand = ReplacePlaceholder(unary.Operand, resumeSymbol)
+                    };
+                case ArrayExpression array:
+                {
+                    var builder = ImmutableArray.CreateBuilder<ArrayElement>(array.Elements.Length);
+                    foreach (var element in array.Elements)
+                    {
+                        builder.Add(element.Expression is null
+                            ? element
+                            : element with { Expression = ReplacePlaceholder(element.Expression, resumeSymbol) });
+                    }
+
+                    return array with { Elements = builder.ToImmutable() };
+                }
+                case ObjectExpression obj:
+                {
+                    var builder = ImmutableArray.CreateBuilder<ObjectMember>(obj.Members.Length);
+                    foreach (var member in obj.Members)
+                    {
+                        builder.Add(member with
+                        {
+                            Value = member.Value is null ? null : ReplacePlaceholder(member.Value, resumeSymbol)
+                        });
+                    }
+
+                    return obj with { Members = builder.ToImmutable() };
+                }
+                default:
+                    return expression;
+            }
+        }
+
+        private static readonly Symbol PlaceholderSymbol = Symbol.Intern("__yield_lower_placeholder");
+
         private IdentifierBinding CreateResumeIdentifier()
         {
             var symbol = Symbol.Intern($"__yield_lower_resume{_resumeCounter++}");

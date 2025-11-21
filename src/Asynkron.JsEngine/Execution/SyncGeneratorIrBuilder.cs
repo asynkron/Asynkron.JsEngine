@@ -596,21 +596,20 @@ internal sealed class SyncGeneratorIrBuilder
             var body = switchCase.Body;
             var bodyStatements = body.Statements;
 
-            // Only support a single trailing unlabeled break at top level.
-            var hasTrailingBreak = false;
-            if (bodyStatements.Length > 0 &&
-                bodyStatements[^1] is BreakStatement trailingBreak &&
-                trailingBreak.Label is null)
+            var breakIndex = -1;
+            for (var i = 0; i < bodyStatements.Length; i++)
             {
-                hasTrailingBreak = true;
-                for (var i = 0; i < bodyStatements.Length - 1; i++)
+                if (bodyStatements[i] is BreakStatement breakStatement)
                 {
-                    if (bodyStatements[i] is BreakStatement)
+                    if (breakStatement.Label is not null &&
+                        (activeLabel is null || !ReferenceEquals(activeLabel, breakStatement.Label)))
                     {
                         _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
                         entryIndex = -1;
                         return false;
                     }
+
+                    breakIndex = breakIndex == -1 ? i : breakIndex;
                 }
             }
 
@@ -627,13 +626,13 @@ internal sealed class SyncGeneratorIrBuilder
             var execCondition = new BinaryExpression(statement.Source, "&&", notDoneExec, matchGuard);
 
             var execBuilder = ImmutableArray.CreateBuilder<StatementNode>();
-            var copyCount = hasTrailingBreak ? bodyStatements.Length - 1 : bodyStatements.Length;
+            var copyCount = breakIndex == -1 ? bodyStatements.Length : breakIndex;
             for (var i = 0; i < copyCount; i++)
             {
                 execBuilder.Add(bodyStatements[i]);
             }
 
-            if (hasTrailingBreak)
+            if (breakIndex != -1)
             {
                 var setDoneAssignment = new AssignmentExpression(statement.Source, doneSymbol,
                     new LiteralExpression(statement.Source, true));

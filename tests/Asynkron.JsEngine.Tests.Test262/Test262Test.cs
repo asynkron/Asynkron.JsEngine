@@ -1,11 +1,12 @@
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.JsTypes;
 using Test262Harness;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
 public abstract partial class Test262Test
 {
-    private static JsEngine BuildTestExecutor(Test262File file)
+    private static async Task<JsEngine> BuildTestExecutor(Test262File file)
     {
         var engine = new JsEngine();
 
@@ -16,8 +17,8 @@ public abstract partial class Test262Test
         }
 
         // Execute test harness files
-        ExecuteSource(engine, State.Sources["assert.js"]);
-        ExecuteSource(engine, State.Sources["sta.js"]);
+        await ExecuteSource(engine, State.Sources["assert.js"]);
+        await ExecuteSource(engine, State.Sources["sta.js"]);
 
         // Add print function
         engine.SetGlobalFunction("print", args =>
@@ -44,7 +45,7 @@ public abstract partial class Test262Test
 
                 if (args.Count > 0 && args[0] is string script)
                 {
-                    return ExecuteSource(engine, script);
+                    return ExecuteSource(engine, script).GetAwaiter().GetResult();
                 }
 
                 return null;
@@ -75,53 +76,40 @@ public abstract partial class Test262Test
             })
         };
 
-        engine.SetGlobal("$262", obj262);
+        engine.SetGlobalValue("$262", obj262);
 
         // Load includes
-        foreach (var include in file.Includes)
+        var includes = file.Includes.ToArray();
+        foreach (var include in includes)
         {
-            ExecuteSource(engine, State.Sources[include]);
+            await ExecuteSource(engine, State.Sources[include]);
         }
 
         if (file.Flags.Contains("async"))
         {
-            ExecuteSource(engine, State.Sources["doneprintHandle.js"]);
+            await ExecuteSource(engine, State.Sources["doneprintHandle.js"]);
         }
 
         return engine;
     }
 
-    private static object? ExecuteSource(JsEngine engine, string source)
+    private static async Task<object?> ExecuteSource(JsEngine engine, string source)
     {
-        try
-        {
-            var task = engine.Evaluate(source);
-            task.Wait();
-            return task.Result;
-        }
-        catch (AggregateException ae)
-        {
-            // Unwrap the AggregateException to get the actual JavaScript error
-            if (ae.InnerException != null)
-            {
-                throw ae.InnerException;
-            }
-            throw;
-        }
+        return await engine.Evaluate(source);
     }
 
-    private static void ExecuteTest(JsEngine engine, Test262File file)
+    private static async Task ExecuteTest(JsEngine engine, Test262File file)
     {
         if (file.Type == ProgramType.Module)
         {
             // Module support - basic implementation
             // For now, we'll treat modules as regular scripts
             // TODO: Implement proper module support if needed
-            ExecuteSource(engine, file.Program);
+            await ExecuteSource(engine, file.Program);
         }
         else
         {
-            ExecuteSource(engine, file.Program);
+            await ExecuteSource(engine, file.Program);
         }
     }
 

@@ -380,6 +380,14 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
+    /// Registers a value in the global scope (public facing).
+    /// </summary>
+    public void SetGlobalValue(string name, object? value)
+    {
+        SetGlobal(name, value);
+    }
+
+    /// <summary>
     /// Registers a host function that can be invoked from interpreted code.
     /// </summary>
     public void SetGlobalFunction(string name, Func<IReadOnlyList<object?>, object?> handler)

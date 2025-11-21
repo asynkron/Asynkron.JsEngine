@@ -1,6 +1,7 @@
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Test262Harness;
+using System;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
@@ -8,7 +9,10 @@ public abstract partial class Test262Test
 {
     private static async Task<JsEngine> BuildTestExecutor(Test262File file)
     {
-        var engine = new JsEngine();
+        var engine = new JsEngine
+        {
+            ExecutionTimeout = TimeSpan.FromSeconds(2)
+        };
 
         if (file.Flags.Contains("raw"))
         {

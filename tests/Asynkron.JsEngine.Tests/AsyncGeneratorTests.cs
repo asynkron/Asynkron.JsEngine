@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Collection("GeneratorIrCollection")]
 public class AsyncGeneratorTests(ITestOutputHelper output)
 {
     [Fact(Timeout = 2000)]

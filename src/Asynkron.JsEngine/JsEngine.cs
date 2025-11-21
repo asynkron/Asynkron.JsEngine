@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -34,6 +35,12 @@ public sealed class JsEngine : IAsyncDisposable
 
     // Module loader function: allows custom module loading logic
     private Func<string, string>? _moduleLoader;
+
+    /// <summary>
+    /// Maximum wall-clock time to allow a single evaluation to run before failing.
+    /// Null or non-positive values disable the timeout.
+    /// </summary>
+    public TimeSpan? ExecutionTimeout { get; set; } = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// Initializes a new instance of JsEngine with standard library objects.
@@ -114,6 +121,9 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Minimal browser-like storage object used by debug/babel-standalone.
         SetGlobal("localStorage", StandardLibrary.CreateLocalStorageObject());
+
+        // Reflect object
+        SetGlobal("Reflect", StandardLibrary.CreateReflectObject());
 
         // Register ArrayBuffer and TypedArray constructors
         SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor());
@@ -263,9 +273,9 @@ public sealed class JsEngine : IAsyncDisposable
     /// cons interpreter is no longer part of the runtime path; cons data is only
     /// used earlier for parsing and transformation.
     /// </summary>
-    internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment)
+    internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment, CancellationToken cancellationToken = default)
     {
-        return _typedExecutor.Evaluate(program, environment);
+        return _typedExecutor.Evaluate(program, environment, cancellationToken);
     }
 
     /// <summary>
@@ -294,6 +304,25 @@ public sealed class JsEngine : IAsyncDisposable
         return typedParser.ParseProgram();
     }
 
+    private CancellationToken CreateEvaluationCancellationToken(CancellationToken cancellationToken,
+        out CancellationTokenSource? timeoutCts)
+    {
+        timeoutCts = null;
+
+        if (ExecutionTimeout is { } timeout && timeout > TimeSpan.Zero &&
+            timeout != Timeout.InfiniteTimeSpan)
+        {
+            var cts = cancellationToken.CanBeCanceled
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+                : new CancellationTokenSource();
+
+            cts.CancelAfter(timeout);
+            timeoutCts = cts;
+            return cts.Token;
+        }
+
+        return cancellationToken;
+    }
 
 
     /// <summary>
@@ -301,10 +330,10 @@ public sealed class JsEngine : IAsyncDisposable
     /// This ensures all code executes through the event loop, maintaining proper
     /// single-threaded execution semantics.
     /// </summary>
-    public Task<object?> Evaluate(string source)
+    public Task<object?> Evaluate(string source, CancellationToken cancellationToken = default)
     {
         var program = ParseForExecution(source);
-        return Evaluate(program);
+        return Evaluate(program, cancellationToken);
     }
 
     /// <summary>
@@ -312,14 +341,16 @@ public sealed class JsEngine : IAsyncDisposable
     /// This ensures all code executes through the event loop, maintaining proper
     /// single-threaded execution semantics.
     /// </summary>
-    private async Task<object?> Evaluate(ParsedProgram program)
+    private async Task<object?> Evaluate(ParsedProgram program, CancellationToken cancellationToken = default)
     {
         var tcs = new TaskCompletionSource<object?>();
+        var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
 
         // Schedule the evaluation on the event queue
         // This ensures ALL code runs through the event loop
         ScheduleTask(() =>
         {
+            using var scope = EvaluationCancellationScope.Enter(combinedToken);
             try
             {
                 object? result;
@@ -332,22 +363,48 @@ public sealed class JsEngine : IAsyncDisposable
                 }
                 else
                 {
-                    result = ExecuteProgram(program, _global);
+                    result = ExecuteProgram(program, _global, combinedToken);
                 }
 
                 tcs.SetResult(result);
             }
             catch (Exception ex)
             {
-                tcs.SetException(ex);
+                if (ex is OperationCanceledException && timeoutCts?.IsCancellationRequested == true)
+                {
+                    tcs.SetException(new TimeoutException(
+                        $"JavaScript execution exceeded the configured timeout of {ExecutionTimeout}.", ex));
+                }
+                else
+                {
+                    tcs.SetException(ex);
+                }
             }
 
             return Task.CompletedTask;
         });
 
-        var res = await tcs.Task.ConfigureAwait(false);
+        try
+        {
+            var completed = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, combinedToken))
+                .ConfigureAwait(false);
+            if (completed != tcs.Task)
+            {
+                if (timeoutCts?.IsCancellationRequested == true)
+                {
+                    throw new TimeoutException(
+                        $"JavaScript execution exceeded the configured timeout of {ExecutionTimeout}.");
+                }
 
-        return res;
+                throw new OperationCanceledException(combinedToken);
+            }
+
+            return await tcs.Task.ConfigureAwait(false);
+        }
+        finally
+        {
+            timeoutCts?.Dispose();
+        }
     }
 
     /// <summary>
@@ -457,8 +514,13 @@ public sealed class JsEngine : IAsyncDisposable
     /// <param name="task">The task to schedule</param>
     public void ScheduleTask(Func<Task> task)
     {
+        var capturedToken = EvaluationCancellationScope.CurrentToken;
         Interlocked.Increment(ref _pendingTaskCount);
-        _eventQueue.Writer.TryWrite(task);
+        _eventQueue.Writer.TryWrite(async () =>
+        {
+            using var scope = EvaluationCancellationScope.Enter(capturedToken);
+            await task().ConfigureAwait(false);
+        });
     }
 
     /// <summary>

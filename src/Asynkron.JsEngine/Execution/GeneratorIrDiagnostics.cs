@@ -87,4 +87,3 @@ public static class GeneratorIrDiagnostics
         return function.Source?.ToString() ?? "<anonymous>";
     }
 }
-

@@ -1,3 +1,5 @@
+using System.Threading;
+
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
@@ -8,8 +10,8 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 internal sealed class TypedProgramExecutor
 {
-    public object? Evaluate(ParsedProgram program, JsEnvironment environment)
+    public object? Evaluate(ParsedProgram program, JsEnvironment environment, CancellationToken cancellationToken = default)
     {
-        return TypedAstEvaluator.EvaluateProgram(program.Typed, environment);
+        return TypedAstEvaluator.EvaluateProgram(program.Typed, environment, cancellationToken);
     }
 }

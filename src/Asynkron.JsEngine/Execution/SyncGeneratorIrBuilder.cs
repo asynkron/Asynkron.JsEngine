@@ -171,6 +171,11 @@ internal sealed class SyncGeneratorIrBuilder
                     return true;
 
                 case VariableDeclaration declaration:
+                    if (TryBuildVariableDeclaration(declaration, nextIndex, out entryIndex))
+                    {
+                        return true;
+                    }
+
                     if (DeclarationContainsYield(declaration))
                     {
                         entryIndex = -1;
@@ -260,6 +265,27 @@ internal sealed class SyncGeneratorIrBuilder
                     return false;
             }
         }
+    }
+
+    private bool TryBuildVariableDeclaration(VariableDeclaration declaration, int nextIndex, out int entryIndex)
+    {
+        entryIndex = -1;
+
+        if (declaration.Declarators.Length != 1 ||
+            declaration.Declarators[0] is not { } declarator ||
+            declarator.Target is not IdentifierBinding { Name: { } targetSymbol } ||
+            declarator.Initializer is not YieldExpression yieldInitializer)
+        {
+            return false;
+        }
+
+        if (!IsLowererTemp(targetSymbol) || yieldInitializer.IsDelegated || ContainsYield(yieldInitializer.Expression))
+        {
+            return false;
+        }
+
+        entryIndex = AppendYieldSequence(yieldInitializer.Expression, nextIndex, targetSymbol);
+        return true;
     }
 
     private bool TryBuildIfStatement(IfStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)

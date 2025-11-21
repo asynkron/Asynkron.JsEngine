@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.JsTypes;
@@ -3580,6 +3581,19 @@ public static class StandardLibrary
         return array;
     }
 
+    private static bool TryGetObject(object candidate, out IJsObjectLike accessor)
+    {
+        switch (candidate)
+        {
+            case IJsObjectLike a:
+                accessor = a;
+                return true;
+            default:
+                accessor = null!;
+                return false;
+        }
+    }
+
     /// <summary>
     /// Creates the Object constructor with static methods.
     /// </summary>
@@ -4038,16 +4052,12 @@ public static class StandardLibrary
         // Object.getOwnPropertyNames(obj)
         objectConstructor.SetProperty("getOwnPropertyNames", new HostFunction(args =>
         {
-            if (args.Count == 0 || args[0] is not JsObject obj)
+            if (args.Count == 0 || !TryGetObject(args[0]!, out var obj))
             {
                 return new JsArray();
             }
 
-            var names = new JsArray();
-            foreach (var name in obj.GetOwnPropertyNames())
-            {
-                names.Push(name);
-            }
+            var names = new JsArray(obj.GetOwnPropertyNames());
 
             AddArrayMethods(names);
             return names;
@@ -4056,7 +4066,7 @@ public static class StandardLibrary
         // Object.getOwnPropertyDescriptor(obj, prop)
         objectConstructor.SetProperty("getOwnPropertyDescriptor", new HostFunction(args =>
         {
-            if (args.Count < 2 || args[0] is not JsObject obj)
+            if (args.Count < 2 || !TryGetObject(args[0]!, out var obj))
             {
                 return Symbols.Undefined;
             }
@@ -4094,10 +4104,21 @@ public static class StandardLibrary
             return resultDesc;
         }));
 
+        // Object.getPrototypeOf(obj)
+        objectConstructor.SetProperty("getPrototypeOf", new HostFunction(args =>
+        {
+            if (args.Count == 0 || !TryGetObject(args[0]!, out var obj))
+            {
+                throw new Exception("Object.getPrototypeOf: target must be an object.");
+            }
+
+            return obj.Prototype ?? (object?)Symbols.Undefined;
+        }));
+
         // Object.defineProperty(obj, prop, descriptor)
         objectConstructor.SetProperty("defineProperty", new HostFunction(args =>
         {
-            if (args.Count < 3 || args[0] is not JsObject obj)
+            if (args.Count < 3 || !TryGetObject(args[0]!, out var obj))
             {
                 return args.Count > 0 ? args[0] : null;
             }
@@ -4153,7 +4174,7 @@ public static class StandardLibrary
                 obj.DefineProperty(propName, descriptor);
             }
 
-            return obj;
+            return args[0];
         }));
 
         return objectConstructor;
@@ -4240,6 +4261,22 @@ public static class StandardLibrary
         {
             prototypeObject.SetProperty("slice", new HostFunction((thisValue, args) => ArraySlice(thisValue, args)));
         }
+
+        arrayConstructor.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = 1d,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        arrayConstructor.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = "Array",
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
 
         return arrayConstructor;
     }
@@ -5989,5 +6026,241 @@ public static class StandardLibrary
 
             return false; // Everything else becomes NaN, which is not finite
         });
+    }
+
+    public static JsObject CreateReflectObject()
+    {
+        var reflect = new JsObject();
+
+        reflect.SetProperty("apply", new HostFunction(args =>
+        {
+            if (args.Count < 2 || args[0] is not IJsCallable callable)
+            {
+                throw new Exception("Reflect.apply: target must be callable.");
+            }
+
+            var thisArg = args[1];
+            var argList = args.Count > 2 && args[2] is JsArray arr
+                ? arr.Items.ToArray()
+                : Array.Empty<object?>();
+
+            return callable.Invoke(argList, thisArg);
+        }));
+
+        reflect.SetProperty("construct", new HostFunction(args =>
+        {
+            if (args.Count < 2 || args[0] is not IJsCallable target)
+            {
+                throw new Exception("Reflect.construct: target must be a constructor.");
+            }
+
+            var argList = args[1] is JsArray arr ? arr.Items.ToArray() : Array.Empty<object?>();
+            var newTarget = args.Count > 2 && args[2] is IJsCallable ctor ? ctor : target;
+
+            JsObject? proto = null;
+            if (TryGetPrototype(newTarget, out var newTargetProto))
+            {
+                proto = newTargetProto;
+            }
+            else if (TryGetPrototype(target, out var targetProto))
+            {
+                proto = targetProto;
+            }
+
+            var instance = new JsObject();
+            if (proto is not null)
+            {
+                instance.SetPrototype(proto);
+            }
+
+            var result = target.Invoke(argList, instance);
+            return result is JsObject ? result : instance;
+        }));
+
+        reflect.SetProperty("defineProperty", new HostFunction(args =>
+        {
+            if (args.Count < 3 || !TryGetObject(args[0]!, out var target))
+            {
+                throw new Exception("Reflect.defineProperty: target must be an object.");
+            }
+
+            var propertyKey = args[1]?.ToString() ?? string.Empty;
+            if (args[2] is not JsObject descriptorObj)
+            {
+                throw new Exception("Reflect.defineProperty: descriptor must be an object.");
+            }
+
+            var descriptor = new PropertyDescriptor
+            {
+                Value = descriptorObj.TryGetProperty("value", out var value) ? value : null,
+                Writable = descriptorObj.TryGetProperty("writable", out var writable) && writable is true,
+                Enumerable = !descriptorObj.TryGetProperty("enumerable", out var enumerable) || enumerable is true,
+                Configurable = !descriptorObj.TryGetProperty("configurable", out var configurable) ||
+                               configurable is true,
+                Get = descriptorObj.TryGetProperty("get", out var getter) && getter is IJsCallable getterFn
+                    ? getterFn
+                    : null,
+                Set = descriptorObj.TryGetProperty("set", out var setter) && setter is IJsCallable setterFn
+                    ? setterFn
+                    : null
+            };
+
+            target.DefineProperty(propertyKey, descriptor);
+            return true;
+        }));
+
+        reflect.SetProperty("deleteProperty", new HostFunction(args =>
+        {
+            if (args.Count < 2 || !TryGetObject(args[0]!, out var target))
+            {
+                throw new Exception("Reflect.deleteProperty: target must be an object.");
+            }
+
+            var propertyKey = args[1]?.ToString() ?? string.Empty;
+            return target is JsObject jsObj && jsObj.Remove(propertyKey);
+        }));
+
+        reflect.SetProperty("get", new HostFunction(args =>
+        {
+            if (args.Count < 2 || !TryGetObject(args[0]!, out var target))
+            {
+                throw new Exception("Reflect.get: target must be an object.");
+            }
+
+            var propertyKey = args[1]?.ToString() ?? string.Empty;
+            return target.TryGetProperty(propertyKey, out var value) ? value : null;
+        }));
+
+        reflect.SetProperty("getOwnPropertyDescriptor", new HostFunction(args =>
+        {
+            if (args.Count < 2 || !TryGetObject(args[0]!, out var target))
+            {
+                throw new Exception("Reflect.getOwnPropertyDescriptor: target must be an object.");
+            }
+
+            var propertyKey = args[1]?.ToString() ?? string.Empty;
+            var descriptor = target.GetOwnPropertyDescriptor(propertyKey);
+            if (descriptor is null)
+            {
+                return null;
+            }
+
+            var descObj = new JsObject
+            {
+                ["value"] = descriptor.Value,
+                ["writable"] = descriptor.Writable,
+                ["enumerable"] = descriptor.Enumerable,
+                ["configurable"] = descriptor.Configurable
+            };
+
+            if (descriptor.Get is not null)
+            {
+                descObj["get"] = descriptor.Get;
+            }
+
+            if (descriptor.Set is not null)
+            {
+                descObj["set"] = descriptor.Set;
+            }
+
+            return descObj;
+        }));
+
+        reflect.SetProperty("getPrototypeOf", new HostFunction(args =>
+        {
+            if (args.Count == 0 || !TryGetObject(args[0]!, out var target))
+            {
+                throw new Exception("Reflect.getPrototypeOf: target must be an object.");
+            }
+
+            return target.Prototype;
+        }));
+
+        reflect.SetProperty("has", new HostFunction(args =>
+        {
+            if (args.Count < 2 || !TryGetObject(args[0]!, out var target))
+            {
+                throw new Exception("Reflect.has: target must be an object.");
+            }
+
+            var propertyKey = args[1]?.ToString() ?? string.Empty;
+            return target.TryGetProperty(propertyKey, out _);
+        }));
+
+        reflect.SetProperty("isExtensible", new HostFunction(args =>
+        {
+            if (args.Count == 0 || !TryGetObject(args[0]!, out var target))
+            {
+                throw new Exception("Reflect.isExtensible: target must be an object.");
+            }
+
+            return !target.IsSealed;
+        }));
+
+        reflect.SetProperty("ownKeys", new HostFunction(args =>
+        {
+            if (args.Count == 0 || !TryGetObject(args[0]!, out var target))
+            {
+                throw new Exception("Reflect.ownKeys: target must be an object.");
+            }
+
+            var keys = target.Keys
+                .Where(k => !k.StartsWith("__getter__", StringComparison.Ordinal) &&
+                            !k.StartsWith("__setter__", StringComparison.Ordinal))
+                .ToArray();
+            return new JsArray(keys);
+        }));
+
+        reflect.SetProperty("preventExtensions", new HostFunction(args =>
+        {
+            if (args.Count == 0 || !TryGetObject(args[0]!, out var target))
+            {
+                throw new Exception("Reflect.preventExtensions: target must be an object.");
+            }
+
+            target.Seal();
+            return true;
+        }));
+
+        reflect.SetProperty("set", new HostFunction(args =>
+        {
+            if (args.Count < 3 || !TryGetObject(args[0]!, out var target))
+            {
+                throw new Exception("Reflect.set: target must be an object.");
+            }
+
+            var propertyKey = args[1]?.ToString() ?? string.Empty;
+            var value = args[2];
+            target.SetProperty(propertyKey, value);
+            return true;
+        }));
+
+        reflect.SetProperty("setPrototypeOf", new HostFunction(args =>
+        {
+            if (args.Count < 2 || !TryGetObject(args[0]!, out var target))
+            {
+                throw new Exception("Reflect.setPrototypeOf: target must be an object.");
+            }
+
+            var proto = args[1];
+            target.SetPrototype(proto);
+            return true;
+        }));
+
+        return reflect;
+    }
+
+    private static bool TryGetPrototype(object candidate, out JsObject? prototype)
+    {
+        prototype = null;
+        if (candidate is IJsPropertyAccessor accessor &&
+            accessor.TryGetProperty("prototype", out var protoValue) &&
+            protoValue is JsObject proto)
+        {
+            prototype = proto;
+            return true;
+        }
+
+        return false;
     }
 }

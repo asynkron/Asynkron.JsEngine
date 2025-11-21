@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Globalization;
 using System.Numerics;
@@ -28,9 +29,9 @@ public static class TypedAstEvaluator
         $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
     private const string GeneratorBrandPropertyName = "__generator_brand__";
     private static readonly object GeneratorBrandMarker = new();
-    public static object? EvaluateProgram(ProgramNode program, JsEnvironment environment)
+    public static object? EvaluateProgram(ProgramNode program, JsEnvironment environment, CancellationToken cancellationToken = default)
     {
-        var context = new EvaluationContext { SourceReference = program.Source };
+        var context = new EvaluationContext(cancellationToken) { SourceReference = program.Source };
         var executionEnvironment = program.IsStrict ? new JsEnvironment(environment, true, true) : environment;
 
         // Hoist var and function declarations in the program body so that
@@ -42,6 +43,7 @@ public static class TypedAstEvaluator
         object? result = JsSymbols.Undefined;
         foreach (var statement in program.Body)
         {
+            context.ThrowIfCancellationRequested();
             result = EvaluateStatement(statement, executionEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
@@ -61,6 +63,7 @@ public static class TypedAstEvaluator
         Symbol? activeLabel = null)
     {
         context.SourceReference = statement.Source;
+        context.ThrowIfCancellationRequested();
 
         return statement switch
         {
@@ -94,6 +97,7 @@ public static class TypedAstEvaluator
 
         foreach (var statement in block.Statements)
         {
+            context.ThrowIfCancellationRequested();
             result = EvaluateStatement(statement, scope, context);
             if (context.ShouldStopEvaluation)
             {
@@ -157,6 +161,7 @@ public static class TypedAstEvaluator
 
         while (true)
         {
+            context.ThrowIfCancellationRequested();
             var test = EvaluateExpression(statement.Condition, environment, context);
             if (context.ShouldStopEvaluation)
             {
@@ -200,6 +205,7 @@ public static class TypedAstEvaluator
 
         do
         {
+            context.ThrowIfCancellationRequested();
             lastValue = EvaluateStatement(statement.Body, environment, context);
             if (context.IsReturn || context.IsThrow)
             {
@@ -267,6 +273,7 @@ public static class TypedAstEvaluator
 
         while (ContinueLoop())
         {
+            context.ThrowIfCancellationRequested();
             lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
             if (context.IsReturn || context.IsThrow)
             {
@@ -503,6 +510,7 @@ public static class TypedAstEvaluator
 
         while (!context.ShouldStopEvaluation)
         {
+            context.ThrowIfCancellationRequested();
             var nextResult = InvokeIteratorNext(iterator);
             if (nextResult is not JsObject resultObj)
             {

@@ -204,8 +204,10 @@ internal static class GeneratorYieldLowerer
             var leftResume = CreateResumeIdentifier();
             var rightResume = CreateResumeIdentifier();
 
-            var leftDeclarator = new VariableDeclarator(declarator.Source, leftResume, null);
-            var rightDeclarator = new VariableDeclarator(declarator.Source, rightResume, null);
+            var leftDeclarator = new VariableDeclarator(declarator.Source, leftResume,
+                new YieldExpression(leftYield.Source, leftYield.Expression, false));
+            var rightDeclarator = new VariableDeclarator(declarator.Source, rightResume,
+                new YieldExpression(rightYield.Source, rightYield.Expression, false));
 
             var rewrittenInitializer = binary with
             {
@@ -215,14 +217,8 @@ internal static class GeneratorYieldLowerer
             var finalDeclarator = declarator with { Initializer = rewrittenInitializer };
 
             replacement = ImmutableArray.Create<StatementNode>(
-                declaration with { Declarators = [leftDeclarator] },
-                new ExpressionStatement(leftYield.Source,
-                    new AssignmentExpression(leftYield.Source, leftResume.Name,
-                        new YieldExpression(leftYield.Source, leftYield.Expression, false))),
-                declaration with { Declarators = [rightDeclarator] },
-                new ExpressionStatement(rightYield.Source,
-                    new AssignmentExpression(rightYield.Source, rightResume.Name,
-                        new YieldExpression(rightYield.Source, rightYield.Expression, false))),
+                declaration with { Declarators = [leftDeclarator], Kind = VariableKind.Let },
+                declaration with { Declarators = [rightDeclarator], Kind = VariableKind.Let },
                 declaration with { Declarators = [finalDeclarator] });
             return true;
         }

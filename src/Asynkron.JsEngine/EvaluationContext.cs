@@ -1,3 +1,4 @@
+using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 
@@ -9,6 +10,15 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public sealed class EvaluationContext
 {
+    private readonly CancellationToken _cancellationToken;
+
+    public EvaluationContext(CancellationToken cancellationToken = default)
+    {
+        _cancellationToken = cancellationToken.CanBeCanceled
+            ? cancellationToken
+            : EvaluationCancellationScope.CurrentToken;
+    }
+
     /// <summary>
     /// The current control flow signal, if any.
     /// </summary>
@@ -18,6 +28,14 @@ public sealed class EvaluationContext
     /// The current source reference for error reporting.
     /// </summary>
     public SourceReference? SourceReference { get; set; }
+
+    /// <summary>
+    /// Throws if the current evaluation has been cancelled (e.g. timed out).
+    /// </summary>
+    public void ThrowIfCancellationRequested()
+    {
+        _cancellationToken.ThrowIfCancellationRequested();
+    }
 
     /// <summary>
     /// Stack of enclosing labels (innermost first). Used to determine if a labeled
@@ -212,4 +230,42 @@ public sealed class EvaluationContext
     /// Returns true if the current signal is Yield.
     /// </summary>
     public bool IsYield => CurrentSignal is YieldSignal;
+
+    internal CancellationToken CancellationToken => _cancellationToken;
+}
+
+internal static class EvaluationCancellationScope
+{
+    private static readonly AsyncLocal<CancellationToken> CurrentTokenHolder = new();
+
+    public static CancellationToken CurrentToken => CurrentTokenHolder.Value;
+
+    public static IDisposable Enter(CancellationToken token)
+    {
+        var previous = CurrentTokenHolder.Value;
+        CurrentTokenHolder.Value = token;
+        return new Scope(previous);
+    }
+
+    private sealed class Scope : IDisposable
+    {
+        private readonly CancellationToken _previous;
+        private bool _disposed;
+
+        public Scope(CancellationToken previous)
+        {
+            _previous = previous;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            CurrentTokenHolder.Value = _previous;
+            _disposed = true;
+        }
+    }
 }

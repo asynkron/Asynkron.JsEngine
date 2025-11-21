@@ -5,10 +5,12 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 /// Represents a host function that can be called from JavaScript.
 /// </summary>
-public sealed class HostFunction : IJsCallable, IJsPropertyAccessor
+public sealed class HostFunction : IJsCallable, IJsObjectLike
 {
     private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
     private readonly JsObject _properties = new();
+
+    internal JsObject Properties => _properties;
 
     public HostFunction(Func<IReadOnlyList<object?>, object?> handler)
     {
@@ -95,5 +97,30 @@ public sealed class HostFunction : IJsCallable, IJsPropertyAccessor
     public void SetProperty(string name, object? value)
     {
         _properties.SetProperty(name, value);
+    }
+
+    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        _properties.DefineProperty(name, descriptor);
+    }
+
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name) => _properties.GetOwnPropertyDescriptor(name);
+
+    public IEnumerable<string> GetOwnPropertyNames() => _properties.GetOwnPropertyNames();
+
+    public JsObject? Prototype => _properties.Prototype;
+
+    public bool IsSealed => _properties.IsSealed;
+
+    public IEnumerable<string> Keys => _properties.Keys;
+
+    public void SetPrototype(object? candidate)
+    {
+        _properties.SetPrototype(candidate);
+    }
+
+    public void Seal()
+    {
+        _properties.Seal();
     }
 }

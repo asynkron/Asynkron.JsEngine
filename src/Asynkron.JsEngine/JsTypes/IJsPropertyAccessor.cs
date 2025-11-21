@@ -20,4 +20,33 @@ public interface IJsPropertyAccessor
     /// <param name="name">The name of the property to set.</param>
     /// <param name="value">The value to set for the property.</param>
     void SetProperty(string name, object? value);
+
+    /// <summary>
+    /// Optional hook to provide property descriptors to APIs like
+    /// Object.getOwnPropertyDescriptor without exposing JsObject directly.
+    /// </summary>
+    PropertyDescriptor? GetOwnPropertyDescriptor(string name) => null;
+
+    /// <summary>
+    /// Optional hook to enumerate own property names for accessor types that
+    /// wrap a JsObject (e.g., HostFunction).
+    /// </summary>
+    IEnumerable<string> GetOwnPropertyNames() => Array.Empty<string>();
+}
+
+/// <summary>
+/// Extended object-like interface for types that expose prototype and
+/// descriptor operations.
+/// </summary>
+public interface IJsObjectLike : IJsPropertyAccessor
+{
+    JsObject? Prototype { get; }
+    bool IsSealed { get; }
+    IEnumerable<string> Keys { get; }
+
+    void DefineProperty(string name, PropertyDescriptor descriptor);
+    new PropertyDescriptor? GetOwnPropertyDescriptor(string name);
+    new IEnumerable<string> GetOwnPropertyNames();
+    void SetPrototype(object? candidate);
+    void Seal();
 }

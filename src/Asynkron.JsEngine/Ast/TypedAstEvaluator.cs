@@ -654,7 +654,17 @@ public static class TypedAstEvaluator
             (bool Success, object? Value) awaited;
             try
             {
-                awaited = tcs.Task.GetAwaiter().GetResult();
+                if (tcs.Task.IsCompleted)
+                {
+                    awaited = tcs.Task.GetAwaiter().GetResult();
+                }
+                else
+                {
+                    //TODO: ENSURE ALL CODE IS LOWERED TO ASYNC, THEN REMOVE THIS
+                    // DO NOT REPLACE WITH BLOCKING WAIT:
+                    throw new InvalidOperationException(
+                        "Asynchronous promise resolution is not supported in the synchronous evaluator.");
+                }
             }
             catch (Exception ex)
             {

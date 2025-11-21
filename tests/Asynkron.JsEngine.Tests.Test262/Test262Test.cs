@@ -7,6 +7,8 @@ namespace Asynkron.JsEngine.Tests.Test262;
 
 public abstract partial class Test262Test
 {
+    private static readonly List<JsEngine> _realmEngines = new();
+
     private static async Task<JsEngine> BuildTestExecutor(Test262File file)
     {
         var engine = new JsEngine
@@ -58,9 +60,12 @@ public abstract partial class Test262Test
             // createRealm function - not fully implemented but needed for compatibility
             ["createRealm"] = new HostFunction(args =>
             {
-                // Return a new global-like object
-                var realmGlobal = new JsObject();
+                // Create a fresh engine with its own intrinsics; expose its global
+                // object so tests can access constructors like Array/Function.
+                var realmEngine = new JsEngine();
+                var realmGlobal = realmEngine.GlobalObject;
                 realmGlobal["global"] = realmGlobal;
+                _realmEngines.Add(realmEngine);
                 return realmGlobal;
             }),
 

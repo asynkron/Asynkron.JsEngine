@@ -10,6 +10,12 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike
     private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
     private readonly JsObject _properties = new();
 
+    /// <summary>
+    /// Optional realm/global object that owns this host function. Used for
+    /// realm-aware operations (e.g. Reflect.construct default prototypes).
+    /// </summary>
+    public JsObject? Realm { get; set; }
+
     internal JsObject Properties => _properties;
 
     public HostFunction(Func<IReadOnlyList<object?>, object?> handler)

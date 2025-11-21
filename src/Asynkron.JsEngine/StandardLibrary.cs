@@ -18,6 +18,7 @@ public static class StandardLibrary
     internal static JsObject? NumberPrototype;
     internal static JsObject? StringPrototype;
     internal static JsObject? ObjectPrototype;
+    internal static JsObject? FunctionPrototype;
 
     /// <summary>
     /// Converts a JavaScript value to its string representation, handling functions appropriately.
@@ -510,9 +511,15 @@ public static class StandardLibrary
     {
         // Minimal Function constructor: for now we ignore the body and
         // arguments and just return a no-op function value.
-        var functionConstructor = new HostFunction((thisValue, args) =>
+        HostFunction functionConstructor = null!;
+
+        functionConstructor = new HostFunction((thisValue, args) =>
         {
-            return new HostFunction((innerThis, innerArgs) => Symbols.Undefined);
+            var realm = functionConstructor.Realm ?? thisValue as JsObject;
+            return new HostFunction((innerThis, innerArgs) => Symbols.Undefined)
+            {
+                Realm = realm
+            };
         });
 
         // Function.call: when used as `fn.call(thisArg, ...args)` the
@@ -550,7 +557,13 @@ public static class StandardLibrary
         // work as expected.
         var functionPrototype = new JsObject();
         functionPrototype.SetProperty("call", callHelper);
+        if (ObjectPrototype is not null)
+        {
+            functionPrototype.SetPrototype(ObjectPrototype);
+        }
+        FunctionPrototype = functionPrototype;
         functionConstructor.SetProperty("prototype", functionPrototype);
+        functionConstructor.Properties.SetPrototype(functionPrototype);
 
         return functionConstructor;
     }
@@ -6064,6 +6077,10 @@ public static class StandardLibrary
             {
                 proto = newTargetProto;
             }
+            else if (TryResolveRealmDefaultPrototype(newTarget, target, out var realmProto))
+            {
+                proto = realmProto;
+            }
             else if (TryGetPrototype(target, out var targetProto))
             {
                 proto = targetProto;
@@ -6250,6 +6267,30 @@ public static class StandardLibrary
         }));
 
         return reflect;
+    }
+
+    private static bool TryResolveRealmDefaultPrototype(object newTarget, IJsCallable target, out JsObject? prototype)
+    {
+        prototype = null;
+        if (newTarget is not HostFunction hostFunction || hostFunction.Realm is null)
+        {
+            return false;
+        }
+
+        // Use the target's intrinsic name (e.g., "Array") to locate the
+        // corresponding constructor in the newTarget's realm, then read its
+        // prototype. If anything fails, fall back to the caller.
+        if (target is IJsPropertyAccessor accessor &&
+            accessor.TryGetProperty("name", out var nameValue) &&
+            nameValue is string ctorName &&
+            hostFunction.Realm.TryGetProperty(ctorName, out var realmCtor) &&
+            TryGetPrototype(realmCtor, out var realmProto))
+        {
+            prototype = realmProto;
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryGetPrototype(object candidate, out JsObject? prototype)

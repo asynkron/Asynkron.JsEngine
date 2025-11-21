@@ -8,11 +8,11 @@ using JetBrains.Annotations;
 
 namespace Asynkron.JsEngine;
 
-/// <summary>
-/// High level façade that turns JavaScript source into S-expressions and evaluates them.
-/// </summary>
-public sealed class JsEngine : IAsyncDisposable
-{
+    /// <summary>
+    /// High level façade that turns JavaScript source into S-expressions and evaluates them.
+    /// </summary>
+    public sealed class JsEngine : IAsyncDisposable
+    {
     private readonly TaskCompletionSource _doneTcs = new();
     private readonly JsEnvironment _global = new(isFunctionScope: true);
     private readonly JsObject _globalObject = new();
@@ -41,6 +41,11 @@ public sealed class JsEngine : IAsyncDisposable
     /// Null or non-positive values disable the timeout.
     /// </summary>
     public TimeSpan? ExecutionTimeout { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Exposes the global object for realm-like scenarios (e.g. Test262 realms).
+    /// </summary>
+    public JsObject GlobalObject => _globalObject;
 
     /// <summary>
     /// Initializes a new instance of JsEngine with standard library objects.
@@ -433,6 +438,10 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Also mirror globals onto the global object so that code using
         // `this.foo` or `global.foo` can see host-provided bindings.
+        if (value is HostFunction hostFunction && hostFunction.Realm is null)
+        {
+            hostFunction.Realm = _globalObject;
+        }
         _globalObject.SetProperty(name, value);
     }
 
@@ -449,7 +458,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public void SetGlobalFunction(string name, Func<IReadOnlyList<object?>, object?> handler)
     {
-        _global.Define(Symbol.Intern(name), new HostFunction(handler));
+        _global.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = _globalObject });
     }
 
     /// <summary>
@@ -457,7 +466,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public void SetGlobalFunction(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
     {
-        _global.Define(Symbol.Intern(name), new HostFunction(handler));
+        _global.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = _globalObject });
     }
 
     /// <summary>

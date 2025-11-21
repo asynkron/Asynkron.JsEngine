@@ -19,6 +19,7 @@ public static class StandardLibrary
     internal static JsObject? StringPrototype;
     internal static JsObject? ObjectPrototype;
     internal static JsObject? FunctionPrototype;
+    internal static JsObject? ArrayPrototype;
     internal static JsObject? ErrorPrototype;
     internal static JsObject? TypeErrorPrototype;
     internal static HostFunction? TypeErrorConstructor;
@@ -1462,8 +1463,18 @@ public static class StandardLibrary
     /// <summary>
     /// Adds standard array methods to a JsArray instance.
     /// </summary>
-    public static void AddArrayMethods(JsArray array)
+    public static void AddArrayMethods(IJsPropertyAccessor array)
     {
+        // Once the shared Array prototype has been initialised, new arrays
+        // should inherit from it instead of receiving per-instance copies of
+        // every method. This keeps prototype mutations (e.g. in tests) visible
+        // to existing arrays.
+        if (ArrayPrototype is not null && array is JsArray jsArray)
+        {
+            jsArray.SetPrototype(ArrayPrototype);
+            return;
+        }
+
         // push - already implemented natively
         array.SetProperty("push", new HostFunction((thisValue, args) =>
         {
@@ -4373,6 +4384,16 @@ public static class StandardLibrary
             prototypeValue is JsObject prototypeObject)
         {
             prototypeObject.SetProperty("slice", new HostFunction((thisValue, args) => ArraySlice(thisValue, args)));
+        }
+
+        if (arrayConstructor.TryGetProperty("prototype", out var proto) && proto is JsObject arrayProtoObj)
+        {
+            if (ObjectPrototype is not null && arrayProtoObj.Prototype is null)
+            {
+                arrayProtoObj.SetPrototype(ObjectPrototype);
+            }
+            ArrayPrototype = arrayProtoObj;
+            AddArrayMethods(arrayProtoObj);
         }
 
         arrayConstructor.DefineProperty("length", new PropertyDescriptor

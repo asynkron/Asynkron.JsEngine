@@ -59,6 +59,7 @@ namespace Asynkron.JsEngine;
         StandardLibrary.StringPrototype = null;
         StandardLibrary.ObjectPrototype = null;
         StandardLibrary.FunctionPrototype = null;
+        StandardLibrary.ArrayPrototype = null;
         StandardLibrary.ErrorPrototype = null;
         StandardLibrary.TypeErrorPrototype = null;
         // Bind the global `this` value to a dedicated JS object so that

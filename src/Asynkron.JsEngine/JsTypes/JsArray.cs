@@ -1,5 +1,6 @@
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -11,12 +12,22 @@ public sealed class JsArray : IJsPropertyAccessor
     // Sentinel value to represent holes in sparse arrays (indices that have never been set)
     private static readonly object ArrayHole = new();
 
+    private const uint DenseIndexLimit = 1_000_000;
+    private const uint MaxArrayLength = uint.MaxValue;
+
     private readonly JsObject _properties = new();
     private readonly List<object?> _items = [];
+    private Dictionary<uint, object?>? _sparseItems;
+    private uint _length;
 
     public JsArray()
     {
-        UpdateLength();
+        _length = 0;
+        if (StandardLibrary.ArrayPrototype is not null)
+        {
+            _properties.SetPrototype(StandardLibrary.ArrayPrototype);
+        }
+        UpdateLengthProperty();
         SetupIterator();
     }
 
@@ -27,7 +38,12 @@ public sealed class JsArray : IJsPropertyAccessor
             _items.AddRange(items);
         }
 
-        UpdateLength();
+        _length = (uint)_items.Count;
+        if (StandardLibrary.ArrayPrototype is not null)
+        {
+            _properties.SetPrototype(StandardLibrary.ArrayPrototype);
+        }
+        UpdateLengthProperty();
         SetupIterator();
     }
 
@@ -36,7 +52,7 @@ public sealed class JsArray : IJsPropertyAccessor
     /// <summary>
     /// Gets the length of the array
     /// </summary>
-    public int Length => _items.Count;
+    public double Length => _length;
 
     public override string ToString()
     {
@@ -78,14 +94,18 @@ public sealed class JsArray : IJsPropertyAccessor
     {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            value = (double)_items.Count;
+            value = (double)_length;
             return true;
         }
 
         if (TryParseArrayIndex(name, out var index))
         {
-            value = GetElement(index);
-            return true;
+            if (TryGetOwnIndex(index, out value))
+            {
+                return true;
+            }
+
+            return _properties.TryGetProperty(name, out value);
         }
 
         return _properties.TryGetProperty(name, out value);
@@ -100,17 +120,7 @@ public sealed class JsArray : IJsPropertyAccessor
                 throw new InvalidOperationException("RangeError: Invalid array length");
             }
 
-            if (newLength < _items.Count)
-            {
-                _items.RemoveRange(newLength, _items.Count - newLength);
-            }
-            else if (newLength > _items.Count)
-            {
-                while (_items.Count < newLength)
-                    _items.Add(ArrayHole);
-            }
-
-            UpdateLength();
+            SetExplicitLength(newLength);
             return;
         }
 
@@ -125,47 +135,111 @@ public sealed class JsArray : IJsPropertyAccessor
 
     public object? GetElement(int index)
     {
-        if (index < 0 || index >= _items.Count)
+        if (index < 0)
         {
             return Symbols.Undefined;
         }
 
-        var item = _items[index];
-        // Return undefined for holes in the array
-        return ReferenceEquals(item, ArrayHole) ? Symbols.Undefined : item;
+        return GetElement((uint)index);
+    }
+
+    public object? GetElement(uint index)
+    {
+        if (index < _items.Count)
+        {
+            var item = _items[(int)index];
+            // Return undefined for holes in the array
+            return ReferenceEquals(item, ArrayHole) ? Symbols.Undefined : item;
+        }
+
+        if (_sparseItems is not null && _sparseItems.TryGetValue(index, out var value))
+        {
+            return value;
+        }
+
+        return Symbols.Undefined;
     }
 
     /// <summary>
     /// Returns true if the given index is an own data property on this array
     /// (i.e. within bounds and not a hole).
     /// </summary>
+    public bool HasOwnIndex(uint index)
+    {
+        if (index < _items.Count)
+        {
+            return !ReferenceEquals(_items[(int)index], ArrayHole);
+        }
+
+        return _sparseItems is not null && _sparseItems.ContainsKey(index);
+    }
+
     public bool HasOwnIndex(int index)
     {
-        if (index < 0 || index >= _items.Count)
+        if (index < 0)
         {
             return false;
         }
 
-        return !ReferenceEquals(_items[index], ArrayHole);
+        return HasOwnIndex((uint)index);
+    }
+
+    private bool TryGetOwnIndex(uint index, out object? value)
+    {
+        if (index < _items.Count)
+        {
+            var item = _items[(int)index];
+            if (!ReferenceEquals(item, ArrayHole))
+            {
+                value = item;
+                return true;
+            }
+        }
+
+        if (_sparseItems is not null && _sparseItems.TryGetValue(index, out value))
+        {
+            return true;
+        }
+
+        value = null;
+        return false;
     }
 
     public void SetElement(int index, object? value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
 
+        SetElement((uint)index, value);
+    }
+
+    public void SetElement(uint index, object? value)
+    {
         var extended = false;
-        // Fill gaps with ArrayHole sentinel to represent sparse array holes
-        while (_items.Count <= index)
+        if (index < DenseIndexLimit)
         {
-            _items.Add(ArrayHole);
-            extended = true;
+            var denseIndex = (int)index;
+            // Fill gaps with ArrayHole sentinel to represent sparse array holes
+            while (_items.Count <= denseIndex)
+            {
+                _items.Add(ArrayHole);
+                extended = true;
+            }
+
+            _items[denseIndex] = value;
+        }
+        else
+        {
+            _sparseItems ??= new Dictionary<uint, object?>();
+            _sparseItems[index] = value;
         }
 
-        _items[index] = value;
         if (extended)
         {
-            UpdateLength();
+            BumpLength((uint)_items.Count);
+            return;
         }
+
+        BumpLength(index + 1);
     }
 
     /// <summary>
@@ -174,12 +248,24 @@ public sealed class JsArray : IJsPropertyAccessor
     /// </summary>
     public bool DeleteElement(int index)
     {
-        if (index < 0 || index >= _items.Count)
+        if (index < 0)
         {
             return true;
         }
 
-        _items[index] = ArrayHole;
+        var uintIndex = (uint)index;
+
+        if (uintIndex < _items.Count)
+        {
+            _items[index] = ArrayHole;
+            return true;
+        }
+
+        if (_sparseItems is not null)
+        {
+            _sparseItems.Remove(uintIndex);
+        }
+
         return true;
     }
 
@@ -199,20 +285,32 @@ public sealed class JsArray : IJsPropertyAccessor
     public void Push(object? value)
     {
         _items.Add(value);
-        UpdateLength();
+        BumpLength((uint)_items.Count);
     }
 
     public object? Pop()
     {
-        if (_items.Count == 0)
+        if (_length == 0)
         {
             return Symbols.Undefined;
         }
 
-        var lastIndex = _items.Count - 1;
-        var value = _items[lastIndex];
-        _items.RemoveAt(lastIndex);
-        UpdateLength();
+        var lastIndex = _length - 1;
+        object? value = Symbols.Undefined;
+
+        if (lastIndex < _items.Count)
+        {
+            var denseIndex = (int)lastIndex;
+            value = _items[denseIndex];
+            _items.RemoveAt(denseIndex);
+        }
+        else if (_sparseItems is not null && _sparseItems.TryGetValue(lastIndex, out var sparseValue))
+        {
+            value = sparseValue;
+            _sparseItems.Remove(lastIndex);
+        }
+
+        SetExplicitLength(_length - 1);
 
         // Return undefined for holes
         return ReferenceEquals(value, ArrayHole) ? Symbols.Undefined : value;
@@ -220,14 +318,14 @@ public sealed class JsArray : IJsPropertyAccessor
 
     public object? Shift()
     {
-        if (_items.Count == 0)
+        if (_length == 0 || _items.Count == 0)
         {
             return Symbols.Undefined;
         }
 
         var value = _items[0];
         _items.RemoveAt(0);
-        UpdateLength();
+        SetExplicitLength(_length - 1);
 
         // Return undefined for holes
         return ReferenceEquals(value, ArrayHole) ? Symbols.Undefined : value;
@@ -236,7 +334,7 @@ public sealed class JsArray : IJsPropertyAccessor
     public void Unshift(params object?[] values)
     {
         _items.InsertRange(0, values);
-        UpdateLength();
+        BumpLength((uint)_items.Count);
     }
 
     public JsArray Splice(int start, int deleteCount, params object?[] itemsToInsert)
@@ -268,7 +366,7 @@ public sealed class JsArray : IJsPropertyAccessor
             _items.InsertRange(start, itemsToInsert);
         }
 
-        UpdateLength();
+        BumpLength((uint)_items.Count);
         return deleted;
     }
 
@@ -277,9 +375,49 @@ public sealed class JsArray : IJsPropertyAccessor
         _items.Reverse();
     }
 
-    private void UpdateLength()
+    private void BumpLength(uint candidateLength)
     {
-        _properties.SetProperty("length", (double)_items.Count);
+        if (candidateLength > MaxArrayLength)
+        {
+            throw new InvalidOperationException("RangeError: Invalid array length");
+        }
+
+        if (candidateLength > _length)
+        {
+            _length = candidateLength;
+            UpdateLengthProperty();
+        }
+    }
+
+    private void SetExplicitLength(uint newLength)
+    {
+        if (newLength > MaxArrayLength)
+        {
+            throw new InvalidOperationException("RangeError: Invalid array length");
+        }
+
+        _length = newLength;
+
+        if (_items.Count > newLength)
+        {
+            _items.RemoveRange((int)newLength, _items.Count - (int)newLength);
+        }
+
+        if (_sparseItems is not null)
+        {
+            var keysToRemove = _sparseItems.Keys.Where(k => k >= newLength).ToArray();
+            foreach (var key in keysToRemove)
+            {
+                _sparseItems.Remove(key);
+            }
+        }
+
+        UpdateLengthProperty();
+    }
+
+    private void UpdateLengthProperty()
+    {
+        _properties.SetProperty("length", (double)_length);
     }
 
     private void SetupIterator()
@@ -322,7 +460,7 @@ public sealed class JsArray : IJsPropertyAccessor
         _properties.SetProperty(iteratorKey, iteratorFunction);
     }
 
-    private static bool TryParseArrayIndex(string propertyName, out int index)
+    private static bool TryParseArrayIndex(string propertyName, out uint index)
     {
         index = 0;
 
@@ -336,6 +474,7 @@ public sealed class JsArray : IJsPropertyAccessor
             return false;
         }
 
+        // 2^32 - 1 is not a valid array index
         if (parsed == uint.MaxValue)
         {
             return false;
@@ -346,16 +485,11 @@ public sealed class JsArray : IJsPropertyAccessor
             return false;
         }
 
-        if (parsed > int.MaxValue)
-        {
-            return false;
-        }
-
-        index = (int)parsed;
+        index = parsed;
         return true;
     }
 
-    private static bool TryCoerceLength(object? value, out int length)
+    private static bool TryCoerceLength(object? value, out uint length)
     {
         length = 0;
 
@@ -389,18 +523,12 @@ public sealed class JsArray : IJsPropertyAccessor
             return false;
         }
 
-        if (truncated > uint.MaxValue - 1)
+        if (truncated > MaxArrayLength)
         {
             return false;
         }
 
-        var coerced = (uint)truncated;
-        if (coerced > int.MaxValue)
-        {
-            return false;
-        }
-
-        length = (int)coerced;
+        length = (uint)truncated;
         return true;
     }
 }

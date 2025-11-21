@@ -607,6 +607,11 @@ public static class TypedAstEvaluator
                thenValue is IJsCallable;
     }
 
+    // WAITING ON FULL ASYNC/AWAIT + ASYNC GENERATOR IR SUPPORT:
+    // This helper synchronously blocks on promise resolution using TaskCompletionSource.
+    // It keeps async/await and async iteration usable for now but must be replaced by
+    // a non-blocking, event-loop-integrated continuation model once the async IR
+    // pipeline is in place.
     private static bool TryAwaitPromise(object? candidate, EvaluationContext context, out object? resolvedValue)
     {
         resolvedValue = candidate;
@@ -1242,6 +1247,12 @@ public static class TypedAstEvaluator
     private static object? EvaluateAwait(AwaitExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
+        // WAITING ON FULL ASYNC/AWAIT + ASYNC GENERATOR IR SUPPORT:
+        // This path currently performs a synchronous, blocking wait on promise-like
+        // values via TryAwaitPromise. Once we have a proper non-blocking async
+        // execution pipeline, this should be rewritten to schedule continuations
+        // instead of blocking the current thread.
+        //
         // Evaluate the awaited expression.
         var value = EvaluateExpression(expression.Expression, environment, context);
         if (context.ShouldStopEvaluation)
@@ -3516,6 +3527,8 @@ public static class TypedAstEvaluator
         private EvaluationContext? _context;
         private GeneratorState _state = GeneratorState.Start;
         private bool _done;
+        private bool _asyncStepMode;
+        private object? _pendingPromise;
         private int _currentYieldIndex;
         private readonly YieldResumeContext _resumeContext = new();
         private int _programCounter;
@@ -3542,15 +3555,30 @@ public static class TypedAstEvaluator
             _programCounter = plan.EntryPoint;
         }
 
+        // Lightweight step result used by async-generator wrappers so they can
+        // drive the same IR plan without duplicating the interpreter. This
+        // supports yield/completion/throw, and has room for a future "Pending"
+        // state that surfaces promise-like values without blocking.
+        internal readonly record struct AsyncGeneratorStepResult(
+            AsyncGeneratorStepKind Kind,
+            object? Value,
+            bool Done,
+            object? PendingPromise);
+
+        internal enum AsyncGeneratorStepKind
+        {
+            Yield,
+            Completed,
+            Throw,
+            Pending
+        }
+
         public JsObject CreateGeneratorObject()
         {
-            var iterator = new JsObject();
-            iterator.SetProperty("next",
-                new HostFunction((_, args) => Next(args.Count > 0 ? args[0] : JsSymbols.Undefined)));
-            iterator.SetProperty("return",
-                new HostFunction((_, args) => Return(args.Count > 0 ? args[0] : null)));
-            iterator.SetProperty("throw",
-                new HostFunction((_, args) => Throw(args.Count > 0 ? args[0] : null)));
+            var iterator = CreateGeneratorIteratorObject(
+                args => Next(args.Count > 0 ? args[0] : JsSymbols.Undefined),
+                args => Return(args.Count > 0 ? args[0] : null),
+                args => Throw(args.Count > 0 ? args[0] : null));
             iterator.SetProperty(IteratorSymbolPropertyName, new HostFunction((_, _) => iterator));
             iterator.SetProperty(GeneratorBrandPropertyName, GeneratorBrandMarker);
             return iterator;
@@ -3569,6 +3597,51 @@ public static class TypedAstEvaluator
         private object? Throw(object? error)
         {
             return ExecutePlan(ResumeMode.Throw, error);
+        }
+
+        internal AsyncGeneratorStepResult ExecuteAsyncStep(ResumeMode mode, object? resumeValue)
+        {
+            // Reuse the existing ExecutePlan logic but translate its iterator
+            // result / exceptions into a structured step result that async
+            // generators can consume without throwing. This entrypoint also
+            // marks the executor as async-aware so future steps can surface
+            // pending Promises instead of blocking.
+            var previousAsyncStepMode = _asyncStepMode;
+            _asyncStepMode = true;
+            _pendingPromise = null;
+
+            try
+            {
+                var result = ExecutePlan(mode, resumeValue);
+
+                // When the IR eventually opts into non-blocking await, it will
+                // populate _pendingPromise instead of resolving promises
+                // synchronously. At that point this check will surface a
+                // Pending step. For now _pendingPromise always remains null.
+                if (_pendingPromise is JsObject pending)
+                {
+                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsSymbols.Undefined, false, pending);
+                }
+
+                if (result is JsObject obj &&
+                    obj.TryGetProperty("done", out var doneRaw) &&
+                    doneRaw is bool done &&
+                    obj.TryGetProperty("value", out var value))
+                {
+                    return done
+                        ? new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, value, true, null)
+                        : new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Yield, value, false, null);
+                }
+
+                // If the plan completed without producing a well-formed iterator
+                // result, treat it as a completed step with undefined.
+                return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, JsSymbols.Undefined, true, null);
+            }
+            finally
+            {
+                _asyncStepMode = previousAsyncStepMode;
+                _pendingPromise = null;
+            }
         }
 
         private JsEnvironment CreateExecutionEnvironment()
@@ -3608,16 +3681,13 @@ public static class TypedAstEvaluator
             return environment;
         }
 
-        private static JsObject CreateIteratorResult(object? value, bool done)
-        {
-            var result = new JsObject();
-            var normalizedValue = done && ReferenceEquals(value, JsSymbols.Undefined)
-                ? null
-                : value;
-            result.SetProperty("value", normalizedValue);
-            result.SetProperty("done", done);
-            return result;
-        }
+    private static JsObject CreateIteratorResult(object? value, bool done)
+    {
+        var result = new JsObject();
+        result.SetProperty("value", value);
+        result.SetProperty("done", done);
+        return result;
+    }
 
         private static ForOfState CreateForOfState(object? iterable)
         {
@@ -4118,7 +4188,7 @@ public static class TypedAstEvaluator
                         if (forAwaitState.Iterator is JsObject awaitIteratorObj)
                         {
                             var nextResult = InvokeIteratorNext(awaitIteratorObj);
-                            if (!TryAwaitPromise(nextResult, context, out var awaitedNextResult))
+                            if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNextResult))
                             {
                                 if (context.IsThrow)
                                 {
@@ -4154,7 +4224,7 @@ public static class TypedAstEvaluator
                             var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
                                 ? yieldedAwait
                                 : JsSymbols.Undefined;
-                            if (!TryAwaitPromise(rawValue, context, out var fullyAwaitedValue))
+                            if (!TryAwaitPromiseOrSchedule(rawValue, context, out var fullyAwaitedValue))
                             {
                                 if (context.IsThrow)
                                 {
@@ -4184,7 +4254,7 @@ public static class TypedAstEvaluator
                             }
 
                             var enumerated = awaitEnumerator.Current;
-                            if (!TryAwaitPromise(enumerated, context, out var awaitedEnumerated))
+                            if (!TryAwaitPromiseOrSchedule(enumerated, context, out var awaitedEnumerated))
                             {
                                 if (context.IsThrow)
                                 {
@@ -4421,6 +4491,15 @@ public static class TypedAstEvaluator
             };
         }
 
+        // Placeholder for a future non-blocking await helper. For now this
+        // simply delegates to TryAwaitPromise so behaviour remains unchanged,
+        // but the instance-level indirection allows the generator IR to opt
+        // into a pending-promise model later using _asyncStepMode/_pendingPromise.
+        private bool TryAwaitPromiseOrSchedule(object? candidate, EvaluationContext context, out object? resolvedValue)
+        {
+            return TryAwaitPromise(candidate, context, out resolvedValue);
+        }
+
         private void PreparePendingResumeValue(ResumeMode mode, object? resumeValue, bool wasStart)
         {
             if (wasStart)
@@ -4548,7 +4627,7 @@ public static class TypedAstEvaluator
             return CreateIteratorResult(value, true);
         }
 
-        private enum ResumeMode
+        internal enum ResumeMode
         {
             Next,
             Throw,
@@ -4638,7 +4717,7 @@ public static class TypedAstEvaluator
         private readonly IReadOnlyList<object?> _arguments;
         private readonly object? _thisValue;
         private readonly IJsCallable _callable;
-        private readonly JsObject _innerIterator;
+        private readonly TypedGeneratorInstance _inner;
 
         public AsyncGeneratorInstance(FunctionExpression function, JsEnvironment closure,
             IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
@@ -4649,27 +4728,25 @@ public static class TypedAstEvaluator
             _thisValue = thisValue;
             _callable = callable;
 
-            // Reuse the sync generator IR plan and runtime to execute the body.
-            // Async semantics are modeled by wrapping iterator methods in Promises.
-            var inner = new TypedGeneratorInstance(function, closure, arguments, thisValue, callable);
-            _innerIterator = inner.CreateGeneratorObject();
+            // WAITING ON FULL ASYNC GENERATOR IR SUPPORT:
+            // For now we reuse the sync generator IR plan and runtime to execute
+            // the body. Async semantics are modeled by driving the shared plan
+            // through a small step API and wrapping each step in a Promise. Once
+            // we have a dedicated async-generator IR executor, this wiring
+            // should be revisited so await/yield drive a single non-blocking
+            // state machine.
+            _inner = new TypedGeneratorInstance(function, closure, arguments, thisValue, callable);
         }
 
         public JsObject CreateAsyncIteratorObject()
         {
-            var asyncIterator = new JsObject();
-
-            asyncIterator.SetProperty("next",
-                new HostFunction((_, args) => CreateStepPromise("next",
-                    args.Count > 0 ? args[0] : JsSymbols.Undefined)));
-
-            asyncIterator.SetProperty("return",
-                new HostFunction((_, args) => CreateStepPromise("return",
-                    args.Count > 0 ? args[0] : null)));
-
-            asyncIterator.SetProperty("throw",
-                new HostFunction((_, args) => CreateStepPromise("throw",
-                    args.Count > 0 ? args[0] : null)));
+            var asyncIterator = CreateGeneratorIteratorObject(
+                args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Next,
+                    args.Count > 0 ? args[0] : JsSymbols.Undefined),
+                args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Return,
+                    args.Count > 0 ? args[0] : null),
+                args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Throw,
+                    args.Count > 0 ? args[0] : null));
 
             // asyncIterator[Symbol.asyncIterator] returns itself.
             var asyncSymbol = TypedAstSymbol.For("Symbol.asyncIterator");
@@ -4679,7 +4756,7 @@ public static class TypedAstEvaluator
             return asyncIterator;
         }
 
-        private object? CreateStepPromise(string methodName, object? argument)
+        private object? CreateStepPromise(TypedGeneratorInstance.ResumeMode mode, object? argument)
         {
             // Look up the global Promise constructor from the closure environment.
             if (!_closure.TryGet(Symbol.Intern("Promise"), out var promiseCtorObj) ||
@@ -4697,18 +4774,50 @@ public static class TypedAstEvaluator
                     return null;
                 }
 
-                try
+                // Drive the underlying generator plan by a single step and
+                // resolve/reject the Promise based on the step outcome.
+                var step = _inner.ExecuteAsyncStep(mode, argument);
+                switch (step.Kind)
                 {
-                    var result = InvokeInnerIterator(methodName, argument);
-                    resolve.Invoke(result is null ? [] : new[] { result }, null);
-                }
-                catch (ThrowSignal ex)
-                {
-                    reject.Invoke(new object?[] { ex.ThrownValue }, null);
-                }
-                catch (Exception ex)
-                {
-                    reject.Invoke(new object?[] { ex.Message }, null);
+                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Yield:
+                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
+                    {
+                        var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
+                        resolve.Invoke(new object?[] { iteratorResult }, null);
+                        break;
+                    }
+                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
+                        reject.Invoke(new object?[] { step.Value }, null);
+                        break;
+                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
+                    {
+                        if (step.PendingPromise is not JsObject pendingPromise ||
+                            !pendingPromise.TryGetProperty("then", out var thenValue) ||
+                            thenValue is not IJsCallable thenCallable)
+                        {
+                            reject.Invoke(new object?[] { "Awaited value is not a promise" }, null);
+                            break;
+                        }
+
+                        var onFulfilled = new HostFunction(args =>
+                        {
+                            var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                            var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Next, value);
+                            ResolveFromStep(resumed, resolve, reject);
+                            return null;
+                        });
+
+                        var onRejected = new HostFunction(args =>
+                        {
+                            var reason = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                            var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Throw, reason);
+                            ResolveFromStep(resumed, resolve, reject);
+                            return null;
+                        });
+
+                        thenCallable.Invoke(new object?[] { onFulfilled, onRejected }, pendingPromise);
+                        break;
+                    }
                 }
 
                 return null;
@@ -4718,28 +4827,50 @@ public static class TypedAstEvaluator
             return promiseObj;
         }
 
-        private object? InvokeInnerIterator(string methodName, object? argument)
+        private static JsObject CreateAsyncIteratorResult(object? value, bool done)
         {
-            if (!_innerIterator.TryGetProperty(methodName, out var method) || method is not IJsCallable callable)
-            {
-                // For missing throw/return, fall back to next() semantics when appropriate.
-                if (methodName == "next" &&
-                    _innerIterator.TryGetProperty("next", out var next) &&
-                    next is IJsCallable nextCallable)
-                {
-                    callable = nextCallable;
-                }
-                else
-                {
-                    return new JsObject(); // Fallback: empty iterator result.
-                }
-            }
-
-            var args = argument is null || ReferenceEquals(argument, JsSymbols.Undefined)
-                ? Array.Empty<object?>()
-                : new[] { argument };
-            return callable.Invoke(args, _innerIterator);
+            var result = new JsObject();
+            result.SetProperty("value", value);
+            result.SetProperty("done", done);
+            return result;
         }
+
+        private static void ResolveFromStep(
+            TypedGeneratorInstance.AsyncGeneratorStepResult step,
+            IJsCallable resolve,
+            IJsCallable reject)
+        {
+            switch (step.Kind)
+            {
+                case TypedGeneratorInstance.AsyncGeneratorStepKind.Yield:
+                case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
+                {
+                    var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
+                    resolve.Invoke(new object?[] { iteratorResult }, null);
+                    break;
+                }
+                case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
+                    reject.Invoke(new object?[] { step.Value }, null);
+                    break;
+                case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
+                    // Nested pending from a resumed step is unexpected with the
+                    // current lowering; treat as an error for now.
+                    reject.Invoke(new object?[] { "Nested pending await in async generator step." }, null);
+                    break;
+            }
+        }
+    }
+
+    private static JsObject CreateGeneratorIteratorObject(
+        Func<IReadOnlyList<object?>, object?> next,
+        Func<IReadOnlyList<object?>, object?> @return,
+        Func<IReadOnlyList<object?>, object?> @throw)
+    {
+        var iterator = new JsObject();
+        iterator.SetProperty("next", new HostFunction(next));
+        iterator.SetProperty("return", new HostFunction(@return));
+        iterator.SetProperty("throw", new HostFunction(@throw));
+        return iterator;
     }
 
     private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor

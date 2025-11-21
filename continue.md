@@ -23,6 +23,8 @@
 - A minimal `Function` constructor and `Function.call` helper have been added so patterns like `Function.call.bind(Object.prototype.hasOwnProperty)` behave as expected, and a stub `localStorage` object is exposed globally so `babel-standalone.js` can probe storage without throwing.
 - Program-level and function-level function declarations are now hoisted via `HoistVarDeclarations`/`HoistFromStatement`, so cases like `exports.formatArgs = formatArgs;` before the `function formatArgs(...) {}` body in Babel’s bundled `debug` module resolve correctly rather than throwing `Undefined symbol` at module initialisation.
 - `Date` built-ins now expose a more complete surface for common usage patterns: `Date.UTC` matches Node’s millisecond outputs (including the 0–99 year offset behaviour), instances support both local (`getFullYear` etc.) and UTC getters (`getUTCFullYear` etc.), and formatting helpers (`toISOString`, `toUTCString`, `toJSON`, `valueOf`) behave consistently with Node for ISO and UTC strings.
+- `async function*` is now wired into the typed evaluator: async generator functions are created via `AsyncGeneratorFactory` / `AsyncGeneratorInstance`, which internally reuse the sync generator IR plan and wrap the iterator protocol (`next`/`return`/`throw`) in Promises so async generator tests (covering loops, `switch`, `try/catch/finally`, and `yield*`) run on the IR path.
+- `await` expressions in typed AST and async iterator helpers rely on a shared `TryAwaitPromise` helper that synchronously blocks on promise-like values; both `EvaluateAwait` and `TryAwaitPromise` are annotated with `WAITING ON FULL ASYNC/AWAIT + ASYNC GENERATOR IR SUPPORT` comments to make the temporary nature of this blocking path explicit.
 
 # Next Iteration Plan
 
@@ -32,6 +34,32 @@
 2. **Grow IR Coverage for Remaining Unsupported Generator Shapes**
    - Use the `_UnsupportedIr` tests (complex `yield` in increments and complex `switch` layouts) as the driver for extending the normalized surface and the IR interpreter once lowering is in place.
    - As shapes become supported, flip the corresponding tests to `*Ir` / `*Ir_UsesIrPlan` variants and update `docs/GENERATOR_IR_LIMITATIONS.md`.
-3. **Async Generator IR (Follow-Up)**
-   - Replace the `AsyncGeneratorIrBuilder` placeholder with a real lowering path for `async function*`, reusing the generic suspend-point lowering patterns from the generator yield-lowering pass where possible so `await` and `yield` share the same normalization strategy.
-   - Extend async iteration tests to assert IR usage via `GeneratorIrDiagnostics` once the async generator IR path is implemented.
+3. **Async Generator IR + Non-Blocking Await (Real Thing)**
+   - **Step 1: Extend the async step result shape**
+     - Extend `TypedGeneratorInstance.AsyncGeneratorStepResult` so it can represent four outcomes: `Yield`, `Completed`, `Throw`, and `Pending`, where `Pending` carries the promise-like value the executor wants to await (a `JsObject` with a `then` method).
+     - Keep the current behaviour as the default: if the executor does not set a pending promise, `ExecuteAsyncStep` continues to return only `Yield`/`Completed`/`Throw`, preserving all existing generator and async-generator semantics.
+   - **Step 2: Async-aware mode flag inside the IR executor**
+     - Add an internal async-aware flag and a scratch slot for a pending promise inside `TypedGeneratorInstance` (e.g. `_asyncStepMode` and `_pendingPromise`).
+     - When `ExecuteAsyncStep` is entered, set `_asyncStepMode = true` and clear `_pendingPromise`; when it returns, reset `_asyncStepMode` to `false` so normal generator execution remains unaffected.
+     - Teach the core IR loop (`ExecutePlan`) to consult `_asyncStepMode` when it encounters awaitable values so only async generators surface `Pending` steps; sync generators keep using the existing blocking semantics where appropriate.
+   - **Step 3: Replace blocking awaits in generator IR with “pending promise” steps**
+     - Introduce a helper such as `TryAwaitPromiseOrSchedule(object? candidate, EvaluationContext context, out object? resolvedValue)` that:
+       - In non-async mode (`_asyncStepMode == false`) defers to the existing `TryAwaitPromise` implementation, preserving current behaviour for sync generators and CPS-based async functions.
+       - In async-aware mode, if `candidate` is promise-like, stores it into `_pendingPromise`, sets `resolvedValue = JsSymbols.Undefined`, and returns `false` without setting `context.IsThrow`, allowing the caller to treat this as a “pending” suspension point.
+     - In the IR executor’s `ForAwaitMoveNextInstruction` handler (`TypedAstEvaluator.ExecutePlan`), swap direct `TryAwaitPromise` calls for the new helper and, when it reports “pending” in async-aware mode:
+       - Record an appropriate resume location in `_programCounter` (the instruction index where execution should continue after the promise settles).
+       - Mark `_state = GeneratorState.Suspended` and return early from `ExecutePlan` so that `ExecuteAsyncStep` can detect `_pendingPromise` and surface an `AsyncGeneratorStepResult` with `Kind = Pending`.
+     - As a follow-up, apply the same pattern to other await sites that currently call `TryAwaitPromise` from inside the generator IR interpreter (e.g. delegated `yield*` paths that await promise-returning iterator completions), so all async iteration within generators uses the non-blocking path.
+   - **Step 4: Drive pending promises via the event queue in `AsyncGeneratorInstance`**
+     - Extend `AsyncGeneratorInstance.CreateStepPromise` to handle `AsyncGeneratorStepKind.Pending` by:
+       - Extracting the pending promise-like object from `AsyncGeneratorStepResult`.
+       - Attaching `then`/`catch` handlers that, when the promise settles, schedule a continuation using `JsEngine.ScheduleTask` (reachable via the engine associated with the global environment) to:
+         - Call `_inner.ExecuteAsyncStep` again with the appropriate `ResumeMode` (`Next` for fulfillment, `Throw` for rejection).
+         - Resolve or reject the outer `next()`/`return()`/`throw()` Promise with the iterator result or error produced by that resumed step.
+     - Continue to use the existing behaviour for `Yield`/`Completed`/`Throw` steps so incremental adoption of `Pending` does not affect already-covered cases.
+   - **Step 5: Unify `await` handling between async generators and CPS async functions**
+     - Once the generator IR path is reliably surfacing `Pending` steps and `AsyncGeneratorInstance` is resuming via the event queue, refactor `EvaluateAwait` and other non-IR async paths to reuse the same non-blocking model instead of `TryAwaitPromise`, so both `async function` and `async function*` share a single underlying continuation mechanism.
+     - As part of this, retire or narrow the blocking `TryAwaitPromise` helper and update the `WAITING ON FULL ASYNC/AWAIT + ASYNC GENERATOR IR SUPPORT` comments to point at the new unified async executor.
+   - **Step 6: Tests and diagnostics**
+     - Extend `AsyncGeneratorTests` and `AsyncIterationTests` with cases that detect real non-blocking behaviour (e.g. interleaving `setTimeout` callbacks with `await` inside `async function*`, ensuring that the host thread is not blocked and that Promise resolution ordering matches Node/Chrome).
+     - Add async-aware diagnostics (e.g. extend `GeneratorIrDiagnostics` or introduce `AsyncGeneratorIrDiagnostics`) so we can assert that async generators are using the IR + pending-promise path rather than silently falling back to any legacy or blocking behaviour.

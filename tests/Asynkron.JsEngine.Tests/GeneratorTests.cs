@@ -188,11 +188,11 @@ public class GeneratorTests
                                          """);
 
         var done = await engine.Evaluate("finalResult.done;");
-        var value = await engine.Evaluate("finalResult.value;");
+        var isUndefined = await engine.Evaluate("finalResult.value === undefined;");
 
         // Assert
         Assert.True((bool)done!);
-        Assert.Null(value);
+        Assert.True((bool)isUndefined!);
     }
 
     [Fact(Timeout = 2000)]
@@ -427,7 +427,7 @@ public class GeneratorTests
 
         var firstValue = await engine.Evaluate("r1.value;");
         var secondValue = await engine.Evaluate("r2.value;");
-        var thirdValue = await engine.Evaluate("r3.value;");
+        var thirdValueIsUndefined = await engine.Evaluate("r3.value === undefined;");
         var firstDone = await engine.Evaluate("r1.done;");
         var secondDone = await engine.Evaluate("r2.done;");
         var thirdDone = await engine.Evaluate("r3.done;");
@@ -437,7 +437,7 @@ public class GeneratorTests
         Assert.False((bool)firstDone!);
         Assert.Equal(5.0, secondValue);
         Assert.False((bool)secondDone!);
-        Assert.Null(thirdValue);
+        Assert.True((bool)thirdValueIsUndefined!);
         Assert.True((bool)thirdDone!);
     }
 

@@ -25,6 +25,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".meta", ".meta", "{77806389
 		AGENTS.md = AGENTS.md
 		README.md = README.md
 		generator-builder.md = generator-builder.md
+		.editorconfig = .editorconfig
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CBE37AA6-AD59-4A21-A8B0-4208A190EF53}"

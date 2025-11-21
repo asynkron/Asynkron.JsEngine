@@ -315,12 +315,11 @@ internal sealed class SyncGeneratorIrBuilder
 
                 case ForEachStatement forEachStatement
                     when forEachStatement.Kind == ForEachKind.AwaitOf && IsSimpleForOfBinding(forEachStatement):
-                    // `for await...of` loops in generators remain on the replay
-                    // path for now so async iteration semantics are modeled by
-                    // the existing evaluator and event queue.
-                    entryIndex = -1;
-                    _failureReason ??= "for await...of in generators falls back to replay.";
-                    return false;
+                    // Async `for await...of` loops inside generator bodies now
+                    // use the dedicated IR instructions so async generators can
+                    // share the same non-blocking await pipeline as the rest of
+                    // the generator IR executor.
+                    return TryBuildForAwaitStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
                 case ReturnStatement returnStatement:
                     if (returnStatement.Expression is YieldExpression yieldReturn &&

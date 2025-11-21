@@ -405,9 +405,11 @@ public static class TypedAstEvaluator
             while (!context.ShouldStopEvaluation)
             {
                 var nextResult = InvokeIteratorNext(iterator!);
-                if (!TryAwaitPromise(nextResult, context, out var awaitedNextResult))
+                var awaitedNextResult = nextResult;
+                if (IsPromiseLike(awaitedNextResult))
                 {
-                    return JsSymbols.Undefined;
+                    throw new InvalidOperationException(
+                        "Asynchronous promise resolution is not supported in the non-CPS for-await-of evaluator.");
                 }
 
                 if (awaitedNextResult is not JsObject resultObj)
@@ -426,16 +428,17 @@ public static class TypedAstEvaluator
                     continue;
                 }
 
-                if (!TryAwaitPromise(value, context, out var awaitedValue))
-                {
-                    return JsSymbols.Undefined;
-                }
-
                 var iterationEnvironment = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
                     ? new JsEnvironment(loopEnvironment, creatingSource: statement.Source, description: "for-await-of iteration")
                     : loopEnvironment;
 
-                AssignLoopBinding(statement, awaitedValue, iterationEnvironment, environment, context);
+                if (IsPromiseLike(value))
+                {
+                    throw new InvalidOperationException(
+                        "Asynchronous promise resolution is not supported in the non-CPS for-await-of evaluator.");
+                }
+
+                AssignLoopBinding(statement, value, iterationEnvironment, environment, context);
                 lastValue = EvaluateStatement(statement.Body, iterationEnvironment, context);
 
                 if (context.IsReturn || context.IsThrow)
@@ -465,12 +468,13 @@ public static class TypedAstEvaluator
                 break;
             }
 
-            if (!TryAwaitPromise(value, context, out var awaitedValue))
+            if (IsPromiseLike(value))
             {
-                return JsSymbols.Undefined;
+                throw new InvalidOperationException(
+                    "Asynchronous promise resolution is not supported in the non-CPS for-await-of evaluator.");
             }
 
-            AssignLoopBinding(statement, awaitedValue, loopEnvironment, environment, context);
+            AssignLoopBinding(statement, value, loopEnvironment, environment, context);
             lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
 
             if (context.IsReturn || context.IsThrow)
@@ -4258,34 +4262,86 @@ public static class TypedAstEvaluator
                             continue;
                         }
 
-                        object? awaitedValue;
+                        object? awaitedValue = null;
+                        object? awaitedNextResult = null;
+
+                        // If we're resuming after a pending await from this
+                        // for-await site, consume the resume payload and treat
+                        // it as the awaited result instead of calling into the
+                        // iterator again.
+                        if (forAwaitState.AwaitStage != ForAwaitStage.None)
+                        {
+                            var previousStage = forAwaitState.AwaitStage;
+                            var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
+                            forAwaitState.AwaitStage = ForAwaitStage.None;
+                            StoreSymbolValue(environment, forAwaitMoveNextInstruction.IteratorSlot, forAwaitState);
+
+                            if (forAwaitResumeKind == ResumePayloadKind.Throw)
+                            {
+                                if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload, environment))
+                                {
+                                    continue;
+                                }
+
+                                _tryStack.Clear();
+                                throw new ThrowSignal(forAwaitResumePayload);
+                            }
+
+                            if (forAwaitResumeKind == ResumePayloadKind.Return)
+                            {
+                                if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload, environment))
+                                {
+                                    continue;
+                                }
+
+                                return CompleteReturn(forAwaitResumePayload);
+                            }
+
+                            if (previousStage == ForAwaitStage.AwaitingNextResult)
+                            {
+                                awaitedNextResult = forAwaitResumePayload;
+                            }
+                            else if (previousStage == ForAwaitStage.AwaitingValue)
+                            {
+                                awaitedValue = forAwaitResumePayload;
+                                goto StoreForAwaitValue;
+                            }
+                        }
+
                         if (forAwaitState.Iterator is JsObject awaitIteratorObj)
                         {
-                            var nextResult = InvokeIteratorNext(awaitIteratorObj);
-                            if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNextResult))
+                            if (awaitedNextResult is null)
                             {
-                                if (_asyncStepMode && _pendingPromise is JsObject)
+                                var nextResult = InvokeIteratorNext(awaitIteratorObj);
+                                if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNext))
                                 {
-                                    _state = GeneratorState.Suspended;
-                                    _programCounter = forAwaitIndex;
-                                    return CreateIteratorResult(JsSymbols.Undefined, false);
-                                }
-
-                                if (context.IsThrow)
-                                {
-                                    var thrownAwait = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait, environment))
+                                    if (_asyncStepMode && _pendingPromise is JsObject)
                                     {
-                                        continue;
+                                        forAwaitState.AwaitStage = ForAwaitStage.AwaitingNextResult;
+                                        StoreSymbolValue(environment, forAwaitMoveNextInstruction.IteratorSlot, forAwaitState);
+                                        _state = GeneratorState.Suspended;
+                                        _programCounter = forAwaitIndex;
+                                        return CreateIteratorResult(JsSymbols.Undefined, false);
                                     }
 
-                                    _tryStack.Clear();
-                                    throw new ThrowSignal(thrownAwait);
+                                    if (context.IsThrow)
+                                    {
+                                        var thrownAwait = context.FlowValue;
+                                        context.Clear();
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait, environment))
+                                        {
+                                            continue;
+                                        }
+
+                                        _tryStack.Clear();
+                                        throw new ThrowSignal(thrownAwait);
+                                    }
+
+                                    _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                    continue;
                                 }
 
-                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
-                                continue;
+                                awaitedNextResult = awaitedNext;
                             }
 
                             if (awaitedNextResult is not JsObject awaitResultObj)
@@ -4309,6 +4365,8 @@ public static class TypedAstEvaluator
                             {
                                 if (_asyncStepMode && _pendingPromise is JsObject)
                                 {
+                                    forAwaitState.AwaitStage = ForAwaitStage.AwaitingValue;
+                                    StoreSymbolValue(environment, forAwaitMoveNextInstruction.IteratorSlot, forAwaitState);
                                     _state = GeneratorState.Suspended;
                                     _programCounter = forAwaitIndex;
                                     return CreateIteratorResult(JsSymbols.Undefined, false);
@@ -4346,6 +4404,8 @@ public static class TypedAstEvaluator
                             {
                                 if (_asyncStepMode && _pendingPromise is JsObject)
                                 {
+                                    forAwaitState.AwaitStage = ForAwaitStage.AwaitingValue;
+                                    StoreSymbolValue(environment, forAwaitMoveNextInstruction.IteratorSlot, forAwaitState);
                                     _state = GeneratorState.Suspended;
                                     _programCounter = forAwaitIndex;
                                     return CreateIteratorResult(JsSymbols.Undefined, false);
@@ -4376,6 +4436,7 @@ public static class TypedAstEvaluator
                             continue;
                         }
 
+                    StoreForAwaitValue:
                         StoreSymbolValue(environment, forAwaitMoveNextInstruction.ValueSlot, awaitedValue);
                         _programCounter = forAwaitMoveNextInstruction.Next;
                         continue;
@@ -4624,8 +4685,13 @@ public static class TypedAstEvaluator
                 stateObj is AwaitState state &&
                 state.HasResult)
             {
-                // Await has already completed; reuse the resolved value.
-                return state.Result;
+                // Await has already completed; reuse the resolved value once
+                // for this resume, then clear the flag so future iterations
+                // (e.g. in loops) see a fresh await.
+                var result = state.Result;
+                state.HasResult = false;
+                environment.Assign(awaitKey, state);
+                return result;
             }
 
             var awaitedValue = EvaluateExpression(expression.Expression, environment, context);
@@ -4898,16 +4964,25 @@ public static class TypedAstEvaluator
             public object? PendingValue { get; set; }
         }
 
+        private enum ForAwaitStage
+        {
+            None,
+            AwaitingNextResult,
+            AwaitingValue
+        }
+
         private sealed class ForOfState
         {
             public ForOfState(JsObject? iterator, IEnumerator<object?>? enumerator)
             {
                 Iterator = iterator;
                 Enumerator = enumerator;
+                AwaitStage = ForAwaitStage.None;
             }
 
             public JsObject? Iterator { get; }
             public IEnumerator<object?>? Enumerator { get; }
+            public ForAwaitStage AwaitStage { get; set; }
         }
 
     }

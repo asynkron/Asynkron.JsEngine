@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 /// Minimal JavaScript-like array that tracks indexed elements and behaves like an object for property access.
 /// </summary>
-public sealed class JsArray : IJsPropertyAccessor
+public sealed class JsArray : IJsObjectLike
 {
     // Sentinel value to represent holes in sparse arrays (indices that have never been set)
     private static readonly object ArrayHole = new();
@@ -89,6 +89,10 @@ public sealed class JsArray : IJsPropertyAccessor
     {
         _properties.SetPrototype(candidate);
     }
+
+    public JsObject? Prototype => _properties.Prototype;
+    public bool IsSealed => _properties.IsSealed;
+    public IEnumerable<string> Keys => _properties.Keys;
 
     public bool TryGetProperty(string name, out object? value)
     {
@@ -280,6 +284,26 @@ public sealed class JsArray : IJsPropertyAccessor
         }
 
         return _properties.Remove(name);
+    }
+
+    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        _properties.DefineProperty(name, descriptor);
+    }
+
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+    {
+        return _properties.GetOwnPropertyDescriptor(name);
+    }
+
+    public IEnumerable<string> GetOwnPropertyNames()
+    {
+        return _properties.GetOwnPropertyNames();
+    }
+
+    public void Seal()
+    {
+        _properties.Seal();
     }
 
     public void Push(object? value)
@@ -493,24 +517,7 @@ public sealed class JsArray : IJsPropertyAccessor
     {
         length = 0;
 
-        var numericValue = value switch
-        {
-            null => 0d,
-            double d => d,
-            float f => f,
-            decimal m => (double)m,
-            int i => i,
-            uint ui => ui,
-            long l => l,
-            ulong ul => ul,
-            short s => s,
-            ushort us => us,
-            byte b => b,
-            sbyte sb => sb,
-            bool flag => flag ? 1d : 0d,
-            string str when double.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) => parsed,
-            _ => double.NaN
-        };
+        var numericValue = JsOps.ToNumber(value);
 
         if (double.IsNaN(numericValue) || double.IsInfinity(numericValue) || numericValue < 0)
         {

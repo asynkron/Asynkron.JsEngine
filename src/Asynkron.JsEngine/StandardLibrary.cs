@@ -3737,6 +3737,7 @@ public static class StandardLibrary
                     string => "String",
                     double => "Number",
                     bool => "Boolean",
+                    IJsCallable => "Function",
                     _ when ReferenceEquals(thisValue, Symbols.Undefined) => "Undefined",
                     _ => "Object"
                 };
@@ -3785,6 +3786,45 @@ public static class StandardLibrary
             });
 
             objectProtoObj.SetProperty("hasOwnProperty", hasOwn);
+
+            // Object.prototype.isPrototypeOf
+            var isPrototypeOf = new HostFunction((thisValue, args) =>
+            {
+                if (thisValue is null || ReferenceEquals(thisValue, Symbols.Undefined))
+                {
+                    throw new InvalidOperationException("Object.prototype.isPrototypeOf called on null or undefined");
+                }
+
+            if (args.Count == 0 || args[0] is not object targetObj)
+            {
+                return false;
+            }
+
+            JsObject? cursor = null;
+            switch (targetObj)
+            {
+                case JsObject target:
+                    cursor = target.Prototype;
+                    break;
+                case IJsObjectLike objectLike:
+                    cursor = objectLike.Prototype;
+                    break;
+            }
+
+            while (cursor is not null)
+            {
+                if (ReferenceEquals(cursor, thisValue))
+                {
+                    return true;
+                    }
+
+                    cursor = cursor.Prototype;
+                }
+
+                return false;
+            });
+
+            objectProtoObj.SetProperty("isPrototypeOf", isPrototypeOf);
 
             // Also expose Object.hasOwnProperty so patterns like
             // Object.hasOwnProperty.call(obj, key) behave as expected.

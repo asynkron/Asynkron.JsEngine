@@ -3064,7 +3064,13 @@ public static class TypedAstEvaluator
             throw new InvalidOperationException("Right-hand side of 'instanceof' is not a constructor.");
         }
 
-        var current = left as JsObject;
+        JsObject? current = left switch
+        {
+            JsObject obj => obj.Prototype,
+            IJsObjectLike objectLike => objectLike.Prototype,
+            _ => null
+        };
+
         while (current is not null)
         {
             if (ReferenceEquals(current, prototypeObject))

@@ -27,7 +27,12 @@ internal static class JsValueExtensions
             bool flag => flag ? 1 : 0,
             string str => StringToNumber(str),
             JsArray arr => ArrayToNumber(arr),
-            JsObject => double.NaN,
+            JsObject obj => obj.TryGetProperty("__value__", out var inner)
+                ? ToNumber(inner)
+                : double.NaN,
+            IJsPropertyAccessor accessor => accessor.TryGetProperty("__value__", out var inner)
+                ? ToNumber(inner)
+                : double.NaN,
             _ => throw new InvalidOperationException($"Cannot convert value '{value}' to a number.")
         };
     }

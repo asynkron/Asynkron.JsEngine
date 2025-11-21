@@ -33,85 +33,6 @@ internal sealed class SyncGeneratorIrBuilder
     {
     }
 
-    private bool TryBuildIfWithYieldCondition(IfStatement statement, YieldExpression yieldExpression, int nextIndex,
-        out int entryIndex, Symbol? activeLabel)
-    {
-        // Only handle non-delegated `yield` used directly as the condition,
-        // and reject nested `yield` inside the yielded expression for now.
-        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var resumeSymbol = CreateResumeSlotSymbol();
-        var conditionIdentifier = new IdentifierExpression(yieldExpression.Source, resumeSymbol);
-        var rewrittenIf = new IfStatement(statement.Source, conditionIdentifier, statement.Then, statement.Else);
-
-        return TryBuildIfWithRewrittenCondition(statement, yieldExpression, rewrittenIf, resumeSymbol, nextIndex,
-            out entryIndex, activeLabel);
-    }
-
-    private bool TryBuildIfWithConditionYield(IfStatement statement, int nextIndex,
-        out int entryIndex, Symbol? activeLabel)
-    {
-        // Fast-path: direct `if (yield ...)`.
-        if (statement.Condition is YieldExpression directYield)
-        {
-            return TryBuildIfWithYieldCondition(statement, directYield, nextIndex, out entryIndex, activeLabel);
-        }
-
-        if (statement.Condition is null || !ContainsYield(statement.Condition))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var resumeSymbol = CreateResumeSlotSymbol();
-        if (!TryRewriteConditionWithSingleYield(statement.Condition, resumeSymbol,
-                out var yieldExpression, out var rewrittenCondition))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var rewrittenIf = new IfStatement(statement.Source, rewrittenCondition, statement.Then, statement.Else);
-        return TryBuildIfWithRewrittenCondition(statement, yieldExpression, rewrittenIf, resumeSymbol, nextIndex,
-            out entryIndex, activeLabel);
-    }
-
-    private bool TryBuildIfWithRewrittenCondition(IfStatement original, YieldExpression yieldExpression,
-        IfStatement rewrittenIf, Symbol resumeSymbol, int nextIndex, out int entryIndex, Symbol? activeLabel)
-    {
-        // Only handle non-delegated `yield` whose operand does not contain
-        // nested `yield` expressions. Complex nested shapes still fall back
-        // to the replay path.
-        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var instructionStart = _instructions.Count;
-
-        // When control reaches the rewritten if, we need the pending resume
-        // value in the slot that backs the condition.
-        var ifEntryNext = nextIndex;
-        var ifBuilt = TryBuildIfStatement(rewrittenIf, ifEntryNext, out var ifEntryIndex, activeLabel);
-        if (!ifBuilt)
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        // Prefix the if with a yield sequence that:
-        //   - yields the original expression (if any), and
-        //   - stores the resume payload into the resume slot.
-        entryIndex = AppendYieldSequence(yieldExpression.Expression, ifEntryIndex, resumeSymbol);
-        return true;
-    }
-
     private bool TryBuildReturnWithYield(ReturnStatement statement, YieldExpression yieldExpression, int nextIndex,
         out int entryIndex)
     {
@@ -201,22 +122,6 @@ internal sealed class SyncGeneratorIrBuilder
                     return TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
 
                 case IfStatement ifStatement:
-                    // Handle conditions that contain a single non-delegated `yield`
-                    // by rewriting the condition to use a resume slot fed by a
-                    // dedicated yield sequence. Purely yield-free conditions go
-                    // through the regular if lowering.
-                    if (ifStatement.Condition is not null && ContainsYield(ifStatement.Condition))
-                    {
-                        if (TryBuildIfWithConditionYield(ifStatement, nextIndex, out entryIndex, activeLabel))
-                        {
-                            return true;
-                        }
-
-                        entryIndex = -1;
-                        _failureReason ??= "If condition contains unsupported yield shape.";
-                        return false;
-                    }
-
                     return TryBuildIfStatement(ifStatement, nextIndex, out entryIndex, activeLabel);
 
                 case EmptyStatement:
@@ -246,8 +151,13 @@ internal sealed class SyncGeneratorIrBuilder
                     return true;
 
                 case ExpressionStatement expressionStatement:
-                    if (TryLowerYieldingAssignment(expressionStatement, nextIndex, out entryIndex))
+                    if (expressionStatement.Expression is AssignmentExpression { Target: { } targetSymbol, Value: YieldExpression yieldAssignment } &&
+                        IsLowererTemp(targetSymbol) &&
+                        !ContainsYield(yieldAssignment.Expression))
                     {
+                        entryIndex = yieldAssignment.IsDelegated
+                            ? AppendYieldStarSequence(yieldAssignment, nextIndex, targetSymbol)
+                            : AppendYieldSequence(yieldAssignment.Expression, nextIndex, targetSymbol);
                         return true;
                     }
 
@@ -261,11 +171,6 @@ internal sealed class SyncGeneratorIrBuilder
                     return true;
 
                 case VariableDeclaration declaration:
-                    if (TryLowerYieldingDeclaration(declaration, nextIndex, out entryIndex))
-                    {
-                        return true;
-                    }
-
                     if (DeclarationContainsYield(declaration))
                     {
                         entryIndex = -1;
@@ -359,6 +264,13 @@ internal sealed class SyncGeneratorIrBuilder
 
     private bool TryBuildIfStatement(IfStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
     {
+        if (ContainsYield(statement.Condition))
+        {
+            entryIndex = -1;
+            _failureReason ??= "If condition contains unsupported yield shape.";
+            return false;
+        }
+
         var instructionStart = _instructions.Count;
 
         var elseEntry = nextIndex;
@@ -384,101 +296,10 @@ internal sealed class SyncGeneratorIrBuilder
         return true;
     }
 
-    private bool TryBuildWhileWithYieldCondition(WhileStatement statement, YieldExpression yieldExpression,
-        int nextIndex, out int entryIndex, Symbol? label)
-    {
-        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var resumeSymbol = CreateResumeSlotSymbol();
-        var conditionIdentifier = new IdentifierExpression(yieldExpression.Source, resumeSymbol);
-        var rewrittenWhile = new WhileStatement(statement.Source, conditionIdentifier, statement.Body);
-
-        return TryBuildWhileWithRewrittenCondition(rewrittenWhile, yieldExpression, resumeSymbol, nextIndex,
-            out entryIndex, label);
-    }
-
-    private bool TryBuildWhileWithConditionYield(WhileStatement statement, int nextIndex,
-        out int entryIndex, Symbol? label)
-    {
-        // Fast-path: direct `while (yield ...)`.
-        if (statement.Condition is YieldExpression directYield)
-        {
-            return TryBuildWhileWithYieldCondition(statement, directYield, nextIndex, out entryIndex, label);
-        }
-
-        if (statement.Condition is null || !ContainsYield(statement.Condition))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var resumeSymbol = CreateResumeSlotSymbol();
-        if (!TryRewriteConditionWithSingleYield(statement.Condition, resumeSymbol,
-                out var yieldExpression, out var rewrittenCondition))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var rewrittenWhile = new WhileStatement(statement.Source, rewrittenCondition, statement.Body);
-        return TryBuildWhileWithRewrittenCondition(rewrittenWhile, yieldExpression, resumeSymbol, nextIndex,
-            out entryIndex, label);
-    }
-
-    private bool TryBuildWhileWithRewrittenCondition(WhileStatement rewrittenWhile, YieldExpression yieldExpression,
-        Symbol resumeSymbol, int nextIndex, out int entryIndex, Symbol? label)
-    {
-        // Loop shape:
-        //   entry -> yield -> store resume into slot -> branch(condition, body, exit)
-        //   body  -> jump back to yield
-        //
-        // This ensures the condition's `yield` is evaluated once per
-        // iteration, matching the source semantics.
-        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var instructionStart = _instructions.Count;
-
-        var jumpIndex = Append(new JumpInstruction(-1));
-
-        var continueTarget = jumpIndex;
-        var breakTarget = nextIndex;
-        var scope = new LoopScope(label, continueTarget, breakTarget);
-        _loopScopes.Push(scope);
-        var bodyBuilt = TryBuildStatement(rewrittenWhile.Body, jumpIndex, out var bodyEntry, label);
-        _loopScopes.Pop();
-
-        if (!bodyBuilt)
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        var branchIndex = Append(new BranchInstruction(rewrittenWhile.Condition, bodyEntry, nextIndex));
-        var yieldEntryIndex = AppendYieldSequence(yieldExpression.Expression, branchIndex, resumeSymbol);
-
-        _instructions[jumpIndex] = new JumpInstruction(yieldEntryIndex);
-        entryIndex = yieldEntryIndex;
-        return true;
-    }
-
     private bool TryBuildWhileStatement(WhileStatement statement, int nextIndex, out int entryIndex, Symbol? label)
     {
         if (statement.Condition is not null && ContainsYield(statement.Condition))
         {
-            if (TryBuildWhileWithConditionYield(statement, nextIndex, out entryIndex, label))
-            {
-                return true;
-            }
-
             entryIndex = -1;
             _failureReason ??= "While condition contains unsupported yield shape.";
             return false;
@@ -517,11 +338,6 @@ internal sealed class SyncGeneratorIrBuilder
     {
         if (statement.Condition is not null && ContainsYield(statement.Condition))
         {
-            if (TryBuildDoWhileWithConditionYield(statement, nextIndex, out entryIndex, label))
-            {
-                return true;
-            }
-
             entryIndex = -1;
             _failureReason ??= "Do/while condition contains unsupported yield shape.";
             return false;
@@ -551,114 +367,24 @@ internal sealed class SyncGeneratorIrBuilder
         return true;
     }
 
-    private bool TryBuildDoWhileWithConditionYield(DoWhileStatement statement, int nextIndex,
-        out int entryIndex, Symbol? label)
-    {
-        // Fast-path: direct `do { ... } while (yield ...)`.
-        if (statement.Condition is YieldExpression directYield)
-        {
-            var resumeSymbolSimple = CreateResumeSlotSymbol();
-            if (directYield.IsDelegated || ContainsYield(directYield.Expression))
-            {
-                entryIndex = -1;
-                return false;
-            }
-
-            var conditionIdentifier = new IdentifierExpression(directYield.Source, resumeSymbolSimple);
-            var rewrittenSimple = new DoWhileStatement(statement.Source, statement.Body, conditionIdentifier);
-            return TryBuildDoWhileWithRewrittenCondition(rewrittenSimple, directYield, resumeSymbolSimple, nextIndex,
-                out entryIndex, label);
-        }
-
-        if (statement.Condition is null || !ContainsYield(statement.Condition))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var resumeSymbol = CreateResumeSlotSymbol();
-        if (!TryRewriteConditionWithSingleYield(statement.Condition, resumeSymbol,
-                out var yieldExpression, out var rewrittenCondition))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var rewritten = new DoWhileStatement(statement.Source, statement.Body, rewrittenCondition);
-        return TryBuildDoWhileWithRewrittenCondition(rewritten, yieldExpression, resumeSymbol, nextIndex,
-            out entryIndex, label);
-    }
-
-    private bool TryBuildDoWhileWithRewrittenCondition(DoWhileStatement rewritten, YieldExpression yieldExpression,
-        Symbol resumeSymbol, int nextIndex, out int entryIndex, Symbol? label)
-    {
-        // Loop shape:
-        //   entry -> body -> jump -> yield -> store resume into slot -> branch(condition, body, exit)
-        //
-        // This ensures `yield` in the condition runs once per iteration,
-        // after the body has executed (do/while semantics).
-        if (yieldExpression.IsDelegated || ContainsYield(yieldExpression.Expression))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var instructionStart = _instructions.Count;
-        var conditionJumpIndex = Append(new JumpInstruction(-1));
-
-        var continueTarget = conditionJumpIndex;
-        var breakTarget = nextIndex;
-        var scope = new LoopScope(label, continueTarget, breakTarget);
-        _loopScopes.Push(scope);
-        var bodyBuilt = TryBuildStatement(rewritten.Body, conditionJumpIndex, out var bodyEntry, label);
-        _loopScopes.Pop();
-
-        if (!bodyBuilt)
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        var branchIndex = Append(new BranchInstruction(rewritten.Condition, bodyEntry, nextIndex));
-        var yieldEntryIndex = AppendYieldSequence(yieldExpression.Expression, branchIndex, resumeSymbol);
-
-        _instructions[conditionJumpIndex] = new JumpInstruction(yieldEntryIndex);
-
-        entryIndex = bodyEntry;
-        return true;
-    }
-
     private bool TryBuildForStatement(ForStatement statement, int nextIndex, out int entryIndex, Symbol? label)
     {
+        if (statement.Condition is not null && ContainsYield(statement.Condition))
+        {
+            entryIndex = -1;
+            _failureReason ??= "For condition contains unsupported yield shape.";
+            return false;
+        }
+
+        if (statement.Increment is not null && ContainsYield(statement.Increment))
+        {
+            entryIndex = -1;
+            _failureReason ??= "For increment contains unsupported yield shape.";
+            return false;
+        }
+
         var instructionStart = _instructions.Count;
-
-        ExpressionNode conditionExpression;
-        YieldExpression? yieldCondition = null;
-        Symbol? conditionResumeSlot = null;
-
-        if (statement.Condition is null)
-        {
-            conditionExpression = TrueLiteralExpression;
-        }
-        else if (ContainsYield(statement.Condition))
-        {
-            conditionResumeSlot = CreateResumeSlotSymbol();
-            if (!TryRewriteConditionWithSingleYield(statement.Condition, conditionResumeSlot,
-                    out var yieldExpr, out var rewrittenCondition))
-            {
-                entryIndex = -1;
-                _failureReason ??= "For condition contains unsupported yield shape.";
-                return false;
-            }
-
-            yieldCondition = yieldExpr;
-            conditionExpression = rewrittenCondition;
-        }
-        else
-        {
-            conditionExpression = statement.Condition;
-        }
+        var conditionExpression = statement.Condition ?? TrueLiteralExpression;
 
         var conditionJumpIndex = Append(new JumpInstruction(-1));
         var continueTarget = conditionJumpIndex;
@@ -666,29 +392,8 @@ internal sealed class SyncGeneratorIrBuilder
 
         if (statement.Increment is not null)
         {
-            if (ContainsYield(statement.Increment))
-            {
-                var resumeSlot = CreateResumeSlotSymbol();
-                if (!TryRewriteConditionWithSingleYield(statement.Increment, resumeSlot,
-                        out var yieldExpression, out var rewrittenIncrement))
-                {
-                    _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-                    entryIndex = -1;
-                    _failureReason ??= "For increment contains unsupported yield shape.";
-                    return false;
-                }
-
-                var incrementStatement = new ExpressionStatement(statement.Increment.Source, rewrittenIncrement);
-                var incrementIndex = Append(new StatementInstruction(conditionJumpIndex, incrementStatement));
-                var yieldEntryIndex =
-                    AppendYieldSequence(yieldExpression.Expression, incrementIndex, resumeSlot);
-                continueTarget = yieldEntryIndex;
-            }
-            else
-            {
-                var incrementStatement = new ExpressionStatement(statement.Increment.Source, statement.Increment);
-                continueTarget = Append(new StatementInstruction(conditionJumpIndex, incrementStatement));
-            }
+            var incrementStatement = new ExpressionStatement(statement.Increment.Source, statement.Increment);
+            continueTarget = Append(new StatementInstruction(conditionJumpIndex, incrementStatement));
         }
 
         var scope = new LoopScope(label, continueTarget, breakTarget);
@@ -704,17 +409,7 @@ internal sealed class SyncGeneratorIrBuilder
         }
 
         var branchIndex = Append(new BranchInstruction(conditionExpression, bodyEntry, nextIndex));
-
-        if (yieldCondition is not null)
-        {
-            var yieldEntryIndex =
-                AppendYieldSequence(yieldCondition.Expression, branchIndex, conditionResumeSlot);
-            _instructions[conditionJumpIndex] = new JumpInstruction(yieldEntryIndex);
-        }
-        else
-        {
-            _instructions[conditionJumpIndex] = new JumpInstruction(branchIndex);
-        }
+        _instructions[conditionJumpIndex] = new JumpInstruction(branchIndex);
 
         var loopEntry = bodyEntry;
         if (statement.Initializer is not null)
@@ -1255,104 +950,12 @@ internal sealed class SyncGeneratorIrBuilder
         return true;
     }
 
-    private bool TryLowerYieldingDeclaration(VariableDeclaration declaration, int nextIndex, out int entryIndex)
-    {
-        if (declaration.Declarators.Length != 1)
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var declarator = declaration.Declarators[0];
-        if (declarator.Target is not IdentifierBinding)
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        // Simple case: single `yield` / `yield*` used directly as the initializer.
-        if (declarator.Initializer is YieldExpression yieldExpression)
-        {
-            if (ContainsYield(yieldExpression.Expression))
-            {
-                entryIndex = -1;
-                return false;
-            }
-
-            var resumeSymbol = CreateResumeSlotSymbol();
-            var rewrittenDeclarator = declarator with
-            {
-                Initializer = new IdentifierExpression(yieldExpression.Source, resumeSymbol)
-            };
-            var rewrittenDeclaration = declaration with
-            {
-                Declarators = [rewrittenDeclarator]
-            };
-
-            var declarationIndex = Append(new StatementInstruction(nextIndex, rewrittenDeclaration));
-            entryIndex = yieldExpression.IsDelegated
-                ? AppendYieldStarSequence(yieldExpression, declarationIndex, resumeSymbol)
-                : AppendYieldSequence(yieldExpression.Expression, declarationIndex, resumeSymbol);
-            return true;
-        }
-
-        // Multi-yield initializers should be normalized by GeneratorYieldLowerer before reaching
-        // the IR builder. If they appear here, treat them as unsupported so lowering remains the
-        // single place that handles this shape.
-        if (declarator.Initializer is BinaryExpression { Left: YieldExpression, Right: YieldExpression })
-        {
-            entryIndex = -1;
-            _failureReason ??= "Variable declaration contains unsupported yield shape.";
-            return false;
-        }
-
-        entryIndex = -1;
-        return false;
-    }
-
-    private bool TryLowerYieldingAssignment(ExpressionStatement statement, int nextIndex, out int entryIndex)
-    {
-        if (statement.Expression is not AssignmentExpression assignment ||
-            assignment.Value is not YieldExpression yieldExpression)
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        if (ContainsYield(yieldExpression.Expression))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var resumeSymbol = CreateResumeSlotSymbol();
-        var rewrittenAssignment = assignment with
-        {
-            Value = new IdentifierExpression(yieldExpression.Source, resumeSymbol)
-        };
-        var rewrittenStatement = statement with
-        {
-            Expression = rewrittenAssignment
-        };
-
-        var assignmentIndex = Append(new StatementInstruction(nextIndex, rewrittenStatement));
-        entryIndex = yieldExpression.IsDelegated
-            ? AppendYieldStarSequence(yieldExpression, assignmentIndex, resumeSymbol)
-            : AppendYieldSequence(yieldExpression.Expression, assignmentIndex, resumeSymbol);
-        return true;
-    }
-
     private static bool DeclarationContainsYield(VariableDeclaration declaration)
     {
-        foreach (var declarator in declaration.Declarators)
-        {
-            if (declarator.Initializer is not null && ContainsYield(declarator.Initializer))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return declaration.Declarators.Any(d =>
+            d.Initializer is not null &&
+            ContainsYield(d.Initializer) &&
+            !IsLowererTemp(d.Target));
     }
 
     private Symbol CreateResumeSlotSymbol()
@@ -1410,6 +1013,18 @@ internal sealed class SyncGeneratorIrBuilder
             ArrayBinding or ObjectBinding => new DestructuringAssignmentExpression(target.Source, target, valueExpression),
             _ => throw new NotSupportedException($"Unsupported for-of binding target '{target.GetType().Name}'.")
         };
+    }
+
+    private static bool IsLowererTemp(BindingTarget target)
+    {
+        return target is IdentifierBinding { Name.Name: not null } identifier &&
+               identifier.Name.Name.StartsWith("__yield_lower_", StringComparison.Ordinal);
+    }
+
+    private static bool IsLowererTemp(Symbol symbol)
+    {
+        return symbol.Name is not null &&
+               symbol.Name.StartsWith("__yield_lower_", StringComparison.Ordinal);
     }
 
     private Symbol CreateCatchSlotSymbol()
@@ -1599,356 +1214,6 @@ internal sealed class SyncGeneratorIrBuilder
                     return false;
             }
         }
-    }
-
-    private bool TryRewriteConditionWithSingleYield(ExpressionNode expression, Symbol resumeSlot,
-        out YieldExpression yieldExpression, out ExpressionNode rewrittenCondition)
-    {
-        YieldExpression? singleYield = null;
-        var found = false;
-
-        bool Rewrite(ExpressionNode? expr, out ExpressionNode rewritten)
-        {
-            switch (expr)
-            {
-                case null:
-                    rewritten = null!;
-                    return true;
-                case YieldExpression y:
-                    if (found)
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    if (y.IsDelegated || ContainsYield(y.Expression))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    found = true;
-                    singleYield = y;
-                    rewritten = new IdentifierExpression(y.Source, resumeSlot);
-                    return true;
-
-                case BinaryExpression binary:
-                    if (!Rewrite(binary.Left, out var left) || !Rewrite(binary.Right, out var right))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    rewritten = ReferenceEquals(left, binary.Left) && ReferenceEquals(right, binary.Right)
-                        ? binary
-                        : binary with { Left = left, Right = right };
-                    return true;
-
-                case ConditionalExpression conditional:
-                    if (!Rewrite(conditional.Test, out var test) ||
-                        !Rewrite(conditional.Consequent, out var cons) ||
-                        !Rewrite(conditional.Alternate, out var alt))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    rewritten = ReferenceEquals(test, conditional.Test) &&
-                                ReferenceEquals(cons, conditional.Consequent) &&
-                                ReferenceEquals(alt, conditional.Alternate)
-                        ? conditional
-                        : conditional with { Test = test, Consequent = cons, Alternate = alt };
-                    return true;
-
-                case CallExpression call:
-                    if (!Rewrite(call.Callee, out var callee))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    var callArgs = call.Arguments;
-                    if (call.Arguments.Length > 0)
-                    {
-                        var argBuilder = ImmutableArray.CreateBuilder<CallArgument>(call.Arguments.Length);
-                        var changed = false;
-                        foreach (var arg in call.Arguments)
-                        {
-                            if (!Rewrite(arg.Expression, out var argExpr))
-                            {
-                                rewritten = null!;
-                                return false;
-                            }
-
-                            if (ReferenceEquals(argExpr, arg.Expression))
-                            {
-                                argBuilder.Add(arg);
-                            }
-                            else
-                            {
-                                argBuilder.Add(arg with { Expression = argExpr });
-                                changed = true;
-                            }
-                        }
-
-                        if (changed || !ReferenceEquals(callee, call.Callee))
-                        {
-                            callArgs = argBuilder.ToImmutable();
-                        }
-                    }
-
-                    rewritten = ReferenceEquals(callee, call.Callee) && ReferenceEquals(callArgs, call.Arguments)
-                        ? call
-                        : call with { Callee = callee, Arguments = callArgs };
-                    return true;
-
-                case NewExpression @new:
-                    if (!Rewrite(@new.Constructor, out var ctor))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    var newArgs = @new.Arguments;
-                    if (@new.Arguments.Length > 0)
-                    {
-                        var argBuilder = ImmutableArray.CreateBuilder<ExpressionNode>(@new.Arguments.Length);
-                        var changed = false;
-                        foreach (var arg in @new.Arguments)
-                        {
-                            if (!Rewrite(arg, out var argExpr))
-                            {
-                                rewritten = null!;
-                                return false;
-                            }
-
-                            if (ReferenceEquals(argExpr, arg))
-                            {
-                                argBuilder.Add(arg);
-                            }
-                            else
-                            {
-                                argBuilder.Add(argExpr);
-                                changed = true;
-                            }
-                        }
-
-                        if (changed || !ReferenceEquals(ctor, @new.Constructor))
-                        {
-                            newArgs = argBuilder.ToImmutable();
-                        }
-                    }
-
-                    rewritten = ReferenceEquals(ctor, @new.Constructor) && ReferenceEquals(newArgs, @new.Arguments)
-                        ? @new
-                        : @new with { Constructor = ctor, Arguments = newArgs };
-                    return true;
-
-                case MemberExpression member:
-                    if (!Rewrite(member.Target, out var target) ||
-                        !Rewrite(member.Property, out var prop))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    rewritten = ReferenceEquals(target, member.Target) && ReferenceEquals(prop, member.Property)
-                        ? member
-                        : member with { Target = target, Property = prop };
-                    return true;
-
-                case AssignmentExpression assignment:
-                    if (!Rewrite(assignment.Value, out var valueExpr))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    rewritten = ReferenceEquals(valueExpr, assignment.Value)
-                        ? assignment
-                        : assignment with { Value = valueExpr };
-                    return true;
-
-                case PropertyAssignmentExpression propertyAssignment:
-                    if (!Rewrite(propertyAssignment.Target, out var patTarget) ||
-                        !Rewrite(propertyAssignment.Property, out var patProp) ||
-                        !Rewrite(propertyAssignment.Value, out var patValue))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    rewritten = ReferenceEquals(patTarget, propertyAssignment.Target) &&
-                                ReferenceEquals(patProp, propertyAssignment.Property) &&
-                                ReferenceEquals(patValue, propertyAssignment.Value)
-                        ? propertyAssignment
-                        : propertyAssignment with
-                        {
-                            Target = patTarget, Property = patProp, Value = patValue
-                        };
-                    return true;
-
-                case IndexAssignmentExpression indexAssignment:
-                    if (!Rewrite(indexAssignment.Target, out var idxTarget) ||
-                        !Rewrite(indexAssignment.Index, out var idxIndex) ||
-                        !Rewrite(indexAssignment.Value, out var idxValue))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    rewritten = ReferenceEquals(idxTarget, indexAssignment.Target) &&
-                                ReferenceEquals(idxIndex, indexAssignment.Index) &&
-                                ReferenceEquals(idxValue, indexAssignment.Value)
-                        ? indexAssignment
-                        : indexAssignment with
-                        {
-                            Target = idxTarget, Index = idxIndex, Value = idxValue
-                        };
-                    return true;
-
-                case SequenceExpression sequence:
-                    if (!Rewrite(sequence.Left, out var leftSeq) ||
-                        !Rewrite(sequence.Right, out var rightSeq))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    rewritten = ReferenceEquals(leftSeq, sequence.Left) && ReferenceEquals(rightSeq, sequence.Right)
-                        ? sequence
-                        : sequence with { Left = leftSeq, Right = rightSeq };
-                    return true;
-
-                case UnaryExpression unary:
-                    if (!Rewrite(unary.Operand, out var operand))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    rewritten = ReferenceEquals(operand, unary.Operand)
-                        ? unary
-                        : unary with { Operand = operand };
-                    return true;
-
-                case ArrayExpression array:
-                    if (array.Elements.IsDefaultOrEmpty)
-                    {
-                        rewritten = array;
-                        return true;
-                    }
-
-                    {
-                        var builder = ImmutableArray.CreateBuilder<ArrayElement>(array.Elements.Length);
-                        var changed = false;
-                        foreach (var element in array.Elements)
-                        {
-                            if (element.Expression is null)
-                            {
-                                builder.Add(element);
-                                continue;
-                            }
-
-                            if (!Rewrite(element.Expression, out var elemExpr))
-                            {
-                                rewritten = null!;
-                                return false;
-                            }
-
-                            if (ReferenceEquals(elemExpr, element.Expression))
-                            {
-                                builder.Add(element);
-                            }
-                            else
-                            {
-                                builder.Add(element with { Expression = elemExpr });
-                                changed = true;
-                            }
-                        }
-
-                        rewritten = changed
-                            ? array with { Elements = builder.ToImmutable() }
-                            : array;
-                        return true;
-                    }
-
-                case ObjectExpression obj:
-                    if (obj.Members.IsDefaultOrEmpty)
-                    {
-                        rewritten = obj;
-                        return true;
-                    }
-
-                    {
-                        var builder = ImmutableArray.CreateBuilder<ObjectMember>(obj.Members.Length);
-                        var changed = false;
-                        foreach (var member in obj.Members)
-                        {
-                            ExpressionNode? memberValue = member.Value;
-                            if (member.Value is not null)
-                            {
-                                if (!Rewrite(member.Value, out var memberValueExpr))
-                                {
-                                    rewritten = null!;
-                                    return false;
-                                }
-
-                                memberValue = memberValueExpr;
-                            }
-
-                            if (ReferenceEquals(memberValue, member.Value))
-                            {
-                                builder.Add(member);
-                            }
-                            else
-                            {
-                                builder.Add(member with { Value = memberValue });
-                                changed = true;
-                            }
-                        }
-
-                        rewritten = changed
-                            ? obj with { Members = builder.ToImmutable() }
-                            : obj;
-                        return true;
-                    }
-
-                case FunctionExpression:
-                case ClassExpression:
-                    // Nested functions/classes have their own yield scopes.
-                    rewritten = expr;
-                    return true;
-
-                default:
-                    if (ContainsYield(expr))
-                    {
-                        rewritten = null!;
-                        return false;
-                    }
-
-                    rewritten = expr;
-                    return true;
-            }
-        }
-
-        if (!Rewrite(expression, out var rewritten))
-        {
-            yieldExpression = null!;
-            rewrittenCondition = null!;
-            return false;
-        }
-
-        if (!found)
-        {
-            yieldExpression = null!;
-            rewrittenCondition = expression;
-            return false;
-        }
-
-        yieldExpression = singleYield!;
-        rewrittenCondition = rewritten;
-        return true;
     }
 
     private int Append(GeneratorInstruction instruction)

@@ -62,6 +62,20 @@ internal static class GeneratorYieldLowerer
                     continue;
                 }
 
+                if (TryRewriteConditionalWithYield(statement, isStrict, out var conditionalRewrite))
+                {
+                    builder.AddRange(conditionalRewrite);
+                    changed = true;
+                    continue;
+                }
+
+                if (TryRewriteForWithYield(statement, isStrict, out var forRewrite))
+                {
+                    builder.AddRange(forRewrite);
+                    changed = true;
+                    continue;
+                }
+
                 if (TryRewriteReturnWithYield(statement, out var returnRewrite))
                 {
                     builder.AddRange(returnRewrite);
@@ -372,6 +386,121 @@ internal static class GeneratorYieldLowerer
                 default:
                     return false;
             }
+        }
+
+        private bool TryRewriteForWithYield(StatementNode statement, bool isStrict,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            if (statement is not ForStatement forStatement)
+            {
+                replacement = default;
+                return false;
+            }
+
+            replacement = default;
+
+            YieldExpression? conditionYield = null;
+            ExpressionNode? rewrittenCondition = null;
+            var conditionHasYield = forStatement.Condition is not null &&
+                                    TryRewriteConditionWithSingleYield(forStatement.Condition,
+                                        out conditionYield, out rewrittenCondition);
+
+            if (forStatement.Condition is not null && ContainsYield(forStatement.Condition) && !conditionHasYield)
+            {
+                return false;
+            }
+
+            YieldExpression? incrementYield = null;
+            ExpressionNode? rewrittenIncrement = null;
+            var incrementHasYield = forStatement.Increment is not null &&
+                                    TryRewriteConditionWithSingleYield(forStatement.Increment,
+                                        out incrementYield, out rewrittenIncrement);
+
+            if (forStatement.Increment is not null && ContainsYield(forStatement.Increment) && !incrementHasYield)
+            {
+                return false;
+            }
+
+            if (!conditionHasYield && !incrementHasYield)
+            {
+                return false;
+            }
+
+            var statements = ImmutableArray.CreateBuilder<StatementNode>();
+
+            if (forStatement.Initializer is not null)
+            {
+                var rewrittenInitializer = RewriteStatements(
+                    ImmutableArray.Create(forStatement.Initializer), isStrict);
+                statements.AddRange(rewrittenInitializer);
+            }
+
+            IdentifierBinding? conditionResumeIdentifier = null;
+            if (conditionHasYield && conditionYield is not null)
+            {
+                conditionResumeIdentifier = CreateResumeIdentifier();
+                statements.Add(new VariableDeclaration(conditionYield.Source, VariableKind.Let,
+                    [new VariableDeclarator(conditionYield.Source, conditionResumeIdentifier, null)]));
+            }
+
+            IdentifierBinding? incrementResumeIdentifier = null;
+            if (incrementHasYield && incrementYield is not null)
+            {
+                incrementResumeIdentifier = CreateResumeIdentifier();
+                statements.Add(new VariableDeclaration(incrementYield.Source, VariableKind.Let,
+                    [new VariableDeclarator(incrementYield.Source, incrementResumeIdentifier, null)]));
+            }
+
+            var loopStatements = ImmutableArray.CreateBuilder<StatementNode>();
+
+            if (conditionHasYield && conditionYield is not null && conditionResumeIdentifier is not null)
+            {
+                loopStatements.Add(new ExpressionStatement(conditionYield.Source,
+                    new AssignmentExpression(conditionYield.Source, conditionResumeIdentifier.Name,
+                        new YieldExpression(conditionYield.Source, conditionYield.Expression,
+                            conditionYield.IsDelegated))));
+
+                var substitutedCondition = SubstituteResumeIdentifier(rewrittenCondition!, conditionResumeIdentifier.Name);
+
+                loopStatements.Add(new IfStatement(forStatement.Source,
+                    new UnaryExpression(forStatement.Source, "!", substitutedCondition, true),
+                    new BreakStatement(forStatement.Source, null),
+                    null));
+            }
+            else if (forStatement.Condition is not null)
+            {
+                loopStatements.Add(new IfStatement(forStatement.Source,
+                    new UnaryExpression(forStatement.Source, "!", forStatement.Condition, true),
+                    new BreakStatement(forStatement.Source, null),
+                    null));
+            }
+
+            loopStatements.Add(RewriteEmbedded(forStatement.Body, isStrict));
+
+            if (incrementHasYield && incrementYield is not null && incrementResumeIdentifier is not null)
+            {
+                loopStatements.Add(new ExpressionStatement(incrementYield.Source,
+                    new AssignmentExpression(incrementYield.Source, incrementResumeIdentifier.Name,
+                        new YieldExpression(incrementYield.Source, incrementYield.Expression,
+                            incrementYield.IsDelegated))));
+
+                var substitutedIncrement =
+                    SubstituteResumeIdentifier(rewrittenIncrement!, incrementResumeIdentifier.Name);
+                loopStatements.Add(new ExpressionStatement(forStatement.Increment!.Source, substitutedIncrement));
+            }
+            else if (forStatement.Increment is not null)
+            {
+                loopStatements.Add(new ExpressionStatement(forStatement.Increment.Source, forStatement.Increment));
+            }
+
+            var loopBlock = new BlockStatement(forStatement.Source, loopStatements.ToImmutable(), isStrict);
+            var loweredLoop = new WhileStatement(forStatement.Source,
+                new LiteralExpression(forStatement.Source, true),
+                loopBlock);
+
+            statements.Add(loweredLoop);
+            replacement = statements.ToImmutable();
+            return true;
         }
 
         private static bool TryRewriteConditionWithSingleYield(ExpressionNode expression,

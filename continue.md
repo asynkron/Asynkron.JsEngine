@@ -1,7 +1,7 @@
 # Generator IR Next Steps
 
 ## Current State
-- The builder lowers blocks, expression statements (including `yield*`), `while`, `do/while`, classic `for` loops (with labels), `if/else`, variable declarations, plain assignments (`target = yield <expr>`), simple `if (yield <expr>)` conditions, `return yield <expr>` statements, and `try/catch/finally` statements by emitting hidden slots and explicit IR instructions.
+- Generator yield lowering now normalizes declarations, assignments, returns, conditionals, and `for` conditions/increments into `__yield_lower_*` temps (`let __yield_lower...; __yield_lower... = yield ...;`) so `SyncGeneratorIrBuilder` only sees yield-free conditions/increments and recognizes those temp assignments as yield points to store resume payloads.
 - Loop scopes track break/continue targets and now emit dedicated `BreakInstruction`/`ContinueInstruction` nodes so loop exits unwind active `finally` blocks before resuming, including across delegated `yield*` frames.
 - `StoreResumeValueInstruction` consumes pending `.next/.throw/.return` payloads; `.throw`/`.return` flow through the interpreter before short-circuiting so try/catch/finally blocks can observe them, and a try-frame stack guarantees finally blocks execute during abrupt completion (including nested finalizers and mid-final `.throw/.return` overrides).
 - Delegated `yield*` now awaits promise-returning iterator completions on both paths: `DelegatedYieldState.MoveNext` feeds promise-like `next/throw/return` results through `TryAwaitPromise`, and the IR `YieldStarInstruction` path now plumbs delegated `.throw/.return` completion (including async rejections) back through `HandleAbruptCompletion` and `CompleteReturn` so generators see the final completion record rather than the inner cleanup value.
@@ -28,15 +28,14 @@
 
 # Next Iteration Plan
 
-1. **Split Generator IR into Lowering + Codegen**
-   - Introduce a `GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst` pre-pass that rewrites complex `yield` placements (conditions, increments, assignments, declarations, and simple multi-yield expressions) into a normalized, generator-friendly AST or rejects unsupported shapes with clear reasons, so `SyncGeneratorIrBuilder` can assume a simplified surface.
-   - Gradually migrate existing yield-rewrite helpers (`TryRewriteConditionWithSingleYield`, `TryLowerYieldingDeclaration`, `TryLowerYieldingAssignment`, etc.) from `SyncGeneratorIrBuilder` into the new lowering pass, keeping behaviour identical but reducing builder complexity.
-2. **Grow IR Coverage for Remaining Unsupported Generator Shapes**
+1. **Grow IR Coverage for Remaining Unsupported Generator Shapes**
    - Use the `_UnsupportedIr` tests (complex `yield` in increments and complex `switch` layouts) as the driver for extending the normalized surface and the IR interpreter once lowering is in place.
    - As shapes become supported, flip the corresponding tests to `*Ir` / `*Ir_UsesIrPlan` variants and update `docs/GENERATOR_IR_LIMITATIONS.md`.
-3. **Async Generator IR + Non-Blocking Await (Real Thing)**
+2. **Async Generator IR + Non-Blocking Await (Real Thing)**
    - Async generators now reuse the sync generator IR plan via `TypedGeneratorInstance`, surface pending promises from `await` expressions and `for await...of` loops through `AsyncGeneratorStepResult.Pending`, and resume via `AsyncGeneratorInstance` using the engine’s event queue. Nested awaits inside async generators (including `__delay`) and `for await...of` inside async generator bodies are hosted on the non-blocking IR path.
    - **Unify async iteration paths**
      - Replace remaining uses of the blocking `TryAwaitPromise` helper in non-IR async iteration (`EvaluateForAwaitOf`, CPS async helpers) with the non-blocking `TryAwaitPromiseOrSchedule` + event-queue model so plain `async function` + `for await...of` can safely use `__delay(1)` without thread blocking.
    - **Diagnostics and tests**
      - Extend `AsyncGeneratorTests` and `AsyncIterationTests` with cases that detect real non-blocking behaviour (including `__delay(1)` in both async functions and async generators) and add async-aware diagnostics so we can assert that async generators and `for await...of` loops are using the IR + pending-promise executor rather than any legacy blocking behaviour.
+3. **Broaden lowerer coverage and tests**
+   - Add unit tests around the normalized conditional/`for` rewrites and any remaining multi-yield expressions to lock in the new lowering surface and guard against regressions as more IR shapes are added.

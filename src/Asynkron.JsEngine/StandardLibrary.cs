@@ -258,22 +258,9 @@ public static class StandardLibrary
                 case IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var accessorInner):
                     value = accessorInner;
                     continue;
-                case JsObject jsObj:
-                    if (JsOps.TryConvertToNumericPrimitive(jsObj, out var primitiveObj, null))
-                    {
-                        value = primitiveObj;
-                        continue;
-                    }
-
-                    throw ThrowTypeError("Cannot convert object to a BigInt");
-                case IJsPropertyAccessor accessor:
-                    if (JsOps.TryConvertToNumericPrimitive(accessor, out var primitive, null))
-                    {
-                        value = primitive;
-                        continue;
-                    }
-
-                    throw ThrowTypeError("Cannot convert object to a BigInt");
+                case JsObject or IJsPropertyAccessor:
+                    value = JsOps.ToPrimitive(value, "number");
+                    continue;
                 case null:
                 case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
                     throw ThrowTypeError("Cannot convert undefined to a BigInt");
@@ -6198,6 +6185,17 @@ public static class StandardLibrary
 
                 return BigIntToString(value.Value, intRadix);
             }));
+
+            var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
+            var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
+            proto.SetProperty(symbolPropertyName, new HostFunction((thisValue, args) =>
+            {
+                return ToBigInt(thisValue);
+            })
+            {
+                IsConstructor = false
+            });
+
         }
 
         bigIntFunction.SetProperty("asIntN", new HostFunction(args =>

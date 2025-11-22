@@ -72,7 +72,8 @@ namespace Asynkron.JsEngine;
         SetGlobal("Object", StandardLibrary.CreateObjectConstructor(_realm));
         SetGlobal("Function", StandardLibrary.CreateFunctionConstructor(_realm));
         SetGlobal("Number", StandardLibrary.CreateNumberConstructor(_realm));
-        SetGlobal("BigInt", StandardLibrary.CreateBigIntFunction(_realm));
+        var bigIntFunction = StandardLibrary.CreateBigIntFunction(_realm);
+        SetGlobal("BigInt", bigIntFunction);
         SetGlobal("Boolean", StandardLibrary.CreateBooleanConstructor(_realm));
         SetGlobal("String", StandardLibrary.CreateStringConstructor(_realm));
         var arrayConstructor = StandardLibrary.CreateArrayConstructor(_realm);
@@ -84,6 +85,13 @@ namespace Asynkron.JsEngine;
         _globalObject.DefineProperty("Array", new PropertyDescriptor
         {
             Value = arrayConstructor,
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+        _globalObject.DefineProperty("BigInt", new PropertyDescriptor
+        {
+            Value = bigIntFunction,
             Writable = true,
             Enumerable = false,
             Configurable = true

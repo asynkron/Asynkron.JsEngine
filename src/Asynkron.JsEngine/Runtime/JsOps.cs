@@ -165,6 +165,62 @@ internal static class JsOps
         return false;
     }
 
+    public static object? ToPrimitive(object? value, string hint, EvaluationContext? context = null)
+    {
+        if (value is not IJsPropertyAccessor accessor)
+        {
+            return value;
+        }
+
+        var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
+        var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
+        if (accessor.TryGetProperty(symbolPropertyName, out var toPrimitive) && toPrimitive is IJsCallable toPrimFn)
+        {
+            try
+            {
+                var result = toPrimFn.Invoke([hint], accessor);
+                if (result is IJsPropertyAccessor or JsObject)
+                {
+                    throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value");
+                }
+
+                return result;
+            }
+            catch (ThrowSignal signal)
+            {
+                if (context is not null)
+                {
+                    context.SetThrow(signal.ThrownValue);
+                    return value;
+                }
+
+                throw;
+            }
+        }
+
+        var methods = hint == "string"
+            ? new[] { "toString", "valueOf" }
+            : new[] { "valueOf", "toString" };
+
+        foreach (var methodName in methods)
+        {
+            if (TryInvokePropertyMethod(accessor, methodName, out var result, context))
+            {
+                if (context is not null && context.IsThrow)
+                {
+                    return value;
+                }
+
+                if (result is not IJsPropertyAccessor && result is not JsObject)
+                {
+                    return result;
+                }
+            }
+        }
+
+        throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value");
+    }
+
     public static string ToJsString(object? value)
     {
         return value.ToJsString();
@@ -428,9 +484,27 @@ internal static class JsOps
                     return d.ToString(CultureInfo.InvariantCulture);
             }
 
-            if (value is IJsPropertyAccessor accessor && TryConvertObjectToPropertyKey(accessor, out var primitive, context))
+            if (value is IJsPropertyAccessor accessor)
             {
-                value = primitive;
+                if (TryConvertObjectToPropertyKey(accessor, out var primitive, context))
+                {
+                    value = primitive;
+                    continue;
+                }
+
+                if (context is not null && context.IsThrow)
+                {
+                    return null;
+                }
+
+                // Fallback: use general ToPrimitive(string) semantics before converting to string
+                var primitiveValue = ToPrimitive(accessor, "string", context);
+                if (context is not null && context.IsThrow)
+                {
+                    return null;
+                }
+
+                value = primitiveValue;
                 continue;
             }
 

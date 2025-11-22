@@ -2673,8 +2673,8 @@ public static class TypedAstEvaluator
 
     private static object? Add(object? left, object? right)
     {
-        var leftPrimitive = ToAdditionPrimitive(left);
-        var rightPrimitive = ToAdditionPrimitive(right);
+        var leftPrimitive = JsOps.ToPrimitive(left, "default");
+        var rightPrimitive = JsOps.ToPrimitive(right, "default");
 
         if (leftPrimitive is JsBigInt leftBigInt && rightPrimitive is JsBigInt rightBigInt)
         {
@@ -2692,21 +2692,6 @@ public static class TypedAstEvaluator
         }
 
         return JsOps.ToNumber(leftPrimitive) + JsOps.ToNumber(rightPrimitive);
-    }
-
-    private static object? ToAdditionPrimitive(object? value)
-    {
-        if (value is IJsPropertyAccessor accessor)
-        {
-            if (JsOps.TryConvertToNumericPrimitive(accessor, out var primitive, null))
-            {
-                return primitive;
-            }
-
-            throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value");
-        }
-
-        return value;
     }
 
     private static object Subtract(object? left, object? right)

@@ -249,8 +249,41 @@ public static class StandardLibrary
             return ctor.Invoke([message], null);
         }
 
-                return new InvalidOperationException(message);
+        return new InvalidOperationException(message);
+    }
+
+    // ECMAScript Type(x) == "bigint" when x is JsBigInt.
+    private static string TypeOf(object? value)
+    {
+        if (value is null)
+        {
+            return "object";
         }
+
+        if (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
+        {
+            return "undefined";
+        }
+
+        if (value is TypedAstSymbol)
+        {
+            return "symbol";
+        }
+
+        if (value is JsBigInt)
+        {
+            return "bigint";
+        }
+
+        return value switch
+        {
+            bool => "boolean",
+            double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
+            string => "string",
+            IJsCallable => "function",
+            _ => "object"
+        };
+    }
 
     internal static object CreateRangeError(string message)
     {
@@ -275,6 +308,23 @@ public static class StandardLibrary
     internal static ThrowSignal ThrowSyntaxError(string message)
     {
         return new ThrowSignal(CreateSyntaxError(message));
+    }
+
+    private static JsBigInt ThisBigIntValue(object? receiver)
+    {
+        if (receiver is JsBigInt bi)
+        {
+            return bi;
+        }
+
+        if (receiver is JsObject obj &&
+            obj.TryGetValue("__value__", out var inner) &&
+            inner is JsBigInt wrapped)
+        {
+            return wrapped;
+        }
+
+        throw ThrowTypeError("BigInt.prototype method called on incompatible receiver");
     }
 
     internal static object CreateSyntaxError(string message)
@@ -6498,11 +6548,15 @@ public static class StandardLibrary
                 Configurable = true
             });
 
-            proto.SetProperty("toString", new HostFunction((thisValue, args) =>
+            var toStringFn = new HostFunction((thisValue, args) =>
             {
-                var value = ToBigInt(thisValue);
-                var radix = args.Count > 0 ? args[0] : 10d;
-                var radixNumber = radix is JsBigInt biRadix ? (double)biRadix.Value : JsOps.ToNumber(radix);
+                var value = ThisBigIntValue(thisValue);
+                var radixArg = args.Count > 0 ? args[0] : Symbols.Undefined;
+                var radixNumber = ReferenceEquals(radixArg, Symbols.Undefined)
+                    ? 10d
+                    : radixArg is JsBigInt biRadix
+                        ? (double)biRadix.Value
+                        : JsOps.ToNumber(radixArg);
                 if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
                 {
                     throw ThrowRangeError("Invalid radix");
@@ -6515,31 +6569,97 @@ public static class StandardLibrary
                 }
 
                 return BigIntToString(value.Value, intRadix);
-            }));
-
-            proto.SetProperty("valueOf", new HostFunction((thisValue, args) =>
+            })
             {
-                return ToBigInt(thisValue);
-            }));
-
-            proto.SetProperty("toLocaleString", new HostFunction((thisValue, args) =>
+                IsConstructor = false
+            };
+            toStringFn.DefineProperty("length", new PropertyDescriptor
             {
-                var value = ToBigInt(thisValue);
-                var radix = args.Count > 0 ? args[0] : 10d;
-                var radixNumber = radix is JsBigInt biRadix ? (double)biRadix.Value : JsOps.ToNumber(radix);
-                if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
-                {
-                    throw ThrowRangeError("Invalid radix");
-                }
+                Value = 0d,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+            toStringFn.DefineProperty("name", new PropertyDescriptor
+            {
+                Value = "toString",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+            proto.DefineProperty("toString", new PropertyDescriptor
+            {
+                Value = toStringFn,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
 
-                var intRadix = (int)radixNumber;
-                if (intRadix is < 2 or > 36)
-                {
-                    throw ThrowRangeError("toLocaleString() radix argument must be between 2 and 36");
-                }
+            var valueOfFn = new HostFunction((thisValue, args) => ThisBigIntValue(thisValue))
+            {
+                IsConstructor = false
+            };
+            valueOfFn.DefineProperty("length", new PropertyDescriptor
+            {
+                Value = 0d,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+            valueOfFn.DefineProperty("name", new PropertyDescriptor
+            {
+                Value = "valueOf",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+            proto.DefineProperty("valueOf", new PropertyDescriptor
+            {
+                Value = valueOfFn,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
 
-                return BigIntToString(value.Value, intRadix);
-            }));
+            var toLocaleStringFn = new HostFunction((thisValue, args) =>
+            {
+                // Minimal locale-insensitive fallback: ignore locales/options and
+                // use base-10 formatting per spec default.
+                var value = ThisBigIntValue(thisValue);
+                return BigIntToString(value.Value, 10);
+            })
+            {
+                IsConstructor = false
+            };
+            toLocaleStringFn.DefineProperty("length", new PropertyDescriptor
+            {
+                Value = 0d,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+            toLocaleStringFn.DefineProperty("name", new PropertyDescriptor
+            {
+                Value = "toLocaleString",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+            proto.DefineProperty("toLocaleString", new PropertyDescriptor
+            {
+                Value = toLocaleStringFn,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
+
+            // Spec: built-in functions that are not constructors must not have
+            // an own prototype property. Remove the default prototype from these
+            // BigInt prototype methods.
+            foreach (var fn in new[] { toStringFn, valueOfFn, toLocaleStringFn })
+            {
+                fn.PropertiesObject.DeleteOwnProperty("prototype");
+            }
 
         }
 
@@ -7332,6 +7452,11 @@ public static class StandardLibrary
         var prototype = new JsObject();
         var constructor = new HostFunction((thisValue, args) =>
         {
+            if (!JsOps.IsConstructor(thisValue))
+            {
+                throw ThrowTypeError("%TypedArray%.of called on non-constructor");
+            }
+
             if (args.Count == 0)
             {
                 var ta = fromLength(0);
@@ -7387,6 +7512,51 @@ public static class StandardLibrary
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
         prototype.SetPrototype(ObjectPrototype);
         prototype.SetProperty("constructor", constructor);
+        constructor.DefineProperty("of", new PropertyDescriptor
+        {
+            Value = new HostFunction((thisValue, args) =>
+            {
+                if (!JsOps.IsConstructor(thisValue))
+                {
+                    throw ThrowTypeError("%TypedArray%.of called on non-constructor");
+                }
+
+                if (thisValue is not HostFunction ctor)
+                {
+                    throw ThrowTypeError("%TypedArray%.of called on incompatible receiver");
+                }
+
+                var length = args.Count;
+                var ta = ctor.Invoke([ (double)length ], ctor);
+                if (ta is not TypedArrayBase typed)
+                {
+                    throw ThrowTypeError("%TypedArray%.of constructor did not return a typed array");
+                }
+
+                for (var i = 0; i < length; i++)
+                {
+                    var val = args[i];
+                    if (typed.IsBigIntArray)
+                    {
+                        val = ToBigInt(val);
+                    }
+                    else
+                    {
+                        val = JsOps.ToNumber(val);
+                    }
+
+                    typed.SetValue(i, val);
+                }
+
+                return typed;
+            })
+            {
+                IsConstructor = false
+            },
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
         prototype.SetProperty("indexOf", new HostFunction((thisValue, args) =>
         {
             if (thisValue is not TypedArrayBase typed)

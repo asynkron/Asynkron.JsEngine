@@ -10,6 +10,7 @@ public sealed class JsBigUint64Array(JsArrayBuffer buffer, int byteOffset, int l
     : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
 {
     public const int BYTES_PER_ELEMENT = 8;
+    public override bool IsBigIntArray => true;
 
     public static JsBigUint64Array FromLength(int length)
     {
@@ -55,6 +56,11 @@ public sealed class JsBigUint64Array(JsArrayBuffer buffer, int byteOffset, int l
         var masked = value.Value & ((BigInteger.One << 64) - 1);
         var coerced = (ulong)masked;
         BinaryPrimitives.WriteUInt64LittleEndian(span, coerced);
+    }
+
+    public override void SetValue(int index, object? value)
+    {
+        SetElement(index, StandardLibrary.ToBigInt(value));
     }
 
     public JsBigInt GetBigIntElement(int index)

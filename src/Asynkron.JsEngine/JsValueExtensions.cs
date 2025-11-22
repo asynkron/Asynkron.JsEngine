@@ -16,7 +16,7 @@ internal static class JsValueExtensions
             {
                 null => 0,
                 Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => double.NaN,
-                JsBigInt => throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number"),
+                JsBigInt bigInt => (double)bigInt.Value,
                 double d => d,
                 float f => f,
                 decimal m => (double)m,

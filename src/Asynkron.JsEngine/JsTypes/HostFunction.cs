@@ -141,6 +141,8 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike, IJsEnvironmentAwa
         _properties.DefineProperty(name, descriptor);
     }
 
+    internal JsObject PropertiesObject => _properties;
+
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name) => _properties.GetOwnPropertyDescriptor(name);
 
     public IEnumerable<string> GetOwnPropertyNames() => _properties.GetOwnPropertyNames();

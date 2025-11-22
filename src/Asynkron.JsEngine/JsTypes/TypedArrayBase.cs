@@ -187,11 +187,25 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     public JsObject? Prototype => _properties.Prototype as JsObject;
 
     /// <summary>
+    /// True when this typed array stores BigInt elements.
+    /// </summary>
+    public virtual bool IsBigIntArray => false;
+
+    /// <summary>
     /// Allows consumers (e.g. Object.setPrototypeOf) to attach a prototype object.
     /// </summary>
     public void SetPrototype(object? candidate)
     {
         _properties.SetPrototype(candidate);
+    }
+
+    /// <summary>
+    /// Sets an element using the appropriate coercion for numeric typed arrays.
+    /// BigInt arrays override to enforce BigInt conversion.
+    /// </summary>
+    public virtual void SetValue(int index, object? value)
+    {
+        SetElement(index, JsOps.ToNumber(value));
     }
 
     /// <summary>

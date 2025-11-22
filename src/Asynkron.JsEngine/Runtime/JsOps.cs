@@ -52,6 +52,8 @@ internal static class JsOps
                     return double.NaN;
                 case Symbol:
                     throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number"));
+                case JsBigInt bigInt:
+                    return (double)bigInt.Value;
                 case double d:
                     return d;
                 case float f:
@@ -859,6 +861,16 @@ internal static class JsOps
         }
 
         return TryGetPropertyValue(target, propertyName, out value);
+    }
+
+    public static bool IsConstructor(object? value)
+    {
+        if (value is HostFunction host)
+        {
+            return host.IsConstructor && !host.DisallowConstruct;
+        }
+
+        return value is IJsCallable;
     }
 
     private static bool TryGetArrayLikeValue(object? target, object? propertyKey, out object? value,

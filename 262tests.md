@@ -15,7 +15,7 @@ dotnet test tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test26
 
 Procedure to maintain this file:
 - Run one group at a time with the `--filter "FullyQualifiedName=...<Group>"` pattern.
-- Record pass/total as `X/Y GroupName`. Use a ✅ prefix if the group is 100% passing.
+- Record pass/total as `X/Y GroupName`. any 100% passing group should be removed from the list, only leaving failing or partial groups.
 - Keep partially passing groups with numeric counts so progress is visible.
 - Avoid running the entire suite in one shot (too slow and may crash); iterate group-by-group instead.
 - You can automate collection with `python3 tools/generate_test262_report.py --groups 262tests.md --results-dir /tmp/jsengine-results`; it will run each group and print pass/total lines ready to paste back.

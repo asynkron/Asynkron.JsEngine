@@ -11,18 +11,6 @@ public static partial class StandardLibrary
         // Object constructor function
         var objectConstructor = new HostFunction(args =>
         {
-            JsObject CreateBlank()
-            {
-                var obj = new JsObject();
-                var proto = realm.ObjectPrototype ?? ObjectPrototype;
-                if (proto is not null)
-                {
-                    obj.SetPrototype(proto);
-                }
-
-                return obj;
-            }
-
             // Object() or Object(value) - creates a new object or wraps the value
             if (args.Count == 0 || args[0] == null || args[0] == Symbols.Undefined)
             {
@@ -36,19 +24,27 @@ public static partial class StandardLibrary
             }
 
             var value = args[0];
-            switch (value)
+            return value switch
             {
-                case JsBigInt bigInt:
-                    return CreateBigIntWrapper(bigInt);
-                case bool b:
-                    return CreateBooleanWrapper(b);
-                case string s:
-                    return CreateStringWrapper(s);
-                case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
-                    return CreateNumberWrapper(JsOps.ToNumber(value));
-            }
+                JsBigInt bigInt => CreateBigIntWrapper(bigInt),
+                bool b => CreateBooleanWrapper(b),
+                string s => CreateStringWrapper(s),
+                double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
+                    CreateNumberWrapper(JsOps.ToNumber(value)),
+                _ => CreateBlank()
+            };
 
-            return CreateBlank();
+            JsObject CreateBlank()
+            {
+                var obj = new JsObject();
+                var proto = realm.ObjectPrototype ?? ObjectPrototype;
+                if (proto is not null)
+                {
+                    obj.SetPrototype(proto);
+                }
+
+                return obj;
+            }
         });
 
         // Capture Object.prototype so Object.prototype methods can be attached
@@ -347,9 +343,9 @@ public static partial class StandardLibrary
         {
             // The engine currently uses internal string keys for symbol
             // properties on JsObject instances (\"@@symbol:...\"), and Babel
-            // only uses getOwnPropertySymbols in cleanup paths (e.g. to
+            // only uses getOwnPropertySymbols in cleanup paths (e.g., to
             // null-out metadata). Returning an empty array here avoids
-            // observable behaviour differences while keeping the API
+            // observable behavior differences while keeping the API
             // available for callers.
             return new JsArray();
         }));
@@ -404,12 +400,14 @@ public static partial class StandardLibrary
             var entries = new JsArray();
             foreach (var key in obj.GetEnumerablePropertyNames())
             {
-                if (obj.TryGetValue(key, out var value))
+                if (!obj.TryGetValue(key, out var value))
                 {
-                    var entry = new JsArray([key, value]);
-                    AddArrayMethods(entry);
-                    entries.Push(entry);
+                    continue;
                 }
+
+                var entry = new JsArray([key, value]);
+                AddArrayMethods(entry);
+                entries.Push(entry);
             }
 
             AddArrayMethods(entries);
@@ -454,12 +452,14 @@ public static partial class StandardLibrary
             var result = new JsObject();
             foreach (var entry in entries.Items)
             {
-                if (entry is JsArray { Items.Count: >= 2 } entryArray)
+                if (entry is not JsArray { Items.Count: >= 2 } entryArray)
                 {
-                    var key = entryArray.GetElement(0)?.ToString() ?? "";
-                    var value = entryArray.GetElement(1);
-                    result[key] = value;
+                    continue;
                 }
+
+                var key = entryArray.GetElement(0)?.ToString() ?? "";
+                var value = entryArray.GetElement(1);
+                result[key] = value;
             }
 
             return result;
@@ -533,67 +533,71 @@ public static partial class StandardLibrary
             }
 
             // Handle second parameter: property descriptors
-            if (args.Count > 1 && args[1] is JsObject propsObj)
+            if (args.Count <= 1 || args[1] is not JsObject propsObj)
             {
-                foreach (var propName in propsObj.GetOwnPropertyNames())
+                return obj;
+            }
+
+            foreach (var propName in propsObj.GetOwnPropertyNames())
+            {
+                if (!propsObj.TryGetValue(propName, out var descriptorObj) || descriptorObj is not JsObject descObj)
                 {
-                    if (propsObj.TryGetValue(propName, out var descriptorObj) && descriptorObj is JsObject descObj)
+                    continue;
+                }
+
+                var descriptor = new PropertyDescriptor();
+
+                // Check if this is an accessor descriptor
+                var hasGet = descObj.TryGetValue("get", out var getVal);
+                var hasSet = descObj.TryGetValue("set", out var setVal);
+
+                if (hasGet || hasSet)
+                {
+                    // Accessor descriptor
+                    if (hasGet && getVal is IJsCallable getter)
                     {
-                        var descriptor = new PropertyDescriptor();
+                        descriptor.Get = getter;
+                    }
 
-                        // Check if this is an accessor descriptor
-                        var hasGet = descObj.TryGetValue("get", out var getVal);
-                        var hasSet = descObj.TryGetValue("set", out var setVal);
-
-                        if (hasGet || hasSet)
-                        {
-                            // Accessor descriptor
-                            if (hasGet && getVal is IJsCallable getter)
-                            {
-                                descriptor.Get = getter;
-                            }
-
-                            if (hasSet && setVal is IJsCallable setter)
-                            {
-                                descriptor.Set = setter;
-                            }
-                        }
-                        else
-                        {
-                            // Data descriptor
-                            if (descObj.TryGetValue("value", out var value))
-                            {
-                                descriptor.Value = value;
-                            }
-
-                            if (descObj.TryGetValue("writable", out var writableVal))
-                            {
-                                descriptor.Writable = writableVal is bool b ? b : ToBoolean(writableVal);
-                            }
-                        }
-
-                        // Common properties
-                        if (descObj.TryGetValue("enumerable", out var enumerableVal))
-                        {
-                            descriptor.Enumerable = enumerableVal is bool b ? b : ToBoolean(enumerableVal);
-                        }
-                        else
-                        {
-                            descriptor.Enumerable = false; // Default is false for Object.create
-                        }
-
-                        if (descObj.TryGetValue("configurable", out var configurableVal))
-                        {
-                            descriptor.Configurable = configurableVal is bool b ? b : ToBoolean(configurableVal);
-                        }
-                        else
-                        {
-                            descriptor.Configurable = false; // Default is false for Object.create
-                        }
-
-                        obj.DefineProperty(propName, descriptor);
+                    if (hasSet && setVal is IJsCallable setter)
+                    {
+                        descriptor.Set = setter;
                     }
                 }
+                else
+                {
+                    // Data descriptor
+                    if (descObj.TryGetValue("value", out var value))
+                    {
+                        descriptor.Value = value;
+                    }
+
+                    if (descObj.TryGetValue("writable", out var writableVal))
+                    {
+                        descriptor.Writable = writableVal is bool b ? b : ToBoolean(writableVal);
+                    }
+                }
+
+                // Common properties
+                if (descObj.TryGetValue("enumerable", out var enumerableVal))
+                {
+                    descriptor.Enumerable = enumerableVal is bool b ? b : ToBoolean(enumerableVal);
+                }
+                else
+                {
+                    descriptor.Enumerable = false; // Default is false for Object.create
+                }
+
+                if (descObj.TryGetValue("configurable", out var configurableVal))
+                {
+                    descriptor.Configurable = configurableVal is bool b ? b : ToBoolean(configurableVal);
+                }
+                else
+                {
+                    descriptor.Configurable = false; // Default is false for Object.create
+                }
+
+                obj.DefineProperty(propName, descriptor);
             }
 
             return obj;
@@ -687,60 +691,62 @@ public static partial class StandardLibrary
 
             var propName = JsOps.ToPropertyName(args[1]) ?? string.Empty;
 
-            if (args[2] is JsObject descriptorObj)
+            if (args[2] is not JsObject descriptorObj)
             {
-                var descriptor = new PropertyDescriptor();
+                return args[0];
+            }
 
-                // Check if this is an accessor descriptor
-                var hasGet = descriptorObj.TryGetValue("get", out var getVal);
-                var hasSet = descriptorObj.TryGetValue("set", out var setVal);
+            var descriptor = new PropertyDescriptor();
 
-                if (hasGet || hasSet)
+            // Check if this is an accessor descriptor
+            var hasGet = descriptorObj.TryGetValue("get", out var getVal);
+            var hasSet = descriptorObj.TryGetValue("set", out var setVal);
+
+            if (hasGet || hasSet)
+            {
+                // Accessor descriptor
+                if (hasGet && getVal is IJsCallable getter)
                 {
-                    // Accessor descriptor
-                    if (hasGet && getVal is IJsCallable getter)
-                    {
-                        descriptor.Get = getter;
-                    }
-
-                    if (hasSet && setVal is IJsCallable setter)
-                    {
-                        descriptor.Set = setter;
-                    }
-                }
-                else
-                {
-                    // Data descriptor
-                    if (descriptorObj.TryGetValue("value", out var value))
-                    {
-                        descriptor.Value = value;
-                    }
-
-                    if (descriptorObj.TryGetValue("writable", out var writableVal))
-                    {
-                        descriptor.Writable = writableVal is bool b ? b : ToBoolean(writableVal);
-                    }
+                    descriptor.Get = getter;
                 }
 
-                // Common properties
-                if (descriptorObj.TryGetValue("enumerable", out var enumerableVal))
+                if (hasSet && setVal is IJsCallable setter)
                 {
-                    descriptor.Enumerable = enumerableVal is bool b ? b : ToBoolean(enumerableVal);
+                    descriptor.Set = setter;
+                }
+            }
+            else
+            {
+                // Data descriptor
+                if (descriptorObj.TryGetValue("value", out var value))
+                {
+                    descriptor.Value = value;
                 }
 
-                if (descriptorObj.TryGetValue("configurable", out var configurableVal))
+                if (descriptorObj.TryGetValue("writable", out var writableVal))
                 {
-                    descriptor.Configurable = configurableVal is bool b ? b : ToBoolean(configurableVal);
+                    descriptor.Writable = writableVal is bool b ? b : ToBoolean(writableVal);
                 }
+            }
 
-                if (obj is JsArray jsArray && string.Equals(propName, "length", StringComparison.Ordinal))
-                {
-                    jsArray.DefineLength(descriptor, null, true);
-                }
-                else
-                {
-                    obj.DefineProperty(propName, descriptor);
-                }
+            // Common properties
+            if (descriptorObj.TryGetValue("enumerable", out var enumerableVal))
+            {
+                descriptor.Enumerable = enumerableVal is bool b ? b : ToBoolean(enumerableVal);
+            }
+
+            if (descriptorObj.TryGetValue("configurable", out var configurableVal))
+            {
+                descriptor.Configurable = configurableVal is bool b ? b : ToBoolean(configurableVal);
+            }
+
+            if (obj is JsArray jsArray && string.Equals(propName, "length", StringComparison.Ordinal))
+            {
+                jsArray.DefineLength(descriptor, null, true);
+            }
+            else
+            {
+                obj.DefineProperty(propName, descriptor);
             }
 
             return args[0];

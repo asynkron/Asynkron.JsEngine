@@ -464,13 +464,14 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 return (identifier.Lexeme, true, identifier);
             }
 
-            if (IsKeyword(Peek()))
+            if (!IsKeyword(Peek()))
             {
-                var keyword = Advance();
-                return (keyword.Lexeme, false, keyword);
+                throw new ParseException("Expected property name.", Peek(), _source);
             }
 
-            throw new ParseException("Expected property name.", Peek(), _source);
+            var keyword = Advance();
+            return (keyword.Lexeme, false, keyword);
+
         }
 
         private StatementNode ParseSwitchStatement()
@@ -1483,11 +1484,13 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         {
             var expr = ParseUnary();
 
-            if (Match(TokenType.StarStar))
+            if (!Match(TokenType.StarStar))
             {
-                var right = ParseExponentiation();
-                expr = CreateBinaryExpression("**", expr, right);
+                return expr;
             }
+
+            var right = ParseExponentiation();
+            expr = CreateBinaryExpression("**", expr, right);
 
             return expr;
         }
@@ -1604,25 +1607,10 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         {
             ExpressionNode expr;
 
-            if (Match(TokenType.Number))
-            {
-                expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
-                return ApplyCallSuffix(expr, allowCallSuffix);
-            }
-
-            if (Match(TokenType.BigInt))
-            {
-                expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
-                return ApplyCallSuffix(expr, allowCallSuffix);
-            }
-
-            if (Match(TokenType.String))
-            {
-                expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
-                return ApplyCallSuffix(expr, allowCallSuffix);
-            }
-
-            if (Match(TokenType.RegexLiteral))
+            if (Match(TokenType.Number) ||
+                Match(TokenType.BigInt) ||
+                Match(TokenType.String) ||
+                Match(TokenType.RegexLiteral))
             {
                 expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
                 return ApplyCallSuffix(expr, allowCallSuffix);
@@ -2183,11 +2171,13 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             var functionKeyword = Previous();
             var isGenerator = Match(TokenType.Star);
             var name = explicitName;
-            if (name is null && CheckParameterIdentifier())
+            if (name is not null || !CheckParameterIdentifier())
             {
-                var nameToken = Advance();
-                name = Symbol.Intern(nameToken.Lexeme);
+                return ParseFunctionTail(name, functionKeyword, isAsync, isGenerator);
             }
+
+            var nameToken = Advance();
+            name = Symbol.Intern(nameToken.Lexeme);
 
             return ParseFunctionTail(name, functionKeyword, isAsync, isGenerator);
         }
@@ -2721,11 +2711,13 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         {
             foreach (var type in types)
             {
-                if (Check(type))
+                if (!Check(type))
                 {
-                    Advance();
-                    return true;
+                    continue;
                 }
+
+                Advance();
+                return true;
             }
 
             return false;
@@ -2793,14 +2785,15 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 return Advance();
             }
 
-            if (type == TokenType.Semicolon && CanInsertSemicolon())
+            if (type != TokenType.Semicolon || !CanInsertSemicolon())
             {
-                var currentToken = Peek();
-                return new Token(TokenType.Semicolon, ";", null, currentToken.Line, currentToken.Column,
-                    currentToken.StartPosition, currentToken.StartPosition);
+                throw new ParseException(message, Peek(), _source);
             }
 
-            throw new ParseException(message, Peek(), _source);
+            var currentToken = Peek();
+            return new Token(TokenType.Semicolon, ";", null, currentToken.Line, currentToken.Column,
+                currentToken.StartPosition, currentToken.StartPosition);
+
         }
 
         private Token ConsumeParameterIdentifier(string message)

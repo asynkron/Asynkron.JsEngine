@@ -329,8 +329,8 @@ public static partial class StandardLibrary
                     return str;
                 }
 
-                var prefix = str.Substring(0, idx);
-                var suffix = str.Substring(idx + searchValueFunc.Length);
+                var prefix = str[..idx];
+                var suffix = str[(idx + searchValueFunc.Length)..];
                 var replacedSegment = replacer.Invoke([searchValueFunc], str).ToJsString();
                 return prefix + replacedSegment + suffix;
             }
@@ -377,18 +377,19 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) &&
-                regexValue is JsRegExp regex)
+            if (args[0] is not JsObject regexObj || !regexObj.TryGetProperty("__regex__", out var regexValue) ||
+                regexValue is not JsRegExp regex)
             {
-                if (regex.Global)
-                {
-                    return regex.MatchAll(str);
-                }
-
-                return regex.Exec(str);
+                return null;
             }
 
-            return null;
+            if (regex.Global)
+            {
+                return regex.MatchAll(str);
+            }
+
+            return regex.Exec(str);
+
         }));
 
         // search(regexp)
@@ -399,15 +400,17 @@ public static partial class StandardLibrary
                 return -1d;
             }
 
-            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) &&
-                regexValue is JsRegExp regex)
+            if (args[0] is not JsObject regexObj || !regexObj.TryGetProperty("__regex__", out var regexValue) ||
+                regexValue is not JsRegExp regex)
             {
-                var result = regex.Exec(str);
-                if (result is JsArray arr && arr.TryGetProperty("index", out var indexObj) &&
-                    indexObj is double d)
-                {
-                    return d;
-                }
+                return -1d;
+            }
+
+            var result = regex.Exec(str);
+            if (result is JsArray arr && arr.TryGetProperty("index", out var indexObj) &&
+                indexObj is double d)
+            {
+                return d;
             }
 
             return -1d;
@@ -428,7 +431,7 @@ public static partial class StandardLibrary
                 return false;
             }
 
-            return str.Substring(position).StartsWith(searchStr, StringComparison.Ordinal);
+            return str[position..].StartsWith(searchStr, StringComparison.Ordinal);
         }));
 
         // endsWith(searchString, length?)
@@ -447,7 +450,7 @@ public static partial class StandardLibrary
             }
 
             length = Math.Min(length, str.Length);
-            return str.Substring(0, length).EndsWith(searchStr, StringComparison.Ordinal);
+            return str[..length].EndsWith(searchStr, StringComparison.Ordinal);
         }));
 
         // includes(searchString, position?)
@@ -462,7 +465,7 @@ public static partial class StandardLibrary
             var position = args.Count > 1 && args[1] is double d ? Math.Max(0, (int)d) : 0;
             if (position >= str.Length)
             {
-                return searchStr == "";
+                return searchStr?.Length == 0;
             }
 
             return str.IndexOf(searchStr, position, StringComparison.Ordinal) >= 0;
@@ -505,7 +508,7 @@ public static partial class StandardLibrary
             }
 
             var padString = args.Count > 1 ? args[1]?.ToString() ?? " " : " ";
-            if (padString == "")
+            if (padString?.Length == 0)
             {
                 return str;
             }
@@ -531,7 +534,7 @@ public static partial class StandardLibrary
             }
 
             var padString = args.Count > 1 ? args[1]?.ToString() ?? " " : " ";
-            if (padString == "")
+            if (padString?.Length == 0)
             {
                 return str;
             }
@@ -608,20 +611,23 @@ public static partial class StandardLibrary
             // Get the code point at the given position
             // Handle surrogate pairs for characters outside the BMP (Basic Multilingual Plane)
             var c = str[index];
-            if (char.IsHighSurrogate(c) && index + 1 < str.Length)
+            if (!char.IsHighSurrogate(c) || index + 1 >= str.Length)
             {
-                var low = str[index + 1];
-                if (char.IsLowSurrogate(low))
-                {
-                    // Calculate the code point from the surrogate pair
-                    var high = (int)c;
-                    var lowInt = (int)low;
-                    var codePoint = ((high - 0xD800) << 10) + (lowInt - 0xDC00) + 0x10000;
-                    return (double)codePoint;
-                }
+                return (double)c;
             }
 
-            return (double)c;
+            var low = str[index + 1];
+            if (!char.IsLowSurrogate(low))
+            {
+                return (double)c;
+            }
+
+            // Calculate the code point from the surrogate pair
+            var high = (int)c;
+            var lowInt = (int)low;
+            var codePoint = ((high - 0xD800) << 10) + (lowInt - 0xDC00) + 0x10000;
+            return (double)codePoint;
+
         }));
 
         // localeCompare(compareString)
@@ -765,19 +771,20 @@ public static partial class StandardLibrary
                 _ => value?.ToString() ?? string.Empty
             };
 
-            if (thisValue is JsObject obj)
+            if (thisValue is not JsObject obj)
             {
-                obj.SetProperty("__value__", str);
-                obj.SetProperty("length", (double)str.Length);
-                if (realm.StringPrototype is not null)
-                {
-                    obj.SetPrototype(realm.StringPrototype);
-                }
-
-                return obj;
+                return str;
             }
 
-            return str;
+            obj.SetProperty("__value__", str);
+            obj.SetProperty("length", (double)str.Length);
+            if (realm.StringPrototype is not null)
+            {
+                obj.SetPrototype(realm.StringPrototype);
+            }
+
+            return obj;
+
         });
 
         // Remember String.prototype so that string wrapper objects can see
@@ -948,13 +955,15 @@ public static partial class StandardLibrary
                 result.Append(rawPart);
 
                 // Append the substitution if there is one
-                if (i < args.Count - 1)
+                if (i >= args.Count - 1)
                 {
-                    var substitution = args[i + 1];
-                    if (substitution != null)
-                    {
-                        result.Append(substitution);
-                    }
+                    continue;
+                }
+
+                var substitution = args[i + 1];
+                if (substitution != null)
+                {
+                    result.Append(substitution);
                 }
             }
 

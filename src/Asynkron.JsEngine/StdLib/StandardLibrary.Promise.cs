@@ -84,99 +84,79 @@ public static partial class StandardLibrary
         });
 
         // Add static methods to Promise constructor
-        if (promiseConstructor is HostFunction hf)
+        if (promiseConstructor is null)
         {
-            // Promise.resolve(value)
-            hf.SetProperty("resolve", new HostFunction(args =>
+            return promiseConstructor;
+        }
+
+        // Promise.resolve(value)
+        promiseConstructor.SetProperty("resolve", new HostFunction(args =>
+        {
+            var value = args.Count > 0 ? args[0] : null;
+            var promise = new JsPromise(engine);
+
+            // Add instance methods
+            AddPromiseInstanceMethods(promise.JsObject, promise, engine);
+
+            promise.Resolve(value);
+            return promise.JsObject;
+        }));
+
+        // Promise.reject(reason)
+        promiseConstructor.SetProperty("reject", new HostFunction(args =>
+        {
+            var reason = args.Count > 0 ? args[0] : null;
+            var promise = new JsPromise(engine);
+
+            // Add instance methods
+            AddPromiseInstanceMethods(promise.JsObject, promise, engine);
+
+            promise.Reject(reason);
+            return promise.JsObject;
+        }));
+
+        // Promise.all(iterable)
+        promiseConstructor.SetProperty("all", new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsArray array)
             {
-                var value = args.Count > 0 ? args[0] : null;
-                var promise = new JsPromise(engine);
+                return null;
+            }
 
-                // Add instance methods
-                AddPromiseInstanceMethods(promise.JsObject, promise, engine);
+            var resultPromise = new JsPromise(engine);
+            AddPromiseInstanceMethods(resultPromise.JsObject, resultPromise, engine);
 
-                promise.Resolve(value);
-                return promise.JsObject;
-            }));
+            var results = new object?[array.Items.Count];
+            var remaining = array.Items.Count;
 
-            // Promise.reject(reason)
-            hf.SetProperty("reject", new HostFunction(args =>
+            if (remaining == 0)
             {
-                var reason = args.Count > 0 ? args[0] : null;
-                var promise = new JsPromise(engine);
+                var emptyArray = new JsArray();
+                AddArrayMethods(emptyArray);
+                resultPromise.Resolve(emptyArray);
+                return resultPromise.JsObject;
+            }
 
-                // Add instance methods
-                AddPromiseInstanceMethods(promise.JsObject, promise, engine);
-
-                promise.Reject(reason);
-                return promise.JsObject;
-            }));
-
-            // Promise.all(iterable)
-            hf.SetProperty("all", new HostFunction(args =>
+            for (var i = 0; i < array.Items.Count; i++)
             {
-                if (args.Count == 0 || args[0] is not JsArray array)
+                var index = i;
+                var item = array.Items[i];
+
+                // Check if item is a promise (JsObject with "then" method)
+                if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
+                    thenMethod is IJsCallable thenCallable)
                 {
-                    return null;
-                }
-
-                var resultPromise = new JsPromise(engine);
-                AddPromiseInstanceMethods(resultPromise.JsObject, resultPromise, engine);
-
-                var results = new object?[array.Items.Count];
-                var remaining = array.Items.Count;
-
-                if (remaining == 0)
-                {
-                    var emptyArray = new JsArray();
-                    AddArrayMethods(emptyArray);
-                    resultPromise.Resolve(emptyArray);
-                    return resultPromise.JsObject;
-                }
-
-                for (var i = 0; i < array.Items.Count; i++)
-                {
-                    var index = i;
-                    var item = array.Items[i];
-
-                    // Check if item is a promise (JsObject with "then" method)
-                    if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
-                        thenMethod is IJsCallable thenCallable)
-                    {
-                        thenCallable.Invoke([
-                            new HostFunction(resolveArgs =>
-                            {
-                                results[index] = resolveArgs.Count > 0 ? resolveArgs[0] : null;
-                                remaining--;
-
-                                if (remaining == 0)
-                                {
-                                    var resultArray = new JsArray();
-                                    foreach (var result in results)
-                                    {
-                                        resultArray.Push(result);
-                                    }
-
-                                    AddArrayMethods(resultArray);
-                                    resultPromise.Resolve(resultArray);
-                                }
-
-                                return null;
-                            }),
-                            new HostFunction(rejectArgs =>
-                            {
-                                resultPromise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
-                                return null;
-                            })
-                        ], itemObj);
-                    }
-                    else
-                    {
-                        results[index] = item;
-                        remaining--;
-
-                        if (remaining == 0)
+                    thenCallable.Invoke([
+                        new HostFunction(resolveArgs =>
                         {
+                            results[index] = resolveArgs.Count > 0 ? resolveArgs[0] : null;
+                            remaining--;
+
+                            if (remaining != 0)
+                            {
+                                return null;
+                            }
+
                             var resultArray = new JsArray();
                             foreach (var result in results)
                             {
@@ -185,65 +165,95 @@ public static partial class StandardLibrary
 
                             AddArrayMethods(resultArray);
                             resultPromise.Resolve(resultArray);
-                        }
-                    }
+
+                            return null;
+                        }),
+                        new HostFunction(rejectArgs =>
+                        {
+                            resultPromise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
+                            return null;
+                        })
+                    ], itemObj);
                 }
+                else
+                {
+                    results[index] = item;
+                    remaining--;
 
-                return resultPromise.JsObject;
-            }));
+                    if (remaining != 0)
+                    {
+                        continue;
+                    }
 
-            // Promise.race(iterable)
-            hf.SetProperty("race", new HostFunction(args =>
+                    var resultArray = new JsArray();
+                    foreach (var result in results)
+                    {
+                        resultArray.Push(result);
+                    }
+
+                    AddArrayMethods(resultArray);
+                    resultPromise.Resolve(resultArray);
+                }
+            }
+
+            return resultPromise.JsObject;
+        }));
+
+        // Promise.race(iterable)
+        promiseConstructor.SetProperty("race", new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not JsArray array)
             {
-                if (args.Count == 0 || args[0] is not JsArray array)
+                return null;
+            }
+
+            var resultPromise = new JsPromise(engine);
+            AddPromiseInstanceMethods(resultPromise.JsObject, resultPromise, engine);
+
+            var settled = false;
+
+            foreach (var item in array.Items)
+                // Check if item is a promise (JsObject with "then" method)
+            {
+                if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
+                    thenMethod is IJsCallable thenCallable)
                 {
-                    return null;
+                    thenCallable.Invoke([
+                        new HostFunction(resolveArgs =>
+                        {
+                            if (settled)
+                            {
+                                return null;
+                            }
+
+                            settled = true;
+                            resultPromise.Resolve(resolveArgs.Count > 0 ? resolveArgs[0] : null);
+
+                            return null;
+                        }),
+                        new HostFunction(rejectArgs =>
+                        {
+                            if (settled)
+                            {
+                                return null;
+                            }
+
+                            settled = true;
+                            resultPromise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
+
+                            return null;
+                        })
+                    ], itemObj);
                 }
-
-                var resultPromise = new JsPromise(engine);
-                AddPromiseInstanceMethods(resultPromise.JsObject, resultPromise, engine);
-
-                var settled = false;
-
-                foreach (var item in array.Items)
-                    // Check if item is a promise (JsObject with "then" method)
+                else if (!settled)
                 {
-                    if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
-                        thenMethod is IJsCallable thenCallable)
-                    {
-                        thenCallable.Invoke([
-                            new HostFunction(resolveArgs =>
-                            {
-                                if (!settled)
-                                {
-                                    settled = true;
-                                    resultPromise.Resolve(resolveArgs.Count > 0 ? resolveArgs[0] : null);
-                                }
-
-                                return null;
-                            }),
-                            new HostFunction(rejectArgs =>
-                            {
-                                if (!settled)
-                                {
-                                    settled = true;
-                                    resultPromise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
-                                }
-
-                                return null;
-                            })
-                        ], itemObj);
-                    }
-                    else if (!settled)
-                    {
-                        settled = true;
-                        resultPromise.Resolve(item);
-                    }
+                    settled = true;
+                    resultPromise.Resolve(item);
                 }
+            }
 
-                return resultPromise.JsObject;
-            }));
-        }
+            return resultPromise.JsObject;
+        }));
 
         return promiseConstructor;
     }

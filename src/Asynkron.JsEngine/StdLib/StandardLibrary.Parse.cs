@@ -16,7 +16,7 @@ public static partial class StandardLibrary
 
             var str = args[0]?.ToString() ?? "";
             str = str.Trim();
-            if (str == "")
+            if (str?.Length == 0)
             {
                 return double.NaN;
             }
@@ -32,11 +32,11 @@ public static partial class StandardLibrary
             if (str.StartsWith("-"))
             {
                 sign = -1;
-                str = str.Substring(1).TrimStart();
+                str = str[1..].TrimStart();
             }
             else if (str.StartsWith("+"))
             {
-                str = str.Substring(1).TrimStart();
+                str = str[1..].TrimStart();
             }
 
             // Parse until we hit invalid character
@@ -86,7 +86,7 @@ public static partial class StandardLibrary
 
             var str = args[0]?.ToString() ?? "";
             str = str.Trim();
-            if (str == "")
+            if (str.Length == 0)
             {
                 return double.NaN;
             }
@@ -153,7 +153,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             }
 
-            var parsed = str.Substring(0, i);
+            var parsed = str[..i];
             if (double.TryParse(parsed, NumberStyles.Float,
                     CultureInfo.InvariantCulture, out result))
             {

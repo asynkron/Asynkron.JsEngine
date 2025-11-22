@@ -79,7 +79,7 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
 
         // Provide minimal Function.prototype-style helpers for host functions:
         // fn.call(thisArg, ...args), fn.apply(thisArg, argsArray), fn.bind(thisArg, ...boundArgs)
-        var callable = (IJsCallable)this;
+        IJsCallable jsCallable = this;
         switch (name)
         {
             case "call":
@@ -87,7 +87,7 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
                 {
                     var thisArg = args.Count > 0 ? args[0] : Symbols.Undefined;
                     var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
-                    return callable.Invoke(callArgs, thisArg);
+                    return jsCallable.Invoke(callArgs, thisArg);
                 });
                 return true;
 
@@ -96,15 +96,14 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
                 {
                     var thisArg = args.Count > 0 ? args[0] : Symbols.Undefined;
                     var argList = new List<object?>();
-                    if (args.Count > 1 && args[1] is JsArray jsArray)
+                    if (args.Count <= 1 || args[1] is not JsArray jsArray)
                     {
-                        foreach (var item in jsArray.Items)
-                        {
-                            argList.Add(item);
-                        }
+                        return jsCallable.Invoke(argList.ToArray(), thisArg);
                     }
 
-                    return callable.Invoke(argList.ToArray(), thisArg);
+                    argList.AddRange(jsArray.Items);
+
+                    return jsCallable.Invoke(argList.ToArray(), thisArg);
                 });
                 return true;
 
@@ -123,7 +122,7 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
                             finalArgs[boundArgs.Length + i] = innerArgs[i];
                         }
 
-                        return callable.Invoke(finalArgs, boundThis);
+                        return jsCallable.Invoke(finalArgs, boundThis);
                     });
                 });
                 return true;

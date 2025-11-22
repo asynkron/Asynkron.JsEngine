@@ -31,16 +31,16 @@ public static class TypedAstEvaluator
         $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
     private const string GeneratorBrandPropertyName = "__generator_brand__";
     private static readonly object GeneratorBrandMarker = new();
-    public static object? EvaluateProgram(ProgramNode program, JsEnvironment environment, CancellationToken cancellationToken = default)
+    public static object? EvaluateProgram(ProgramNode program, JsEnvironment environment, RealmState realmState, CancellationToken cancellationToken = default)
     {
-        var context = new EvaluationContext(cancellationToken) { SourceReference = program.Source };
+        var context = new EvaluationContext(realmState, cancellationToken) { SourceReference = program.Source };
         var executionEnvironment = program.IsStrict ? new JsEnvironment(environment, true, true) : environment;
 
         // Hoist var and function declarations in the program body so that
         // function declarations like `function formatArgs(...) {}` are
         // available before earlier statements that reference them.
         var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
-        HoistVarDeclarations(programBlock, executionEnvironment);
+        HoistVarDeclarations(programBlock, executionEnvironment, context);
 
         object? result = JsSymbols.Undefined;
         foreach (var statement in program.Body)
@@ -74,7 +74,7 @@ public static class TypedAstEvaluator
             ReturnStatement returnStatement => EvaluateReturn(returnStatement, environment, context),
             ThrowStatement throwStatement => EvaluateThrow(throwStatement, environment, context),
             VariableDeclaration declaration => EvaluateVariableDeclaration(declaration, environment, context),
-            FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment),
+            FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment, context),
             IfStatement ifStatement => EvaluateIf(ifStatement, environment, context),
             WhileStatement whileStatement => EvaluateWhile(whileStatement, environment, context, activeLabel),
             DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context, activeLabel),
@@ -1065,26 +1065,26 @@ public static class TypedAstEvaluator
         ApplyBindingTarget(declarator.Target, value, environment, context, mode, declarator.Initializer is not null);
     }
 
-    private static object? EvaluateFunctionDeclaration(FunctionDeclaration declaration, JsEnvironment environment)
+    private static object? EvaluateFunctionDeclaration(FunctionDeclaration declaration, JsEnvironment environment, EvaluationContext context)
     {
-        var function = CreateFunctionValue(declaration.Function, environment);
+        var function = CreateFunctionValue(declaration.Function, environment, context);
         environment.Define(declaration.Name, function);
         return function;
     }
 
-    private static IJsCallable CreateFunctionValue(FunctionExpression functionExpression, JsEnvironment environment)
+    private static IJsCallable CreateFunctionValue(FunctionExpression functionExpression, JsEnvironment environment, EvaluationContext context)
     {
         if (functionExpression.IsGenerator)
         {
             if (functionExpression.IsAsync)
             {
-                return new AsyncGeneratorFactory(functionExpression, environment);
+                return new AsyncGeneratorFactory(functionExpression, environment, context.RealmState);
             }
 
-            return new TypedGeneratorFactory(functionExpression, environment);
+            return new TypedGeneratorFactory(functionExpression, environment, context.RealmState);
         }
 
-        return new TypedFunction(functionExpression, environment);
+        return new TypedFunction(functionExpression, environment, context.RealmState);
     }
 
     private static object? EvaluateLabeled(LabeledStatement statement, JsEnvironment environment, EvaluationContext context)
@@ -1120,7 +1120,7 @@ public static class TypedAstEvaluator
             UnaryExpression unary => EvaluateUnary(unary, environment, context),
             ConditionalExpression conditional => EvaluateConditional(conditional, environment, context),
             CallExpression call => EvaluateCall(call, environment, context),
-            FunctionExpression functionExpression => CreateFunctionValue(functionExpression, environment),
+            FunctionExpression functionExpression => CreateFunctionValue(functionExpression, environment, context),
             AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
             DestructuringAssignmentExpression destructuringAssignment =>
                 EvaluateDestructuringAssignment(destructuringAssignment, environment, context),
@@ -1730,8 +1730,8 @@ public static class TypedAstEvaluator
                 EvaluateExpression);
             var currentValue = reference.GetValue();
             var updatedValue = expression.Operator == "++"
-                ? IncrementValue(currentValue)
-                : DecrementValue(currentValue);
+                ? IncrementValue(currentValue, context)
+                : DecrementValue(currentValue, context);
             reference.SetValue(updatedValue);
             return expression.IsPrefix ? updatedValue : currentValue;
         }
@@ -1768,10 +1768,10 @@ public static class TypedAstEvaluator
         {
             "!" => !IsTruthy(operand),
             "+" => operand is JsBigInt
-                ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number")
-                : JsOps.ToNumber(operand),
-            "-" => operand is JsBigInt bigInt ? (object)(-bigInt) : -JsOps.ToNumber(operand),
-            "~" => BitwiseNot(operand),
+                ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context)
+                : JsOps.ToNumber(operand, context),
+            "-" => operand is JsBigInt bigInt ? (object)(-bigInt) : -JsOps.ToNumber(operand, context),
+            "~" => BitwiseNot(operand, context),
             "void" => JsSymbols.Undefined,
             _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
         };
@@ -1809,26 +1809,26 @@ public static class TypedAstEvaluator
 
         return expression.Operator switch
         {
-            "+" => Add(left, right),
-            "-" => Subtract(left, right),
-            "*" => Multiply(left, right),
-            "/" => Divide(left, right),
-            "%" => Modulo(left, right),
-            "**" => Power(left, right),
-            "==" => LooseEquals(left, right),
-            "!=" => !LooseEquals(left, right),
+            "+" => Add(left, right, context),
+            "-" => Subtract(left, right, context),
+            "*" => Multiply(left, right, context),
+            "/" => Divide(left, right, context),
+            "%" => Modulo(left, right, context),
+            "**" => Power(left, right, context),
+            "==" => LooseEquals(left, right, context),
+            "!=" => !LooseEquals(left, right, context),
             "===" => StrictEquals(left, right),
             "!==" => !StrictEquals(left, right),
-            "<" => JsOps.LessThan(left, right),
-            "<=" => JsOps.LessThanOrEqual(left, right),
-            ">" => JsOps.GreaterThan(left, right),
-            ">=" => JsOps.GreaterThanOrEqual(left, right),
-            "&" => BitwiseAnd(left, right),
-            "|" => BitwiseOr(left, right),
-            "^" => BitwiseXor(left, right),
-            "<<" => LeftShift(left, right),
-            ">>" => RightShift(left, right),
-            ">>>" => UnsignedRightShift(left, right),
+            "<" => JsOps.LessThan(left, right, context),
+            "<=" => JsOps.LessThanOrEqual(left, right, context),
+            ">" => JsOps.GreaterThan(left, right, context),
+            ">=" => JsOps.GreaterThanOrEqual(left, right, context),
+            "&" => BitwiseAnd(left, right, context),
+            "|" => BitwiseOr(left, right, context),
+            "^" => BitwiseXor(left, right, context),
+            "<<" => LeftShift(left, right, context),
+            ">>" => RightShift(left, right, context),
+            ">>>" => UnsignedRightShift(left, right, context),
             "in" => InOperator(left, right, context),
             "instanceof" => InstanceofOperator(left, right),
             _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
@@ -2582,10 +2582,10 @@ public static class TypedAstEvaluator
         return JsOps.IsTruthy(value);
     }
 
-    private static object? Add(object? left, object? right)
+    private static object? Add(object? left, object? right, EvaluationContext context)
     {
-        var leftPrimitive = JsOps.ToPrimitive(left, "default");
-        var rightPrimitive = JsOps.ToPrimitive(right, "default");
+        var leftPrimitive = JsOps.ToPrimitive(left, "default", context);
+        var rightPrimitive = JsOps.ToPrimitive(right, "default", context);
 
         if (leftPrimitive is JsBigInt leftBigInt && rightPrimitive is JsBigInt rightBigInt)
         {
@@ -2599,43 +2599,43 @@ public static class TypedAstEvaluator
 
         if (leftPrimitive is JsBigInt || rightPrimitive is JsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions");
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
         }
 
-        return JsOps.ToNumber(leftPrimitive) + JsOps.ToNumber(rightPrimitive);
+        return JsOps.ToNumber(leftPrimitive, context) + JsOps.ToNumber(rightPrimitive, context);
     }
 
-    private static object Subtract(object? left, object? right)
+    private static object Subtract(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrNumericOperation(left, right,
+        return PerformBigIntOrNumericOperation(left, right, context,
             (l, r) => l - r,
             (l, r) => l - r);
     }
 
-    private static object Multiply(object? left, object? right)
+    private static object Multiply(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrNumericOperation(left, right,
+        return PerformBigIntOrNumericOperation(left, right, context,
             (l, r) => l * r,
             (l, r) => l * r);
     }
 
-    private static object Divide(object? left, object? right)
+    private static object Divide(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrNumericOperation(left, right,
+        return PerformBigIntOrNumericOperation(left, right, context,
             (l, r) => l / r,
             (l, r) => l / r);
     }
 
-    private static object Modulo(object? left, object? right)
+    private static object Modulo(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrNumericOperation(left, right,
+        return PerformBigIntOrNumericOperation(left, right, context,
             (l, r) => l % r,
             (l, r) => l % r);
     }
 
-    private static object Power(object? left, object? right)
+    private static object Power(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrNumericOperation(left, right,
+        return PerformBigIntOrNumericOperation(left, right, context,
             (l, r) => JsBigInt.Pow(l, r),
             (l, r) => Math.Pow(l, r));
     }
@@ -2644,7 +2644,8 @@ public static class TypedAstEvaluator
         object? left,
         object? right,
         Func<JsBigInt, JsBigInt, object> bigIntOp,
-        Func<double, double, object> numericOp)
+        Func<double, double, object> numericOp,
+        EvaluationContext context)
     {
         if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
         {
@@ -2653,15 +2654,15 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions");
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
         }
 
-        return numericOp(JsOps.ToNumber(left), JsOps.ToNumber(right));
+        return numericOp(JsOps.ToNumber(left, context), JsOps.ToNumber(right, context));
     }
 
-    private static bool LooseEquals(object? left, object? right)
+    private static bool LooseEquals(object? left, object? right, EvaluationContext context)
     {
-        return JsOps.LooseEquals(left, right);
+        return JsOps.LooseEquals(left, right, context);
     }
 
     private static bool StrictEquals(object? left, object? right)
@@ -2669,44 +2670,44 @@ public static class TypedAstEvaluator
         return JsOps.StrictEquals(left, right);
     }
 
-    private static object BitwiseAnd(object? left, object? right)
+    private static object BitwiseAnd(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrInt32Operation(left, right,
+        return PerformBigIntOrInt32Operation(left, right, context,
             (l, r) => l & r,
             (l, r) => l & r);
     }
 
-    private static object BitwiseOr(object? left, object? right)
+    private static object BitwiseOr(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrInt32Operation(left, right,
+        return PerformBigIntOrInt32Operation(left, right, context,
             (l, r) => l | r,
             (l, r) => l | r);
     }
 
-    private static object BitwiseXor(object? left, object? right)
+    private static object BitwiseXor(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrInt32Operation(left, right,
+        return PerformBigIntOrInt32Operation(left, right, context,
             (l, r) => l ^ r,
             (l, r) => l ^ r);
     }
 
-    private static object BitwiseNot(object? operand)
+    private static object BitwiseNot(object? operand, EvaluationContext context)
     {
         if (operand is JsBigInt bigInt)
         {
             return ~bigInt;
         }
 
-        return (double)(~ToInt32(operand));
+        return (double)(~ToInt32(operand, context));
     }
 
-    private static object LeftShift(object? left, object? right)
+    private static object LeftShift(object? left, object? right, EvaluationContext context)
     {
         if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
         {
             if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
             {
-                throw StandardLibrary.ThrowRangeError("BigInt shift amount is too large");
+                throw StandardLibrary.ThrowRangeError("BigInt shift amount is too large", context);
             }
 
             return leftBigInt << (int)rightBigInt.Value;
@@ -2714,21 +2715,21 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions");
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
         }
 
-        var leftInt = ToInt32(left);
-        var rightInt = ToInt32(right) & 0x1F;
+        var leftInt = ToInt32(left, context);
+        var rightInt = ToInt32(right, context) & 0x1F;
         return (double)(leftInt << rightInt);
     }
 
-    private static object RightShift(object? left, object? right)
+    private static object RightShift(object? left, object? right, EvaluationContext context)
     {
         if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
         {
             if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
             {
-                throw StandardLibrary.ThrowRangeError("BigInt shift amount is too large");
+                throw StandardLibrary.ThrowRangeError("BigInt shift amount is too large", context);
             }
 
             return leftBigInt >> (int)rightBigInt.Value;
@@ -2736,23 +2737,23 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions");
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
         }
 
-        var leftInt = ToInt32(left);
-        var rightInt = ToInt32(right) & 0x1F;
+        var leftInt = ToInt32(left, context);
+        var rightInt = ToInt32(right, context) & 0x1F;
         return (double)(leftInt >> rightInt);
     }
 
-    private static object UnsignedRightShift(object? left, object? right)
+    private static object UnsignedRightShift(object? left, object? right, EvaluationContext context)
     {
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("BigInts have no unsigned right shift, use >> instead");
+            throw StandardLibrary.ThrowTypeError("BigInts have no unsigned right shift, use >> instead", context);
         }
 
-        var leftUInt = ToUInt32(left);
-        var rightInt = ToInt32(right) & 0x1F;
+        var leftUInt = ToUInt32(left, context);
+        var rightInt = ToInt32(right, context) & 0x1F;
         return (double)(leftUInt >> rightInt);
     }
 
@@ -2760,7 +2761,8 @@ public static class TypedAstEvaluator
         object? left,
         object? right,
         Func<JsBigInt, JsBigInt, object> bigIntOp,
-        Func<int, int, int> int32Op)
+        Func<int, int, int> int32Op,
+        EvaluationContext context)
     {
         if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
         {
@@ -2769,39 +2771,39 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions");
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
         }
 
-        var leftInt = ToInt32(left);
-        var rightInt = ToInt32(right);
+        var leftInt = ToInt32(left, context);
+        var rightInt = ToInt32(right, context);
         return (double)int32Op(leftInt, rightInt);
     }
 
-    private static int ToInt32(object? value)
+    private static int ToInt32(object? value, EvaluationContext context)
     {
-        return JsNumericConversions.ToInt32(JsOps.ToNumber(value));
+        return JsNumericConversions.ToInt32(JsOps.ToNumber(value, context));
     }
 
-    private static uint ToUInt32(object? value)
+    private static uint ToUInt32(object? value, EvaluationContext context)
     {
-        return JsNumericConversions.ToUInt32(JsOps.ToNumber(value));
+        return JsNumericConversions.ToUInt32(JsOps.ToNumber(value, context));
     }
 
-    private static object IncrementValue(object? value)
+    private static object IncrementValue(object? value, EvaluationContext context)
     {
         return value switch
         {
             JsBigInt bigInt => new JsBigInt(bigInt.Value + BigInteger.One),
-            _ => JsOps.ToNumber(value) + 1
+            _ => JsOps.ToNumber(value, context) + 1
         };
     }
 
-    private static object DecrementValue(object? value)
+    private static object DecrementValue(object? value, EvaluationContext context)
     {
         return value switch
         {
             JsBigInt bigInt => new JsBigInt(bigInt.Value - BigInteger.One),
-            _ => JsOps.ToNumber(value) - 1
+            _ => JsOps.ToNumber(value, context) - 1
         };
     }
 
@@ -2842,15 +2844,15 @@ public static class TypedAstEvaluator
         return JsOps.DeletePropertyValue(target, propertyKey, context);
     }
 
-    private static void HoistVarDeclarations(BlockStatement block, JsEnvironment environment)
+    private static void HoistVarDeclarations(BlockStatement block, JsEnvironment environment, EvaluationContext context)
     {
         foreach (var statement in block.Statements)
         {
-            HoistFromStatement(statement, environment);
+            HoistFromStatement(statement, environment, context);
         }
     }
 
-    private static void HoistFromStatement(StatementNode statement, JsEnvironment environment)
+    private static void HoistFromStatement(StatementNode statement, JsEnvironment environment, EvaluationContext context)
     {
         while (true)
         {
@@ -2864,10 +2866,10 @@ public static class TypedAstEvaluator
 
                     break;
                 case BlockStatement block:
-                    HoistVarDeclarations(block, environment);
+                    HoistVarDeclarations(block, environment, context);
                     break;
                 case IfStatement ifStatement:
-                    HoistFromStatement(ifStatement.Then, environment);
+                    HoistFromStatement(ifStatement.Then, environment, context);
                     if (ifStatement.Else is { } elseBranch)
                     {
                         statement = elseBranch;
@@ -2884,7 +2886,7 @@ public static class TypedAstEvaluator
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
                     {
-                        HoistFromStatement(initVar, environment);
+                        HoistFromStatement(initVar, environment, context);
                     }
 
                     statement = forStatement.Body;
@@ -2901,22 +2903,22 @@ public static class TypedAstEvaluator
                     statement = labeled.Statement;
                     continue;
                 case TryStatement tryStatement:
-                    HoistVarDeclarations(tryStatement.TryBlock, environment);
+                    HoistVarDeclarations(tryStatement.TryBlock, environment, context);
                     if (tryStatement.Catch is { } catchClause)
                     {
-                        HoistVarDeclarations(catchClause.Body, environment);
+                        HoistVarDeclarations(catchClause.Body, environment, context);
                     }
 
                     if (tryStatement.Finally is { } finallyBlock)
                     {
-                        HoistVarDeclarations(finallyBlock, environment);
+                        HoistVarDeclarations(finallyBlock, environment, context);
                     }
 
                     break;
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        HoistVarDeclarations(switchCase.Body, environment);
+                        HoistVarDeclarations(switchCase.Body, environment, context);
                     }
 
                     break;
@@ -3498,8 +3500,9 @@ public static class TypedAstEvaluator
     {
         private readonly FunctionExpression _function;
         private readonly JsEnvironment _closure;
+        private readonly RealmState _realmState;
 
-        public TypedGeneratorFactory(FunctionExpression function, JsEnvironment closure)
+        public TypedGeneratorFactory(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
             if (!function.IsGenerator)
             {
@@ -3508,11 +3511,12 @@ public static class TypedAstEvaluator
 
             _function = function;
             _closure = closure;
+            _realmState = realmState;
         }
 
         public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
         {
-            var instance = new TypedGeneratorInstance(_function, _closure, arguments, thisValue, this);
+            var instance = new TypedGeneratorInstance(_function, _closure, arguments, thisValue, this, _realmState);
             return instance.CreateGeneratorObject();
         }
 
@@ -3528,8 +3532,9 @@ public static class TypedAstEvaluator
     {
         private readonly FunctionExpression _function;
         private readonly JsEnvironment _closure;
+        private readonly RealmState _realmState;
 
-        public AsyncGeneratorFactory(FunctionExpression function, JsEnvironment closure)
+        public AsyncGeneratorFactory(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
             if (!function.IsGenerator || !function.IsAsync)
             {
@@ -3538,11 +3543,12 @@ public static class TypedAstEvaluator
 
             _function = function;
             _closure = closure;
+            _realmState = realmState;
         }
 
         public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
         {
-            var instance = new AsyncGeneratorInstance(_function, _closure, arguments, thisValue, this);
+            var instance = new AsyncGeneratorInstance(_function, _closure, arguments, thisValue, this, _realmState);
             return instance.CreateAsyncIteratorObject();
         }
 
@@ -3561,6 +3567,7 @@ public static class TypedAstEvaluator
         private readonly IReadOnlyList<object?> _arguments;
         private readonly object? _thisValue;
         private readonly IJsCallable _callable;
+        private readonly RealmState _realmState;
         private readonly GeneratorPlan? _plan;
         private JsEnvironment? _executionEnvironment;
         private EvaluationContext? _context;
@@ -3590,13 +3597,14 @@ public static class TypedAstEvaluator
         private Symbol? _pendingAwaitKey;
 
         public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
-            IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
+            IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable, RealmState realmState)
         {
             _function = function;
             _closure = closure;
             _arguments = arguments;
             _thisValue = thisValue;
             _callable = callable;
+            _realmState = realmState;
 
             if (!GeneratorIrBuilder.TryBuild(function, out var plan, out var failureReason))
             {
@@ -3716,9 +3724,9 @@ public static class TypedAstEvaluator
                 environment.Define(functionName, _callable);
             }
 
-            HoistVarDeclarations(_function.Body, environment);
+            HoistVarDeclarations(_function.Body, environment, new EvaluationContext(_realmState));
 
-            var bindingContext = new EvaluationContext();
+            var bindingContext = new EvaluationContext(_realmState);
             BindFunctionParameters(_function, _arguments, environment, bindingContext);
             if (bindingContext.IsThrow)
             {
@@ -4541,7 +4549,7 @@ public static class TypedAstEvaluator
         {
             if (_context is null)
             {
-                _context = new EvaluationContext();
+                _context = new EvaluationContext(_realmState);
             }
             else
             {
@@ -4593,7 +4601,7 @@ public static class TypedAstEvaluator
                     }
                 }
 
-                var context = new EvaluationContext();
+                var context = new EvaluationContext(_realmState);
                 _executionEnvironment.Define(YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
 
                 var result = EvaluateBlock(_function.Body, _executionEnvironment, context);
@@ -5119,8 +5127,9 @@ public static class TypedAstEvaluator
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
         private IJsEnvironmentAwareCallable? _superConstructor;
         private JsObject? _superPrototype;
+        private readonly RealmState _realmState;
 
-        public TypedFunction(FunctionExpression function, JsEnvironment closure)
+        public TypedFunction(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
             if (function.IsAsync || function.IsGenerator)
             {
@@ -5129,6 +5138,7 @@ public static class TypedAstEvaluator
 
             _function = function;
             _closure = closure;
+            _realmState = realmState;
             var paramCount = function.Parameters.Length;
 
             // Functions expose a prototype object so instances created via `new` can inherit from it.
@@ -5146,7 +5156,7 @@ public static class TypedAstEvaluator
 
         public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
         {
-            var context = new EvaluationContext();
+            var context = new EvaluationContext(_realmState);
             var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
             var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
 
@@ -5177,7 +5187,7 @@ public static class TypedAstEvaluator
                 environment.Define(functionName, this);
             }
 
-            HoistVarDeclarations(_function.Body, environment);
+            HoistVarDeclarations(_function.Body, environment, context);
 
             BindFunctionParameters(_function, arguments, environment, context);
             if (context.ShouldStopEvaluation)

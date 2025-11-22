@@ -1,6 +1,7 @@
 using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine;
 
@@ -12,12 +13,18 @@ public sealed class EvaluationContext
 {
     private readonly CancellationToken _cancellationToken;
 
-    public EvaluationContext(CancellationToken cancellationToken = default)
+    public EvaluationContext(RealmState realmState, CancellationToken cancellationToken = default)
     {
+        RealmState = realmState ?? throw new ArgumentNullException(nameof(realmState));
         _cancellationToken = cancellationToken.CanBeCanceled
             ? cancellationToken
             : EvaluationCancellationScope.CurrentToken;
     }
+
+    /// <summary>
+    /// Realm-specific state (prototypes/constructors) for the current execution.
+    /// </summary>
+    public RealmState RealmState { get; }
 
     /// <summary>
     /// The current control flow signal, if any.

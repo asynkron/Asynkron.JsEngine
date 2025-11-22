@@ -13,7 +13,7 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public static class StandardLibrary
 {
-    private static readonly AsyncLocal<RealmState?> CurrentRealmState = new();
+    private static RealmState? _currentRealm;
 
     private static JsObject? _fallbackBooleanPrototype;
     private static JsObject? _fallbackNumberPrototype;
@@ -58,13 +58,18 @@ public static class StandardLibrary
 
     internal static RealmState? CurrentRealm
     {
-        get => CurrentRealmState.Value;
-        private set => CurrentRealmState.Value = value;
+        get => _currentRealm;
+        private set => _currentRealm = value;
     }
 
     internal static void BindRealm(RealmState realm)
     {
         CurrentRealm = realm;
+    }
+
+    private static RealmState? ResolveRealm(EvaluationContext? context = null)
+    {
+        return context?.RealmState ?? CurrentRealm;
     }
 
     // Shared prototypes for primitive wrapper objects so that host-provided
@@ -265,11 +270,13 @@ public static class StandardLibrary
         }
     }
 
-    internal static object CreateTypeError(string message)
+    internal static object CreateTypeError(string message, EvaluationContext? context = null)
     {
-        if (TypeErrorConstructor is IJsCallable ctor)
+        var realm = ResolveRealm(context);
+        var ctor = realm?.TypeErrorConstructor ?? _fallbackTypeErrorConstructor;
+        if (ctor is IJsCallable callable)
         {
-            return ctor.Invoke([message], null);
+            return callable.Invoke([message], null);
         }
 
         return new InvalidOperationException(message);
@@ -308,29 +315,31 @@ public static class StandardLibrary
         };
     }
 
-    internal static object CreateRangeError(string message)
+    internal static object CreateRangeError(string message, EvaluationContext? context = null)
     {
-        if (RangeErrorConstructor is IJsCallable ctor)
+        var realm = ResolveRealm(context);
+        var ctor = realm?.RangeErrorConstructor ?? _fallbackRangeErrorConstructor;
+        if (ctor is IJsCallable callable)
         {
-            return ctor.Invoke([message], null);
+            return callable.Invoke([message], null);
         }
 
         return new InvalidOperationException(message);
     }
 
-    internal static ThrowSignal ThrowTypeError(string message)
+    internal static ThrowSignal ThrowTypeError(string message, EvaluationContext? context = null)
     {
-        return new ThrowSignal(CreateTypeError(message));
+        return new ThrowSignal(CreateTypeError(message, context));
     }
 
-    internal static ThrowSignal ThrowRangeError(string message)
+    internal static ThrowSignal ThrowRangeError(string message, EvaluationContext? context = null)
     {
-        return new ThrowSignal(CreateRangeError(message));
+        return new ThrowSignal(CreateRangeError(message, context));
     }
 
-    internal static ThrowSignal ThrowSyntaxError(string message)
+    internal static ThrowSignal ThrowSyntaxError(string message, EvaluationContext? context = null)
     {
-        return new ThrowSignal(CreateSyntaxError(message));
+        return new ThrowSignal(CreateSyntaxError(message, context));
     }
 
     private static JsBigInt ThisBigIntValue(object? receiver)
@@ -350,11 +359,13 @@ public static class StandardLibrary
         throw ThrowTypeError("BigInt.prototype method called on incompatible receiver");
     }
 
-    internal static object CreateSyntaxError(string message)
+    internal static object CreateSyntaxError(string message, EvaluationContext? context = null)
     {
-        if (SyntaxErrorConstructor is IJsCallable ctor)
+        var realm = ResolveRealm(context);
+        var ctor = realm?.SyntaxErrorConstructor ?? _fallbackSyntaxErrorConstructor;
+        if (ctor is IJsCallable callable)
         {
-            return ctor.Invoke([message], null);
+            return callable.Invoke([message], null);
         }
 
         return new InvalidOperationException(message);
@@ -3500,16 +3511,17 @@ public static class StandardLibrary
     /// Creates a wrapper object for a boolean primitive so that auto-boxed
     /// booleans can see methods added to Boolean.prototype.
     /// </summary>
-    public static JsObject CreateBooleanWrapper(bool value)
+    public static JsObject CreateBooleanWrapper(bool value, EvaluationContext? context = null)
     {
         var booleanObj = new JsObject
         {
             ["__value__"] = value
         };
 
-        if (BooleanPrototype is not null)
+        var prototype = ResolveRealm(context)?.BooleanPrototype ?? _fallbackBooleanPrototype;
+        if (prototype is not null)
         {
-            booleanObj.SetPrototype(BooleanPrototype);
+            booleanObj.SetPrototype(prototype);
         }
 
         return booleanObj;
@@ -3805,14 +3817,15 @@ public static class StandardLibrary
     /// Creates a string wrapper object with string methods attached.
     /// This allows string primitives to have methods like toLowerCase(), substring(), etc.
     /// </summary>
-    public static JsObject CreateStringWrapper(string str)
+    public static JsObject CreateStringWrapper(string str, EvaluationContext? context = null)
     {
         var stringObj = new JsObject();
         stringObj["__value__"] = str;
         stringObj["length"] = (double)str.Length;
-        if (StringPrototype is not null)
+        var prototype = ResolveRealm(context)?.StringPrototype ?? _fallbackStringPrototype;
+        if (prototype is not null)
         {
-            stringObj.SetPrototype(StringPrototype);
+            stringObj.SetPrototype(prototype);
         }
         AddStringMethods(stringObj, str);
         return stringObj;
@@ -4525,28 +4538,30 @@ public static class StandardLibrary
     /// <summary>
     /// Creates a wrapper object for a number primitive, providing access to Number.prototype methods.
     /// </summary>
-    public static JsObject CreateNumberWrapper(double num)
+    public static JsObject CreateNumberWrapper(double num, EvaluationContext? context = null)
     {
         var numberObj = new JsObject();
         numberObj["__value__"] = num;
-        if (NumberPrototype is not null)
+        var prototype = ResolveRealm(context)?.NumberPrototype ?? _fallbackNumberPrototype;
+        if (prototype is not null)
         {
-            numberObj.SetPrototype(NumberPrototype);
+            numberObj.SetPrototype(prototype);
         }
         AddNumberMethods(numberObj, num);
         return numberObj;
     }
 
-    public static JsObject CreateBigIntWrapper(JsBigInt value)
+    public static JsObject CreateBigIntWrapper(JsBigInt value, EvaluationContext? context = null)
     {
         var wrapper = new JsObject
         {
             ["__value__"] = value
         };
 
-        if (BigIntPrototype is not null)
+        var prototype = ResolveRealm(context)?.BigIntPrototype ?? _fallbackBigIntPrototype;
+        if (prototype is not null)
         {
-            wrapper.SetPrototype(BigIntPrototype);
+            wrapper.SetPrototype(prototype);
         }
 
         return wrapper;

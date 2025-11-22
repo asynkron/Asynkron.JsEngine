@@ -35,9 +35,9 @@ internal static class JsOps
         return ToBoolean(value);
     }
 
-    public static double ToNumber(object? value)
+    public static double ToNumber(object? value, EvaluationContext? context = null)
     {
-        return value.ToNumber();
+        return ToNumberWithContext(value, context);
     }
 
     public static double ToNumberWithContext(object? value, EvaluationContext? context = null)
@@ -51,7 +51,7 @@ internal static class JsOps
                 case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
                     return double.NaN;
                 case Symbol:
-                    throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number"));
+                    throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number", context));
                 case JsBigInt bigInt:
                     return (double)bigInt.Value;
                 case double d:
@@ -101,7 +101,7 @@ internal static class JsOps
                     return double.NaN;
                 }
 
-                var typeError = CreateTypeError("Cannot convert object to number");
+                var typeError = CreateTypeError("Cannot convert object to number", context);
                 if (context is not null)
                 {
                     context.SetThrow(typeError);
@@ -169,7 +169,7 @@ internal static class JsOps
         return false;
     }
 
-    public static object? ToPrimitive(object? value, string hint, EvaluationContext? context = null)
+    public static object? ToPrimitive(object? value, string hint, EvaluationContext? context)
     {
         if (value is not IJsPropertyAccessor accessor)
         {
@@ -185,7 +185,7 @@ internal static class JsOps
                 var result = toPrimFn.Invoke([hint], accessor);
                 if (result is IJsPropertyAccessor or JsObject)
                 {
-                    throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value");
+                    throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
                 }
 
                 return result;
@@ -224,7 +224,7 @@ internal static class JsOps
             }
         }
 
-        throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value");
+        throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
     }
 
     public static string ToJsString(object? value)
@@ -269,7 +269,7 @@ internal static class JsOps
         return ln.Equals(rn);
     }
 
-    public static bool LooseEquals(object? left, object? right)
+    public static bool LooseEquals(object? left, object? right, EvaluationContext? context = null)
     {
         while (true)
         {
@@ -290,7 +290,7 @@ internal static class JsOps
 
             if (left is JsBigInt lbi && IsNumeric(right))
             {
-                var rn = ToNumber(right);
+                var rn = ToNumber(right, context);
                 if (double.IsNaN(rn) || double.IsInfinity(rn))
                 {
                     return false;
@@ -306,7 +306,7 @@ internal static class JsOps
 
             if (IsNumeric(left) && right is JsBigInt rbi)
             {
-                var ln = ToNumber(left);
+                var ln = ToNumber(left, context);
                 if (double.IsNaN(ln) || double.IsInfinity(ln))
                 {
                     return false;
@@ -346,21 +346,21 @@ internal static class JsOps
 
             if (IsNumeric(left) && right is string)
             {
-                return ToNumber(left).Equals(ToNumber(right));
+                return ToNumber(left, context).Equals(ToNumber(right, context));
             }
 
             switch (left)
             {
                 case string when IsNumeric(right):
-                    return ToNumber(left).Equals(ToNumber(right));
+                    return ToNumber(left, context).Equals(ToNumber(right, context));
                 case bool:
-                    left = ToNumber(left);
+                    left = ToNumber(left, context);
                     continue;
             }
 
             if (right is bool)
             {
-                right = ToNumber(right);
+                right = ToNumber(right, context);
                 continue;
             }
 
@@ -368,7 +368,7 @@ internal static class JsOps
             {
                 if (IsNumeric(right))
                 {
-                    return ToNumber(left).Equals(ToNumber(right));
+                    return ToNumber(left, context).Equals(ToNumber(right, context));
                 }
 
                 if (right is string rs2)
@@ -381,7 +381,7 @@ internal static class JsOps
             {
                 if (IsNumeric(left))
                 {
-                    return ToNumber(left).Equals(ToNumber(right));
+                    return ToNumber(left, context).Equals(ToNumber(right, context));
                 }
 
                 if (left is string ls2)
@@ -394,36 +394,40 @@ internal static class JsOps
         }
     }
 
-    public static bool GreaterThan(object? left, object? right)
+    public static bool GreaterThan(object? left, object? right, EvaluationContext? context = null)
     {
         return PerformComparisonOperation(left, right,
             (l, r) => l > r,
             (l, r) => l > r,
-            (l, r) => l > r);
+            (l, r) => l > r,
+            context);
     }
 
-    public static bool GreaterThanOrEqual(object? left, object? right)
+    public static bool GreaterThanOrEqual(object? left, object? right, EvaluationContext? context = null)
     {
         return PerformComparisonOperation(left, right,
             (l, r) => l >= r,
             (l, r) => l >= r,
-            (l, r) => l >= r);
+            (l, r) => l >= r,
+            context);
     }
 
-    public static bool LessThan(object? left, object? right)
+    public static bool LessThan(object? left, object? right, EvaluationContext? context = null)
     {
         return PerformComparisonOperation(left, right,
             (l, r) => l < r,
             (l, r) => l < r,
-            (l, r) => l < r);
+            (l, r) => l < r,
+            context);
     }
 
-    public static bool LessThanOrEqual(object? left, object? right)
+    public static bool LessThanOrEqual(object? left, object? right, EvaluationContext? context = null)
     {
         return PerformComparisonOperation(left, right,
             (l, r) => l <= r,
             (l, r) => l <= r,
-            (l, r) => l <= r);
+            (l, r) => l <= r,
+            context);
     }
 
     private static bool PerformComparisonOperation(
@@ -431,7 +435,8 @@ internal static class JsOps
         object? right,
         Func<JsBigInt, JsBigInt, bool> bigIntOp,
         Func<BigInteger, BigInteger, bool> mixedOp,
-        Func<double, double, bool> numericOp)
+        Func<double, double, bool> numericOp,
+        EvaluationContext? context)
     {
         switch (left)
         {
@@ -439,7 +444,7 @@ internal static class JsOps
                 return bigIntOp(leftBigInt, rightBigInt);
             case JsBigInt lbi:
             {
-                var rightNum = ToNumber(right);
+                var rightNum = ToNumber(right, context);
                 if (double.IsNaN(rightNum))
                 {
                     return false;
@@ -453,7 +458,7 @@ internal static class JsOps
         {
             case JsBigInt rbi:
             {
-                var leftNum = ToNumber(left);
+                var leftNum = ToNumber(left, context);
                 if (double.IsNaN(leftNum))
                 {
                     return false;
@@ -462,7 +467,7 @@ internal static class JsOps
                 return mixedOp(new BigInteger(leftNum), rbi.Value);
             }
             default:
-                return numericOp(ToNumber(left), ToNumber(right));
+                return numericOp(ToNumber(left, context), ToNumber(right, context));
         }
     }
 
@@ -566,7 +571,7 @@ internal static class JsOps
         {
             key = null;
 
-            var error = CreateTypeError("Cannot convert object to property key");
+            var error = CreateTypeError("Cannot convert object to property key", context);
             if (context is not null)
             {
                 context.SetThrow(error);
@@ -617,8 +622,13 @@ internal static class JsOps
         }
     }
 
-    private static object CreateTypeError(string message)
+    private static object CreateTypeError(string message, EvaluationContext? context)
     {
+        if (context is not null)
+        {
+            return StandardLibrary.CreateTypeError(message, context);
+        }
+
         if (StandardLibrary.TypeErrorConstructor is not null)
         {
             JsObject? prototype = null;
@@ -774,7 +784,7 @@ internal static class JsOps
         switch (target)
         {
             case bool b:
-                var booleanWrapper = StandardLibrary.CreateBooleanWrapper(b);
+                var booleanWrapper = StandardLibrary.CreateBooleanWrapper(b, context);
                 if (booleanWrapper.TryGetProperty(propertyName, out value))
                 {
                     return true;
@@ -782,7 +792,7 @@ internal static class JsOps
 
                 break;
             case double num:
-                var numberWrapper = StandardLibrary.CreateNumberWrapper(num);
+                var numberWrapper = StandardLibrary.CreateNumberWrapper(num, context);
                 if (numberWrapper.TryGetProperty(propertyName, out value))
                 {
                     return true;
@@ -790,7 +800,7 @@ internal static class JsOps
 
                 break;
             case JsBigInt bigInt:
-                var bigIntWrapper = StandardLibrary.CreateBigIntWrapper(bigInt);
+                var bigIntWrapper = StandardLibrary.CreateBigIntWrapper(bigInt, context);
                 if (bigIntWrapper.TryGetProperty(propertyName, out value))
                 {
                     return true;
@@ -811,7 +821,7 @@ internal static class JsOps
                     return true;
                 }
 
-                var stringWrapper = StandardLibrary.CreateStringWrapper(str);
+                var stringWrapper = StandardLibrary.CreateStringWrapper(str, context);
                 if (stringWrapper.TryGetProperty(propertyName, out value))
                 {
                     return true;

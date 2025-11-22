@@ -323,7 +323,7 @@ namespace Asynkron.JsEngine;
     internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment, CancellationToken cancellationToken = default)
     {
         StandardLibrary.BindRealm(_realm);
-        return _typedExecutor.Evaluate(program, environment, cancellationToken);
+        return _typedExecutor.Evaluate(program, environment, _realm, cancellationToken);
     }
 
     /// <summary>
@@ -1008,16 +1008,16 @@ namespace Asynkron.JsEngine;
         }
     }
 
-    private static object? ExecuteTypedExpression(ExpressionNode expression, JsEnvironment environment, bool isStrict)
+    private object? ExecuteTypedExpression(ExpressionNode expression, JsEnvironment environment, bool isStrict)
     {
         var statement = new ExpressionStatement(expression.Source, expression);
         return ExecuteTypedStatement(statement, environment, isStrict);
     }
 
-    private static object? ExecuteTypedStatement(StatementNode statement, JsEnvironment environment, bool isStrict)
+    private object? ExecuteTypedStatement(StatementNode statement, JsEnvironment environment, bool isStrict)
     {
         var program = new ProgramNode(statement.Source, [statement], isStrict);
-        return TypedAstEvaluator.EvaluateProgram(program, environment);
+        return TypedAstEvaluator.EvaluateProgram(program, environment, _realm);
     }
 
     public async ValueTask DisposeAsync()

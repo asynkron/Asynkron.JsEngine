@@ -2331,7 +2331,7 @@ public static class TypedAstEvaluator
                 }
                 case ObjectMemberKind.Method:
                 {
-                    var method = new TypedFunction(member.Function!, environment);
+                    var method = new TypedFunction(member.Function!, environment, context.RealmState);
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
@@ -2343,7 +2343,7 @@ public static class TypedAstEvaluator
                 }
                 case ObjectMemberKind.Getter:
                 {
-                    var getter = new TypedFunction(member.Function!, environment);
+                    var getter = new TypedFunction(member.Function!, environment, context.RealmState);
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
@@ -2355,7 +2355,7 @@ public static class TypedAstEvaluator
                 }
                 case ObjectMemberKind.Setter:
                 {
-                    var setter = new TypedFunction(member.Function!, environment);
+                    var setter = new TypedFunction(member.Function!, environment, context.RealmState);
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
@@ -2607,37 +2607,42 @@ public static class TypedAstEvaluator
 
     private static object Subtract(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrNumericOperation(left, right, context,
+        return PerformBigIntOrNumericOperation(left, right,
             (l, r) => l - r,
-            (l, r) => l - r);
+            (l, r) => l - r,
+            context);
     }
 
     private static object Multiply(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrNumericOperation(left, right, context,
+        return PerformBigIntOrNumericOperation(left, right,
             (l, r) => l * r,
-            (l, r) => l * r);
+            (l, r) => l * r,
+            context);
     }
 
     private static object Divide(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrNumericOperation(left, right, context,
+        return PerformBigIntOrNumericOperation(left, right,
             (l, r) => l / r,
-            (l, r) => l / r);
+            (l, r) => l / r,
+            context);
     }
 
     private static object Modulo(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrNumericOperation(left, right, context,
+        return PerformBigIntOrNumericOperation(left, right,
             (l, r) => l % r,
-            (l, r) => l % r);
+            (l, r) => l % r,
+            context);
     }
 
     private static object Power(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrNumericOperation(left, right, context,
+        return PerformBigIntOrNumericOperation(left, right,
             (l, r) => JsBigInt.Pow(l, r),
-            (l, r) => Math.Pow(l, r));
+            (l, r) => Math.Pow(l, r),
+            context);
     }
 
     private static object PerformBigIntOrNumericOperation(
@@ -2672,23 +2677,26 @@ public static class TypedAstEvaluator
 
     private static object BitwiseAnd(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrInt32Operation(left, right, context,
+        return PerformBigIntOrInt32Operation(left, right,
             (l, r) => l & r,
-            (l, r) => l & r);
+            (l, r) => l & r,
+            context);
     }
 
     private static object BitwiseOr(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrInt32Operation(left, right, context,
+        return PerformBigIntOrInt32Operation(left, right,
             (l, r) => l | r,
-            (l, r) => l | r);
+            (l, r) => l | r,
+            context);
     }
 
     private static object BitwiseXor(object? left, object? right, EvaluationContext context)
     {
-        return PerformBigIntOrInt32Operation(left, right, context,
+        return PerformBigIntOrInt32Operation(left, right,
             (l, r) => l ^ r,
-            (l, r) => l ^ r);
+            (l, r) => l ^ r,
+            context);
     }
 
     private static object BitwiseNot(object? operand, EvaluationContext context)
@@ -2924,7 +2932,7 @@ public static class TypedAstEvaluator
                     break;
                 case FunctionDeclaration functionDeclaration:
                 {
-                    var functionValue = CreateFunctionValue(functionDeclaration.Function, environment);
+                    var functionValue = CreateFunctionValue(functionDeclaration.Function, environment, context);
                     environment.DefineFunctionScoped(functionDeclaration.Name, functionValue, hasInitializer: true);
                     break;
                 }
@@ -4960,15 +4968,17 @@ public static class TypedAstEvaluator
         private readonly object? _thisValue;
         private readonly IJsCallable _callable;
         private readonly TypedGeneratorInstance _inner;
+        private readonly RealmState _realmState;
 
         public AsyncGeneratorInstance(FunctionExpression function, JsEnvironment closure,
-            IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable)
+            IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable, RealmState realmState)
         {
             _function = function;
             _closure = closure;
             _arguments = arguments;
             _thisValue = thisValue;
             _callable = callable;
+            _realmState = realmState;
 
             // WAITING ON FULL ASYNC GENERATOR IR SUPPORT:
             // For now we reuse the sync generator IR plan and runtime to execute
@@ -4977,7 +4987,7 @@ public static class TypedAstEvaluator
             // we have a dedicated async-generator IR executor, this wiring
             // should be revisited so await/yield drive a single non-blocking
             // state machine.
-            _inner = new TypedGeneratorInstance(function, closure, arguments, thisValue, callable);
+            _inner = new TypedGeneratorInstance(function, closure, arguments, thisValue, callable, realmState);
         }
 
         public JsObject CreateAsyncIteratorObject()

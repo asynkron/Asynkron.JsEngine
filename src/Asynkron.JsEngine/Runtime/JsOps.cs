@@ -169,7 +169,7 @@ internal static class JsOps
         return false;
     }
 
-    public static object? ToPrimitive(object? value, string hint, EvaluationContext? context)
+    public static object? ToPrimitive(object? value, string hint, EvaluationContext? context = null)
     {
         if (value is not IJsPropertyAccessor accessor)
         {
@@ -774,7 +774,8 @@ internal static class JsOps
         return value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
     }
 
-    public static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
+    public static bool TryGetPropertyValue(object? target, string propertyName, out object? value,
+        EvaluationContext? context = null)
     {
         if (target is IJsPropertyAccessor propertyAccessor)
         {
@@ -870,7 +871,7 @@ internal static class JsOps
             return true;
         }
 
-        return TryGetPropertyValue(target, propertyName, out value);
+        return TryGetPropertyValue(target, propertyName, out value, context);
     }
 
     public static bool IsConstructor(object? value)

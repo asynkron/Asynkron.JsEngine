@@ -20,281 +20,206 @@ Procedure to maintain this file:
 - Avoid running the entire suite in one shot (too slow and may crash); iterate group-by-group instead.
 - You can automate collection with `python3 tools/generate_test262_report.py --groups 262tests.md --results-dir /tmp/jsengine-results`; it will run each group and print pass/total lines ready to paste back.
 
-✅ AbstractModuleSource
-✅ AbstractModuleSource_prototype
-✅ Array
 59/90 Array_from
-✅ Array_fromAsync
-✅ Array_isArray
 54/60 Array_length
 8/32 Array_of
-Array_prototype
-Array_prototype_at
-Array_prototype_concat
-Array_prototype_copyWithin
-Array_prototype_entries
-Array_prototype_every
-Array_prototype_fill
-Array_prototype_filter
-Array_prototype_find
-Array_prototype_findIndex
-Array_prototype_findLast
-Array_prototype_findLastIndex
-Array_prototype_flat
-Array_prototype_flatMap
-Array_prototype_forEach
-Array_prototype_includes
-Array_prototype_indexOf
-Array_prototype_join
-Array_prototype_keys
-Array_prototype_lastIndexOf
-Array_prototype_map
-Array_prototype_pop
-Array_prototype_push
-Array_prototype_reduce
-Array_prototype_reduceRight
-Array_prototype_reverse
-Array_prototype_shift
-Array_prototype_slice
-Array_prototype_some
-Array_prototype_sort
-Array_prototype_splice
-Array_prototype_Symbol_iterator
-Array_prototype_Symbol_unscopables
-Array_prototype_toLocaleString
-Array_prototype_toReversed
-Array_prototype_toSorted
-Array_prototype_toSpliced
-Array_prototype_toString
-Array_prototype_unshift
-Array_prototype_values
-Array_prototype_with
-Array_Symbol_species
-ArrayBuffer
-ArrayBuffer_isView
-ArrayBuffer_prototype
-ArrayBuffer_prototype_byteLength
-ArrayBuffer_prototype_detached
-ArrayBuffer_prototype_maxByteLength
-ArrayBuffer_prototype_resizable
-ArrayBuffer_prototype_resize
-ArrayBuffer_prototype_slice
-ArrayBuffer_prototype_transfer
-ArrayBuffer_prototype_transferToFixedLength
-ArrayBuffer_Symbol_species
-ArrayIteratorPrototype_next
-ArrayIteratorPrototype_Symbol_toStringTag
-AsyncDisposableStack
-AsyncDisposableStack_prototype
-AsyncDisposableStack_prototype_adopt
-AsyncDisposableStack_prototype_defer
-AsyncDisposableStack_prototype_disposeAsync
-AsyncDisposableStack_prototype_disposed
-AsyncDisposableStack_prototype_move
-AsyncDisposableStack_prototype_use
-AsyncFromSyncIteratorPrototype_next
-AsyncFromSyncIteratorPrototype_return
-AsyncFromSyncIteratorPrototype_throw
-AsyncFunction
-AsyncGeneratorFunction
-AsyncGeneratorFunction_prototype
-AsyncGeneratorPrototype
-AsyncGeneratorPrototype_next
-AsyncGeneratorPrototype_return
-AsyncGeneratorPrototype_throw
-AsyncIteratorPrototype_Symbol_asyncDispose
-AsyncIteratorPrototype_Symbol_asyncIterator
-Atomics
-Atomics_add
-Atomics_add_bigint
-Atomics_and
-Atomics_and_bigint
-Atomics_compareExchange
-Atomics_compareExchange_bigint
-Atomics_exchange
-Atomics_exchange_bigint
-Atomics_isLockFree
-Atomics_isLockFree_bigint
-Atomics_load
-Atomics_load_bigint
-Atomics_notify
-Atomics_notify_bigint
-Atomics_or
-Atomics_or_bigint
-Atomics_pause
-Atomics_store
-Atomics_store_bigint
-Atomics_sub
-Atomics_sub_bigint
-Atomics_wait
-Atomics_wait_bigint
-Atomics_waitAsync
-Atomics_waitAsync_bigint
-Atomics_xor
-Atomics_xor_bigint
-BigInt
-BigInt_asIntN
-BigInt_asUintN
-BigInt_parseInt
-BigInt_prototype
-BigInt_prototype_toLocaleString
-BigInt_prototype_toString
-BigInt_prototype_valueOf
-Boolean
-Boolean_prototype
-Boolean_prototype_constructor
-Boolean_prototype_toString
-Boolean_prototype_valueOf
-DataView
-DataView_prototype
-DataView_prototype_buffer
-DataView_prototype_byteLength
-DataView_prototype_byteOffset
-DataView_prototype_getBigInt64
-DataView_prototype_getBigUint64
-DataView_prototype_getFloat16
-DataView_prototype_getFloat32
-DataView_prototype_getFloat64
-DataView_prototype_getInt16
-DataView_prototype_getInt32
-DataView_prototype_getInt8
-DataView_prototype_getUint16
-DataView_prototype_getUint32
-DataView_prototype_getUint8
-DataView_prototype_setBigInt64
-DataView_prototype_setBigUint64
-DataView_prototype_setFloat16
-DataView_prototype_setFloat32
-DataView_prototype_setFloat64
-DataView_prototype_setInt16
-DataView_prototype_setInt32
-DataView_prototype_setInt8
-DataView_prototype_setUint16
-DataView_prototype_setUint32
-DataView_prototype_setUint8
-Date
-Date_now
-Date_parse
-Date_prototype
-Date_prototype_constructor
-Date_prototype_getDate
-Date_prototype_getDay
-Date_prototype_getFullYear
-Date_prototype_getHours
-Date_prototype_getMilliseconds
-Date_prototype_getMinutes
-Date_prototype_getMonth
-Date_prototype_getSeconds
-Date_prototype_getTime
-Date_prototype_getTimezoneOffset
-Date_prototype_getUTCDate
-Date_prototype_getUTCDay
-Date_prototype_getUTCFullYear
-Date_prototype_getUTCHours
-Date_prototype_getUTCMilliseconds
-Date_prototype_getUTCMinutes
-Date_prototype_getUTCMonth
-Date_prototype_getUTCSeconds
-Date_prototype_setDate
-Date_prototype_setFullYear
-Date_prototype_setHours
-Date_prototype_setMilliseconds
-Date_prototype_setMinutes
-Date_prototype_setMonth
-Date_prototype_setSeconds
-Date_prototype_setTime
-Date_prototype_setUTCDate
-Date_prototype_setUTCFullYear
-Date_prototype_setUTCHours
-Date_prototype_setUTCMilliseconds
-Date_prototype_setUTCMinutes
-Date_prototype_setUTCMonth
-Date_prototype_setUTCSeconds
-Date_prototype_Symbol_toPrimitive
-Date_prototype_toDateString
-Date_prototype_toISOString
-Date_prototype_toJSON
-Date_prototype_toLocaleDateString
-Date_prototype_toLocaleString
-Date_prototype_toLocaleTimeString
-Date_prototype_toString
-Date_prototype_toTemporalInstant
-Date_prototype_toTimeString
-Date_prototype_toUTCString
-Date_prototype_valueOf
-Date_UTC
-DecodeURI
-DecodeURIComponent
-DisposableStack
-DisposableStack_prototype
-DisposableStack_prototype_adopt
-DisposableStack_prototype_defer
-DisposableStack_prototype_dispose
-DisposableStack_prototype_disposed
-DisposableStack_prototype_move
-DisposableStack_prototype_use
-EncodeURI
-EncodeURIComponent
-Error
-Error_isError
-Error_prototype
-Error_prototype_constructor
-Error_prototype_message
-Error_prototype_name
-Error_prototype_toString
-Eval
-FinalizationRegistry
-FinalizationRegistry_prototype
-FinalizationRegistry_prototype_register
-FinalizationRegistry_prototype_unregister
-Function
-Function_internals_Call
-Function_internals_Construct
-Function_length
-Function_prototype
-Function_prototype_apply
-Function_prototype_arguments
-Function_prototype_bind
-Function_prototype_call
-Function_prototype_caller
-Function_prototype_callerArguments
-Function_prototype_constructor
-Function_prototype_Symbol_hasInstance
-Function_prototype_toString
-GeneratorFunction
-GeneratorFunction_prototype
-GeneratorPrototype
-GeneratorPrototype_next
-GeneratorPrototype_return
-GeneratorPrototype_throw
-Global
-Infinity
-IsFinite
-IsNaN
-Iterator
-Iterator_concat
-Iterator_from
-Iterator_prototype
-Iterator_prototype_constructor
-Iterator_prototype_drop
-Iterator_prototype_every
-Iterator_prototype_filter
-Iterator_prototype_find
-Iterator_prototype_flatMap
-Iterator_prototype_forEach
-Iterator_prototype_map
-Iterator_prototype_reduce
-Iterator_prototype_some
-Iterator_prototype_Symbol_dispose
-Iterator_prototype_Symbol_iterator
-Iterator_prototype_Symbol_toStringTag
-Iterator_prototype_take
-Iterator_prototype_toArray
-JSON
-JSON_isRawJSON
-JSON_parse
-JSON_rawJSON
-JSON_stringify
+2/14 Array_prototype
+6/26 Array_prototype_at
+22/137 Array_prototype_concat
+22/78 Array_prototype_copyWithin
+0/24 Array_prototype_entries
+138/433 Array_prototype_every
+6/44 Array_prototype_fill
+116/480 Array_prototype_filter
+6/44 Array_prototype_find
+10/44 Array_prototype_findIndex
+8/46 Array_prototype_findLast
+14/46 Array_prototype_findLastIndex
+12/38 Array_prototype_flat
+6/45 Array_prototype_flatMap
+87/376 Array_prototype_forEach
+10/60 Array_prototype_includes
+174/401 Array_prototype_indexOf
+14/46 Array_prototype_join
+0/24 Array_prototype_keys
+0/395 Array_prototype_lastIndexOf
+62/425 Array_prototype_map
+4/46 Array_prototype_pop
+4/48 Array_prototype_push
+98/509 Array_prototype_reduce
+0/509 Array_prototype_reduceRight
+6/34 Array_prototype_reverse
+4/40 Array_prototype_shift
+68/136 Array_prototype_slice
+134/426 Array_prototype_some
+18/99 Array_prototype_sort
+36/162 Array_prototype_splice
+0/2 Array_prototype_Symbol_iterator
+0/8 Array_prototype_Symbol_unscopables
+0/16 Array_prototype_toLocaleString
+4/34 Array_prototype_toReversed
+4/38 Array_prototype_toSorted
+20/60 Array_prototype_toSpliced
+2/22 Array_prototype_toString
+6/42 Array_prototype_unshift
+0/18 Array_prototype_values
+6/42 Array_prototype_with
+0/8 Array_Symbol_species
+12/36 ArrayBuffer
+22/34 ArrayBuffer_isView
+0/4 ArrayBuffer_prototype
+2/18 ArrayBuffer_prototype_byteLength
+22/62 ArrayBuffer_prototype_slice
+0/8 ArrayBuffer_Symbol_species
+8/40 ArrayIteratorPrototype_next
+0/6 ArrayIteratorPrototype_Symbol_toStringTag
+0/26 AsyncDisposableStack
+0/6 AsyncDisposableStack_prototype
+0/12 AsyncDisposableStack_prototype_adopt
+0/12 AsyncDisposableStack_prototype_defer
+2/12 AsyncDisposableStack_prototype_disposeAsync
+0/10 AsyncDisposableStack_prototype_disposed
+0/12 AsyncDisposableStack_prototype_move
+0/14 AsyncDisposableStack_prototype_use
+0/36 AsyncFunction
+0/2 AsyncGeneratorFunction
+2/18 AsyncIteratorPrototype_Symbol_asyncDispose
+0/12 Atomics_pause
+0/44 BigInt
+0/28 BigInt_asIntN
+0/28 BigInt_asUintN
+0/2 BigInt_parseInt
+0/8 BigInt_prototype
+0/2 BigInt_prototype_toLocaleString
+0/22 BigInt_prototype_toString
+0/16 BigInt_prototype_valueOf
+36/50 Boolean
+2/9 Boolean_prototype
+0/2 Boolean_prototype_constructor
+0/20 Boolean_prototype_toString
+0/20 Boolean_prototype_valueOf
+12/70 DataView
+0/2 DataView_prototype
+4/18 DataView_prototype_buffer
+2/20 DataView_prototype_byteLength
+2/18 DataView_prototype_byteOffset
+0/40 DataView_prototype_getBigInt64
+0/40 DataView_prototype_getBigUint64
+0/40 DataView_prototype_getFloat16
+12/40 DataView_prototype_getFloat32
+12/40 DataView_prototype_getFloat64
+6/34 DataView_prototype_getInt16
+6/34 DataView_prototype_getUint16
+6/32 DataView_prototype_getInt8
+6/34 DataView_prototype_getUint32
+6/32 DataView_prototype_getUint8
+0/44 DataView_prototype_setBigInt64
+0/2 DataView_prototype_setBigUint64
+0/44 DataView_prototype_setFloat16
+2/44 DataView_prototype_setFloat32
+2/44 DataView_prototype_setFloat64
+2/44 DataView_prototype_setInt16
+2/44 DataView_prototype_setInt32
+2/40 DataView_prototype_setInt8
+2/44 DataView_prototype_setUint16
+2/44 DataView_prototype_setUint32
+2/40 DataView_prototype_setUint8
+40/156 Date
+6/12 Date_now
+2/16 Date_parse
+0/88 Date_prototype
+0/2 Date_prototype_constructor
+0/16 Date_prototype_getDate
+0/16 Date_prototype_getDay
+0/16 Date_prototype_getFullYear
+0/16 Date_prototype_getHours
+0/16 Date_prototype_getMilliseconds
+0/16 Date_prototype_getMinutes
+0/16 Date_prototype_getMonth
+0/16 Date_prototype_getSeconds
+0/16 Date_prototype_getTime
+0/16 Date_prototype_getTimezoneOffset
+2/16 Date_prototype_getUTCDate
+2/16 Date_prototype_getUTCDay
+2/16 Date_prototype_getUTCFullYear
+2/16 Date_prototype_getUTCHours
+2/16 Date_prototype_getUTCMilliseconds
+2/16 Date_prototype_getUTCMinutes
+2/16 Date_prototype_getUTCMonth
+2/16 Date_prototype_getUTCSeconds
+0/28 Date_prototype_setDate
+0/40 Date_prototype_setFullYear
+0/46 Date_prototype_setHours
+0/28 Date_prototype_setMilliseconds
+0/36 Date_prototype_setMinutes
+0/34 Date_prototype_setMonth
+0/34 Date_prototype_setSeconds
+4/22 Date_prototype_setTime
+0/14 Date_prototype_setUTCDate
+0/12 Date_prototype_setUTCFullYear
+0/22 Date_prototype_setUTCHours
+0/16 Date_prototype_setUTCMilliseconds
+0/16 Date_prototype_setUTCMinutes
+0/18 Date_prototype_setUTCMonth
+0/18 Date_prototype_setUTCSeconds
+0/36 Date_prototype_Symbol_toPrimitive
+0/14 Date_prototype_toDateString
+6/34 Date_prototype_toISOString
+0/26 Date_prototype_toJSON
+0/8 Date_prototype_toLocaleDateString
+0/8 Date_prototype_toLocaleString
+0/8 Date_prototype_toLocaleTimeString
+2/16 Date_prototype_toString
+0/12 Date_prototype_toTimeString
+6/18 Date_prototype_toUTCString
+0/12 Date_prototype_valueOf
+10/34 Date_UTC
+0/110 DecodeURI
+0/112 DecodeURIComponent
+0/26 DisposableStack
+0/10 DisposableStack_prototype
+0/22 DisposableStack_prototype_adopt
+0/20 DisposableStack_prototype_defer
+0/26 DisposableStack_prototype_dispose
+0/14 DisposableStack_prototype_disposed
+0/26 DisposableStack_prototype_move
+0/38 DisposableStack_prototype_use
+0/62 EncodeURI
+0/62 EncodeURIComponent
+4/28 Error
+0/24 Error_isError
+8/18 Error_prototype
+2/4 Error_prototype_constructor
+0/2 Error_prototype_message
+0/2 Error_prototype_name
+14/28 Error_prototype_toString
+2/20 Eval
+52/249 Function
+0/4 Function_internals_Call
+0/12 Function_internals_Construct
+0/26 Function_length
+4/34 Function_prototype
+9/86 Function_prototype_apply
+0/2 Function_prototype_arguments
+50/200 Function_prototype_bind
+7/90 Function_prototype_call
+0/2 Function_prototype_caller
+0/2 Function_prototype_constructor
+0/22 Function_prototype_Symbol_hasInstance
+0/140 Function_prototype_toString
+0/34 GeneratorFunction
+0/12 GeneratorFunction_prototype
+0/4 GeneratorPrototype
+17/56 Global
+3/10 Infinity
+4/30 IsFinite
+4/30 IsNaN
+0/12 Iterator_prototype_Symbol_dispose
+0/10 Iterator_prototype_Symbol_iterator
+2/12 Iterator_prototype_Symbol_toStringTag
+2/12 JSON
+30/144 JSON_parse
+16/132 JSON_stringify
 Map
 Map_groupBy
 Map_prototype

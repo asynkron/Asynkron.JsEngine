@@ -668,8 +668,7 @@ public static partial class StandardLibrary
 
             var proto = obj.Prototype ?? (object?)Symbols.Undefined;
             if (proto is not JsObject &&
-                obj is HostFunction hostFunction &&
-                hostFunction.Realm is JsObject realm &&
+                obj is HostFunction { Realm: JsObject realm } &&
                 realm.TryGetProperty("Function", out var fnVal) &&
                 fnVal is IJsPropertyAccessor fnAccessor &&
                 fnAccessor.TryGetProperty("prototype", out var fnProtoObj) &&

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -264,8 +265,8 @@ internal sealed class SyncGeneratorIrBuilder
                 case TryStatement tryStatement:
                     return TryBuildTryStatement(tryStatement, nextIndex, out entryIndex, activeLabel);
 
-                case ForEachStatement forEachStatement
-                    when forEachStatement.Kind == ForEachKind.Of && IsSimpleForOfBinding(forEachStatement):
+                case ForEachStatement { Kind: ForEachKind.Of } forEachStatement
+                    when IsSimpleForOfBinding(forEachStatement):
                     if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const &&
                         !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
                         !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
@@ -276,8 +277,8 @@ internal sealed class SyncGeneratorIrBuilder
 
                     return TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
-                case ForEachStatement forEachStatement
-                    when forEachStatement.Kind == ForEachKind.AwaitOf && IsSimpleForOfBinding(forEachStatement):
+                case ForEachStatement { Kind: ForEachKind.AwaitOf } forEachStatement
+                    when IsSimpleForOfBinding(forEachStatement):
                     return TryBuildForAwaitStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
                 case ReturnStatement returnStatement:
@@ -891,7 +892,7 @@ internal sealed class SyncGeneratorIrBuilder
 
     private static bool IsStrictBlock(StatementNode statement)
     {
-        return statement is BlockStatement block && block.IsStrict;
+        return statement is BlockStatement { IsStrict: true };
     }
 
     private int AppendYieldSequence(ExpressionNode? expression, int continuationIndex, Symbol? resumeSlot)

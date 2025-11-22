@@ -1256,7 +1256,7 @@ public static partial class StandardLibrary
 
             // Honor an explicit prototype on the receiver; otherwise fall back
             // to the constructor's prototype if available.
-            if (thisValue is JsObject thisObj && thisObj.Prototype is JsObject providedProto)
+            if (thisValue is JsObject { Prototype: JsObject providedProto })
             {
                 instance.SetPrototype(providedProto);
             }
@@ -1459,7 +1459,7 @@ public static partial class StandardLibrary
                 }
                 else if (!existing.Configurable)
                 {
-                    if (existing.IsAccessorDescriptor && existing.Set is null)
+                    if (existing is { IsAccessorDescriptor: true, Set: null })
                     {
                         var error = typeErrorCtor is not null
                             ? typeErrorCtor.Invoke([$"Property {propertyKey} is non-writable"], null)

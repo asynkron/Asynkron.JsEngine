@@ -14,7 +14,7 @@ internal static class GeneratorIrBuilder
     {
         bool succeeded;
 
-        if (function.IsAsync && function.IsGenerator)
+        if (function is { IsAsync: true, IsGenerator: true })
         {
             succeeded = AsyncGeneratorIrBuilder.TryBuild(function, out plan, out failureReason);
         }

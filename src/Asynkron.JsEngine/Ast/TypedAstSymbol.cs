@@ -54,12 +54,7 @@ public sealed class TypedAstSymbol
 
     public override string ToString()
     {
-        if (Description == null)
-        {
-            return "Symbol()";
-        }
-
-        return $"Symbol({Description})";
+        return Description == null ? "Symbol()" : $"Symbol({Description})";
     }
 
     public override bool Equals(object? obj)

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -27,15 +28,7 @@ public sealed class TypedCpsTransformer
     /// </summary>
     public static bool NeedsTransformation(ProgramNode program)
     {
-        foreach (var statement in program.Body)
-        {
-            if (StatementNeedsTransformation(statement))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return Enumerable.Any(program.Body, StatementNeedsTransformation);
     }
 
     private static bool StatementNeedsTransformation(StatementNode statement)
@@ -49,7 +42,7 @@ public sealed class TypedCpsTransformer
         {
             switch (statement)
             {
-                case FunctionDeclaration { Function.IsAsync: true, Function.IsGenerator: false }:
+                case FunctionDeclaration { Function: { IsAsync: true, IsGenerator: false } }:
                     return true;
                 case FunctionDeclaration functionDeclaration:
                     return FunctionNeedsTransformation(functionDeclaration.Function);
@@ -62,21 +55,14 @@ public sealed class TypedCpsTransformer
                         }
                     }
 
-                    return false;
+                    break;
                 case ExpressionStatement expressionStatement:
                     return ExpressionNeedsTransformation(expressionStatement.Expression);
                 case ReturnStatement { Expression: { } expression }:
                     return ExpressionNeedsTransformation(expression);
                 case BlockStatement block:
-                    foreach (var child in block.Statements)
-                    {
-                        if (StatementNeedsTransformation(child))
-                        {
-                            return true;
-                        }
-                    }
+                    return Enumerable.Any(block.Statements, StatementNeedsTransformation);
 
-                    return false;
                 case IfStatement ifStatement:
                     return ExpressionNeedsTransformation(ifStatement.Condition) ||
                            StatementNeedsTransformation(ifStatement.Then) || (ifStatement.Else is not null &&
@@ -138,7 +124,7 @@ public sealed class TypedCpsTransformer
                         }
                     }
 
-                    return false;
+                    break;
             }
 
             return false;
@@ -157,7 +143,7 @@ public sealed class TypedCpsTransformer
 
     private static bool FunctionNeedsTransformation(FunctionExpression function)
     {
-        if (function.IsAsync && !function.IsGenerator)
+        if (function is { IsAsync: true, IsGenerator: false })
         {
             return true;
         }
@@ -179,7 +165,7 @@ public sealed class TypedCpsTransformer
                 case AwaitExpression:
                     return true;
                 case FunctionExpression functionExpression:
-                    return (functionExpression.IsAsync && !functionExpression.IsGenerator) ||
+                    return functionExpression is { IsAsync: true, IsGenerator: false } ||
                            StatementNeedsTransformation(functionExpression.Body);
                 case BinaryExpression binaryExpression:
                     return ExpressionNeedsTransformation(binaryExpression.Left) ||
@@ -197,30 +183,19 @@ public sealed class TypedCpsTransformer
                         return true;
                     }
 
-                    foreach (var argument in callExpression.Arguments)
-                    {
-                        if (ExpressionNeedsTransformation(argument.Expression))
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
+                    return Enumerable.Any(callExpression.Arguments, argument => ExpressionNeedsTransformation(argument.Expression));
                 case NewExpression newExpression:
                     if (ExpressionNeedsTransformation(newExpression.Constructor))
                     {
                         return true;
                     }
 
-                    foreach (var argument in newExpression.Arguments)
+                    if (Enumerable.Any(newExpression.Arguments, ExpressionNeedsTransformation))
                     {
-                        if (ExpressionNeedsTransformation(argument))
-                        {
-                            return true;
-                        }
+                        return true;
                     }
 
-                    return false;
+                    break;
                 case MemberExpression memberExpression:
                     return ExpressionNeedsTransformation(memberExpression.Target) ||
                            ExpressionNeedsTransformation(memberExpression.Property);
@@ -247,7 +222,7 @@ public sealed class TypedCpsTransformer
                         }
                     }
 
-                    return false;
+                    break;
                 case ObjectExpression objectExpression:
                     foreach (var member in objectExpression.Members)
                     {
@@ -925,7 +900,7 @@ public sealed class TypedCpsTransformer
             return false;
         }
 
-        return member.Property is LiteralExpression { Value: string propertyName } && propertyName == "catch";
+        return member.Property is LiteralExpression { Value: string and "catch" };
     }
 
     private static ImmutableArray<StatementNode> NormalizeStatements(ImmutableArray<StatementNode> statements)
@@ -1242,9 +1217,7 @@ public sealed class TypedCpsTransformer
                         out handledRemainder,
                         out var encounteredAwait);
                     return encounteredAwait;
-                case VariableDeclaration variableDeclaration when variableDeclaration.Declarators.Length == 1 &&
-                                                                  variableDeclaration.Declarators[0].Initializer is
-                                                                      { } initializer:
+                case VariableDeclaration { Declarators: [{ Initializer: { } initializer }] } variableDeclaration:
                     var declarator = variableDeclaration.Declarators[0];
                     rewritten = RewriteExpression(initializer, remaining,
                         expr => variableDeclaration with { Declarators = [declarator with { Initializer = expr }] },
@@ -1578,7 +1551,7 @@ public sealed class TypedCpsTransformer
         {
             var parameter = new FunctionParameter(null, Symbol.Intern("__loopValue"), false, null, null);
             BlockStatement body;
-            if (preLoopStatements.HasValue && !preLoopStatements.Value.IsDefaultOrEmpty)
+            if (preLoopStatements is { IsDefaultOrEmpty: false })
             {
                 var normalized = NormalizeStatements(preLoopStatements.Value);
                 var continuationRewriter =

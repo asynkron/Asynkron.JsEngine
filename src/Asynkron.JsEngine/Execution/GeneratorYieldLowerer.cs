@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -588,8 +589,7 @@ internal static class GeneratorYieldLowerer
                 case BinaryExpression asBinary:
                     binary = asBinary;
                     break;
-                case AssignmentExpression { Value: BinaryExpression assignBinary } assignment
-                    when assignment.Target is not null:
+                case AssignmentExpression { Value: BinaryExpression assignBinary, Target: not null } assignment:
                     assignmentTarget = assignment.Target;
                     binary = assignBinary;
                     break;
@@ -623,7 +623,7 @@ internal static class GeneratorYieldLowerer
             }
 
             var rewrittenStatements = RewriteStatements([statement], isStrict);
-            if (rewrittenStatements.Length == 1 && rewrittenStatements[0] is BlockStatement singleBlock)
+            if (rewrittenStatements is [BlockStatement singleBlock])
             {
                 return singleBlock;
             }

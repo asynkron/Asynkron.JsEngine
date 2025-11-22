@@ -44,8 +44,7 @@ public static partial class StandardLibrary
                 throw new ThrowSignal(error);
             }
 
-            if (newTarget is HostFunction hostNewTarget &&
-                !hostNewTarget.IsConstructor)
+            if (newTarget is HostFunction { IsConstructor: false } hostNewTarget)
             {
                 var message = hostNewTarget.ConstructErrorMessage ?? "newTarget is not a constructor";
                 var error = TypeErrorConstructor is IJsCallable typeErrorCtor2
@@ -307,13 +306,12 @@ public static partial class StandardLibrary
         // Step 2: try realm default for Array (handles cross-realm Array subclassing)
         if (ReferenceEquals(target, ArrayConstructor) || ReferenceEquals(newTarget, ArrayConstructor))
         {
-            if (newTarget is HostFunction hostFn &&
-                hostFn.RealmState?.ArrayPrototype is JsObject realmArrayProtoFromState)
+            if (newTarget is HostFunction { RealmState.ArrayPrototype: JsObject realmArrayProtoFromState })
             {
                 return realmArrayProtoFromState;
             }
 
-            if (newTarget is HostFunction hostFunction && hostFunction.Realm is JsObject realmObj &&
+            if (newTarget is HostFunction { Realm: JsObject realmObj } &&
                 realmObj.TryGetProperty("Array", out var realmArrayCtor) &&
                 TryGetPrototype(realmArrayCtor!, out var realmArrayProto))
             {
@@ -364,8 +362,7 @@ public static partial class StandardLibrary
             return true;
         }
 
-        if (hostFunction.RealmState is RealmState realmDefaults &&
-            realmDefaults.ObjectPrototype is not null)
+        if (hostFunction.RealmState is RealmState { ObjectPrototype: not null } realmDefaults)
         {
             prototype = realmDefaults.ObjectPrototype;
             return true;
@@ -419,13 +416,13 @@ public static partial class StandardLibrary
             return true;
         }
 
-        if (candidate is IJsObjectLike objectLike && objectLike.Prototype is not null)
+        if (candidate is IJsObjectLike { Prototype: not null } objectLike)
         {
             prototype = objectLike.Prototype;
             return true;
         }
 
-        if (candidate is JsObject jsObject && jsObject.Prototype is not null)
+        if (candidate is JsObject { Prototype: not null } jsObject)
         {
             prototype = jsObject.Prototype;
             return true;

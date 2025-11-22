@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests.Test262;
 
 public abstract partial class Test262Test
 {
-    private static readonly List<JsEngine> _realmEngines = [];
+
 
     private static JsEngine BuildTestExecutor(Test262File file)
     {
@@ -66,7 +66,7 @@ public abstract partial class Test262Test
                 var realmEngine = new JsEngine();
                 var realmGlobal = realmEngine.GlobalObject;
                 realmGlobal["global"] = realmGlobal;
-                _realmEngines.Add(realmEngine);
+
                 return realmGlobal;
             }),
 

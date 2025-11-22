@@ -13,7 +13,7 @@ public static partial class StandardLibrary
                 return CreateRegExpLiteral("(?:)", "");
             }
 
-            if (args.Count == 1 && args[0] is JsObject { } existingObj &&
+            if (args is [JsObject { } existingObj] &&
                 existingObj.TryGetProperty("__regex__", out var internalRegex) &&
                 internalRegex is JsRegExp existing)
             {

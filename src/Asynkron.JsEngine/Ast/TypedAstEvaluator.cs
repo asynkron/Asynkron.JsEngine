@@ -447,7 +447,7 @@ public static class TypedAstEvaluator
             if (nextResult is JsObject resultObj)
             {
                 var done = resultObj.TryGetProperty("done", out var doneValue) &&
-                           doneValue is bool completed && completed;
+                           doneValue is bool and true;
                 if (done)
                 {
                     break;
@@ -857,7 +857,7 @@ public static class TypedAstEvaluator
 
     private static bool IsStrictBlock(StatementNode statement)
     {
-        return statement is BlockStatement block && block.IsStrict;
+        return statement is BlockStatement { IsStrict: true };
     }
 
     private static object? EvaluateClassExpression(ClassExpression expression, JsEnvironment environment,
@@ -909,8 +909,7 @@ public static class TypedAstEvaluator
                 ctorObject.SetPrototype(superConstructor);
             }
         }
-        else if (constructorAccessor is IJsObjectLike baseCtor &&
-                 baseCtor.Prototype is null &&
+        else if (constructorAccessor is IJsObjectLike { Prototype: null } baseCtor &&
                  StandardLibrary.FunctionPrototype is not null)
         {
             baseCtor.SetPrototype(StandardLibrary.FunctionPrototype);
@@ -1559,7 +1558,7 @@ public static class TypedAstEvaluator
         JsEnvironment environment,
         EvaluationContext context)
     {
-        if (expression.Target is MemberExpression superMember && superMember.Target is SuperExpression)
+        if (expression.Target is MemberExpression { Target: SuperExpression } superMember)
         {
             if (!context.IsThisInitialized)
             {
@@ -1671,8 +1670,7 @@ public static class TypedAstEvaluator
         // Fast-path well-known symbol properties so expressions like
         // Symbol.iterator and Symbol.asyncIterator produce real JS symbol
         // values that can be used as keys (e.g. o[Symbol.iterator]).
-        if (!expression.IsComputed &&
-            expression.Target is IdentifierExpression symbolIdentifier &&
+        if (expression is { IsComputed: false, Target: IdentifierExpression symbolIdentifier } &&
             string.Equals(symbolIdentifier.Name.Name, "Symbol", StringComparison.Ordinal) &&
             expression.Property is LiteralExpression { Value: string symbolProp })
         {
@@ -1905,9 +1903,10 @@ public static class TypedAstEvaluator
                 // `.call` helper is missing or not modeled. In that case we
                 // invoke the underlying function directly with the provided
                 // `this` value and arguments instead of throwing.
-                if (member.Property is LiteralExpression { Value: "call" } &&
-                    member.Target is MemberExpression inner &&
-                    inner.Property is LiteralExpression { Value: "formatArgs" })
+                if (member is { Property: LiteralExpression { Value: "call" }, Target: MemberExpression
+                    {
+                        Property: LiteralExpression { Value: "formatArgs" }
+                    } inner })
                 {
                     var target = EvaluateExpression(inner.Target, environment, context);
                     if (context.ShouldStopEvaluation)
@@ -3607,7 +3606,7 @@ public static class TypedAstEvaluator
                 nextResult = resolvedObject;
 
                 var done = nextResult.TryGetProperty("done", out var doneValue) &&
-                           doneValue is bool completed && completed;
+                           doneValue is bool and true;
                 var value = nextResult.TryGetProperty("value", out var yielded)
                     ? yielded
                     : JsSymbols.Undefined;
@@ -4369,7 +4368,7 @@ public static class TypedAstEvaluator
                                     }
 
                                     var done = resultObj.TryGetProperty("done", out var doneValue) &&
-                                               doneValue is bool completed && completed;
+                                               doneValue is bool and true;
                                     if (done)
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
@@ -4490,7 +4489,7 @@ public static class TypedAstEvaluator
                                 }
 
                                 var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
-                                                awaitDoneValue is bool awaitCompleted && awaitCompleted;
+                                                awaitDoneValue is bool and true;
                                 if (doneAwait)
                                 {
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
@@ -4825,8 +4824,7 @@ public static class TypedAstEvaluator
             AwaitState? existingState = null;
             if (awaitKey is not null &&
                 environment.TryGet(awaitKey, out var stateObj) &&
-                stateObj is AwaitState state &&
-                state.HasResult)
+                stateObj is AwaitState { HasResult: true } state)
             {
                 // Await has already completed; reuse the resolved value once
                 // for this resume, then clear the flag so future iterations
@@ -4956,7 +4954,7 @@ public static class TypedAstEvaluator
             }
 
             var frame = _tryStack.Peek();
-            if (frame.FinallyIndex >= 0 && !frame.FinallyScheduled)
+            if (frame is { FinallyIndex: >= 0, FinallyScheduled: false })
             {
                 frame.FinallyScheduled = true;
                 frame.PendingCompletion = PendingCompletion.FromNormal(resumeTarget);
@@ -4974,7 +4972,7 @@ public static class TypedAstEvaluator
             while (_tryStack.Count > 0)
             {
                 var frame = _tryStack.Peek();
-                if (kind == AbruptKind.Throw && frame.HandlerIndex >= 0 && !frame.CatchUsed)
+                if (kind == AbruptKind.Throw && frame is { HandlerIndex: >= 0, CatchUsed: false })
                 {
                     frame.CatchUsed = true;
                     if (frame.CatchSlotSymbol is { } slot)

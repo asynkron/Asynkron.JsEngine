@@ -878,7 +878,7 @@ internal static class JsOps
     {
         if (value is HostFunction host)
         {
-            return host.IsConstructor && !host.DisallowConstruct;
+            return host is { IsConstructor: true, DisallowConstruct: false };
         }
 
         return value is IJsCallable;

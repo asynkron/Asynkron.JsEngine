@@ -512,13 +512,13 @@ public sealed class JsArray : IJsObjectLike
         {
             // Length is non-configurable and non-enumerable; reject attempts to
             // mutate those attributes.
-            if ((descriptor.HasConfigurable && descriptor.Configurable) ||
+            if (descriptor is { HasConfigurable: true, Configurable: true } ||
                 (descriptor.HasEnumerable && descriptor.Enumerable != lengthDescriptor.Enumerable))
             {
                 return FailTypeError(context, throwOnWritableFailure);
             }
 
-            if (!lengthDescriptor.Writable && descriptor.HasWritable && descriptor.Writable)
+            if (!lengthDescriptor.Writable && descriptor is { HasWritable: true, Writable: true })
             {
                 return FailTypeError(context, throwOnWritableFailure);
             }

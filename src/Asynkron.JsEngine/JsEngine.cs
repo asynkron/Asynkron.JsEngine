@@ -132,6 +132,9 @@ namespace Asynkron.JsEngine;
         // Register WeakMap constructor
         SetGlobal("WeakMap", StandardLibrary.CreateWeakMapConstructor());
 
+        // Minimal Proxy constructor (used by Array.isArray proxy tests)
+        SetGlobal("Proxy", StandardLibrary.CreateProxyConstructor(_realm));
+
         // Register WeakSet constructor
         SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
 

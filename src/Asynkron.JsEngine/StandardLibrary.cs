@@ -2640,53 +2640,154 @@ public static class StandardLibrary
             return result;
         }));
 
-        // entries() - returns an array of [index, value] pairs
-        array.SetProperty("entries", new HostFunction((thisValue, args) =>
+        static double ToLengthValue(object? candidate)
         {
-            if (thisValue is not JsArray jsArray)
+            var num = JsOps.ToNumber(candidate);
+            if (double.IsNaN(num) || double.IsInfinity(num) || num <= 0)
             {
-                return null;
+                return 0;
             }
 
-            var result = new JsArray();
-            for (var i = 0; i < jsArray.Items.Count; i++)
-            {
-                var entry = new JsArray([i, jsArray.GetElement(i)]);
-                AddArrayMethods(entry);
-                result.Push(entry);
-            }
+            var truncated = Math.Floor(num);
+            return Math.Min(truncated, 9007199254740991d); // 2^53 - 1
+        }
 
-            AddArrayMethods(result);
-            return result;
-        }));
-
-        // keys() - returns an array of indices
-        array.SetProperty("keys", new HostFunction((thisValue, args) =>
+        static object CreateArrayIterator(object? thisValue, IJsPropertyAccessor accessor, Func<uint, object?> projector)
         {
-            if (thisValue is not JsArray jsArray)
+            var iterator = new JsObject();
+            var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+            var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+
+            uint index = 0;
+            var exhausted = false;
+
+            iterator.SetProperty("next", new HostFunction((_, __) =>
             {
-                return null;
-            }
+                if (exhausted)
+                {
+                    var doneResult = new JsObject();
+                    doneResult.SetProperty("value", Symbols.Undefined);
+                    doneResult.SetProperty("done", true);
+                    return doneResult;
+                }
 
-            var result = new JsArray();
-            for (var i = 0; i < jsArray.Items.Count; i++) result.Push((double)i);
-            AddArrayMethods(result);
-            return result;
-        }));
+                uint length = 0;
+                if (accessor.TryGetProperty("length", out var lengthValue))
+                {
+                    length = (uint)ToLengthValue(lengthValue);
+                }
 
-        // values() - returns an array of values
-        array.SetProperty("values", new HostFunction((thisValue, args) =>
+                var result = new JsObject();
+                if (index < length)
+                {
+                    result.SetProperty("value", projector(index));
+                    result.SetProperty("done", false);
+                    index++;
+                }
+                else
+                {
+                    result.SetProperty("value", Symbols.Undefined);
+                    result.SetProperty("done", true);
+                    exhausted = true;
+                }
+
+                return result;
+            }));
+
+            iterator.SetProperty(iteratorKey, new HostFunction((_, __) => iterator));
+            return iterator;
+        }
+
+        HostFunction DefineArrayIteratorFunction(string name, Func<IJsPropertyAccessor, object?, Func<uint, object?>> projectorFactory)
         {
-            if (thisValue is not JsArray jsArray)
+            var fn = new HostFunction((thisValue, args) =>
             {
-                return null;
+                if (thisValue is null || ReferenceEquals(thisValue, Symbols.Undefined))
+                {
+                    var error = TypeErrorConstructor is IJsCallable ctor
+                        ? ctor.Invoke([$"{name} called on null or undefined"], null)
+                        : new InvalidOperationException($"{name} called on null or undefined");
+                    throw new ThrowSignal(error);
+                }
+
+                if (thisValue is not IJsPropertyAccessor accessor)
+                {
+                    var error = TypeErrorConstructor is IJsCallable ctor2
+                        ? ctor2.Invoke([$"{name} called on non-object"], null)
+                        : new InvalidOperationException($"{name} called on non-object");
+                    throw new ThrowSignal(error);
+                }
+
+                var projector = projectorFactory(accessor, thisValue);
+                return CreateArrayIterator(thisValue, accessor, projector);
+            })
+            {
+                IsConstructor = false
+            };
+
+            fn.DefineProperty("name", new PropertyDescriptor
+            {
+                Value = name,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+
+            fn.DefineProperty("length", new PropertyDescriptor
+            {
+                Value = 0d,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+
+            var descriptor = new PropertyDescriptor
+            {
+                Value = fn,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            };
+
+            if (array is IJsObjectLike objectLike)
+            {
+                objectLike.DefineProperty(name, descriptor);
+            }
+            else
+            {
+                array.SetProperty(name, fn);
             }
 
-            var result = new JsArray();
-            for (var i = 0; i < jsArray.Items.Count; i++) result.Push(jsArray.GetElement(i));
-            AddArrayMethods(result);
-            return result;
-        }));
+            return fn;
+        }
+
+        // entries() - returns an iterator of [index, value] pairs
+        DefineArrayIteratorFunction("entries", (accessor, _) => idx =>
+        {
+            var pair = new JsArray();
+            pair.Push((double)idx);
+            if (accessor.TryGetProperty(idx.ToString(CultureInfo.InvariantCulture), out var value))
+            {
+                pair.Push(value);
+            }
+            else
+            {
+                pair.Push(Symbols.Undefined);
+            }
+
+            AddArrayMethods(pair);
+            return pair;
+        });
+
+        // keys() - returns an iterator of indices
+        DefineArrayIteratorFunction("keys", (_, __) => idx => (double)idx);
+
+        // values() - returns an iterator of values
+        var valuesFn = DefineArrayIteratorFunction("values", (accessor, thisValue) => idx =>
+        {
+            var key = idx.ToString(CultureInfo.InvariantCulture);
+            return accessor.TryGetProperty(key, out var value) ? value : Symbols.Undefined;
+        });
     }
 
     private static object? ArraySlice(object? thisValue, IReadOnlyList<object?> args)

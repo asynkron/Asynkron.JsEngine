@@ -26,7 +26,7 @@ Procedure to maintain this file:
 6/26 Array_prototype_at
 22/137 Array_prototype_concat
 22/78 Array_prototype_copyWithin
-0/24 Array_prototype_entries
+18/24 Array_prototype_entries
 138/433 Array_prototype_every
 6/44 Array_prototype_fill
 116/480 Array_prototype_filter
@@ -40,7 +40,7 @@ Procedure to maintain this file:
 10/60 Array_prototype_includes
 174/401 Array_prototype_indexOf
 14/46 Array_prototype_join
-0/24 Array_prototype_keys
+18/24 Array_prototype_keys
 0/395 Array_prototype_lastIndexOf
 62/425 Array_prototype_map
 4/46 Array_prototype_pop
@@ -53,7 +53,7 @@ Procedure to maintain this file:
 134/426 Array_prototype_some
 18/99 Array_prototype_sort
 36/162 Array_prototype_splice
-0/2 Array_prototype_Symbol_iterator
+✅ Array_prototype_Symbol_iterator
 0/8 Array_prototype_Symbol_unscopables
 0/16 Array_prototype_toLocaleString
 4/34 Array_prototype_toReversed
@@ -61,7 +61,7 @@ Procedure to maintain this file:
 20/60 Array_prototype_toSpliced
 2/22 Array_prototype_toString
 6/42 Array_prototype_unshift
-0/18 Array_prototype_values
+18/24 Array_prototype_values
 6/42 Array_prototype_with
 0/8 Array_Symbol_species
 12/36 ArrayBuffer

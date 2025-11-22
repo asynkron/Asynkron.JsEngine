@@ -7452,11 +7452,6 @@ public static class StandardLibrary
         var prototype = new JsObject();
         var constructor = new HostFunction((thisValue, args) =>
         {
-            if (!JsOps.IsConstructor(thisValue))
-            {
-                throw ThrowTypeError("%TypedArray%.of called on non-constructor");
-            }
-
             if (args.Count == 0)
             {
                 var ta = fromLength(0);
@@ -7516,11 +7511,6 @@ public static class StandardLibrary
         {
             Value = new HostFunction((thisValue, args) =>
             {
-                if (!JsOps.IsConstructor(thisValue))
-                {
-                    throw ThrowTypeError("%TypedArray%.of called on non-constructor");
-                }
-
                 if (thisValue is not HostFunction ctor)
                 {
                     throw ThrowTypeError("%TypedArray%.of called on incompatible receiver");

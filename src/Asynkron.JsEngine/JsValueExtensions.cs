@@ -16,6 +16,7 @@ internal static class JsValueExtensions
             {
                 null => 0,
                 Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => double.NaN,
+                IIsHtmlDda => double.NaN,
                 JsBigInt bigInt => (double)bigInt.Value,
                 double d => d,
                 float f => f,
@@ -52,6 +53,11 @@ internal static class JsValueExtensions
             }
 
             if (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
+            {
+                return "undefined";
+            }
+
+            if (value is IIsHtmlDda)
             {
                 return "undefined";
             }

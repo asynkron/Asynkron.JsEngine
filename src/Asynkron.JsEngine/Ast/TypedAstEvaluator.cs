@@ -872,11 +872,22 @@ public static class TypedAstEvaluator
             typedFunction.SetSuperBinding(superConstructor, superPrototype);
             var instanceFields = definition.Fields.Where(field => !field.IsStatic).ToImmutableArray();
             typedFunction.SetInstanceFields(instanceFields);
+            typedFunction.SetIsClassConstructor(superConstructor is not null);
         }
 
         if (superConstructor is not null)
         {
             constructorAccessor.SetProperty("__proto__", superConstructor);
+            if (constructorAccessor is IJsObjectLike ctorObject)
+            {
+                ctorObject.SetPrototype(superConstructor);
+            }
+        }
+        else if (constructorAccessor is IJsObjectLike baseCtor &&
+                 baseCtor.Prototype is null &&
+                 StandardLibrary.FunctionPrototype is not null)
+        {
+            baseCtor.SetPrototype(StandardLibrary.FunctionPrototype);
         }
 
         prototype.SetProperty("constructor", constructorValue);
@@ -936,10 +947,18 @@ public static class TypedAstEvaluator
     {
         if (constructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue is JsObject prototype)
         {
+            if (prototype.Prototype is null && StandardLibrary.ObjectPrototype is not null)
+            {
+                prototype.SetPrototype(StandardLibrary.ObjectPrototype);
+            }
             return prototype;
         }
 
         var created = new JsObject();
+        if (StandardLibrary.ObjectPrototype is not null)
+        {
+            created.SetPrototype(StandardLibrary.ObjectPrototype);
+        }
         constructor.SetProperty("prototype", created);
         return created;
     }
@@ -961,9 +980,19 @@ public static class TypedAstEvaluator
                 throw new InvalidOperationException("Class member must be callable.");
             }
 
+            var homeObject = member.IsStatic
+                ? constructorAccessor as IJsObjectLike
+                : prototype;
+            var superTarget = member.IsStatic
+                ? superConstructor as IJsPropertyAccessor
+                : superPrototype;
             if (value is TypedFunction typedFunction)
             {
-                typedFunction.SetSuperBinding(superConstructor, superPrototype);
+                typedFunction.SetSuperBinding(superConstructor, superTarget);
+                if (homeObject is not null)
+                {
+                    typedFunction.SetHomeObject(homeObject);
+                }
             }
 
             if (member.Kind == ClassMemberKind.Method)
@@ -980,32 +1009,24 @@ public static class TypedAstEvaluator
                 continue;
             }
 
-            var accessorTarget = member.IsStatic ? TryGetStaticDescriptor(constructorAccessor) : prototype;
-            if (accessorTarget is null)
+            var accessorTarget = member.IsStatic
+                ? constructorAccessor as IJsObjectLike
+                : prototype as IJsObjectLike;
+            if (accessorTarget is not null)
             {
-                constructorAccessor.SetProperty(member.Name, value);
-                continue;
-            }
-
-            if (member.Kind == ClassMemberKind.Getter)
-            {
-                accessorTarget.SetGetter(member.Name, callable);
+                accessorTarget.DefineProperty(member.Name, new PropertyDescriptor
+                {
+                    Get = member.Kind == ClassMemberKind.Getter ? callable : null,
+                    Set = member.Kind == ClassMemberKind.Setter ? callable : null,
+                    Enumerable = false,
+                    Configurable = true
+                });
             }
             else
             {
-                accessorTarget.SetSetter(member.Name, callable);
+                constructorAccessor.SetProperty(member.Name, value);
             }
         }
-    }
-
-    private static JsObject? TryGetStaticDescriptor(IJsPropertyAccessor constructorAccessor)
-    {
-        if (constructorAccessor.TryGetProperty("__properties__", out var descriptor) && descriptor is JsObject properties)
-        {
-            return properties;
-        }
-
-        return null;
     }
 
     private static void InitializeStaticFields(ImmutableArray<ClassField> fields, IJsPropertyAccessor constructorAccessor,
@@ -1554,10 +1575,33 @@ public static class TypedAstEvaluator
     private static object? EvaluatePropertyAssignment(PropertyAssignmentExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
-        if (expression.Target is SuperExpression)
+        if (expression.Target is MemberExpression superMember && superMember.Target is SuperExpression)
         {
-            throw new InvalidOperationException(
-                $"Assigning through super is not supported.{GetSourceInfo(context, expression.Source)}");
+            if (!context.IsThisInitialized)
+            {
+                throw CreateSuperReferenceError(environment, context, null);
+            }
+            var propertyKey = EvaluateExpression(superMember.Property, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsSymbols.Undefined;
+            }
+
+            var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsSymbols.Undefined;
+            }
+
+            var assignedValue = EvaluateExpression(expression.Value, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsSymbols.Undefined;
+            }
+
+            var binding = ExpectSuperBinding(environment, context);
+            binding.SetProperty(propertyName, assignedValue);
+            return assignedValue;
         }
 
         var target = EvaluateExpression(expression.Target, environment, context);
@@ -1946,7 +1990,13 @@ public static class TypedAstEvaluator
 
         try
         {
-            return callable.Invoke(frozenArguments, thisValue);
+            var result = callable.Invoke(frozenArguments, thisValue);
+            if (expression.Callee is SuperExpression)
+            {
+                context.MarkThisInitialized();
+            }
+
+            return result;
         }
         catch (ThrowSignal signal)
         {
@@ -2333,6 +2383,7 @@ public static class TypedAstEvaluator
                 case ObjectMemberKind.Method:
                 {
                     var method = new TypedFunction(member.Function!, environment, context.RealmState);
+                    method.SetHomeObject(obj);
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
@@ -2345,6 +2396,7 @@ public static class TypedAstEvaluator
                 case ObjectMemberKind.Getter:
                 {
                     var getter = new TypedFunction(member.Function!, environment, context.RealmState);
+                    getter.SetHomeObject(obj);
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
@@ -2357,6 +2409,7 @@ public static class TypedAstEvaluator
                 case ObjectMemberKind.Setter:
                 {
                     var setter = new TypedFunction(member.Function!, environment, context.RealmState);
+                    setter.SetHomeObject(obj);
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
@@ -3199,6 +3252,10 @@ public static class TypedAstEvaluator
     private static (object? Value, SuperBinding Binding) ResolveSuperMember(MemberExpression expression,
         JsEnvironment environment, EvaluationContext context)
     {
+        if (!context.IsThisInitialized)
+        {
+            throw CreateSuperReferenceError(environment, context, null);
+        }
         var binding = ExpectSuperBinding(environment, context);
         var propertyValue = EvaluateExpression(expression.Property, environment, context);
         if (context.ShouldStopEvaluation)
@@ -3235,11 +3292,36 @@ public static class TypedAstEvaluator
         }
         catch (InvalidOperationException ex)
         {
-            throw new InvalidOperationException(
-                $"Super is not available in this context.{GetSourceInfo(context)}", ex);
+            var wrapped = CreateSuperReferenceError(environment, context, ex);
+            if (wrapped is ThrowSignal throwSignal)
+            {
+                throw throwSignal;
+            }
+
+            throw wrapped;
         }
 
-        throw new InvalidOperationException($"Super is not available in this context.{GetSourceInfo(context)}");
+        var fallback = CreateSuperReferenceError(environment, context, null);
+        if (fallback is ThrowSignal signal)
+        {
+            throw signal;
+        }
+
+        throw fallback;
+    }
+
+    private static Exception CreateSuperReferenceError(JsEnvironment environment, EvaluationContext context,
+        Exception? inner)
+    {
+        var message = $"Super is not available in this context.{GetSourceInfo(context)}";
+        if (environment.TryGet(Symbol.Intern("ReferenceError"), out var ctorVal) &&
+            ctorVal is IJsCallable ctor)
+        {
+            var error = ctor.Invoke([message], JsSymbols.Undefined);
+            return new ThrowSignal(error);
+        }
+
+        return new InvalidOperationException(message, inner);
     }
 
     private static string GetSourceInfo(EvaluationContext context, SourceReference? fallback = null)
@@ -5130,15 +5212,18 @@ public static class TypedAstEvaluator
         return iterator;
     }
 
-    private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
+    private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike
     {
         private readonly FunctionExpression _function;
         private readonly JsEnvironment _closure;
         private readonly JsObject _properties = new();
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
         private IJsEnvironmentAwareCallable? _superConstructor;
-        private JsObject? _superPrototype;
+        private IJsPropertyAccessor? _superPrototype;
+        private IJsObjectLike? _homeObject;
         private readonly RealmState _realmState;
+        private bool _isClassConstructor;
+        private bool _isDerivedClassConstructor;
 
         public TypedFunction(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
@@ -5151,6 +5236,10 @@ public static class TypedAstEvaluator
             _closure = closure;
             _realmState = realmState;
             var paramCount = function.Parameters.Length;
+            if (StandardLibrary.FunctionPrototype is not null)
+            {
+                _properties.SetPrototype(StandardLibrary.FunctionPrototype);
+            }
 
             // Functions expose a prototype object so instances created via `new` can inherit from it.
             _properties.SetProperty("prototype", new JsObject());
@@ -5178,11 +5267,31 @@ public static class TypedAstEvaluator
                 boundThis = CallingJsEnvironment?.Get(JsSymbols.This) ?? JsSymbols.Undefined;
             }
 
+            if (_isDerivedClassConstructor && _superConstructor is not null)
+            {
+                context.MarkThisUninitialized();
+            }
+            else
+            {
+                context.MarkThisInitialized();
+            }
+
             environment.Define(JsSymbols.This, boundThis ?? new JsObject());
 
-            if (_superConstructor is not null || _superPrototype is not null)
+            IJsPropertyAccessor? prototypeForSuper = _superPrototype;
+            if (prototypeForSuper is null && _homeObject is not null)
             {
-                var binding = new SuperBinding(_superConstructor, _superPrototype, thisValue);
+                prototypeForSuper = _homeObject.Prototype;
+            }
+
+            if (prototypeForSuper is null && thisValue is JsObject thisObj)
+            {
+                prototypeForSuper = thisObj.Prototype;
+            }
+
+            if (_superConstructor is not null || prototypeForSuper is not null)
+            {
+                var binding = new SuperBinding(_superConstructor, prototypeForSuper, boundThis);
                 environment.Define(JsSymbols.Super, binding);
             }
 
@@ -5226,10 +5335,21 @@ public static class TypedAstEvaluator
 
         }
 
-        public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, JsObject? superPrototype)
+        public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype)
         {
             _superConstructor = superConstructor;
             _superPrototype = superPrototype;
+        }
+
+        public void SetHomeObject(IJsObjectLike homeObject)
+        {
+            _homeObject = homeObject;
+        }
+
+        public void SetIsClassConstructor(bool isDerived)
+        {
+            _isClassConstructor = true;
+            _isDerivedClassConstructor = isDerived;
         }
 
         public void SetInstanceFields(ImmutableArray<ClassField> fields)
@@ -5338,6 +5458,47 @@ public static class TypedAstEvaluator
         public void SetProperty(string name, object? value)
         {
             _properties.SetProperty(name, value);
+        }
+
+        public JsObject? Prototype => _properties.Prototype as JsObject;
+
+        public bool IsSealed => _properties.IsSealed;
+
+        public IEnumerable<string> Keys => _properties.Keys;
+
+        public void DefineProperty(string name, PropertyDescriptor descriptor)
+        {
+            _properties.DefineProperty(name, descriptor);
+        }
+
+        PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
+        {
+            return _properties.GetOwnPropertyDescriptor(name);
+        }
+
+        IEnumerable<string> IJsPropertyAccessor.GetOwnPropertyNames()
+        {
+            return _properties.GetOwnPropertyNames();
+        }
+
+        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+        {
+            return _properties.GetOwnPropertyDescriptor(name);
+        }
+
+        public IEnumerable<string> GetOwnPropertyNames()
+        {
+            return _properties.GetOwnPropertyNames();
+        }
+
+        public void SetPrototype(object? candidate)
+        {
+            _properties.SetPrototype(candidate);
+        }
+
+        public void Seal()
+        {
+            _properties.Seal();
         }
     }
 }

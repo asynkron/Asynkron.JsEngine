@@ -22,6 +22,7 @@ internal static class JsOps
         {
             null => false,
             Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => false,
+            IIsHtmlDda => false,
             bool b => b,
             double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
             float f => !float.IsNaN(f) && Math.Abs(f) > float.Epsilon,
@@ -49,6 +50,8 @@ internal static class JsOps
                 case null:
                     return 0;
                 case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
+                    return double.NaN;
+                case IIsHtmlDda:
                     return double.NaN;
                 case Symbol:
                     throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number", context));
@@ -752,6 +755,11 @@ internal static class JsOps
         if (value is TypedAstSymbol)
         {
             return "symbol";
+        }
+
+        if (value is IIsHtmlDda)
+        {
+            return "undefined";
         }
 
         if (value is JsBigInt)

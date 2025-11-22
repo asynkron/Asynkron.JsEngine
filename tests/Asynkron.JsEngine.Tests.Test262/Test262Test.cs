@@ -85,6 +85,9 @@ public abstract partial class Test262Test
                 return null;
             }),
 
+            // HTMLDDA-like object used by Test262 harness
+            ["IsHTMLDDA"] = new HtmlDdaValue(),
+
             // %AbstractModuleSource% intrinsic (minimal host stub for Test262)
             ["AbstractModuleSource"] = CreateAbstractModuleSource(engine)
         };

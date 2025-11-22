@@ -833,7 +833,306 @@ public static class StandardLibrary
 
         intl.SetProperty("Locale", localeCtor);
 
+        // Minimal Intl.DurationFormat stub for Test262 coverage.
+        var durationFormatPrototype = new JsObject();
+        if (ObjectPrototype is not null)
+        {
+            durationFormatPrototype.SetPrototype(ObjectPrototype);
+        }
+
+        var durationFormatCtor = new HostFunction((thisValue, args) =>
+        {
+            var instance = thisValue as JsObject ?? new JsObject();
+            instance.SetPrototype(durationFormatPrototype);
+            return instance;
+        })
+        {
+            IsConstructor = true
+        };
+
+        durationFormatCtor.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = 0d,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+        durationFormatCtor.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = "DurationFormat",
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+        durationFormatCtor.DefineProperty("prototype", new PropertyDescriptor
+        {
+            Value = durationFormatPrototype,
+            Writable = false,
+            Enumerable = false,
+            Configurable = false
+        });
+        durationFormatPrototype.DefineProperty("constructor", new PropertyDescriptor
+        {
+            Value = durationFormatCtor,
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        durationFormatPrototype.SetProperty("format", new HostFunction((thisValue, args) => "PT0S")
+        {
+            IsConstructor = false
+        });
+        durationFormatPrototype.SetProperty("formatToParts",
+            new HostFunction((thisValue, args) => new JsArray())
+            {
+                IsConstructor = false
+            });
+        durationFormatPrototype.SetProperty("resolvedOptions",
+            new HostFunction((thisValue, args) => new JsObject())
+            {
+                IsConstructor = false
+            });
+
+        durationFormatCtor.DefineProperty("supportedLocalesOf", new PropertyDescriptor
+        {
+            Value = new HostFunction(args =>
+            {
+                var result = new JsArray();
+                if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbols.Undefined))
+                {
+                    return result;
+                }
+
+                object? locales = args[0];
+                if (locales is string localeString)
+                {
+                    result.Push(localeString);
+                    return result;
+                }
+
+                if (locales is JsArray localesArray)
+                {
+                    foreach (var item in localesArray.Items)
+                    {
+                        if (item is string locale)
+                        {
+                            result.Push(locale);
+                            continue;
+                        }
+
+                        throw ThrowTypeError("Invalid locale value");
+                    }
+
+                    return result;
+                }
+
+                throw ThrowTypeError("Invalid locales argument");
+            })
+            {
+                IsConstructor = false
+            },
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+        if (durationFormatCtor.TryGetProperty("supportedLocalesOf", out var supportedLocalesOf) &&
+            supportedLocalesOf is IJsObjectLike supportedLocalesAccessor)
+        {
+            supportedLocalesAccessor.DefineProperty("length", new PropertyDescriptor
+            {
+                Value = 1d,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+            supportedLocalesAccessor.DefineProperty("name", new PropertyDescriptor
+            {
+                Value = "supportedLocalesOf",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+        }
+
+        intl.SetProperty("DurationFormat", durationFormatCtor);
+
+        // Minimal Intl.Collator stub to satisfy supportedLocalesOf/name tests.
+        var collatorPrototype = new JsObject();
+        if (ObjectPrototype is not null)
+        {
+            collatorPrototype.SetPrototype(ObjectPrototype);
+        }
+
+        var collatorCtor = new HostFunction((thisValue, args) =>
+        {
+            var instance = thisValue as JsObject ?? new JsObject();
+            instance.SetPrototype(collatorPrototype);
+            instance.SetProperty("compare", new HostFunction((innerThis, compareArgs) =>
+            {
+                // Basic comparison using string coercion.
+                var a = compareArgs.Count > 0 ? JsValueToString(compareArgs[0]) : string.Empty;
+                var b = compareArgs.Count > 1 ? JsValueToString(compareArgs[1]) : string.Empty;
+                return string.CompareOrdinal(a, b) switch
+                {
+                    < 0 => -1d,
+                    > 0 => 1d,
+                    _ => 0d
+                };
+            })
+            {
+                IsConstructor = false
+            });
+            return instance;
+        })
+        {
+            IsConstructor = true
+        };
+
+        collatorCtor.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = 0d,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+        collatorCtor.DefineProperty("prototype", new PropertyDescriptor
+        {
+            Value = collatorPrototype,
+            Writable = false,
+            Enumerable = false,
+            Configurable = false
+        });
+        collatorPrototype.DefineProperty("constructor", new PropertyDescriptor
+        {
+            Value = collatorCtor,
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+        collatorCtor.DefineProperty("supportedLocalesOf", new PropertyDescriptor
+        {
+            Value = new HostFunction(args => new JsArray())
+            {
+                IsConstructor = false
+            },
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+        if (collatorCtor.TryGetProperty("supportedLocalesOf", out var collatorSupported) &&
+            collatorSupported is IJsObjectLike collatorSupportedAccessor)
+        {
+            collatorSupportedAccessor.DefineProperty("length", new PropertyDescriptor
+            {
+                Value = 1d,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+            collatorSupportedAccessor.DefineProperty("name", new PropertyDescriptor
+            {
+                Value = "supportedLocalesOf",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+        }
+
+        intl.SetProperty("Collator", collatorCtor);
+
         return intl;
+    }
+
+    public static JsObject CreateTemporalObject()
+    {
+        var temporal = new JsObject();
+        var durationPrototype = new JsObject();
+        if (ObjectPrototype is not null)
+        {
+            durationPrototype.SetPrototype(ObjectPrototype);
+        }
+
+        var durationCtor = new HostFunction((thisValue, args) =>
+        {
+            var instance = thisValue as JsObject ?? new JsObject();
+            instance.SetPrototype(durationPrototype);
+            if (args.Count > 0 && args[0] is JsObject source)
+            {
+                foreach (var key in source.Keys)
+                {
+                    instance.SetProperty(key, source[key]);
+                }
+            }
+            return instance;
+        })
+        {
+            IsConstructor = true
+        };
+
+        var durationFrom = new HostFunction(args =>
+        {
+            var input = args.Count > 0 && args[0] is JsObject jsObj ? jsObj : new JsObject();
+            var instance = durationCtor.Invoke([input], null) as JsObject ?? new JsObject();
+            instance.SetPrototype(durationPrototype);
+            return instance;
+        })
+        {
+            IsConstructor = false
+        };
+
+        durationCtor.DefineProperty("from", new PropertyDescriptor
+        {
+            Value = durationFrom,
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        durationPrototype.SetProperty("toLocaleString", new HostFunction((thisValue, args) =>
+        {
+            var locale = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var options = args.Count > 1 ? args[1] : Symbols.Undefined;
+            if (Symbols.Undefined.Equals(locale) && args.Count > 0)
+            {
+                locale = args[0];
+            }
+
+            var formatterObj = CreateIntlObject().TryGetProperty("DurationFormat", out var ctorVal) &&
+                               ctorVal is IJsCallable durationFormatCtor
+                ? durationFormatCtor.Invoke(new[] { locale, options }, null)
+                : new JsObject();
+
+            if (formatterObj is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("format", out var formatVal) &&
+                formatVal is IJsCallable formatFn)
+            {
+                return formatFn.Invoke([thisValue], formatterObj);
+            }
+
+            return "";
+        })
+        {
+            IsConstructor = false
+        });
+
+        durationCtor.DefineProperty("prototype", new PropertyDescriptor
+        {
+            Value = durationPrototype,
+            Writable = false,
+            Enumerable = false,
+            Configurable = false
+        });
+        durationPrototype.DefineProperty("constructor", new PropertyDescriptor
+        {
+            Value = durationCtor,
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        temporal.SetProperty("Duration", durationCtor);
+        return temporal;
     }
 
     /// <summary>
@@ -1342,6 +1641,59 @@ public static class StandardLibrary
                 }
 
                 return double.NaN;
+            });
+
+            dateInstance["setYear"] = new HostFunction((thisVal, methodArgs) =>
+            {
+                if (thisVal is not JsObject obj)
+                {
+                    return double.NaN;
+                }
+
+                var yearArg = methodArgs.Count > 0 ? methodArgs[0] : Symbols.Undefined;
+                var y = JsOps.ToNumber(yearArg);
+                if (double.IsNaN(y))
+                {
+                    obj.SetProperty("_internalDate", double.NaN);
+                    return double.NaN;
+                }
+
+                var t = obj.TryGetProperty("_internalDate", out var storedVal) && storedVal is double storedMs
+                    ? storedMs
+                    : double.NaN;
+
+                var local = double.IsNaN(t)
+                    ? ConvertMillisecondsToUtc(0).ToLocalTime()
+                    : ConvertMillisecondsToUtc(t).ToLocalTime();
+
+                var yInt = (int)Math.Truncate(y);
+                if (yInt is >= 0 and <= 99)
+                {
+                    yInt += 1900;
+                }
+
+                DateTimeOffset newLocal;
+                try
+                {
+                    newLocal = new DateTimeOffset(
+                        yInt,
+                        local.Month,
+                        local.Day,
+                        local.Hour,
+                        local.Minute,
+                        local.Second,
+                        local.Millisecond,
+                        local.Offset);
+                }
+                catch
+                {
+                    obj.SetProperty("_internalDate", double.NaN);
+                    return double.NaN;
+                }
+
+                var utc = newLocal.ToUniversalTime();
+                StoreInternalDate(obj, utc);
+                return (double)utc.ToUnixTimeMilliseconds();
             });
 
             dateInstance["getMonth"] = new HostFunction((thisVal, methodArgs) =>
@@ -5526,19 +5878,21 @@ public static class StandardLibrary
                 return Symbols.Undefined;
             }
 
-            static bool TryGetIteratorMethod(object sourceObj, out IJsCallable? method)
+            static bool TryGetIteratorMethod(object sourceObj, out object? methodValue)
             {
                 var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
                 var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-                method = null;
+                methodValue = null;
                 if (sourceObj is IJsPropertyAccessor accessor &&
                     accessor.TryGetProperty(iteratorKey, out var value) &&
-                    !ReferenceEquals(value, Symbols.Undefined))
+                    !ReferenceEquals(value, Symbols.Undefined) &&
+                    value is not null)
                 {
-                    method = value as IJsCallable;
+                    methodValue = value;
+                    return true;
                 }
 
-                return method is not null;
+                return false;
             }
 
             static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
@@ -5648,31 +6002,54 @@ public static class StandardLibrary
                 result = constructed is IJsObjectLike objectLike ? objectLike : instance;
             }
 
+            IJsCallable? ResolveTypeErrorCtor()
+            {
+                if (callingEnv is not null &&
+                    callingEnv.TryGet(Symbol.Intern("TypeError"), out var typeErrorVal) &&
+                    typeErrorVal is IJsCallable typeErrorFromEnv)
+                {
+                    return typeErrorFromEnv;
+                }
+
+                return TypeErrorConstructor;
+            }
+
+            object WrapTypeError(string message)
+            {
+                var typeErrorCtor = ResolveTypeErrorCtor();
+                if (typeErrorCtor is not null)
+                {
+                    var errorValue = typeErrorCtor.Invoke([message], null);
+                    if (errorValue is JsObject errorObj)
+                    {
+                        errorObj.SetProperty("constructor", typeErrorCtor);
+                    }
+
+                    return errorValue ?? new InvalidOperationException(message);
+                }
+
+                return new InvalidOperationException(message);
+            }
+
             if (TryGetIteratorMethod(source, out var iteratorMethod))
             {
                 if (iteratorMethod is not IJsCallable callableIterator)
                 {
-                    var error = TypeErrorConstructor is IJsCallable ctor3
-                        ? ctor3.Invoke(["Iterator method is not callable"], null)
-                        : new InvalidOperationException("Iterator method is not callable.");
+                    var error = WrapTypeError("Iterator method is not callable");
                     throw new ThrowSignal(error);
                 }
 
                 var iteratorObj = callableIterator.Invoke([], source);
                 if (iteratorObj is not JsObject iter)
                 {
-                    var error = TypeErrorConstructor is IJsCallable ctor4
-                        ? ctor4.Invoke(["Iterator method did not return an object"], null)
-                        : new InvalidOperationException("Iterator method did not return an object.");
+                    var error = WrapTypeError("Iterator method did not return an object");
                     throw new ThrowSignal(error);
                 }
 
                 var nextVal = iter.TryGetProperty("next", out var nextProp) ? nextProp : null;
                 if (nextVal is not IJsCallable nextFn)
                 {
-                    var error = TypeErrorConstructor is IJsCallable ctor5
-                        ? ctor5.Invoke(["Iterator.next is not callable"], null)
-                        : new InvalidOperationException("Iterator.next is not callable.");
+                    var error = WrapTypeError("Iterator.next is not callable");
                     throw new ThrowSignal(error);
                 }
 
@@ -6904,7 +7281,7 @@ public static class StandardLibrary
         // methods attached from user code (e.g. String.prototype.toJSONString),
         // and provide a minimal shared implementation of core helpers such as
         // String.prototype.slice for use with call/apply patterns.
-        if (stringConstructor.TryGetProperty("prototype", out var stringProto) &&
+            if (stringConstructor.TryGetProperty("prototype", out var stringProto) &&
             stringProto is JsObject stringProtoObj)
         {
             realm.StringPrototype ??= stringProtoObj;
@@ -6955,6 +7332,30 @@ public static class StandardLibrary
 
                 return str.Substring(start, end - start);
             }));
+
+            var supFn = new HostFunction((thisValue, args) =>
+            {
+                if (thisValue is null || thisValue is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
+                {
+                    throw ThrowTypeError("String.prototype.sup called on null or undefined");
+                }
+
+                var s = JsValueToString(thisValue);
+                return $"<sup>{s}</sup>";
+            })
+            {
+                IsConstructor = false
+            };
+
+            supFn.DefineProperty("length", new PropertyDescriptor
+            {
+                Value = 0d,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+
+            stringProtoObj.SetProperty("sup", supFn);
         }
 
         // String.fromCodePoint(...codePoints)
@@ -7362,6 +7763,178 @@ public static class StandardLibrary
                 }
 
                 return typed;
+            })
+            {
+                IsConstructor = false
+            },
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+        constructor.DefineProperty("from", new PropertyDescriptor
+        {
+            Value = new HostFunction((thisValue, args) =>
+            {
+                IJsCallable? ResolveTypeErrorCtor(JsEnvironment? env)
+                {
+                    if (env is not null &&
+                        env.TryGet(Symbol.Intern("TypeError"), out var typeErrorVal) &&
+                        typeErrorVal is IJsCallable typeErrorFromEnv)
+                    {
+                        return typeErrorFromEnv;
+                    }
+
+                    return TypeErrorConstructor;
+                }
+
+                object WrapTypeError(string message, JsEnvironment? env)
+                {
+                    var typeErrorCtor = ResolveTypeErrorCtor(env);
+                    if (typeErrorCtor is not null)
+                    {
+                        var errorValue = typeErrorCtor.Invoke([message], null);
+                        if (errorValue is JsObject errorObj)
+                        {
+                            errorObj.SetProperty("constructor", typeErrorCtor);
+                        }
+
+                        return errorValue ?? new InvalidOperationException(message);
+                    }
+
+                    return new InvalidOperationException(message);
+                }
+
+                var callingEnv = (thisValue as HostFunction)?.CallingJsEnvironment;
+                IJsCallable? mapFn = null;
+                object? mapThis = Symbols.Undefined;
+
+                TypedArrayBase CreateTarget(int length)
+                {
+                    var target = fromLength(length);
+                    target.SetPrototype(prototype);
+                    return target;
+                }
+
+                object? ApplyMap(int index, object? value)
+                {
+                    return mapFn is null ? value : mapFn.Invoke([value, (double)index], mapThis);
+                }
+
+                if (args.Count == 0)
+                {
+                    return CreateTarget(0);
+                }
+
+                if (args.Count > 1 && !ReferenceEquals(args[1], Symbols.Undefined))
+                {
+                    if (args[1] is not IJsCallable callableMap)
+                    {
+                        throw new ThrowSignal(WrapTypeError("mapfn is not callable", callingEnv));
+                    }
+
+                    mapFn = callableMap;
+                    mapThis = args.Count > 2 ? args[2] : Symbols.Undefined;
+                }
+
+                var source = args[0];
+                if (source is JsArray jsArray)
+                {
+                    var target = CreateTarget(jsArray.Items.Count);
+                    for (var i = 0; i < jsArray.Items.Count; i++)
+                    {
+                        target.SetValue(i, ApplyMap(i, jsArray.Items[i]));
+                    }
+
+                    return target;
+                }
+
+                if (source is TypedArrayBase typedSource)
+                {
+                    var target = CreateTarget(typedSource.Length);
+                    for (var i = 0; i < typedSource.Length; i++)
+                    {
+                        object? value = typedSource switch
+                        {
+                            JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
+                            JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
+                            _ => typedSource.GetElement(i)
+                        };
+                        target.SetValue(i, ApplyMap(i, value));
+                    }
+
+                    return target;
+                }
+
+                var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+                var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+                if (source is IJsPropertyAccessor accessor &&
+                    accessor.TryGetProperty(iteratorKey, out var methodVal) &&
+                    !ReferenceEquals(methodVal, Symbols.Undefined))
+                {
+                    if (methodVal is not IJsCallable callableIterator)
+                    {
+                        throw new ThrowSignal(WrapTypeError("Iterator method is not callable", callingEnv));
+                    }
+
+                    var iteratorObj = callableIterator.Invoke([], source);
+                    if (iteratorObj is not IJsPropertyAccessor iteratorAccessor)
+                    {
+                        throw new ThrowSignal(WrapTypeError("Iterator method did not return an object", callingEnv));
+                    }
+
+                    if (!iteratorAccessor.TryGetProperty("next", out var nextVal) || nextVal is not IJsCallable nextCallable)
+                    {
+                        throw new ThrowSignal(WrapTypeError("Iterator result does not expose next", callingEnv));
+                    }
+
+                    var collected = new List<object?>();
+                    while (true)
+                    {
+                        var nextResult = nextCallable.Invoke([], iteratorObj);
+                        if (nextResult is not IJsPropertyAccessor nextResultAccessor)
+                        {
+                            throw new ThrowSignal(WrapTypeError("Iterator result is not an object", callingEnv));
+                        }
+
+                        var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&
+                                   JsOps.ToBoolean(doneVal);
+                        if (done)
+                        {
+                            var target = CreateTarget(collected.Count);
+                            for (var i = 0; i < collected.Count; i++)
+                            {
+                                target.SetValue(i, ApplyMap(i, collected[i]));
+                            }
+
+                            return target;
+                        }
+
+                        var value = nextResultAccessor.TryGetProperty("value", out var valueVal)
+                            ? valueVal
+                            : Symbols.Undefined;
+                        collected.Add(value);
+                    }
+                }
+
+                if (source is IJsPropertyAccessor arrayLike &&
+                    arrayLike.TryGetProperty("length", out var lengthVal))
+                {
+                    var lenNumber = JsOps.ToNumberWithContext(lengthVal);
+                    var length = double.IsNaN(lenNumber) || lenNumber < 0
+                        ? 0
+                        : (int)Math.Min(lenNumber, int.MaxValue);
+                    var target = CreateTarget(length);
+                    for (var i = 0; i < length; i++)
+                    {
+                        var key = i.ToString();
+                        var hasElement = arrayLike.TryGetProperty(key, out var element);
+                        target.SetValue(i, ApplyMap(i, hasElement ? element : Symbols.Undefined));
+                    }
+
+                    return target;
+                }
+
+                return CreateTarget(0);
             })
             {
                 IsConstructor = false

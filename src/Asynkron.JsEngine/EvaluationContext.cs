@@ -29,6 +29,24 @@ public sealed class EvaluationContext
     /// </summary>
     public ISignal? CurrentSignal { get; private set; }
 
+    private bool _thisInitialized = true;
+
+    /// <summary>
+    /// Indicates whether the current execution context has an initialized
+    /// <c>this</c> binding (used for derived class constructor checks).
+    /// </summary>
+    public bool IsThisInitialized => _thisInitialized;
+
+    public void MarkThisUninitialized()
+    {
+        _thisInitialized = false;
+    }
+
+    public void MarkThisInitialized()
+    {
+        _thisInitialized = true;
+    }
+
     /// <summary>
     /// The current source reference for error reporting.
     /// </summary>

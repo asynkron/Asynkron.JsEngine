@@ -15,7 +15,7 @@ public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
     {
     }
 
-    public JsBigInt(string value) : this(BigInteger.Parse(value, CultureInfo.InvariantCulture))
+    public JsBigInt(string value) : this(BigInteger.Parse(value.Replace("_", string.Empty), CultureInfo.InvariantCulture))
     {
     }
 

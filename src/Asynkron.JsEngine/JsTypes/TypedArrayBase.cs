@@ -1,4 +1,5 @@
 using System.Globalization;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.JsTypes;
@@ -127,6 +128,11 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     /// </summary>
     protected void CheckBounds(int index)
     {
+        if (IsDetachedOrOutOfBounds())
+        {
+            throw CreateOutOfBoundsTypeError();
+        }
+
         if (index < 0 || index >= _length)
         {
             throw new ArgumentOutOfRangeException(nameof(index), "Index is out of range");
@@ -198,19 +204,20 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         }
 
         for (var i = 0; i < source.Items.Count; i++)
-        {
-            var value = source.Items[i];
-            var numValue = value switch
             {
-                double d => d,
-                int iv => (double)iv,
-                long lv => (double)lv,
-                float fv => (double)fv,
-                _ => 0.0
-            };
-            SetElement(offset + i, numValue);
+                var value = source.Items[i];
+                var numValue = value switch
+                {
+                    double d => d,
+                    int iv => (double)iv,
+                    long lv => (double)lv,
+                    float fv => (double)fv,
+                    JsBigInt bi => (double)bi.Value,
+                    _ => 0.0
+                };
+                SetElement(offset + i, numValue);
+            }
         }
-    }
 
     /// <summary>
     /// Helper method to normalize slice indices.
@@ -261,6 +268,11 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         if (TryParseIndex(name, out var index) && index >= 0 && index < Length)
         {
+            if (IsDetachedOrOutOfBounds())
+            {
+                throw CreateOutOfBoundsTypeError();
+            }
+
             value = GetElement(index);
             return true;
         }
@@ -286,6 +298,11 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
             if (index < 0)
             {
                 throw new InvalidOperationException($"Invalid typed array index '{name}'.");
+            }
+
+            if (IsDetachedOrOutOfBounds())
+            {
+                throw CreateOutOfBoundsTypeError();
             }
 
             var numericValue = value switch
@@ -344,5 +361,30 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     private static object CreateSlice(TypedArrayBase typedArray, int begin, int end)
     {
         return typedArray.Slice(begin, end);
+    }
+
+    private bool IsDetachedOrOutOfBounds()
+    {
+        return _buffer.ByteLength < _byteOffset + _length * _bytesPerElement;
+    }
+
+    private static ThrowSignal CreateOutOfBoundsTypeError()
+    {
+        if (StandardLibrary.TypeErrorConstructor is IJsCallable ctor)
+        {
+            var obj = ctor.Invoke(["Out of bounds access on TypedArray"], null);
+            if (obj is not null)
+            {
+                return new ThrowSignal(obj);
+            }
+        }
+
+        var fallback = new JsObject
+        {
+            ["name"] = "TypeError",
+            ["message"] = "Out of bounds access on TypedArray"
+        };
+
+        return new ThrowSignal(fallback);
     }
 }

@@ -19,5 +19,6 @@ public sealed class RealmState
     public JsObject? BooleanPrototype { get; set; }
     public JsObject? NumberPrototype { get; set; }
     public JsObject? StringPrototype { get; set; }
+    public JsObject? BigIntPrototype { get; set; }
     public HostFunction? ArrayConstructor { get; set; }
 }

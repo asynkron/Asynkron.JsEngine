@@ -72,6 +72,7 @@ namespace Asynkron.JsEngine;
         SetGlobal("Object", StandardLibrary.CreateObjectConstructor(_realm));
         SetGlobal("Function", StandardLibrary.CreateFunctionConstructor(_realm));
         SetGlobal("Number", StandardLibrary.CreateNumberConstructor(_realm));
+        SetGlobal("BigInt", StandardLibrary.CreateBigIntFunction(_realm));
         SetGlobal("Boolean", StandardLibrary.CreateBooleanConstructor(_realm));
         SetGlobal("String", StandardLibrary.CreateStringConstructor(_realm));
         var arrayConstructor = StandardLibrary.CreateArrayConstructor(_realm);
@@ -157,6 +158,8 @@ namespace Asynkron.JsEngine;
         SetGlobal("Uint32Array", StandardLibrary.CreateUint32ArrayConstructor());
         SetGlobal("Float32Array", StandardLibrary.CreateFloat32ArrayConstructor());
         SetGlobal("Float64Array", StandardLibrary.CreateFloat64ArrayConstructor());
+        SetGlobal("BigInt64Array", StandardLibrary.CreateBigInt64ArrayConstructor());
+        SetGlobal("BigUint64Array", StandardLibrary.CreateBigUint64ArrayConstructor());
 
         // Register Error constructors
         SetGlobal("Error", StandardLibrary.CreateErrorConstructor(_realm, "Error"));

@@ -1,3 +1,6 @@
+using Asynkron.JsEngine;
+using Asynkron.JsEngine.Ast;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -5,19 +8,26 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class JsArrayBuffer : IJsPropertyAccessor
 {
-    private readonly byte[] _buffer;
+    private byte[] _buffer;
     private readonly JsObject _properties = new();
     private readonly HostFunction _sliceFunction;
+    private readonly HostFunction _resizeFunction;
+
+    private readonly bool _resizable;
+    private readonly int _maxByteLength;
 
     /// <summary>
     /// Creates a new ArrayBuffer with the specified length in bytes.
     /// </summary>
-    public JsArrayBuffer(int byteLength)
+    public JsArrayBuffer(int byteLength, int? maxByteLength = null)
     {
         if (byteLength < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(byteLength), "ArrayBuffer size cannot be negative");
         }
+
+        _maxByteLength = maxByteLength.HasValue ? Math.Max(maxByteLength.Value, byteLength) : byteLength;
+        _resizable = maxByteLength.HasValue;
 
         _buffer = new byte[byteLength];
 
@@ -28,6 +38,24 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
             var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : target.ByteLength;
 
             return target.Slice(begin, end);
+        });
+
+        _resizeFunction = new HostFunction((thisValue, args) =>
+        {
+            var target = thisValue as JsArrayBuffer ?? this;
+            if (!_resizable)
+            {
+                throw new ThrowSignal(CreateTypeError("ArrayBuffer is not resizable"));
+            }
+
+            if (args.Count == 0 || args[0] is not double d)
+            {
+                throw new ThrowSignal(CreateTypeError("resize requires a new length"));
+            }
+
+            var newLength = (int)d;
+            target.Resize(newLength);
+            return Symbols.Undefined;
         });
     }
 
@@ -40,6 +68,10 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
     /// Gets the underlying byte array.
     /// </summary>
     public byte[] Buffer => _buffer;
+
+    public bool Resizable => _resizable;
+
+    public int MaxByteLength => _maxByteLength;
 
     /// <summary>
     /// Allows external callers to attach a prototype object.
@@ -82,6 +114,20 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
             case "slice":
                 value = _sliceFunction;
                 return true;
+            case "resize":
+                if (_resizable)
+                {
+                    value = _resizeFunction;
+                    return true;
+                }
+
+                break;
+            case "maxByteLength":
+                value = (double)_maxByteLength;
+                return true;
+            case "resizable":
+                value = _resizable;
+                return true;
         }
 
         value = null;
@@ -96,5 +142,64 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
         }
 
         _properties.SetProperty(name, value);
+    }
+
+    public void Resize(int newByteLength)
+    {
+        if (!_resizable)
+        {
+            throw new ThrowSignal(CreateTypeError("ArrayBuffer is not resizable"));
+        }
+
+        if (newByteLength < 0 || newByteLength > _maxByteLength)
+        {
+            throw new ThrowSignal(CreateRangeError("Invalid ArrayBuffer length"));
+        }
+
+        if (newByteLength == _buffer.Length)
+        {
+            return;
+        }
+
+        var newBuffer = new byte[newByteLength];
+        var bytesToCopy = Math.Min(_buffer.Length, newByteLength);
+        Array.Copy(_buffer, newBuffer, bytesToCopy);
+        _buffer = newBuffer;
+    }
+
+    private static JsObject CreateTypeError(string message)
+    {
+        if (StandardLibrary.TypeErrorConstructor is IJsCallable ctor)
+        {
+            var created = ctor.Invoke([message], null);
+            if (created is JsObject jsObj)
+            {
+                return jsObj;
+            }
+        }
+
+        return new JsObject
+        {
+            ["name"] = "TypeError",
+            ["message"] = message
+        };
+    }
+
+    private static JsObject CreateRangeError(string message)
+    {
+        if (StandardLibrary.RangeErrorConstructor is IJsCallable ctor)
+        {
+            var created = ctor.Invoke([message], null);
+            if (created is JsObject jsObj)
+            {
+                return jsObj;
+            }
+        }
+
+        return new JsObject
+        {
+            ["name"] = "RangeError",
+            ["message"] = message
+        };
     }
 }

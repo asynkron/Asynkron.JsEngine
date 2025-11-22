@@ -111,7 +111,7 @@ internal static class JsOps
         }
     }
 
-    private static bool TryConvertToNumericPrimitive(IJsPropertyAccessor accessor, out object? primitive,
+    internal static bool TryConvertToNumericPrimitive(IJsPropertyAccessor accessor, out object? primitive,
         EvaluationContext? context)
     {
         primitive = null;
@@ -420,9 +420,6 @@ internal static class JsOps
                     return $"@@symbol:{jsSymbol.GetHashCode()}";
                 case bool b:
                     return b ? "true" : "false";
-                case JsObject jsObj when jsObj.TryGetValue("__value__", out var inner):
-                    value = inner;
-                    continue;
                 case int i:
                     return i.ToString(CultureInfo.InvariantCulture);
                 case long l:
@@ -707,6 +704,14 @@ internal static class JsOps
             case double num:
                 var numberWrapper = StandardLibrary.CreateNumberWrapper(num);
                 if (numberWrapper.TryGetProperty(propertyName, out value))
+                {
+                    return true;
+                }
+
+                break;
+            case JsBigInt bigInt:
+                var bigIntWrapper = StandardLibrary.CreateBigIntWrapper(bigInt);
+                if (bigIntWrapper.TryGetProperty(propertyName, out value))
                 {
                     return true;
                 }

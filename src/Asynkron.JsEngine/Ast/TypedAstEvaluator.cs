@@ -1858,7 +1858,7 @@ public static class TypedAstEvaluator
         {
             "!" => !IsTruthy(operand),
             "+" => operand is JsBigInt
-                ? throw new Exception("Cannot convert a BigInt value to a number")
+                ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number")
                 : JsOps.ToNumber(operand),
             "-" => operand is JsBigInt bigInt ? (object)(-bigInt) : -JsOps.ToNumber(operand),
             "~" => BitwiseNot(operand),
@@ -2673,22 +2673,40 @@ public static class TypedAstEvaluator
 
     private static object? Add(object? left, object? right)
     {
-        if (left is string || right is string || left is JsObject || left is JsArray || right is JsObject || right is JsArray)
-        {
-            return JsOps.ToJsString(left) + JsOps.ToJsString(right);
-        }
+        var leftPrimitive = ToAdditionPrimitive(left);
+        var rightPrimitive = ToAdditionPrimitive(right);
 
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        if (leftPrimitive is JsBigInt leftBigInt && rightPrimitive is JsBigInt rightBigInt)
         {
             return leftBigInt + rightBigInt;
         }
 
-        if (left is JsBigInt || right is JsBigInt)
+        if (leftPrimitive is string || rightPrimitive is string)
         {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+            return JsOps.ToJsString(leftPrimitive) + JsOps.ToJsString(rightPrimitive);
         }
 
-        return JsOps.ToNumber(left) + JsOps.ToNumber(right);
+        if (leftPrimitive is JsBigInt || rightPrimitive is JsBigInt)
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions");
+        }
+
+        return JsOps.ToNumber(leftPrimitive) + JsOps.ToNumber(rightPrimitive);
+    }
+
+    private static object? ToAdditionPrimitive(object? value)
+    {
+        if (value is IJsPropertyAccessor accessor)
+        {
+            if (JsOps.TryConvertToNumericPrimitive(accessor, out var primitive, null))
+            {
+                return primitive;
+            }
+
+            throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value");
+        }
+
+        return value;
     }
 
     private static object Subtract(object? left, object? right)
@@ -2739,7 +2757,7 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions");
         }
 
         return numericOp(JsOps.ToNumber(left), JsOps.ToNumber(right));
@@ -2792,7 +2810,7 @@ public static class TypedAstEvaluator
         {
             if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
             {
-                throw new InvalidOperationException("BigInt shift amount is too large");
+                throw StandardLibrary.ThrowRangeError("BigInt shift amount is too large");
             }
 
             return leftBigInt << (int)rightBigInt.Value;
@@ -2800,7 +2818,7 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions");
         }
 
         var leftInt = ToInt32(left);
@@ -2814,7 +2832,7 @@ public static class TypedAstEvaluator
         {
             if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
             {
-                throw new InvalidOperationException("BigInt shift amount is too large");
+                throw StandardLibrary.ThrowRangeError("BigInt shift amount is too large");
             }
 
             return leftBigInt >> (int)rightBigInt.Value;
@@ -2822,7 +2840,7 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions");
         }
 
         var leftInt = ToInt32(left);
@@ -2834,7 +2852,7 @@ public static class TypedAstEvaluator
     {
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw new InvalidOperationException("BigInts have no unsigned right shift, use >> instead");
+            throw StandardLibrary.ThrowTypeError("BigInts have no unsigned right shift, use >> instead");
         }
 
         var leftUInt = ToUInt32(left);
@@ -2855,7 +2873,7 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw new InvalidOperationException("Cannot mix BigInt and other types, use explicit conversions");
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions");
         }
 
         var leftInt = ToInt32(left);

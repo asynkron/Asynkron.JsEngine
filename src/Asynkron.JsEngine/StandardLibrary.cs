@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
+using System.Text;
 using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Converters;
@@ -21,6 +23,7 @@ public static class StandardLibrary
     private static JsObject? _fallbackObjectPrototype;
     private static JsObject? _fallbackFunctionPrototype;
     private static JsObject? _fallbackArrayPrototype;
+    private static JsObject? _fallbackBigIntPrototype;
     private static JsObject? _fallbackDatePrototype;
     private static JsObject? _fallbackErrorPrototype;
     private static JsObject? _fallbackTypeErrorPrototype;
@@ -120,6 +123,19 @@ public static class StandardLibrary
         }
     }
 
+    internal static JsObject? BigIntPrototype
+    {
+        get => CurrentRealm?.BigIntPrototype ?? _fallbackBigIntPrototype;
+        set
+        {
+            _fallbackBigIntPrototype = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.BigIntPrototype = value;
+            }
+        }
+    }
+
     internal static JsObject? DatePrototype
     {
         get => CurrentRealm?.DatePrototype ?? _fallbackDatePrototype;
@@ -196,6 +212,216 @@ public static class StandardLibrary
                 CurrentRealm.ArrayConstructor = value;
             }
         }
+    }
+
+    internal static object CreateTypeError(string message)
+    {
+        if (TypeErrorConstructor is IJsCallable ctor)
+        {
+            return ctor.Invoke([message], null);
+        }
+
+        return new InvalidOperationException(message);
+    }
+
+    internal static object CreateRangeError(string message)
+    {
+        if (RangeErrorConstructor is IJsCallable ctor)
+        {
+            return ctor.Invoke([message], null);
+        }
+
+        return new InvalidOperationException(message);
+    }
+
+    internal static ThrowSignal ThrowTypeError(string message)
+    {
+        return new ThrowSignal(CreateTypeError(message));
+    }
+
+    internal static ThrowSignal ThrowRangeError(string message)
+    {
+        return new ThrowSignal(CreateRangeError(message));
+    }
+
+    internal static JsBigInt ToBigInt(object? value)
+    {
+        while (true)
+        {
+            switch (value)
+            {
+                case JsBigInt bigInt:
+                    return bigInt;
+                case JsObject jsObj when jsObj.TryGetValue("__value__", out var inner):
+                    value = inner;
+                    continue;
+                case IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var accessorInner):
+                    value = accessorInner;
+                    continue;
+                case JsObject jsObj:
+                    if (JsOps.TryConvertToNumericPrimitive(jsObj, out var primitiveObj, null))
+                    {
+                        value = primitiveObj;
+                        continue;
+                    }
+
+                    throw ThrowTypeError("Cannot convert object to a BigInt");
+                case IJsPropertyAccessor accessor:
+                    if (JsOps.TryConvertToNumericPrimitive(accessor, out var primitive, null))
+                    {
+                        value = primitive;
+                        continue;
+                    }
+
+                    throw ThrowTypeError("Cannot convert object to a BigInt");
+                case null:
+                case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
+                    throw ThrowTypeError("Cannot convert undefined to a BigInt");
+                case bool b:
+                    return b ? JsBigInt.One : JsBigInt.Zero;
+                case string s when TryParseBigIntString(s, out var parsed):
+                    return new JsBigInt(parsed);
+                case string:
+                    throw ThrowTypeError("Cannot convert string to a BigInt");
+                case double d when double.IsNaN(d) || double.IsInfinity(d) || d % 1 != 0:
+                    throw ThrowTypeError("Cannot convert number to a BigInt");
+                case double d:
+                    return new JsBigInt(new BigInteger(d));
+                case float f when float.IsNaN(f) || float.IsInfinity(f) || f % 1 != 0:
+                    throw ThrowTypeError("Cannot convert number to a BigInt");
+                case float f:
+                    return new JsBigInt(new BigInteger(f));
+                case decimal m when decimal.Truncate(m) != m:
+                    throw ThrowTypeError("Cannot convert number to a BigInt");
+                case decimal m:
+                    return new JsBigInt(new BigInteger(m));
+                case int i:
+                    return new JsBigInt(i);
+                case uint ui:
+                    return new JsBigInt(new BigInteger(ui));
+                case long l:
+                    return new JsBigInt(new BigInteger(l));
+                case ulong ul:
+                    return new JsBigInt(new BigInteger(ul));
+            }
+
+            throw ThrowTypeError($"Cannot convert {value?.GetType().Name ?? "null"} to a BigInt");
+        }
+    }
+
+    private static bool TryParseBigIntString(string value, out BigInteger result)
+    {
+        result = BigInteger.Zero;
+        if (value is null)
+        {
+            return false;
+        }
+
+        var text = value.Trim();
+        if (text.Length == 0 || text.EndsWith("n", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var sign = 1;
+        if (text.StartsWith("+", StringComparison.Ordinal) || text.StartsWith("-", StringComparison.Ordinal))
+        {
+            if (text[0] == '-')
+            {
+                sign = -1;
+            }
+
+            text = text[1..];
+        }
+
+        if (text.Length == 0)
+        {
+            return false;
+        }
+
+        var numberBase = 10;
+        if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            numberBase = 16;
+            text = text[2..];
+        }
+        else if (text.StartsWith("0b", StringComparison.OrdinalIgnoreCase))
+        {
+            numberBase = 2;
+            text = text[2..];
+        }
+        else if (text.StartsWith("0o", StringComparison.OrdinalIgnoreCase))
+        {
+            numberBase = 8;
+            text = text[2..];
+        }
+
+        if (text.Length == 0)
+        {
+            return false;
+        }
+
+        if (!TryParseBigIntWithBase(text, numberBase, sign, out var parsed))
+        {
+            return false;
+        }
+
+        result = parsed;
+        return true;
+    }
+
+    private static bool TryParseBigIntWithBase(string digits, int numberBase, int sign, out BigInteger result)
+    {
+        result = BigInteger.Zero;
+        foreach (var ch in digits)
+        {
+            var digit = ch switch
+            {
+                >= '0' and <= '9' => ch - '0',
+                >= 'a' and <= 'z' => ch - 'a' + 10,
+                >= 'A' and <= 'Z' => ch - 'A' + 10,
+                _ => -1
+            };
+
+            if (digit < 0 || digit >= numberBase)
+            {
+                return false;
+            }
+
+            result = result * numberBase + digit;
+        }
+
+        if (sign < 0)
+        {
+            result = BigInteger.Negate(result);
+        }
+
+        return true;
+    }
+
+    private static string BigIntToString(BigInteger value, int radix)
+    {
+        if (radix == 10)
+        {
+            return value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        const string digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+        var builder = new StringBuilder();
+        var isNegative = value.Sign < 0;
+        var remainder = BigInteger.Abs(value);
+        if (remainder.IsZero)
+        {
+            return "0";
+        }
+
+        while (!remainder.IsZero)
+        {
+            remainder = BigInteger.DivRem(remainder, radix, out var rem);
+            builder.Insert(0, digits[(int)rem]);
+        }
+
+        return isNegative ? "-" + builder : builder.ToString();
     }
 
     /// <summary>
@@ -3931,6 +4157,21 @@ public static class StandardLibrary
         return numberObj;
     }
 
+    public static JsObject CreateBigIntWrapper(JsBigInt value)
+    {
+        var wrapper = new JsObject
+        {
+            ["__value__"] = value
+        };
+
+        if (BigIntPrototype is not null)
+        {
+            wrapper.SetPrototype(BigIntPrototype);
+        }
+
+        return wrapper;
+    }
+
     /// <summary>
     /// Adds number methods to a number wrapper object.
     /// </summary>
@@ -4153,7 +4394,20 @@ public static class StandardLibrary
             {
                 return jsObj;
             }
-            // For primitives, wrap in an object (simplified - just return a new object)
+
+            var value = args[0];
+            switch (value)
+            {
+                case JsBigInt bigInt:
+                    return CreateBigIntWrapper(bigInt);
+                case bool b:
+                    return CreateBooleanWrapper(b);
+                case string s:
+                    return CreateStringWrapper(s);
+                case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
+                    return CreateNumberWrapper(JsOps.ToNumber(value));
+            }
+
             return CreateBlank();
         });
 
@@ -5868,6 +6122,176 @@ public static class StandardLibrary
     }
 
     /// <summary>
+    /// Creates the BigInt function (not a constructor).
+    /// </summary>
+    public static HostFunction CreateBigIntFunction(Runtime.RealmState realm)
+    {
+        var bigIntFunction = new HostFunction((thisValue, args) =>
+        {
+            if (args.Count == 0)
+            {
+                throw ThrowTypeError("Cannot convert undefined to a BigInt");
+            }
+
+            return ToBigInt(args[0]);
+        })
+        {
+            IsConstructor = false
+        };
+
+        if (bigIntFunction.TryGetProperty("prototype", out var protoValue) && protoValue is JsObject proto)
+        {
+            realm.BigIntPrototype ??= proto;
+            BigIntPrototype ??= proto;
+            if (realm.ObjectPrototype is not null && proto.Prototype is null)
+            {
+                proto.SetPrototype(realm.ObjectPrototype);
+            }
+
+            proto.DefineProperty("constructor", new PropertyDescriptor
+            {
+                Value = bigIntFunction,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
+
+            proto.SetProperty("toString", new HostFunction((thisValue, args) =>
+            {
+                var value = ToBigInt(thisValue);
+                var radix = args.Count > 0 ? args[0] : 10d;
+                var radixNumber = radix is JsBigInt biRadix ? (double)biRadix.Value : JsOps.ToNumber(radix);
+                if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
+                {
+                    throw ThrowRangeError("Invalid radix");
+                }
+
+                var intRadix = (int)radixNumber;
+                if (intRadix is < 2 or > 36)
+                {
+                    throw ThrowRangeError("toString() radix argument must be between 2 and 36");
+                }
+
+                return BigIntToString(value.Value, intRadix);
+            }));
+
+            proto.SetProperty("valueOf", new HostFunction((thisValue, args) =>
+            {
+                return ToBigInt(thisValue);
+            }));
+
+            proto.SetProperty("toLocaleString", new HostFunction((thisValue, args) =>
+            {
+                var value = ToBigInt(thisValue);
+                var radix = args.Count > 0 ? args[0] : 10d;
+                var radixNumber = radix is JsBigInt biRadix ? (double)biRadix.Value : JsOps.ToNumber(radix);
+                if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
+                {
+                    throw ThrowRangeError("Invalid radix");
+                }
+
+                var intRadix = (int)radixNumber;
+                if (intRadix is < 2 or > 36)
+                {
+                    throw ThrowRangeError("toLocaleString() radix argument must be between 2 and 36");
+                }
+
+                return BigIntToString(value.Value, intRadix);
+            }));
+        }
+
+        bigIntFunction.SetProperty("asIntN", new HostFunction(args =>
+        {
+            if (args.Count < 2)
+            {
+                throw ThrowTypeError("BigInt.asIntN requires bits and value");
+            }
+
+            var bits = ToIndex(args[0]);
+            var value = ToBigInt(args[1]);
+            return new JsBigInt(AsIntN(bits, value.Value));
+        }));
+
+        bigIntFunction.SetProperty("asUintN", new HostFunction(args =>
+        {
+            if (args.Count < 2)
+            {
+                throw ThrowTypeError("BigInt.asUintN requires bits and value");
+            }
+
+            var bits = ToIndex(args[0]);
+            var value = ToBigInt(args[1]);
+            return new JsBigInt(AsUintN(bits, value.Value));
+        }));
+
+        bigIntFunction.SetProperty("name", "BigInt");
+        bigIntFunction.SetProperty("length", 1d);
+
+        return bigIntFunction;
+    }
+
+    private static int ToIndex(object? value)
+    {
+        if (value is JsBigInt bigInt)
+        {
+            if (bigInt.Value < 0 || bigInt.Value > int.MaxValue)
+            {
+                throw ThrowRangeError("Index must be a non-negative integer");
+            }
+
+            return (int)bigInt.Value;
+        }
+
+        var number = JsOps.ToNumber(value);
+        if (double.IsNaN(number) || double.IsInfinity(number) || number < 0 || Math.Abs(number % 1) > double.Epsilon)
+        {
+            throw ThrowRangeError("Index must be a non-negative integer");
+        }
+
+        if (number > int.MaxValue)
+        {
+            throw ThrowRangeError("Index is too large");
+        }
+
+        return (int)number;
+    }
+
+    private static BigInteger AsIntN(int bits, BigInteger value)
+    {
+        if (bits == 0)
+        {
+            return BigInteger.Zero;
+        }
+
+        var modulus = BigInteger.One << bits;
+        var unsigned = value % modulus;
+        if (unsigned.Sign < 0)
+        {
+            unsigned += modulus;
+        }
+
+        var threshold = modulus >> 1;
+        return unsigned >= threshold ? unsigned - modulus : unsigned;
+    }
+
+    private static BigInteger AsUintN(int bits, BigInteger value)
+    {
+        if (bits == 0)
+        {
+            return BigInteger.Zero;
+        }
+
+        var modulus = BigInteger.One << bits;
+        var result = value % modulus;
+        if (result.Sign < 0)
+        {
+            result += modulus;
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Creates the Number constructor with static methods.
     /// </summary>
     public static HostFunction CreateNumberConstructor(Runtime.RealmState realm)
@@ -6493,19 +6917,24 @@ public static class StandardLibrary
     {
         var constructor = new HostFunction((thisValue, args) =>
         {
-            if (args.Count == 0)
-            {
-                return new JsArrayBuffer(0);
-            }
-
-            var length = args[0] switch
+            var length = args.Count > 0 ? args[0] : 0d;
+            var byteLength = length switch
             {
                 double d => (int)d,
                 int i => i,
                 _ => 0
             };
 
-            return new JsArrayBuffer(length);
+            int? maxByteLength = null;
+            if (args.Count > 1 && args[1] is JsObject opts)
+            {
+                if (opts.TryGetProperty("maxByteLength", out var maxVal) && maxVal is double maxD)
+                {
+                    maxByteLength = (int)maxD;
+                }
+            }
+
+            return new JsArrayBuffer(byteLength, maxByteLength);
         });
 
         constructor.SetProperty("isView", new HostFunction(args =>
@@ -6677,6 +7106,24 @@ public static class StandardLibrary
             JsFloat64Array.FromArray,
             (buffer, offset, length) => new JsFloat64Array(buffer, offset, length),
             JsFloat64Array.BYTES_PER_ELEMENT);
+    }
+
+    public static HostFunction CreateBigInt64ArrayConstructor()
+    {
+        return CreateTypedArrayConstructor(
+            JsBigInt64Array.FromLength,
+            JsBigInt64Array.FromArray,
+            (buffer, offset, length) => new JsBigInt64Array(buffer, offset, length),
+            JsBigInt64Array.BYTES_PER_ELEMENT);
+    }
+
+    public static HostFunction CreateBigUint64ArrayConstructor()
+    {
+        return CreateTypedArrayConstructor(
+            JsBigUint64Array.FromLength,
+            JsBigUint64Array.FromArray,
+            (buffer, offset, length) => new JsBigUint64Array(buffer, offset, length),
+            JsBigUint64Array.BYTES_PER_ELEMENT);
     }
 
     /// <summary>

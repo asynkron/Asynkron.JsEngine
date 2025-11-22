@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine;
 
@@ -13,6 +14,7 @@ internal static class JsValueExtensions
         {
             null => 0,
             Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => double.NaN,
+            JsBigInt => throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number"),
             double d => d,
             float f => f,
             decimal m => (double)m,
@@ -47,7 +49,7 @@ internal static class JsValueExtensions
             bool b => b ? "true" : "false",
             JsBigInt bigInt => bigInt.ToString(),
             JsArray array => ArrayToString(array),
-            JsObject => "[object Object]",
+            IJsPropertyAccessor accessor => JsOps.ToPropertyName(accessor) ?? string.Empty,
             IJsCallable => "function() { [native code] }",
             string s => s,
             double d => d.ToString(CultureInfo.InvariantCulture),

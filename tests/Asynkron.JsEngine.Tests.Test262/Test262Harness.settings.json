@@ -2,7 +2,7 @@
   "SuiteGitSha": "a073f479f80b336256b7fc4e04700c827293e2fe",
   "TargetPath": "./Generated",
   "Namespace": "Asynkron.JsEngine.Tests.Test262",
-  "Parallel": false,
+  "Parallel": true,
   "ExcludedFeatures": [],
   "ExcludedFlags": [],
   "ExcludedDirectories": [],

@@ -87,7 +87,7 @@ public static partial class StandardLibrary
         }));
 
         // clear()
-        map.SetProperty("clear", new HostFunction((thisValue, args) =>
+        map.SetProperty("clear", new HostFunction((thisValue, _) =>
         {
             if (thisValue is JsMap m)
             {
@@ -116,7 +116,7 @@ public static partial class StandardLibrary
         }));
 
         // entries()
-        map.SetProperty("entries", new HostFunction((thisValue, args) =>
+        map.SetProperty("entries", new HostFunction((thisValue, _) =>
         {
             if (thisValue is not JsMap m)
             {
@@ -127,7 +127,7 @@ public static partial class StandardLibrary
         }));
 
         // keys()
-        map.SetProperty("keys", new HostFunction((thisValue, args) =>
+        map.SetProperty("keys", new HostFunction((thisValue, _) =>
         {
             if (thisValue is not JsMap m)
             {
@@ -138,7 +138,7 @@ public static partial class StandardLibrary
         }));
 
         // values()
-        map.SetProperty("values", new HostFunction((thisValue, args) =>
+        map.SetProperty("values", new HostFunction((thisValue, _) =>
         {
             if (thisValue is not JsMap m)
             {
@@ -218,7 +218,7 @@ public static partial class StandardLibrary
         }));
 
         // clear()
-        set.SetProperty("clear", new HostFunction((thisValue, args) =>
+        set.SetProperty("clear", new HostFunction((thisValue, _) =>
         {
             if (thisValue is JsSet s)
             {
@@ -247,7 +247,7 @@ public static partial class StandardLibrary
         }));
 
         // entries()
-        set.SetProperty("entries", new HostFunction((thisValue, args) =>
+        set.SetProperty("entries", new HostFunction((thisValue, _) =>
         {
             if (thisValue is not JsSet s)
             {
@@ -258,7 +258,7 @@ public static partial class StandardLibrary
         }));
 
         // keys()
-        set.SetProperty("keys", new HostFunction((thisValue, args) =>
+        set.SetProperty("keys", new HostFunction((thisValue, _) =>
         {
             if (thisValue is not JsSet s)
             {
@@ -269,7 +269,7 @@ public static partial class StandardLibrary
         }));
 
         // values()
-        set.SetProperty("values", new HostFunction((thisValue, args) =>
+        set.SetProperty("values", new HostFunction((thisValue, _) =>
         {
             if (thisValue is not JsSet s)
             {

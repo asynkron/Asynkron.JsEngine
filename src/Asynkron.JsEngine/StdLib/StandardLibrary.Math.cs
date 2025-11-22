@@ -158,7 +158,7 @@ public static partial class StandardLibrary
             return min;
         });
 
-        math["random"] = new HostFunction(args => Random.Shared.NextDouble());
+        math["random"] = new HostFunction(_ => Random.Shared.NextDouble());
 
         math["sin"] = new HostFunction(args =>
         {

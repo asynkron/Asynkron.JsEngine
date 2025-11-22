@@ -9,7 +9,7 @@ public static partial class StandardLibrary
         var storage = new JsObject();
         var backing = new Dictionary<string, string?>(StringComparer.Ordinal);
 
-        storage.SetProperty("getItem", new HostFunction((thisValue, args) =>
+        storage.SetProperty("getItem", new HostFunction((_, args) =>
         {
             if (args.Count == 0)
             {
@@ -20,7 +20,7 @@ public static partial class StandardLibrary
             return backing.GetValueOrDefault(key);
         }));
 
-        storage.SetProperty("setItem", new HostFunction((thisValue, args) =>
+        storage.SetProperty("setItem", new HostFunction((_, args) =>
         {
             if (args.Count < 2)
             {
@@ -33,7 +33,7 @@ public static partial class StandardLibrary
             return null;
         }));
 
-        storage.SetProperty("removeItem", new HostFunction((thisValue, args) =>
+        storage.SetProperty("removeItem", new HostFunction((_, args) =>
         {
             if (args.Count == 0)
             {
@@ -45,7 +45,7 @@ public static partial class StandardLibrary
             return null;
         }));
 
-        storage.SetProperty("clear", new HostFunction((thisValue, args) =>
+        storage.SetProperty("clear", new HostFunction((_, _) =>
         {
             backing.Clear();
             return null;

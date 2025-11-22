@@ -58,7 +58,7 @@ public static partial class StandardLibrary
             durationFormatPrototype.SetPrototype(ObjectPrototype);
         }
 
-        var durationFormatCtor = new HostFunction((thisValue, args) =>
+        var durationFormatCtor = new HostFunction((thisValue, _) =>
         {
             var instance = thisValue as JsObject ?? new JsObject();
             instance.SetPrototype(durationFormatPrototype);
@@ -84,11 +84,11 @@ public static partial class StandardLibrary
             });
 
         durationFormatPrototype.SetProperty("format",
-            new HostFunction((thisValue, args) => "PT0S") { IsConstructor = false });
+            new HostFunction((_, _) => "PT0S") { IsConstructor = false });
         durationFormatPrototype.SetProperty("formatToParts",
-            new HostFunction((thisValue, args) => new JsArray()) { IsConstructor = false });
+            new HostFunction((_, _) => new JsArray()) { IsConstructor = false });
         durationFormatPrototype.SetProperty("resolvedOptions",
-            new HostFunction((thisValue, args) =>
+            new HostFunction((_, _) =>
             {
                 var obj = new JsObject();
                 obj.SetProperty("numberingSystem", "latn");
@@ -183,11 +183,11 @@ public static partial class StandardLibrary
             collatorPrototype.SetPrototype(ObjectPrototype);
         }
 
-        var collatorCtor = new HostFunction((thisValue, args) =>
+        var collatorCtor = new HostFunction((thisValue, _) =>
         {
             var instance = thisValue as JsObject ?? new JsObject();
             instance.SetPrototype(collatorPrototype);
-            instance.SetProperty("compare", new HostFunction((innerThis, compareArgs) =>
+            instance.SetProperty("compare", new HostFunction((_, compareArgs) =>
             {
                 // Basic comparison using string coercion.
                 var a = compareArgs.Count > 0 ? JsValueToString(compareArgs[0]) : string.Empty;
@@ -214,7 +214,7 @@ public static partial class StandardLibrary
         collatorCtor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor
             {
-                Value = new HostFunction(args => new JsArray()) { IsConstructor = false },
+                Value = new HostFunction(_ => new JsArray()) { IsConstructor = false },
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -249,12 +249,14 @@ public static partial class StandardLibrary
         {
             var instance = thisValue as JsObject ?? new JsObject();
             instance.SetPrototype(durationPrototype);
-            if (args.Count > 0 && args[0] is JsObject source)
+            if (args.Count <= 0 || args[0] is not JsObject source)
             {
-                foreach (var key in source.Keys)
-                {
-                    instance.SetProperty(key, source[key]);
-                }
+                return instance;
+            }
+
+            foreach (var key in source.Keys)
+            {
+                instance.SetProperty(key, source[key]);
             }
 
             return instance;
@@ -282,7 +284,7 @@ public static partial class StandardLibrary
 
             var formatterObj = CreateIntlObject().TryGetProperty("DurationFormat", out var ctorVal) &&
                                ctorVal is IJsCallable durationFormatCtor
-                ? durationFormatCtor.Invoke(new[] { locale, options }, null)
+                ? durationFormatCtor.Invoke([locale, options], null)
                 : new JsObject();
 
             if (formatterObj is IJsPropertyAccessor accessor &&

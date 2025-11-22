@@ -9,7 +9,7 @@ public static partial class StandardLibrary
     /// </summary>
     public static IJsCallable CreatePromiseConstructor(JsEngine engine)
     {
-        var promiseConstructor = new HostFunction((thisValue, args) =>
+        var promiseConstructor = new HostFunction((_, args) =>
         {
             // Promise constructor takes an executor function: function(resolve, reject) { ... }
             if (args.Count == 0 || args[0] is not IJsCallable executor)
@@ -34,7 +34,7 @@ public static partial class StandardLibrary
             });
 
             // Add then, catch, and finally methods
-            promiseObj["then"] = new HostFunction((promiseThis, thenArgs) =>
+            promiseObj["then"] = new HostFunction((_, thenArgs) =>
             {
                 var onFulfilled = thenArgs.Count > 0 ? thenArgs[0] as IJsCallable : null;
                 var onRejected = thenArgs.Count > 1 ? thenArgs[1] as IJsCallable : null;
@@ -43,7 +43,7 @@ public static partial class StandardLibrary
                 return resultPromise.JsObject;
             });
 
-            promiseObj["catch"] = new HostFunction((promiseThis, catchArgs) =>
+            promiseObj["catch"] = new HostFunction((_, catchArgs) =>
             {
                 var onRejected = catchArgs.Count > 0 ? catchArgs[0] as IJsCallable : null;
                 var resultPromise = promise.Then(null, onRejected);
@@ -51,7 +51,7 @@ public static partial class StandardLibrary
                 return resultPromise.JsObject;
             });
 
-            promiseObj["finally"] = new HostFunction((promiseThis, finallyArgs) =>
+            promiseObj["finally"] = new HostFunction((_, finallyArgs) =>
             {
                 var onFinally = finallyArgs.Count > 0 ? finallyArgs[0] as IJsCallable : null;
                 if (onFinally == null)
@@ -253,7 +253,7 @@ public static partial class StandardLibrary
     /// </summary>
     internal static void AddPromiseInstanceMethods(JsObject promiseObj, JsPromise promise, JsEngine engine)
     {
-        promiseObj["then"] = new HostFunction((promiseThis, thenArgs) =>
+        promiseObj["then"] = new HostFunction((_, thenArgs) =>
         {
             var onFulfilled = thenArgs.Count > 0 ? thenArgs[0] as IJsCallable : null;
             var onRejected = thenArgs.Count > 1 ? thenArgs[1] as IJsCallable : null;
@@ -262,7 +262,7 @@ public static partial class StandardLibrary
             return result.JsObject;
         });
 
-        promiseObj["catch"] = new HostFunction((promiseThis, catchArgs) =>
+        promiseObj["catch"] = new HostFunction((_, catchArgs) =>
         {
             var onRejected = catchArgs.Count > 0 ? catchArgs[0] as IJsCallable : null;
             var result = promise.Then(null, onRejected);
@@ -270,7 +270,7 @@ public static partial class StandardLibrary
             return result.JsObject;
         });
 
-        promiseObj["finally"] = new HostFunction((promiseThis, finallyArgs) =>
+        promiseObj["finally"] = new HostFunction((_, finallyArgs) =>
         {
             var onFinally = finallyArgs.Count > 0 ? finallyArgs[0] as IJsCallable : null;
             if (onFinally == null)

@@ -6,20 +6,6 @@ public sealed class ParseException : Exception
     {
     }
 
-    public ParseException(string message, int line, int column)
-        : base($"{message} at line {line}, column {column}")
-    {
-        Line = line;
-        Column = column;
-    }
-
-    public ParseException(string message, Token token)
-        : base($"{message} at line {token.Line}, column {token.Column}")
-    {
-        Line = token.Line;
-        Column = token.Column;
-    }
-
     public ParseException(string message, Token token, string source)
         : base(FormatMessageWithSnippet(message, token, source))
     {

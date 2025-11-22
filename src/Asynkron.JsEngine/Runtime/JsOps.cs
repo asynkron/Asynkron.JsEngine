@@ -51,7 +51,6 @@ internal static class JsOps
                 case null:
                     return 0;
                 case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
-                    return double.NaN;
                 case IIsHtmlDda:
                     return double.NaN;
                 case Symbol:
@@ -86,40 +85,35 @@ internal static class JsOps
                     return NumericStringParser.ParseJsNumber(str);
             }
 
-            if (value is JsObject jsObj && jsObj.TryGetValue("__value__", out var inner))
+            switch (value)
             {
-                value = inner;
-                continue;
-            }
-
-            if (value is IJsPropertyAccessor accessor)
-            {
-                if (TryConvertToNumericPrimitive(accessor, out var primitive, context))
-                {
+                case JsObject jsObj when jsObj.TryGetValue("__value__", out var inner):
+                    value = inner;
+                    continue;
+                case IJsPropertyAccessor accessor when TryConvertToNumericPrimitive(accessor, out var primitive, context):
                     value = primitive;
                     continue;
-                }
-
-                if (context?.IsThrow == true)
-                {
+                case IJsPropertyAccessor accessor when (context?.IsThrow == true):
                     return double.NaN;
-                }
-
-                var typeError = CreateTypeError("Cannot convert object to number", context);
-                if (context is not null)
+                case IJsPropertyAccessor accessor:
                 {
+                    var typeError = CreateTypeError("Cannot convert object to number", context);
+                    if (context is null)
+                    {
+                        throw new ThrowSignal(typeError);
+                    }
+
                     context.SetThrow(typeError);
                     return double.NaN;
+
                 }
-
-                throw new ThrowSignal(typeError);
+                default:
+                    throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
             }
-
-            throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
         }
     }
 
-    internal static bool TryConvertToNumericPrimitive(IJsPropertyAccessor accessor, out object? primitive,
+    private static bool TryConvertToNumericPrimitive(IJsPropertyAccessor accessor, out object? primitive,
         EvaluationContext? context)
     {
         primitive = null;
@@ -137,15 +131,10 @@ internal static class JsOps
                     return true;
                 }
             }
-            catch (ThrowSignal signal)
+            catch (ThrowSignal signal) when (context is not null)
             {
-                if (context is not null)
-                {
-                    context.SetThrow(signal.ThrownValue);
-                    return false;
-                }
-
-                throw;
+                context.SetThrow(signal.ThrownValue);
+                return false;
             }
         }
 
@@ -162,15 +151,16 @@ internal static class JsOps
             return false;
         }
 
-        if (TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context) &&
-            toStringResult is not IJsPropertyAccessor &&
-            toStringResult is not JsObject)
+        if (!TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context) ||
+            toStringResult is IJsPropertyAccessor ||
+            toStringResult is JsObject)
         {
-            primitive = toStringResult;
-            return true;
+            return false;
         }
 
-        return false;
+        primitive = toStringResult;
+        return true;
+
     }
 
     public static object? ToPrimitive(object? value, string hint, EvaluationContext? context = null)
@@ -194,15 +184,11 @@ internal static class JsOps
 
                 return result;
             }
-            catch (ThrowSignal signal)
+            catch (ThrowSignal signal) when (context is not null)
             {
-                if (context is not null)
-                {
-                    context.SetThrow(signal.ThrownValue);
-                    return value;
-                }
+                context.SetThrow(signal.ThrownValue);
+                return value;
 
-                throw;
             }
         }
 
@@ -381,17 +367,19 @@ internal static class JsOps
                 }
             }
 
-            if (right is JsObject or JsArray)
+            if (right is not (JsObject or JsArray))
             {
-                if (IsNumeric(left))
-                {
-                    return ToNumber(left, context).Equals(ToNumber(right, context));
-                }
+                return StrictEquals(left, right);
+            }
 
-                if (left is string ls2)
-                {
-                    return string.Equals(ls2, ToJsString(right), StringComparison.Ordinal);
-                }
+            if (IsNumeric(left))
+            {
+                return ToNumber(left, context).Equals(ToNumber(right, context));
+            }
+
+            if (left is string ls2)
+            {
+                return string.Equals(ls2, ToJsString(right), StringComparison.Ordinal);
             }
 
             return StrictEquals(left, right);
@@ -571,21 +559,22 @@ internal static class JsOps
             return false;
         }
 
-        if (attempted)
+        if (!attempted)
         {
-            key = null;
+            return false;
+        }
 
-            var error = CreateTypeError("Cannot convert object to property key", context);
-            if (context is not null)
-            {
-                context.SetThrow(error);
-                return false;
-            }
+        key = null;
 
+        var error = CreateTypeError("Cannot convert object to property key", context);
+        if (context is null)
+        {
             throw new ThrowSignal(error);
         }
 
+        context.SetThrow(error);
         return false;
+
     }
 
     private static bool IsPropertyKeyPrimitive(object? candidate)

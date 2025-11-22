@@ -193,21 +193,21 @@ public static partial class StandardLibrary
         }));
 
         // toLowerCase()
-        stringObj.SetProperty("toLowerCase", new HostFunction(args => str.ToLowerInvariant()));
+        stringObj.SetProperty("toLowerCase", new HostFunction(_ => str.ToLowerInvariant()));
 
         // toUpperCase()
-        stringObj.SetProperty("toUpperCase", new HostFunction(args => str.ToUpperInvariant()));
+        stringObj.SetProperty("toUpperCase", new HostFunction(_ => str.ToUpperInvariant()));
 
         // trim()
-        stringObj.SetProperty("trim", new HostFunction(args => str.Trim()));
+        stringObj.SetProperty("trim", new HostFunction(_ => str.Trim()));
 
         // trimStart() / trimLeft()
-        stringObj.SetProperty("trimStart", new HostFunction(args => str.TrimStart()));
-        stringObj.SetProperty("trimLeft", new HostFunction(args => str.TrimStart()));
+        stringObj.SetProperty("trimStart", new HostFunction(_ => str.TrimStart()));
+        stringObj.SetProperty("trimLeft", new HostFunction(_ => str.TrimStart()));
 
         // trimEnd() / trimRight()
-        stringObj.SetProperty("trimEnd", new HostFunction(args => str.TrimEnd()));
-        stringObj.SetProperty("trimRight", new HostFunction(args => str.TrimEnd()));
+        stringObj.SetProperty("trimEnd", new HostFunction(_ => str.TrimEnd()));
+        stringObj.SetProperty("trimRight", new HostFunction(_ => str.TrimEnd()));
 
         // split(separator, limit?)
         stringObj.SetProperty("split", new HostFunction(args =>
@@ -584,12 +584,12 @@ public static partial class StandardLibrary
         }));
 
         // trimStart() / trimLeft()
-        stringObj.SetProperty("trimStart", new HostFunction(args => str.TrimStart()));
-        stringObj.SetProperty("trimLeft", new HostFunction(args => str.TrimStart()));
+        stringObj.SetProperty("trimStart", new HostFunction(_ => str.TrimStart()));
+        stringObj.SetProperty("trimLeft", new HostFunction(_ => str.TrimStart()));
 
         // trimEnd() / trimRight()
-        stringObj.SetProperty("trimEnd", new HostFunction(args => str.TrimEnd()));
-        stringObj.SetProperty("trimRight", new HostFunction(args => str.TrimEnd()));
+        stringObj.SetProperty("trimEnd", new HostFunction(_ => str.TrimEnd()));
+        stringObj.SetProperty("trimRight", new HostFunction(_ => str.TrimEnd()));
 
         // codePointAt(index)
         stringObj.SetProperty("codePointAt", new HostFunction(args =>
@@ -703,14 +703,14 @@ public static partial class StandardLibrary
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
 
         // Create iterator function that returns an iterator object
-        var iteratorFunction = new HostFunction((thisValue, args) =>
+        var iteratorFunction = new HostFunction((_, _) =>
         {
             // Use array to hold index so it can be mutated in closure
             var indexHolder = new[] { 0 };
             var iterator = new JsObject();
 
             // Add next() method to iterator
-            iterator.SetProperty("next", new HostFunction((nextThisValue, nextArgs) =>
+            iterator.SetProperty("next", new HostFunction((_, _) =>
             {
                 var result = new JsObject();
                 if (indexHolder[0] < str.Length)
@@ -836,7 +836,7 @@ public static partial class StandardLibrary
                 return str.Substring(start, end - start);
             }));
 
-            var supFn = new HostFunction((thisValue, args) =>
+            var supFn = new HostFunction((thisValue, _) =>
             {
                 if (thisValue is null || (thisValue is Symbol sym && ReferenceEquals(sym, Symbols.Undefined)))
                 {

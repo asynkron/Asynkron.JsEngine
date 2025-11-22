@@ -244,21 +244,16 @@ public static partial class StandardLibrary
         // For decimal strings, reject any non-digit content.
         if (numberBase == 10)
         {
-            for (var i = 0; i < text.Length; i++)
+            foreach (var t in text)
             {
-                if (text[i] is < '0' or > '9')
+                if (t is < '0' or > '9')
                 {
                     throw ThrowSyntaxError("Invalid BigInt literal");
                 }
             }
         }
 
-        if (text.Length == 0)
-        {
-            throw ThrowSyntaxError("Invalid BigInt literal");
-        }
-
-        if (!TryParseBigIntWithBase(text, numberBase, sign, out var parsed))
+        if (text.Length == 0 || !TryParseBigIntWithBase(text, numberBase, sign, out var parsed))
         {
             throw ThrowSyntaxError("Invalid BigInt literal");
         }

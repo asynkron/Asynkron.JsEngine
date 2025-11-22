@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Represents a host function that can be called from JavaScript.
 /// </summary>
-public sealed class HostFunction : IJsCallable, IJsObjectLike, IJsEnvironmentAwareCallable
+public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
 {
     private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
 
@@ -114,7 +114,7 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike, IJsEnvironmentAwa
                     var boundThis = args.Count > 0 ? args[0] : Symbols.Undefined;
                     var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
-                    return new HostFunction((innerThis, innerArgs) =>
+                    return new HostFunction((_, innerArgs) =>
                     {
                         var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
                         boundArgs.CopyTo(finalArgs, 0);

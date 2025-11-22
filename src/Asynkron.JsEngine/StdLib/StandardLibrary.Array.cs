@@ -37,7 +37,7 @@ public static partial class StandardLibrary
         }));
 
         // pop
-        array.SetProperty("pop", new HostFunction((thisValue, args) =>
+        array.SetProperty("pop", new HostFunction((thisValue, _) =>
         {
             if (thisValue is not JsArray jsArray)
             {
@@ -288,7 +288,7 @@ public static partial class StandardLibrary
         }));
 
         // toString - delegates to join with the default separator
-        array.SetProperty("toString", new HostFunction((thisValue, args) =>
+        array.SetProperty("toString", new HostFunction((thisValue, _) =>
         {
             if (thisValue is JsArray jsArray)
             {
@@ -471,7 +471,7 @@ public static partial class StandardLibrary
         array.SetProperty("slice", new HostFunction((thisValue, args) => ArraySlice(thisValue, args)));
 
         // shift
-        array.SetProperty("shift", new HostFunction((thisValue, args) =>
+        array.SetProperty("shift", new HostFunction((thisValue, _) =>
         {
             if (thisValue is not JsArray jsArray)
             {
@@ -547,7 +547,7 @@ public static partial class StandardLibrary
         }));
 
         // reverse
-        array.SetProperty("reverse", new HostFunction((thisValue, args) =>
+        array.SetProperty("reverse", new HostFunction((thisValue, _) =>
         {
             if (thisValue is not JsArray jsArray)
             {
@@ -895,7 +895,7 @@ public static partial class StandardLibrary
         }));
 
         // toReversed() - non-mutating reverse
-        array.SetProperty("toReversed", new HostFunction((thisValue, args) =>
+        array.SetProperty("toReversed", new HostFunction((thisValue, _) =>
         {
             if (thisValue is not JsArray jsArray)
             {
@@ -1037,7 +1037,7 @@ public static partial class StandardLibrary
             uint index = 0;
             var exhausted = false;
 
-            iterator.SetProperty("next", new HostFunction((_, __) =>
+            iterator.SetProperty("next", new HostFunction((_, _) =>
             {
                 if (exhausted)
                 {
@@ -1070,14 +1070,14 @@ public static partial class StandardLibrary
                 return result;
             }));
 
-            iterator.SetProperty(iteratorKey, new HostFunction((_, __) => iterator));
+            iterator.SetProperty(iteratorKey, new HostFunction((_, _) => iterator));
             return iterator;
         }
 
         HostFunction DefineArrayIteratorFunction(string name,
             Func<IJsPropertyAccessor, object?, Func<uint, object?>> projectorFactory)
         {
-            var fn = new HostFunction((thisValue, args) =>
+            var fn = new HostFunction((thisValue, _) =>
             {
                 if (thisValue is null || ReferenceEquals(thisValue, Symbols.Undefined))
                 {
@@ -1141,10 +1141,10 @@ public static partial class StandardLibrary
         });
 
         // keys() - returns an iterator of indices
-        DefineArrayIteratorFunction("keys", (_, __) => idx => (double)idx);
+        DefineArrayIteratorFunction("keys", (_, _) => idx => (double)idx);
 
         // values() - returns an iterator of values
-        var valuesFn = DefineArrayIteratorFunction("values", (accessor, thisValue) => idx =>
+        var valuesFn = DefineArrayIteratorFunction("values", (accessor, _) => idx =>
         {
             var key = idx.ToString(CultureInfo.InvariantCulture);
             return accessor.TryGetProperty(key, out var value) ? value : Symbols.Undefined;

@@ -5467,7 +5467,7 @@ public static class TypedAstEvaluator
                         var boundThis = args.Count > 0 ? args[0] : JsSymbols.Undefined;
                         var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
-                        return new HostFunction((innerThis, innerArgs) =>
+                        return new HostFunction((_, innerArgs) =>
                         {
                             var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
                             boundArgs.CopyTo(finalArgs, 0);

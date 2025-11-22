@@ -79,7 +79,7 @@ public static partial class StandardLibrary
             }
 
             // Object.prototype.toString
-            var objectToString = new HostFunction((thisValue, args) =>
+            var objectToString = new HostFunction((thisValue, _) =>
             {
                 var tag = thisValue switch
                 {
@@ -212,7 +212,7 @@ public static partial class StandardLibrary
             objectConstructor.SetProperty("hasOwnProperty", hasOwn);
         }
 
-        objectConstructor.SetProperty("defineProperty", new HostFunction((thisValue, args) =>
+        objectConstructor.SetProperty("defineProperty", new HostFunction((_, args) =>
         {
             if (args.Count < 3)
             {
@@ -254,7 +254,7 @@ public static partial class StandardLibrary
             return args[0];
         }));
 
-        objectConstructor.SetProperty("defineProperties", new HostFunction((thisValue, args) =>
+        objectConstructor.SetProperty("defineProperties", new HostFunction((_, args) =>
         {
             if (args.Count < 2)
             {
@@ -295,7 +295,7 @@ public static partial class StandardLibrary
             return args[0];
         }));
 
-        objectConstructor.SetProperty("setPrototypeOf", new HostFunction((thisValue, args) =>
+        objectConstructor.SetProperty("setPrototypeOf", new HostFunction((_, args) =>
         {
             if (args.Count < 2)
             {
@@ -343,7 +343,7 @@ public static partial class StandardLibrary
             return !target.IsSealed;
         }));
 
-        objectConstructor.SetProperty("getOwnPropertySymbols", new HostFunction(args =>
+        objectConstructor.SetProperty("getOwnPropertySymbols", new HostFunction(_ =>
         {
             // The engine currently uses internal string keys for symbol
             // properties on JsObject instances (\"@@symbol:...\"), and Babel

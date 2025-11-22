@@ -106,7 +106,7 @@ public static partial class StandardLibrary
             var isNegative = intValue < 0;
             intValue = Math.Abs(intValue);
 
-            var digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+            const string digits = "0123456789abcdefghijklmnopqrstuvwxyz";
             var result = "";
             while (intValue > 0)
             {
@@ -152,18 +152,19 @@ public static partial class StandardLibrary
                 return num > 0 ? "Infinity" : "-Infinity";
             }
 
-            if (args.Count > 0 && args[0] is double d)
+            if (args.Count <= 0 || args[0] is not double d)
             {
-                var fractionDigits = (int)d;
-                if (fractionDigits is < 0 or > 100)
-                {
-                    throw new ArgumentException("toExponential() digits argument must be between 0 and 100");
-                }
-
-                return num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
+                return num.ToString("e", CultureInfo.InvariantCulture);
             }
 
-            return num.ToString("e", CultureInfo.InvariantCulture);
+            var fractionDigits = (int)d;
+            if (fractionDigits is < 0 or > 100)
+            {
+                throw new ArgumentException("toExponential() digits argument must be between 0 and 100");
+            }
+
+            return num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
+
         }));
 
         // toPrecision(precision?)
@@ -184,29 +185,30 @@ public static partial class StandardLibrary
                 return num > 0 ? "Infinity" : "-Infinity";
             }
 
-            if (args[0] is double d)
+            if (args[0] is not double d)
             {
-                var precision = (int)d;
-                if (precision is < 1 or > 100)
-                {
-                    throw new ArgumentException("toPrecision() precision argument must be between 1 and 100");
-                }
-
-                // Format with specified precision
-                return num.ToString("G" + precision, CultureInfo.InvariantCulture);
+                return num.ToString(CultureInfo.InvariantCulture);
             }
 
-            return num.ToString(CultureInfo.InvariantCulture);
+            var precision = (int)d;
+            if (precision is < 1 or > 100)
+            {
+                throw new ArgumentException("toPrecision() precision argument must be between 1 and 100");
+            }
+
+            // Format with specified precision
+            return num.ToString("G" + precision, CultureInfo.InvariantCulture);
+
         }));
 
         // valueOf()
-        numberObj.SetProperty("valueOf", new HostFunction(args => num));
+        numberObj.SetProperty("valueOf", new HostFunction(_ => num));
     }
 
     public static HostFunction CreateBigIntFunction(RealmState realm)
     {
         HostFunction bigIntFunction = null!;
-        bigIntFunction = new HostFunction((thisValue, args) =>
+        bigIntFunction = new HostFunction((_, args) =>
         {
             if (args.Count == 0)
             {
@@ -272,7 +274,7 @@ public static partial class StandardLibrary
                     Value = toStringFn, Writable = true, Enumerable = false, Configurable = true
                 });
 
-            var valueOfFn = new HostFunction((thisValue, args) => ThisBigIntValue(thisValue)) { IsConstructor = false };
+            var valueOfFn = new HostFunction((thisValue, _) => ThisBigIntValue(thisValue)) { IsConstructor = false };
             valueOfFn.DefineProperty("length",
                 new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
             valueOfFn.DefineProperty("name",
@@ -283,7 +285,7 @@ public static partial class StandardLibrary
             proto.DefineProperty("valueOf",
                 new PropertyDescriptor { Value = valueOfFn, Writable = true, Enumerable = false, Configurable = true });
 
-            var toLocaleStringFn = new HostFunction((thisValue, args) =>
+            var toLocaleStringFn = new HostFunction((thisValue, _) =>
             {
                 // Minimal locale-insensitive fallback: ignore locales/options and
                 // use base-10 formatting per spec default.
@@ -413,25 +415,27 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                if (thisValue is JsObject objZero)
+                if (thisValue is not JsObject objZero)
                 {
-                    objZero.SetProperty("__value__", 0d);
-                    return objZero;
+                    return 0d;
                 }
 
-                return 0d;
+                objZero.SetProperty("__value__", 0d);
+                return objZero;
+
             }
 
             var value = args[0];
             var result = JsOps.ToNumber(value);
 
-            if (thisValue is JsObject obj)
+            if (thisValue is not JsObject obj)
             {
-                obj.SetProperty("__value__", result);
-                return obj;
+                return result;
             }
 
-            return result;
+            obj.SetProperty("__value__", result);
+            return obj;
+
         });
 
         // Remember Number.prototype so that number wrapper objects can see
@@ -446,7 +450,7 @@ public static partial class StandardLibrary
                 numberProtoObj.SetPrototype(realm.ObjectPrototype);
             }
 
-            numberProtoObj.SetProperty("toString", new HostFunction((thisValue, args) =>
+            numberProtoObj.SetProperty("toString", new HostFunction((thisValue, _) =>
             {
                 var num = JsOps.ToNumber(thisValue);
                 if (double.IsNaN(num))
@@ -513,12 +517,7 @@ public static partial class StandardLibrary
                 return false;
             }
 
-            if (args[0] is not double d)
-            {
-                return false;
-            }
-
-            return double.IsNaN(d);
+            return args[0] is double.NaN;
         }));
 
         // Number.isSafeInteger(value)
@@ -557,13 +556,13 @@ public static partial class StandardLibrary
 
             var str = args[0]?.ToString() ?? "";
             str = str.Trim();
-            if (str == "")
+            if (str.Length == 0)
             {
                 return double.NaN;
             }
 
             // Try to parse, taking as much as possible from the start
-            var match = Regex.Match(str, @"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?");
+            var match = FloatRegex().Match(str);
             if (match.Success)
             {
                 if (double.TryParse(match.Value, NumberStyles.Float,
@@ -682,4 +681,7 @@ public static partial class StandardLibrary
 
         return numberConstructor;
     }
+
+    [GeneratedRegex(@"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")]
+    private static partial Regex FloatRegex();
 }

@@ -40,7 +40,7 @@ public static partial class StandardLibrary
     private static void AddRegExpMethods(JsRegExp regex)
     {
         // test(string) - returns boolean
-        regex.SetProperty("test", new HostFunction((thisValue, args) =>
+        regex.SetProperty("test", new HostFunction((_, args) =>
         {
             if (args.Count == 0)
             {
@@ -52,7 +52,7 @@ public static partial class StandardLibrary
         }));
 
         // exec(string) - returns array with match details or null
-        regex.SetProperty("exec", new HostFunction((thisValue, args) =>
+        regex.SetProperty("exec", new HostFunction((_, args) =>
         {
             if (args.Count == 0)
             {

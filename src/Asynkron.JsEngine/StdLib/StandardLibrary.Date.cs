@@ -12,7 +12,7 @@ public static partial class StandardLibrary
         var date = new JsObject();
 
         // Date.now() - returns milliseconds since epoch
-        date["now"] = new HostFunction(args => { return (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); });
+        date["now"] = new HostFunction(_ => (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 
         // Date.UTC(...) - returns time value (ms since epoch) for the given UTC date/time components.
         date["UTC"] = new HostFunction(args =>
@@ -204,7 +204,7 @@ public static partial class StandardLibrary
             StoreInternalDate(dateInstance, dateTime);
 
             // Add instance methods
-            dateInstance["getTime"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getTime"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) &&
                     val is double ms)
@@ -227,7 +227,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getFullYear"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getFullYear"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -238,7 +238,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getYear"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getYear"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
                 {
@@ -303,7 +303,7 @@ public static partial class StandardLibrary
                 return (double)utc.ToUnixTimeMilliseconds();
             });
 
-            dateInstance["getMonth"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getMonth"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -314,7 +314,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getDate"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getDate"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -325,7 +325,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getDay"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getDay"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -336,7 +336,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getHours"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getHours"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -347,7 +347,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getMinutes"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getMinutes"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -358,7 +358,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getSeconds"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getSeconds"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -369,7 +369,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getMilliseconds"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getMilliseconds"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -380,7 +380,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getTimezoneOffset"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getTimezoneOffset"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -391,7 +391,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["toISOString"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["toISOString"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
                 {
@@ -402,7 +402,7 @@ public static partial class StandardLibrary
                 return "";
             });
 
-            dateInstance["toString"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["toString"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -414,7 +414,7 @@ public static partial class StandardLibrary
             });
 
             // UTC-based accessors
-            dateInstance["getUTCFullYear"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getUTCFullYear"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -425,7 +425,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getUTCMonth"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getUTCMonth"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -436,7 +436,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getUTCDate"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getUTCDate"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -447,7 +447,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getUTCDay"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getUTCDay"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -458,7 +458,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getUTCHours"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getUTCHours"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -469,7 +469,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getUTCMinutes"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getUTCMinutes"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -480,7 +480,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getUTCSeconds"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getUTCSeconds"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -491,7 +491,7 @@ public static partial class StandardLibrary
                 return double.NaN;
             });
 
-            dateInstance["getUTCMilliseconds"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["getUTCMilliseconds"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj)
                 {
@@ -503,7 +503,7 @@ public static partial class StandardLibrary
             });
 
             // Formatting helpers
-            dateInstance["toUTCString"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["toUTCString"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
                 {
@@ -514,7 +514,7 @@ public static partial class StandardLibrary
                 return "Invalid Date";
             });
 
-            dateInstance["toJSON"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["toJSON"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
                 {
@@ -526,7 +526,7 @@ public static partial class StandardLibrary
             });
 
             // valueOf() – mirrors getTime()
-            dateInstance["valueOf"] = new HostFunction((thisVal, methodArgs) =>
+            dateInstance["valueOf"] = new HostFunction((thisVal, _) =>
             {
                 if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
                 {

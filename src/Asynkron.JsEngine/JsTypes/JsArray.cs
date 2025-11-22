@@ -609,14 +609,14 @@ public sealed class JsArray : IJsObjectLike
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
 
         // Create iterator function that returns an iterator object
-        var iteratorFunction = new HostFunction((thisValue, args) =>
+        var iteratorFunction = new HostFunction((_, _) =>
         {
             // Use array to hold index so it can be mutated in closure
             int[] indexHolder = [0];
             var iterator = new JsObject();
 
             // Add next() method to iterator
-            iterator.SetProperty("next", new HostFunction((nextThisValue, nextArgs) =>
+            iterator.SetProperty("next", new HostFunction((_, _) =>
             {
                 var result = new JsObject();
                 if (indexHolder[0] < _length)

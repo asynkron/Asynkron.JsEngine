@@ -16,13 +16,6 @@ public static partial class StandardLibrary
 
             var iterable = args[0];
 
-            static bool HasCallableNext(object? candidate)
-            {
-                return candidate is JsObject obj &&
-                       obj.TryGetProperty("next", out var nextProp) &&
-                       nextProp is IJsCallable;
-            }
-
             static bool TryInvokeSymbolIterator(JsObject target, string symbolName, out JsObject? iterator)
             {
                 var symbol = TypedAstSymbol.For(symbolName);
@@ -130,6 +123,13 @@ public static partial class StandardLibrary
             }
 
             throw new InvalidOperationException($"Value is not iterable: {iterable?.GetType().Name}");
+
+            static bool HasCallableNext(object? candidate)
+            {
+                return candidate is JsObject obj &&
+                       obj.TryGetProperty("next", out var nextProp) &&
+                       nextProp is IJsCallable;
+            }
         });
     }
 

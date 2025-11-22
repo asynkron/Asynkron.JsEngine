@@ -12,10 +12,10 @@ public static partial class StandardLibrary
         // arguments and just return a no-op function value.
         HostFunction functionConstructor = null!;
 
-        functionConstructor = new HostFunction((thisValue, args) =>
+        functionConstructor = new HostFunction((thisValue, _) =>
         {
             var realm = functionConstructor.Realm ?? thisValue as JsObject;
-            return new HostFunction((innerThis, innerArgs) => Symbols.Undefined)
+            return new HostFunction((_, _) => Symbols.Undefined)
             {
                 Realm = realm, RealmState = functionConstructor.RealmState
             };

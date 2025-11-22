@@ -8,7 +8,7 @@ public static partial class StandardLibrary
 {
     public static HostFunction CreateArrayBufferConstructor()
     {
-        var constructor = new HostFunction((thisValue, args) =>
+        var constructor = new HostFunction((_, args) =>
         {
             var length = args.Count > 0 ? args[0] : 0d;
             var byteLength = length switch
@@ -48,7 +48,7 @@ public static partial class StandardLibrary
     /// </summary>
     public static HostFunction CreateDataViewConstructor()
     {
-        return new HostFunction((thisValue, args) =>
+        return new HostFunction((_, args) =>
         {
             if (args.Count == 0 || args[0] is not JsArrayBuffer buffer)
             {
@@ -72,7 +72,7 @@ public static partial class StandardLibrary
         int bytesPerElement) where T : TypedArrayBase
     {
         var prototype = new JsObject();
-        var constructor = new HostFunction((thisValue, args) =>
+        var constructor = new HostFunction((_, args) =>
         {
             if (args.Count == 0)
             {

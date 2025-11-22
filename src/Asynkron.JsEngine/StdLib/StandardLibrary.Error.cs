@@ -36,7 +36,7 @@ public static partial class StandardLibrary
             prototype.SetPrototype(realm.ObjectPrototype);
         }
 
-        prototype.SetProperty("toString", new HostFunction((errThis, toStringArgs) =>
+        prototype.SetProperty("toString", new HostFunction((errThis, _) =>
         {
             if (errThis is JsObject err)
             {

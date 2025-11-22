@@ -10,7 +10,7 @@ public static partial class StandardLibrary
     {
         JsObject? proxyPrototype = null;
 
-        var proxyConstructor = new HostFunction((thisValue, args) =>
+        var proxyConstructor = new HostFunction((_, args) =>
         {
             if (args.Count < 2)
             {
@@ -65,7 +65,7 @@ public static partial class StandardLibrary
         proxyConstructor.DefineProperty("length",
             new PropertyDescriptor { Value = 2d, Writable = false, Enumerable = false, Configurable = true });
 
-        var revocableFn = new HostFunction((thisValue, args) =>
+        var revocableFn = new HostFunction((_, args) =>
         {
             if (args.Count < 2)
             {

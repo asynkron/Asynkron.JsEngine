@@ -39,6 +39,55 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         return Math.Sign(number) * Math.Floor(Math.Abs(number));
     }
 
+    internal static object IndexOfInternal(TypedArrayBase target, IReadOnlyList<object?> args)
+    {
+        if (target.IsDetachedOrOutOfBounds())
+        {
+            throw CreateOutOfBoundsTypeError();
+        }
+
+        if (args.Count == 0)
+        {
+            return -1d;
+        }
+
+        var searchElement = args[0];
+        var len = target.Length;
+        double fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
+
+        if (double.IsPositiveInfinity(fromIndex))
+        {
+            return -1d;
+        }
+
+        if (fromIndex < 0)
+        {
+            fromIndex = Math.Max(len + Math.Ceiling(fromIndex), 0);
+        }
+        else
+        {
+            fromIndex = Math.Min(fromIndex, len);
+        }
+
+        var start = (int)fromIndex;
+        for (var i = start; i < len; i++)
+        {
+            object? element = target switch
+            {
+                JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
+                JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
+                _ => target.GetElement(i)
+            };
+
+            if (JsOps.StrictEquals(element, searchElement))
+            {
+                return (double)i;
+            }
+        }
+
+        return -1d;
+    }
+
     protected TypedArrayBase(JsArrayBuffer buffer, int byteOffset, int length, int bytesPerElement)
     {
         _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
@@ -107,62 +156,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
             return CreateSlice(target, begin, end);
         });
 
-        _indexOfFunction = new HostFunction((thisValue, args) =>
-        {
-            var target = ResolveThis(thisValue, this);
-            if (target.IsDetachedOrOutOfBounds())
-            {
-                throw CreateOutOfBoundsTypeError();
-            }
-            if (args.Count == 0)
-            {
-                return -1d;
-            }
-
-            var searchElement = args[0];
-            var len = target.Length;
-            double fromIndex;
-            try
-            {
-                fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
-            }
-            catch (ThrowSignal signal)
-            {
-                throw;
-            }
-
-            if (double.IsPositiveInfinity(fromIndex))
-            {
-                return -1d;
-            }
-
-            if (fromIndex < 0)
-            {
-                fromIndex = Math.Max(len + Math.Ceiling(fromIndex), 0);
-            }
-            else
-            {
-                fromIndex = Math.Min(fromIndex, len);
-            }
-
-            var start = (int)fromIndex;
-            for (var i = start; i < len; i++)
-            {
-                object? element = target switch
-                {
-                    JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
-                    JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
-                    _ => target.GetElement(i)
-                };
-
-                if (JsOps.StrictEquals(element, searchElement))
-                {
-                    return (double)i;
-                }
-            }
-
-            return -1d;
-        });
+        _indexOfFunction = new HostFunction((thisValue, args) => IndexOfInternal(ResolveThis(thisValue, this), args));
     }
 
     /// <summary>
@@ -189,6 +183,8 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     /// Gets the size in bytes of each element in the array.
     /// </summary>
     public int BytesPerElement => _bytesPerElement;
+
+    public JsObject? Prototype => _properties.Prototype as JsObject;
 
     /// <summary>
     /// Allows consumers (e.g. Object.setPrototypeOf) to attach a prototype object.

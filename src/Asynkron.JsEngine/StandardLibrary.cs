@@ -4662,8 +4662,24 @@ public static class StandardLibrary
     {
         switch (candidate)
         {
+            case null:
+            case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
+                accessor = null!;
+                return false;
             case IJsObjectLike a:
                 accessor = a;
+                return true;
+            case bool b:
+                accessor = CreateBooleanWrapper(b);
+                return true;
+            case string s:
+                accessor = CreateStringWrapper(s);
+                return true;
+            case JsBigInt bigInt:
+                accessor = CreateBigIntWrapper(bigInt);
+                return true;
+            case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
+                accessor = CreateNumberWrapper(JsOps.ToNumber(candidate));
                 return true;
             default:
                 accessor = null!;
@@ -5340,7 +5356,7 @@ public static class StandardLibrary
         {
             if (args.Count == 0 || !TryGetObject(args[0]!, out var obj))
             {
-                throw new Exception("Object.getPrototypeOf: target must be an object.");
+                throw ThrowTypeError("Object.getPrototypeOf called on null or undefined");
             }
 
             var proto = obj.Prototype ?? (object?)Symbols.Undefined;
@@ -7313,11 +7329,14 @@ public static class StandardLibrary
         Func<JsArrayBuffer, int, int, T> fromBuffer,
         int bytesPerElement) where T : TypedArrayBase
     {
+        var prototype = new JsObject();
         var constructor = new HostFunction((thisValue, args) =>
         {
             if (args.Count == 0)
             {
-                return fromLength(0);
+                var ta = fromLength(0);
+                ta.SetPrototype(prototype);
+                return ta;
             }
 
             var firstArg = args[0];
@@ -7325,13 +7344,17 @@ public static class StandardLibrary
             // TypedArray(length)
             if (firstArg is double d)
             {
-                return fromLength((int)d);
+                var ta = fromLength((int)d);
+                ta.SetPrototype(prototype);
+                return ta;
             }
 
             // TypedArray(array)
             if (firstArg is JsArray array)
             {
-                return fromArray(array);
+                var ta = fromArray(array);
+                ta.SetPrototype(prototype);
+                return ta;
             }
 
             // TypedArray(buffer, byteOffset, length)
@@ -7351,13 +7374,29 @@ public static class StandardLibrary
                     length = remainingBytes / bytesPerElement;
                 }
 
-                return fromBuffer(buffer, byteOffset, length);
+                var ta = fromBuffer(buffer, byteOffset, length);
+                ta.SetPrototype(prototype);
+                return ta;
             }
 
-            return fromLength(0);
+            var fallback = fromLength(0);
+            fallback.SetPrototype(prototype);
+            return fallback;
         });
 
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
+        prototype.SetPrototype(ObjectPrototype);
+        prototype.SetProperty("constructor", constructor);
+        prototype.SetProperty("indexOf", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is not TypedArrayBase typed)
+            {
+                throw ThrowTypeError("TypedArray.prototype.indexOf called on incompatible receiver");
+            }
+
+            return TypedArrayBase.IndexOfInternal(typed, args);
+        }));
+        constructor.SetProperty("prototype", prototype);
 
         return constructor;
     }

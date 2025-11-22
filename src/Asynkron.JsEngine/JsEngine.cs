@@ -75,6 +75,10 @@ namespace Asynkron.JsEngine;
         SetGlobal("String", StandardLibrary.CreateStringConstructor(_realm));
         var arrayConstructor = StandardLibrary.CreateArrayConstructor(_realm);
         SetGlobal("Array", arrayConstructor);
+        if (arrayConstructor is HostFunction arrayHost)
+        {
+            arrayHost.RealmState = _realm;
+        }
         _globalObject.DefineProperty("Array", new PropertyDescriptor
         {
             Value = arrayConstructor,
@@ -95,7 +99,7 @@ namespace Asynkron.JsEngine;
         SetGlobal("isFinite", StandardLibrary.CreateIsFiniteFunction());
 
         // Register Date constructor as a callable object with static methods
-        var dateConstructor = StandardLibrary.CreateDateConstructor();
+        var dateConstructor = StandardLibrary.CreateDateConstructor(_realm);
         var dateObj = StandardLibrary.CreateDateObject();
 
         // Add static methods to constructor
@@ -105,10 +109,6 @@ namespace Asynkron.JsEngine;
             {
                 hf.SetProperty(prop.Key, prop.Value);
             }
-
-            // Create and set Date.prototype
-            var datePrototype = new JsObject();
-            hf.SetProperty("prototype", datePrototype);
         }
 
         SetGlobal("Date", dateConstructor);
@@ -457,6 +457,11 @@ namespace Asynkron.JsEngine;
             if (hostFunction.Realm is null)
             {
                 hostFunction.Realm = _globalObject;
+            }
+
+            if (hostFunction.RealmState is null)
+            {
+                hostFunction.RealmState = _realm;
             }
 
             if (StandardLibrary.FunctionPrototype is not null && hostFunction.Properties.Prototype is null)

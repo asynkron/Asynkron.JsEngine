@@ -21,6 +21,7 @@ public static class StandardLibrary
     private static JsObject? _fallbackObjectPrototype;
     private static JsObject? _fallbackFunctionPrototype;
     private static JsObject? _fallbackArrayPrototype;
+    private static JsObject? _fallbackDatePrototype;
     private static JsObject? _fallbackErrorPrototype;
     private static JsObject? _fallbackTypeErrorPrototype;
     private static HostFunction? _fallbackTypeErrorConstructor;
@@ -115,6 +116,19 @@ public static class StandardLibrary
             if (CurrentRealm is not null)
             {
                 CurrentRealm.ArrayPrototype = value;
+            }
+        }
+    }
+
+    internal static JsObject? DatePrototype
+    {
+        get => CurrentRealm?.DatePrototype ?? _fallbackDatePrototype;
+        set
+        {
+            _fallbackDatePrototype = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.DatePrototype = value;
             }
         }
     }
@@ -682,9 +696,11 @@ public static class StandardLibrary
             var realm = functionConstructor.Realm ?? thisValue as JsObject;
             return new HostFunction((innerThis, innerArgs) => Symbols.Undefined)
             {
-                Realm = realm
+                Realm = realm,
+                RealmState = functionConstructor.RealmState ?? CurrentRealm
             };
         });
+        functionConstructor.RealmState = realm;
 
         // Function.call: when used as `fn.call(thisArg, ...args)` the
         // target function is `fn` (the `this` value). We implement this
@@ -712,6 +728,8 @@ public static class StandardLibrary
 
             return target.Invoke(callArgs, thisArg);
         });
+        callHelper.Realm = functionConstructor.Realm;
+        callHelper.RealmState = functionConstructor.RealmState ?? CurrentRealm;
 
         functionConstructor.SetProperty("call", callHelper);
 
@@ -1010,9 +1028,10 @@ public static class StandardLibrary
     /// <summary>
     /// Creates a Date instance constructor.
     /// </summary>
-    public static IJsCallable CreateDateConstructor()
+    public static HostFunction CreateDateConstructor(Runtime.RealmState realm)
     {
         HostFunction? dateConstructor = null;
+        JsObject? datePrototype = null;
 
         static DateTimeOffset ConvertMillisecondsToUtc(double milliseconds)
         {
@@ -1077,6 +1096,11 @@ public static class StandardLibrary
             // object and passes it as `thisValue`. Reuse that object so it
             // keeps the correct prototype chain (Date.prototype).
             var dateInstance = thisValue as JsObject ?? new JsObject();
+
+            if (dateInstance.Prototype is null && datePrototype is not null)
+            {
+                dateInstance.SetPrototype(datePrototype);
+            }
 
             DateTimeOffset dateTime;
 
@@ -1409,6 +1433,37 @@ public static class StandardLibrary
             return dateInstance;
         });
 
+        dateConstructor.RealmState = realm;
+        if (realm.FunctionPrototype is not null)
+        {
+            dateConstructor.Properties.SetPrototype(realm.FunctionPrototype);
+        }
+
+        datePrototype = new JsObject();
+        if (realm.ObjectPrototype is not null)
+        {
+            datePrototype.SetPrototype(realm.ObjectPrototype);
+        }
+        dateConstructor.SetProperty("prototype", datePrototype);
+        realm.DatePrototype ??= datePrototype;
+        DatePrototype ??= datePrototype;
+
+        dateConstructor.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = "Date",
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        dateConstructor.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = 7d,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+
         return dateConstructor;
     }
 
@@ -1623,15 +1678,16 @@ public static class StandardLibrary
     /// <summary>
     /// Adds standard array methods to a JsArray instance.
     /// </summary>
-    public static void AddArrayMethods(IJsPropertyAccessor array)
+    public static void AddArrayMethods(IJsPropertyAccessor array, JsObject? prototypeOverride = null)
     {
         // Once the shared Array prototype has been initialised, new arrays
         // should inherit from it instead of receiving per-instance copies of
         // every method. This keeps prototype mutations (e.g. in tests) visible
         // to existing arrays.
-        if (ArrayPrototype is not null && array is JsArray jsArray)
+        var resolvedPrototype = prototypeOverride ?? ArrayPrototype;
+        if (resolvedPrototype is not null && array is JsArray jsArray)
         {
-            jsArray.SetPrototype(ArrayPrototype);
+            jsArray.SetPrototype(resolvedPrototype);
             return;
         }
 
@@ -3995,20 +4051,25 @@ public static class StandardLibrary
                     return false;
                 }
 
-                if (args[0] is JsArray && ReferenceEquals(thisValue, ArrayPrototype))
+                if (args[0] is not IJsObjectLike objectLike)
                 {
-                    return true;
+                    return false;
                 }
 
-                object? cursor = args[0];
-                while (TryGetPrototype(cursor!, out var proto) && proto is not null)
+                var cursor = objectLike;
+                while (cursor.Prototype is JsObject proto)
                 {
                     if (ReferenceEquals(proto, thisValue))
                     {
                         return true;
                     }
 
-                    cursor = proto;
+                    if (proto is not IJsObjectLike next)
+                    {
+                        break;
+                    }
+
+                    cursor = next;
                 }
 
                 return false;
@@ -4539,23 +4600,44 @@ public static class StandardLibrary
     /// </summary>
     public static HostFunction CreateArrayConstructor(Runtime.RealmState realm)
     {
+        JsObject? arrayPrototype = null;
+
         // Array constructor
-        var arrayConstructor = new HostFunction(args =>
+        var arrayConstructor = new HostFunction((thisValue, args) =>
         {
+            // Use provided receiver when available so Reflect.construct can
+            // control allocation and prototype.
+            var instance = thisValue as JsArray ?? new JsArray();
+
+            // Honor an explicit prototype on the receiver; otherwise fall back
+            // to the constructor's prototype if available.
+            if (thisValue is JsObject thisObj && thisObj.Prototype is JsObject providedProto)
+            {
+                instance.SetPrototype(providedProto);
+            }
+            else if (instance.Prototype is null && arrayPrototype is not null)
+            {
+                instance.SetPrototype(arrayPrototype);
+            }
+
             // Array(length) or Array(element0, element1, ...)
             if (args is [double length])
             {
-                var arr = new JsArray();
-                arr.SetProperty("length", length);
-                AddArrayMethods(arr);
-                return arr;
+                instance.SetProperty("length", length);
+                AddArrayMethods(instance, instance.Prototype);
+                return instance;
             }
 
-            var array = new JsArray(args);
-            AddArrayMethods(array);
-            return array;
+            foreach (var value in args)
+            {
+                instance.Push(value);
+            }
+
+            AddArrayMethods(instance, instance.Prototype);
+            return instance;
         });
 
+        arrayConstructor.RealmState = realm;
         realm.ArrayConstructor ??= arrayConstructor;
         ArrayConstructor ??= arrayConstructor;
 
@@ -4632,6 +4714,7 @@ public static class StandardLibrary
             {
                 arrayProtoObj.SetPrototype(realm.ObjectPrototype);
             }
+            arrayPrototype = arrayProtoObj;
             realm.ArrayPrototype ??= arrayProtoObj;
             ArrayPrototype ??= arrayProtoObj;
             arrayProtoObj.DefineProperty("length", new PropertyDescriptor
@@ -6469,18 +6552,21 @@ public static class StandardLibrary
             var argList = args[1] is JsArray arr ? arr.Items.ToArray() : Array.Empty<object?>();
             var newTarget = args.Count > 2 && args[2] is IJsCallable ctor ? ctor : target;
 
-            JsObject? proto = null;
-            if (TryGetPrototype(newTarget, out var newTargetProto))
+            JsObject? proto = ResolveConstructPrototype(newTarget, target);
+
+            // If we are constructing Array (or a subclass), create a real JsArray
+            // so length/index semantics behave correctly, then invoke the
+            // constructor with that receiver.
+            if (ReferenceEquals(target, ArrayConstructor) || ReferenceEquals(newTarget, ArrayConstructor))
             {
-                proto = newTargetProto;
-            }
-            else if (TryResolveRealmDefaultPrototype(newTarget, target, out var realmProto))
-            {
-                proto = realmProto;
-            }
-            else if (TryGetPrototype(target, out var targetProto))
-            {
-                proto = targetProto;
+                var arrayInstance = new JsArray();
+                if (proto is not null)
+                {
+                    arrayInstance.SetPrototype(proto);
+                }
+
+                var result = target.Invoke(argList, arrayInstance);
+                return result is JsObject jsObj ? jsObj : arrayInstance;
             }
 
             var instance = new JsObject();
@@ -6489,8 +6575,8 @@ public static class StandardLibrary
                 instance.SetPrototype(proto);
             }
 
-            var result = target.Invoke(argList, instance);
-            return result is JsObject ? result : instance;
+            var constructed = target.Invoke(argList, instance);
+            return constructed is JsObject obj ? obj : instance;
         }));
 
         reflect.SetProperty("defineProperty", new HostFunction(args =>
@@ -6706,21 +6792,77 @@ public static class StandardLibrary
         return reflect;
     }
 
+    private static JsObject? ResolveConstructPrototype(IJsCallable newTarget, IJsCallable target)
+    {
+        // Step 1: use newTarget.prototype if it is an object
+        if (newTarget is IJsPropertyAccessor accessor &&
+            accessor.TryGetProperty("prototype", out var protoVal) &&
+            protoVal is JsObject protoObj)
+        {
+            return protoObj;
+        }
+
+        // Step 2: try realm default for Array (handles cross-realm Array subclassing)
+        if (ReferenceEquals(target, ArrayConstructor) || ReferenceEquals(newTarget, ArrayConstructor))
+        {
+            if (newTarget is HostFunction hostFn && hostFn.RealmState?.ArrayPrototype is JsObject realmArrayProtoFromState)
+            {
+                return realmArrayProtoFromState;
+            }
+
+            if (newTarget is HostFunction hostFunction && hostFunction.Realm is JsObject realmObj &&
+                realmObj.TryGetProperty("Array", out var realmArrayCtor) &&
+                TryGetPrototype(realmArrayCtor!, out var realmArrayProto))
+            {
+                return realmArrayProto;
+            }
+
+            if (ArrayPrototype is not null)
+            {
+                return ArrayPrototype;
+            }
+            // Fall through to other realm lookups if needed.
+        }
+
+        // Step 3: for other constructors, look for the intrinsic in the
+        // newTarget's realm using the target's name.
+        if (TryResolveRealmDefaultPrototype(newTarget, target, out var realmProto))
+        {
+            return realmProto;
+        }
+
+        // Step 4: fall back to target.prototype if available
+        if (TryGetPrototype(target, out var targetProto))
+        {
+            return targetProto;
+        }
+
+        return null;
+    }
+
     private static bool TryResolveRealmDefaultPrototype(object newTarget, IJsCallable target, out JsObject? prototype)
     {
         prototype = null;
-        if (newTarget is not HostFunction hostFunction || hostFunction.Realm is null)
+        if (newTarget is not HostFunction hostFunction)
         {
             return false;
         }
 
-        // Use the target's intrinsic name (e.g., "Array") to locate the
-        // corresponding constructor in the newTarget's realm, then read its
-        // prototype. If anything fails, fall back to the caller.
-        if (target is IJsPropertyAccessor accessor &&
-            accessor.TryGetProperty("name", out var nameValue) &&
-            nameValue is string ctorName &&
-            hostFunction.Realm.TryGetProperty(ctorName, out var realmCtor) &&
+        if (target is not IJsPropertyAccessor accessor ||
+            !accessor.TryGetProperty("name", out var nameValue) ||
+            nameValue is not string ctorName)
+        {
+            return false;
+        }
+
+        if (hostFunction.RealmState is RealmState realmState &&
+            TryGetPrototypeFromRealmState(ctorName, realmState, out prototype))
+        {
+            return true;
+        }
+
+        if (hostFunction.Realm is JsObject realmObj &&
+            realmObj.TryGetProperty(ctorName, out var realmCtor) &&
             TryGetPrototype(realmCtor, out var realmProto))
         {
             prototype = realmProto;
@@ -6730,9 +6872,32 @@ public static class StandardLibrary
         return false;
     }
 
+    private static bool TryGetPrototypeFromRealmState(string ctorName, RealmState realmState, out JsObject? prototype)
+    {
+        prototype = ctorName switch
+        {
+            "Array" => realmState.ArrayPrototype,
+            "Date" => realmState.DatePrototype,
+            _ => null
+        };
+
+        return prototype is not null;
+    }
+
     private static bool TryGetPrototype(object candidate, out JsObject? prototype)
     {
         prototype = null;
+
+        // Prefer an explicit "prototype" property when present (e.g. constructors
+        // where [[Prototype]] is Function.prototype but the instance prototype
+        // lives on the .prototype data property).
+        if (candidate is IJsPropertyAccessor accessor &&
+            accessor.TryGetProperty("prototype", out var protoProperty) &&
+            protoProperty is JsObject protoObj)
+        {
+            prototype = protoObj;
+            return true;
+        }
 
         if (candidate is IJsObjectLike objectLike && objectLike.Prototype is not null)
         {
@@ -6743,14 +6908,6 @@ public static class StandardLibrary
         if (candidate is JsObject jsObject && jsObject.Prototype is not null)
         {
             prototype = jsObject.Prototype;
-            return true;
-        }
-
-        if (candidate is IJsPropertyAccessor accessor &&
-            accessor.TryGetProperty("prototype", out var protoValue) &&
-            protoValue is JsObject proto)
-        {
-            prototype = proto;
             return true;
         }
 

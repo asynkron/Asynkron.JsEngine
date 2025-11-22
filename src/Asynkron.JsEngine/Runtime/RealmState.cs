@@ -11,6 +11,7 @@ public sealed class RealmState
     public JsObject? ObjectPrototype { get; set; }
     public JsObject? FunctionPrototype { get; set; }
     public JsObject? ArrayPrototype { get; set; }
+    public JsObject? DatePrototype { get; set; }
     public JsObject? ErrorPrototype { get; set; }
     public JsObject? TypeErrorPrototype { get; set; }
     public HostFunction? TypeErrorConstructor { get; set; }

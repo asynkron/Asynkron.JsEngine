@@ -17,6 +17,11 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike
     /// </summary>
     public JsObject? Realm { get; set; }
 
+    /// <summary>
+    /// Optional realm state for intrinsic prototype resolution.
+    /// </summary>
+    public Runtime.RealmState? RealmState { get; set; }
+
     internal JsObject Properties => _properties;
 
     public HostFunction(Func<IReadOnlyList<object?>, object?> handler)

@@ -1,8 +1,6 @@
 using System.Globalization;
-using System.Linq;
 using System.Numerics;
 using System.Text;
-using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.JsTypes;
@@ -32,6 +30,31 @@ public static class StandardLibrary
     private static HostFunction? _fallbackRangeErrorConstructor;
     private static HostFunction? _fallbackSyntaxErrorConstructor;
     private static HostFunction? _fallbackArrayConstructor;
+
+    /// <summary>
+    /// Clears cached realm state so consecutive engine instances in the same
+    /// process don't leak prototypes/constructors across runs (e.g. when test
+    /// assemblies share a host process).
+    /// </summary>
+    internal static void ResetGlobalState()
+    {
+        CurrentRealm = null;
+        _fallbackBooleanPrototype = null;
+        _fallbackNumberPrototype = null;
+        _fallbackStringPrototype = null;
+        _fallbackObjectPrototype = null;
+        _fallbackFunctionPrototype = null;
+        _fallbackArrayPrototype = null;
+        _fallbackBigIntPrototype = null;
+        _fallbackDatePrototype = null;
+        _fallbackErrorPrototype = null;
+        _fallbackTypeErrorPrototype = null;
+        _fallbackSyntaxErrorPrototype = null;
+        _fallbackTypeErrorConstructor = null;
+        _fallbackRangeErrorConstructor = null;
+        _fallbackSyntaxErrorConstructor = null;
+        _fallbackArrayConstructor = null;
+    }
 
     internal static RealmState? CurrentRealm
     {

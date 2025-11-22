@@ -1,1032 +1,1047 @@
-       AbstractModuleSource
-       AbstractModuleSource_prototype
-       Array
-       Array_from
-       Array_fromAsync
-       Array_isArray
-       Array_length
-       Array_of
-       Array_prototype
-       Array_prototype_at
-       Array_prototype_concat
-       Array_prototype_copyWithin
-       Array_prototype_entries
-       Array_prototype_every
-       Array_prototype_fill
-       Array_prototype_filter
-       Array_prototype_find
-       Array_prototype_findIndex
-       Array_prototype_findLast
-       Array_prototype_findLastIndex
-       Array_prototype_flat
-       Array_prototype_flatMap
-       Array_prototype_forEach
-       Array_prototype_includes
-       Array_prototype_indexOf
-       Array_prototype_join
-       Array_prototype_keys
-       Array_prototype_lastIndexOf
-       Array_prototype_map
-       Array_prototype_pop
-       Array_prototype_push
-       Array_prototype_reduce
-       Array_prototype_reduceRight
-       Array_prototype_reverse
-       Array_prototype_shift
-       Array_prototype_slice
-       Array_prototype_some
-       Array_prototype_sort
-       Array_prototype_splice
-       Array_prototype_Symbol_iterator
-       Array_prototype_Symbol_unscopables
-       Array_prototype_toLocaleString
-       Array_prototype_toReversed
-       Array_prototype_toSorted
-       Array_prototype_toSpliced
-       Array_prototype_toString
-       Array_prototype_unshift
-       Array_prototype_values
-       Array_prototype_with
-       Array_Symbol_species
-       ArrayBuffer
-       ArrayBuffer_isView
-       ArrayBuffer_prototype
-       ArrayBuffer_prototype_byteLength
-       ArrayBuffer_prototype_detached
-       ArrayBuffer_prototype_maxByteLength
-       ArrayBuffer_prototype_resizable
-       ArrayBuffer_prototype_resize
-       ArrayBuffer_prototype_slice
-       ArrayBuffer_prototype_transfer
-       ArrayBuffer_prototype_transferToFixedLength
-       ArrayBuffer_Symbol_species
-       ArrayIteratorPrototype_next
-       ArrayIteratorPrototype_Symbol_toStringTag
-       AsyncDisposableStack
-       AsyncDisposableStack_prototype
-       AsyncDisposableStack_prototype_adopt
-       AsyncDisposableStack_prototype_defer
-       AsyncDisposableStack_prototype_disposeAsync
-       AsyncDisposableStack_prototype_disposed
-       AsyncDisposableStack_prototype_move
-       AsyncDisposableStack_prototype_use
-       AsyncFromSyncIteratorPrototype_next
-       AsyncFromSyncIteratorPrototype_return
-       AsyncFromSyncIteratorPrototype_throw
-       AsyncFunction
-       AsyncGeneratorFunction
-       AsyncGeneratorFunction_prototype
-       AsyncGeneratorPrototype
-       AsyncGeneratorPrototype_next
-       AsyncGeneratorPrototype_return
-       AsyncGeneratorPrototype_throw
-       AsyncIteratorPrototype_Symbol_asyncDispose
-       AsyncIteratorPrototype_Symbol_asyncIterator
-       Atomics
-       Atomics_add
-       Atomics_add_bigint
-       Atomics_and
-       Atomics_and_bigint
-       Atomics_compareExchange
-       Atomics_compareExchange_bigint
-       Atomics_exchange
-       Atomics_exchange_bigint
-       Atomics_isLockFree
-       Atomics_isLockFree_bigint
-       Atomics_load
-       Atomics_load_bigint
-       Atomics_notify
-       Atomics_notify_bigint
-       Atomics_or
-       Atomics_or_bigint
-       Atomics_pause
-       Atomics_store
-       Atomics_store_bigint
-       Atomics_sub
-       Atomics_sub_bigint
-       Atomics_wait
-       Atomics_wait_bigint
-       Atomics_waitAsync
-       Atomics_waitAsync_bigint
-       Atomics_xor
-       Atomics_xor_bigint
-       BigInt
-       BigInt_asIntN
-       BigInt_asUintN
-       BigInt_parseInt
-       BigInt_prototype
-       BigInt_prototype_toLocaleString
-       BigInt_prototype_toString
-       BigInt_prototype_valueOf
-       Boolean
-       Boolean_prototype
-       Boolean_prototype_constructor
-       Boolean_prototype_toString
-       Boolean_prototype_valueOf
-       DataView
-       DataView_prototype
-       DataView_prototype_buffer
-       DataView_prototype_byteLength
-       DataView_prototype_byteOffset
-       DataView_prototype_getBigInt64
-       DataView_prototype_getBigUint64
-       DataView_prototype_getFloat16
-       DataView_prototype_getFloat32
-       DataView_prototype_getFloat64
-       DataView_prototype_getInt16
-       DataView_prototype_getInt32
-       DataView_prototype_getInt8
-       DataView_prototype_getUint16
-       DataView_prototype_getUint32
-       DataView_prototype_getUint8
-       DataView_prototype_setBigInt64
-       DataView_prototype_setBigUint64
-       DataView_prototype_setFloat16
-       DataView_prototype_setFloat32
-       DataView_prototype_setFloat64
-       DataView_prototype_setInt16
-       DataView_prototype_setInt32
-       DataView_prototype_setInt8
-       DataView_prototype_setUint16
-       DataView_prototype_setUint32
-       DataView_prototype_setUint8
-       Date
-       Date_now
-       Date_parse
-       Date_prototype
-       Date_prototype_constructor
-       Date_prototype_getDate
-       Date_prototype_getDay
-       Date_prototype_getFullYear
-       Date_prototype_getHours
-       Date_prototype_getMilliseconds
-       Date_prototype_getMinutes
-       Date_prototype_getMonth
-       Date_prototype_getSeconds
-       Date_prototype_getTime
-       Date_prototype_getTimezoneOffset
-       Date_prototype_getUTCDate
-       Date_prototype_getUTCDay
-       Date_prototype_getUTCFullYear
-       Date_prototype_getUTCHours
-       Date_prototype_getUTCMilliseconds
-       Date_prototype_getUTCMinutes
-       Date_prototype_getUTCMonth
-       Date_prototype_getUTCSeconds
-       Date_prototype_setDate
-       Date_prototype_setFullYear
-       Date_prototype_setHours
-       Date_prototype_setMilliseconds
-       Date_prototype_setMinutes
-       Date_prototype_setMonth
-       Date_prototype_setSeconds
-       Date_prototype_setTime
-       Date_prototype_setUTCDate
-       Date_prototype_setUTCFullYear
-       Date_prototype_setUTCHours
-       Date_prototype_setUTCMilliseconds
-       Date_prototype_setUTCMinutes
-       Date_prototype_setUTCMonth
-       Date_prototype_setUTCSeconds
-       Date_prototype_Symbol_toPrimitive
-       Date_prototype_toDateString
-       Date_prototype_toISOString
-       Date_prototype_toJSON
-       Date_prototype_toLocaleDateString
-       Date_prototype_toLocaleString
-       Date_prototype_toLocaleTimeString
-       Date_prototype_toString
-       Date_prototype_toTemporalInstant
-       Date_prototype_toTimeString
-       Date_prototype_toUTCString
-       Date_prototype_valueOf
-       Date_UTC
-       DecodeURI
-       DecodeURIComponent
-       DisposableStack
-       DisposableStack_prototype
-       DisposableStack_prototype_adopt
-       DisposableStack_prototype_defer
-       DisposableStack_prototype_dispose
-       DisposableStack_prototype_disposed
-       DisposableStack_prototype_move
-       DisposableStack_prototype_use
-       EncodeURI
-       EncodeURIComponent
-       Error
-       Error_isError
-       Error_prototype
-       Error_prototype_constructor
-       Error_prototype_message
-       Error_prototype_name
-       Error_prototype_toString
-       Eval
-       FinalizationRegistry
-       FinalizationRegistry_prototype
-       FinalizationRegistry_prototype_register
-       FinalizationRegistry_prototype_unregister
-       Function
-       Function_internals_Call
-       Function_internals_Construct
-       Function_length
-       Function_prototype
-       Function_prototype_apply
-       Function_prototype_arguments
-       Function_prototype_bind
-       Function_prototype_call
-       Function_prototype_caller
-       Function_prototype_callerArguments
-       Function_prototype_constructor
-       Function_prototype_Symbol_hasInstance
-       Function_prototype_toString
-       GeneratorFunction
-       GeneratorFunction_prototype
-       GeneratorPrototype
-       GeneratorPrototype_next
-       GeneratorPrototype_return
-       GeneratorPrototype_throw
-       Global
-       Infinity
-       IsFinite
-       IsNaN
-       Iterator
-       Iterator_concat
-       Iterator_from
-       Iterator_prototype
-       Iterator_prototype_constructor
-       Iterator_prototype_drop
-       Iterator_prototype_every
-       Iterator_prototype_filter
-       Iterator_prototype_find
-       Iterator_prototype_flatMap
-       Iterator_prototype_forEach
-       Iterator_prototype_map
-       Iterator_prototype_reduce
-       Iterator_prototype_some
-       Iterator_prototype_Symbol_dispose
-       Iterator_prototype_Symbol_iterator
-       Iterator_prototype_Symbol_toStringTag
-       Iterator_prototype_take
-       Iterator_prototype_toArray
-       JSON
-       JSON_isRawJSON
-       JSON_parse
-       JSON_rawJSON
-       JSON_stringify
-       Map
-       Map_groupBy
-       Map_prototype
-       Map_prototype_clear
-       Map_prototype_delete
-       Map_prototype_entries
-       Map_prototype_forEach
-       Map_prototype_get
-       Map_prototype_getOrInsert
-       Map_prototype_getOrInsertComputed
-       Map_prototype_has
-       Map_prototype_keys
-       Map_prototype_set
-       Map_prototype_size
-       Map_prototype_Symbol_iterator
-       Map_prototype_values
-       Map_Symbol_species
-       MapIteratorPrototype
-       MapIteratorPrototype_next
-       Math
-       Math_abs
-       Math_acos
-       Math_acosh
-       Math_asin
-       Math_asinh
-       Math_atan
-       Math_atan2
-       Math_atanh
-       Math_cbrt
-       Math_ceil
-       Math_clz32
-       Math_cos
-       Math_cosh
-       Math_E
-       Math_exp
-       Math_expm1
-       Math_f16round
-       Math_floor
-       Math_fround
-       Math_hypot
-       Math_imul
-       Math_LN10
-       Math_LN2
-       Math_log
-       Math_log10
-       Math_LOG10E
-       Math_log1p
-       Math_log2
-       Math_LOG2E
-       Math_max
-       Math_min
-       Math_PI
-       Math_pow
-       Math_random
-       Math_round
-       Math_sign
-       Math_sin
-       Math_sinh
-       Math_sqrt
-       Math_SQRT1_2
-       Math_SQRT2
-       Math_sumPrecise
-       Math_tan
-       Math_tanh
-       Math_trunc
-       NaN
-       NativeErrors
-       NativeErrors_AggregateError
-       NativeErrors_AggregateError_prototype
-       NativeErrors_EvalError
-       NativeErrors_EvalError_prototype
-       NativeErrors_RangeError
-       NativeErrors_RangeError_prototype
-       NativeErrors_ReferenceError
-       NativeErrors_ReferenceError_prototype
-       NativeErrors_SuppressedError
-       NativeErrors_SuppressedError_prototype
-       NativeErrors_SyntaxError
-       NativeErrors_SyntaxError_prototype
-       NativeErrors_TypeError
-       NativeErrors_TypeError_prototype
-       NativeErrors_URIError
-       NativeErrors_URIError_prototype
-       Number
-       Number_isFinite
-       Number_isInteger
-       Number_isNaN
-       Number_isSafeInteger
-       Number_MAX_VALUE
-       Number_MIN_VALUE
-       Number_NEGATIVE_INFINITY
-       Number_parseFloat
-       Number_parseInt
-       Number_POSITIVE_INFINITY
-       Number_prototype
-       Number_prototype_toExponential
-       Number_prototype_toFixed
-       Number_prototype_toLocaleString
-       Number_prototype_toPrecision
-       Number_prototype_toString
-       Number_prototype_valueOf
-       Object
-       Object_assign
-       Object_create
-       Object_defineProperties
-       Object_defineProperty
-       Object_entries
-       Object_freeze
-       Object_fromEntries
-       Object_getOwnPropertyDescriptor
-       Object_getOwnPropertyDescriptors
-       Object_getOwnPropertyNames
-       Object_getOwnPropertySymbols
-       Object_getPrototypeOf
-       Object_groupBy
-       Object_hasOwn
-       Object_internals_DefineOwnProperty
-       Object_is
-       Object_isExtensible
-       Object_isFrozen
-       Object_isSealed
-       Object_keys
-       Object_preventExtensions
-       Object_prototype
-       Object_prototype___defineGetter__
-       Object_prototype___defineSetter__
-       Object_prototype___lookupGetter__
-       Object_prototype___lookupSetter__
-       Object_prototype___proto__
-       Object_prototype_constructor
-       Object_prototype_hasOwnProperty
-       Object_prototype_isPrototypeOf
-       Object_prototype_propertyIsEnumerable
-       Object_prototype_toLocaleString
-       Object_prototype_toString
-       Object_prototype_valueOf
-       Object_seal
-       Object_setPrototypeOf
-       Object_values
-       ParseFloat
-       ParseInt
-       Promise
-       Promise_all
-       Promise_allSettled
-       Promise_any
-       Promise_prototype
-       Promise_prototype_catch
-       Promise_prototype_finally
-       Promise_prototype_then
-       Promise_race
-       Promise_reject
-       Promise_resolve
-       Promise_Symbol_species
-       Promise_try
-       Promise_withResolvers
-       Proxy
-       Proxy_apply
-       Proxy_construct
-       Proxy_defineProperty
-       Proxy_deleteProperty
-       Proxy_enumerate
-       Proxy_get
-       Proxy_getOwnPropertyDescriptor
-       Proxy_getPrototypeOf
-       Proxy_has
-       Proxy_isExtensible
-       Proxy_ownKeys
-       Proxy_preventExtensions
-       Proxy_revocable
-       Proxy_set
-       Proxy_setPrototypeOf
-       Reflect
-       Reflect_apply
-       Reflect_construct
-       Reflect_defineProperty
-       Reflect_deleteProperty
-       Reflect_enumerate
-       Reflect_get
-       Reflect_getOwnPropertyDescriptor
-       Reflect_getPrototypeOf
-       Reflect_has
-       Reflect_isExtensible
-       Reflect_ownKeys
-       Reflect_preventExtensions
-       Reflect_set
-       Reflect_setPrototypeOf
-       RegExp
-       RegExp_CharacterClassEscapes
-       RegExp_dotall
-       RegExp_escape
-       RegExp_lookBehind
-       RegExp_matchIndices
-       RegExp_namedGroups
-       RegExp_propertyEscapes
-       RegExp_propertyEscapes_generated
-       RegExp_propertyEscapes_generated_strings
-       RegExp_prototype
-       RegExp_prototype_dotAll
-       RegExp_prototype_exec
-       RegExp_prototype_flags
-       RegExp_prototype_global
-       RegExp_prototype_hasIndices
-       RegExp_prototype_ignoreCase
-       RegExp_prototype_multiline
-       RegExp_prototype_source
-       RegExp_prototype_sticky
-       RegExp_prototype_Symbol_match
-       RegExp_prototype_Symbol_matchAll
-       RegExp_prototype_Symbol_replace
-       RegExp_prototype_Symbol_search
-       RegExp_prototype_Symbol_split
-       RegExp_prototype_test
-       RegExp_prototype_toString
-       RegExp_prototype_unicode
-       RegExp_prototype_unicodeSets
-       RegExp_regexpModifiers
-       RegExp_regexpModifiers_syntax_valid
-       RegExp_Symbol_species
-       RegExp_unicodeSets_generated
-       RegExpStringIteratorPrototype
-       RegExpStringIteratorPrototype_next
-       Set
-       Set_prototype
-       Set_prototype_add
-       Set_prototype_clear
-       Set_prototype_constructor
-       Set_prototype_delete
-       Set_prototype_difference
-       Set_prototype_entries
-       Set_prototype_forEach
-       Set_prototype_has
-       Set_prototype_intersection
-       Set_prototype_isDisjointFrom
-       Set_prototype_isSubsetOf
-       Set_prototype_isSupersetOf
-       Set_prototype_keys
-       Set_prototype_size
-       Set_prototype_Symbol_iterator
-       Set_prototype_Symbol_toStringTag
-       Set_prototype_symmetricDifference
-       Set_prototype_union
-       Set_prototype_values
-       Set_Symbol_species
-       SetIteratorPrototype
-       SetIteratorPrototype_next
-       ShadowRealm
-       ShadowRealm_prototype
-       ShadowRealm_prototype_evaluate
-       ShadowRealm_prototype_importValue
-       ShadowRealm_WrappedFunction
-       SharedArrayBuffer
-       SharedArrayBuffer_prototype
-       SharedArrayBuffer_prototype_byteLength
-       SharedArrayBuffer_prototype_grow
-       SharedArrayBuffer_prototype_growable
-       SharedArrayBuffer_prototype_maxByteLength
-       SharedArrayBuffer_prototype_slice
-       String
-       String_fromCharCode
-       String_fromCodePoint
-       String_prototype
-       String_prototype_at
-       String_prototype_charAt
-       String_prototype_charCodeAt
-       String_prototype_codePointAt
-       String_prototype_concat
-       String_prototype_constructor
-       String_prototype_endsWith
-       String_prototype_includes
-       String_prototype_indexOf
-       String_prototype_isWellFormed
-       String_prototype_lastIndexOf
-       String_prototype_localeCompare
-       String_prototype_match
-       String_prototype_matchAll
-       String_prototype_normalize
-       String_prototype_padEnd
-       String_prototype_padStart
-       String_prototype_repeat
-       String_prototype_replace
-       String_prototype_replaceAll
-       String_prototype_search
-       String_prototype_slice
-       String_prototype_split
-       String_prototype_startsWith
-       String_prototype_substring
-       String_prototype_Symbol_iterator
-       String_prototype_toLocaleLowerCase
-       String_prototype_toLocaleUpperCase
-       String_prototype_toLowerCase
-       String_prototype_toString
-       String_prototype_toUpperCase
-       String_prototype_toWellFormed
-       String_prototype_trim
-       String_prototype_trimEnd
-       String_prototype_trimStart
-       String_prototype_valueOf
-       String_raw
-       StringIteratorPrototype
-       StringIteratorPrototype_next
-       Symbol
-       Symbol_asyncDispose
-       Symbol_asyncIterator
-       Symbol_dispose
-       Symbol_for
-       Symbol_hasInstance
-       Symbol_isConcatSpreadable
-       Symbol_iterator
-       Symbol_keyFor
-       Symbol_match
-       Symbol_matchAll
-       Symbol_prototype
-       Symbol_prototype_description
-       Symbol_prototype_Symbol_toPrimitive
-       Symbol_prototype_toString
-       Symbol_prototype_valueOf
-       Symbol_replace
-       Symbol_search
-       Symbol_species
-       Symbol_split
-       Symbol_toPrimitive
-       Symbol_toStringTag
-       Symbol_unscopables
-       Temporal
-       Temporal_Duration
-       Temporal_Duration_compare
-       Temporal_Duration_from
-       Temporal_Duration_prototype
-       Temporal_Duration_prototype_abs
-       Temporal_Duration_prototype_add
-       Temporal_Duration_prototype_blank
-       Temporal_Duration_prototype_days
-       Temporal_Duration_prototype_hours
-       Temporal_Duration_prototype_microseconds
-       Temporal_Duration_prototype_milliseconds
-       Temporal_Duration_prototype_minutes
-       Temporal_Duration_prototype_months
-       Temporal_Duration_prototype_nanoseconds
-       Temporal_Duration_prototype_negated
-       Temporal_Duration_prototype_round
-       Temporal_Duration_prototype_seconds
-       Temporal_Duration_prototype_sign
-       Temporal_Duration_prototype_subtract
-       Temporal_Duration_prototype_toJSON
-       Temporal_Duration_prototype_toLocaleString
-       Temporal_Duration_prototype_toString
-       Temporal_Duration_prototype_toStringTag
-       Temporal_Duration_prototype_total
-       Temporal_Duration_prototype_valueOf
-       Temporal_Duration_prototype_weeks
-       Temporal_Duration_prototype_with
-       Temporal_Duration_prototype_years
-       Temporal_Instant
-       Temporal_Instant_compare
-       Temporal_Instant_from
-       Temporal_Instant_fromEpochMilliseconds
-       Temporal_Instant_fromEpochNanoseconds
-       Temporal_Instant_prototype
-       Temporal_Instant_prototype_add
-       Temporal_Instant_prototype_epochMilliseconds
-       Temporal_Instant_prototype_epochNanoseconds
-       Temporal_Instant_prototype_equals
-       Temporal_Instant_prototype_round
-       Temporal_Instant_prototype_since
-       Temporal_Instant_prototype_subtract
-       Temporal_Instant_prototype_toJSON
-       Temporal_Instant_prototype_toLocaleString
-       Temporal_Instant_prototype_toString
-       Temporal_Instant_prototype_toStringTag
-       Temporal_Instant_prototype_toZonedDateTimeISO
-       Temporal_Instant_prototype_until
-       Temporal_Instant_prototype_valueOf
-       Temporal_Now
-       Temporal_Now_instant
-       Temporal_Now_plainDateISO
-       Temporal_Now_plainDateTimeISO
-       Temporal_Now_plainTimeISO
-       Temporal_Now_timeZoneId
-       Temporal_Now_toStringTag
-       Temporal_Now_zonedDateTimeISO
-       Temporal_PlainDate
-       Temporal_PlainDate_compare
-       Temporal_PlainDate_from
-       Temporal_PlainDate_prototype
-       Temporal_PlainDate_prototype_add
-       Temporal_PlainDate_prototype_calendarId
-       Temporal_PlainDate_prototype_day
-       Temporal_PlainDate_prototype_dayOfWeek
-       Temporal_PlainDate_prototype_dayOfYear
-       Temporal_PlainDate_prototype_daysInMonth
-       Temporal_PlainDate_prototype_daysInWeek
-       Temporal_PlainDate_prototype_daysInYear
-       Temporal_PlainDate_prototype_equals
-       Temporal_PlainDate_prototype_era
-       Temporal_PlainDate_prototype_eraYear
-       Temporal_PlainDate_prototype_inLeapYear
-       Temporal_PlainDate_prototype_month
-       Temporal_PlainDate_prototype_monthCode
-       Temporal_PlainDate_prototype_monthsInYear
-       Temporal_PlainDate_prototype_since
-       Temporal_PlainDate_prototype_subtract
-       Temporal_PlainDate_prototype_toJSON
-       Temporal_PlainDate_prototype_toLocaleString
-       Temporal_PlainDate_prototype_toPlainDateTime
-       Temporal_PlainDate_prototype_toPlainMonthDay
-       Temporal_PlainDate_prototype_toPlainYearMonth
-       Temporal_PlainDate_prototype_toString
-       Temporal_PlainDate_prototype_toStringTag
-       Temporal_PlainDate_prototype_toZonedDateTime
-       Temporal_PlainDate_prototype_until
-       Temporal_PlainDate_prototype_valueOf
-       Temporal_PlainDate_prototype_weekOfYear
-       Temporal_PlainDate_prototype_with
-       Temporal_PlainDate_prototype_withCalendar
-       Temporal_PlainDate_prototype_year
-       Temporal_PlainDate_prototype_yearOfWeek
-       Temporal_PlainDateTime
-       Temporal_PlainDateTime_compare
-       Temporal_PlainDateTime_from
-       Temporal_PlainDateTime_prototype
-       Temporal_PlainDateTime_prototype_add
-       Temporal_PlainDateTime_prototype_calendarId
-       Temporal_PlainDateTime_prototype_day
-       Temporal_PlainDateTime_prototype_dayOfWeek
-       Temporal_PlainDateTime_prototype_dayOfYear
-       Temporal_PlainDateTime_prototype_daysInMonth
-       Temporal_PlainDateTime_prototype_daysInWeek
-       Temporal_PlainDateTime_prototype_daysInYear
-       Temporal_PlainDateTime_prototype_equals
-       Temporal_PlainDateTime_prototype_era
-       Temporal_PlainDateTime_prototype_eraYear
-       Temporal_PlainDateTime_prototype_hour
-       Temporal_PlainDateTime_prototype_inLeapYear
-       Temporal_PlainDateTime_prototype_microsecond
-       Temporal_PlainDateTime_prototype_millisecond
-       Temporal_PlainDateTime_prototype_minute
-       Temporal_PlainDateTime_prototype_month
-       Temporal_PlainDateTime_prototype_monthCode
-       Temporal_PlainDateTime_prototype_monthsInYear
-       Temporal_PlainDateTime_prototype_nanosecond
-       Temporal_PlainDateTime_prototype_round
-       Temporal_PlainDateTime_prototype_second
-       Temporal_PlainDateTime_prototype_since
-       Temporal_PlainDateTime_prototype_subtract
-       Temporal_PlainDateTime_prototype_toJSON
-       Temporal_PlainDateTime_prototype_toLocaleString
-       Temporal_PlainDateTime_prototype_toPlainDate
-       Temporal_PlainDateTime_prototype_toPlainTime
-       Temporal_PlainDateTime_prototype_toString
-       Temporal_PlainDateTime_prototype_toStringTag
-       Temporal_PlainDateTime_prototype_toZonedDateTime
-       Temporal_PlainDateTime_prototype_until
-       Temporal_PlainDateTime_prototype_valueOf
-       Temporal_PlainDateTime_prototype_weekOfYear
-       Temporal_PlainDateTime_prototype_with
-       Temporal_PlainDateTime_prototype_withCalendar
-       Temporal_PlainDateTime_prototype_withPlainTime
-       Temporal_PlainDateTime_prototype_year
-       Temporal_PlainDateTime_prototype_yearOfWeek
-       Temporal_PlainMonthDay
-       Temporal_PlainMonthDay_from
-       Temporal_PlainMonthDay_prototype
-       Temporal_PlainMonthDay_prototype_calendarId
-       Temporal_PlainMonthDay_prototype_day
-       Temporal_PlainMonthDay_prototype_equals
-       Temporal_PlainMonthDay_prototype_month
-       Temporal_PlainMonthDay_prototype_monthCode
-       Temporal_PlainMonthDay_prototype_toJSON
-       Temporal_PlainMonthDay_prototype_toLocaleString
-       Temporal_PlainMonthDay_prototype_toPlainDate
-       Temporal_PlainMonthDay_prototype_toString
-       Temporal_PlainMonthDay_prototype_toStringTag
-       Temporal_PlainMonthDay_prototype_valueOf
-       Temporal_PlainMonthDay_prototype_with
-       Temporal_PlainTime
-       Temporal_PlainTime_compare
-       Temporal_PlainTime_from
-       Temporal_PlainTime_prototype
-       Temporal_PlainTime_prototype_add
-       Temporal_PlainTime_prototype_equals
-       Temporal_PlainTime_prototype_hour
-       Temporal_PlainTime_prototype_microsecond
-       Temporal_PlainTime_prototype_millisecond
-       Temporal_PlainTime_prototype_minute
-       Temporal_PlainTime_prototype_nanosecond
-       Temporal_PlainTime_prototype_round
-       Temporal_PlainTime_prototype_second
-       Temporal_PlainTime_prototype_since
-       Temporal_PlainTime_prototype_subtract
-       Temporal_PlainTime_prototype_toJSON
-       Temporal_PlainTime_prototype_toLocaleString
-       Temporal_PlainTime_prototype_toString
-       Temporal_PlainTime_prototype_toStringTag
-       Temporal_PlainTime_prototype_until
-       Temporal_PlainTime_prototype_valueOf
-       Temporal_PlainTime_prototype_with
-       Temporal_PlainYearMonth
-       Temporal_PlainYearMonth_compare
-       Temporal_PlainYearMonth_from
-       Temporal_PlainYearMonth_prototype
-       Temporal_PlainYearMonth_prototype_add
-       Temporal_PlainYearMonth_prototype_calendarId
-       Temporal_PlainYearMonth_prototype_daysInMonth
-       Temporal_PlainYearMonth_prototype_daysInYear
-       Temporal_PlainYearMonth_prototype_equals
-       Temporal_PlainYearMonth_prototype_era
-       Temporal_PlainYearMonth_prototype_eraYear
-       Temporal_PlainYearMonth_prototype_inLeapYear
-       Temporal_PlainYearMonth_prototype_month
-       Temporal_PlainYearMonth_prototype_monthCode
-       Temporal_PlainYearMonth_prototype_monthsInYear
-       Temporal_PlainYearMonth_prototype_since
-       Temporal_PlainYearMonth_prototype_subtract
-       Temporal_PlainYearMonth_prototype_toJSON
-       Temporal_PlainYearMonth_prototype_toLocaleString
-       Temporal_PlainYearMonth_prototype_toPlainDate
-       Temporal_PlainYearMonth_prototype_toString
-       Temporal_PlainYearMonth_prototype_toStringTag
-       Temporal_PlainYearMonth_prototype_until
-       Temporal_PlainYearMonth_prototype_valueOf
-       Temporal_PlainYearMonth_prototype_with
-       Temporal_PlainYearMonth_prototype_year
-       Temporal_toStringTag
-       Temporal_ZonedDateTime
-       Temporal_ZonedDateTime_compare
-       Temporal_ZonedDateTime_from
-       Temporal_ZonedDateTime_prototype
-       Temporal_ZonedDateTime_prototype_add
-       Temporal_ZonedDateTime_prototype_calendarId
-       Temporal_ZonedDateTime_prototype_day
-       Temporal_ZonedDateTime_prototype_dayOfWeek
-       Temporal_ZonedDateTime_prototype_dayOfYear
-       Temporal_ZonedDateTime_prototype_daysInMonth
-       Temporal_ZonedDateTime_prototype_daysInWeek
-       Temporal_ZonedDateTime_prototype_daysInYear
-       Temporal_ZonedDateTime_prototype_epochMilliseconds
-       Temporal_ZonedDateTime_prototype_epochNanoseconds
-       Temporal_ZonedDateTime_prototype_equals
-       Temporal_ZonedDateTime_prototype_era
-       Temporal_ZonedDateTime_prototype_eraYear
-       Temporal_ZonedDateTime_prototype_getTimeZoneTransition
-       Temporal_ZonedDateTime_prototype_hour
-       Temporal_ZonedDateTime_prototype_hoursInDay
-       Temporal_ZonedDateTime_prototype_inLeapYear
-       Temporal_ZonedDateTime_prototype_microsecond
-       Temporal_ZonedDateTime_prototype_millisecond
-       Temporal_ZonedDateTime_prototype_minute
-       Temporal_ZonedDateTime_prototype_month
-       Temporal_ZonedDateTime_prototype_monthCode
-       Temporal_ZonedDateTime_prototype_monthsInYear
-       Temporal_ZonedDateTime_prototype_nanosecond
-       Temporal_ZonedDateTime_prototype_offset
-       Temporal_ZonedDateTime_prototype_offsetNanoseconds
-       Temporal_ZonedDateTime_prototype_round
-       Temporal_ZonedDateTime_prototype_second
-       Temporal_ZonedDateTime_prototype_since
-       Temporal_ZonedDateTime_prototype_startOfDay
-       Temporal_ZonedDateTime_prototype_subtract
-       Temporal_ZonedDateTime_prototype_timeZoneId
-       Temporal_ZonedDateTime_prototype_toInstant
-       Temporal_ZonedDateTime_prototype_toJSON
-       Temporal_ZonedDateTime_prototype_toLocaleString
-       Temporal_ZonedDateTime_prototype_toPlainDate
-       Temporal_ZonedDateTime_prototype_toPlainDateTime
-       Temporal_ZonedDateTime_prototype_toPlainTime
-       Temporal_ZonedDateTime_prototype_toString
-       Temporal_ZonedDateTime_prototype_toStringTag
-       Temporal_ZonedDateTime_prototype_until
-       Temporal_ZonedDateTime_prototype_valueOf
-       Temporal_ZonedDateTime_prototype_weekOfYear
-       Temporal_ZonedDateTime_prototype_with
-       Temporal_ZonedDateTime_prototype_withCalendar
-       Temporal_ZonedDateTime_prototype_withPlainTime
-       Temporal_ZonedDateTime_prototype_withTimeZone
-       Temporal_ZonedDateTime_prototype_year
-       Temporal_ZonedDateTime_prototype_yearOfWeek
-       ThrowTypeError
-       TypedArray
-       TypedArray_from
-       TypedArray_of
-       TypedArray_prototype
-       TypedArray_prototype_at
-       TypedArray_prototype_at_BigInt
-       TypedArray_prototype_buffer
-       TypedArray_prototype_buffer_BigInt
-       TypedArray_prototype_byteLength
-       TypedArray_prototype_byteLength_BigInt
-       TypedArray_prototype_byteOffset
-       TypedArray_prototype_byteOffset_BigInt
-       TypedArray_prototype_copyWithin
-       TypedArray_prototype_copyWithin_BigInt
-       TypedArray_prototype_entries
-       TypedArray_prototype_entries_BigInt
-       TypedArray_prototype_every
-       TypedArray_prototype_every_BigInt
-       TypedArray_prototype_fill
-       TypedArray_prototype_fill_BigInt
-       TypedArray_prototype_filter
-       TypedArray_prototype_filter_BigInt
-       TypedArray_prototype_find
-       TypedArray_prototype_find_BigInt
-       TypedArray_prototype_findIndex
-       TypedArray_prototype_findIndex_BigInt
-       TypedArray_prototype_findLast
-       TypedArray_prototype_findLast_BigInt
-       TypedArray_prototype_findLastIndex
-       TypedArray_prototype_findLastIndex_BigInt
-       TypedArray_prototype_forEach
-       TypedArray_prototype_forEach_BigInt
-       TypedArray_prototype_includes
-       TypedArray_prototype_includes_BigInt
-       TypedArray_prototype_indexOf
-       TypedArray_prototype_indexOf_BigInt
-       TypedArray_prototype_join
-       TypedArray_prototype_join_BigInt
-       TypedArray_prototype_keys
-       TypedArray_prototype_keys_BigInt
-       TypedArray_prototype_lastIndexOf
-       TypedArray_prototype_lastIndexOf_BigInt
-       TypedArray_prototype_length
-       TypedArray_prototype_length_BigInt
-       TypedArray_prototype_map
-       TypedArray_prototype_map_BigInt
-       TypedArray_prototype_reduce
-       TypedArray_prototype_reduce_BigInt
-       TypedArray_prototype_reduceRight
-       TypedArray_prototype_reduceRight_BigInt
-       TypedArray_prototype_reverse
-       TypedArray_prototype_reverse_BigInt
-       TypedArray_prototype_set
-       TypedArray_prototype_set_BigInt
-       TypedArray_prototype_slice
-       TypedArray_prototype_slice_BigInt
-       TypedArray_prototype_some
-       TypedArray_prototype_some_BigInt
-       TypedArray_prototype_sort
-       TypedArray_prototype_sort_BigInt
-       TypedArray_prototype_subarray
-       TypedArray_prototype_subarray_BigInt
-       TypedArray_prototype_Symbol_iterator
-       TypedArray_prototype_Symbol_toStringTag
-       TypedArray_prototype_Symbol_toStringTag_BigInt
-       TypedArray_prototype_toLocaleString
-       TypedArray_prototype_toLocaleString_BigInt
-       TypedArray_prototype_toReversed
-       TypedArray_prototype_toSorted
-       TypedArray_prototype_toString
-       TypedArray_prototype_toString_BigInt
-       TypedArray_prototype_values
-       TypedArray_prototype_values_BigInt
-       TypedArray_prototype_with
-       TypedArray_prototype_with_BigInt
-       TypedArray_Symbol_species
-       TypedArrayConstructors_BigInt64Array
-       TypedArrayConstructors_BigInt64Array_prototype
-       TypedArrayConstructors_BigUint64Array
-       TypedArrayConstructors_BigUint64Array_prototype
-       TypedArrayConstructors_ctors
-       TypedArrayConstructors_ctors_bufferArg
-       TypedArrayConstructors_ctors_lengthArg
-       TypedArrayConstructors_ctors_noArgs
-       TypedArrayConstructors_ctors_objectArg
-       TypedArrayConstructors_ctors_typedarrayArg
-       TypedArrayConstructors_ctorsBigint_bufferArg
-       TypedArrayConstructors_ctorsBigint_lengthArg
-       TypedArrayConstructors_ctorsBigint_noArgs
-       TypedArrayConstructors_ctorsBigint_objectArg
-       TypedArrayConstructors_ctorsBigint_typedarrayArg
-       TypedArrayConstructors_Float32Array
-       TypedArrayConstructors_Float32Array_prototype
-       TypedArrayConstructors_Float64Array
-       TypedArrayConstructors_Float64Array_prototype
-       TypedArrayConstructors_from
-       TypedArrayConstructors_from_BigInt
-       TypedArrayConstructors_Int16Array
-       TypedArrayConstructors_Int16Array_prototype
-       TypedArrayConstructors_Int32Array
-       TypedArrayConstructors_Int32Array_prototype
-       TypedArrayConstructors_Int8Array
-       TypedArrayConstructors_Int8Array_prototype
-       TypedArrayConstructors_internals_DefineOwnProperty
-       TypedArrayConstructors_internals_DefineOwnProperty_BigInt
-       TypedArrayConstructors_internals_Delete
-       TypedArrayConstructors_internals_Delete_BigInt
-       TypedArrayConstructors_internals_Get
-       TypedArrayConstructors_internals_Get_BigInt
-       TypedArrayConstructors_internals_GetOwnProperty
-       TypedArrayConstructors_internals_GetOwnProperty_BigInt
-       TypedArrayConstructors_internals_HasProperty
-       TypedArrayConstructors_internals_HasProperty_BigInt
-       TypedArrayConstructors_internals_OwnPropertyKeys
-       TypedArrayConstructors_internals_OwnPropertyKeys_BigInt
-       TypedArrayConstructors_internals_Set
-       TypedArrayConstructors_internals_Set_BigInt
-       TypedArrayConstructors_of
-       TypedArrayConstructors_of_BigInt
-       TypedArrayConstructors_prototype
-       TypedArrayConstructors_prototype_buffer
-       TypedArrayConstructors_prototype_byteLength
-       TypedArrayConstructors_prototype_byteOffset
-       TypedArrayConstructors_prototype_copyWithin
-       TypedArrayConstructors_prototype_entries
-       TypedArrayConstructors_prototype_every
-       TypedArrayConstructors_prototype_fill
-       TypedArrayConstructors_prototype_filter
-       TypedArrayConstructors_prototype_find
-       TypedArrayConstructors_prototype_findIndex
-       TypedArrayConstructors_prototype_forEach
-       TypedArrayConstructors_prototype_indexOf
-       TypedArrayConstructors_prototype_join
-       TypedArrayConstructors_prototype_keys
-       TypedArrayConstructors_prototype_lastIndexOf
-       TypedArrayConstructors_prototype_length
-       TypedArrayConstructors_prototype_map
-       TypedArrayConstructors_prototype_reduce
-       TypedArrayConstructors_prototype_reduceRight
-       TypedArrayConstructors_prototype_reverse
-       TypedArrayConstructors_prototype_set
-       TypedArrayConstructors_prototype_slice
-       TypedArrayConstructors_prototype_some
-       TypedArrayConstructors_prototype_sort
-       TypedArrayConstructors_prototype_subarray
-       TypedArrayConstructors_prototype_Symbol_toStringTag
-       TypedArrayConstructors_prototype_toLocaleString
-       TypedArrayConstructors_prototype_toString
-       TypedArrayConstructors_prototype_values
-       TypedArrayConstructors_Uint16Array
-       TypedArrayConstructors_Uint16Array_prototype
-       TypedArrayConstructors_Uint32Array
-       TypedArrayConstructors_Uint32Array_prototype
-       TypedArrayConstructors_Uint8Array
-       TypedArrayConstructors_Uint8Array_prototype
-       TypedArrayConstructors_Uint8ClampedArray
-       TypedArrayConstructors_Uint8ClampedArray_prototype
-       Uint8Array_fromBase64
-       Uint8Array_fromHex
-       Uint8Array_prototype_setFromBase64
-       Uint8Array_prototype_setFromHex
-       Uint8Array_prototype_toBase64
-       Uint8Array_prototype_toHex
-       Undefined
-       WeakMap
-       WeakMap_prototype
-       WeakMap_prototype_delete
-       WeakMap_prototype_get
-       WeakMap_prototype_getOrInsert
-       WeakMap_prototype_has
-       WeakMap_prototype_set
-       WeakRef
-       WeakRef_prototype
-       WeakRef_prototype_deref
-       WeakSet
-       WeakSet_prototype
-       WeakSet_prototype_add
-       WeakSet_prototype_constructor
-       WeakSet_prototype_delete
-       WeakSet_prototype_has
+## ECMASCript 262 conformance tests
+
+Run tests for one section of the ECMAScript 262 specification.
+All tests are found in: `Tests262Harness.Tests.built-ins.generated.cs`
+
+Entire group:
+```
+dotnet test tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj --filter "Name~Array"
+```
+
+Or a specific test within that group:
+```
+dotnet test tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj --filter "Name~Array/proto-from-ctor-realm-one"
+```
+
+AbstractModuleSource
+AbstractModuleSource_prototype
+Array
+Array_from
+Array_fromAsync
+Array_isArray
+Array_length
+Array_of
+Array_prototype
+Array_prototype_at
+Array_prototype_concat
+Array_prototype_copyWithin
+Array_prototype_entries
+Array_prototype_every
+Array_prototype_fill
+Array_prototype_filter
+Array_prototype_find
+Array_prototype_findIndex
+Array_prototype_findLast
+Array_prototype_findLastIndex
+Array_prototype_flat
+Array_prototype_flatMap
+Array_prototype_forEach
+Array_prototype_includes
+Array_prototype_indexOf
+Array_prototype_join
+Array_prototype_keys
+Array_prototype_lastIndexOf
+Array_prototype_map
+Array_prototype_pop
+Array_prototype_push
+Array_prototype_reduce
+Array_prototype_reduceRight
+Array_prototype_reverse
+Array_prototype_shift
+Array_prototype_slice
+Array_prototype_some
+Array_prototype_sort
+Array_prototype_splice
+Array_prototype_Symbol_iterator
+Array_prototype_Symbol_unscopables
+Array_prototype_toLocaleString
+Array_prototype_toReversed
+Array_prototype_toSorted
+Array_prototype_toSpliced
+Array_prototype_toString
+Array_prototype_unshift
+Array_prototype_values
+Array_prototype_with
+Array_Symbol_species
+ArrayBuffer
+ArrayBuffer_isView
+ArrayBuffer_prototype
+ArrayBuffer_prototype_byteLength
+ArrayBuffer_prototype_detached
+ArrayBuffer_prototype_maxByteLength
+ArrayBuffer_prototype_resizable
+ArrayBuffer_prototype_resize
+ArrayBuffer_prototype_slice
+ArrayBuffer_prototype_transfer
+ArrayBuffer_prototype_transferToFixedLength
+ArrayBuffer_Symbol_species
+ArrayIteratorPrototype_next
+ArrayIteratorPrototype_Symbol_toStringTag
+AsyncDisposableStack
+AsyncDisposableStack_prototype
+AsyncDisposableStack_prototype_adopt
+AsyncDisposableStack_prototype_defer
+AsyncDisposableStack_prototype_disposeAsync
+AsyncDisposableStack_prototype_disposed
+AsyncDisposableStack_prototype_move
+AsyncDisposableStack_prototype_use
+AsyncFromSyncIteratorPrototype_next
+AsyncFromSyncIteratorPrototype_return
+AsyncFromSyncIteratorPrototype_throw
+AsyncFunction
+AsyncGeneratorFunction
+AsyncGeneratorFunction_prototype
+AsyncGeneratorPrototype
+AsyncGeneratorPrototype_next
+AsyncGeneratorPrototype_return
+AsyncGeneratorPrototype_throw
+AsyncIteratorPrototype_Symbol_asyncDispose
+AsyncIteratorPrototype_Symbol_asyncIterator
+Atomics
+Atomics_add
+Atomics_add_bigint
+Atomics_and
+Atomics_and_bigint
+Atomics_compareExchange
+Atomics_compareExchange_bigint
+Atomics_exchange
+Atomics_exchange_bigint
+Atomics_isLockFree
+Atomics_isLockFree_bigint
+Atomics_load
+Atomics_load_bigint
+Atomics_notify
+Atomics_notify_bigint
+Atomics_or
+Atomics_or_bigint
+Atomics_pause
+Atomics_store
+Atomics_store_bigint
+Atomics_sub
+Atomics_sub_bigint
+Atomics_wait
+Atomics_wait_bigint
+Atomics_waitAsync
+Atomics_waitAsync_bigint
+Atomics_xor
+Atomics_xor_bigint
+BigInt
+BigInt_asIntN
+BigInt_asUintN
+BigInt_parseInt
+BigInt_prototype
+BigInt_prototype_toLocaleString
+BigInt_prototype_toString
+BigInt_prototype_valueOf
+Boolean
+Boolean_prototype
+Boolean_prototype_constructor
+Boolean_prototype_toString
+Boolean_prototype_valueOf
+DataView
+DataView_prototype
+DataView_prototype_buffer
+DataView_prototype_byteLength
+DataView_prototype_byteOffset
+DataView_prototype_getBigInt64
+DataView_prototype_getBigUint64
+DataView_prototype_getFloat16
+DataView_prototype_getFloat32
+DataView_prototype_getFloat64
+DataView_prototype_getInt16
+DataView_prototype_getInt32
+DataView_prototype_getInt8
+DataView_prototype_getUint16
+DataView_prototype_getUint32
+DataView_prototype_getUint8
+DataView_prototype_setBigInt64
+DataView_prototype_setBigUint64
+DataView_prototype_setFloat16
+DataView_prototype_setFloat32
+DataView_prototype_setFloat64
+DataView_prototype_setInt16
+DataView_prototype_setInt32
+DataView_prototype_setInt8
+DataView_prototype_setUint16
+DataView_prototype_setUint32
+DataView_prototype_setUint8
+Date
+Date_now
+Date_parse
+Date_prototype
+Date_prototype_constructor
+Date_prototype_getDate
+Date_prototype_getDay
+Date_prototype_getFullYear
+Date_prototype_getHours
+Date_prototype_getMilliseconds
+Date_prototype_getMinutes
+Date_prototype_getMonth
+Date_prototype_getSeconds
+Date_prototype_getTime
+Date_prototype_getTimezoneOffset
+Date_prototype_getUTCDate
+Date_prototype_getUTCDay
+Date_prototype_getUTCFullYear
+Date_prototype_getUTCHours
+Date_prototype_getUTCMilliseconds
+Date_prototype_getUTCMinutes
+Date_prototype_getUTCMonth
+Date_prototype_getUTCSeconds
+Date_prototype_setDate
+Date_prototype_setFullYear
+Date_prototype_setHours
+Date_prototype_setMilliseconds
+Date_prototype_setMinutes
+Date_prototype_setMonth
+Date_prototype_setSeconds
+Date_prototype_setTime
+Date_prototype_setUTCDate
+Date_prototype_setUTCFullYear
+Date_prototype_setUTCHours
+Date_prototype_setUTCMilliseconds
+Date_prototype_setUTCMinutes
+Date_prototype_setUTCMonth
+Date_prototype_setUTCSeconds
+Date_prototype_Symbol_toPrimitive
+Date_prototype_toDateString
+Date_prototype_toISOString
+Date_prototype_toJSON
+Date_prototype_toLocaleDateString
+Date_prototype_toLocaleString
+Date_prototype_toLocaleTimeString
+Date_prototype_toString
+Date_prototype_toTemporalInstant
+Date_prototype_toTimeString
+Date_prototype_toUTCString
+Date_prototype_valueOf
+Date_UTC
+DecodeURI
+DecodeURIComponent
+DisposableStack
+DisposableStack_prototype
+DisposableStack_prototype_adopt
+DisposableStack_prototype_defer
+DisposableStack_prototype_dispose
+DisposableStack_prototype_disposed
+DisposableStack_prototype_move
+DisposableStack_prototype_use
+EncodeURI
+EncodeURIComponent
+Error
+Error_isError
+Error_prototype
+Error_prototype_constructor
+Error_prototype_message
+Error_prototype_name
+Error_prototype_toString
+Eval
+FinalizationRegistry
+FinalizationRegistry_prototype
+FinalizationRegistry_prototype_register
+FinalizationRegistry_prototype_unregister
+Function
+Function_internals_Call
+Function_internals_Construct
+Function_length
+Function_prototype
+Function_prototype_apply
+Function_prototype_arguments
+Function_prototype_bind
+Function_prototype_call
+Function_prototype_caller
+Function_prototype_callerArguments
+Function_prototype_constructor
+Function_prototype_Symbol_hasInstance
+Function_prototype_toString
+GeneratorFunction
+GeneratorFunction_prototype
+GeneratorPrototype
+GeneratorPrototype_next
+GeneratorPrototype_return
+GeneratorPrototype_throw
+Global
+Infinity
+IsFinite
+IsNaN
+Iterator
+Iterator_concat
+Iterator_from
+Iterator_prototype
+Iterator_prototype_constructor
+Iterator_prototype_drop
+Iterator_prototype_every
+Iterator_prototype_filter
+Iterator_prototype_find
+Iterator_prototype_flatMap
+Iterator_prototype_forEach
+Iterator_prototype_map
+Iterator_prototype_reduce
+Iterator_prototype_some
+Iterator_prototype_Symbol_dispose
+Iterator_prototype_Symbol_iterator
+Iterator_prototype_Symbol_toStringTag
+Iterator_prototype_take
+Iterator_prototype_toArray
+JSON
+JSON_isRawJSON
+JSON_parse
+JSON_rawJSON
+JSON_stringify
+Map
+Map_groupBy
+Map_prototype
+Map_prototype_clear
+Map_prototype_delete
+Map_prototype_entries
+Map_prototype_forEach
+Map_prototype_get
+Map_prototype_getOrInsert
+Map_prototype_getOrInsertComputed
+Map_prototype_has
+Map_prototype_keys
+Map_prototype_set
+Map_prototype_size
+Map_prototype_Symbol_iterator
+Map_prototype_values
+Map_Symbol_species
+MapIteratorPrototype
+MapIteratorPrototype_next
+Math
+Math_abs
+Math_acos
+Math_acosh
+Math_asin
+Math_asinh
+Math_atan
+Math_atan2
+Math_atanh
+Math_cbrt
+Math_ceil
+Math_clz32
+Math_cos
+Math_cosh
+Math_E
+Math_exp
+Math_expm1
+Math_f16round
+Math_floor
+Math_fround
+Math_hypot
+Math_imul
+Math_LN10
+Math_LN2
+Math_log
+Math_log10
+Math_LOG10E
+Math_log1p
+Math_log2
+Math_LOG2E
+Math_max
+Math_min
+Math_PI
+Math_pow
+Math_random
+Math_round
+Math_sign
+Math_sin
+Math_sinh
+Math_sqrt
+Math_SQRT1_2
+Math_SQRT2
+Math_sumPrecise
+Math_tan
+Math_tanh
+Math_trunc
+NaN
+NativeErrors
+NativeErrors_AggregateError
+NativeErrors_AggregateError_prototype
+NativeErrors_EvalError
+NativeErrors_EvalError_prototype
+NativeErrors_RangeError
+NativeErrors_RangeError_prototype
+NativeErrors_ReferenceError
+NativeErrors_ReferenceError_prototype
+NativeErrors_SuppressedError
+NativeErrors_SuppressedError_prototype
+NativeErrors_SyntaxError
+NativeErrors_SyntaxError_prototype
+NativeErrors_TypeError
+NativeErrors_TypeError_prototype
+NativeErrors_URIError
+NativeErrors_URIError_prototype
+Number
+Number_isFinite
+Number_isInteger
+Number_isNaN
+Number_isSafeInteger
+Number_MAX_VALUE
+Number_MIN_VALUE
+Number_NEGATIVE_INFINITY
+Number_parseFloat
+Number_parseInt
+Number_POSITIVE_INFINITY
+Number_prototype
+Number_prototype_toExponential
+Number_prototype_toFixed
+Number_prototype_toLocaleString
+Number_prototype_toPrecision
+Number_prototype_toString
+Number_prototype_valueOf
+Object
+Object_assign
+Object_create
+Object_defineProperties
+Object_defineProperty
+Object_entries
+Object_freeze
+Object_fromEntries
+Object_getOwnPropertyDescriptor
+Object_getOwnPropertyDescriptors
+Object_getOwnPropertyNames
+Object_getOwnPropertySymbols
+Object_getPrototypeOf
+Object_groupBy
+Object_hasOwn
+Object_internals_DefineOwnProperty
+Object_is
+Object_isExtensible
+Object_isFrozen
+Object_isSealed
+Object_keys
+Object_preventExtensions
+Object_prototype
+Object_prototype___defineGetter__
+Object_prototype___defineSetter__
+Object_prototype___lookupGetter__
+Object_prototype___lookupSetter__
+Object_prototype___proto__
+Object_prototype_constructor
+Object_prototype_hasOwnProperty
+Object_prototype_isPrototypeOf
+Object_prototype_propertyIsEnumerable
+Object_prototype_toLocaleString
+Object_prototype_toString
+Object_prototype_valueOf
+Object_seal
+Object_setPrototypeOf
+Object_values
+ParseFloat
+ParseInt
+Promise
+Promise_all
+Promise_allSettled
+Promise_any
+Promise_prototype
+Promise_prototype_catch
+Promise_prototype_finally
+Promise_prototype_then
+Promise_race
+Promise_reject
+Promise_resolve
+Promise_Symbol_species
+Promise_try
+Promise_withResolvers
+Proxy
+Proxy_apply
+Proxy_construct
+Proxy_defineProperty
+Proxy_deleteProperty
+Proxy_enumerate
+Proxy_get
+Proxy_getOwnPropertyDescriptor
+Proxy_getPrototypeOf
+Proxy_has
+Proxy_isExtensible
+Proxy_ownKeys
+Proxy_preventExtensions
+Proxy_revocable
+Proxy_set
+Proxy_setPrototypeOf
+Reflect
+Reflect_apply
+Reflect_construct
+Reflect_defineProperty
+Reflect_deleteProperty
+Reflect_enumerate
+Reflect_get
+Reflect_getOwnPropertyDescriptor
+Reflect_getPrototypeOf
+Reflect_has
+Reflect_isExtensible
+Reflect_ownKeys
+Reflect_preventExtensions
+Reflect_set
+Reflect_setPrototypeOf
+RegExp
+RegExp_CharacterClassEscapes
+RegExp_dotall
+RegExp_escape
+RegExp_lookBehind
+RegExp_matchIndices
+RegExp_namedGroups
+RegExp_propertyEscapes
+RegExp_propertyEscapes_generated
+RegExp_propertyEscapes_generated_strings
+RegExp_prototype
+RegExp_prototype_dotAll
+RegExp_prototype_exec
+RegExp_prototype_flags
+RegExp_prototype_global
+RegExp_prototype_hasIndices
+RegExp_prototype_ignoreCase
+RegExp_prototype_multiline
+RegExp_prototype_source
+RegExp_prototype_sticky
+RegExp_prototype_Symbol_match
+RegExp_prototype_Symbol_matchAll
+RegExp_prototype_Symbol_replace
+RegExp_prototype_Symbol_search
+RegExp_prototype_Symbol_split
+RegExp_prototype_test
+RegExp_prototype_toString
+RegExp_prototype_unicode
+RegExp_prototype_unicodeSets
+RegExp_regexpModifiers
+RegExp_regexpModifiers_syntax_valid
+RegExp_Symbol_species
+RegExp_unicodeSets_generated
+RegExpStringIteratorPrototype
+RegExpStringIteratorPrototype_next
+Set
+Set_prototype
+Set_prototype_add
+Set_prototype_clear
+Set_prototype_constructor
+Set_prototype_delete
+Set_prototype_difference
+Set_prototype_entries
+Set_prototype_forEach
+Set_prototype_has
+Set_prototype_intersection
+Set_prototype_isDisjointFrom
+Set_prototype_isSubsetOf
+Set_prototype_isSupersetOf
+Set_prototype_keys
+Set_prototype_size
+Set_prototype_Symbol_iterator
+Set_prototype_Symbol_toStringTag
+Set_prototype_symmetricDifference
+Set_prototype_union
+Set_prototype_values
+Set_Symbol_species
+SetIteratorPrototype
+SetIteratorPrototype_next
+ShadowRealm
+ShadowRealm_prototype
+ShadowRealm_prototype_evaluate
+ShadowRealm_prototype_importValue
+ShadowRealm_WrappedFunction
+SharedArrayBuffer
+SharedArrayBuffer_prototype
+SharedArrayBuffer_prototype_byteLength
+SharedArrayBuffer_prototype_grow
+SharedArrayBuffer_prototype_growable
+SharedArrayBuffer_prototype_maxByteLength
+SharedArrayBuffer_prototype_slice
+String
+String_fromCharCode
+String_fromCodePoint
+String_prototype
+String_prototype_at
+String_prototype_charAt
+String_prototype_charCodeAt
+String_prototype_codePointAt
+String_prototype_concat
+String_prototype_constructor
+String_prototype_endsWith
+String_prototype_includes
+String_prototype_indexOf
+String_prototype_isWellFormed
+String_prototype_lastIndexOf
+String_prototype_localeCompare
+String_prototype_match
+String_prototype_matchAll
+String_prototype_normalize
+String_prototype_padEnd
+String_prototype_padStart
+String_prototype_repeat
+String_prototype_replace
+String_prototype_replaceAll
+String_prototype_search
+String_prototype_slice
+String_prototype_split
+String_prototype_startsWith
+String_prototype_substring
+String_prototype_Symbol_iterator
+String_prototype_toLocaleLowerCase
+String_prototype_toLocaleUpperCase
+String_prototype_toLowerCase
+String_prototype_toString
+String_prototype_toUpperCase
+String_prototype_toWellFormed
+String_prototype_trim
+String_prototype_trimEnd
+String_prototype_trimStart
+String_prototype_valueOf
+String_raw
+StringIteratorPrototype
+StringIteratorPrototype_next
+Symbol
+Symbol_asyncDispose
+Symbol_asyncIterator
+Symbol_dispose
+Symbol_for
+Symbol_hasInstance
+Symbol_isConcatSpreadable
+Symbol_iterator
+Symbol_keyFor
+Symbol_match
+Symbol_matchAll
+Symbol_prototype
+Symbol_prototype_description
+Symbol_prototype_Symbol_toPrimitive
+Symbol_prototype_toString
+Symbol_prototype_valueOf
+Symbol_replace
+Symbol_search
+Symbol_species
+Symbol_split
+Symbol_toPrimitive
+Symbol_toStringTag
+Symbol_unscopables
+Temporal
+Temporal_Duration
+Temporal_Duration_compare
+Temporal_Duration_from
+Temporal_Duration_prototype
+Temporal_Duration_prototype_abs
+Temporal_Duration_prototype_add
+Temporal_Duration_prototype_blank
+Temporal_Duration_prototype_days
+Temporal_Duration_prototype_hours
+Temporal_Duration_prototype_microseconds
+Temporal_Duration_prototype_milliseconds
+Temporal_Duration_prototype_minutes
+Temporal_Duration_prototype_months
+Temporal_Duration_prototype_nanoseconds
+Temporal_Duration_prototype_negated
+Temporal_Duration_prototype_round
+Temporal_Duration_prototype_seconds
+Temporal_Duration_prototype_sign
+Temporal_Duration_prototype_subtract
+Temporal_Duration_prototype_toJSON
+Temporal_Duration_prototype_toLocaleString
+Temporal_Duration_prototype_toString
+Temporal_Duration_prototype_toStringTag
+Temporal_Duration_prototype_total
+Temporal_Duration_prototype_valueOf
+Temporal_Duration_prototype_weeks
+Temporal_Duration_prototype_with
+Temporal_Duration_prototype_years
+Temporal_Instant
+Temporal_Instant_compare
+Temporal_Instant_from
+Temporal_Instant_fromEpochMilliseconds
+Temporal_Instant_fromEpochNanoseconds
+Temporal_Instant_prototype
+Temporal_Instant_prototype_add
+Temporal_Instant_prototype_epochMilliseconds
+Temporal_Instant_prototype_epochNanoseconds
+Temporal_Instant_prototype_equals
+Temporal_Instant_prototype_round
+Temporal_Instant_prototype_since
+Temporal_Instant_prototype_subtract
+Temporal_Instant_prototype_toJSON
+Temporal_Instant_prototype_toLocaleString
+Temporal_Instant_prototype_toString
+Temporal_Instant_prototype_toStringTag
+Temporal_Instant_prototype_toZonedDateTimeISO
+Temporal_Instant_prototype_until
+Temporal_Instant_prototype_valueOf
+Temporal_Now
+Temporal_Now_instant
+Temporal_Now_plainDateISO
+Temporal_Now_plainDateTimeISO
+Temporal_Now_plainTimeISO
+Temporal_Now_timeZoneId
+Temporal_Now_toStringTag
+Temporal_Now_zonedDateTimeISO
+Temporal_PlainDate
+Temporal_PlainDate_compare
+Temporal_PlainDate_from
+Temporal_PlainDate_prototype
+Temporal_PlainDate_prototype_add
+Temporal_PlainDate_prototype_calendarId
+Temporal_PlainDate_prototype_day
+Temporal_PlainDate_prototype_dayOfWeek
+Temporal_PlainDate_prototype_dayOfYear
+Temporal_PlainDate_prototype_daysInMonth
+Temporal_PlainDate_prototype_daysInWeek
+Temporal_PlainDate_prototype_daysInYear
+Temporal_PlainDate_prototype_equals
+Temporal_PlainDate_prototype_era
+Temporal_PlainDate_prototype_eraYear
+Temporal_PlainDate_prototype_inLeapYear
+Temporal_PlainDate_prototype_month
+Temporal_PlainDate_prototype_monthCode
+Temporal_PlainDate_prototype_monthsInYear
+Temporal_PlainDate_prototype_since
+Temporal_PlainDate_prototype_subtract
+Temporal_PlainDate_prototype_toJSON
+Temporal_PlainDate_prototype_toLocaleString
+Temporal_PlainDate_prototype_toPlainDateTime
+Temporal_PlainDate_prototype_toPlainMonthDay
+Temporal_PlainDate_prototype_toPlainYearMonth
+Temporal_PlainDate_prototype_toString
+Temporal_PlainDate_prototype_toStringTag
+Temporal_PlainDate_prototype_toZonedDateTime
+Temporal_PlainDate_prototype_until
+Temporal_PlainDate_prototype_valueOf
+Temporal_PlainDate_prototype_weekOfYear
+Temporal_PlainDate_prototype_with
+Temporal_PlainDate_prototype_withCalendar
+Temporal_PlainDate_prototype_year
+Temporal_PlainDate_prototype_yearOfWeek
+Temporal_PlainDateTime
+Temporal_PlainDateTime_compare
+Temporal_PlainDateTime_from
+Temporal_PlainDateTime_prototype
+Temporal_PlainDateTime_prototype_add
+Temporal_PlainDateTime_prototype_calendarId
+Temporal_PlainDateTime_prototype_day
+Temporal_PlainDateTime_prototype_dayOfWeek
+Temporal_PlainDateTime_prototype_dayOfYear
+Temporal_PlainDateTime_prototype_daysInMonth
+Temporal_PlainDateTime_prototype_daysInWeek
+Temporal_PlainDateTime_prototype_daysInYear
+Temporal_PlainDateTime_prototype_equals
+Temporal_PlainDateTime_prototype_era
+Temporal_PlainDateTime_prototype_eraYear
+Temporal_PlainDateTime_prototype_hour
+Temporal_PlainDateTime_prototype_inLeapYear
+Temporal_PlainDateTime_prototype_microsecond
+Temporal_PlainDateTime_prototype_millisecond
+Temporal_PlainDateTime_prototype_minute
+Temporal_PlainDateTime_prototype_month
+Temporal_PlainDateTime_prototype_monthCode
+Temporal_PlainDateTime_prototype_monthsInYear
+Temporal_PlainDateTime_prototype_nanosecond
+Temporal_PlainDateTime_prototype_round
+Temporal_PlainDateTime_prototype_second
+Temporal_PlainDateTime_prototype_since
+Temporal_PlainDateTime_prototype_subtract
+Temporal_PlainDateTime_prototype_toJSON
+Temporal_PlainDateTime_prototype_toLocaleString
+Temporal_PlainDateTime_prototype_toPlainDate
+Temporal_PlainDateTime_prototype_toPlainTime
+Temporal_PlainDateTime_prototype_toString
+Temporal_PlainDateTime_prototype_toStringTag
+Temporal_PlainDateTime_prototype_toZonedDateTime
+Temporal_PlainDateTime_prototype_until
+Temporal_PlainDateTime_prototype_valueOf
+Temporal_PlainDateTime_prototype_weekOfYear
+Temporal_PlainDateTime_prototype_with
+Temporal_PlainDateTime_prototype_withCalendar
+Temporal_PlainDateTime_prototype_withPlainTime
+Temporal_PlainDateTime_prototype_year
+Temporal_PlainDateTime_prototype_yearOfWeek
+Temporal_PlainMonthDay
+Temporal_PlainMonthDay_from
+Temporal_PlainMonthDay_prototype
+Temporal_PlainMonthDay_prototype_calendarId
+Temporal_PlainMonthDay_prototype_day
+Temporal_PlainMonthDay_prototype_equals
+Temporal_PlainMonthDay_prototype_month
+Temporal_PlainMonthDay_prototype_monthCode
+Temporal_PlainMonthDay_prototype_toJSON
+Temporal_PlainMonthDay_prototype_toLocaleString
+Temporal_PlainMonthDay_prototype_toPlainDate
+Temporal_PlainMonthDay_prototype_toString
+Temporal_PlainMonthDay_prototype_toStringTag
+Temporal_PlainMonthDay_prototype_valueOf
+Temporal_PlainMonthDay_prototype_with
+Temporal_PlainTime
+Temporal_PlainTime_compare
+Temporal_PlainTime_from
+Temporal_PlainTime_prototype
+Temporal_PlainTime_prototype_add
+Temporal_PlainTime_prototype_equals
+Temporal_PlainTime_prototype_hour
+Temporal_PlainTime_prototype_microsecond
+Temporal_PlainTime_prototype_millisecond
+Temporal_PlainTime_prototype_minute
+Temporal_PlainTime_prototype_nanosecond
+Temporal_PlainTime_prototype_round
+Temporal_PlainTime_prototype_second
+Temporal_PlainTime_prototype_since
+Temporal_PlainTime_prototype_subtract
+Temporal_PlainTime_prototype_toJSON
+Temporal_PlainTime_prototype_toLocaleString
+Temporal_PlainTime_prototype_toString
+Temporal_PlainTime_prototype_toStringTag
+Temporal_PlainTime_prototype_until
+Temporal_PlainTime_prototype_valueOf
+Temporal_PlainTime_prototype_with
+Temporal_PlainYearMonth
+Temporal_PlainYearMonth_compare
+Temporal_PlainYearMonth_from
+Temporal_PlainYearMonth_prototype
+Temporal_PlainYearMonth_prototype_add
+Temporal_PlainYearMonth_prototype_calendarId
+Temporal_PlainYearMonth_prototype_daysInMonth
+Temporal_PlainYearMonth_prototype_daysInYear
+Temporal_PlainYearMonth_prototype_equals
+Temporal_PlainYearMonth_prototype_era
+Temporal_PlainYearMonth_prototype_eraYear
+Temporal_PlainYearMonth_prototype_inLeapYear
+Temporal_PlainYearMonth_prototype_month
+Temporal_PlainYearMonth_prototype_monthCode
+Temporal_PlainYearMonth_prototype_monthsInYear
+Temporal_PlainYearMonth_prototype_since
+Temporal_PlainYearMonth_prototype_subtract
+Temporal_PlainYearMonth_prototype_toJSON
+Temporal_PlainYearMonth_prototype_toLocaleString
+Temporal_PlainYearMonth_prototype_toPlainDate
+Temporal_PlainYearMonth_prototype_toString
+Temporal_PlainYearMonth_prototype_toStringTag
+Temporal_PlainYearMonth_prototype_until
+Temporal_PlainYearMonth_prototype_valueOf
+Temporal_PlainYearMonth_prototype_with
+Temporal_PlainYearMonth_prototype_year
+Temporal_toStringTag
+Temporal_ZonedDateTime
+Temporal_ZonedDateTime_compare
+Temporal_ZonedDateTime_from
+Temporal_ZonedDateTime_prototype
+Temporal_ZonedDateTime_prototype_add
+Temporal_ZonedDateTime_prototype_calendarId
+Temporal_ZonedDateTime_prototype_day
+Temporal_ZonedDateTime_prototype_dayOfWeek
+Temporal_ZonedDateTime_prototype_dayOfYear
+Temporal_ZonedDateTime_prototype_daysInMonth
+Temporal_ZonedDateTime_prototype_daysInWeek
+Temporal_ZonedDateTime_prototype_daysInYear
+Temporal_ZonedDateTime_prototype_epochMilliseconds
+Temporal_ZonedDateTime_prototype_epochNanoseconds
+Temporal_ZonedDateTime_prototype_equals
+Temporal_ZonedDateTime_prototype_era
+Temporal_ZonedDateTime_prototype_eraYear
+Temporal_ZonedDateTime_prototype_getTimeZoneTransition
+Temporal_ZonedDateTime_prototype_hour
+Temporal_ZonedDateTime_prototype_hoursInDay
+Temporal_ZonedDateTime_prototype_inLeapYear
+Temporal_ZonedDateTime_prototype_microsecond
+Temporal_ZonedDateTime_prototype_millisecond
+Temporal_ZonedDateTime_prototype_minute
+Temporal_ZonedDateTime_prototype_month
+Temporal_ZonedDateTime_prototype_monthCode
+Temporal_ZonedDateTime_prototype_monthsInYear
+Temporal_ZonedDateTime_prototype_nanosecond
+Temporal_ZonedDateTime_prototype_offset
+Temporal_ZonedDateTime_prototype_offsetNanoseconds
+Temporal_ZonedDateTime_prototype_round
+Temporal_ZonedDateTime_prototype_second
+Temporal_ZonedDateTime_prototype_since
+Temporal_ZonedDateTime_prototype_startOfDay
+Temporal_ZonedDateTime_prototype_subtract
+Temporal_ZonedDateTime_prototype_timeZoneId
+Temporal_ZonedDateTime_prototype_toInstant
+Temporal_ZonedDateTime_prototype_toJSON
+Temporal_ZonedDateTime_prototype_toLocaleString
+Temporal_ZonedDateTime_prototype_toPlainDate
+Temporal_ZonedDateTime_prototype_toPlainDateTime
+Temporal_ZonedDateTime_prototype_toPlainTime
+Temporal_ZonedDateTime_prototype_toString
+Temporal_ZonedDateTime_prototype_toStringTag
+Temporal_ZonedDateTime_prototype_until
+Temporal_ZonedDateTime_prototype_valueOf
+Temporal_ZonedDateTime_prototype_weekOfYear
+Temporal_ZonedDateTime_prototype_with
+Temporal_ZonedDateTime_prototype_withCalendar
+Temporal_ZonedDateTime_prototype_withPlainTime
+Temporal_ZonedDateTime_prototype_withTimeZone
+Temporal_ZonedDateTime_prototype_year
+Temporal_ZonedDateTime_prototype_yearOfWeek
+ThrowTypeError
+TypedArray
+TypedArray_from
+TypedArray_of
+TypedArray_prototype
+TypedArray_prototype_at
+TypedArray_prototype_at_BigInt
+TypedArray_prototype_buffer
+TypedArray_prototype_buffer_BigInt
+TypedArray_prototype_byteLength
+TypedArray_prototype_byteLength_BigInt
+TypedArray_prototype_byteOffset
+TypedArray_prototype_byteOffset_BigInt
+TypedArray_prototype_copyWithin
+TypedArray_prototype_copyWithin_BigInt
+TypedArray_prototype_entries
+TypedArray_prototype_entries_BigInt
+TypedArray_prototype_every
+TypedArray_prototype_every_BigInt
+TypedArray_prototype_fill
+TypedArray_prototype_fill_BigInt
+TypedArray_prototype_filter
+TypedArray_prototype_filter_BigInt
+TypedArray_prototype_find
+TypedArray_prototype_find_BigInt
+TypedArray_prototype_findIndex
+TypedArray_prototype_findIndex_BigInt
+TypedArray_prototype_findLast
+TypedArray_prototype_findLast_BigInt
+TypedArray_prototype_findLastIndex
+TypedArray_prototype_findLastIndex_BigInt
+TypedArray_prototype_forEach
+TypedArray_prototype_forEach_BigInt
+TypedArray_prototype_includes
+TypedArray_prototype_includes_BigInt
+TypedArray_prototype_indexOf
+TypedArray_prototype_indexOf_BigInt
+TypedArray_prototype_join
+TypedArray_prototype_join_BigInt
+TypedArray_prototype_keys
+TypedArray_prototype_keys_BigInt
+TypedArray_prototype_lastIndexOf
+TypedArray_prototype_lastIndexOf_BigInt
+TypedArray_prototype_length
+TypedArray_prototype_length_BigInt
+TypedArray_prototype_map
+TypedArray_prototype_map_BigInt
+TypedArray_prototype_reduce
+TypedArray_prototype_reduce_BigInt
+TypedArray_prototype_reduceRight
+TypedArray_prototype_reduceRight_BigInt
+TypedArray_prototype_reverse
+TypedArray_prototype_reverse_BigInt
+TypedArray_prototype_set
+TypedArray_prototype_set_BigInt
+TypedArray_prototype_slice
+TypedArray_prototype_slice_BigInt
+TypedArray_prototype_some
+TypedArray_prototype_some_BigInt
+TypedArray_prototype_sort
+TypedArray_prototype_sort_BigInt
+TypedArray_prototype_subarray
+TypedArray_prototype_subarray_BigInt
+TypedArray_prototype_Symbol_iterator
+TypedArray_prototype_Symbol_toStringTag
+TypedArray_prototype_Symbol_toStringTag_BigInt
+TypedArray_prototype_toLocaleString
+TypedArray_prototype_toLocaleString_BigInt
+TypedArray_prototype_toReversed
+TypedArray_prototype_toSorted
+TypedArray_prototype_toString
+TypedArray_prototype_toString_BigInt
+TypedArray_prototype_values
+TypedArray_prototype_values_BigInt
+TypedArray_prototype_with
+TypedArray_prototype_with_BigInt
+TypedArray_Symbol_species
+TypedArrayConstructors_BigInt64Array
+TypedArrayConstructors_BigInt64Array_prototype
+TypedArrayConstructors_BigUint64Array
+TypedArrayConstructors_BigUint64Array_prototype
+TypedArrayConstructors_ctors
+TypedArrayConstructors_ctors_bufferArg
+TypedArrayConstructors_ctors_lengthArg
+TypedArrayConstructors_ctors_noArgs
+TypedArrayConstructors_ctors_objectArg
+TypedArrayConstructors_ctors_typedarrayArg
+TypedArrayConstructors_ctorsBigint_bufferArg
+TypedArrayConstructors_ctorsBigint_lengthArg
+TypedArrayConstructors_ctorsBigint_noArgs
+TypedArrayConstructors_ctorsBigint_objectArg
+TypedArrayConstructors_ctorsBigint_typedarrayArg
+TypedArrayConstructors_Float32Array
+TypedArrayConstructors_Float32Array_prototype
+TypedArrayConstructors_Float64Array
+TypedArrayConstructors_Float64Array_prototype
+TypedArrayConstructors_from
+TypedArrayConstructors_from_BigInt
+TypedArrayConstructors_Int16Array
+TypedArrayConstructors_Int16Array_prototype
+TypedArrayConstructors_Int32Array
+TypedArrayConstructors_Int32Array_prototype
+TypedArrayConstructors_Int8Array
+TypedArrayConstructors_Int8Array_prototype
+TypedArrayConstructors_internals_DefineOwnProperty
+TypedArrayConstructors_internals_DefineOwnProperty_BigInt
+TypedArrayConstructors_internals_Delete
+TypedArrayConstructors_internals_Delete_BigInt
+TypedArrayConstructors_internals_Get
+TypedArrayConstructors_internals_Get_BigInt
+TypedArrayConstructors_internals_GetOwnProperty
+TypedArrayConstructors_internals_GetOwnProperty_BigInt
+TypedArrayConstructors_internals_HasProperty
+TypedArrayConstructors_internals_HasProperty_BigInt
+TypedArrayConstructors_internals_OwnPropertyKeys
+TypedArrayConstructors_internals_OwnPropertyKeys_BigInt
+TypedArrayConstructors_internals_Set
+TypedArrayConstructors_internals_Set_BigInt
+TypedArrayConstructors_of
+TypedArrayConstructors_of_BigInt
+TypedArrayConstructors_prototype
+TypedArrayConstructors_prototype_buffer
+TypedArrayConstructors_prototype_byteLength
+TypedArrayConstructors_prototype_byteOffset
+TypedArrayConstructors_prototype_copyWithin
+TypedArrayConstructors_prototype_entries
+TypedArrayConstructors_prototype_every
+TypedArrayConstructors_prototype_fill
+TypedArrayConstructors_prototype_filter
+TypedArrayConstructors_prototype_find
+TypedArrayConstructors_prototype_findIndex
+TypedArrayConstructors_prototype_forEach
+TypedArrayConstructors_prototype_indexOf
+TypedArrayConstructors_prototype_join
+TypedArrayConstructors_prototype_keys
+TypedArrayConstructors_prototype_lastIndexOf
+TypedArrayConstructors_prototype_length
+TypedArrayConstructors_prototype_map
+TypedArrayConstructors_prototype_reduce
+TypedArrayConstructors_prototype_reduceRight
+TypedArrayConstructors_prototype_reverse
+TypedArrayConstructors_prototype_set
+TypedArrayConstructors_prototype_slice
+TypedArrayConstructors_prototype_some
+TypedArrayConstructors_prototype_sort
+TypedArrayConstructors_prototype_subarray
+TypedArrayConstructors_prototype_Symbol_toStringTag
+TypedArrayConstructors_prototype_toLocaleString
+TypedArrayConstructors_prototype_toString
+TypedArrayConstructors_prototype_values
+TypedArrayConstructors_Uint16Array
+TypedArrayConstructors_Uint16Array_prototype
+TypedArrayConstructors_Uint32Array
+TypedArrayConstructors_Uint32Array_prototype
+TypedArrayConstructors_Uint8Array
+TypedArrayConstructors_Uint8Array_prototype
+TypedArrayConstructors_Uint8ClampedArray
+TypedArrayConstructors_Uint8ClampedArray_prototype
+Uint8Array_fromBase64
+Uint8Array_fromHex
+Uint8Array_prototype_setFromBase64
+Uint8Array_prototype_setFromHex
+Uint8Array_prototype_toBase64
+Uint8Array_prototype_toHex
+Undefined
+WeakMap
+WeakMap_prototype
+WeakMap_prototype_delete
+WeakMap_prototype_get
+WeakMap_prototype_getOrInsert
+WeakMap_prototype_has
+WeakMap_prototype_set
+WeakRef
+WeakRef_prototype
+WeakRef_prototype_deref
+WeakSet
+WeakSet_prototype
+WeakSet_prototype_add
+WeakSet_prototype_constructor
+WeakSet_prototype_delete
+WeakSet_prototype_has

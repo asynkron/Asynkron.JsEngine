@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Threading;
 using System.Threading.Tasks;
+using Asynkron.JsEngine;
 using System.Globalization;
 using System.Numerics;
 using Asynkron.JsEngine.Converters;
@@ -2270,6 +2271,14 @@ public static class TypedAstEvaluator
             throw new InvalidOperationException("Attempted to construct a non-callable value.");
         }
 
+        if (constructor is HostFunction hostFunction && !hostFunction.IsConstructor)
+        {
+            var error = StandardLibrary.TypeErrorConstructor is IJsCallable typeErrorCtor
+                ? typeErrorCtor.Invoke(["is not a constructor"], null)
+                : new InvalidOperationException("Target is not a constructor.");
+            throw new ThrowSignal(error);
+        }
+
         var instance = new JsObject();
         if (TryGetPropertyValue(constructor, "prototype", out var prototype) && prototype is JsObject proto)
         {
@@ -3347,6 +3356,14 @@ public static class TypedAstEvaluator
         {
             array.Push(arguments[i]);
         }
+
+        array.DefineProperty("__arguments__", new PropertyDescriptor
+        {
+            Value = true,
+            Writable = false,
+            Enumerable = false,
+            Configurable = false
+        });
 
         return array;
     }

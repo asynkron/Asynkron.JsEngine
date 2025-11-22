@@ -22,6 +22,11 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike
     /// </summary>
     public Runtime.RealmState? RealmState { get; set; }
 
+    /// <summary>
+    /// Indicates whether this host function can be used with <c>new</c>.
+    /// </summary>
+    public bool IsConstructor { get; set; } = true;
+
     internal JsObject Properties => _properties;
 
     public HostFunction(Func<IReadOnlyList<object?>, object?> handler)

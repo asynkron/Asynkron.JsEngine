@@ -1539,53 +1539,55 @@ public static class StandardLibrary
             Configurable = true
         });
 
+        var revocableFn = new HostFunction((thisValue, args) =>
+        {
+            if (args.Count < 2)
+            {
+                var error = TypeErrorConstructor is IJsCallable ctor
+                    ? ctor.Invoke(["Proxy.revocable requires a target and handler"], null)
+                    : new InvalidOperationException("Proxy.revocable requires a target and handler.");
+                throw new ThrowSignal(error);
+            }
+
+            var target = args[0];
+            var handler = args[1];
+
+            if (target is not IJsObjectLike)
+            {
+                var error = TypeErrorConstructor is IJsCallable ctor2
+                    ? ctor2.Invoke(["Proxy target must be an object"], null)
+                    : new InvalidOperationException("Proxy target must be an object.");
+                throw new ThrowSignal(error);
+            }
+
+            if (handler is not IJsObjectLike handlerObj)
+            {
+                var error = TypeErrorConstructor is IJsCallable ctor3
+                    ? ctor3.Invoke(["Proxy handler must be an object"], null)
+                    : new InvalidOperationException("Proxy handler must be an object.");
+                throw new ThrowSignal(error);
+            }
+
+            var proxy = new JsProxy(target!, handlerObj);
+            if (proxyPrototype is not null)
+            {
+                proxy.SetPrototype(proxyPrototype);
+            }
+
+            var container = new JsObject();
+            container.SetProperty("proxy", proxy);
+            container.SetProperty("revoke", new HostFunction((_, _) =>
+            {
+                proxy.Handler = null;
+                return Symbols.Undefined;
+            }));
+
+            return container;
+        });
+        revocableFn.IsConstructor = false;
         proxyConstructor.DefineProperty("revocable", new PropertyDescriptor
         {
-            Value = new HostFunction((thisValue, args) =>
-            {
-                if (args.Count < 2)
-                {
-                    var error = TypeErrorConstructor is IJsCallable ctor
-                        ? ctor.Invoke(["Proxy.revocable requires a target and handler"], null)
-                        : new InvalidOperationException("Proxy.revocable requires a target and handler.");
-                    throw new ThrowSignal(error);
-                }
-
-                var target = args[0];
-                var handler = args[1];
-
-                if (target is not IJsObjectLike)
-                {
-                    var error = TypeErrorConstructor is IJsCallable ctor2
-                        ? ctor2.Invoke(["Proxy target must be an object"], null)
-                        : new InvalidOperationException("Proxy target must be an object.");
-                    throw new ThrowSignal(error);
-                }
-
-                if (handler is not IJsObjectLike handlerObj)
-                {
-                    var error = TypeErrorConstructor is IJsCallable ctor3
-                        ? ctor3.Invoke(["Proxy handler must be an object"], null)
-                        : new InvalidOperationException("Proxy handler must be an object.");
-                    throw new ThrowSignal(error);
-                }
-
-                var proxy = new JsProxy(target!, handlerObj);
-                if (proxyPrototype is not null)
-                {
-                    proxy.SetPrototype(proxyPrototype);
-                }
-
-                var container = new JsObject();
-                container.SetProperty("proxy", proxy);
-                container.SetProperty("revoke", new HostFunction((_, _) =>
-                {
-                    proxy.Handler = null;
-                    return Symbols.Undefined;
-                }));
-
-                return container;
-            }),
+            Value = revocableFn,
             Writable = true,
             Enumerable = false,
             Configurable = true
@@ -4797,7 +4799,23 @@ public static class StandardLibrary
                 candidate = proxy.Target;
             }
 
-            return candidate is JsArray;
+            if (candidate is JsArray jsArray)
+            {
+                if (jsArray.TryGetProperty("__arguments__", out var isArgs) && isArgs is true)
+                {
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (candidate is JsObject obj && ArrayPrototype is not null &&
+                ReferenceEquals(obj, ArrayPrototype))
+            {
+                return true;
+            }
+
+            return false;
         });
 
         isArrayFn.DefineProperty("name", new PropertyDescriptor
@@ -4815,6 +4833,7 @@ public static class StandardLibrary
             Enumerable = false,
             Configurable = true
         });
+        isArrayFn.IsConstructor = false;
 
         arrayConstructor.DefineProperty("isArray", new PropertyDescriptor
         {
@@ -6716,6 +6735,22 @@ public static class StandardLibrary
 
             var argList = args[1] is JsArray arr ? arr.Items.ToArray() : Array.Empty<object?>();
             var newTarget = args.Count > 2 && args[2] is IJsCallable ctor ? ctor : target;
+
+            if (target is HostFunction hostTarget && !hostTarget.IsConstructor)
+            {
+                var error = TypeErrorConstructor is IJsCallable typeErrorCtor
+                    ? typeErrorCtor.Invoke(["Target is not a constructor"], null)
+                    : new InvalidOperationException("Target is not a constructor.");
+                throw new ThrowSignal(error);
+            }
+
+            if (newTarget is HostFunction hostNewTarget && !hostNewTarget.IsConstructor)
+            {
+                var error = TypeErrorConstructor is IJsCallable typeErrorCtor2
+                    ? typeErrorCtor2.Invoke(["newTarget is not a constructor"], null)
+                    : new InvalidOperationException("newTarget is not a constructor.");
+                throw new ThrowSignal(error);
+            }
 
             JsObject? proto = ResolveConstructPrototype(newTarget, target);
 

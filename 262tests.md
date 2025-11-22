@@ -84,7 +84,7 @@ Procedure to maintain this file:
 0/2 AsyncGeneratorFunction
 2/18 AsyncIteratorPrototype_Symbol_asyncDispose
 0/12 Atomics_pause
-16/44 BigInt
+24/44 BigInt
 0/28 BigInt_asIntN
 0/28 BigInt_asUintN
 0/2 BigInt_parseInt

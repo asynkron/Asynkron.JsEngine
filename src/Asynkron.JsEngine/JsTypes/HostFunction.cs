@@ -28,6 +28,17 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike, IJsEnvironmentAwa
     public bool IsConstructor { get; set; } = true;
 
     /// <summary>
+    /// When true, construction is explicitly disallowed even though the function
+    /// reports itself as a constructor (e.g. BigInt).
+    /// </summary>
+    public bool DisallowConstruct { get; set; }
+
+    /// <summary>
+    /// Optional error message used when construction is disallowed.
+    /// </summary>
+    public string? ConstructErrorMessage { get; set; }
+
+    /// <summary>
     /// Captures the environment that invoked this host function so nested
     /// callbacks can inherit the correct global `this` binding.
     /// </summary>

@@ -248,16 +248,21 @@ public static class StandardLibrary
     {
         while (true)
         {
+            if (value is JsObject jsObj && jsObj.TryGetValue("__value__", out var inner))
+            {
+                if (ReferenceEquals(inner, value))
+                {
+                    throw ThrowTypeError("Cannot convert object to a BigInt");
+                }
+
+                value = inner;
+                continue;
+            }
+
             switch (value)
             {
                 case JsBigInt bigInt:
                     return bigInt;
-                case JsObject jsObj when jsObj.TryGetValue("__value__", out var inner):
-                    value = inner;
-                    continue;
-                case IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var accessorInner):
-                    value = accessorInner;
-                    continue;
                 case JsObject or IJsPropertyAccessor:
                     value = JsOps.ToPrimitive(value, "number");
                     continue;
@@ -271,15 +276,15 @@ public static class StandardLibrary
                 case string:
                     throw ThrowTypeError("Cannot convert string to a BigInt");
                 case double d when double.IsNaN(d) || double.IsInfinity(d) || d % 1 != 0:
-                    throw ThrowTypeError("Cannot convert number to a BigInt");
+                    throw ThrowRangeError("Cannot convert number to a BigInt");
                 case double d:
                     return new JsBigInt(new BigInteger(d));
                 case float f when float.IsNaN(f) || float.IsInfinity(f) || f % 1 != 0:
-                    throw ThrowTypeError("Cannot convert number to a BigInt");
+                    throw ThrowRangeError("Cannot convert number to a BigInt");
                 case float f:
                     return new JsBigInt(new BigInteger(f));
                 case decimal m when decimal.Truncate(m) != m:
-                    throw ThrowTypeError("Cannot convert number to a BigInt");
+                    throw ThrowRangeError("Cannot convert number to a BigInt");
                 case decimal m:
                     return new JsBigInt(new BigInteger(m));
                 case int i:
@@ -6113,7 +6118,8 @@ public static class StandardLibrary
     /// </summary>
     public static HostFunction CreateBigIntFunction(Runtime.RealmState realm)
     {
-        var bigIntFunction = new HostFunction((thisValue, args) =>
+        HostFunction bigIntFunction = null!;
+        bigIntFunction = new HostFunction((thisValue, args) =>
         {
             if (args.Count == 0)
             {
@@ -6123,7 +6129,9 @@ public static class StandardLibrary
             return ToBigInt(args[0]);
         })
         {
-            IsConstructor = false
+            IsConstructor = true,
+            DisallowConstruct = true,
+            ConstructErrorMessage = "BigInt is not a constructor"
         };
 
         if (bigIntFunction.TryGetProperty("prototype", out var protoValue) && protoValue is JsObject proto)
@@ -6185,16 +6193,6 @@ public static class StandardLibrary
 
                 return BigIntToString(value.Value, intRadix);
             }));
-
-            var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
-            var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
-            proto.SetProperty(symbolPropertyName, new HostFunction((thisValue, args) =>
-            {
-                return ToBigInt(thisValue);
-            })
-            {
-                IsConstructor = false
-            });
 
         }
 
@@ -7616,19 +7614,23 @@ public static class StandardLibrary
             var argList = args[1] is JsArray arr ? arr.Items.ToArray() : Array.Empty<object?>();
             var newTarget = args.Count > 2 && args[2] is IJsCallable ctor ? ctor : target;
 
-            if (target is HostFunction hostTarget && !hostTarget.IsConstructor)
+            if (target is HostFunction hostTarget &&
+                (!hostTarget.IsConstructor || hostTarget.DisallowConstruct))
             {
+                var message = hostTarget.ConstructErrorMessage ?? "Target is not a constructor";
                 var error = TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(["Target is not a constructor"], null)
-                    : new InvalidOperationException("Target is not a constructor.");
+                    ? typeErrorCtor.Invoke([message], null)
+                    : new InvalidOperationException(message);
                 throw new ThrowSignal(error);
             }
 
-            if (newTarget is HostFunction hostNewTarget && !hostNewTarget.IsConstructor)
+            if (newTarget is HostFunction hostNewTarget &&
+                (!hostNewTarget.IsConstructor || hostNewTarget.DisallowConstruct))
             {
+                var message = hostNewTarget.ConstructErrorMessage ?? "newTarget is not a constructor";
                 var error = TypeErrorConstructor is IJsCallable typeErrorCtor2
-                    ? typeErrorCtor2.Invoke(["newTarget is not a constructor"], null)
-                    : new InvalidOperationException("newTarget is not a constructor.");
+                    ? typeErrorCtor2.Invoke([message], null)
+                    : new InvalidOperationException(message);
                 throw new ThrowSignal(error);
             }
 

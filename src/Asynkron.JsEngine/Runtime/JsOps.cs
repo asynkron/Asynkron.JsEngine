@@ -204,17 +204,19 @@ internal static class JsOps
 
         foreach (var methodName in methods)
         {
-            if (TryInvokePropertyMethod(accessor, methodName, out var result, context))
+            if (!TryInvokePropertyMethod(accessor, methodName, out var result, context))
             {
-                if (context is not null && context.IsThrow)
-                {
-                    return value;
-                }
+                continue;
+            }
 
-                if (result is not IJsPropertyAccessor && result is not JsObject)
-                {
-                    return result;
-                }
+            if (context is not null && context.IsThrow)
+            {
+                return value;
+            }
+
+            if (result is not IJsPropertyAccessor && result is not JsObject)
+            {
+                return result;
             }
         }
 

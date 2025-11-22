@@ -2271,11 +2271,12 @@ public static class TypedAstEvaluator
             throw new InvalidOperationException("Attempted to construct a non-callable value.");
         }
 
-        if (constructor is HostFunction hostFunction && !hostFunction.IsConstructor)
+        if (constructor is HostFunction hostFunction &&
+            (!hostFunction.IsConstructor || hostFunction.DisallowConstruct))
         {
             var error = StandardLibrary.TypeErrorConstructor is IJsCallable typeErrorCtor
-                ? typeErrorCtor.Invoke(["is not a constructor"], null)
-                : new InvalidOperationException("Target is not a constructor.");
+                ? typeErrorCtor.Invoke([hostFunction.ConstructErrorMessage ?? "is not a constructor"], null)
+                : new InvalidOperationException(hostFunction.ConstructErrorMessage ?? "Target is not a constructor.");
             throw new ThrowSignal(error);
         }
 

@@ -45,6 +45,11 @@ Focus on producing code, not driving conversations.
 You may never ever ever use thread blocking calls like Task.Wait(), Task.Result, or Thread.Sleep().
 If you ever think that is the way to go, then there is a larger design issue that needs to be resolved.
 
+## Shared State
+
+You may never ever ever use "thread static" or AsyncLocal<T> or any other mechanism that relies on shared state between different asynchronous calls.
+If anything needs to be passed around, it must be passed explicitly as a parameter, or part of a parameter, e.g. JsEnvironment or similar.
+
 ## Unsupported features
 
 When you encounter an unsupported language/runtime feature or AST shape, fail fast by throwing a `NotSupportedException` (with a clear reason) instead of silently degrading behaviour or falling back to partial implementations. All such unsupported paths should be explicit so issues surface upfront and can be fixed properly.

@@ -277,7 +277,7 @@ public class BigIntTests
     {
         await using var engine = new JsEngine();
         var exception =
-            await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("10n + 5;"));
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n + 5;"));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -286,7 +286,7 @@ public class BigIntTests
     {
         await using var engine = new JsEngine();
         var exception =
-            await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("10n - 5;"));
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n - 5;"));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -295,7 +295,7 @@ public class BigIntTests
     {
         await using var engine = new JsEngine();
         var exception =
-            await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("10n * 5;"));
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n * 5;"));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -304,7 +304,7 @@ public class BigIntTests
     {
         await using var engine = new JsEngine();
         var exception =
-            await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("10n / 5;"));
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n / 5;"));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message);
     }
 
@@ -313,7 +313,7 @@ public class BigIntTests
     {
         await using var engine = new JsEngine();
         var exception =
-            await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("10n >>> 2n;"));
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n >>> 2n;"));
         Assert.Contains("BigInts have no unsigned right shift", exception.Message);
     }
 

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -20,6 +21,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     private readonly HostFunction _setFunction;
     private readonly HostFunction _subarrayFunction;
     private readonly HostFunction _sliceFunction;
+    private readonly HostFunction _indexOfFunction;
 
     protected TypedArrayBase(JsArrayBuffer buffer, int byteOffset, int length, int bytesPerElement)
     {
@@ -87,6 +89,51 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
             var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : target.Length;
 
             return CreateSlice(target, begin, end);
+        });
+
+        _indexOfFunction = new HostFunction((thisValue, args) =>
+        {
+            var target = ResolveThis(thisValue, this);
+            if (args.Count == 0)
+            {
+                return -1d;
+            }
+
+            var searchElement = args[0];
+            var len = target.Length;
+            var fromIndex = args.Count > 1 ? JsOps.ToNumberWithContext(args[1]) : 0d;
+
+            if (double.IsPositiveInfinity(fromIndex))
+            {
+                return -1d;
+            }
+
+            if (fromIndex < 0)
+            {
+                fromIndex = Math.Max(len + Math.Ceiling(fromIndex), 0);
+            }
+            else
+            {
+                fromIndex = Math.Min(fromIndex, len);
+            }
+
+            var start = (int)fromIndex;
+            for (var i = start; i < len; i++)
+            {
+                object? element = target switch
+                {
+                    JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
+                    JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
+                    _ => target.GetElement(i)
+                };
+
+                if (JsOps.StrictEquals(element, searchElement))
+                {
+                    return (double)i;
+                }
+            }
+
+            return -1d;
         });
     }
 
@@ -263,6 +310,9 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
                 return true;
             case "slice":
                 value = _sliceFunction;
+                return true;
+            case "indexOf":
+                value = _indexOfFunction;
                 return true;
         }
 

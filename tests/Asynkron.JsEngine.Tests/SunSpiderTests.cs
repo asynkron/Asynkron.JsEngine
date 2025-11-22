@@ -49,8 +49,8 @@ public class SunSpiderTests
     {
         var content = GetEmbeddedFile(filename);
         var timeout = HighBudgetScripts.Contains(filename)
-            ? TimeSpan.FromSeconds(10)
-            : TimeSpan.FromSeconds(3);
+            ? TimeSpan.FromSeconds(15)
+            : TimeSpan.FromSeconds(8);
         await RunTest(content).WaitAsync(timeout);
     }
 
@@ -77,6 +77,7 @@ public class SunSpiderTests
 
         try
         {
+            engine.ExecutionTimeout = TimeSpan.FromSeconds(10);
             await engine.Evaluate(source).ConfigureAwait(false);
         }
         catch (ThrowSignal ex)

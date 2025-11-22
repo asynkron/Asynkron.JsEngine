@@ -210,6 +210,28 @@ public sealed class JsArray : IJsObjectLike
         return HasOwnIndex((uint)index);
     }
 
+    /// <summary>
+    /// Enumerates own, present indices (dense + sparse) without exposing holes.
+    /// </summary>
+    public IEnumerable<uint> GetOwnIndices()
+    {
+        for (var i = 0; i < _items.Count; i++)
+        {
+            if (!ReferenceEquals(_items[i], ArrayHole))
+            {
+                yield return (uint)i;
+            }
+        }
+
+        if (_sparseItems is not null)
+        {
+            foreach (var key in _sparseItems.Keys)
+            {
+                yield return key;
+            }
+        }
+    }
+
     private bool TryGetOwnIndex(uint index, out object? value)
     {
         if (index < _items.Count)

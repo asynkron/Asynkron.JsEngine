@@ -56,6 +56,14 @@ public sealed class JsBigInt64Array(JsArrayBuffer buffer, int byteOffset, int le
         BinaryPrimitives.WriteInt64LittleEndian(span, coerced);
     }
 
+    public JsBigInt GetBigIntElement(int index)
+    {
+        CheckBounds(index);
+        var span = new ReadOnlySpan<byte>(_buffer.Buffer, GetByteIndex(index), BYTES_PER_ELEMENT);
+        var value = BinaryPrimitives.ReadInt64LittleEndian(span);
+        return new JsBigInt(new BigInteger(value));
+    }
+
     public override TypedArrayBase Subarray(int begin, int end)
     {
         var (start, finalEnd) = NormalizeSliceIndices(begin, end);

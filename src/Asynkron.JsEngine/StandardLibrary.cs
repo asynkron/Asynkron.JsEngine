@@ -2083,6 +2083,108 @@ public static class StandardLibrary
         }));
     }
 
+    private static double ToLengthOrZero(object? value)
+    {
+        var number = JsOps.ToNumber(value);
+        if (double.IsNaN(number) || number <= 0)
+        {
+            return 0;
+        }
+
+        if (double.IsPositiveInfinity(number))
+        {
+            return 9007199254740991d; // 2^53 - 1
+        }
+
+        var truncated = Math.Floor(number);
+        return truncated > 9007199254740991d ? 9007199254740991d : truncated;
+    }
+
+    private static double ToIntegerOrInfinity(object? value)
+    {
+        var number = JsOps.ToNumberWithContext(value);
+        if (double.IsNaN(number))
+        {
+            return 0;
+        }
+
+        if (double.IsInfinity(number) || number == 0)
+        {
+            return number;
+        }
+
+        return Math.Sign(number) * Math.Floor(Math.Abs(number));
+    }
+
+    private static bool SameValueZero(object? x, object? y)
+    {
+        if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy))
+        {
+            return true;
+        }
+
+        return JsOps.StrictEquals(x, y);
+    }
+
+    private static IJsPropertyAccessor EnsureArrayLikeReceiver(object? receiver, string methodName)
+    {
+        if (receiver is null || ReferenceEquals(receiver, Symbols.Undefined))
+        {
+            throw ThrowTypeError($"{methodName} called on null or undefined");
+        }
+
+        if (receiver is IJsPropertyAccessor accessor)
+        {
+            return accessor;
+        }
+
+        // Box primitives to objects per ToObject.
+        if (receiver is string s)
+        {
+            var obj = new JsObject();
+            obj.SetPrototype(StringPrototype);
+            obj.SetProperty("__value__", s);
+            obj.DefineProperty("length", new PropertyDescriptor
+            {
+                Value = (double)s.Length,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
+            });
+
+            for (var i = 0; i < s.Length; i++)
+            {
+                obj.SetProperty(i.ToString(CultureInfo.InvariantCulture), s[i].ToString());
+            }
+
+            return obj;
+        }
+
+        if (receiver is double or int or uint or long or ulong or short or ushort or byte or sbyte or decimal or float)
+        {
+            var obj = new JsObject();
+            obj.SetPrototype(NumberPrototype);
+            obj.SetProperty("__value__", receiver);
+            return obj;
+        }
+
+        if (receiver is bool b)
+        {
+            var obj = new JsObject();
+            obj.SetPrototype(BooleanPrototype);
+            obj.SetProperty("__value__", b);
+            return obj;
+        }
+
+        // Symbols and BigInts should throw TypeError for array methods
+        if (receiver is TypedAstSymbol || receiver is JsBigInt)
+        {
+            throw ThrowTypeError($"{methodName} called on incompatible receiver");
+        }
+
+        throw ThrowTypeError($"{methodName} called on non-object");
+    }
+
     /// <summary>
     /// Adds standard array methods to a JsArray instance.
     /// </summary>
@@ -2389,22 +2491,55 @@ public static class StandardLibrary
         // includes
         array.SetProperty("includes", new HostFunction((thisValue, args) =>
         {
-            if (thisValue is not JsArray jsArray)
+            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes");
+
+            var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var fromIndexArg = args.Count > 1 ? args[1] : 0d;
+            var length = 0d;
+            if (accessor.TryGetProperty("length", out var lenVal)) length = ToLengthOrZero(lenVal);
+
+            var fromIndex = ToIntegerOrInfinity(fromIndexArg);
+            if (double.IsPositiveInfinity(fromIndex))
             {
                 return false;
             }
 
-            if (args.Count == 0)
+            if (fromIndex < 0)
             {
-                return false;
-            }
-
-            var searchElement = args[0];
-            foreach (var item in jsArray.Items)
-            {
-                if (AreStrictlyEqual(item, searchElement))
+                fromIndex = length + Math.Ceiling(fromIndex);
+                if (fromIndex < 0)
                 {
-                    return true;
+                    fromIndex = 0;
+                }
+            }
+
+            var start = (long)Math.Min(fromIndex, length);
+            var lenLong = (long)Math.Min(length, 9007199254740991d);
+
+            if (accessor is JsArray jsArr && lenLong > 100000)
+            {
+                var indices = jsArr.GetOwnIndices()
+                    .Where(idx => idx >= start && idx < lenLong)
+                    .OrderBy(idx => idx);
+                foreach (var idx in indices)
+                {
+                    var val = jsArr.GetElement((int)idx);
+                    if (SameValueZero(val, searchElement))
+                    {
+                        return true;
+                    }
+                }
+            }
+            else
+            {
+                for (var i = start; i < lenLong; i++)
+                {
+                    var key = i.ToString(CultureInfo.InvariantCulture);
+                    var exists = accessor.TryGetProperty(key, out var value);
+                    if (exists && SameValueZero(value, searchElement))
+                    {
+                        return true;
+                    }
                 }
             }
 
@@ -2414,10 +2549,7 @@ public static class StandardLibrary
         // indexOf
         array.SetProperty("indexOf", new HostFunction((thisValue, args) =>
         {
-            if (thisValue is not JsArray jsArray)
-            {
-                return -1d;
-            }
+            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.indexOf");
 
             if (args.Count == 0)
             {
@@ -2425,13 +2557,92 @@ public static class StandardLibrary
             }
 
             var searchElement = args[0];
-            for (var i = 0; i < jsArray.Items.Count; i++)
-                if (AreStrictlyEqual(jsArray.Items[i], searchElement))
+            var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
+            var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
+
+            if (double.IsPositiveInfinity(fromIndex))
+            {
+                return -1d;
+            }
+
+            if (fromIndex < 0)
+            {
+                fromIndex = Math.Max(length + Math.Ceiling(fromIndex), 0);
+            }
+            else
+            {
+                fromIndex = Math.Min(fromIndex, length);
+            }
+
+            var start = (long)Math.Min(fromIndex, length);
+            var lenLong = (long)Math.Min(length, 9007199254740991d);
+
+            if (accessor is JsArray jsArr && lenLong > 100000)
+            {
+                var indices = jsArr.GetOwnIndices()
+                    .Where(idx => idx >= start && idx < lenLong)
+                    .OrderBy(idx => idx);
+                foreach (var idx in indices)
                 {
-                    return (double)i;
+                    if (AreStrictlyEqual(jsArr.GetElement((int)idx), searchElement))
+                    {
+                        return (double)idx;
+                    }
                 }
+            }
+            else
+            {
+                for (var i = start; i < lenLong; i++)
+                {
+                    var key = i.ToString(CultureInfo.InvariantCulture);
+                    if (accessor.TryGetProperty(key, out var value) && AreStrictlyEqual(value, searchElement))
+                    {
+                        return (double)i;
+                    }
+                }
+            }
 
             return -1d;
+        }));
+
+        // toLocaleString
+        array.SetProperty("toLocaleString", new HostFunction((thisValue, args) =>
+        {
+            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toLocaleString");
+
+            var locales = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var options = args.Count > 1 ? args[1] : Symbols.Undefined;
+            var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
+            var parts = new List<string>((int)length);
+
+            for (var i = 0; i < length; i++)
+            {
+                var key = i.ToString(CultureInfo.InvariantCulture);
+                if (!accessor.TryGetProperty(key, out var element) ||
+                    element is null ||
+                    ReferenceEquals(element, Symbols.Undefined))
+                {
+                    parts.Add(string.Empty);
+                    continue;
+                }
+
+                string part;
+                if (element is IJsPropertyAccessor elementAccessor &&
+                    elementAccessor.TryGetProperty("toLocaleString", out var method) &&
+                    method is IJsCallable callable)
+                {
+                    var result = callable.Invoke(new object?[] { locales, options }, element);
+                    part = JsOps.ToJsString(result);
+                }
+                else
+                {
+                    part = JsOps.ToJsString(element);
+                }
+
+                parts.Add(part);
+            }
+
+            return string.Join(",", parts);
         }));
 
         // slice

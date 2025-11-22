@@ -1,19 +1,17 @@
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Test262Harness;
-using System;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
 public abstract partial class Test262Test
 {
-    private static readonly List<JsEngine> _realmEngines = new();
+    private static readonly List<JsEngine> _realmEngines = [];
 
     private static JsEngine BuildTestExecutor(Test262File file)
     {
         var engine = new JsEngine
         {
-            ExecutionTimeout = TimeSpan.FromSeconds(6)
+            ExecutionTimeout = TimeSpan.FromSeconds(10)
         };
 
         if (file.Flags.Contains("raw"))

@@ -9,6 +9,41 @@ namespace Asynkron.JsEngine;
 
 internal static class JsValueExtensions
 {
+    private static double StringToNumber(string str)
+    {
+        return NumericStringParser.ParseJsNumber(str);
+    }
+
+    private static double ArrayToNumber(JsArray arr)
+    {
+        return arr.Items.Count switch
+        {
+            0 => 0,
+            1 => ToNumber(arr.Items[0]),
+            _ => double.NaN
+        };
+    }
+
+    private static string ArrayToString(JsArray array)
+    {
+        // Use the logical length and element lookup so holes become empty strings,
+        // matching Array.prototype.join/ToString behaviour.
+        var length = array.Length > int.MaxValue ? int.MaxValue : (int)array.Length;
+        var builder = new StringBuilder(length * 2);
+        for (var i = 0; i < length; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(',');
+            }
+
+            var element = array.GetElement(i);
+            builder.Append(element.ToJsStringForArray());
+        }
+
+        return builder.ToString();
+    }
+
     extension(object? value)
     {
         public double ToNumber()
@@ -118,40 +153,5 @@ internal static class JsValueExtensions
 
             return ToJsString(value);
         }
-    }
-
-    private static double StringToNumber(string str)
-    {
-        return NumericStringParser.ParseJsNumber(str);
-    }
-
-    private static double ArrayToNumber(JsArray arr)
-    {
-        return arr.Items.Count switch
-        {
-            0 => 0,
-            1 => ToNumber(arr.Items[0]),
-            _ => double.NaN
-        };
-    }
-
-    private static string ArrayToString(JsArray array)
-    {
-        // Use the logical length and element lookup so holes become empty strings,
-        // matching Array.prototype.join/ToString behaviour.
-        var length = array.Length > int.MaxValue ? int.MaxValue : (int)array.Length;
-        var builder = new StringBuilder(length * 2);
-        for (var i = 0; i < length; i++)
-        {
-            if (i > 0)
-            {
-                builder.Append(',');
-            }
-
-            var element = array.GetElement(i);
-            builder.Append(element.ToJsStringForArray());
-        }
-
-        return builder.ToString();
     }
 }

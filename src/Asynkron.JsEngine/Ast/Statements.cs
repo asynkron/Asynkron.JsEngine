@@ -4,13 +4,13 @@ using Asynkron.JsEngine.Parser;
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Represents a block statement with optional strict mode.
+///     Represents a block statement with optional strict mode.
 /// </summary>
 public sealed record BlockStatement(SourceReference? Source, ImmutableArray<StatementNode> Statements, bool IsStrict)
     : StatementNode(Source);
 
 /// <summary>
-/// Represents a variable declaration (let/var/const).
+///     Represents a variable declaration (let/var/const).
 /// </summary>
 public sealed record VariableDeclaration(
     SourceReference? Source,
@@ -18,7 +18,7 @@ public sealed record VariableDeclaration(
     ImmutableArray<VariableDeclarator> Declarators) : StatementNode(Source);
 
 /// <summary>
-/// Supported variable declaration kinds.
+///     Supported variable declaration kinds.
 /// </summary>
 public enum VariableKind
 {
@@ -28,22 +28,22 @@ public enum VariableKind
 }
 
 /// <summary>
-/// A single variable declarator within a declaration statement.
+///     A single variable declarator within a declaration statement.
 /// </summary>
 public sealed record VariableDeclarator(SourceReference? Source, BindingTarget Target, ExpressionNode? Initializer);
 
 /// <summary>
-/// Base type for the left-hand side of a variable declaration.
+///     Base type for the left-hand side of a variable declaration.
 /// </summary>
 public abstract record BindingTarget(SourceReference? Source) : AstNode(Source);
 
 /// <summary>
-/// Simple identifier binding.
+///     Simple identifier binding.
 /// </summary>
 public sealed record IdentifierBinding(SourceReference? Source, Symbol Name) : BindingTarget(Source);
 
 /// <summary>
-/// Represents an array destructuring binding with optional rest element.
+///     Represents an array destructuring binding with optional rest element.
 /// </summary>
 public sealed record ArrayBinding(
     SourceReference? Source,
@@ -51,13 +51,13 @@ public sealed record ArrayBinding(
     BindingTarget? RestElement) : BindingTarget(Source);
 
 /// <summary>
-/// Represents a single element within an array destructuring binding.
+///     Represents a single element within an array destructuring binding.
 /// </summary>
 public sealed record ArrayBindingElement(SourceReference? Source, BindingTarget? Target, ExpressionNode? DefaultValue)
     : AstNode(Source);
 
 /// <summary>
-/// Represents an object destructuring binding with optional rest binding.
+///     Represents an object destructuring binding with optional rest binding.
 /// </summary>
 public sealed record ObjectBinding(
     SourceReference? Source,
@@ -65,7 +65,7 @@ public sealed record ObjectBinding(
     BindingTarget? RestElement) : BindingTarget(Source);
 
 /// <summary>
-/// Represents a single property inside an object destructuring binding.
+///     Represents a single property inside an object destructuring binding.
 /// </summary>
 public sealed record ObjectBindingProperty(
     SourceReference? Source,
@@ -74,32 +74,32 @@ public sealed record ObjectBindingProperty(
     ExpressionNode? DefaultValue) : AstNode(Source);
 
 /// <summary>
-/// Represents an expression statement.
+///     Represents an expression statement.
 /// </summary>
 public sealed record ExpressionStatement(SourceReference? Source, ExpressionNode Expression) : StatementNode(Source);
 
 /// <summary>
-/// Represents a return statement.
+///     Represents a return statement.
 /// </summary>
 public sealed record ReturnStatement(SourceReference? Source, ExpressionNode? Expression) : StatementNode(Source);
 
 /// <summary>
-/// Represents a throw statement.
+///     Represents a throw statement.
 /// </summary>
 public sealed record ThrowStatement(SourceReference? Source, ExpressionNode Expression) : StatementNode(Source);
 
 /// <summary>
-/// Represents a break statement, optionally labeled.
+///     Represents a break statement, optionally labeled.
 /// </summary>
 public sealed record BreakStatement(SourceReference? Source, Symbol? Label) : StatementNode(Source);
 
 /// <summary>
-/// Represents a continue statement, optionally labeled.
+///     Represents a continue statement, optionally labeled.
 /// </summary>
 public sealed record ContinueStatement(SourceReference? Source, Symbol? Label) : StatementNode(Source);
 
 /// <summary>
-/// Represents an if/else statement.
+///     Represents an if/else statement.
 /// </summary>
 public sealed record IfStatement(
     SourceReference? Source,
@@ -108,19 +108,19 @@ public sealed record IfStatement(
     StatementNode? Else) : StatementNode(Source);
 
 /// <summary>
-/// Represents a while loop.
+///     Represents a while loop.
 /// </summary>
 public sealed record WhileStatement(SourceReference? Source, ExpressionNode Condition, StatementNode Body)
     : StatementNode(Source);
 
 /// <summary>
-/// Represents a do/while loop.
+///     Represents a do/while loop.
 /// </summary>
 public sealed record DoWhileStatement(SourceReference? Source, StatementNode Body, ExpressionNode Condition)
     : StatementNode(Source);
 
 /// <summary>
-/// Represents a classic C-style for loop.
+///     Represents a classic C-style for loop.
 /// </summary>
 public sealed record ForStatement(
     SourceReference? Source,
@@ -130,7 +130,7 @@ public sealed record ForStatement(
     StatementNode Body) : StatementNode(Source);
 
 /// <summary>
-/// Represents for...in / for...of / for await...of loops.
+///     Represents for...in / for...of / for await...of loops.
 /// </summary>
 public sealed record ForEachStatement(
     SourceReference? Source,
@@ -141,7 +141,7 @@ public sealed record ForEachStatement(
     VariableKind? DeclarationKind) : StatementNode(Source);
 
 /// <summary>
-/// Distinguishes the different for-each loop flavours.
+///     Distinguishes the different for-each loop flavours.
 /// </summary>
 public enum ForEachKind
 {
@@ -151,13 +151,13 @@ public enum ForEachKind
 }
 
 /// <summary>
-/// Represents a labeled statement.
+///     Represents a labeled statement.
 /// </summary>
 public sealed record LabeledStatement(SourceReference? Source, Symbol Label, StatementNode Statement)
     : StatementNode(Source);
 
 /// <summary>
-/// Represents a try/catch/finally statement.
+///     Represents a try/catch/finally statement.
 /// </summary>
 public sealed record TryStatement(
     SourceReference? Source,
@@ -166,12 +166,12 @@ public sealed record TryStatement(
     BlockStatement? Finally) : StatementNode(Source);
 
 /// <summary>
-/// Represents a catch clause in a try statement.
+///     Represents a catch clause in a try statement.
 /// </summary>
 public sealed record CatchClause(SourceReference? Source, Symbol Binding, BlockStatement Body) : AstNode(Source);
 
 /// <summary>
-/// Represents a switch statement with its cases.
+///     Represents a switch statement with its cases.
 /// </summary>
 public sealed record SwitchStatement(
     SourceReference? Source,
@@ -179,29 +179,29 @@ public sealed record SwitchStatement(
     ImmutableArray<SwitchCase> Cases) : StatementNode(Source);
 
 /// <summary>
-/// Represents a single case clause inside a switch statement.
+///     Represents a single case clause inside a switch statement.
 /// </summary>
 public sealed record SwitchCase(SourceReference? Source, ExpressionNode? Test, BlockStatement Body) : AstNode(Source);
 
 /// <summary>
-/// Represents an empty statement (";").
+///     Represents an empty statement (";").
 /// </summary>
 public sealed record EmptyStatement(SourceReference? Source) : StatementNode(Source);
 
 /// <summary>
-/// Represents a function declaration.
+///     Represents a function declaration.
 /// </summary>
 public sealed record FunctionDeclaration(SourceReference? Source, Symbol Name, FunctionExpression Function)
     : StatementNode(Source);
 
 /// <summary>
-/// Represents a class declaration with its fully typed definition.
+///     Represents a class declaration with its fully typed definition.
 /// </summary>
 public sealed record ClassDeclaration(SourceReference? Source, Symbol Name, ClassDefinition Definition)
     : StatementNode(Source);
 
 /// <summary>
-/// Captures the structure of a class body.
+///     Captures the structure of a class body.
 /// </summary>
 public sealed record ClassDefinition(
     SourceReference? Source,
@@ -211,7 +211,7 @@ public sealed record ClassDefinition(
     ImmutableArray<ClassField> Fields) : AstNode(Source);
 
 /// <summary>
-/// Represents a single method/getter/setter within a class body.
+///     Represents a single method/getter/setter within a class body.
 /// </summary>
 public sealed record ClassMember(
     SourceReference? Source,
@@ -221,7 +221,7 @@ public sealed record ClassMember(
     bool IsStatic) : AstNode(Source);
 
 /// <summary>
-/// Distinguishes between regular methods, getters and setters.
+///     Distinguishes between regular methods, getters and setters.
 /// </summary>
 public enum ClassMemberKind
 {
@@ -231,7 +231,7 @@ public enum ClassMemberKind
 }
 
 /// <summary>
-/// Represents a field declared on a class.
+///     Represents a field declared on a class.
 /// </summary>
 public sealed record ClassField(
     SourceReference? Source,
@@ -241,14 +241,14 @@ public sealed record ClassField(
     bool IsPrivate) : AstNode(Source);
 
 /// <summary>
-/// Base type for module import/export statements. Concrete records capture the
-/// typed shape of each construct so higher layers no longer need to reason
-/// about the underlying cons cells.
+///     Base type for module import/export statements. Concrete records capture the
+///     typed shape of each construct so higher layers no longer need to reason
+///     about the underlying cons cells.
 /// </summary>
 public abstract record ModuleStatement(SourceReference? Source) : StatementNode(Source);
 
 /// <summary>
-/// Represents an <c>import</c> declaration.
+///     Represents an <c>import</c> declaration.
 /// </summary>
 public sealed record ImportStatement(
     SourceReference? Source,
@@ -258,35 +258,35 @@ public sealed record ImportStatement(
     ImmutableArray<ImportBinding> NamedImports) : ModuleStatement(Source);
 
 /// <summary>
-/// Represents a single named binding within an <c>import</c> declaration.
+///     Represents a single named binding within an <c>import</c> declaration.
 /// </summary>
 public sealed record ImportBinding(SourceReference? Source, Symbol Imported, Symbol Local) : AstNode(Source);
 
 /// <summary>
-/// Represents an <c>export default</c> declaration.
+///     Represents an <c>export default</c> declaration.
 /// </summary>
 public sealed record ExportDefaultStatement(SourceReference? Source, ExportDefaultValue Value)
     : ModuleStatement(Source);
 
 /// <summary>
-/// Base type for <c>export default</c> payloads.
+///     Base type for <c>export default</c> payloads.
 /// </summary>
 public abstract record ExportDefaultValue(SourceReference? Source) : AstNode(Source);
 
 /// <summary>
-/// Represents <c>export default</c> followed by an expression.
+///     Represents <c>export default</c> followed by an expression.
 /// </summary>
 public sealed record ExportDefaultExpression(SourceReference? Source, ExpressionNode Expression)
     : ExportDefaultValue(Source);
 
 /// <summary>
-/// Represents <c>export default</c> followed by a declaration (function/class).
+///     Represents <c>export default</c> followed by a declaration (function/class).
 /// </summary>
 public sealed record ExportDefaultDeclaration(SourceReference? Source, StatementNode Declaration)
     : ExportDefaultValue(Source);
 
 /// <summary>
-/// Represents <c>export { ... }</c> declarations.
+///     Represents <c>export { ... }</c> declarations.
 /// </summary>
 public sealed record ExportNamedStatement(
     SourceReference? Source,
@@ -294,13 +294,13 @@ public sealed record ExportNamedStatement(
     string? FromModule) : ModuleStatement(Source);
 
 /// <summary>
-/// Represents a single <c>export { local as exported }</c> specifier.
+///     Represents a single <c>export { local as exported }</c> specifier.
 /// </summary>
 public sealed record ExportSpecifier(SourceReference? Source, Symbol Local, Symbol Exported) : AstNode(Source);
 
 /// <summary>
-/// Represents <c>export</c> followed by a regular declaration (<c>let</c>,
-/// <c>function</c>, etc.).
+///     Represents <c>export</c> followed by a regular declaration (<c>let</c>,
+///     <c>function</c>, etc.).
 /// </summary>
 public sealed record ExportDeclarationStatement(SourceReference? Source, StatementNode Declaration)
     : ModuleStatement(Source);

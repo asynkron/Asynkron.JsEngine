@@ -4,29 +4,27 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
-/// Builds generator IR for a subset of JavaScript constructs. The builder currently supports linear statement lists,
-/// blocks, expression statements, variable declarations, simple returns, and top-level <c>yield</c> expressions.
-/// More complex control flow (if/loops/try/yield inside expressions) is detected and reported as unsupported so the
-/// engine can fall back to the legacy replay runner.
+///     Builds generator IR for a subset of JavaScript constructs. The builder currently supports linear statement lists,
+///     blocks, expression statements, variable declarations, simple returns, and top-level <c>yield</c> expressions.
+///     More complex control flow (if/loops/try/yield inside expressions) is detected and reported as unsupported so the
+///     engine can fall back to the legacy replay runner.
 /// </summary>
 /// <summary>
-/// Builds generator IR plans for synchronous generator functions. Async generators are not
-/// implemented yet; async <c>function*</c> bodies always fall back to the replay engine.
+///     Builds generator IR plans for synchronous generator functions. Async generators are not
+///     implemented yet; async <c>function*</c> bodies always fall back to the replay engine.
 /// </summary>
 internal sealed class SyncGeneratorIrBuilder
 {
-    private readonly List<GeneratorInstruction> _instructions = [];
-    private readonly Stack<LoopScope> _loopScopes = new();
-    private int _resumeSlotCounter;
-    private int _catchSlotCounter;
-    private int _yieldStarStateCounter;
     private const string ResumeSlotPrefix = "\u0001_resume";
     private const string CatchSlotPrefix = "\u0001_catch";
     private const string YieldStarStatePrefix = "\u0001_yieldstar";
     private static readonly LiteralExpression TrueLiteralExpression = new(null, true);
+    private readonly List<GeneratorInstruction> _instructions = [];
+    private readonly Stack<LoopScope> _loopScopes = new();
+    private int _catchSlotCounter;
     private string? _failureReason;
-
-    private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget);
+    private int _resumeSlotCounter;
+    private int _yieldStarStateCounter;
 
     private SyncGeneratorIrBuilder()
     {
@@ -991,4 +989,6 @@ internal sealed class SyncGeneratorIrBuilder
         _instructions.Add(instruction);
         return index;
     }
+
+    private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget);
 }

@@ -4,16 +4,17 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript WeakSet collection.
-/// WeakSets store unique objects where values are held weakly.
-/// Unlike Set, WeakSet does not prevent garbage collection of values and does not support iteration.
+///     Represents a JavaScript WeakSet collection.
+///     WeakSets store unique objects where values are held weakly.
+///     Unlike Set, WeakSet does not prevent garbage collection of values and does not support iteration.
 /// </summary>
 public sealed class JsWeakSet : IJsPropertyAccessor
 {
+    private readonly JsObject _properties = new();
+
     // Use ConditionalWeakTable to track object membership
     // We use a dummy value since we only care about key presence
     private readonly ConditionalWeakTable<object, object?> _values = new();
-    private readonly JsObject _properties = new();
 
     public bool TryGetProperty(string name, out object? value)
     {
@@ -26,8 +27,8 @@ public sealed class JsWeakSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Adds a value to the WeakSet. Returns the WeakSet object to allow chaining.
-    /// The value must be an object (not a primitive value).
+    ///     Adds a value to the WeakSet. Returns the WeakSet object to allow chaining.
+    ///     The value must be an object (not a primitive value).
     /// </summary>
     public JsWeakSet Add(object? value)
     {
@@ -47,7 +48,7 @@ public sealed class JsWeakSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Returns true if the value exists in the WeakSet, false otherwise.
+    ///     Returns true if the value exists in the WeakSet, false otherwise.
     /// </summary>
     public bool Has(object? value)
     {
@@ -60,8 +61,8 @@ public sealed class JsWeakSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Removes the specified value from the WeakSet.
-    /// Returns true if the value was in the WeakSet and has been removed, false otherwise.
+    ///     Removes the specified value from the WeakSet.
+    ///     Returns true if the value was in the WeakSet and has been removed, false otherwise.
     /// </summary>
     public bool Delete(object? value)
     {
@@ -74,8 +75,8 @@ public sealed class JsWeakSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Checks if a value is considered an object for WeakSet purposes.
-    /// In JavaScript, objects, arrays, functions, etc. are valid, but primitives are not.
+    ///     Checks if a value is considered an object for WeakSet purposes.
+    ///     In JavaScript, objects, arrays, functions, etc. are valid, but primitives are not.
     /// </summary>
     private static bool IsObject(object? value)
     {

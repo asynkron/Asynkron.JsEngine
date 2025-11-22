@@ -4,16 +4,6 @@ namespace Asynkron.JsEngine.Ast;
 
 internal static class AstShapeAnalyzer
 {
-    internal readonly record struct ShapeSummary(
-        int YieldCount,
-        int DelegatedYieldCount,
-        int AwaitCount,
-        bool YieldOperandContainsYield)
-    {
-        public bool HasYield => YieldCount > 0;
-        public bool HasAwait => AwaitCount > 0;
-    }
-
     public static ShapeSummary AnalyzeExpression(ExpressionNode? expression, bool includeNestedFunctions = false)
     {
         var counter = new ShapeCounter(includeNestedFunctions);
@@ -91,11 +81,21 @@ internal static class AstShapeAnalyzer
         return yieldExpression is not null;
     }
 
+    internal readonly record struct ShapeSummary(
+        int YieldCount,
+        int DelegatedYieldCount,
+        int AwaitCount,
+        bool YieldOperandContainsYield)
+    {
+        public bool HasYield => YieldCount > 0;
+        public bool HasAwait => AwaitCount > 0;
+    }
+
     private sealed class ShapeCounter(bool includeNestedFunctions)
     {
-        public int YieldCount;
-        public int DelegatedYieldCount;
         public int AwaitCount;
+        public int DelegatedYieldCount;
+        public int YieldCount;
         public bool YieldOperandContainsYield;
 
         public void VisitStatement(StatementNode? statement)

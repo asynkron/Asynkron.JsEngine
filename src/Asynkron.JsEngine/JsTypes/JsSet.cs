@@ -1,17 +1,18 @@
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript Set collection.
-/// Sets store unique values of any type and remember the original insertion order.
+///     Represents a JavaScript Set collection.
+///     Sets store unique values of any type and remember the original insertion order.
 /// </summary>
 public sealed class JsSet : IJsPropertyAccessor
 {
-    // Use List to maintain insertion order
-    private readonly List<object?> _values = [];
     private readonly JsObject _properties = new();
 
+    // Use List to maintain insertion order
+    private readonly List<object?> _values = [];
+
     /// <summary>
-    /// Gets the number of values in the Set.
+    ///     Gets the number of values in the Set.
     /// </summary>
     public int Size => _values.Count;
 
@@ -33,8 +34,8 @@ public sealed class JsSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Adds a value to the Set. Returns the Set object to allow chaining.
-    /// If the value is already in the Set, it is not added again.
+    ///     Adds a value to the Set. Returns the Set object to allow chaining.
+    ///     If the value is already in the Set, it is not added again.
     /// </summary>
     public JsSet Add(object? value)
     {
@@ -48,7 +49,7 @@ public sealed class JsSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Returns true if the value exists in the Set, false otherwise.
+    ///     Returns true if the value exists in the Set, false otherwise.
     /// </summary>
     public bool Has(object? value)
     {
@@ -64,8 +65,8 @@ public sealed class JsSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Removes the specified value from the Set.
-    /// Returns true if the value was in the Set and has been removed, false otherwise.
+    ///     Removes the specified value from the Set.
+    ///     Returns true if the value was in the Set and has been removed, false otherwise.
     /// </summary>
     public bool Delete(object? value)
     {
@@ -82,7 +83,7 @@ public sealed class JsSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Removes all values from the Set.
+    ///     Removes all values from the Set.
     /// </summary>
     public void Clear()
     {
@@ -90,8 +91,8 @@ public sealed class JsSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Executes a provided function once per each value in the Set, in insertion order.
-    /// The callback receives (value, value, set) - value is passed twice for consistency with Map.
+    ///     Executes a provided function once per each value in the Set, in insertion order.
+    ///     The callback receives (value, value, set) - value is passed twice for consistency with Map.
     /// </summary>
     public void ForEach(IJsCallable callback, object? thisArg)
     {
@@ -103,7 +104,7 @@ public sealed class JsSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Returns an array of values in the Set, in insertion order.
+    ///     Returns an array of values in the Set, in insertion order.
     /// </summary>
     public JsArray Values()
     {
@@ -111,8 +112,8 @@ public sealed class JsSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Returns an array of [value, value] pairs for every entry in the Set, in insertion order.
-    /// The value is duplicated for consistency with Map.entries().
+    ///     Returns an array of [value, value] pairs for every entry in the Set, in insertion order.
+    ///     The value is duplicated for consistency with Map.entries().
     /// </summary>
     public JsArray Entries()
     {
@@ -127,8 +128,8 @@ public sealed class JsSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Returns an array of values in the Set, in insertion order.
-    /// This is an alias for Values() for consistency with Map.
+    ///     Returns an array of values in the Set, in insertion order.
+    ///     This is an alias for Values() for consistency with Map.
     /// </summary>
     public JsArray Keys()
     {
@@ -136,8 +137,8 @@ public sealed class JsSet : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Implements the SameValueZero comparison algorithm used by Set.
-    /// Similar to strict equality (===) but treats NaN as equal to NaN.
+    ///     Implements the SameValueZero comparison algorithm used by Set.
+    ///     Similar to strict equality (===) but treats NaN as equal to NaN.
     /// </summary>
     private static bool SameValueZero(object? x, object? y)
     {

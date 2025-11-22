@@ -44,7 +44,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates the DataView constructor.
+    ///     Creates the DataView constructor.
     /// </summary>
     public static HostFunction CreateDataViewConstructor()
     {
@@ -63,7 +63,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates a typed array constructor.
+    ///     Creates a typed array constructor.
     /// </summary>
     private static HostFunction CreateTypedArrayConstructor<T>(
         Func<int, T> fromLength,

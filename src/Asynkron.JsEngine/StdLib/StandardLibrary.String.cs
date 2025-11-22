@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -9,8 +10,8 @@ namespace Asynkron.JsEngine.StdLib;
 public static partial class StandardLibrary
 {
     /// <summary>
-    /// Creates a string wrapper object with string methods attached.
-    /// This allows string primitives to have methods like toLowerCase(), substring(), etc.
+    ///     Creates a string wrapper object with string methods attached.
+    ///     This allows string primitives to have methods like toLowerCase(), substring(), etc.
     /// </summary>
     public static JsObject CreateStringWrapper(string str, EvaluationContext? context = null)
     {
@@ -28,7 +29,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Adds string methods to a string wrapper object.
+    ///     Adds string methods to a string wrapper object.
     /// </summary>
     private static void AddStringMethods(JsObject stringObj, string str)
     {
@@ -254,7 +255,7 @@ public static partial class StandardLibrary
                     regexObj.TryGetProperty("__regex__", out var regexValue) &&
                     regexValue is JsRegExp regex)
                 {
-                    var dotNetRegex = new System.Text.RegularExpressions.Regex(regex.Pattern);
+                    var dotNetRegex = new Regex(regex.Pattern);
                     var result = new StringBuilder();
                     var lastIndex = 0;
 
@@ -266,7 +267,7 @@ public static partial class StandardLibrary
                             return str;
                         }
 
-                        foreach (System.Text.RegularExpressions.Match match in matches)
+                        foreach (Match match in matches)
                         {
                             if (!match.Success)
                             {
@@ -343,10 +344,10 @@ public static partial class StandardLibrary
                 var replaceValue = replacement?.ToString() ?? "";
                 if (regex2.Global)
                 {
-                    return System.Text.RegularExpressions.Regex.Replace(str, regex2.Pattern, replaceValue);
+                    return Regex.Replace(str, regex2.Pattern, replaceValue);
                 }
 
-                var match = System.Text.RegularExpressions.Regex.Match(str, regex2.Pattern);
+                var match = Regex.Match(str, regex2.Pattern);
                 if (match.Success)
                 {
                     return string.Concat(str.AsSpan(0, match.Index), replaceValue,
@@ -705,7 +706,7 @@ public static partial class StandardLibrary
         var iteratorFunction = new HostFunction((thisValue, args) =>
         {
             // Use array to hold index so it can be mutated in closure
-            var indexHolder = new int[] { 0 };
+            var indexHolder = new[] { 0 };
             var iterator = new JsObject();
 
             // Add next() method to iterator
@@ -746,7 +747,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates the String constructor with static methods.
+    ///     Creates the String constructor with static methods.
     /// </summary>
     public static HostFunction CreateStringConstructor(RealmState realm)
     {
@@ -952,7 +953,7 @@ public static partial class StandardLibrary
                     var substitution = args[i + 1];
                     if (substitution != null)
                     {
-                        result.Append(substitution.ToString());
+                        result.Append(substitution);
                     }
                 }
             }

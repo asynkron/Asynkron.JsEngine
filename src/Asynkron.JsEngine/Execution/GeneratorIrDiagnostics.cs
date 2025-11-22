@@ -3,9 +3,9 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
-/// Lightweight diagnostics for generator IR lowering. Exposed primarily for tests so we can
-/// assert that specific generator bodies successfully produce IR plans instead of falling back
-/// to the replay engine.
+///     Lightweight diagnostics for generator IR lowering. Exposed primarily for tests so we can
+///     assert that specific generator bodies successfully produce IR plans instead of falling back
+///     to the replay engine.
 /// </summary>
 public static class GeneratorIrDiagnostics
 {
@@ -16,6 +16,28 @@ public static class GeneratorIrDiagnostics
     private static int _totalFailed;
     private static string? _lastFailureReason;
     private static string? _lastFunctionDescription;
+
+    public static string? LastFailureReason
+    {
+        get
+        {
+            lock (Sync)
+            {
+                return _lastFailureReason;
+            }
+        }
+    }
+
+    public static string? LastFunctionDescription
+    {
+        get
+        {
+            lock (Sync)
+            {
+                return _lastFunctionDescription;
+            }
+        }
+    }
 
     public static void Reset()
     {
@@ -52,28 +74,6 @@ public static class GeneratorIrDiagnostics
         lock (Sync)
         {
             return (_totalAttempts, _totalSucceeded, _totalFailed);
-        }
-    }
-
-    public static string? LastFailureReason
-    {
-        get
-        {
-            lock (Sync)
-            {
-                return _lastFailureReason;
-            }
-        }
-    }
-
-    public static string? LastFunctionDescription
-    {
-        get
-        {
-            lock (Sync)
-            {
-                return _lastFunctionDescription;
-            }
         }
     }
 

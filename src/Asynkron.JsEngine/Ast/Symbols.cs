@@ -1,7 +1,7 @@
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Centralised symbol definitions so parser and evaluator agree on structure.
+///     Centralised symbol definitions so parser and evaluator agree on structure.
 /// </summary>
 public static class Symbols
 {

@@ -5,7 +5,7 @@ using Asynkron.JsEngine.StdLib;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Minimal BigUint64Array implementation backed by a shared ArrayBuffer.
+///     Minimal BigUint64Array implementation backed by a shared ArrayBuffer.
 /// </summary>
 public sealed class JsBigUint64Array(JsArrayBuffer buffer, int byteOffset, int length)
     : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
@@ -23,7 +23,7 @@ public sealed class JsBigUint64Array(JsArrayBuffer buffer, int byteOffset, int l
     {
         var length = array.Items.Count;
         var typedArray = FromLength(length);
-        typedArray.Set(array, 0);
+        typedArray.Set(array);
         return typedArray;
     }
 

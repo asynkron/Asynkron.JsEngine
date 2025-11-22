@@ -1,8 +1,8 @@
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Represents the parsed program that the runtime executes. The primary data is
-/// the typed AST that flows through the evaluator.
+///     Represents the parsed program that the runtime executes. The primary data is
+///     the typed AST that flows through the evaluator.
 /// </summary>
 public sealed class ParsedProgram(ProgramNode typed)
 {

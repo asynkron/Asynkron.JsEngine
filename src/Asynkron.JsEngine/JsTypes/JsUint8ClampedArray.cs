@@ -1,7 +1,7 @@
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript Uint8ClampedArray - an array of 8-bit unsigned integers clamped to 0-255.
+///     Represents a JavaScript Uint8ClampedArray - an array of 8-bit unsigned integers clamped to 0-255.
 /// </summary>
 public sealed class JsUint8ClampedArray(JsArrayBuffer buffer, int byteOffset, int length)
     : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
@@ -18,7 +18,7 @@ public sealed class JsUint8ClampedArray(JsArrayBuffer buffer, int byteOffset, in
     {
         var length = array.Items.Count;
         var typedArray = FromLength(length);
-        typedArray.Set(array, 0);
+        typedArray.Set(array);
         return typedArray;
     }
 

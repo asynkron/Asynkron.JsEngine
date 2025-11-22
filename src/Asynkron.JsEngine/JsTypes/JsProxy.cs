@@ -1,9 +1,9 @@
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Minimal proxy wrapper used for Array.isArray proxy detection. General proxy
-/// traps are not implemented; operations fall back to the underlying target's
-/// shape via a backing JsObject.
+///     Minimal proxy wrapper used for Array.isArray proxy detection. General proxy
+///     traps are not implemented; operations fall back to the underlying target's
+///     shape via a backing JsObject.
 /// </summary>
 public sealed class JsProxy(object target, IJsObjectLike? handler) : IJsObjectLike
 {

@@ -4,8 +4,8 @@ using Asynkron.JsEngine.JsTypes;
 namespace Asynkron.JsEngine;
 
 /// <summary>
-/// A special host function for eval() that has access to the calling environment
-/// and can evaluate code synchronously in that context.
+///     A special host function for eval() that has access to the calling environment
+///     and can evaluate code synchronously in that context.
 /// </summary>
 public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
 {
@@ -19,8 +19,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyA
     }
 
     /// <summary>
-    /// The environment that is calling this function.
-    /// This allows eval to execute code in the caller's scope.
+    ///     The environment that is calling this function.
+    ///     This allows eval to execute code in the caller's scope.
     /// </summary>
     public JsEnvironment? CallingJsEnvironment { get; set; }
 

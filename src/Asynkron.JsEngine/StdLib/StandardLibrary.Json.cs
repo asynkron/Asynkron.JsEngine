@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.StdLib;
@@ -18,7 +20,7 @@ public static partial class StandardLibrary
 
             try
             {
-                return ParseJsonValue(System.Text.Json.JsonDocument.Parse(jsonStr).RootElement);
+                return ParseJsonValue(JsonDocument.Parse(jsonStr).RootElement);
             }
             catch
             {
@@ -45,11 +47,11 @@ public static partial class StandardLibrary
         return json;
     }
 
-    private static object? ParseJsonValue(System.Text.Json.JsonElement element)
+    private static object? ParseJsonValue(JsonElement element)
     {
         switch (element.ValueKind)
         {
-            case System.Text.Json.JsonValueKind.Object:
+            case JsonValueKind.Object:
                 var obj = new JsObject();
                 foreach (var prop in element.EnumerateObject())
                 {
@@ -58,7 +60,7 @@ public static partial class StandardLibrary
 
                 return obj;
 
-            case System.Text.Json.JsonValueKind.Array:
+            case JsonValueKind.Array:
                 var arr = new JsArray();
                 foreach (var item in element.EnumerateArray())
                 {
@@ -68,19 +70,19 @@ public static partial class StandardLibrary
                 AddArrayMethods(arr);
                 return arr;
 
-            case System.Text.Json.JsonValueKind.String:
+            case JsonValueKind.String:
                 return element.GetString();
 
-            case System.Text.Json.JsonValueKind.Number:
+            case JsonValueKind.Number:
                 return element.GetDouble();
 
-            case System.Text.Json.JsonValueKind.True:
+            case JsonValueKind.True:
                 return true;
 
-            case System.Text.Json.JsonValueKind.False:
+            case JsonValueKind.False:
                 return false;
 
-            case System.Text.Json.JsonValueKind.Null:
+            case JsonValueKind.Null:
             default:
                 return null;
         }
@@ -107,10 +109,10 @@ public static partial class StandardLibrary
                     return "null";
                 }
 
-                return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return d.ToString(CultureInfo.InvariantCulture);
 
             case string s:
-                return System.Text.Json.JsonSerializer.Serialize(s);
+                return JsonSerializer.Serialize(s);
 
             case JsArray arr:
                 var arrItems = new List<string>();
@@ -131,7 +133,7 @@ public static partial class StandardLibrary
                         continue;
                     }
 
-                    var key = System.Text.Json.JsonSerializer.Serialize(kvp.Key);
+                    var key = JsonSerializer.Serialize(kvp.Key);
                     var val = StringifyValue(kvp.Value, depth + 1);
                     objProps.Add($"{key}:{val}");
                 }
@@ -142,7 +144,7 @@ public static partial class StandardLibrary
                 return "undefined";
 
             default:
-                return System.Text.Json.JsonSerializer.Serialize(value?.ToString() ?? "");
+                return JsonSerializer.Serialize(value?.ToString() ?? "");
         }
     }
 }

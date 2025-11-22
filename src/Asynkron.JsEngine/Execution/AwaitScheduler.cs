@@ -4,9 +4,9 @@ using JsSymbols = Asynkron.JsEngine.Ast.Symbols;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
-/// Centralizes await handling so evaluators can share the same blocking vs
-/// pending behaviour and we have a single place to evolve toward a
-/// non-blocking scheduler.
+///     Centralizes await handling so evaluators can share the same blocking vs
+///     pending behaviour and we have a single place to evolve toward a
+///     non-blocking scheduler.
 /// </summary>
 internal static class AwaitScheduler
 {

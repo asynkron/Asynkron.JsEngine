@@ -91,7 +91,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Converts a value to a boolean following JavaScript truthiness rules.
+    ///     Converts a value to a boolean following JavaScript truthiness rules.
     /// </summary>
     private static bool ToBoolean(object? value)
     {

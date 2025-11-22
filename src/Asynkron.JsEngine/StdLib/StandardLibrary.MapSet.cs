@@ -31,7 +31,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Adds instance methods to a Map object.
+    ///     Adds instance methods to a Map object.
     /// </summary>
     private static void AddMapMethods(JsMap map)
     {
@@ -150,7 +150,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates the Set constructor function.
+    ///     Creates the Set constructor function.
     /// </summary>
     public static IJsCallable CreateSetConstructor()
     {
@@ -175,7 +175,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Adds instance methods to a Set object.
+    ///     Adds instance methods to a Set object.
     /// </summary>
     private static void AddSetMethods(JsSet set)
     {
@@ -281,7 +281,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates the WeakMap constructor function.
+    ///     Creates the WeakMap constructor function.
     /// </summary>
     public static IJsCallable CreateWeakMapConstructor()
     {
@@ -317,7 +317,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Adds instance methods to a WeakMap object.
+    ///     Adds instance methods to a WeakMap object.
     /// </summary>
     private static void AddWeakMapMethods(JsWeakMap weakMap)
     {
@@ -379,7 +379,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates the WeakSet constructor function.
+    ///     Creates the WeakSet constructor function.
     /// </summary>
     public static IJsCallable CreateWeakSetConstructor()
     {
@@ -411,7 +411,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Adds instance methods to a WeakSet object.
+    ///     Adds instance methods to a WeakSet object.
     /// </summary>
     private static void AddWeakSetMethods(JsWeakSet weakSet)
     {

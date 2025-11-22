@@ -8,7 +8,7 @@ using Asynkron.JsEngine.Runtime;
 namespace Asynkron.JsEngine.StdLib;
 
 /// <summary>
-/// Provides standard JavaScript library objects and functions (Math, JSON, etc.)
+///     Provides standard JavaScript library objects and functions (Math, JSON, etc.)
 /// </summary>
 public static partial class StandardLibrary
 {
@@ -321,7 +321,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Converts a JavaScript value to its string representation, handling functions appropriately.
+    ///     Converts a JavaScript value to its string representation, handling functions appropriately.
     /// </summary>
     private static string JsValueToString(object? value)
     {

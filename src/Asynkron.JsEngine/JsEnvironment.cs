@@ -1,6 +1,6 @@
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine;
 
@@ -11,21 +11,15 @@ public sealed class JsEnvironment(
     SourceReference? creatingSource = null,
     string? description = null)
 {
-    private sealed class Binding(object? value, bool isConst)
-    {
-        public object? Value { get; set; } = value;
-
-        public bool IsConst { get; } = isConst;
-    }
-
-    private readonly Dictionary<Symbol, Binding> _values = new();
-    private readonly JsEnvironment? _enclosing = enclosing;
-    private readonly bool _isFunctionScope = isFunctionScope;
     private readonly SourceReference? _creatingSource = creatingSource;
     private readonly string? _description = description;
+    private readonly JsEnvironment? _enclosing = enclosing;
+    private readonly bool _isFunctionScope = isFunctionScope;
+
+    private readonly Dictionary<Symbol, Binding> _values = new();
 
     /// <summary>
-    /// Returns true if this environment or any enclosing environment is in strict mode.
+    ///     Returns true if this environment or any enclosing environment is in strict mode.
     /// </summary>
     public bool IsStrict => isStrict || (_enclosing?.IsStrict ?? false);
 
@@ -129,7 +123,7 @@ public sealed class JsEnvironment(
         }
 
         // Non-strict mode: Create the variable in the global scope (this environment)
-        Define(name, value, false);
+        Define(name, value);
         if (_enclosing is null && _values.TryGetValue(Symbols.This, out var thisBinding) &&
             thisBinding.Value is JsObject globalObject)
         {
@@ -150,8 +144,8 @@ public sealed class JsEnvironment(
     }
 
     /// <summary>
-    /// Gets all variables from this environment and all enclosing environments.
-    /// Used for debugging purposes.
+    ///     Gets all variables from this environment and all enclosing environments.
+    ///     Used for debugging purposes.
     /// </summary>
     public Dictionary<string, object?> GetAllVariables()
     {
@@ -177,8 +171,8 @@ public sealed class JsEnvironment(
     }
 
     /// <summary>
-    /// Builds a call stack by traversing the enclosing environment chain
-    /// and collecting information about the S-expressions that created each environment.
+    ///     Builds a call stack by traversing the enclosing environment chain
+    ///     and collecting information about the S-expressions that created each environment.
     /// </summary>
     public List<CallStackFrame> BuildCallStack()
     {
@@ -229,5 +223,12 @@ public sealed class JsEnvironment(
         return string.IsNullOrEmpty(firstToken)
             ? "unknown"
             : firstToken.ToLowerInvariant();
+    }
+
+    private sealed class Binding(object? value, bool isConst)
+    {
+        public object? Value { get; set; } = value;
+
+        public bool IsConst { get; } = isConst;
     }
 }

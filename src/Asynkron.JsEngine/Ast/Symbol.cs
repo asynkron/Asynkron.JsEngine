@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Represents a symbolic atom in an S-expression. Symbols are interned to avoid duplicate instances.
+///     Represents a symbolic atom in an S-expression. Symbols are interned to avoid duplicate instances.
 /// </summary>
 public sealed class Symbol : IEquatable<Symbol>
 {
@@ -15,12 +15,17 @@ public sealed class Symbol : IEquatable<Symbol>
     }
 
     /// <summary>
-    /// Gets the textual representation of the symbol.
+    ///     Gets the textual representation of the symbol.
     /// </summary>
     public string Name { get; }
 
+    public bool Equals(Symbol? other)
+    {
+        return other is not null && ReferenceEquals(this, other);
+    }
+
     /// <summary>
-    /// Returns an interned symbol for the given name.
+    ///     Returns an interned symbol for the given name.
     /// </summary>
     public static Symbol Intern(string name)
     {
@@ -31,11 +36,6 @@ public sealed class Symbol : IEquatable<Symbol>
         }
 
         return Cache.GetOrAdd(name, n => new Symbol(n));
-    }
-
-    public bool Equals(Symbol? other)
-    {
-        return other is not null && ReferenceEquals(this, other);
     }
 
     public override bool Equals(object? obj)

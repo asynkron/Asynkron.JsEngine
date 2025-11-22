@@ -4,9 +4,9 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript WeakMap collection.
-/// WeakMaps hold key-value pairs where keys must be objects and are held weakly.
-/// Unlike Map, WeakMap does not prevent garbage collection of keys and does not support iteration.
+///     Represents a JavaScript WeakMap collection.
+///     WeakMaps hold key-value pairs where keys must be objects and are held weakly.
+///     Unlike Map, WeakMap does not prevent garbage collection of keys and does not support iteration.
 /// </summary>
 public sealed class JsWeakMap : IJsPropertyAccessor
 {
@@ -25,8 +25,8 @@ public sealed class JsWeakMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Sets the value for the key in the WeakMap. Returns the WeakMap object to allow chaining.
-    /// The key must be an object (not a primitive value).
+    ///     Sets the value for the key in the WeakMap. Returns the WeakMap object to allow chaining.
+    ///     The key must be an object (not a primitive value).
     /// </summary>
     public JsWeakMap Set(object? key, object? value)
     {
@@ -43,7 +43,7 @@ public sealed class JsWeakMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Gets the value associated with the key, or undefined if the key doesn't exist.
+    ///     Gets the value associated with the key, or undefined if the key doesn't exist.
     /// </summary>
     public object? Get(object? key)
     {
@@ -61,7 +61,7 @@ public sealed class JsWeakMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Returns true if the key exists in the WeakMap, false otherwise.
+    ///     Returns true if the key exists in the WeakMap, false otherwise.
     /// </summary>
     public bool Has(object? key)
     {
@@ -74,8 +74,8 @@ public sealed class JsWeakMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Removes the specified key and its value from the WeakMap.
-    /// Returns true if the key was in the WeakMap and has been removed, false otherwise.
+    ///     Removes the specified key and its value from the WeakMap.
+    ///     Returns true if the key was in the WeakMap and has been removed, false otherwise.
     /// </summary>
     public bool Delete(object? key)
     {
@@ -88,8 +88,8 @@ public sealed class JsWeakMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Checks if a value is considered an object for WeakMap purposes.
-    /// In JavaScript, objects, arrays, functions, etc. are valid, but primitives are not.
+    ///     Checks if a value is considered an object for WeakMap purposes.
+    ///     In JavaScript, objects, arrays, functions, etc. are valid, but primitives are not.
     /// </summary>
     private static bool IsObject(object? value)
     {

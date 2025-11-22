@@ -3,9 +3,9 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript Map collection.
-/// Maps hold key-value pairs and remember the original insertion order of keys.
-/// Unlike objects, Map keys can be any value (including objects and functions).
+///     Represents a JavaScript Map collection.
+///     Maps hold key-value pairs and remember the original insertion order of keys.
+///     Unlike objects, Map keys can be any value (including objects and functions).
 /// </summary>
 public sealed class JsMap : IJsPropertyAccessor
 {
@@ -14,7 +14,7 @@ public sealed class JsMap : IJsPropertyAccessor
     private readonly JsObject _properties = new();
 
     /// <summary>
-    /// Gets the number of key-value pairs in the Map.
+    ///     Gets the number of key-value pairs in the Map.
     /// </summary>
     public int Size => _entries.Count;
 
@@ -36,7 +36,7 @@ public sealed class JsMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Sets the value for the key in the Map. Returns the Map object to allow chaining.
+    ///     Sets the value for the key in the Map. Returns the Map object to allow chaining.
     /// </summary>
     public JsMap Set(object? key, object? value)
     {
@@ -56,7 +56,7 @@ public sealed class JsMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Gets the value associated with the key, or undefined if the key doesn't exist.
+    ///     Gets the value associated with the key, or undefined if the key doesn't exist.
     /// </summary>
     public object? Get(object? key)
     {
@@ -72,7 +72,7 @@ public sealed class JsMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Returns true if the key exists in the Map, false otherwise.
+    ///     Returns true if the key exists in the Map, false otherwise.
     /// </summary>
     public bool Has(object? key)
     {
@@ -88,8 +88,8 @@ public sealed class JsMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Removes the specified key and its value from the Map.
-    /// Returns true if the key was in the Map and has been removed, false otherwise.
+    ///     Removes the specified key and its value from the Map.
+    ///     Returns true if the key was in the Map and has been removed, false otherwise.
     /// </summary>
     public bool Delete(object? key)
     {
@@ -106,7 +106,7 @@ public sealed class JsMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Removes all key-value pairs from the Map.
+    ///     Removes all key-value pairs from the Map.
     /// </summary>
     public void Clear()
     {
@@ -114,7 +114,7 @@ public sealed class JsMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Executes a provided function once per each key-value pair in the Map, in insertion order.
+    ///     Executes a provided function once per each key-value pair in the Map, in insertion order.
     /// </summary>
     public void ForEach(IJsCallable callback, object? thisArg)
     {
@@ -125,7 +125,7 @@ public sealed class JsMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Returns an array of [key, value] pairs for every entry in the Map, in insertion order.
+    ///     Returns an array of [key, value] pairs for every entry in the Map, in insertion order.
     /// </summary>
     public JsArray Entries()
     {
@@ -140,7 +140,7 @@ public sealed class JsMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Returns an array of keys in the Map, in insertion order.
+    ///     Returns an array of keys in the Map, in insertion order.
     /// </summary>
     public JsArray Keys()
     {
@@ -149,7 +149,7 @@ public sealed class JsMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Returns an array of values in the Map, in insertion order.
+    ///     Returns an array of values in the Map, in insertion order.
     /// </summary>
     public JsArray Values()
     {
@@ -158,8 +158,8 @@ public sealed class JsMap : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Implements the SameValueZero comparison algorithm used by Map.
-    /// Similar to strict equality (===) but treats NaN as equal to NaN.
+    ///     Implements the SameValueZero comparison algorithm used by Map.
+    ///     Similar to strict equality (===) but treats NaN as equal to NaN.
     /// </summary>
     private static bool SameValueZero(object? x, object? y)
     {

@@ -1,76 +1,78 @@
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a host function that can be called from JavaScript.
+///     Represents a host function that can be called from JavaScript.
 /// </summary>
 public sealed class HostFunction : IJsCallable, IJsObjectLike, IJsEnvironmentAwareCallable
 {
     private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
-    private readonly JsObject _properties = new();
-
-    /// <summary>
-    /// Optional realm/global object that owns this host function. Used for
-    /// realm-aware operations (e.g. Reflect.construct default prototypes).
-    /// </summary>
-    public JsObject? Realm { get; set; }
-
-    /// <summary>
-    /// Optional realm state for intrinsic prototype resolution.
-    /// </summary>
-    public Runtime.RealmState? RealmState { get; set; }
-
-    /// <summary>
-    /// Indicates whether this host function can be used with <c>new</c>.
-    /// </summary>
-    public bool IsConstructor { get; set; } = true;
-
-    /// <summary>
-    /// When true, construction is explicitly disallowed even though the function
-    /// reports itself as a constructor (e.g. BigInt).
-    /// </summary>
-    public bool DisallowConstruct { get; set; }
-
-    /// <summary>
-    /// Optional error message used when construction is disallowed.
-    /// </summary>
-    public string? ConstructErrorMessage { get; set; }
-
-    /// <summary>
-    /// Captures the environment that invoked this host function so nested
-    /// callbacks can inherit the correct global `this` binding.
-    /// </summary>
-    public JsEnvironment? CallingJsEnvironment { get; set; }
-
-    internal JsObject Properties => _properties;
 
     public HostFunction(Func<IReadOnlyList<object?>, object?> handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
 
         _handler = (_, args) => handler(args);
-        _properties.SetProperty("prototype", new JsObject());
+        Properties.SetProperty("prototype", new JsObject());
         EnsureFunctionPrototype();
     }
 
     public HostFunction(Func<object?, IReadOnlyList<object?>, object?> handler)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
-        _properties.SetProperty("prototype", new JsObject());
+        Properties.SetProperty("prototype", new JsObject());
         EnsureFunctionPrototype();
     }
+
+    /// <summary>
+    ///     Optional realm/global object that owns this host function. Used for
+    ///     realm-aware operations (e.g. Reflect.construct default prototypes).
+    /// </summary>
+    public JsObject? Realm { get; set; }
+
+    /// <summary>
+    ///     Optional realm state for intrinsic prototype resolution.
+    /// </summary>
+    public RealmState? RealmState { get; set; }
+
+    /// <summary>
+    ///     Indicates whether this host function can be used with <c>new</c>.
+    /// </summary>
+    public bool IsConstructor { get; set; } = true;
+
+    /// <summary>
+    ///     When true, construction is explicitly disallowed even though the function
+    ///     reports itself as a constructor (e.g. BigInt).
+    /// </summary>
+    public bool DisallowConstruct { get; set; }
+
+    /// <summary>
+    ///     Optional error message used when construction is disallowed.
+    /// </summary>
+    public string? ConstructErrorMessage { get; set; }
+
+    internal JsObject Properties { get; } = new();
+
+    internal JsObject PropertiesObject => Properties;
 
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
     {
         return _handler(thisValue, arguments);
     }
 
+    /// <summary>
+    ///     Captures the environment that invoked this host function so nested
+    ///     callbacks can inherit the correct global `this` binding.
+    /// </summary>
+    public JsEnvironment? CallingJsEnvironment { get; set; }
+
     public bool TryGetProperty(string name, out object? value)
     {
         EnsureFunctionPrototype();
-        if (_properties.TryGetProperty(name, out value))
+        if (Properties.TryGetProperty(name, out value))
         {
             return true;
         }
@@ -133,24 +135,22 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike, IJsEnvironmentAwa
 
     public void SetProperty(string name, object? value)
     {
-        _properties.SetProperty(name, value);
+        Properties.SetProperty(name, value);
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
-        _properties.DefineProperty(name, descriptor);
+        Properties.DefineProperty(name, descriptor);
     }
-
-    internal JsObject PropertiesObject => _properties;
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
-        return _properties.GetOwnPropertyDescriptor(name);
+        return Properties.GetOwnPropertyDescriptor(name);
     }
 
     public IEnumerable<string> GetOwnPropertyNames()
     {
-        return _properties.GetOwnPropertyNames();
+        return Properties.GetOwnPropertyNames();
     }
 
     public JsObject? Prototype
@@ -158,34 +158,34 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike, IJsEnvironmentAwa
         get
         {
             EnsureFunctionPrototype();
-            return _properties.Prototype;
+            return Properties.Prototype;
         }
     }
 
-    public bool IsSealed => _properties.IsSealed;
+    public bool IsSealed => Properties.IsSealed;
 
-    public IEnumerable<string> Keys => _properties.Keys;
+    public IEnumerable<string> Keys => Properties.Keys;
 
     public void SetPrototype(object? candidate)
     {
-        _properties.SetPrototype(candidate);
-    }
-
-    public bool DeleteProperty(string name)
-    {
-        return _properties.DeleteOwnProperty(name);
+        Properties.SetPrototype(candidate);
     }
 
     public void Seal()
     {
-        _properties.Seal();
+        Properties.Seal();
+    }
+
+    public bool DeleteProperty(string name)
+    {
+        return Properties.DeleteOwnProperty(name);
     }
 
     private void EnsureFunctionPrototype()
     {
-        if (_properties.Prototype is null && StandardLibrary.FunctionPrototype is not null)
+        if (Properties.Prototype is null && StandardLibrary.FunctionPrototype is not null)
         {
-            _properties.SetPrototype(StandardLibrary.FunctionPrototype);
+            Properties.SetPrototype(StandardLibrary.FunctionPrototype);
         }
     }
 }

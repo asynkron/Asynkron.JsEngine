@@ -14,8 +14,8 @@ internal static class JsOps
     }
 
     /// <summary>
-    /// ECMAScript-like ToBoolean semantics for engine values.
-    /// Kept in sync with <see cref="IsTruthy"/> which is the legacy name used throughout the codebase.
+    ///     ECMAScript-like ToBoolean semantics for engine values.
+    ///     Kept in sync with <see cref="IsTruthy" /> which is the legacy name used throughout the codebase.
     /// </summary>
     public static bool ToBoolean(object? value)
     {

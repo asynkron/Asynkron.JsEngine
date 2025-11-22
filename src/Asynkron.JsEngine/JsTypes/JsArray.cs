@@ -6,23 +6,24 @@ using Asynkron.JsEngine.StdLib;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Minimal JavaScript-like array that tracks indexed elements and behaves like an object for property access.
+///     Minimal JavaScript-like array that tracks indexed elements and behaves like an object for property access.
 /// </summary>
 public sealed class JsArray : IJsObjectLike
 {
-    // Sentinel value to represent holes in sparse arrays (indices that have never been set)
-    private static readonly object ArrayHole = new();
-
     private const uint DenseIndexLimit = 1_000_000;
+
     private const uint MaxArrayLength = uint.MaxValue;
 
-    private readonly JsObject _properties = new();
+    // Sentinel value to represent holes in sparse arrays (indices that have never been set)
+    private static readonly object ArrayHole = new();
+    private readonly JsObject? _arrayPrototype;
     private readonly List<object?> _items = [];
-    private Dictionary<uint, object?>? _sparseItems;
-    private uint _length;
+
+    private readonly JsObject _properties = new();
     private readonly IJsCallable? _rangeErrorCtor;
     private readonly IJsCallable? _typeErrorCtor;
-    private readonly JsObject? _arrayPrototype;
+    private uint _length;
+    private Dictionary<uint, object?>? _sparseItems;
 
     public JsArray()
     {
@@ -62,43 +63,9 @@ public sealed class JsArray : IJsObjectLike
     public IReadOnlyList<object?> Items => _items;
 
     /// <summary>
-    /// Gets the length of the array
+    ///     Gets the length of the array
     /// </summary>
     public double Length => _length;
-
-    public override string ToString()
-    {
-        // Match the behaviour of Array.prototype.toString / join with
-        // the default separator so arrays used as property keys (e.g.
-        // reverse[colorName[key]] in Babel’s color modules) produce a
-        // stable comma-joined string rather than a CLR type name.
-        if (_items.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        var parts = new List<string>(_items.Count);
-        foreach (var item in _items)
-        {
-            if (ReferenceEquals(item, ArrayHole) || item is null || ReferenceEquals(item, Symbols.Undefined))
-            {
-                parts.Add(string.Empty);
-                continue;
-            }
-
-            parts.Add(Convert.ToString(item, CultureInfo.InvariantCulture) ?? string.Empty);
-        }
-
-        return string.Join(",", parts);
-    }
-
-    /// <summary>
-    /// Gets an element at the specified index (alias for GetElement)
-    /// </summary>
-    public object? Get(int index)
-    {
-        return GetElement(index);
-    }
 
     public void SetPrototype(object? candidate)
     {
@@ -165,6 +132,83 @@ public sealed class JsArray : IJsObjectLike
         _properties.SetProperty(name, value);
     }
 
+    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            DefineLength(descriptor, null, true);
+            return;
+        }
+
+        if (TryParseArrayIndex(name, out var index) && !descriptor.IsAccessorDescriptor)
+        {
+            // Keep the indexed storage in sync with defined data properties.
+            SetElement(index, descriptor.Value);
+        }
+
+        _properties.DefineProperty(name, descriptor);
+    }
+
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+    {
+        if (TryParseArrayIndex(name, out var index))
+        {
+            if (index < _length && TryGetOwnIndex(index, out var value))
+            {
+                return new PropertyDescriptor
+                {
+                    Value = value, Writable = true, Enumerable = true, Configurable = true
+                };
+            }
+        }
+
+        return _properties.GetOwnPropertyDescriptor(name);
+    }
+
+    public IEnumerable<string> GetOwnPropertyNames()
+    {
+        return _properties.GetOwnPropertyNames();
+    }
+
+    public void Seal()
+    {
+        _properties.Seal();
+    }
+
+    public override string ToString()
+    {
+        // Match the behaviour of Array.prototype.toString / join with
+        // the default separator so arrays used as property keys (e.g.
+        // reverse[colorName[key]] in Babel’s color modules) produce a
+        // stable comma-joined string rather than a CLR type name.
+        if (_items.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string>(_items.Count);
+        foreach (var item in _items)
+        {
+            if (ReferenceEquals(item, ArrayHole) || item is null || ReferenceEquals(item, Symbols.Undefined))
+            {
+                parts.Add(string.Empty);
+                continue;
+            }
+
+            parts.Add(Convert.ToString(item, CultureInfo.InvariantCulture) ?? string.Empty);
+        }
+
+        return string.Join(",", parts);
+    }
+
+    /// <summary>
+    ///     Gets an element at the specified index (alias for GetElement)
+    /// </summary>
+    public object? Get(int index)
+    {
+        return GetElement(index);
+    }
+
     public object? GetElement(int index)
     {
         if (index < 0)
@@ -193,8 +237,8 @@ public sealed class JsArray : IJsObjectLike
     }
 
     /// <summary>
-    /// Returns true if the given index is an own data property on this array
-    /// (i.e. within bounds and not a hole).
+    ///     Returns true if the given index is an own data property on this array
+    ///     (i.e. within bounds and not a hole).
     /// </summary>
     public bool HasOwnIndex(uint index)
     {
@@ -217,7 +261,7 @@ public sealed class JsArray : IJsObjectLike
     }
 
     /// <summary>
-    /// Enumerates own, present indices (dense + sparse) without exposing holes.
+    ///     Enumerates own, present indices (dense + sparse) without exposing holes.
     /// </summary>
     public IEnumerable<uint> GetOwnIndices()
     {
@@ -297,8 +341,8 @@ public sealed class JsArray : IJsObjectLike
     }
 
     /// <summary>
-    /// Removes the element at the specified index without affecting the array length.
-    /// JavaScript's delete operator leaves holes behind, which we represent via <see cref="ArrayHole"/>.
+    ///     Removes the element at the specified index without affecting the array length.
+    ///     JavaScript's delete operator leaves holes behind, which we represent via <see cref="ArrayHole" />.
     /// </summary>
     public bool DeleteElement(int index)
     {
@@ -321,7 +365,7 @@ public sealed class JsArray : IJsObjectLike
     }
 
     /// <summary>
-    /// Deletes a named property from the backing object storage.
+    ///     Deletes a named property from the backing object storage.
     /// </summary>
     public bool DeleteProperty(string name)
     {
@@ -331,49 +375,6 @@ public sealed class JsArray : IJsObjectLike
         }
 
         return _properties.Remove(name);
-    }
-
-    public void DefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        if (string.Equals(name, "length", StringComparison.Ordinal))
-        {
-            DefineLength(descriptor, null, true);
-            return;
-        }
-
-        if (TryParseArrayIndex(name, out var index) && !descriptor.IsAccessorDescriptor)
-        {
-            // Keep the indexed storage in sync with defined data properties.
-            SetElement(index, descriptor.Value);
-        }
-
-        _properties.DefineProperty(name, descriptor);
-    }
-
-    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
-    {
-        if (TryParseArrayIndex(name, out var index))
-        {
-            if (index < _length && TryGetOwnIndex(index, out var value))
-            {
-                return new PropertyDescriptor
-                {
-                    Value = value, Writable = true, Enumerable = true, Configurable = true
-                };
-            }
-        }
-
-        return _properties.GetOwnPropertyDescriptor(name);
-    }
-
-    public IEnumerable<string> GetOwnPropertyNames()
-    {
-        return _properties.GetOwnPropertyNames();
-    }
-
-    public void Seal()
-    {
-        _properties.Seal();
     }
 
     public void Push(object? value)

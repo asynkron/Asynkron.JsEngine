@@ -2,9 +2,6 @@ namespace Asynkron.JsEngine.Parser;
 
 public sealed class ParseException : Exception
 {
-    public int? Line { get; }
-    public int? Column { get; }
-
     public ParseException(string message) : base(message)
     {
     }
@@ -30,9 +27,12 @@ public sealed class ParseException : Exception
         Column = token.Column;
     }
 
+    public int? Line { get; }
+    public int? Column { get; }
+
     private static string FormatMessageWithSnippet(string message, Token token, string source)
     {
-        var snippet = ExtractSourceSnippet(source, token.StartPosition, 20);
+        var snippet = ExtractSourceSnippet(source, token.StartPosition);
 
         // Check if message already contains position info
         var posPattern = $"at line {token.Line} column {token.Column}";
@@ -60,7 +60,7 @@ public sealed class ParseException : Exception
     }
 
     /// <summary>
-    /// Extracts a snippet of source code around the given position.
+    ///     Extracts a snippet of source code around the given position.
     /// </summary>
     /// <param name="source">The full source code</param>
     /// <param name="position">The error position in the source</param>

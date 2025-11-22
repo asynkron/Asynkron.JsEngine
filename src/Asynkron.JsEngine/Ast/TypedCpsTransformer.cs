@@ -3,27 +3,27 @@ using System.Collections.Immutable;
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Experimental CPS (Continuation-Passing Style) transformer that works directly
-/// on the typed AST. The goal is to explore what a typed-first transformation
-/// would look like, not to replace the production S-expression implementation.
-/// For now only simple async function declarations that immediately <c>return</c>
-/// an <c>await</c> expression are supported.
+///     Experimental CPS (Continuation-Passing Style) transformer that works directly
+///     on the typed AST. The goal is to explore what a typed-first transformation
+///     would look like, not to replace the production S-expression implementation.
+///     For now only simple async function declarations that immediately <c>return</c>
+///     an <c>await</c> expression are supported.
 /// </summary>
 public sealed class TypedCpsTransformer
 {
+    private const string ThenPropertyName = "then";
     private static readonly Symbol PromiseIdentifier = Symbol.Intern("Promise");
     private static readonly Symbol ResolveIdentifier = Symbol.Intern("__resolve");
     private static readonly Symbol RejectIdentifier = Symbol.Intern("__reject");
     private static readonly Symbol AwaitHelperIdentifier = Symbol.Intern("__awaitHelper");
     private static readonly Symbol AwaitValueIdentifier = Symbol.Intern("__value");
     private static readonly Symbol CatchIdentifier = Symbol.Intern("__error");
-    private const string ThenPropertyName = "then";
 
     /// <summary>
-    /// Returns true when the typed program contains async functions that would
-    /// require CPS transformation. The current implementation only looks for
-    /// function declarations because that's the only construct the transformer
-    /// understands today.
+    ///     Returns true when the typed program contains async functions that would
+    ///     require CPS transformation. The current implementation only looks for
+    ///     function declarations because that's the only construct the transformer
+    ///     understands today.
     /// </summary>
     public static bool NeedsTransformation(ProgramNode program)
     {
@@ -297,9 +297,9 @@ public sealed class TypedCpsTransformer
     }
 
     /// <summary>
-    /// Rewrites supported async functions in-place. Unsupported constructs are
-    /// left untouched so callers can continue experimenting without risking the
-    /// broader pipeline.
+    ///     Rewrites supported async functions in-place. Unsupported constructs are
+    ///     left untouched so callers can continue experimenting without risking the
+    ///     broader pipeline.
     /// </summary>
     public ProgramNode Transform(ProgramNode program)
     {
@@ -1030,6 +1030,30 @@ public sealed class TypedCpsTransformer
         var argument = new CallArgument(value.Source, value, false);
         return new CallExpression(null, new IdentifierExpression(null, RejectIdentifier),
             [argument], false);
+    }
+
+    private static ImmutableArray<T> TransformImmutableArray<T>(ImmutableArray<T> source, Func<T, T> transformer,
+        out bool changed)
+    {
+        if (source.IsDefaultOrEmpty)
+        {
+            changed = false;
+            return source;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<T>(source.Length);
+        changed = false;
+        foreach (var item in source)
+        {
+            var transformed = transformer(item);
+            builder.Add(transformed);
+            if (!ReferenceEquals(item, transformed))
+            {
+                changed = true;
+            }
+        }
+
+        return changed ? builder.ToImmutable() : source;
     }
 
     private sealed class AsyncFunctionRewriter(
@@ -2142,29 +2166,5 @@ public sealed class TypedCpsTransformer
             rebuild = null!;
             return false;
         }
-    }
-
-    private static ImmutableArray<T> TransformImmutableArray<T>(ImmutableArray<T> source, Func<T, T> transformer,
-        out bool changed)
-    {
-        if (source.IsDefaultOrEmpty)
-        {
-            changed = false;
-            return source;
-        }
-
-        var builder = ImmutableArray.CreateBuilder<T>(source.Length);
-        changed = false;
-        foreach (var item in source)
-        {
-            var transformed = transformer(item);
-            builder.Add(transformed);
-            if (!ReferenceEquals(item, transformed))
-            {
-                changed = true;
-            }
-        }
-
-        return changed ? builder.ToImmutable() : source;
     }
 }

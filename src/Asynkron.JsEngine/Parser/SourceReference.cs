@@ -1,13 +1,13 @@
 namespace Asynkron.JsEngine.Parser;
 
 /// <summary>
-/// Represents a reference to a range in the original JavaScript source code.
-/// Used to track the origin of s-expressions for debugging purposes.
+///     Represents a reference to a range in the original JavaScript source code.
+///     Used to track the origin of s-expressions for debugging purposes.
 /// </summary>
 public sealed record SourceReference
 {
     /// <summary>
-    /// Creates a new source reference.
+    ///     Creates a new source reference.
     /// </summary>
     /// <param name="source">The original source text</param>
     /// <param name="startPosition">The starting position in the source (0-based index)</param>
@@ -35,42 +35,42 @@ public sealed record SourceReference
     }
 
     /// <summary>
-    /// The original source code.
+    ///     The original source code.
     /// </summary>
     public string Source { get; }
 
     /// <summary>
-    /// The starting position in the source (0-based index).
+    ///     The starting position in the source (0-based index).
     /// </summary>
     public int StartPosition { get; }
 
     /// <summary>
-    /// The ending position in the source (0-based index, exclusive).
+    ///     The ending position in the source (0-based index, exclusive).
     /// </summary>
     public int EndPosition { get; }
 
     /// <summary>
-    /// The starting line number (1-based).
+    ///     The starting line number (1-based).
     /// </summary>
     public int StartLine { get; }
 
     /// <summary>
-    /// The starting column number (1-based).
+    ///     The starting column number (1-based).
     /// </summary>
     public int StartColumn { get; }
 
     /// <summary>
-    /// The ending line number (1-based).
+    ///     The ending line number (1-based).
     /// </summary>
     public int EndLine { get; }
 
     /// <summary>
-    /// The ending column number (1-based).
+    ///     The ending column number (1-based).
     /// </summary>
     public int EndColumn { get; }
 
     /// <summary>
-    /// Gets the source text that this reference points to.
+    ///     Gets the source text that this reference points to.
     /// </summary>
     public string GetText()
     {
@@ -83,7 +83,7 @@ public sealed record SourceReference
     }
 
     /// <summary>
-    /// Returns a string representation showing the location of this source reference.
+    ///     Returns a string representation showing the location of this source reference.
     /// </summary>
     public override string ToString()
     {

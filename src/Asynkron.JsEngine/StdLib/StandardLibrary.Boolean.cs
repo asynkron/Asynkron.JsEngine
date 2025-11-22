@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.StdLib;
 public static partial class StandardLibrary
 {
     /// <summary>
-    /// Creates the Boolean constructor function.
+    ///     Creates the Boolean constructor function.
     /// </summary>
     public static HostFunction CreateBooleanConstructor(RealmState realm)
     {
@@ -45,8 +45,8 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates a wrapper object for a boolean primitive so that auto-boxed
-    /// booleans can see methods added to Boolean.prototype.
+    ///     Creates a wrapper object for a boolean primitive so that auto-boxed
+    ///     booleans can see methods added to Boolean.prototype.
     /// </summary>
     public static JsObject CreateBooleanWrapper(bool value, EvaluationContext? context = null)
     {

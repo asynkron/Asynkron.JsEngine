@@ -1,7 +1,7 @@
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a callable object in JavaScript.
+///     Represents a callable object in JavaScript.
 /// </summary>
 public interface IJsCallable
 {

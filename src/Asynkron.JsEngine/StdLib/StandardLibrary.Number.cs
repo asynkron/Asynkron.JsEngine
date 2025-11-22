@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -35,7 +37,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Adds number methods to a number wrapper object.
+    ///     Adds number methods to a number wrapper object.
     /// </summary>
     private static void AddNumberMethods(JsObject numberObj, double num)
     {
@@ -72,10 +74,10 @@ public static partial class StandardLibrary
                 // Convert to string with proper handling of integers vs floats
                 if (Math.Abs(num % 1) < double.Epsilon)
                 {
-                    return ((long)num).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    return ((long)num).ToString(CultureInfo.InvariantCulture);
                 }
 
-                return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return num.ToString(CultureInfo.InvariantCulture);
             }
 
             // For other radices, only works on integers
@@ -134,7 +136,7 @@ public static partial class StandardLibrary
                 return num > 0 ? "Infinity" : "-Infinity";
             }
 
-            return num.ToString("F" + fractionDigits, System.Globalization.CultureInfo.InvariantCulture);
+            return num.ToString("F" + fractionDigits, CultureInfo.InvariantCulture);
         }));
 
         // toExponential(fractionDigits?)
@@ -158,10 +160,10 @@ public static partial class StandardLibrary
                     throw new ArgumentException("toExponential() digits argument must be between 0 and 100");
                 }
 
-                return num.ToString("e" + fractionDigits, System.Globalization.CultureInfo.InvariantCulture);
+                return num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
             }
 
-            return num.ToString("e", System.Globalization.CultureInfo.InvariantCulture);
+            return num.ToString("e", CultureInfo.InvariantCulture);
         }));
 
         // toPrecision(precision?)
@@ -169,7 +171,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return num.ToString(CultureInfo.InvariantCulture);
             }
 
             if (double.IsNaN(num))
@@ -191,10 +193,10 @@ public static partial class StandardLibrary
                 }
 
                 // Format with specified precision
-                return num.ToString("G" + precision, System.Globalization.CultureInfo.InvariantCulture);
+                return num.ToString("G" + precision, CultureInfo.InvariantCulture);
             }
 
-            return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return num.ToString(CultureInfo.InvariantCulture);
         }));
 
         // valueOf()
@@ -402,7 +404,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates the Number constructor with static methods.
+    ///     Creates the Number constructor with static methods.
     /// </summary>
     public static HostFunction CreateNumberConstructor(RealmState realm)
     {
@@ -462,7 +464,7 @@ public static partial class StandardLibrary
                     return "-Infinity";
                 }
 
-                return num.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return num.ToString(CultureInfo.InvariantCulture);
             }));
         }
 
@@ -561,11 +563,11 @@ public static partial class StandardLibrary
             }
 
             // Try to parse, taking as much as possible from the start
-            var match = System.Text.RegularExpressions.Regex.Match(str, @"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?");
+            var match = Regex.Match(str, @"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?");
             if (match.Success)
             {
-                if (double.TryParse(match.Value, System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out var result))
+                if (double.TryParse(match.Value, NumberStyles.Float,
+                        CultureInfo.InvariantCulture, out var result))
                 {
                     return result;
                 }

@@ -3,14 +3,14 @@ using System.Runtime.CompilerServices;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript property descriptor.
+///     Represents a JavaScript property descriptor.
 /// </summary>
 public sealed class PropertyDescriptor
 {
+    private bool _configurable = true;
+    private bool _enumerable = true;
     private object? _value;
     private bool _writable = true;
-    private bool _enumerable = true;
-    private bool _configurable = true;
 
     public object? Value
     {
@@ -65,7 +65,7 @@ public sealed class PropertyDescriptor
 }
 
 /// <summary>
-/// Simple JavaScript-like object that supports prototype chaining for property lookups.
+///     Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
 public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal), IJsObjectLike
 {
@@ -73,16 +73,13 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
     private const string DescriptorPrefix = "__descriptor__";
-
-    private JsObject? _prototype;
-    private bool _isFrozen;
-    private bool _isSealed;
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
 
-    public JsObject? Prototype => _prototype;
+    public bool IsFrozen { get; private set; }
 
-    public bool IsFrozen => _isFrozen;
-    public bool IsSealed => _isSealed;
+    public JsObject? Prototype { get; private set; }
+
+    public bool IsSealed { get; private set; }
 
     IEnumerable<string> IJsObjectLike.Keys => Keys;
 
@@ -90,11 +87,11 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
     {
         if (candidate is JsObject prototype)
         {
-            _prototype = prototype;
+            Prototype = prototype;
         }
         else
         {
-            _prototype = null;
+            Prototype = null;
         }
 
         if (candidate is not null)
@@ -107,58 +104,6 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
     }
 
-    public void SetGetter(string name, IJsCallable getter)
-    {
-        this[GetterPrefix + name] = getter;
-    }
-
-    public void SetSetter(string name, IJsCallable setter)
-    {
-        this[SetterPrefix + name] = setter;
-    }
-
-    public bool HasGetter(string name)
-    {
-        return TryGetValue(GetterPrefix + name, out _);
-    }
-
-    public bool HasSetter(string name)
-    {
-        return TryGetValue(SetterPrefix + name, out _);
-    }
-
-    public IJsCallable? GetGetter(string name)
-    {
-        if (TryGetValue(GetterPrefix + name, out var getter))
-        {
-            return getter as IJsCallable;
-        }
-
-        // Check prototype chain
-        if (_prototype != null)
-        {
-            return _prototype.GetGetter(name);
-        }
-
-        return null;
-    }
-
-    public IJsCallable? GetSetter(string name)
-    {
-        if (TryGetValue(SetterPrefix + name, out var setter))
-        {
-            return setter as IJsCallable;
-        }
-
-        // Check prototype chain
-        if (_prototype != null)
-        {
-            return _prototype.GetSetter(name);
-        }
-
-        return null;
-    }
-
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
         // Check if property exists and is not configurable
@@ -169,13 +114,13 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
 
         // Sealed/frozen objects cannot have new properties added
-        if ((_isSealed || _isFrozen) && !ContainsKey(name))
+        if ((IsSealed || IsFrozen) && !ContainsKey(name))
         {
             return;
         }
 
         // Frozen objects cannot have properties modified
-        if (_isFrozen && ContainsKey(name))
+        if (IsFrozen && ContainsKey(name))
         {
             return;
         }
@@ -214,10 +159,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         {
             return new PropertyDescriptor
             {
-                Value = this[name],
-                Writable = !_isFrozen,
-                Enumerable = true,
-                Configurable = !_isSealed && !_isFrozen
+                Value = this[name], Writable = !IsFrozen, Enumerable = true, Configurable = !IsSealed && !IsFrozen
             };
         }
 
@@ -251,13 +193,13 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
 
         // Frozen objects cannot have properties modified
-        if (_isFrozen)
+        if (IsFrozen)
         {
             return; // Silently ignore in non-strict mode
         }
 
         // Sealed objects cannot have new properties added
-        if (_isSealed && !ContainsKey(name))
+        if (IsSealed && !ContainsKey(name))
         {
             return; // Silently ignore in non-strict mode
         }
@@ -270,62 +212,9 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         this[name] = value;
     }
 
-    public bool DeleteOwnProperty(string name)
-    {
-        if (_descriptors.TryGetValue(name, out var descriptor))
-        {
-            if (!descriptor.Configurable)
-            {
-                return false;
-            }
-
-            _descriptors.Remove(name);
-            Remove(GetterPrefix + name);
-            Remove(SetterPrefix + name);
-            Remove(name);
-            return true;
-        }
-
-        if (Remove(name))
-        {
-            return true;
-        }
-
-        // Property does not exist; delete is a no-op that succeeds.
-        return true;
-    }
-
-    public void Freeze()
-    {
-        _isFrozen = true;
-        _isSealed = true; // Frozen implies sealed
-
-        // Update all existing descriptors to be non-writable and non-configurable
-        foreach (var key in Keys.ToArray())
-        {
-            if (key == PrototypeKey || key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
-            {
-                continue;
-            }
-
-            if (_descriptors.TryGetValue(key, out var desc))
-            {
-                desc.Writable = false;
-                desc.Configurable = false;
-            }
-            else
-            {
-                _descriptors[key] = new PropertyDescriptor
-                {
-                    Value = this[key], Writable = false, Enumerable = true, Configurable = false
-                };
-            }
-        }
-    }
-
     public void Seal()
     {
-        _isSealed = true;
+        IsSealed = true;
 
         // Update all existing descriptors to be non-configurable
         foreach (var key in Keys.ToArray())
@@ -363,29 +252,6 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         return TryGetProperty(name, new HashSet<JsObject>(ReferenceEqualityComparer<JsObject>.Instance), out value);
     }
 
-    private bool TryGetProperty(string name, HashSet<JsObject> visited, out object? value)
-    {
-        // Check for regular properties (not getters)
-        if (TryGetValue(name, out value))
-        {
-            return true;
-        }
-
-        if (_prototype is null)
-        {
-            value = null;
-            return false;
-        }
-
-        if (!visited.Add(this))
-        {
-            value = null;
-            return false;
-        }
-
-        return _prototype.TryGetProperty(name, visited, out value);
-    }
-
     public IEnumerable<string> GetOwnPropertyNames()
     {
         foreach (var key in Keys)
@@ -401,6 +267,134 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
             yield return key;
         }
+    }
+
+    public void SetGetter(string name, IJsCallable getter)
+    {
+        this[GetterPrefix + name] = getter;
+    }
+
+    public void SetSetter(string name, IJsCallable setter)
+    {
+        this[SetterPrefix + name] = setter;
+    }
+
+    public bool HasGetter(string name)
+    {
+        return TryGetValue(GetterPrefix + name, out _);
+    }
+
+    public bool HasSetter(string name)
+    {
+        return TryGetValue(SetterPrefix + name, out _);
+    }
+
+    public IJsCallable? GetGetter(string name)
+    {
+        if (TryGetValue(GetterPrefix + name, out var getter))
+        {
+            return getter as IJsCallable;
+        }
+
+        // Check prototype chain
+        if (Prototype != null)
+        {
+            return Prototype.GetGetter(name);
+        }
+
+        return null;
+    }
+
+    public IJsCallable? GetSetter(string name)
+    {
+        if (TryGetValue(SetterPrefix + name, out var setter))
+        {
+            return setter as IJsCallable;
+        }
+
+        // Check prototype chain
+        if (Prototype != null)
+        {
+            return Prototype.GetSetter(name);
+        }
+
+        return null;
+    }
+
+    public bool DeleteOwnProperty(string name)
+    {
+        if (_descriptors.TryGetValue(name, out var descriptor))
+        {
+            if (!descriptor.Configurable)
+            {
+                return false;
+            }
+
+            _descriptors.Remove(name);
+            Remove(GetterPrefix + name);
+            Remove(SetterPrefix + name);
+            Remove(name);
+            return true;
+        }
+
+        if (Remove(name))
+        {
+            return true;
+        }
+
+        // Property does not exist; delete is a no-op that succeeds.
+        return true;
+    }
+
+    public void Freeze()
+    {
+        IsFrozen = true;
+        IsSealed = true; // Frozen implies sealed
+
+        // Update all existing descriptors to be non-writable and non-configurable
+        foreach (var key in Keys.ToArray())
+        {
+            if (key == PrototypeKey || key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
+            {
+                continue;
+            }
+
+            if (_descriptors.TryGetValue(key, out var desc))
+            {
+                desc.Writable = false;
+                desc.Configurable = false;
+            }
+            else
+            {
+                _descriptors[key] = new PropertyDescriptor
+                {
+                    Value = this[key], Writable = false, Enumerable = true, Configurable = false
+                };
+            }
+        }
+    }
+
+    private bool TryGetProperty(string name, HashSet<JsObject> visited, out object? value)
+    {
+        // Check for regular properties (not getters)
+        if (TryGetValue(name, out value))
+        {
+            return true;
+        }
+
+        if (Prototype is null)
+        {
+            value = null;
+            return false;
+        }
+
+        if (!visited.Add(this))
+        {
+            value = null;
+            return false;
+        }
+
+        return Prototype.TryGetProperty(name, visited, out value);
     }
 
     public IEnumerable<string> GetEnumerablePropertyNames()
@@ -433,11 +427,11 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 public sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>
     where T : class
 {
-    public static ReferenceEqualityComparer<T> Instance { get; } = new();
-
     private ReferenceEqualityComparer()
     {
     }
+
+    public static ReferenceEqualityComparer<T> Instance { get; } = new();
 
     public bool Equals(T? x, T? y)
     {

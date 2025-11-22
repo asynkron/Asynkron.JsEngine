@@ -8,51 +8,38 @@ using Asynkron.JsEngine.StdLib;
 namespace Asynkron.JsEngine;
 
 /// <summary>
-/// High level façade that turns JavaScript source into S-expressions and evaluates them.
+///     High level façade that turns JavaScript source into S-expressions and evaluates them.
 /// </summary>
 public sealed class JsEngine : IAsyncDisposable
 {
-    private readonly TaskCompletionSource _doneTcs = new();
-    private readonly JsEnvironment _global = new(isFunctionScope: true);
-    private readonly JsObject _globalObject = new();
-    private readonly RealmState _realm = new();
-    private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
-    private readonly TypedCpsTransformer _typedCpsTransformer = new();
-    private readonly TypedProgramExecutor _typedExecutor = new();
-    private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
-    private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly HashSet<Task> _activeTimerTasks = [];
-    private int _nextTimerId = 1;
-    private int _pendingTaskCount; // Track pending tasks in the event queue
+    private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
+    private readonly bool _asyncIteratorTracingEnabled;
 
     //DEBUG code
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
-    private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
+    private readonly TaskCompletionSource _doneTcs = new();
+    private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
     private readonly Channel<ExceptionInfo> _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
-    private readonly bool _asyncIteratorTracingEnabled;
+    private readonly JsEnvironment _global = new(isFunctionScope: true);
+
     //-------
 
     // Module registry: maps module paths to their exported values
     private readonly Dictionary<string, JsObject> _moduleRegistry = new();
+    private readonly RealmState _realm = new();
+    private readonly Dictionary<int, CancellationTokenSource> _timers = new();
+    private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
+    private readonly TypedCpsTransformer _typedCpsTransformer = new();
+    private readonly TypedProgramExecutor _typedExecutor = new();
 
     // Module loader function: allows custom module loading logic
     private Func<string, string>? _moduleLoader;
+    private int _nextTimerId = 1;
+    private int _pendingTaskCount; // Track pending tasks in the event queue
 
     /// <summary>
-    /// Maximum wall-clock time to allow a single evaluation to run before failing.
-    /// Null or non-positive values disable the timeout.
-    /// </summary>
-    // Keep a finite timeout to avoid runaway scripts, but give heavy test cases
-    // (e.g. crypto/NBody fixtures) enough headroom to finish.
-    public TimeSpan? ExecutionTimeout { get; set; } = TimeSpan.FromSeconds(10);
-
-    /// <summary>
-    /// Exposes the global object for realm-like scenarios (e.g. Test262 realms).
-    /// </summary>
-    public JsObject GlobalObject => _globalObject;
-
-    /// <summary>
-    /// Initializes a new instance of JsEngine with standard library objects.
+    ///     Initializes a new instance of JsEngine with standard library objects.
     /// </summary>
     public JsEngine()
     {
@@ -60,12 +47,12 @@ public sealed class JsEngine : IAsyncDisposable
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).
-        _global.Define(Symbols.This, _globalObject);
+        _global.Define(Symbols.This, GlobalObject);
 
         // Expose common aliases for the global object that many libraries
         // expect to exist (Node-style `global`, standard `globalThis`).
-        SetGlobal("globalThis", _globalObject);
-        SetGlobal("global", _globalObject);
+        SetGlobal("globalThis", GlobalObject);
+        SetGlobal("global", GlobalObject);
 
         // Register standard library objects
         SetGlobal("console", StandardLibrary.CreateConsoleObject());
@@ -84,12 +71,12 @@ public sealed class JsEngine : IAsyncDisposable
             arrayHost.RealmState = _realm;
         }
 
-        _globalObject.DefineProperty("Array",
+        GlobalObject.DefineProperty("Array",
             new PropertyDescriptor
             {
                 Value = arrayConstructor, Writable = true, Enumerable = false, Configurable = true
             });
-        _globalObject.DefineProperty("BigInt",
+        GlobalObject.DefineProperty("BigInt",
             new PropertyDescriptor
             {
                 Value = bigIntFunction, Writable = true, Enumerable = false, Configurable = true
@@ -170,7 +157,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("Temporal", StandardLibrary.CreateTemporalObject());
 
         // Register Error constructors
-        SetGlobal("Error", StandardLibrary.CreateErrorConstructor(_realm, "Error"));
+        SetGlobal("Error", StandardLibrary.CreateErrorConstructor(_realm));
         SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor(_realm, "TypeError"));
         SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor(_realm, "RangeError"));
         SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor(_realm, "ReferenceError"));
@@ -201,7 +188,26 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Returns a channel reader that can be used to read debug messages captured during execution.
+    ///     Maximum wall-clock time to allow a single evaluation to run before failing.
+    ///     Null or non-positive values disable the timeout.
+    /// </summary>
+    // Keep a finite timeout to avoid runaway scripts, but give heavy test cases
+    // (e.g. crypto/NBody fixtures) enough headroom to finish.
+    public TimeSpan? ExecutionTimeout { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    ///     Exposes the global object for realm-like scenarios (e.g. Test262 realms).
+    /// </summary>
+    public JsObject GlobalObject { get; } = new();
+
+    public async ValueTask DisposeAsync()
+    {
+        _eventQueue.Writer.Complete();
+        await _doneTcs.Task.ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Returns a channel reader that can be used to read debug messages captured during execution.
     /// </summary>
     public ChannelReader<DebugMessage> DebugMessages()
     {
@@ -209,7 +215,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Returns a channel reader that can be used to read exceptions that occurred during execution.
+    ///     Returns a channel reader that can be used to read exceptions that occurred during execution.
     /// </summary>
     public ChannelReader<ExceptionInfo> Exceptions()
     {
@@ -217,7 +223,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Logs an exception to the exception channel.
+    ///     Logs an exception to the exception channel.
     /// </summary>
     internal void LogException(Exception exception, string context, JsEnvironment? environment = null)
     {
@@ -227,7 +233,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Captures the current execution state and writes a debug message to the debug channel.
+    ///     Captures the current execution state and writes a debug message to the debug channel.
     /// </summary>
     private object? CaptureDebugMessage(JsEnvironment environment, EvaluationContext context,
         IReadOnlyList<object?> args)
@@ -258,8 +264,8 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Writes a trace message to the async iterator trace channel when tracing is enabled.
-    /// Internal helpers use this to surface branch decisions for testing and diagnostics.
+    ///     Writes a trace message to the async iterator trace channel when tracing is enabled.
+    ///     Internal helpers use this to surface branch decisions for testing and diagnostics.
     /// </summary>
     /// <param name="message">Human readable trace message.</param>
     internal void WriteAsyncIteratorTrace(string message)
@@ -273,9 +279,9 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Parses JavaScript source code into a typed AST without applying constant
-    /// folding or CPS rewrites. This is primarily used by tests and tooling
-    /// that need to inspect the raw syntax tree produced by the typed parser.
+    ///     Parses JavaScript source code into a typed AST without applying constant
+    ///     folding or CPS rewrites. This is primarily used by tests and tooling
+    ///     that need to inspect the raw syntax tree produced by the typed parser.
     /// </summary>
     public ProgramNode Parse(string source)
     {
@@ -283,9 +289,9 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Parses JavaScript source code and returns both the transformed S-expression and the
-    /// typed AST. This is primarily used by the evaluator so we avoid rebuilding the typed
-    /// tree multiple times.
+    ///     Parses JavaScript source code and returns both the transformed S-expression and the
+    ///     typed AST. This is primarily used by the evaluator so we avoid rebuilding the typed
+    ///     tree multiple times.
     /// </summary>
     internal ParsedProgram ParseForExecution(string source)
     {
@@ -301,9 +307,9 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Executes a transformed program through the typed evaluator. The legacy
-    /// cons interpreter is no longer part of the runtime path; cons data is only
-    /// used earlier for parsing and transformation.
+    ///     Executes a transformed program through the typed evaluator. The legacy
+    ///     cons interpreter is no longer part of the runtime path; cons data is only
+    ///     used earlier for parsing and transformation.
     /// </summary>
     internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment,
         CancellationToken cancellationToken = default)
@@ -312,10 +318,10 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// <summary>
-    /// Parses JavaScript source code and returns the typed AST at each major
-    /// transformation stage (original, constant folded, CPS-transformed).
-    /// </summary>
+    ///     <summary>
+    ///         Parses JavaScript source code and returns the typed AST at each major
+    ///         transformation stage (original, constant folded, CPS-transformed).
+    ///     </summary>
     public (ProgramNode original, ProgramNode constantFolded, ProgramNode cpsTransformed)
         ParseWithTransformationSteps(string source)
     {
@@ -360,9 +366,9 @@ public sealed class JsEngine : IAsyncDisposable
 
 
     /// <summary>
-    /// Parses and schedules evaluation of the provided source on the event queue.
-    /// This ensures all code executes through the event loop, maintaining proper
-    /// single-threaded execution semantics.
+    ///     Parses and schedules evaluation of the provided source on the event queue.
+    ///     This ensures all code executes through the event loop, maintaining proper
+    ///     single-threaded execution semantics.
     /// </summary>
     public Task<object?> Evaluate(string source, CancellationToken cancellationToken = default)
     {
@@ -371,9 +377,9 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Evaluates an S-expression program by scheduling it on the event queue.
-    /// This ensures all code executes through the event loop, maintaining proper
-    /// single-threaded execution semantics.
+    ///     Evaluates an S-expression program by scheduling it on the event queue.
+    ///     This ensures all code executes through the event loop, maintaining proper
+    ///     single-threaded execution semantics.
     /// </summary>
     private async Task<object?> Evaluate(ParsedProgram program, CancellationToken cancellationToken = default)
     {
@@ -441,7 +447,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Checks if a program contains any import or export statements.
+    ///     Checks if a program contains any import or export statements.
     /// </summary>
     private static bool HasModuleStatements(ProgramNode program)
     {
@@ -457,7 +463,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Registers a value in the global scope.
+    ///     Registers a value in the global scope.
     /// </summary>
     private void SetGlobal(string name, object? value)
     {
@@ -470,7 +476,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             if (hostFunction.Realm is null)
             {
-                hostFunction.Realm = _globalObject;
+                hostFunction.Realm = GlobalObject;
             }
 
             if (hostFunction.RealmState is null)
@@ -484,11 +490,11 @@ public sealed class JsEngine : IAsyncDisposable
             }
         }
 
-        _globalObject.SetProperty(name, value);
+        GlobalObject.SetProperty(name, value);
     }
 
     /// <summary>
-    /// Registers a value in the global scope (public facing).
+    ///     Registers a value in the global scope (public facing).
     /// </summary>
     public void SetGlobalValue(string name, object? value)
     {
@@ -496,25 +502,25 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Registers a host function that can be invoked from interpreted code.
+    ///     Registers a host function that can be invoked from interpreted code.
     /// </summary>
     public void SetGlobalFunction(string name, Func<IReadOnlyList<object?>, object?> handler)
     {
-        _global.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = _globalObject });
+        _global.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = GlobalObject });
     }
 
     /// <summary>
-    /// Registers a host function that receives the <c>this</c> binding.
+    ///     Registers a host function that receives the <c>this</c> binding.
     /// </summary>
     public void SetGlobalFunction(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
     {
-        _global.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = _globalObject });
+        _global.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = GlobalObject });
     }
 
     /// <summary>
-    /// Parses and evaluates the provided source code, then processes any scheduled events
-    /// in the event queue. The engine will continue running until the queue is empty
-    /// and all pending timer tasks have completed.
+    ///     Parses and evaluates the provided source code, then processes any scheduled events
+    ///     in the event queue. The engine will continue running until the queue is empty
+    ///     and all pending timer tasks have completed.
     /// </summary>
     /// <param name="source">The JavaScript source code to execute</param>
     /// <returns>A task that completes when all scheduled events have been processed</returns>
@@ -559,8 +565,8 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Schedules a task to be executed on the event queue.
-    /// This allows promises and other async operations to schedule work.
+    ///     Schedules a task to be executed on the event queue.
+    ///     This allows promises and other async operations to schedule work.
     /// </summary>
     /// <param name="task">The task to schedule</param>
     public void ScheduleTask(Func<Task> task)
@@ -570,10 +576,10 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Processes all events in the event queue until it's empty.
-    /// Each event is executed and any new events scheduled during execution
-    /// will also be processed.
-    /// Exceptions from individual tasks are caught and logged to prevent the event loop from stopping.
+    ///     Processes all events in the event queue until it's empty.
+    ///     Each event is executed and any new events scheduled during execution
+    ///     will also be processed.
+    ///     Exceptions from individual tasks are caught and logged to prevent the event loop from stopping.
     /// </summary>
     private async Task ProcessEventQueue()
     {
@@ -610,7 +616,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Implements setTimeout - schedules a callback to run after a delay.
+    ///     Implements setTimeout - schedules a callback to run after a delay.
     /// </summary>
     private object? SetTimeout(IReadOnlyList<object?> args)
     {
@@ -667,7 +673,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Implements setInterval - schedules a callback to run repeatedly at a fixed interval.
+    ///     Implements setInterval - schedules a callback to run repeatedly at a fixed interval.
     /// </summary>
     private object? SetInterval(IReadOnlyList<object?> args)
     {
@@ -727,7 +733,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Implements clearTimeout/clearInterval - cancels a timer.
+    ///     Implements clearTimeout/clearInterval - cancels a timer.
     /// </summary>
     private object? ClearTimer(IReadOnlyList<object?> args)
     {
@@ -747,7 +753,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Implements dynamic import() - loads a module and returns a Promise that resolves to the module's exports.
+    ///     Implements dynamic import() - loads a module and returns a Promise that resolves to the module's exports.
     /// </summary>
     private object? DynamicImport(IReadOnlyList<object?> args)
     {
@@ -791,9 +797,9 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Sets a custom module loader function that will be called to load module source code.
-    /// The function receives the module path and should return the module source code.
-    /// If not set, the engine will use File.ReadAllText to load modules from the file system.
+    ///     Sets a custom module loader function that will be called to load module source code.
+    ///     The function receives the module path and should return the module source code.
+    ///     If not set, the engine will use File.ReadAllText to load modules from the file system.
     /// </summary>
     public void SetModuleLoader(Func<string, string> loader)
     {
@@ -801,8 +807,8 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Loads and evaluates a module, returning its exports object.
-    /// If the module has already been loaded, returns the cached exports.
+    ///     Loads and evaluates a module, returning its exports object.
+    ///     If the module has already been loaded, returns the cached exports.
     /// </summary>
     private JsObject LoadModule(string modulePath)
     {
@@ -831,7 +837,7 @@ public sealed class JsEngine : IAsyncDisposable
         var exports = new JsObject();
 
         // Create a module environment (inherits from global)
-        var moduleEnv = new JsEnvironment(_global, false);
+        var moduleEnv = new JsEnvironment(_global);
 
         // Evaluate the module with export tracking
         EvaluateModule(program, moduleEnv, exports);
@@ -843,8 +849,8 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Evaluates a module program and populates the exports object.
-    /// Returns the last evaluated value.
+    ///     Evaluates a module program and populates the exports object.
+    ///     Returns the last evaluated value.
     /// </summary>
     private object? EvaluateModule(ParsedProgram program, JsEnvironment moduleEnv, JsObject exports)
     {
@@ -876,7 +882,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Processes an import statement and brings imported values into the module environment.
+    ///     Processes an import statement and brings imported values into the module environment.
     /// </summary>
     private void EvaluateImport(ImportStatement importStatement, JsEnvironment moduleEnv)
     {
@@ -997,11 +1003,5 @@ public sealed class JsEngine : IAsyncDisposable
     {
         var program = new ProgramNode(statement.Source, [statement], isStrict);
         return TypedAstEvaluator.EvaluateProgram(program, environment, _realm);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _eventQueue.Writer.Complete();
-        await _doneTcs.Task.ConfigureAwait(false);
     }
 }

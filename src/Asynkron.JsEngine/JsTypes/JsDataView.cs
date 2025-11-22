@@ -4,35 +4,32 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript DataView - a low-level interface for reading and writing
-/// multiple number types in a binary ArrayBuffer with control over endianness.
+///     Represents a JavaScript DataView - a low-level interface for reading and writing
+///     multiple number types in a binary ArrayBuffer with control over endianness.
 /// </summary>
 public sealed class JsDataView : IJsPropertyAccessor
 {
-    private readonly JsArrayBuffer _buffer;
-    private readonly int _byteOffset;
-    private readonly int _byteLength;
-    private readonly JsObject _properties = new();
+    private readonly HostFunction _getFloat32;
+    private readonly HostFunction _getFloat64;
+    private readonly HostFunction _getInt16;
+    private readonly HostFunction _getInt32;
 
     private readonly HostFunction _getInt8;
-    private readonly HostFunction _setInt8;
-    private readonly HostFunction _getUint8;
-    private readonly HostFunction _setUint8;
-    private readonly HostFunction _getInt16;
-    private readonly HostFunction _setInt16;
     private readonly HostFunction _getUint16;
-    private readonly HostFunction _setUint16;
-    private readonly HostFunction _getInt32;
-    private readonly HostFunction _setInt32;
     private readonly HostFunction _getUint32;
-    private readonly HostFunction _setUint32;
-    private readonly HostFunction _getFloat32;
+    private readonly HostFunction _getUint8;
+    private readonly JsObject _properties = new();
     private readonly HostFunction _setFloat32;
-    private readonly HostFunction _getFloat64;
     private readonly HostFunction _setFloat64;
+    private readonly HostFunction _setInt16;
+    private readonly HostFunction _setInt32;
+    private readonly HostFunction _setInt8;
+    private readonly HostFunction _setUint16;
+    private readonly HostFunction _setUint32;
+    private readonly HostFunction _setUint8;
 
     /// <summary>
-    /// Creates a new DataView.
+    ///     Creates a new DataView.
     /// </summary>
     public JsDataView(JsArrayBuffer buffer, int byteOffset = 0, int? byteLength = null)
     {
@@ -50,9 +47,9 @@ public sealed class JsDataView : IJsPropertyAccessor
             throw new ArgumentOutOfRangeException(nameof(byteLength));
         }
 
-        _buffer = buffer;
-        _byteOffset = byteOffset;
-        _byteLength = length;
+        Buffer = buffer;
+        ByteOffset = byteOffset;
+        ByteLength = length;
 
         // Lazily created host functions that delegate to whichever DataView
         // instance is used as the `this` value when called from JavaScript.
@@ -181,195 +178,11 @@ public sealed class JsDataView : IJsPropertyAccessor
         });
     }
 
-    public JsArrayBuffer Buffer => _buffer;
-    public int ByteOffset => _byteOffset;
-    public int ByteLength => _byteLength;
+    public JsArrayBuffer Buffer { get; }
 
-    /// <summary>
-    /// Allows attaching a prototype chain to mirror JavaScript semantics.
-    /// </summary>
-    public void SetPrototype(object? candidate)
-    {
-        _properties.SetPrototype(candidate);
-    }
+    public int ByteOffset { get; }
 
-    private void CheckBounds(int offset, int size)
-    {
-        if (offset < 0 || offset + size > _byteLength)
-        {
-            throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside the bounds of the DataView");
-        }
-    }
-
-    // Int8
-    public sbyte GetInt8(int byteOffset)
-    {
-        CheckBounds(byteOffset, 1);
-        return (sbyte)_buffer.Buffer[_byteOffset + byteOffset];
-    }
-
-    public void SetInt8(int byteOffset, sbyte value)
-    {
-        CheckBounds(byteOffset, 1);
-        _buffer.Buffer[_byteOffset + byteOffset] = (byte)value;
-    }
-
-    // Uint8
-    public byte GetUint8(int byteOffset)
-    {
-        CheckBounds(byteOffset, 1);
-        return _buffer.Buffer[_byteOffset + byteOffset];
-    }
-
-    public void SetUint8(int byteOffset, byte value)
-    {
-        CheckBounds(byteOffset, 1);
-        _buffer.Buffer[_byteOffset + byteOffset] = value;
-    }
-
-    // Int16
-    public short GetInt16(int byteOffset, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 2);
-        var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 2);
-        return littleEndian
-            ? BinaryPrimitives.ReadInt16LittleEndian(span)
-            : BinaryPrimitives.ReadInt16BigEndian(span);
-    }
-
-    public void SetInt16(int byteOffset, short value, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 2);
-        var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 2);
-        if (littleEndian)
-        {
-            BinaryPrimitives.WriteInt16LittleEndian(span, value);
-        }
-        else
-        {
-            BinaryPrimitives.WriteInt16BigEndian(span, value);
-        }
-    }
-
-    // Uint16
-    public ushort GetUint16(int byteOffset, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 2);
-        var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 2);
-        return littleEndian
-            ? BinaryPrimitives.ReadUInt16LittleEndian(span)
-            : BinaryPrimitives.ReadUInt16BigEndian(span);
-    }
-
-    public void SetUint16(int byteOffset, ushort value, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 2);
-        var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 2);
-        if (littleEndian)
-        {
-            BinaryPrimitives.WriteUInt16LittleEndian(span, value);
-        }
-        else
-        {
-            BinaryPrimitives.WriteUInt16BigEndian(span, value);
-        }
-    }
-
-    // Int32
-    public int GetInt32(int byteOffset, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 4);
-        var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
-        return littleEndian
-            ? BinaryPrimitives.ReadInt32LittleEndian(span)
-            : BinaryPrimitives.ReadInt32BigEndian(span);
-    }
-
-    public void SetInt32(int byteOffset, int value, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 4);
-        var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
-        if (littleEndian)
-        {
-            BinaryPrimitives.WriteInt32LittleEndian(span, value);
-        }
-        else
-        {
-            BinaryPrimitives.WriteInt32BigEndian(span, value);
-        }
-    }
-
-    // Uint32
-    public uint GetUint32(int byteOffset, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 4);
-        var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
-        return littleEndian
-            ? BinaryPrimitives.ReadUInt32LittleEndian(span)
-            : BinaryPrimitives.ReadUInt32BigEndian(span);
-    }
-
-    public void SetUint32(int byteOffset, uint value, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 4);
-        var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
-        if (littleEndian)
-        {
-            BinaryPrimitives.WriteUInt32LittleEndian(span, value);
-        }
-        else
-        {
-            BinaryPrimitives.WriteUInt32BigEndian(span, value);
-        }
-    }
-
-    // Float32
-    public float GetFloat32(int byteOffset, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 4);
-        var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
-        return littleEndian
-            ? BinaryPrimitives.ReadSingleLittleEndian(span)
-            : BinaryPrimitives.ReadSingleBigEndian(span);
-    }
-
-    public void SetFloat32(int byteOffset, float value, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 4);
-        var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 4);
-        if (littleEndian)
-        {
-            BinaryPrimitives.WriteSingleLittleEndian(span, value);
-        }
-        else
-        {
-            BinaryPrimitives.WriteSingleBigEndian(span, value);
-        }
-    }
-
-    // Float64
-    public double GetFloat64(int byteOffset, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 8);
-        var span = new ReadOnlySpan<byte>(_buffer.Buffer, _byteOffset + byteOffset, 8);
-        return littleEndian
-            ? BinaryPrimitives.ReadDoubleLittleEndian(span)
-            : BinaryPrimitives.ReadDoubleBigEndian(span);
-    }
-
-    public void SetFloat64(int byteOffset, double value, bool littleEndian = false)
-    {
-        CheckBounds(byteOffset, 8);
-        var span = new Span<byte>(_buffer.Buffer, _byteOffset + byteOffset, 8);
-        if (littleEndian)
-        {
-            BinaryPrimitives.WriteDoubleLittleEndian(span, value);
-        }
-        else
-        {
-            BinaryPrimitives.WriteDoubleBigEndian(span, value);
-        }
-    }
+    public int ByteLength { get; }
 
     public bool TryGetProperty(string name, out object? value)
     {
@@ -454,6 +267,192 @@ public sealed class JsDataView : IJsPropertyAccessor
         }
 
         _properties.SetProperty(name, value);
+    }
+
+    /// <summary>
+    ///     Allows attaching a prototype chain to mirror JavaScript semantics.
+    /// </summary>
+    public void SetPrototype(object? candidate)
+    {
+        _properties.SetPrototype(candidate);
+    }
+
+    private void CheckBounds(int offset, int size)
+    {
+        if (offset < 0 || offset + size > ByteLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside the bounds of the DataView");
+        }
+    }
+
+    // Int8
+    public sbyte GetInt8(int byteOffset)
+    {
+        CheckBounds(byteOffset, 1);
+        return (sbyte)Buffer.Buffer[ByteOffset + byteOffset];
+    }
+
+    public void SetInt8(int byteOffset, sbyte value)
+    {
+        CheckBounds(byteOffset, 1);
+        Buffer.Buffer[ByteOffset + byteOffset] = (byte)value;
+    }
+
+    // Uint8
+    public byte GetUint8(int byteOffset)
+    {
+        CheckBounds(byteOffset, 1);
+        return Buffer.Buffer[ByteOffset + byteOffset];
+    }
+
+    public void SetUint8(int byteOffset, byte value)
+    {
+        CheckBounds(byteOffset, 1);
+        Buffer.Buffer[ByteOffset + byteOffset] = value;
+    }
+
+    // Int16
+    public short GetInt16(int byteOffset, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 2);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        return littleEndian
+            ? BinaryPrimitives.ReadInt16LittleEndian(span)
+            : BinaryPrimitives.ReadInt16BigEndian(span);
+    }
+
+    public void SetInt16(int byteOffset, short value, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 2);
+        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        if (littleEndian)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(span, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteInt16BigEndian(span, value);
+        }
+    }
+
+    // Uint16
+    public ushort GetUint16(int byteOffset, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 2);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        return littleEndian
+            ? BinaryPrimitives.ReadUInt16LittleEndian(span)
+            : BinaryPrimitives.ReadUInt16BigEndian(span);
+    }
+
+    public void SetUint16(int byteOffset, ushort value, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 2);
+        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        if (littleEndian)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(span, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteUInt16BigEndian(span, value);
+        }
+    }
+
+    // Int32
+    public int GetInt32(int byteOffset, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 4);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        return littleEndian
+            ? BinaryPrimitives.ReadInt32LittleEndian(span)
+            : BinaryPrimitives.ReadInt32BigEndian(span);
+    }
+
+    public void SetInt32(int byteOffset, int value, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 4);
+        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        if (littleEndian)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(span, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteInt32BigEndian(span, value);
+        }
+    }
+
+    // Uint32
+    public uint GetUint32(int byteOffset, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 4);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        return littleEndian
+            ? BinaryPrimitives.ReadUInt32LittleEndian(span)
+            : BinaryPrimitives.ReadUInt32BigEndian(span);
+    }
+
+    public void SetUint32(int byteOffset, uint value, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 4);
+        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        if (littleEndian)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(span, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteUInt32BigEndian(span, value);
+        }
+    }
+
+    // Float32
+    public float GetFloat32(int byteOffset, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 4);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        return littleEndian
+            ? BinaryPrimitives.ReadSingleLittleEndian(span)
+            : BinaryPrimitives.ReadSingleBigEndian(span);
+    }
+
+    public void SetFloat32(int byteOffset, float value, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 4);
+        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        if (littleEndian)
+        {
+            BinaryPrimitives.WriteSingleLittleEndian(span, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteSingleBigEndian(span, value);
+        }
+    }
+
+    // Float64
+    public double GetFloat64(int byteOffset, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 8);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        return littleEndian
+            ? BinaryPrimitives.ReadDoubleLittleEndian(span)
+            : BinaryPrimitives.ReadDoubleBigEndian(span);
+    }
+
+    public void SetFloat64(int byteOffset, double value, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 8);
+        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        if (littleEndian)
+        {
+            BinaryPrimitives.WriteDoubleLittleEndian(span, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteDoubleBigEndian(span, value);
+        }
     }
 
     private HostFunction CreateMethod(Func<JsDataView, IReadOnlyList<object?>, object?> implementation)

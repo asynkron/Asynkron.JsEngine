@@ -5,7 +5,7 @@ using Asynkron.JsEngine.StdLib;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Minimal BigInt64Array implementation backed by a shared ArrayBuffer.
+///     Minimal BigInt64Array implementation backed by a shared ArrayBuffer.
 /// </summary>
 public sealed class JsBigInt64Array(JsArrayBuffer buffer, int byteOffset, int length)
     : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
@@ -23,7 +23,7 @@ public sealed class JsBigInt64Array(JsArrayBuffer buffer, int byteOffset, int le
     {
         var length = array.Items.Count;
         var typedArray = FromLength(length);
-        typedArray.Set(array, 0);
+        typedArray.Set(array);
         return typedArray;
     }
 
@@ -32,7 +32,7 @@ public sealed class JsBigInt64Array(JsArrayBuffer buffer, int byteOffset, int le
         CheckBounds(index);
         var span = new ReadOnlySpan<byte>(_buffer.Buffer, GetByteIndex(index), BYTES_PER_ELEMENT);
         var value = BinaryPrimitives.ReadInt64LittleEndian(span);
-        return (double)value;
+        return value;
     }
 
     protected override TypedArrayBase CreateNewSameType(int length)

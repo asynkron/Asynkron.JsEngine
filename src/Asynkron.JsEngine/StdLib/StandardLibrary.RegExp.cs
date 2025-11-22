@@ -35,7 +35,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Adds RegExp instance methods to a JsRegExp object.
+    ///     Adds RegExp instance methods to a JsRegExp object.
     /// </summary>
     private static void AddRegExpMethods(JsRegExp regex)
     {

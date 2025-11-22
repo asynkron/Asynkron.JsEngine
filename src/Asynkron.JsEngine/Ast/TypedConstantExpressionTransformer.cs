@@ -6,14 +6,14 @@ using Asynkron.JsEngine.Runtime;
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Performs constant folding directly on the typed AST so optimization passes
-/// no longer need to bounce back through cons cells.
+///     Performs constant folding directly on the typed AST so optimization passes
+///     no longer need to bounce back through cons cells.
 /// </summary>
 public sealed class TypedConstantExpressionTransformer
 {
     /// <summary>
-    /// Traverses the program and folds any constant expressions it encounters.
-    /// The original <see cref="ProgramNode"/> is returned when no changes were made.
+    ///     Traverses the program and folds any constant expressions it encounters.
+    ///     The original <see cref="ProgramNode" /> is returned when no changes were made.
     /// </summary>
     public ProgramNode Transform(ProgramNode program)
     {

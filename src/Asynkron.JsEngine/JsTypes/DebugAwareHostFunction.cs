@@ -1,8 +1,8 @@
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// A host function that has access to the evaluation environment and context.
-/// Used for debug and introspection functions.
+///     A host function that has access to the evaluation environment and context.
+///     Used for debug and introspection functions.
 /// </summary>
 public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
 {
@@ -20,7 +20,7 @@ public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable, IJsPro
     internal EvaluationContext? CurrentContext { get; set; }
 
     /// <summary>
-    /// The environment that is calling this function. Not used for debug functions but required by interface.
+    ///     The environment that is calling this function. Not used for debug functions but required by interface.
     /// </summary>
     public JsEnvironment? CallingJsEnvironment { get; set; }
 

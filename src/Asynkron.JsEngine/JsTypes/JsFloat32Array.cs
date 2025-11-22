@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript Float32Array - an array of 32-bit floating point numbers.
+///     Represents a JavaScript Float32Array - an array of 32-bit floating point numbers.
 /// </summary>
 public sealed class JsFloat32Array(JsArrayBuffer buffer, int byteOffset, int length)
     : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
@@ -20,7 +20,7 @@ public sealed class JsFloat32Array(JsArrayBuffer buffer, int byteOffset, int len
     {
         var length = array.Items.Count;
         var typedArray = FromLength(length);
-        typedArray.Set(array, 0);
+        typedArray.Set(array);
         return typedArray;
     }
 

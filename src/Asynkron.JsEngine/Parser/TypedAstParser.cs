@@ -5,12 +5,12 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.Parser;
 
 /// <summary>
-/// Parser that builds the typed AST directly from the token stream.
+///     Parser that builds the typed AST directly from the token stream.
 /// </summary>
 public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 {
-    private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
     private readonly string _source = source ?? string.Empty;
+    private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
     public ProgramNode ParseProgram()
     {
@@ -19,23 +19,23 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
     }
 
     /// <summary>
-    /// Direct typed parser. This currently supports only a subset of the full
-    /// JavaScript grammar required by the test suite.
+    ///     Direct typed parser. This currently supports only a subset of the full
+    ///     JavaScript grammar required by the test suite.
     /// </summary>
     private sealed class DirectParser(IReadOnlyList<Token> tokens, string source)
     {
-        private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
-        private readonly string _source = source ?? string.Empty;
-        private int _current;
         private readonly Stack<FunctionContext> _functionContexts = new();
-
-        private bool InGeneratorContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsGenerator;
-        private bool InAsyncContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsAsync;
+        private readonly string _source = source ?? string.Empty;
+        private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
         // Controls whether the `in` token is treated as a relational operator inside
         // expressions. For `for (x in y)` we temporarily disable `in` as an operator
         // so the parser can recognize the for-in / for-of shape.
         private bool _allowInExpressions = true;
+        private int _current;
+
+        private bool InGeneratorContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsGenerator;
+        private bool InAsyncContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsAsync;
 
         public ProgramNode ParseProgram()
         {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.StdLib;
@@ -72,7 +73,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates the global parseFloat function.
+    ///     Creates the global parseFloat function.
     /// </summary>
     public static HostFunction CreateParseFloatFunction()
     {
@@ -91,8 +92,8 @@ public static partial class StandardLibrary
             }
 
             // Try parsing the string as a double
-            if (double.TryParse(str, System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out var result))
+            if (double.TryParse(str, NumberStyles.Float,
+                    CultureInfo.InvariantCulture, out var result))
             {
                 return result;
             }
@@ -153,8 +154,8 @@ public static partial class StandardLibrary
             }
 
             var parsed = str.Substring(0, i);
-            if (double.TryParse(parsed, System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out result))
+            if (double.TryParse(parsed, NumberStyles.Float,
+                    CultureInfo.InvariantCulture, out result))
             {
                 return result;
             }
@@ -164,7 +165,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates the global isNaN function.
+    ///     Creates the global isNaN function.
     /// </summary>
     public static HostFunction CreateIsNaNFunction()
     {
@@ -203,7 +204,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates the global isFinite function.
+    ///     Creates the global isFinite function.
     /// </summary>
     public static HostFunction CreateIsFiniteFunction()
     {

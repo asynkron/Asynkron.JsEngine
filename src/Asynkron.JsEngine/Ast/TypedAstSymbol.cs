@@ -3,9 +3,9 @@ using System.Collections.Concurrent;
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Represents a JavaScript Symbol value (ES6 symbol primitive type).
-/// Symbols are unique and immutable primitive values that can be used as object property keys.
-/// This is distinct from the internal Symbol class used for S-expression atoms.
+///     Represents a JavaScript Symbol value (ES6 symbol primitive type).
+///     Symbols are unique and immutable primitive values that can be used as object property keys.
+///     This is distinct from the internal Symbol class used for S-expression atoms.
 /// </summary>
 public sealed class TypedAstSymbol
 {
@@ -23,12 +23,12 @@ public sealed class TypedAstSymbol
     }
 
     /// <summary>
-    /// Gets the optional description of this symbol.
+    ///     Gets the optional description of this symbol.
     /// </summary>
     public string? Description { get; }
 
     /// <summary>
-    /// Creates a new unique symbol with an optional description.
+    ///     Creates a new unique symbol with an optional description.
     /// </summary>
     public static TypedAstSymbol Create(string? description = null)
     {
@@ -36,8 +36,8 @@ public sealed class TypedAstSymbol
     }
 
     /// <summary>
-    /// Gets or creates a global symbol for the given key.
-    /// Global symbols with the same key are the same object.
+    ///     Gets or creates a global symbol for the given key.
+    ///     Global symbols with the same key are the same object.
     /// </summary>
     public static TypedAstSymbol For(string key)
     {
@@ -45,7 +45,7 @@ public sealed class TypedAstSymbol
     }
 
     /// <summary>
-    /// Gets the key for a global symbol, or null if the symbol is not global.
+    ///     Gets the key for a global symbol, or null if the symbol is not global.
     /// </summary>
     public static string? KeyFor(TypedAstSymbol symbol)
     {

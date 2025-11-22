@@ -4,13 +4,11 @@ using System.Numerics;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript BigInt primitive type.
-/// BigInt is an arbitrary precision integer that can represent integers beyond Number.MAX_SAFE_INTEGER.
+///     Represents a JavaScript BigInt primitive type.
+///     BigInt is an arbitrary precision integer that can represent integers beyond Number.MAX_SAFE_INTEGER.
 /// </summary>
 public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
 {
-    public BigInteger Value { get; } = value;
-
     public JsBigInt(long value) : this(new BigInteger(value))
     {
     }
@@ -20,9 +18,16 @@ public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
     {
     }
 
+    public BigInteger Value { get; } = value;
+
     public static JsBigInt Zero => new(BigInteger.Zero);
     public static JsBigInt One => new(BigInteger.One);
     public static JsBigInt MinusOne => new(BigInteger.MinusOne);
+
+    public bool Equals(JsBigInt? other)
+    {
+        return other is not null && Value.Equals(other.Value);
+    }
 
     public override string ToString()
     {
@@ -32,11 +37,6 @@ public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
     public override bool Equals(object? obj)
     {
         return obj is JsBigInt other && Equals(other);
-    }
-
-    public bool Equals(JsBigInt? other)
-    {
-        return other is not null && Value.Equals(other.Value);
     }
 
     public override int GetHashCode()

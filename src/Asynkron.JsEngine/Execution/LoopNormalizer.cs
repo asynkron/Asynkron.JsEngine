@@ -4,10 +4,10 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
-/// Produces normalized <see cref="LoopPlan"/> instances for while/do/for loops.
-/// Yield lowering and resume-slot plumbing will be layered on top of these plans
-/// in subsequent steps so both the lowerer and IR builder can share the same
-/// loop shape.
+///     Produces normalized <see cref="LoopPlan" /> instances for while/do/for loops.
+///     Yield lowering and resume-slot plumbing will be layered on top of these plans
+///     in subsequent steps so both the lowerer and IR builder can share the same
+///     loop shape.
 /// </summary>
 internal static class LoopNormalizer
 {

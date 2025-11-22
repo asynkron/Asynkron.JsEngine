@@ -4,29 +4,17 @@ using Asynkron.JsEngine.StdLib;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript regular expression object.
+///     Represents a JavaScript regular expression object.
 /// </summary>
 public class JsRegExp
 {
     private readonly Regex _regex;
-    private readonly string _pattern;
-    private readonly string _flags;
-    private readonly JsObject _jsObject;
-
-    public string Pattern => _pattern;
-    public string Flags => _flags;
-    public bool Global => _flags.Contains('g');
-    public bool IgnoreCase => _flags.Contains('i');
-    public bool Multiline => _flags.Contains('m');
-    public int LastIndex { get; set; }
-
-    public JsObject JsObject => _jsObject;
 
     public JsRegExp(string pattern, string flags = "")
     {
-        _pattern = pattern;
-        _flags = flags;
-        _jsObject = new JsObject();
+        Pattern = pattern;
+        Flags = flags;
+        JsObject = new JsObject();
 
         // Convert JavaScript regex flags to .NET RegexOptions
         var options = RegexOptions.None;
@@ -55,21 +43,32 @@ public class JsRegExp
         }
 
         // Set standard properties
-        _jsObject["source"] = pattern;
-        _jsObject["flags"] = flags;
-        _jsObject["global"] = Global;
-        _jsObject["ignoreCase"] = IgnoreCase;
-        _jsObject["multiline"] = Multiline;
-        _jsObject["lastIndex"] = 0d;
+        JsObject["source"] = pattern;
+        JsObject["flags"] = flags;
+        JsObject["global"] = Global;
+        JsObject["ignoreCase"] = IgnoreCase;
+        JsObject["multiline"] = Multiline;
+        JsObject["lastIndex"] = 0d;
     }
+
+    public string Pattern { get; }
+
+    public string Flags { get; }
+
+    public bool Global => Flags.Contains('g');
+    public bool IgnoreCase => Flags.Contains('i');
+    public bool Multiline => Flags.Contains('m');
+    public int LastIndex { get; set; }
+
+    public JsObject JsObject { get; }
 
     public void SetProperty(string name, object? value)
     {
-        _jsObject.SetProperty(name, value);
+        JsObject.SetProperty(name, value);
     }
 
     /// <summary>
-    /// Tests if the pattern matches the input string.
+    ///     Tests if the pattern matches the input string.
     /// </summary>
     public bool Test(string input)
     {
@@ -89,19 +88,19 @@ public class JsRegExp
         if (match.Success && Global)
         {
             LastIndex = match.Index + match.Length;
-            _jsObject["lastIndex"] = (double)LastIndex;
+            JsObject["lastIndex"] = (double)LastIndex;
         }
         else if (!match.Success && Global)
         {
             LastIndex = 0;
-            _jsObject["lastIndex"] = 0d;
+            JsObject["lastIndex"] = 0d;
         }
 
         return match.Success;
     }
 
     /// <summary>
-    /// Executes a search for a match and returns an array with match details.
+    ///     Executes a search for a match and returns an array with match details.
     /// </summary>
     public object? Exec(string input)
     {
@@ -116,7 +115,7 @@ public class JsRegExp
             if (Global)
             {
                 LastIndex = 0;
-                _jsObject["lastIndex"] = 0d;
+                JsObject["lastIndex"] = 0d;
             }
 
             return null;
@@ -129,7 +128,7 @@ public class JsRegExp
             if (Global)
             {
                 LastIndex = 0;
-                _jsObject["lastIndex"] = 0d;
+                JsObject["lastIndex"] = 0d;
             }
 
             return null;
@@ -138,7 +137,7 @@ public class JsRegExp
         if (Global)
         {
             LastIndex = match.Index + match.Length;
-            _jsObject["lastIndex"] = (double)LastIndex;
+            JsObject["lastIndex"] = (double)LastIndex;
         }
 
         // Build result array
@@ -161,7 +160,7 @@ public class JsRegExp
     }
 
     /// <summary>
-    /// Finds all matches in the input string.
+    ///     Finds all matches in the input string.
     /// </summary>
     internal JsArray MatchAll(string input)
     {

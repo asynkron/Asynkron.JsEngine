@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.StdLib;
 public static partial class StandardLibrary
 {
     /// <summary>
-    /// Creates a Promise constructor with static methods.
+    ///     Creates a Promise constructor with static methods.
     /// </summary>
     public static IJsCallable CreatePromiseConstructor(JsEngine engine)
     {
@@ -249,7 +249,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Helper method to add instance methods to a promise.
+    ///     Helper method to add instance methods to a promise.
     /// </summary>
     internal static void AddPromiseInstanceMethods(JsObject promiseObj, JsPromise promise, JsEngine engine)
     {

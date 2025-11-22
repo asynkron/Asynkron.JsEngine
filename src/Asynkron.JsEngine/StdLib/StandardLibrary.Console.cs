@@ -69,7 +69,7 @@ public static partial class StandardLibrary
                     // Simple object representation
                     try
                     {
-                        parts.Add(StringifyValue(obj, 0));
+                        parts.Add(StringifyValue(obj));
                     }
                     catch
                     {
@@ -80,7 +80,7 @@ public static partial class StandardLibrary
                 {
                     try
                     {
-                        parts.Add(StringifyValue(arr, 0));
+                        parts.Add(StringifyValue(arr));
                     }
                     catch
                     {

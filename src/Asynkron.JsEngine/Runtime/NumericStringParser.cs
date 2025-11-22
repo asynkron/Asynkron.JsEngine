@@ -4,8 +4,8 @@ using System.Numerics;
 namespace Asynkron.JsEngine.Runtime;
 
 /// <summary>
-/// Minimal ECMAScript-style parser for converting strings to numbers without
-/// accepting culture-specific formats such as thousand separators.
+///     Minimal ECMAScript-style parser for converting strings to numbers without
+///     accepting culture-specific formats such as thousand separators.
 /// </summary>
 internal static class NumericStringParser
 {

@@ -3,9 +3,9 @@ using Asynkron.JsEngine.JsTypes;
 namespace Asynkron.JsEngine;
 
 /// <summary>
-/// Captures superclass metadata for use by class constructors and methods when resolving <c>super</c> references.
-/// Exposes the prototype through <see cref="IJsPropertyAccessor"/> so the typed evaluator can treat the binding
-/// as a regular property accessor when resolving <c>super.prop</c> and <c>super[expr]</c> lookups.
+///     Captures superclass metadata for use by class constructors and methods when resolving <c>super</c> references.
+///     Exposes the prototype through <see cref="IJsPropertyAccessor" /> so the typed evaluator can treat the binding
+///     as a regular property accessor when resolving <c>super.prop</c> and <c>super[expr]</c> lookups.
 /// </summary>
 public sealed class SuperBinding(
     IJsEnvironmentAwareCallable? constructor,

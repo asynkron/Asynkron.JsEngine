@@ -6,87 +6,22 @@ using Asynkron.JsEngine.StdLib;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Abstract base class for all JavaScript typed arrays.
-/// Provides shared logic for property access so the evaluator
-/// can treat typed arrays like regular <see cref="IJsPropertyAccessor"/> instances.
+///     Abstract base class for all JavaScript typed arrays.
+///     Provides shared logic for property access so the evaluator
+///     can treat typed arrays like regular <see cref="IJsPropertyAccessor" /> instances.
 /// </summary>
 public abstract class TypedArrayBase : IJsPropertyAccessor
 {
     protected readonly JsArrayBuffer _buffer;
     protected readonly int _byteOffset;
-    protected readonly int _length;
     protected readonly int _bytesPerElement;
+    private readonly HostFunction _indexOfFunction;
+    protected readonly int _length;
 
     private readonly JsObject _properties = new();
     private readonly HostFunction _setFunction;
-    private readonly HostFunction _subarrayFunction;
     private readonly HostFunction _sliceFunction;
-    private readonly HostFunction _indexOfFunction;
-
-    private static double ToIntegerOrInfinity(object? value)
-    {
-        var number = JsOps.ToNumberWithContext(value);
-        if (double.IsNaN(number))
-        {
-            return 0;
-        }
-
-        if (double.IsInfinity(number) || number == 0)
-        {
-            return number;
-        }
-
-        return Math.Sign(number) * Math.Floor(Math.Abs(number));
-    }
-
-    internal static object IndexOfInternal(TypedArrayBase target, IReadOnlyList<object?> args)
-    {
-        if (target.IsDetachedOrOutOfBounds())
-        {
-            throw CreateOutOfBoundsTypeError();
-        }
-
-        if (args.Count == 0)
-        {
-            return -1d;
-        }
-
-        var searchElement = args[0];
-        var len = target.Length;
-        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
-
-        if (double.IsPositiveInfinity(fromIndex))
-        {
-            return -1d;
-        }
-
-        if (fromIndex < 0)
-        {
-            fromIndex = Math.Max(len + Math.Ceiling(fromIndex), 0);
-        }
-        else
-        {
-            fromIndex = Math.Min(fromIndex, len);
-        }
-
-        var start = (int)fromIndex;
-        for (var i = start; i < len; i++)
-        {
-            object? element = target switch
-            {
-                JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
-                JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
-                _ => target.GetElement(i)
-            };
-
-            if (JsOps.StrictEquals(element, searchElement))
-            {
-                return (double)i;
-            }
-        }
-
-        return -1d;
-    }
+    private readonly HostFunction _subarrayFunction;
 
     protected TypedArrayBase(JsArrayBuffer buffer, int byteOffset, int length, int bytesPerElement)
     {
@@ -160,164 +95,36 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Gets the ArrayBuffer referenced by this typed array.
+    ///     Gets the ArrayBuffer referenced by this typed array.
     /// </summary>
     public JsArrayBuffer Buffer => _buffer;
 
     /// <summary>
-    /// Gets the offset in bytes from the start of the ArrayBuffer.
+    ///     Gets the offset in bytes from the start of the ArrayBuffer.
     /// </summary>
     public int ByteOffset => _byteOffset;
 
     /// <summary>
-    /// Gets the length in bytes of the typed array.
+    ///     Gets the length in bytes of the typed array.
     /// </summary>
     public int ByteLength => _length * _bytesPerElement;
 
     /// <summary>
-    /// Gets the number of elements in the typed array.
+    ///     Gets the number of elements in the typed array.
     /// </summary>
     public int Length => _length;
 
     /// <summary>
-    /// Gets the size in bytes of each element in the array.
+    ///     Gets the size in bytes of each element in the array.
     /// </summary>
     public int BytesPerElement => _bytesPerElement;
 
-    public JsObject? Prototype => _properties.Prototype as JsObject;
+    public JsObject? Prototype => _properties.Prototype;
 
     /// <summary>
-    /// True when this typed array stores BigInt elements.
+    ///     True when this typed array stores BigInt elements.
     /// </summary>
     public virtual bool IsBigIntArray => false;
-
-    /// <summary>
-    /// Allows consumers (e.g. Object.setPrototypeOf) to attach a prototype object.
-    /// </summary>
-    public void SetPrototype(object? candidate)
-    {
-        _properties.SetPrototype(candidate);
-    }
-
-    /// <summary>
-    /// Sets an element using the appropriate coercion for numeric typed arrays.
-    /// BigInt arrays override to enforce BigInt conversion.
-    /// </summary>
-    public virtual void SetValue(int index, object? value)
-    {
-        SetElement(index, JsOps.ToNumber(value));
-    }
-
-    /// <summary>
-    /// Checks if the given index is valid for this typed array.
-    /// </summary>
-    protected void CheckBounds(int index)
-    {
-        if (IsDetachedOrOutOfBounds())
-        {
-            throw CreateOutOfBoundsTypeError();
-        }
-
-        if (index < 0 || index >= _length)
-        {
-            throw new ArgumentOutOfRangeException(nameof(index), "Index is out of range");
-        }
-    }
-
-    /// <summary>
-    /// Gets the byte offset for a given element index.
-    /// </summary>
-    protected int GetByteIndex(int index)
-    {
-        return _byteOffset + index * _bytesPerElement;
-    }
-
-    /// <summary>
-    /// Creates a new typed array that is a view on the same buffer, from begin (inclusive) to end (exclusive).
-    /// </summary>
-    public abstract TypedArrayBase Subarray(int begin, int end);
-
-    protected abstract TypedArrayBase CreateNewSameType(int length);
-
-    public TypedArrayBase Slice(int begin, int end)
-    {
-        var (start, finalEnd) = NormalizeSliceIndices(begin, end);
-        var newLength = Math.Max(finalEnd - start, 0);
-        var newArray = CreateNewSameType(newLength);
-        for (var i = 0; i < newLength; i++)
-        {
-            newArray.SetElement(i, GetElement(start + i));
-        }
-
-        return newArray;
-    }
-
-    /// <summary>
-    /// Gets the element at the specified index as a double (for JavaScript compatibility).
-    /// </summary>
-    public abstract double GetElement(int index);
-
-    /// <summary>
-    /// Sets the element at the specified index from a double (for JavaScript compatibility).
-    /// </summary>
-    public abstract void SetElement(int index, double value);
-
-    /// <summary>
-    /// Copies elements from source array into this array.
-    /// </summary>
-    public void Set(TypedArrayBase source, int offset = 0)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-
-        if (offset < 0 || offset + source.Length > _length)
-        {
-            throw new ArgumentOutOfRangeException(nameof(offset));
-        }
-
-        for (var i = 0; i < source.Length; i++)
-        {
-            SetElement(offset + i, source.GetElement(i));
-        }
-    }
-
-    /// <summary>
-    /// Copies elements from a regular array into this typed array.
-    /// </summary>
-    public void Set(JsArray source, int offset = 0)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-
-        if (offset < 0 || offset + source.Items.Count > _length)
-        {
-            throw new ArgumentOutOfRangeException(nameof(offset));
-        }
-
-        for (var i = 0; i < source.Items.Count; i++)
-        {
-            var value = source.Items[i];
-            var numValue = value switch
-            {
-                double d => d,
-                int iv => (double)iv,
-                long lv => (double)lv,
-                float fv => (double)fv,
-                JsBigInt bi => (double)bi.Value,
-                _ => 0.0
-            };
-            SetElement(offset + i, numValue);
-        }
-    }
-
-    /// <summary>
-    /// Helper method to normalize slice indices.
-    /// </summary>
-    protected (int start, int end) NormalizeSliceIndices(int begin, int end)
-    {
-        var len = _length;
-        var relativeStart = begin < 0 ? Math.Max(len + begin, 0) : Math.Min(begin, len);
-        var relativeEnd = end < 0 ? Math.Max(len + end, 0) : Math.Min(end, len);
-        return (relativeStart, relativeEnd);
-    }
 
     public bool TryGetProperty(string name, out object? value)
     {
@@ -400,9 +207,9 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
             var numericValue = value switch
             {
                 double d => d,
-                int i => (double)i,
-                long l => (double)l,
-                float f => (double)f,
+                int i => i,
+                long l => l,
+                float f => f,
                 null => 0.0,
                 _ => 0.0
             };
@@ -420,8 +227,201 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         _properties.SetProperty(name, value);
     }
 
+    private static double ToIntegerOrInfinity(object? value)
+    {
+        var number = JsOps.ToNumberWithContext(value);
+        if (double.IsNaN(number))
+        {
+            return 0;
+        }
+
+        if (double.IsInfinity(number) || number == 0)
+        {
+            return number;
+        }
+
+        return Math.Sign(number) * Math.Floor(Math.Abs(number));
+    }
+
+    internal static object IndexOfInternal(TypedArrayBase target, IReadOnlyList<object?> args)
+    {
+        if (target.IsDetachedOrOutOfBounds())
+        {
+            throw CreateOutOfBoundsTypeError();
+        }
+
+        if (args.Count == 0)
+        {
+            return -1d;
+        }
+
+        var searchElement = args[0];
+        var len = target.Length;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
+
+        if (double.IsPositiveInfinity(fromIndex))
+        {
+            return -1d;
+        }
+
+        if (fromIndex < 0)
+        {
+            fromIndex = Math.Max(len + Math.Ceiling(fromIndex), 0);
+        }
+        else
+        {
+            fromIndex = Math.Min(fromIndex, len);
+        }
+
+        var start = (int)fromIndex;
+        for (var i = start; i < len; i++)
+        {
+            object? element = target switch
+            {
+                JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
+                JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
+                _ => target.GetElement(i)
+            };
+
+            if (JsOps.StrictEquals(element, searchElement))
+            {
+                return (double)i;
+            }
+        }
+
+        return -1d;
+    }
+
     /// <summary>
-    /// Deletes a dynamically assigned property. Built-in properties are non-configurable.
+    ///     Allows consumers (e.g. Object.setPrototypeOf) to attach a prototype object.
+    /// </summary>
+    public void SetPrototype(object? candidate)
+    {
+        _properties.SetPrototype(candidate);
+    }
+
+    /// <summary>
+    ///     Sets an element using the appropriate coercion for numeric typed arrays.
+    ///     BigInt arrays override to enforce BigInt conversion.
+    /// </summary>
+    public virtual void SetValue(int index, object? value)
+    {
+        SetElement(index, JsOps.ToNumber(value));
+    }
+
+    /// <summary>
+    ///     Checks if the given index is valid for this typed array.
+    /// </summary>
+    protected void CheckBounds(int index)
+    {
+        if (IsDetachedOrOutOfBounds())
+        {
+            throw CreateOutOfBoundsTypeError();
+        }
+
+        if (index < 0 || index >= _length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index), "Index is out of range");
+        }
+    }
+
+    /// <summary>
+    ///     Gets the byte offset for a given element index.
+    /// </summary>
+    protected int GetByteIndex(int index)
+    {
+        return _byteOffset + index * _bytesPerElement;
+    }
+
+    /// <summary>
+    ///     Creates a new typed array that is a view on the same buffer, from begin (inclusive) to end (exclusive).
+    /// </summary>
+    public abstract TypedArrayBase Subarray(int begin, int end);
+
+    protected abstract TypedArrayBase CreateNewSameType(int length);
+
+    public TypedArrayBase Slice(int begin, int end)
+    {
+        var (start, finalEnd) = NormalizeSliceIndices(begin, end);
+        var newLength = Math.Max(finalEnd - start, 0);
+        var newArray = CreateNewSameType(newLength);
+        for (var i = 0; i < newLength; i++)
+        {
+            newArray.SetElement(i, GetElement(start + i));
+        }
+
+        return newArray;
+    }
+
+    /// <summary>
+    ///     Gets the element at the specified index as a double (for JavaScript compatibility).
+    /// </summary>
+    public abstract double GetElement(int index);
+
+    /// <summary>
+    ///     Sets the element at the specified index from a double (for JavaScript compatibility).
+    /// </summary>
+    public abstract void SetElement(int index, double value);
+
+    /// <summary>
+    ///     Copies elements from source array into this array.
+    /// </summary>
+    public void Set(TypedArrayBase source, int offset = 0)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        if (offset < 0 || offset + source.Length > _length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset));
+        }
+
+        for (var i = 0; i < source.Length; i++)
+        {
+            SetElement(offset + i, source.GetElement(i));
+        }
+    }
+
+    /// <summary>
+    ///     Copies elements from a regular array into this typed array.
+    /// </summary>
+    public void Set(JsArray source, int offset = 0)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        if (offset < 0 || offset + source.Items.Count > _length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset));
+        }
+
+        for (var i = 0; i < source.Items.Count; i++)
+        {
+            var value = source.Items[i];
+            var numValue = value switch
+            {
+                double d => d,
+                int iv => iv,
+                long lv => lv,
+                float fv => fv,
+                JsBigInt bi => (double)bi.Value,
+                _ => 0.0
+            };
+            SetElement(offset + i, numValue);
+        }
+    }
+
+    /// <summary>
+    ///     Helper method to normalize slice indices.
+    /// </summary>
+    protected (int start, int end) NormalizeSliceIndices(int begin, int end)
+    {
+        var len = _length;
+        var relativeStart = begin < 0 ? Math.Max(len + begin, 0) : Math.Min(begin, len);
+        var relativeEnd = end < 0 ? Math.Max(len + end, 0) : Math.Min(end, len);
+        return (relativeStart, relativeEnd);
+    }
+
+    /// <summary>
+    ///     Deletes a dynamically assigned property. Built-in properties are non-configurable.
     /// </summary>
     public bool DeleteProperty(string name)
     {

@@ -4,20 +4,17 @@ using Asynkron.JsEngine.StdLib;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript ArrayBuffer - a fixed-length raw binary data buffer.
+///     Represents a JavaScript ArrayBuffer - a fixed-length raw binary data buffer.
 /// </summary>
 public sealed class JsArrayBuffer : IJsPropertyAccessor
 {
-    private byte[] _buffer;
     private readonly JsObject _properties = new();
-    private readonly HostFunction _sliceFunction;
-    private readonly HostFunction _resizeFunction;
 
-    private readonly bool _resizable;
-    private readonly int _maxByteLength;
+    private readonly HostFunction _resizeFunction;
+    private readonly HostFunction _sliceFunction;
 
     /// <summary>
-    /// Creates a new ArrayBuffer with the specified length in bytes.
+    ///     Creates a new ArrayBuffer with the specified length in bytes.
     /// </summary>
     public JsArrayBuffer(int byteLength, int? maxByteLength = null)
     {
@@ -26,10 +23,10 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
             throw new ArgumentOutOfRangeException(nameof(byteLength), "ArrayBuffer size cannot be negative");
         }
 
-        _maxByteLength = maxByteLength.HasValue ? Math.Max(maxByteLength.Value, byteLength) : byteLength;
-        _resizable = maxByteLength.HasValue;
+        MaxByteLength = maxByteLength.HasValue ? Math.Max(maxByteLength.Value, byteLength) : byteLength;
+        Resizable = maxByteLength.HasValue;
 
-        _buffer = new byte[byteLength];
+        Buffer = new byte[byteLength];
 
         _sliceFunction = new HostFunction((thisValue, args) =>
         {
@@ -43,7 +40,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
         _resizeFunction = new HostFunction((thisValue, args) =>
         {
             var target = thisValue as JsArrayBuffer ?? this;
-            if (!_resizable)
+            if (!Resizable)
             {
                 throw new ThrowSignal(CreateTypeError("ArrayBuffer is not resizable"));
             }
@@ -60,44 +57,18 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
     }
 
     /// <summary>
-    /// Gets the length of the buffer in bytes.
+    ///     Gets the length of the buffer in bytes.
     /// </summary>
-    public int ByteLength => _buffer.Length;
+    public int ByteLength => Buffer.Length;
 
     /// <summary>
-    /// Gets the underlying byte array.
+    ///     Gets the underlying byte array.
     /// </summary>
-    public byte[] Buffer => _buffer;
+    public byte[] Buffer { get; private set; }
 
-    public bool Resizable => _resizable;
+    public bool Resizable { get; }
 
-    public int MaxByteLength => _maxByteLength;
-
-    /// <summary>
-    /// Allows external callers to attach a prototype object.
-    /// </summary>
-    public void SetPrototype(object? candidate)
-    {
-        _properties.SetPrototype(candidate);
-    }
-
-    /// <summary>
-    /// Creates a copy of this ArrayBuffer containing a slice of the data.
-    /// </summary>
-    public JsArrayBuffer Slice(int begin, int end)
-    {
-        // Normalize negative indices
-        var len = _buffer.Length;
-        var relativeStart = begin < 0 ? Math.Max(len + begin, 0) : Math.Min(begin, len);
-        var relativeEnd = end < 0 ? Math.Max(len + end, 0) : Math.Min(end, len);
-
-        var newLen = Math.Max(relativeEnd - relativeStart, 0);
-        var newBuffer = new JsArrayBuffer(newLen);
-
-        Array.Copy(_buffer, relativeStart, newBuffer._buffer, 0, newLen);
-
-        return newBuffer;
-    }
+    public int MaxByteLength { get; }
 
     public bool TryGetProperty(string name, out object? value)
     {
@@ -115,7 +86,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
                 value = _sliceFunction;
                 return true;
             case "resize":
-                if (_resizable)
+                if (Resizable)
                 {
                     value = _resizeFunction;
                     return true;
@@ -123,10 +94,10 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
 
                 break;
             case "maxByteLength":
-                value = (double)_maxByteLength;
+                value = (double)MaxByteLength;
                 return true;
             case "resizable":
-                value = _resizable;
+                value = Resizable;
                 return true;
         }
 
@@ -144,27 +115,53 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
         _properties.SetProperty(name, value);
     }
 
+    /// <summary>
+    ///     Allows external callers to attach a prototype object.
+    /// </summary>
+    public void SetPrototype(object? candidate)
+    {
+        _properties.SetPrototype(candidate);
+    }
+
+    /// <summary>
+    ///     Creates a copy of this ArrayBuffer containing a slice of the data.
+    /// </summary>
+    public JsArrayBuffer Slice(int begin, int end)
+    {
+        // Normalize negative indices
+        var len = Buffer.Length;
+        var relativeStart = begin < 0 ? Math.Max(len + begin, 0) : Math.Min(begin, len);
+        var relativeEnd = end < 0 ? Math.Max(len + end, 0) : Math.Min(end, len);
+
+        var newLen = Math.Max(relativeEnd - relativeStart, 0);
+        var newBuffer = new JsArrayBuffer(newLen);
+
+        Array.Copy(Buffer, relativeStart, newBuffer.Buffer, 0, newLen);
+
+        return newBuffer;
+    }
+
     public void Resize(int newByteLength)
     {
-        if (!_resizable)
+        if (!Resizable)
         {
             throw new ThrowSignal(CreateTypeError("ArrayBuffer is not resizable"));
         }
 
-        if (newByteLength < 0 || newByteLength > _maxByteLength)
+        if (newByteLength < 0 || newByteLength > MaxByteLength)
         {
             throw new ThrowSignal(CreateRangeError("Invalid ArrayBuffer length"));
         }
 
-        if (newByteLength == _buffer.Length)
+        if (newByteLength == Buffer.Length)
         {
             return;
         }
 
         var newBuffer = new byte[newByteLength];
-        var bytesToCopy = Math.Min(_buffer.Length, newByteLength);
-        Array.Copy(_buffer, newBuffer, bytesToCopy);
-        _buffer = newBuffer;
+        var bytesToCopy = Math.Min(Buffer.Length, newByteLength);
+        Array.Copy(Buffer, newBuffer, bytesToCopy);
+        Buffer = newBuffer;
     }
 
     private static JsObject CreateTypeError(string message)

@@ -134,8 +134,8 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Helper method for async iteration: gets next value from iterator and wraps in Promise if needed.
-    /// This handles both sync and async iterators uniformly.
+    ///     Helper method for async iteration: gets next value from iterator and wraps in Promise if needed.
+    ///     This handles both sync and async iterators uniformly.
     /// </summary>
     public static HostFunction CreateIteratorNextHelper(JsEngine engine)
     {
@@ -194,8 +194,8 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Helper function for await expressions: wraps value in Promise if needed.
-    /// Checks if the value is already a promise (has a "then" method) before wrapping.
+    ///     Helper function for await expressions: wraps value in Promise if needed.
+    ///     Checks if the value is already a promise (has a "then" method) before wrapping.
     /// </summary>
     public static HostFunction CreateAwaitHelper(JsEngine engine)
     {

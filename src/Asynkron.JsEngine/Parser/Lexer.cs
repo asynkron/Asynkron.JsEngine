@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using System.Text;
 using Asynkron.JsEngine.JsTypes;
 
@@ -58,12 +59,14 @@ public sealed class Lexer(string source)
 
     private readonly string _source = source ?? string.Empty;
     private readonly List<Token> _tokens = [];
-    private int _start;
+    private int _column = 1;
     private int _current;
     private int _line = 1;
-    private int _column = 1;
-    private int _startLine = 1;
+    private int _start;
     private int _startColumn = 1;
+    private int _startLine = 1;
+
+    private bool IsAtEnd => _current >= _source.Length;
 
     public IReadOnlyList<Token> Tokenize()
     {
@@ -456,7 +459,7 @@ public sealed class Lexer(string source)
                         Advance(); // consume 'n'
                         var hexDigits = _source[digitStart..(_current - 1)]; // Only the hex digits, not the 'n'
 
-                        var bigIntValue = System.Numerics.BigInteger.Parse(hexDigits, NumberStyles.HexNumber,
+                        var bigIntValue = BigInteger.Parse(hexDigits, NumberStyles.HexNumber,
                             CultureInfo.InvariantCulture);
                         var value = new JsBigInt(bigIntValue);
                         AddToken(TokenType.BigInt, value);
@@ -467,7 +470,7 @@ public sealed class Lexer(string source)
                 var hexDigits2 = _source[digitStart.._current]; // Only the hex digits, not the prefix
                 // Use BigInteger to handle values larger than long.MaxValue, then convert to double
                 // Prepend "0" to ensure the value is treated as unsigned (positive)
-                var hexBigInt = System.Numerics.BigInteger.Parse("0" + hexDigits2, NumberStyles.HexNumber,
+                var hexBigInt = BigInteger.Parse("0" + hexDigits2, NumberStyles.HexNumber,
                     CultureInfo.InvariantCulture);
                 var hexValue = (double)hexBigInt;
                 AddToken(TokenType.Number, hexValue);
@@ -500,7 +503,7 @@ public sealed class Lexer(string source)
                         Advance(); // consume 'n'
                         var octalDigits = _source[digitStart..(_current - 1)]; // Only the octal digits, not the 'n'
                         // Convert octal string to BigInteger by parsing each digit
-                        var bigIntValue = System.Numerics.BigInteger.Zero;
+                        var bigIntValue = BigInteger.Zero;
                         foreach (var c in octalDigits)
                         {
                             bigIntValue = bigIntValue * 8 + (c - '0');
@@ -514,7 +517,7 @@ public sealed class Lexer(string source)
 
                 var octalDigits2 = _source[digitStart.._current]; // Only the octal digits, not the prefix
                 // Use BigInteger to handle values larger than long.MaxValue, then convert to double
-                var octalBigInt = System.Numerics.BigInteger.Zero;
+                var octalBigInt = BigInteger.Zero;
                 foreach (var c in octalDigits2)
                 {
                     octalBigInt = octalBigInt * 8 + (c - '0');
@@ -551,7 +554,7 @@ public sealed class Lexer(string source)
                         Advance(); // consume 'n'
                         var binaryDigits = _source[digitStart..(_current - 1)]; // Only the binary digits, not the 'n'
                         // Convert binary string to BigInteger by parsing each digit
-                        var bigIntValue = System.Numerics.BigInteger.Zero;
+                        var bigIntValue = BigInteger.Zero;
                         foreach (var c in binaryDigits)
                         {
                             bigIntValue = bigIntValue * 2 + (c - '0');
@@ -565,7 +568,7 @@ public sealed class Lexer(string source)
 
                 var binaryDigits2 = _source[digitStart.._current]; // Only the binary digits, not the prefix
                 // Use BigInteger to handle values larger than long.MaxValue, then convert to double
-                var binaryBigInt = System.Numerics.BigInteger.Zero;
+                var binaryBigInt = BigInteger.Zero;
                 foreach (var c in binaryDigits2)
                 {
                     binaryBigInt = binaryBigInt * 2 + (c - '0');
@@ -887,8 +890,6 @@ public sealed class Lexer(string source)
     {
         return _current + 1 >= _source.Length ? '\0' : _source[_current + 1];
     }
-
-    private bool IsAtEnd => _current >= _source.Length;
 
     private static bool IsDigit(char c)
     {

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
+using System.Text;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
@@ -13,13 +14,14 @@ using JsSymbols = Asynkron.JsEngine.Ast.Symbols;
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Proof-of-concept evaluator that executes the new typed AST directly instead of walking cons cells.
-/// The goal is to showcase the recommended shape: a dedicated evaluator with explicit pattern matching
-/// rather than virtual methods on the node hierarchy. Only a focused subset of JavaScript semantics is
-/// implemented for now so the skeleton stays approachable.
+///     Proof-of-concept evaluator that executes the new typed AST directly instead of walking cons cells.
+///     The goal is to showcase the recommended shape: a dedicated evaluator with explicit pattern matching
+///     rather than virtual methods on the node hierarchy. Only a focused subset of JavaScript semantics is
+///     implemented for now so the skeleton stays approachable.
 /// </summary>
 public static class TypedAstEvaluator
 {
+    private const string GeneratorBrandPropertyName = "__generator_brand__";
     private static readonly Symbol YieldTrackerSymbol = Symbol.Intern("__yieldTracker__");
     private static readonly Symbol YieldResumeContextSymbol = Symbol.Intern("__yieldResume__");
     private static readonly Symbol GeneratorPendingCompletionSymbol = Symbol.Intern("__generatorPending__");
@@ -28,7 +30,6 @@ public static class TypedAstEvaluator
     private static readonly string IteratorSymbolPropertyName =
         $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
 
-    private const string GeneratorBrandPropertyName = "__generator_brand__";
     private static readonly object GeneratorBrandMarker = new();
 
     public static object? EvaluateProgram(ProgramNode program, JsEnvironment environment, RealmState realmState,
@@ -1039,7 +1040,7 @@ public static class TypedAstEvaluator
 
             var accessorTarget = member.IsStatic
                 ? constructorAccessor as IJsObjectLike
-                : prototype as IJsObjectLike;
+                : prototype;
             if (accessorTarget is not null)
             {
                 accessorTarget.DefineProperty(member.Name,
@@ -1520,14 +1521,6 @@ public static class TypedAstEvaluator
         return resumeContext.TakePayload(yieldIndex);
     }
 
-    private sealed class GeneratorPendingCompletion
-    {
-        public bool HasValue { get; set; }
-        public bool IsThrow { get; set; }
-        public bool IsReturn { get; set; }
-        public object? Value { get; set; }
-    }
-
     private static bool IsGeneratorContext(JsEnvironment environment)
     {
         return environment.TryGet(YieldResumeContextSymbol, out var contextValue) &&
@@ -1545,62 +1538,6 @@ public static class TypedAstEvaluator
         var created = new GeneratorPendingCompletion();
         environment.DefineFunctionScoped(GeneratorPendingCompletionSymbol, created, true);
         return created;
-    }
-
-    private sealed class YieldResumeContext
-    {
-        private readonly Dictionary<int, ResumePayload> _pending = new();
-
-        public void SetValue(int yieldIndex, object? value)
-        {
-            _pending[yieldIndex] = ResumePayload.FromValue(value);
-        }
-
-        public void SetException(int yieldIndex, object? value)
-        {
-            _pending[yieldIndex] = ResumePayload.FromThrow(value);
-        }
-
-        public void SetReturn(int yieldIndex, object? value)
-        {
-            _pending[yieldIndex] = ResumePayload.FromReturn(value);
-        }
-
-        public ResumePayload TakePayload(int yieldIndex)
-        {
-            if (_pending.TryGetValue(yieldIndex, out var payload))
-            {
-                _pending.Remove(yieldIndex);
-                return payload;
-            }
-
-            return ResumePayload.Empty;
-        }
-
-        public void Clear()
-        {
-            _pending.Clear();
-        }
-    }
-
-    private readonly record struct ResumePayload(bool HasValue, bool IsThrow, bool IsReturn, object? Value)
-    {
-        public static ResumePayload Empty { get; } = new(false, false, false, JsSymbols.Undefined);
-
-        public static ResumePayload FromValue(object? value)
-        {
-            return new ResumePayload(true, false, false, value);
-        }
-
-        public static ResumePayload FromThrow(object? value)
-        {
-            return new ResumePayload(true, true, false, value);
-        }
-
-        public static ResumePayload FromReturn(object? value)
-        {
-            return new ResumePayload(true, false, true, value);
-        }
     }
 
     private static object? EvaluateDestructuringAssignment(DestructuringAssignmentExpression expression,
@@ -1864,7 +1801,7 @@ public static class TypedAstEvaluator
             "+" => operand is JsBigInt
                 ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context)
                 : JsOps.ToNumber(operand, context),
-            "-" => operand is JsBigInt bigInt ? (object)-bigInt : -JsOps.ToNumber(operand, context),
+            "-" => operand is JsBigInt bigInt ? -bigInt : -JsOps.ToNumber(operand, context),
             "~" => BitwiseNot(operand, context),
             "void" => JsSymbols.Undefined,
             _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
@@ -2553,7 +2490,7 @@ public static class TypedAstEvaluator
     private static object? EvaluateTemplateLiteral(TemplateLiteralExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
-        var builder = new System.Text.StringBuilder();
+        var builder = new StringBuilder();
         foreach (var part in expression.Parts)
         {
             if (part.Text is not null)
@@ -2678,7 +2615,7 @@ public static class TypedAstEvaluator
 
     private static bool IsNullish(object? value)
     {
-        return JsOps.IsNullish(value);
+        return value.IsNullish();
     }
 
     private static bool IsTruthy(object? value)
@@ -3401,16 +3338,7 @@ public static class TypedAstEvaluator
 
     private static bool IsNullOrUndefined(object? value)
     {
-        return JsOps.IsNullish(value);
-    }
-
-    private enum BindingMode
-    {
-        Assign,
-        DefineLet,
-        DefineConst,
-        DefineVar,
-        DefineParameter
+        return value.IsNullish();
     }
 
     private static JsArray CreateArgumentsArray(IReadOnlyList<object?> arguments)
@@ -3509,11 +3437,96 @@ public static class TypedAstEvaluator
         }
     }
 
+    private static JsObject CreateGeneratorIteratorObject(
+        Func<IReadOnlyList<object?>, object?> next,
+        Func<IReadOnlyList<object?>, object?> @return,
+        Func<IReadOnlyList<object?>, object?> @throw)
+    {
+        var iterator = new JsObject();
+        iterator.SetProperty("next", new HostFunction(next));
+        iterator.SetProperty("return", new HostFunction(@return));
+        iterator.SetProperty("throw", new HostFunction(@throw));
+        return iterator;
+    }
+
+    private sealed class GeneratorPendingCompletion
+    {
+        public bool HasValue { get; set; }
+        public bool IsThrow { get; set; }
+        public bool IsReturn { get; set; }
+        public object? Value { get; set; }
+    }
+
+    private sealed class YieldResumeContext
+    {
+        private readonly Dictionary<int, ResumePayload> _pending = new();
+
+        public void SetValue(int yieldIndex, object? value)
+        {
+            _pending[yieldIndex] = ResumePayload.FromValue(value);
+        }
+
+        public void SetException(int yieldIndex, object? value)
+        {
+            _pending[yieldIndex] = ResumePayload.FromThrow(value);
+        }
+
+        public void SetReturn(int yieldIndex, object? value)
+        {
+            _pending[yieldIndex] = ResumePayload.FromReturn(value);
+        }
+
+        public ResumePayload TakePayload(int yieldIndex)
+        {
+            if (_pending.TryGetValue(yieldIndex, out var payload))
+            {
+                _pending.Remove(yieldIndex);
+                return payload;
+            }
+
+            return ResumePayload.Empty;
+        }
+
+        public void Clear()
+        {
+            _pending.Clear();
+        }
+    }
+
+    private readonly record struct ResumePayload(bool HasValue, bool IsThrow, bool IsReturn, object? Value)
+    {
+        public static ResumePayload Empty { get; } = new(false, false, false, JsSymbols.Undefined);
+
+        public static ResumePayload FromValue(object? value)
+        {
+            return new ResumePayload(true, false, false, value);
+        }
+
+        public static ResumePayload FromThrow(object? value)
+        {
+            return new ResumePayload(true, true, false, value);
+        }
+
+        public static ResumePayload FromReturn(object? value)
+        {
+            return new ResumePayload(true, false, true, value);
+        }
+    }
+
+    private enum BindingMode
+    {
+        Assign,
+        DefineLet,
+        DefineConst,
+        DefineVar,
+        DefineParameter
+    }
+
     private sealed class DelegatedYieldState
     {
-        private readonly JsObject? _iterator;
         private readonly IEnumerator<object?>? _enumerator;
         private readonly bool _isGeneratorObject;
+        private readonly JsObject? _iterator;
 
         private DelegatedYieldState(JsObject? iterator, IEnumerator<object?>? enumerator, bool isGeneratorObject)
         {
@@ -3641,8 +3654,8 @@ public static class TypedAstEvaluator
 
     private sealed class TypedGeneratorFactory : IJsCallable
     {
-        private readonly FunctionExpression _function;
         private readonly JsEnvironment _closure;
+        private readonly FunctionExpression _function;
         private readonly RealmState _realmState;
 
         public TypedGeneratorFactory(FunctionExpression function, JsEnvironment closure, RealmState realmState)
@@ -3673,8 +3686,8 @@ public static class TypedAstEvaluator
 
     private sealed class AsyncGeneratorFactory : IJsCallable
     {
-        private readonly FunctionExpression _function;
         private readonly JsEnvironment _closure;
+        private readonly FunctionExpression _function;
         private readonly RealmState _realmState;
 
         public AsyncGeneratorFactory(FunctionExpression function, JsEnvironment closure, RealmState realmState)
@@ -3705,39 +3718,28 @@ public static class TypedAstEvaluator
 
     private sealed class TypedGeneratorInstance
     {
-        private readonly FunctionExpression _function;
-        private readonly JsEnvironment _closure;
         private readonly IReadOnlyList<object?> _arguments;
-        private readonly object? _thisValue;
         private readonly IJsCallable _callable;
-        private readonly RealmState _realmState;
+        private readonly JsEnvironment _closure;
+        private readonly FunctionExpression _function;
         private readonly GeneratorPlan? _plan;
-        private JsEnvironment? _executionEnvironment;
-        private EvaluationContext? _context;
-        private GeneratorState _state = GeneratorState.Start;
-        private bool _done;
-        private bool _asyncStepMode;
-        private object? _pendingPromise;
-        private int _currentYieldIndex;
+        private readonly RealmState _realmState;
         private readonly YieldResumeContext _resumeContext = new();
-        private int _programCounter;
-        private int _currentInstructionIndex;
-        private object? _pendingResumeValue = JsSymbols.Undefined;
-        private ResumePayloadKind _pendingResumeKind;
+        private readonly object? _thisValue;
         private readonly Stack<TryFrame> _tryStack = new();
-
-        private sealed class PendingAwaitException : Exception
-        {
-        }
-
-
-        private sealed class AwaitState
-        {
-            public bool HasResult { get; set; }
-            public object? Result { get; set; }
-        }
+        private bool _asyncStepMode;
+        private EvaluationContext? _context;
+        private int _currentInstructionIndex;
+        private int _currentYieldIndex;
+        private bool _done;
+        private JsEnvironment? _executionEnvironment;
 
         private Symbol? _pendingAwaitKey;
+        private object? _pendingPromise;
+        private ResumePayloadKind _pendingResumeKind;
+        private object? _pendingResumeValue = JsSymbols.Undefined;
+        private int _programCounter;
+        private GeneratorState _state = GeneratorState.Start;
 
         public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
             IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable, RealmState realmState)
@@ -3757,24 +3759,6 @@ public static class TypedAstEvaluator
 
             _plan = plan;
             _programCounter = plan.EntryPoint;
-        }
-
-        // Lightweight step result used by async-generator wrappers so they can
-        // drive the same IR plan without duplicating the interpreter. This
-        // supports yield/completion/throw, and has room for a future "Pending"
-        // state that surfaces promise-like values without blocking.
-        internal readonly record struct AsyncGeneratorStepResult(
-            AsyncGeneratorStepKind Kind,
-            object? Value,
-            bool Done,
-            object? PendingPromise);
-
-        internal enum AsyncGeneratorStepKind
-        {
-            Yield,
-            Completed,
-            Throw,
-            Pending
         }
 
         public JsObject CreateGeneratorObject()
@@ -5038,6 +5022,35 @@ public static class TypedAstEvaluator
             return CreateIteratorResult(value, true);
         }
 
+        private sealed class PendingAwaitException : Exception
+        {
+        }
+
+
+        private sealed class AwaitState
+        {
+            public bool HasResult { get; set; }
+            public object? Result { get; set; }
+        }
+
+        // Lightweight step result used by async-generator wrappers so they can
+        // drive the same IR plan without duplicating the interpreter. This
+        // supports yield/completion/throw, and has room for a future "Pending"
+        // state that surfaces promise-like values without blocking.
+        internal readonly record struct AsyncGeneratorStepResult(
+            AsyncGeneratorStepKind Kind,
+            object? Value,
+            bool Done,
+            object? PendingPromise);
+
+        internal enum AsyncGeneratorStepKind
+        {
+            Yield,
+            Completed,
+            Throw,
+            Pending
+        }
+
         internal enum ResumeMode
         {
             Next,
@@ -5112,12 +5125,15 @@ public static class TypedAstEvaluator
         IJsCallable callable,
         RealmState realmState)
     {
-        private readonly FunctionExpression _function = function;
         private readonly IReadOnlyList<object?> _arguments = arguments;
-        private readonly object? _thisValue = thisValue;
         private readonly IJsCallable _callable = callable;
-        private readonly TypedGeneratorInstance _inner = new(function, closure, arguments, thisValue, callable, realmState);
+        private readonly FunctionExpression _function = function;
+
+        private readonly TypedGeneratorInstance _inner = new(function, closure, arguments, thisValue, callable,
+            realmState);
+
         private readonly RealmState _realmState = realmState;
+        private readonly object? _thisValue = thisValue;
 
         // WAITING ON FULL ASYNC GENERATOR IR SUPPORT:
         // For now we reuse the sync generator IR plan and runtime to execute
@@ -5254,30 +5270,18 @@ public static class TypedAstEvaluator
         }
     }
 
-    private static JsObject CreateGeneratorIteratorObject(
-        Func<IReadOnlyList<object?>, object?> next,
-        Func<IReadOnlyList<object?>, object?> @return,
-        Func<IReadOnlyList<object?>, object?> @throw)
-    {
-        var iterator = new JsObject();
-        iterator.SetProperty("next", new HostFunction(next));
-        iterator.SetProperty("return", new HostFunction(@return));
-        iterator.SetProperty("throw", new HostFunction(@throw));
-        return iterator;
-    }
-
     private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike
     {
-        private readonly FunctionExpression _function;
         private readonly JsEnvironment _closure;
+        private readonly FunctionExpression _function;
         private readonly JsObject _properties = new();
-        private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
-        private IJsEnvironmentAwareCallable? _superConstructor;
-        private IJsPropertyAccessor? _superPrototype;
-        private IJsObjectLike? _homeObject;
         private readonly RealmState _realmState;
+        private IJsObjectLike? _homeObject;
+        private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
         private bool _isClassConstructor;
         private bool _isDerivedClassConstructor;
+        private IJsEnvironmentAwareCallable? _superConstructor;
+        private IJsPropertyAccessor? _superPrototype;
 
         public TypedFunction(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
@@ -5387,60 +5391,35 @@ public static class TypedAstEvaluator
             return value;
         }
 
-        public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype)
+        public JsObject? Prototype => _properties.Prototype;
+
+        public bool IsSealed => _properties.IsSealed;
+
+        public IEnumerable<string> Keys => _properties.Keys;
+
+        public void DefineProperty(string name, PropertyDescriptor descriptor)
         {
-            _superConstructor = superConstructor;
-            _superPrototype = superPrototype;
+            _properties.DefineProperty(name, descriptor);
         }
 
-        public void SetHomeObject(IJsObjectLike homeObject)
+        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
         {
-            _homeObject = homeObject;
+            return _properties.GetOwnPropertyDescriptor(name);
         }
 
-        public void SetIsClassConstructor(bool isDerived)
+        public IEnumerable<string> GetOwnPropertyNames()
         {
-            _isClassConstructor = true;
-            _isDerivedClassConstructor = isDerived;
+            return _properties.GetOwnPropertyNames();
         }
 
-        public void SetInstanceFields(ImmutableArray<ClassField> fields)
+        public void SetPrototype(object? candidate)
         {
-            _instanceFields = fields;
+            _properties.SetPrototype(candidate);
         }
 
-        public void InitializeInstance(JsObject instance, JsEnvironment environment, EvaluationContext context)
+        public void Seal()
         {
-            if (_superConstructor is TypedFunction typedFunction)
-            {
-                typedFunction.InitializeInstance(instance, environment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return;
-                }
-            }
-
-            if (_instanceFields.IsDefaultOrEmpty || _instanceFields.Length == 0)
-            {
-                return;
-            }
-
-            foreach (var field in _instanceFields)
-            {
-                object? value = JsSymbols.Undefined;
-                if (field.Initializer is not null)
-                {
-                    var initEnv = new JsEnvironment(environment);
-                    initEnv.Define(JsSymbols.This, instance);
-                    value = EvaluateExpression(field.Initializer, initEnv, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return;
-                    }
-                }
-
-                instance.SetProperty(field.Name, value);
-            }
+            _properties.Seal();
         }
 
         public bool TryGetProperty(string name, out object? value)
@@ -5512,17 +5491,6 @@ public static class TypedAstEvaluator
             _properties.SetProperty(name, value);
         }
 
-        public JsObject? Prototype => _properties.Prototype as JsObject;
-
-        public bool IsSealed => _properties.IsSealed;
-
-        public IEnumerable<string> Keys => _properties.Keys;
-
-        public void DefineProperty(string name, PropertyDescriptor descriptor)
-        {
-            _properties.DefineProperty(name, descriptor);
-        }
-
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
         {
             return _properties.GetOwnPropertyDescriptor(name);
@@ -5533,24 +5501,60 @@ public static class TypedAstEvaluator
             return _properties.GetOwnPropertyNames();
         }
 
-        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+        public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype)
         {
-            return _properties.GetOwnPropertyDescriptor(name);
+            _superConstructor = superConstructor;
+            _superPrototype = superPrototype;
         }
 
-        public IEnumerable<string> GetOwnPropertyNames()
+        public void SetHomeObject(IJsObjectLike homeObject)
         {
-            return _properties.GetOwnPropertyNames();
+            _homeObject = homeObject;
         }
 
-        public void SetPrototype(object? candidate)
+        public void SetIsClassConstructor(bool isDerived)
         {
-            _properties.SetPrototype(candidate);
+            _isClassConstructor = true;
+            _isDerivedClassConstructor = isDerived;
         }
 
-        public void Seal()
+        public void SetInstanceFields(ImmutableArray<ClassField> fields)
         {
-            _properties.Seal();
+            _instanceFields = fields;
+        }
+
+        public void InitializeInstance(JsObject instance, JsEnvironment environment, EvaluationContext context)
+        {
+            if (_superConstructor is TypedFunction typedFunction)
+            {
+                typedFunction.InitializeInstance(instance, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+            }
+
+            if (_instanceFields.IsDefaultOrEmpty || _instanceFields.Length == 0)
+            {
+                return;
+            }
+
+            foreach (var field in _instanceFields)
+            {
+                object? value = JsSymbols.Undefined;
+                if (field.Initializer is not null)
+                {
+                    var initEnv = new JsEnvironment(environment);
+                    initEnv.Define(JsSymbols.This, instance);
+                    value = EvaluateExpression(field.Initializer, initEnv, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return;
+                    }
+                }
+
+                instance.SetProperty(field.Name, value);
+            }
         }
     }
 }

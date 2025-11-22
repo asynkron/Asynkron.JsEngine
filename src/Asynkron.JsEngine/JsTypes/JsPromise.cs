@@ -1,29 +1,22 @@
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents a JavaScript Promise object that can be resolved or rejected.
+///     Represents a JavaScript Promise object that can be resolved or rejected.
 /// </summary>
 public sealed class JsPromise(JsEngine engine)
 {
-    private enum PromiseState
-    {
-        Pending,
-        Fulfilled,
-        Rejected
-    }
+    private readonly List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = [];
 
     private PromiseState _state = PromiseState.Pending;
     private object? _value;
-    private readonly List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = [];
-    private readonly JsObject _jsObject = new();
 
     /// <summary>
-    /// Gets the underlying JsObject for property access.
+    ///     Gets the underlying JsObject for property access.
     /// </summary>
-    public JsObject JsObject => _jsObject;
+    public JsObject JsObject { get; } = new();
 
     /// <summary>
-    /// Resolves the promise with the given value.
+    ///     Resolves the promise with the given value.
     /// </summary>
     public void Resolve(object? value)
     {
@@ -38,7 +31,7 @@ public sealed class JsPromise(JsEngine engine)
     }
 
     /// <summary>
-    /// Rejects the promise with the given reason.
+    ///     Rejects the promise with the given reason.
     /// </summary>
     public void Reject(object? reason)
     {
@@ -53,7 +46,7 @@ public sealed class JsPromise(JsEngine engine)
     }
 
     /// <summary>
-    /// Registers callbacks for when the promise is fulfilled or rejected.
+    ///     Registers callbacks for when the promise is fulfilled or rejected.
     /// </summary>
     public JsPromise Then(IJsCallable? onFulfilled, IJsCallable? onRejected = null)
     {
@@ -155,5 +148,12 @@ public sealed class JsPromise(JsEngine engine)
                 nextPromise.Reject(ex.Message);
             }
         }
+    }
+
+    private enum PromiseState
+    {
+        Pending,
+        Fulfilled,
+        Rejected
     }
 }

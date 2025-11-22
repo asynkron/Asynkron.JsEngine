@@ -1504,7 +1504,7 @@ public static partial class StandardLibrary
             var lengthValue = source switch
             {
                 string str => (double)str.Length,
-                JsArray arr => (double)arr.Length,
+                JsArray arr => arr.Length,
                 JsObject obj when obj.TryGetProperty("length", out var lenVal) => lenVal,
                 _ => 0d
             };

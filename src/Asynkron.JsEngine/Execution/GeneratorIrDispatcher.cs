@@ -3,10 +3,10 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
-/// Dispatches generator IR building to the appropriate builder based on the
-/// function kind (synchronous vs async). For now only synchronous generators
-/// are supported; async generator functions always fall back to the replay
-/// engine and are reported as IR failures via <see cref="GeneratorIrDiagnostics"/>.
+///     Dispatches generator IR building to the appropriate builder based on the
+///     function kind (synchronous vs async). For now only synchronous generators
+///     are supported; async generator functions always fall back to the replay
+///     engine and are reported as IR failures via <see cref="GeneratorIrDiagnostics" />.
 /// </summary>
 internal static class GeneratorIrBuilder
 {

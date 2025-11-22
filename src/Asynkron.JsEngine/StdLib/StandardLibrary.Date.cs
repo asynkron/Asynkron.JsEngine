@@ -87,7 +87,7 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    /// Creates a Date instance constructor.
+    ///     Creates a Date instance constructor.
     /// </summary>
     public static HostFunction CreateDateConstructor(RealmState realm)
     {
@@ -385,7 +385,7 @@ public static partial class StandardLibrary
                 if (thisVal is JsObject obj)
                 {
                     var local = GetLocalTimeFromInternalDate(obj);
-                    return (double)-local.Offset.TotalMinutes;
+                    return -local.Offset.TotalMinutes;
                 }
 
                 return double.NaN;

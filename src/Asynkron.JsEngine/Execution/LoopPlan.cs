@@ -11,9 +11,9 @@ internal enum LoopKind
 }
 
 /// <summary>
-/// Normalized description of a loop that flattens initializer/test/body/increment
-/// into explicit statement lists the IR builder can consume without re-parsing
-/// individual loop syntaxes.
+///     Normalized description of a loop that flattens initializer/test/body/increment
+///     into explicit statement lists the IR builder can consume without re-parsing
+///     individual loop syntaxes.
 /// </summary>
 internal sealed record LoopPlan(
     LoopKind Kind,

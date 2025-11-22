@@ -5,26 +5,73 @@ using Asynkron.JsEngine.Runtime;
 namespace Asynkron.JsEngine;
 
 /// <summary>
-/// Tracks the current control flow state during evaluation using typed signals.
-/// Used as an alternative to exception-based control flow.
+///     Tracks the current control flow state during evaluation using typed signals.
+///     Used as an alternative to exception-based control flow.
 /// </summary>
 public sealed class EvaluationContext(RealmState realmState, CancellationToken cancellationToken = default)
 {
     /// <summary>
-    /// Realm-specific state (prototypes/constructors) for the current execution.
+    ///     Stack of enclosing labels (innermost first). Used to determine if a labeled
+    ///     break/continue should be handled by the current statement.
+    /// </summary>
+    private readonly Stack<Symbol> _labelStack = new();
+
+    /// <summary>
+    ///     Realm-specific state (prototypes/constructors) for the current execution.
     /// </summary>
     public RealmState RealmState { get; } = realmState ?? throw new ArgumentNullException(nameof(realmState));
 
     /// <summary>
-    /// The current control flow signal, if any.
+    ///     The current control flow signal, if any.
     /// </summary>
     public ISignal? CurrentSignal { get; private set; }
 
     /// <summary>
-    /// Indicates whether the current execution context has an initialized
-    /// <c>this</c> binding (used for derived class constructor checks).
+    ///     Indicates whether the current execution context has an initialized
+    ///     <c>this</c> binding (used for derived class constructor checks).
     /// </summary>
     public bool IsThisInitialized { get; private set; } = true;
+
+    /// <summary>
+    ///     The current source reference for error reporting.
+    /// </summary>
+    public SourceReference? SourceReference { get; set; }
+
+    /// <summary>
+    ///     Returns the current innermost label, or null if not in a labeled context.
+    /// </summary>
+    public Symbol? CurrentLabel => _labelStack.Count > 0 ? _labelStack.Peek() : null;
+
+    /// <summary>
+    ///     The value associated with the control flow (for Return, Throw, and Yield signals).
+    /// </summary>
+    public object? FlowValue => CurrentSignal switch
+    {
+        ReturnSignal rs => rs.Value,
+        ThrowFlowSignal ts => ts.Value,
+        YieldSignal ys => ys.Value,
+        _ => null
+    };
+
+    /// <summary>
+    ///     Returns true if evaluation should stop (any signal is present).
+    /// </summary>
+    public bool ShouldStopEvaluation => CurrentSignal is not null;
+
+    /// <summary>
+    ///     Returns true if the current signal is Return.
+    /// </summary>
+    public bool IsReturn => CurrentSignal is ReturnSignal;
+
+    /// <summary>
+    ///     Returns true if the current signal is Throw.
+    /// </summary>
+    public bool IsThrow => CurrentSignal is ThrowFlowSignal;
+
+    /// <summary>
+    ///     Returns true if the current signal is Yield.
+    /// </summary>
+    public bool IsYield => CurrentSignal is YieldSignal;
 
     public void MarkThisUninitialized()
     {
@@ -37,12 +84,7 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// The current source reference for error reporting.
-    /// </summary>
-    public SourceReference? SourceReference { get; set; }
-
-    /// <summary>
-    /// Throws if the current evaluation has been cancelled (e.g. timed out).
+    ///     Throws if the current evaluation has been cancelled (e.g. timed out).
     /// </summary>
     public void ThrowIfCancellationRequested()
     {
@@ -50,13 +92,7 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Stack of enclosing labels (innermost first). Used to determine if a labeled
-    /// break/continue should be handled by the current statement.
-    /// </summary>
-    private readonly Stack<Symbol> _labelStack = new();
-
-    /// <summary>
-    /// Pushes a label onto the label stack.
+    ///     Pushes a label onto the label stack.
     /// </summary>
     public void PushLabel(Symbol label)
     {
@@ -64,7 +100,7 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Pops a label from the label stack.
+    ///     Pops a label from the label stack.
     /// </summary>
     public void PopLabel()
     {
@@ -75,12 +111,7 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Returns the current innermost label, or null if not in a labeled context.
-    /// </summary>
-    public Symbol? CurrentLabel => _labelStack.Count > 0 ? _labelStack.Peek() : null;
-
-    /// <summary>
-    /// Checks if a label is in the current label stack.
+    ///     Checks if a label is in the current label stack.
     /// </summary>
     public bool IsLabelInScope(Symbol label)
     {
@@ -88,18 +119,7 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// The value associated with the control flow (for Return, Throw, and Yield signals).
-    /// </summary>
-    public object? FlowValue => CurrentSignal switch
-    {
-        ReturnSignal rs => rs.Value,
-        ThrowFlowSignal ts => ts.Value,
-        YieldSignal ys => ys.Value,
-        _ => null
-    };
-
-    /// <summary>
-    /// Sets the context to Return state with the given value.
+    ///     Sets the context to Return state with the given value.
     /// </summary>
     public void SetReturn(object? value)
     {
@@ -107,7 +127,7 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Sets the context to Break state.
+    ///     Sets the context to Break state.
     /// </summary>
     public void SetBreak(Symbol? label = null)
     {
@@ -115,7 +135,7 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Sets the context to Continue state.
+    ///     Sets the context to Continue state.
     /// </summary>
     public void SetContinue(Symbol? label = null)
     {
@@ -123,7 +143,7 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Sets the context to Throw state with the given value.
+    ///     Sets the context to Throw state with the given value.
     /// </summary>
     public void SetThrow(object? value)
     {
@@ -131,7 +151,7 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Sets the context to Yield state with the given value.
+    ///     Sets the context to Yield state with the given value.
     /// </summary>
     public void SetYield(object? value)
     {
@@ -139,7 +159,7 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Clears the Continue signal (used when a loop consumes it).
+    ///     Clears the Continue signal (used when a loop consumes it).
     /// </summary>
     public void ClearContinue()
     {
@@ -150,8 +170,8 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Clears the Continue signal only if it matches the given label (or has no label).
-    /// Returns true if the signal was cleared, false if it should propagate.
+    ///     Clears the Continue signal only if it matches the given label (or has no label).
+    ///     Returns true if the signal was cleared, false if it should propagate.
     /// </summary>
     public bool TryClearContinue(Symbol? label)
     {
@@ -172,8 +192,8 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Clears the Break signal only if it matches the given label (or has no label).
-    /// Returns true if the signal was cleared, false if it should propagate.
+    ///     Clears the Break signal only if it matches the given label (or has no label).
+    ///     Returns true if the signal was cleared, false if it should propagate.
     /// </summary>
     public bool TryClearBreak(Symbol? label)
     {
@@ -194,7 +214,7 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Clears the Return signal (used when a function consumes it).
+    ///     Clears the Return signal (used when a function consumes it).
     /// </summary>
     public void ClearReturn()
     {
@@ -205,30 +225,10 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     }
 
     /// <summary>
-    /// Clears any control flow signal.
+    ///     Clears any control flow signal.
     /// </summary>
     public void Clear()
     {
         CurrentSignal = null;
     }
-
-    /// <summary>
-    /// Returns true if evaluation should stop (any signal is present).
-    /// </summary>
-    public bool ShouldStopEvaluation => CurrentSignal is not null;
-
-    /// <summary>
-    /// Returns true if the current signal is Return.
-    /// </summary>
-    public bool IsReturn => CurrentSignal is ReturnSignal;
-
-    /// <summary>
-    /// Returns true if the current signal is Throw.
-    /// </summary>
-    public bool IsThrow => CurrentSignal is ThrowFlowSignal;
-
-    /// <summary>
-    /// Returns true if the current signal is Yield.
-    /// </summary>
-    public bool IsYield => CurrentSignal is YieldSignal;
 }

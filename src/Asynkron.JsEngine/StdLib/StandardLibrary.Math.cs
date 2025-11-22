@@ -1,3 +1,4 @@
+using System.Numerics;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -7,7 +8,7 @@ namespace Asynkron.JsEngine.StdLib;
 public static partial class StandardLibrary
 {
     /// <summary>
-    /// Creates a Math object with common mathematical functions and constants.
+    ///     Creates a Math object with common mathematical functions and constants.
     /// </summary>
     public static JsObject CreateMathObject()
     {
@@ -311,7 +312,7 @@ public static partial class StandardLibrary
                 return 32d;
             }
 
-            return (double)System.Numerics.BitOperations.LeadingZeroCount(value);
+            return (double)BitOperations.LeadingZeroCount(value);
         });
 
         math["imul"] = new HostFunction(args =>

@@ -43,6 +43,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public JsEngine()
     {
+        StandardLibrary.ResetSharedState();
         _asyncIteratorTracingEnabled = false;
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
@@ -107,7 +108,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         SetGlobal("Date", dateConstructor);
-        SetGlobal("JSON", StandardLibrary.CreateJsonObject());
+        SetGlobal("JSON", StandardLibrary.CreateJsonObject(_realm));
 
         // Register RegExp constructor
         SetGlobal("RegExp", StandardLibrary.CreateRegExpConstructor());
@@ -137,7 +138,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("localStorage", StandardLibrary.CreateLocalStorageObject());
 
         // Reflect object
-        SetGlobal("Reflect", StandardLibrary.CreateReflectObject());
+        SetGlobal("Reflect", StandardLibrary.CreateReflectObject(_realm));
 
         // Register ArrayBuffer and TypedArray constructors
         SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor());
@@ -199,6 +200,8 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Exposes the global object for realm-like scenarios (e.g. Test262 realms).
     /// </summary>
     public JsObject GlobalObject { get; } = new();
+
+    internal RealmState RealmState => _realm;
 
     public async ValueTask DisposeAsync()
     {

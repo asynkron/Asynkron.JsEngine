@@ -13,25 +13,25 @@ public static partial class StandardLibrary
     ///     Creates a string wrapper object with string methods attached.
     ///     This allows string primitives to have methods like toLowerCase(), substring(), etc.
     /// </summary>
-    public static JsObject CreateStringWrapper(string str, EvaluationContext? context = null)
+    public static JsObject CreateStringWrapper(string str, EvaluationContext? context = null, RealmState? realm = null)
     {
         var stringObj = new JsObject();
         stringObj["__value__"] = str;
         stringObj["length"] = (double)str.Length;
-        var prototype = context?.RealmState?.StringPrototype ?? StringPrototype;
+        var prototype = context?.RealmState?.StringPrototype ?? realm?.StringPrototype;
         if (prototype is not null)
         {
             stringObj.SetPrototype(prototype);
         }
 
-        AddStringMethods(stringObj, str);
+        AddStringMethods(stringObj, str, realm ?? context?.RealmState);
         return stringObj;
     }
 
     /// <summary>
     ///     Adds string methods to a string wrapper object.
     /// </summary>
-    private static void AddStringMethods(JsObject stringObj, string str)
+    private static void AddStringMethods(JsObject stringObj, string str, RealmState? realm)
     {
         // charAt(index)
         stringObj.SetProperty("charAt", new HostFunction(args =>
@@ -214,7 +214,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return CreateArrayFromStrings([str]);
+                return CreateArrayFromStrings([str], realm);
             }
 
             var separator = args[0]?.ToString();
@@ -224,7 +224,7 @@ public static partial class StandardLibrary
             {
                 // Split into individual characters
                 var chars = str.Select(c => c.ToString()).Take(limit).ToArray();
-                return CreateArrayFromStrings(chars);
+                return CreateArrayFromStrings(chars, realm);
             }
 
             var parts = str.Split([separator], StringSplitOptions.None);
@@ -233,7 +233,7 @@ public static partial class StandardLibrary
                 parts = parts.Take(limit).ToArray();
             }
 
-            return CreateArrayFromStrings(parts);
+            return CreateArrayFromStrings(parts, realm);
         }));
 
         // replace(searchValue, replaceValue)
@@ -740,7 +740,7 @@ public static partial class StandardLibrary
         stringObj.SetProperty(iteratorKey, iteratorFunction);
     }
 
-    private static JsArray CreateArrayFromStrings(string[] strings)
+    private static JsArray CreateArrayFromStrings(string[] strings, RealmState? realm)
     {
         var array = new JsArray();
         foreach (var s in strings)
@@ -748,7 +748,10 @@ public static partial class StandardLibrary
             array.Push(s);
         }
 
-        AddArrayMethods(array);
+        if (realm is not null)
+        {
+            AddArrayMethods(array, realm);
+        }
         return array;
     }
 

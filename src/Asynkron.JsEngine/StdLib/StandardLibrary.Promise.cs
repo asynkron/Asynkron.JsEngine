@@ -131,8 +131,8 @@ public static partial class StandardLibrary
 
             if (remaining == 0)
             {
-                var emptyArray = new JsArray();
-                AddArrayMethods(emptyArray);
+                    var emptyArray = new JsArray();
+                    AddArrayMethods(emptyArray, engine.RealmState);
                 resultPromise.Resolve(emptyArray);
                 return resultPromise.JsObject;
             }
@@ -163,7 +163,7 @@ public static partial class StandardLibrary
                                 resultArray.Push(result);
                             }
 
-                            AddArrayMethods(resultArray);
+                                    AddArrayMethods(resultArray, engine.RealmState);
                             resultPromise.Resolve(resultArray);
 
                             return null;
@@ -191,7 +191,7 @@ public static partial class StandardLibrary
                         resultArray.Push(result);
                     }
 
-                    AddArrayMethods(resultArray);
+                            AddArrayMethods(resultArray, engine.RealmState);
                     resultPromise.Resolve(resultArray);
                 }
             }

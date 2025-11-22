@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static JsObject CreateReflectObject()
+    public static JsObject CreateReflectObject(RealmState realm)
     {
         var reflect = new JsObject();
 
@@ -82,7 +82,7 @@ public static partial class StandardLibrary
 
         reflect.SetProperty("defineProperty", new HostFunction(args =>
         {
-            if (args.Count < 3 || !TryGetObject(args[0]!, out var target))
+            if (args.Count < 3 || !TryGetObject(args[0]!, realm, out var target))
             {
                 throw new Exception("Reflect.defineProperty: target must be an object.");
             }
@@ -142,7 +142,7 @@ public static partial class StandardLibrary
 
         reflect.SetProperty("deleteProperty", new HostFunction(args =>
         {
-            if (args.Count < 2 || !TryGetObject(args[0]!, out var target))
+            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
             {
                 throw new Exception("Reflect.deleteProperty: target must be an object.");
             }
@@ -153,7 +153,7 @@ public static partial class StandardLibrary
 
         reflect.SetProperty("get", new HostFunction(args =>
         {
-            if (args.Count < 2 || !TryGetObject(args[0]!, out var target))
+            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
             {
                 throw new Exception("Reflect.get: target must be an object.");
             }
@@ -164,7 +164,7 @@ public static partial class StandardLibrary
 
         reflect.SetProperty("getOwnPropertyDescriptor", new HostFunction(args =>
         {
-            if (args.Count < 2 || !TryGetObject(args[0]!, out var target))
+            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
             {
                 throw new Exception("Reflect.getOwnPropertyDescriptor: target must be an object.");
             }
@@ -199,7 +199,7 @@ public static partial class StandardLibrary
 
         reflect.SetProperty("getPrototypeOf", new HostFunction(args =>
         {
-            if (args.Count == 0 || !TryGetObject(args[0]!, out var target))
+            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
             {
                 throw new Exception("Reflect.getPrototypeOf: target must be an object.");
             }
@@ -209,7 +209,7 @@ public static partial class StandardLibrary
 
         reflect.SetProperty("has", new HostFunction(args =>
         {
-            if (args.Count < 2 || !TryGetObject(args[0]!, out var target))
+            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
             {
                 throw new Exception("Reflect.has: target must be an object.");
             }
@@ -220,7 +220,7 @@ public static partial class StandardLibrary
 
         reflect.SetProperty("isExtensible", new HostFunction(args =>
         {
-            if (args.Count == 0 || !TryGetObject(args[0]!, out var target))
+            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
             {
                 throw new Exception("Reflect.isExtensible: target must be an object.");
             }
@@ -230,7 +230,7 @@ public static partial class StandardLibrary
 
         reflect.SetProperty("ownKeys", new HostFunction(args =>
         {
-            if (args.Count == 0 || !TryGetObject(args[0]!, out var target))
+            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
             {
                 throw new Exception("Reflect.ownKeys: target must be an object.");
             }
@@ -244,7 +244,7 @@ public static partial class StandardLibrary
 
         reflect.SetProperty("preventExtensions", new HostFunction(args =>
         {
-            if (args.Count == 0 || !TryGetObject(args[0]!, out var target))
+            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
             {
                 throw new Exception("Reflect.preventExtensions: target must be an object.");
             }
@@ -255,7 +255,7 @@ public static partial class StandardLibrary
 
         reflect.SetProperty("set", new HostFunction(args =>
         {
-            if (args.Count < 3 || !TryGetObject(args[0]!, out var target))
+            if (args.Count < 3 || !TryGetObject(args[0]!, realm, out var target))
             {
                 throw new Exception("Reflect.set: target must be an object.");
             }
@@ -280,7 +280,7 @@ public static partial class StandardLibrary
 
         reflect.SetProperty("setPrototypeOf", new HostFunction(args =>
         {
-            if (args.Count < 2 || !TryGetObject(args[0]!, out var target))
+            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
             {
                 throw new Exception("Reflect.setPrototypeOf: target must be an object.");
             }

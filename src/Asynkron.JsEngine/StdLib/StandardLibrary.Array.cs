@@ -7,13 +7,18 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static void AddArrayMethods(IJsPropertyAccessor array, JsObject? prototypeOverride = null)
+    public static void AddArrayMethods(IJsPropertyAccessor array)
+    {
+        AddArrayMethods(array, null, null);
+    }
+
+    public static void AddArrayMethods(IJsPropertyAccessor array, RealmState? realm = null, JsObject? prototypeOverride = null)
     {
         // Once the shared Array prototype has been initialised, new arrays
         // should inherit from it instead of receiving per-instance copies of
         // every method. This keeps prototype mutations (e.g. in tests) visible
         // to existing arrays.
-        var resolvedPrototype = prototypeOverride ?? ArrayPrototype;
+        var resolvedPrototype = prototypeOverride ?? realm?.ArrayPrototype ?? ArrayPrototype;
         if (resolvedPrototype is not null && array is JsArray jsArray)
         {
             jsArray.SetPrototype(resolvedPrototype);
@@ -68,7 +73,7 @@ public static partial class StandardLibrary
                 result.Push(mapped);
             }
 
-            AddArrayMethods(result);
+            AddArrayMethods(result, realm);
             return result;
         }));
 
@@ -96,7 +101,7 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddArrayMethods(result);
+            AddArrayMethods(result, realm);
             return result;
         }));
 
@@ -310,7 +315,7 @@ public static partial class StandardLibrary
         // includes
         array.SetProperty("includes", new HostFunction((thisValue, args) =>
         {
-            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes");
+            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", realm);
 
             var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
             var fromIndexArg = args.Count > 1 ? args[1] : 0d;
@@ -371,7 +376,7 @@ public static partial class StandardLibrary
         // indexOf
         array.SetProperty("indexOf", new HostFunction((thisValue, args) =>
         {
-            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.indexOf");
+            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.indexOf", realm);
 
             if (args.Count == 0)
             {
@@ -430,7 +435,7 @@ public static partial class StandardLibrary
         // toLocaleString
         array.SetProperty("toLocaleString", new HostFunction((thisValue, args) =>
         {
-            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toLocaleString");
+            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toLocaleString", realm);
 
             var locales = args.Count > 0 ? args[0] : Symbols.Undefined;
             var options = args.Count > 1 ? args[1] : Symbols.Undefined;
@@ -468,7 +473,7 @@ public static partial class StandardLibrary
         }));
 
         // slice
-        array.SetProperty("slice", new HostFunction((thisValue, args) => ArraySlice(thisValue, args)));
+        array.SetProperty("slice", new HostFunction((thisValue, args) => ArraySlice(thisValue, args, realm)));
 
         // shift
         array.SetProperty("shift", new HostFunction((thisValue, _) =>
@@ -507,7 +512,7 @@ public static partial class StandardLibrary
             var itemsToInsert = args.Count > 2 ? args.Skip(2).ToArray() : [];
 
             var deleted = jsArray.Splice(start, deleteCount, itemsToInsert);
-            AddArrayMethods(deleted);
+            AddArrayMethods(deleted, realm);
             return deleted;
         }));
 
@@ -542,7 +547,7 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddArrayMethods(result);
+            AddArrayMethods(result, realm);
             return result;
         }));
 
@@ -642,7 +647,7 @@ public static partial class StandardLibrary
 
             var result = new JsArray();
             FlattenArray(jsArray, result, depth);
-            AddArrayMethods(result);
+            AddArrayMethods(result, realm);
             return result;
         }));
 
@@ -679,7 +684,7 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddArrayMethods(result);
+            AddArrayMethods(result, realm);
             return result;
         }));
 
@@ -857,7 +862,7 @@ public static partial class StandardLibrary
                 result.Push(jsArray.GetElement(i));
             }
 
-            AddArrayMethods(result);
+            AddArrayMethods(result, realm);
 
             var items = result.Items.ToList();
 
@@ -908,7 +913,7 @@ public static partial class StandardLibrary
                 result.Push(jsArray.GetElement(i));
             }
 
-            AddArrayMethods(result);
+            AddArrayMethods(result, realm);
             return result;
         }));
 
@@ -968,7 +973,7 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddArrayMethods(result);
+            AddArrayMethods(result, realm);
             return result;
         }));
 
@@ -1011,7 +1016,7 @@ public static partial class StandardLibrary
                 result.Push(i == index ? value : jsArray.GetElement(i));
             }
 
-            AddArrayMethods(result);
+            AddArrayMethods(result, realm);
             return result;
         }));
 
@@ -1136,7 +1141,7 @@ public static partial class StandardLibrary
                 pair.Push(Symbols.Undefined);
             }
 
-            AddArrayMethods(pair);
+            AddArrayMethods(pair, realm);
             return pair;
         });
 
@@ -1151,7 +1156,7 @@ public static partial class StandardLibrary
         });
     }
 
-    private static object? ArraySlice(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArraySlice(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (thisValue is not JsArray jsArray)
         {
@@ -1185,7 +1190,7 @@ public static partial class StandardLibrary
             result.Push(jsArray.Items[i]);
         }
 
-        AddArrayMethods(result);
+        AddArrayMethods(result, realm);
         return result;
     }
 
@@ -1214,7 +1219,7 @@ public static partial class StandardLibrary
         return JsOps.StrictEquals(left, right);
     }
 
-    private static bool TryGetObject(object candidate, out IJsObjectLike accessor)
+    private static bool TryGetObject(object candidate, RealmState realm, out IJsObjectLike accessor)
     {
         switch (candidate)
         {
@@ -1226,16 +1231,16 @@ public static partial class StandardLibrary
                 accessor = a;
                 return true;
             case bool b:
-                accessor = CreateBooleanWrapper(b);
+                accessor = CreateBooleanWrapper(b, realm: realm);
                 return true;
             case string s:
-                accessor = CreateStringWrapper(s);
+                accessor = CreateStringWrapper(s, realm: realm);
                 return true;
             case JsBigInt bigInt:
-                accessor = CreateBigIntWrapper(bigInt);
+                accessor = CreateBigIntWrapper(bigInt, realm: realm);
                 return true;
             case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
-                accessor = CreateNumberWrapper(JsOps.ToNumber(candidate));
+                accessor = CreateNumberWrapper(JsOps.ToNumber(candidate), realm: realm);
                 return true;
             default:
                 accessor = null!;
@@ -1269,7 +1274,7 @@ public static partial class StandardLibrary
             if (args is [double length])
             {
                 instance.SetProperty("length", length);
-                AddArrayMethods(instance, instance.Prototype);
+                AddArrayMethods(instance, realm, instance.Prototype);
                 return instance;
             }
 
@@ -1278,7 +1283,7 @@ public static partial class StandardLibrary
                 instance.Push(value);
             }
 
-            AddArrayMethods(instance, instance.Prototype);
+            AddArrayMethods(instance, realm, instance.Prototype);
             return instance;
         });
 
@@ -1521,7 +1526,7 @@ public static partial class StandardLibrary
                 }
 
                 array.SetProperty("length", (double)lengthInt);
-                AddArrayMethods(array, arrayPrototype);
+                AddArrayMethods(array, realm, arrayPrototype);
                 result = array;
             }
             else
@@ -1666,7 +1671,7 @@ public static partial class StandardLibrary
         arrayConstructor.SetProperty("of", new HostFunction(args =>
         {
             var arr = new JsArray(args);
-            AddArrayMethods(arr);
+            AddArrayMethods(arr, realm);
             return arr;
         }));
 
@@ -1676,7 +1681,8 @@ public static partial class StandardLibrary
         if (arrayConstructor.TryGetProperty("prototype", out var prototypeValue) &&
             prototypeValue is JsObject prototypeObject)
         {
-            prototypeObject.SetProperty("slice", new HostFunction((thisValue, args) => ArraySlice(thisValue, args)));
+            prototypeObject.SetProperty("slice",
+                new HostFunction((thisValue, args) => ArraySlice(thisValue, args, realm)));
         }
 
         if (arrayConstructor.TryGetProperty("prototype", out var protoValue) && protoValue is JsObject arrayProtoObj)
@@ -1688,8 +1694,7 @@ public static partial class StandardLibrary
 
             arrayPrototype = arrayProtoObj;
             realm.ArrayPrototype ??= arrayProtoObj;
-            ArrayPrototype ??= arrayProtoObj;
-            AddArrayMethods(arrayProtoObj);
+            AddArrayMethods(arrayProtoObj, realm);
             arrayProtoObj.DefineProperty("length",
                 new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
             var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
@@ -1756,7 +1761,7 @@ public static partial class StandardLibrary
         return JsOps.StrictEquals(x, y);
     }
 
-    private static IJsPropertyAccessor EnsureArrayLikeReceiver(object? receiver, string methodName)
+    private static IJsPropertyAccessor EnsureArrayLikeReceiver(object? receiver, string methodName, RealmState? realm)
     {
         if (receiver is null || ReferenceEquals(receiver, Symbols.Undefined))
         {
@@ -1795,7 +1800,7 @@ public static partial class StandardLibrary
         if (receiver is string s)
         {
             var obj = new JsObject();
-            obj.SetPrototype(StringPrototype);
+            obj.SetPrototype(realm?.StringPrototype ?? StringPrototype);
             obj.SetProperty("__value__", s);
             obj.DefineProperty("length",
                 new PropertyDescriptor
@@ -1814,7 +1819,7 @@ public static partial class StandardLibrary
         if (receiver is double or int or uint or long or ulong or short or ushort or byte or sbyte or decimal or float)
         {
             var obj = new JsObject();
-            obj.SetPrototype(NumberPrototype);
+            obj.SetPrototype(realm?.NumberPrototype ?? NumberPrototype);
             obj.SetProperty("__value__", receiver);
             return obj;
         }
@@ -1822,7 +1827,7 @@ public static partial class StandardLibrary
         if (receiver is bool b)
         {
             var obj = new JsObject();
-            obj.SetPrototype(BooleanPrototype);
+            obj.SetPrototype(realm?.BooleanPrototype ?? BooleanPrototype);
             obj.SetProperty("__value__", b);
             return obj;
         }

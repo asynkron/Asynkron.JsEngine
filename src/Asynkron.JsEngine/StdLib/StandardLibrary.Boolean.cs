@@ -33,7 +33,6 @@ public static partial class StandardLibrary
         // Boolean.prototype.toJSONString in string-tagcloud.js).
         var prototype = new JsObject();
         realm.BooleanPrototype ??= prototype;
-        BooleanPrototype ??= prototype;
         if (realm.ObjectPrototype is not null && prototype.Prototype is null)
         {
             prototype.SetPrototype(realm.ObjectPrototype);
@@ -48,11 +47,11 @@ public static partial class StandardLibrary
     ///     Creates a wrapper object for a boolean primitive so that auto-boxed
     ///     booleans can see methods added to Boolean.prototype.
     /// </summary>
-    public static JsObject CreateBooleanWrapper(bool value, EvaluationContext? context = null)
+    public static JsObject CreateBooleanWrapper(bool value, EvaluationContext? context = null, RealmState? realm = null)
     {
         var booleanObj = new JsObject { ["__value__"] = value };
 
-        var prototype = context?.RealmState?.BooleanPrototype ?? BooleanPrototype;
+        var prototype = context?.RealmState?.BooleanPrototype ?? realm?.BooleanPrototype;
         if (prototype is not null)
         {
             booleanObj.SetPrototype(prototype);

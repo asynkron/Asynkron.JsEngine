@@ -9,11 +9,11 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static JsObject CreateNumberWrapper(double num, EvaluationContext? context = null)
+    public static JsObject CreateNumberWrapper(double num, EvaluationContext? context = null, RealmState? realm = null)
     {
         var numberObj = new JsObject();
         numberObj["__value__"] = num;
-        var prototype = context?.RealmState?.NumberPrototype ?? NumberPrototype;
+        var prototype = context?.RealmState?.NumberPrototype ?? realm?.NumberPrototype;
         if (prototype is not null)
         {
             numberObj.SetPrototype(prototype);
@@ -23,11 +23,11 @@ public static partial class StandardLibrary
         return numberObj;
     }
 
-    public static JsObject CreateBigIntWrapper(JsBigInt value, EvaluationContext? context = null)
+    public static JsObject CreateBigIntWrapper(JsBigInt value, EvaluationContext? context = null, RealmState? realm = null)
     {
         var wrapper = new JsObject { ["__value__"] = value };
 
-        var prototype = context?.RealmState?.BigIntPrototype ?? BigIntPrototype;
+        var prototype = context?.RealmState?.BigIntPrototype ?? realm?.BigIntPrototype;
         if (prototype is not null)
         {
             wrapper.SetPrototype(prototype);

@@ -12,46 +12,48 @@ namespace Asynkron.JsEngine.StdLib;
 /// </summary>
 public static partial class StandardLibrary
 {
-    // No shared current realm: rely on per-context RealmState instead.
-
-    // Shared prototypes for primitive wrapper objects so that host-provided
-    // globals like Boolean.prototype can be extended from JavaScript and still
-    // be visible via auto-boxing of primitives.
+    // NOTE: Prototypes/constructors are still held as static caches; these
+    // are reset per-realm during construction and should not be treated as
+    // shared mutable state across engines.
     public static JsObject? BooleanPrototype { get; set; }
-
     public static JsObject? NumberPrototype { get; set; }
-
     public static JsObject? StringPrototype { get; set; }
-
-    internal static JsObject? ObjectPrototype { get; set; }
-
-    internal static JsObject? FunctionPrototype { get; set; }
-
-    internal static JsObject? ArrayPrototype { get; set; }
-
     public static JsObject? BigIntPrototype { get; set; }
-
+    internal static JsObject? ObjectPrototype { get; set; }
+    internal static JsObject? FunctionPrototype { get; set; }
+    internal static JsObject? ArrayPrototype { get; set; }
     public static JsObject? DatePrototype { get; set; }
-
     internal static JsObject? ErrorPrototype { get; set; }
-
     internal static JsObject? TypeErrorPrototype { get; set; }
-
     internal static JsObject? SyntaxErrorPrototype { get; set; }
-
     internal static HostFunction? TypeErrorConstructor { get; set; }
-
     internal static HostFunction? RangeErrorConstructor { get; set; }
-
     public static HostFunction? SyntaxErrorConstructor { get; set; }
-
     public static HostFunction? ArrayConstructor { get; set; }
+
+    internal static void ResetSharedState()
+    {
+        BooleanPrototype = null;
+        NumberPrototype = null;
+        StringPrototype = null;
+        BigIntPrototype = null;
+        ObjectPrototype = null;
+        FunctionPrototype = null;
+        ArrayPrototype = null;
+        DatePrototype = null;
+        ErrorPrototype = null;
+        TypeErrorPrototype = null;
+        SyntaxErrorPrototype = null;
+        TypeErrorConstructor = null;
+        RangeErrorConstructor = null;
+        SyntaxErrorConstructor = null;
+        ArrayConstructor = null;
+    }
 
     internal static object CreateTypeError(string message, EvaluationContext? context = null)
     {
         var realm = context?.RealmState;
-        var ctor = realm?.TypeErrorConstructor ?? TypeErrorConstructor;
-        if (ctor is IJsCallable callable)
+        if (realm?.TypeErrorConstructor is IJsCallable callable)
         {
             return callable.Invoke([message], null) ?? new InvalidOperationException(message);
         }
@@ -84,8 +86,7 @@ public static partial class StandardLibrary
     internal static object CreateRangeError(string message, EvaluationContext? context = null)
     {
         var realm = context?.RealmState;
-        var ctor = realm?.RangeErrorConstructor ?? RangeErrorConstructor;
-        if (ctor is IJsCallable callable)
+        if (realm?.RangeErrorConstructor is IJsCallable callable)
         {
             return callable.Invoke([message], null) ?? new InvalidOperationException(message);
         }
@@ -121,8 +122,7 @@ public static partial class StandardLibrary
     internal static object CreateSyntaxError(string message, EvaluationContext? context = null)
     {
         var realm = context?.RealmState;
-        var ctor = realm?.SyntaxErrorConstructor ?? SyntaxErrorConstructor;
-        if (ctor is IJsCallable callable)
+        if (realm?.SyntaxErrorConstructor is IJsCallable callable)
         {
             return callable.Invoke([message], null) ?? new InvalidOperationException(message);
         }

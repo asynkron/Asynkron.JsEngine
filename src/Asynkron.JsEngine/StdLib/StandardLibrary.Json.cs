@@ -1,12 +1,13 @@
 using System.Globalization;
 using System.Text.Json;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static JsObject CreateJsonObject()
+    public static JsObject CreateJsonObject(RealmState realm)
     {
         var json = new JsObject();
 
@@ -20,7 +21,7 @@ public static partial class StandardLibrary
 
             try
             {
-                return ParseJsonValue(JsonDocument.Parse(jsonStr).RootElement);
+                return ParseJsonValue(JsonDocument.Parse(jsonStr).RootElement, realm);
             }
             catch
             {
@@ -47,7 +48,7 @@ public static partial class StandardLibrary
         return json;
     }
 
-    private static object? ParseJsonValue(JsonElement element)
+    private static object? ParseJsonValue(JsonElement element, RealmState realm)
     {
         switch (element.ValueKind)
         {
@@ -55,7 +56,7 @@ public static partial class StandardLibrary
                 var obj = new JsObject();
                 foreach (var prop in element.EnumerateObject())
                 {
-                    obj[prop.Name] = ParseJsonValue(prop.Value);
+                    obj[prop.Name] = ParseJsonValue(prop.Value, realm);
                 }
 
                 return obj;
@@ -64,10 +65,10 @@ public static partial class StandardLibrary
                 var arr = new JsArray();
                 foreach (var item in element.EnumerateArray())
                 {
-                    arr.Push(ParseJsonValue(item));
+                    arr.Push(ParseJsonValue(item, realm));
                 }
 
-                AddArrayMethods(arr);
+                AddArrayMethods(arr, realm);
                 return arr;
 
             case JsonValueKind.String:

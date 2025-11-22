@@ -26,18 +26,18 @@ public static partial class StandardLibrary
             var value = args[0];
             return value switch
             {
-                JsBigInt bigInt => CreateBigIntWrapper(bigInt),
-                bool b => CreateBooleanWrapper(b),
-                string s => CreateStringWrapper(s),
+                JsBigInt bigInt => CreateBigIntWrapper(bigInt, realm: realm),
+                bool b => CreateBooleanWrapper(b, realm: realm),
+                string s => CreateStringWrapper(s, realm: realm),
                 double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
-                    CreateNumberWrapper(JsOps.ToNumber(value)),
+                    CreateNumberWrapper(JsOps.ToNumber(value), realm: realm),
                 _ => CreateBlank()
             };
 
             JsObject CreateBlank()
             {
                 var obj = new JsObject();
-                var proto = realm.ObjectPrototype ?? ObjectPrototype;
+                var proto = realm.ObjectPrototype;
                 if (proto is not null)
                 {
                     obj.SetPrototype(proto);
@@ -53,7 +53,6 @@ public static partial class StandardLibrary
             objectProto is JsObject objectProtoObj)
         {
             realm.ObjectPrototype ??= objectProtoObj;
-            ObjectPrototype ??= objectProtoObj;
 
             realm.FunctionPrototype?.SetPrototype(objectProtoObj);
 
@@ -364,7 +363,7 @@ public static partial class StandardLibrary
                 keys.Push(key);
             }
 
-            AddArrayMethods(keys);
+            AddArrayMethods(keys, realm);
             return keys;
         }));
 
@@ -385,7 +384,7 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddArrayMethods(values);
+            AddArrayMethods(values, realm);
             return values;
         }));
 
@@ -406,11 +405,11 @@ public static partial class StandardLibrary
                 }
 
                 var entry = new JsArray([key, value]);
-                AddArrayMethods(entry);
+                    AddArrayMethods(entry, realm);
                 entries.Push(entry);
             }
 
-            AddArrayMethods(entries);
+            AddArrayMethods(entries, realm);
             return entries;
         }));
 
@@ -606,21 +605,21 @@ public static partial class StandardLibrary
         // Object.getOwnPropertyNames(obj)
         objectConstructor.SetProperty("getOwnPropertyNames", new HostFunction(args =>
         {
-            if (args.Count == 0 || !TryGetObject(args[0]!, out var obj))
+            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var obj))
             {
                 return new JsArray();
             }
 
             var names = new JsArray(obj.GetOwnPropertyNames());
 
-            AddArrayMethods(names);
+            AddArrayMethods(names, realm);
             return names;
         }));
 
         // Object.getOwnPropertyDescriptor(obj, prop)
         objectConstructor.SetProperty("getOwnPropertyDescriptor", new HostFunction(args =>
         {
-            if (args.Count < 2 || !TryGetObject(args[0]!, out var obj))
+            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var obj))
             {
                 return Symbols.Undefined;
             }
@@ -661,15 +660,15 @@ public static partial class StandardLibrary
         // Object.getPrototypeOf(obj)
         objectConstructor.SetProperty("getPrototypeOf", new HostFunction(args =>
         {
-            if (args.Count == 0 || !TryGetObject(args[0]!, out var obj))
+            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var obj))
             {
                 throw ThrowTypeError("Object.getPrototypeOf called on null or undefined");
             }
 
             var proto = obj.Prototype ?? (object?)Symbols.Undefined;
             if (proto is not JsObject &&
-                obj is HostFunction { Realm: JsObject realm } &&
-                realm.TryGetProperty("Function", out var fnVal) &&
+                obj is HostFunction { Realm: JsObject fnRealm } &&
+                fnRealm.TryGetProperty("Function", out var fnVal) &&
                 fnVal is IJsPropertyAccessor fnAccessor &&
                 fnAccessor.TryGetProperty("prototype", out var fnProtoObj) &&
                 fnProtoObj is JsObject fnProto)
@@ -683,7 +682,7 @@ public static partial class StandardLibrary
         // Object.defineProperty(obj, prop, descriptor)
         objectConstructor.SetProperty("defineProperty", new HostFunction(args =>
         {
-            if (args.Count < 3 || !TryGetObject(args[0]!, out var obj))
+            if (args.Count < 3 || !TryGetObject(args[0]!, realm, out var obj))
             {
                 return args.Count > 0 ? args[0] : null;
             }

@@ -47,14 +47,16 @@ internal static class LoopNormalizer
         var leadingStatements = ImmutableArray<StatementNode>.Empty;
         if (statement.Initializer is not null)
         {
-            leadingStatements = ImmutableArray.Create(statement.Initializer);
+            leadingStatements = [statement.Initializer];
         }
 
         var postIteration = ImmutableArray<StatementNode>.Empty;
         if (statement.Increment is not null)
         {
-            postIteration = ImmutableArray.Create<StatementNode>(
-                new ExpressionStatement(statement.Increment.Source, statement.Increment));
+            postIteration =
+            [
+                new ExpressionStatement(statement.Increment.Source, statement.Increment)
+            ];
         }
 
         var condition = statement.Condition ?? new LiteralExpression(statement.Source, true);
@@ -97,6 +99,6 @@ internal static class LoopNormalizer
             return block;
         }
 
-        return new BlockStatement(statement.Source, ImmutableArray.Create(statement), isStrict);
+        return new BlockStatement(statement.Source, [statement], isStrict);
     }
 }

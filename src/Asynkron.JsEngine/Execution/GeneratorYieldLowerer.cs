@@ -134,7 +134,7 @@ internal static class GeneratorYieldLowerer
             var loweredReturn = new ReturnStatement(statement.Source,
                 new IdentifierExpression(yieldExpression.Source, resumeIdentifier.Name));
 
-            replacement = ImmutableArray.Create<StatementNode>(declareResume, assignResume, loweredReturn);
+            replacement = [declareResume, assignResume, loweredReturn];
             return true;
         }
 
@@ -162,13 +162,15 @@ internal static class GeneratorYieldLowerer
             };
             var rewrittenDeclaration = declaration with { Declarators = [rewrittenDeclarator] };
 
-            replacement = ImmutableArray.Create<StatementNode>(
+            replacement =
+            [
                 new VariableDeclaration(declaration.Source, VariableKind.Let,
                     [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]),
                 new ExpressionStatement(yieldExpression.Source,
                     new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
                         new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated))),
-                rewrittenDeclaration);
+                rewrittenDeclaration
+            ];
             return true;
         }
 
@@ -217,10 +219,12 @@ internal static class GeneratorYieldLowerer
             };
             var finalDeclarator = declarator with { Initializer = rewrittenInitializer };
 
-            replacement = ImmutableArray.Create<StatementNode>(
+            replacement =
+            [
                 declaration with { Declarators = [leftDeclarator], Kind = VariableKind.Let },
                 declaration with { Declarators = [rightDeclarator], Kind = VariableKind.Let },
-                declaration with { Declarators = [finalDeclarator] });
+                declaration with { Declarators = [finalDeclarator] }
+            ];
             return true;
         }
 
@@ -248,7 +252,8 @@ internal static class GeneratorYieldLowerer
 
             var rewrittenStatement = expressionStatement with { Expression = rewrittenAssignment };
 
-            replacement = ImmutableArray.Create<StatementNode>(
+            replacement =
+            [
                 new VariableDeclaration(
                     expressionStatement.Source,
                     VariableKind.Let,
@@ -256,7 +261,8 @@ internal static class GeneratorYieldLowerer
                 new ExpressionStatement(yieldExpression.Source,
                     new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
                         new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated))),
-                rewrittenStatement);
+                rewrittenStatement
+            ];
             return true;
         }
 
@@ -299,10 +305,12 @@ internal static class GeneratorYieldLowerer
                         new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
                             new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated)));
 
-                    replacement = ImmutableArray.Create<StatementNode>(
+                    replacement =
+                    [
                         declareResume,
                         assignResume,
-                        loweredIf);
+                        loweredIf
+                    ];
                     return true;
                 }
 
@@ -453,7 +461,7 @@ internal static class GeneratorYieldLowerer
             if (forStatement.Initializer is not null)
             {
                 var rewrittenInitializer = RewriteStatements(
-                    ImmutableArray.Create(forStatement.Initializer), isStrict);
+                    [forStatement.Initializer], isStrict);
                 statements.AddRange(rewrittenInitializer);
             }
 
@@ -603,7 +611,7 @@ internal static class GeneratorYieldLowerer
                 return RewriteBlock(block);
             }
 
-            var rewrittenStatements = RewriteStatements(ImmutableArray.Create(statement), isStrict);
+            var rewrittenStatements = RewriteStatements([statement], isStrict);
             if (rewrittenStatements.Length == 1 && rewrittenStatements[0] is BlockStatement singleBlock)
             {
                 return singleBlock;

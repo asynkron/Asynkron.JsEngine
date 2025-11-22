@@ -84,7 +84,7 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike, IJsEnvironmentAwa
                 value = new HostFunction((_, args) =>
                 {
                     var thisArg = args.Count > 0 ? args[0] : Symbols.Undefined;
-                    var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : Array.Empty<object?>();
+                    var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
                     return callable.Invoke(callArgs, thisArg);
                 });
                 return true;
@@ -110,7 +110,7 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike, IJsEnvironmentAwa
                 value = new HostFunction((_, args) =>
                 {
                     var boundThis = args.Count > 0 ? args[0] : Symbols.Undefined;
-                    var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : Array.Empty<object?>();
+                    var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
                     return new HostFunction((innerThis, innerArgs) =>
                     {

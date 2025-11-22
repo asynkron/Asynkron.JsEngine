@@ -607,7 +607,7 @@ internal static class JsOps
 
         try
         {
-            result = callable.Invoke(Array.Empty<object?>(), accessor);
+            result = callable.Invoke([], accessor);
             return true;
         }
         catch (ThrowSignal signal)

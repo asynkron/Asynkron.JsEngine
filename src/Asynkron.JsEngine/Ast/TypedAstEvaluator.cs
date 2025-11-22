@@ -5035,11 +5035,11 @@ public static class TypedAstEvaluator
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
                     {
                         var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                        resolve.Invoke(new object?[] { iteratorResult }, null);
+                        resolve.Invoke([iteratorResult], null);
                         break;
                     }
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
-                        reject.Invoke(new object?[] { step.Value }, null);
+                        reject.Invoke([step.Value], null);
                         break;
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
                         HandlePendingStep(step, resolve, reject);
@@ -5049,7 +5049,7 @@ public static class TypedAstEvaluator
                 return null;
             });
 
-            var promiseObj = promiseCtor.Invoke(new object?[] { executor }, null);
+            var promiseObj = promiseCtor.Invoke([executor], null);
             return promiseObj;
         }
 
@@ -5072,11 +5072,11 @@ public static class TypedAstEvaluator
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
                 {
                     var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                    resolve.Invoke(new object?[] { iteratorResult }, null);
+                    resolve.Invoke([iteratorResult], null);
                     break;
                 }
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
-                    reject.Invoke(new object?[] { step.Value }, null);
+                    reject.Invoke([step.Value], null);
                     break;
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
                     HandlePendingStep(step, resolve, reject);
@@ -5093,7 +5093,7 @@ public static class TypedAstEvaluator
                 !pendingPromise.TryGetProperty("then", out var thenValue) ||
                 thenValue is not IJsCallable thenCallable)
             {
-                reject.Invoke(new object?[] { "Awaited value is not a promise" }, null);
+                reject.Invoke(["Awaited value is not a promise"], null);
                 return;
             }
 
@@ -5113,7 +5113,7 @@ public static class TypedAstEvaluator
                 return null;
             });
 
-            thenCallable.Invoke(new object?[] { onFulfilled, onRejected }, pendingPromise);
+            thenCallable.Invoke([onFulfilled, onRejected], pendingPromise);
         }
     }
 
@@ -5287,7 +5287,7 @@ public static class TypedAstEvaluator
                     value = new HostFunction((_, args) =>
                     {
                         var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
-                        var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : Array.Empty<object?>();
+                        var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
                         return callable.Invoke(callArgs, thisArg);
                     });
                     return true;
@@ -5313,7 +5313,7 @@ public static class TypedAstEvaluator
                     value = new HostFunction((_, args) =>
                     {
                         var boundThis = args.Count > 0 ? args[0] : JsSymbols.Undefined;
-                        var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : Array.Empty<object?>();
+                        var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
                         return new HostFunction((innerThis, innerArgs) =>
                         {

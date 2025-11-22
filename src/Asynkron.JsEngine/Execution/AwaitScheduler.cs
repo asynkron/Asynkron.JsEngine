@@ -49,7 +49,7 @@ internal static class AwaitScheduler
 
             try
             {
-                thenCallable.Invoke(new object?[] { onFulfilled, onRejected }, promiseObj);
+                thenCallable.Invoke([onFulfilled, onRejected], promiseObj);
             }
             catch (Exception ex)
             {

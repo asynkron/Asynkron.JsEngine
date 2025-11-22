@@ -2314,7 +2314,7 @@ public static class StandardLibrary
             if (thisValue is JsArray jsArray)
             {
                 return array.TryGetProperty("join", out var join) && join is IJsCallable joinFn
-                    ? joinFn.Invoke(Array.Empty<object?>(), jsArray)
+                    ? joinFn.Invoke([], jsArray)
                     : string.Empty;
             }
 
@@ -2322,7 +2322,7 @@ public static class StandardLibrary
                 accessor.TryGetProperty("join", out var joinVal) &&
                 joinVal is IJsCallable callableJoin)
             {
-                return callableJoin.Invoke(Array.Empty<object?>(), thisValue);
+                return callableJoin.Invoke([], thisValue);
             }
 
             return "[object Object]";
@@ -2471,7 +2471,7 @@ public static class StandardLibrary
                     elementAccessor.TryGetProperty("toLocaleString", out var method) &&
                     method is IJsCallable callable)
                 {
-                    var result = callable.Invoke(new object?[] { locales, options }, element);
+                    var result = callable.Invoke([locales, options], element);
                     part = JsOps.ToJsString(result);
                 }
                 else
@@ -2607,7 +2607,7 @@ public static class StandardLibrary
                 {
                     var aStr = JsValueToString(a);
                     var bStr = JsValueToString(b);
-                    return string.Compare(aStr, bStr, StringComparison.Ordinal);
+                    return string.CompareOrdinal(aStr, bStr);
                 });
             }
 
@@ -2882,7 +2882,7 @@ public static class StandardLibrary
                 {
                     var aStr = JsValueToString(a);
                     var bStr = JsValueToString(b);
-                    return string.Compare(aStr, bStr, StringComparison.Ordinal);
+                    return string.CompareOrdinal(aStr, bStr);
                 });
             }
 
@@ -4758,7 +4758,7 @@ public static class StandardLibrary
                 // requiring full descriptor support on all host objects.
                 if (descObj.TryGetProperty("get", out var getterVal) && getterVal is IJsCallable getterFn)
                 {
-                    var builder = getterFn.Invoke(Array.Empty<object?>(), target);
+                    var builder = getterFn.Invoke([], target);
                     accessor.SetProperty(name, builder);
                     return args[0];
                 }
@@ -4798,7 +4798,7 @@ public static class StandardLibrary
 
                 if (descObj.TryGetProperty("get", out var getterVal) && getterVal is IJsCallable getterFn)
                 {
-                    var builder = getterFn.Invoke(Array.Empty<object?>(), target);
+                    var builder = getterFn.Invoke([], target);
                     accessor.SetProperty(key, builder);
                     continue;
                 }
@@ -5586,7 +5586,7 @@ public static class StandardLibrary
                     instance.SetPrototype(proto);
                 }
 
-                var constructed = constructor?.Invoke(new object?[] { (double)lengthInt }, instance);
+                var constructed = constructor?.Invoke([(double)lengthInt], instance);
                 result = constructed is IJsObjectLike objectLike ? objectLike : instance;
             }
 
@@ -5600,7 +5600,7 @@ public static class StandardLibrary
                     throw new ThrowSignal(error);
                 }
 
-                var iteratorObj = callableIterator.Invoke(Array.Empty<object?>(), source);
+                var iteratorObj = callableIterator.Invoke([], source);
                 if (iteratorObj is not JsObject iter)
                 {
                     var error = TypeErrorConstructor is IJsCallable ctor4
@@ -5621,7 +5621,7 @@ public static class StandardLibrary
                 var k = 0;
                 while (true)
                 {
-                    var step = nextFn.Invoke(Array.Empty<object?>(), iter);
+                    var step = nextFn.Invoke([], iter);
                     if (step is not JsObject stepObj)
                     {
                         break;
@@ -5641,7 +5641,7 @@ public static class StandardLibrary
                             envAware.CallingJsEnvironment = callingEnv;
                         }
 
-                        value = mapper.Invoke(new object?[] { value, (double)k }, thisArg);
+                        value = mapper.Invoke([value, (double)k], thisArg);
                     }
 
                     CreateDataPropertyOrThrow(result, k.ToString(CultureInfo.InvariantCulture), value,
@@ -5663,7 +5663,7 @@ public static class StandardLibrary
                             envAware.CallingJsEnvironment = callingEnv;
                         }
 
-                        value = mapper.Invoke(new object?[] { value, (double)k }, thisArg);
+                        value = mapper.Invoke([value, (double)k], thisArg);
                     }
 
                     CreateDataPropertyOrThrow(result, k.ToString(CultureInfo.InvariantCulture), value,
@@ -7897,7 +7897,7 @@ public static class StandardLibrary
             var thisArg = args[1];
             var argList = args.Count > 2 && args[2] is JsArray arr
                 ? arr.Items.ToArray()
-                : Array.Empty<object?>();
+                : [];
 
             return callable.Invoke(argList, thisArg);
         }));
@@ -7909,7 +7909,7 @@ public static class StandardLibrary
                 throw new Exception("Reflect.construct: target must be a constructor.");
             }
 
-            var argList = args[1] is JsArray arr ? arr.Items.ToArray() : Array.Empty<object?>();
+            var argList = args[1] is JsArray arr ? arr.Items.ToArray() : [];
             var newTarget = args.Count > 2 && args[2] is IJsCallable ctor ? ctor : target;
 
             if (target is HostFunction hostTarget &&

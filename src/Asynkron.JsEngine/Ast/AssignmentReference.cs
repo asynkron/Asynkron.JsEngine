@@ -51,7 +51,8 @@ internal static class AssignmentReferenceResolver
                 newValue => jsArray.SetElement(arrayIndex, newValue));
         }
 
-        if (target is TypedArrayBase typedArray && JsOps.TryResolveArrayIndex(propertyValue, out var typedIndex, context))
+        if (target is TypedArrayBase typedArray &&
+            JsOps.TryResolveArrayIndex(propertyValue, out var typedIndex, context))
         {
             return new AssignmentReference(
                 () => typedIndex >= 0 && typedIndex < typedArray.Length

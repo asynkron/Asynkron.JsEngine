@@ -51,5 +51,4 @@ public sealed class JsUint32Array(JsArrayBuffer buffer, int byteOffset, int leng
         var newByteOffset = _byteOffset + start * BYTES_PER_ELEMENT;
         return new JsUint32Array(_buffer, newByteOffset, newLength);
     }
-
 }

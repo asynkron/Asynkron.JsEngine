@@ -1,7 +1,6 @@
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
@@ -241,6 +240,4 @@ public static partial class StandardLibrary
             return false; // Everything else becomes NaN, which is not finite
         });
     }
-
-
 }

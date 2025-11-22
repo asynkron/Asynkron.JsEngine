@@ -4,7 +4,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
@@ -22,6 +22,7 @@ public static partial class StandardLibrary
         {
             stringObj.SetPrototype(prototype);
         }
+
         AddStringMethods(stringObj, str);
         return stringObj;
     }
@@ -186,6 +187,7 @@ public static partial class StandardLibrary
             {
                 result += JsValueToString(arg);
             }
+
             return result;
         }));
 
@@ -253,7 +255,7 @@ public static partial class StandardLibrary
                     regexValue is JsRegExp regex)
                 {
                     var dotNetRegex = new System.Text.RegularExpressions.Regex(regex.Pattern);
-                    var result = new System.Text.StringBuilder();
+                    var result = new StringBuilder();
                     var lastIndex = 0;
 
                     if (regex.Global)
@@ -347,7 +349,8 @@ public static partial class StandardLibrary
                 var match = System.Text.RegularExpressions.Regex.Match(str, regex2.Pattern);
                 if (match.Success)
                 {
-                    return string.Concat(str.AsSpan(0, match.Index), replaceValue, str.AsSpan(match.Index + match.Length));
+                    return string.Concat(str.AsSpan(0, match.Index), replaceValue,
+                        str.AsSpan(match.Index + match.Length));
                 }
 
                 return str;
@@ -642,10 +645,10 @@ public static partial class StandardLibrary
             {
                 return form switch
                 {
-                    "NFC" => str.Normalize(System.Text.NormalizationForm.FormC),
-                    "NFD" => str.Normalize(System.Text.NormalizationForm.FormD),
-                    "NFKC" => str.Normalize(System.Text.NormalizationForm.FormKC),
-                    "NFKD" => str.Normalize(System.Text.NormalizationForm.FormKD),
+                    "NFC" => str.Normalize(NormalizationForm.FormC),
+                    "NFD" => str.Normalize(NormalizationForm.FormD),
+                    "NFKC" => str.Normalize(NormalizationForm.FormKC),
+                    "NFKD" => str.Normalize(NormalizationForm.FormKD),
                     _ => throw new Exception(
                         "RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.")
                 };
@@ -745,7 +748,7 @@ public static partial class StandardLibrary
     /// <summary>
     /// Creates the String constructor with static methods.
     /// </summary>
-    public static HostFunction CreateStringConstructor(Runtime.RealmState realm)
+    public static HostFunction CreateStringConstructor(RealmState realm)
     {
         // String constructor
         var stringConstructor = new HostFunction((thisValue, args) =>
@@ -754,7 +757,7 @@ public static partial class StandardLibrary
             var str = value switch
             {
                 string s => s,
-                double d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                double d => d.ToString(CultureInfo.InvariantCulture),
                 bool b => b ? "true" : "false",
                 null => "null",
                 Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => "undefined",
@@ -780,7 +783,7 @@ public static partial class StandardLibrary
         // methods attached from user code (e.g. String.prototype.toJSONString),
         // and provide a minimal shared implementation of core helpers such as
         // String.prototype.slice for use with call/apply patterns.
-            if (stringConstructor.TryGetProperty("prototype", out var stringProto) &&
+        if (stringConstructor.TryGetProperty("prototype", out var stringProto) &&
             stringProto is JsObject stringProtoObj)
         {
             realm.StringPrototype ??= stringProtoObj;
@@ -834,25 +837,17 @@ public static partial class StandardLibrary
 
             var supFn = new HostFunction((thisValue, args) =>
             {
-                if (thisValue is null || thisValue is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
+                if (thisValue is null || (thisValue is Symbol sym && ReferenceEquals(sym, Symbols.Undefined)))
                 {
                     throw ThrowTypeError("String.prototype.sup called on null or undefined");
                 }
 
                 var s = JsValueToString(thisValue);
                 return $"<sup>{s}</sup>";
-            })
-            {
-                IsConstructor = false
-            };
+            }) { IsConstructor = false };
 
-            supFn.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = 0d,
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
+            supFn.DefineProperty("length",
+                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
 
             stringProtoObj.SetProperty("sup", supFn);
         }
@@ -865,7 +860,7 @@ public static partial class StandardLibrary
                 return "";
             }
 
-            var result = new System.Text.StringBuilder();
+            var result = new StringBuilder();
             foreach (var arg in args)
             {
                 var num = JsOps.ToNumber(arg);
@@ -905,7 +900,7 @@ public static partial class StandardLibrary
                 return "";
             }
 
-            var result = new System.Text.StringBuilder();
+            var result = new StringBuilder();
             foreach (var arg in args)
             {
                 var num = JsOps.ToNumber(arg);
@@ -942,7 +937,7 @@ public static partial class StandardLibrary
                 return "";
             }
 
-            var result = new System.Text.StringBuilder();
+            var result = new StringBuilder();
             var rawCount = rawStrings.Items.Count;
 
             for (var i = 0; i < rawCount; i++)
@@ -976,7 +971,7 @@ public static partial class StandardLibrary
 
             var str = args[0]?.ToString() ?? "";
 
-            var result = new System.Text.StringBuilder();
+            var result = new StringBuilder();
             foreach (var ch in str)
             {
                 // Characters that don't need escaping
@@ -1007,6 +1002,4 @@ public static partial class StandardLibrary
 
         return stringConstructor;
     }
-
-
 }

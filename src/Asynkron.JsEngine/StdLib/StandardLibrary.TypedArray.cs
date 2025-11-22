@@ -2,7 +2,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
@@ -152,10 +152,7 @@ public static partial class StandardLibrary
                 }
 
                 return typed;
-            })
-            {
-                IsConstructor = false
-            },
+            }) { IsConstructor = false },
             Writable = true,
             Enumerable = false,
             Configurable = true
@@ -271,7 +268,8 @@ public static partial class StandardLibrary
                         throw new ThrowSignal(WrapTypeError("Iterator method did not return an object", callingEnv));
                     }
 
-                    if (!iteratorAccessor.TryGetProperty("next", out var nextVal) || nextVal is not IJsCallable nextCallable)
+                    if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
+                        nextVal is not IJsCallable nextCallable)
                     {
                         throw new ThrowSignal(WrapTypeError("Iterator result does not expose next", callingEnv));
                     }
@@ -324,10 +322,7 @@ public static partial class StandardLibrary
                 }
 
                 return CreateTarget(0);
-            })
-            {
-                IsConstructor = false
-            },
+            }) { IsConstructor = false },
             Writable = true,
             Enumerable = false,
             Configurable = true
@@ -444,5 +439,4 @@ public static partial class StandardLibrary
             (buffer, offset, length) => new JsBigUint64Array(buffer, offset, length),
             JsBigUint64Array.BYTES_PER_ELEMENT);
     }
-
 }

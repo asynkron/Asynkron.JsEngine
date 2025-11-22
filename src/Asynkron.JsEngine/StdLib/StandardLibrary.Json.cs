@@ -1,7 +1,6 @@
-using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.JsTypes;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
@@ -146,5 +145,4 @@ public static partial class StandardLibrary
                 return System.Text.Json.JsonSerializer.Serialize(value?.ToString() ?? "");
         }
     }
-
 }

@@ -1,7 +1,7 @@
 using System.Globalization;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -248,6 +248,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         {
             newArray.SetElement(i, GetElement(start + i));
         }
+
         return newArray;
     }
 
@@ -273,7 +274,10 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
             throw new ArgumentOutOfRangeException(nameof(offset));
         }
 
-        for (var i = 0; i < source.Length; i++) SetElement(offset + i, source.GetElement(i));
+        for (var i = 0; i < source.Length; i++)
+        {
+            SetElement(offset + i, source.GetElement(i));
+        }
     }
 
     /// <summary>
@@ -289,20 +293,20 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         }
 
         for (var i = 0; i < source.Items.Count; i++)
+        {
+            var value = source.Items[i];
+            var numValue = value switch
             {
-                var value = source.Items[i];
-                var numValue = value switch
-                {
-                    double d => d,
-                    int iv => (double)iv,
-                    long lv => (double)lv,
-                    float fv => (double)fv,
-                    JsBigInt bi => (double)bi.Value,
-                    _ => 0.0
-                };
-                SetElement(offset + i, numValue);
-            }
+                double d => d,
+                int iv => (double)iv,
+                long lv => (double)lv,
+                float fv => (double)fv,
+                JsBigInt bi => (double)bi.Value,
+                _ => 0.0
+            };
+            SetElement(offset + i, numValue);
         }
+    }
 
     /// <summary>
     /// Helper method to normalize slice indices.
@@ -405,7 +409,8 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
             if (index >= Length)
             {
-                throw new ArgumentOutOfRangeException(nameof(name), $"Index {index} is outside the bounds of the typed array.");
+                throw new ArgumentOutOfRangeException(nameof(name),
+                    $"Index {index} is outside the bounds of the typed array.");
             }
 
             SetElement(index, numericValue);
@@ -467,11 +472,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
             }
         }
 
-        var fallback = new JsObject
-        {
-            ["name"] = "TypeError",
-            ["message"] = "Out of bounds access on TypedArray"
-        };
+        var fallback = new JsObject { ["name"] = "TypeError", ["message"] = "Out of bounds access on TypedArray" };
 
         return new ThrowSignal(fallback);
     }

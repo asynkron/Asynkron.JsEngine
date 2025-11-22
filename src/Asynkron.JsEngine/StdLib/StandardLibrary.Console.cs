@@ -1,7 +1,7 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
@@ -96,8 +96,8 @@ public static partial class StandardLibrary
                     parts.Add(JsValueToString(arg));
                 }
             }
+
             return string.Join(" ", parts);
         }
     }
-
 }

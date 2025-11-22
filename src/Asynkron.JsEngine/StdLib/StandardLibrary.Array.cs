@@ -3,7 +3,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
@@ -315,7 +315,10 @@ public static partial class StandardLibrary
             var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
             var fromIndexArg = args.Count > 1 ? args[1] : 0d;
             var length = 0d;
-            if (accessor.TryGetProperty("length", out var lenVal)) length = ToLengthOrZero(lenVal);
+            if (accessor.TryGetProperty("length", out var lenVal))
+            {
+                length = ToLengthOrZero(lenVal);
+            }
 
             var fromIndex = ToIntegerOrInfinity(fromIndexArg);
             if (double.IsPositiveInfinity(fromIndex))
@@ -591,7 +594,10 @@ public static partial class StandardLibrary
             }
 
             // Replace array items with sorted items
-            for (var i = 0; i < items.Count; i++) jsArray.SetElement(i, items[i]);
+            for (var i = 0; i < items.Count; i++)
+            {
+                jsArray.SetElement(i, items[i]);
+            }
 
             return jsArray;
         }));
@@ -663,7 +669,9 @@ public static partial class StandardLibrary
                 if (mapped is JsArray mappedArray)
                 {
                     for (var j = 0; j < mappedArray.Items.Count; j++)
+                    {
                         result.Push(mappedArray.GetElement(j));
+                    }
                 }
                 else
                 {
@@ -759,7 +767,10 @@ public static partial class StandardLibrary
             start = Math.Max(0, Math.Min(start, jsArray.Items.Count));
             end = Math.Max(start, Math.Min(end, jsArray.Items.Count));
 
-            for (var i = start; i < end; i++) jsArray.SetElement(i, value);
+            for (var i = start; i < end; i++)
+            {
+                jsArray.SetElement(i, value);
+            }
 
             return jsArray;
         }));
@@ -819,9 +830,15 @@ public static partial class StandardLibrary
 
             // Copy to temporary array to handle overlapping ranges
             var temp = new object?[count];
-            for (var i = 0; i < count; i++) temp[i] = jsArray.GetElement(start + i);
+            for (var i = 0; i < count; i++)
+            {
+                temp[i] = jsArray.GetElement(start + i);
+            }
 
-            for (var i = 0; i < count; i++) jsArray.SetElement(target + i, temp[i]);
+            for (var i = 0; i < count; i++)
+            {
+                jsArray.SetElement(target + i, temp[i]);
+            }
 
             return jsArray;
         }));
@@ -835,7 +852,11 @@ public static partial class StandardLibrary
             }
 
             var result = new JsArray();
-            for (var i = 0; i < jsArray.Items.Count; i++) result.Push(jsArray.GetElement(i));
+            for (var i = 0; i < jsArray.Items.Count; i++)
+            {
+                result.Push(jsArray.GetElement(i));
+            }
+
             AddArrayMethods(result);
 
             var items = result.Items.ToList();
@@ -865,7 +886,10 @@ public static partial class StandardLibrary
                 });
             }
 
-            for (var i = 0; i < items.Count; i++) result.SetElement(i, items[i]);
+            for (var i = 0; i < items.Count; i++)
+            {
+                result.SetElement(i, items[i]);
+            }
 
             return result;
         }));
@@ -879,7 +903,11 @@ public static partial class StandardLibrary
             }
 
             var result = new JsArray();
-            for (var i = jsArray.Items.Count - 1; i >= 0; i--) result.Push(jsArray.GetElement(i));
+            for (var i = jsArray.Items.Count - 1; i >= 0; i--)
+            {
+                result.Push(jsArray.GetElement(i));
+            }
+
             AddArrayMethods(result);
             return result;
         }));
@@ -898,7 +926,10 @@ public static partial class StandardLibrary
             if (args.Count == 0)
             {
                 // No arguments, return copy
-                for (var i = 0; i < len; i++) result.Push(jsArray.GetElement(i));
+                for (var i = 0; i < len; i++)
+                {
+                    result.Push(jsArray.GetElement(i));
+                }
             }
             else
             {
@@ -919,13 +950,22 @@ public static partial class StandardLibrary
                 deleteCount = Math.Max(0, Math.Min(deleteCount, len - start));
 
                 // Copy elements before start
-                for (var i = 0; i < start; i++) result.Push(jsArray.GetElement(i));
+                for (var i = 0; i < start; i++)
+                {
+                    result.Push(jsArray.GetElement(i));
+                }
 
                 // Insert new items
-                for (var i = 2; i < args.Count; i++) result.Push(args[i]);
+                for (var i = 2; i < args.Count; i++)
+                {
+                    result.Push(args[i]);
+                }
 
                 // Copy elements after deleted section
-                for (var i = start + deleteCount; i < len; i++) result.Push(jsArray.GetElement(i));
+                for (var i = start + deleteCount; i < len; i++)
+                {
+                    result.Push(jsArray.GetElement(i));
+                }
             }
 
             AddArrayMethods(result);
@@ -966,7 +1006,11 @@ public static partial class StandardLibrary
             }
 
             var result = new JsArray();
-            for (var i = 0; i < jsArray.Items.Count; i++) result.Push(i == index ? value : jsArray.GetElement(i));
+            for (var i = 0; i < jsArray.Items.Count; i++)
+            {
+                result.Push(i == index ? value : jsArray.GetElement(i));
+            }
+
             AddArrayMethods(result);
             return result;
         }));
@@ -983,7 +1027,8 @@ public static partial class StandardLibrary
             return Math.Min(truncated, 9007199254740991d); // 2^53 - 1
         }
 
-        static object CreateArrayIterator(object? thisValue, IJsPropertyAccessor accessor, Func<uint, object?> projector)
+        static object CreateArrayIterator(object? thisValue, IJsPropertyAccessor accessor,
+            Func<uint, object?> projector)
         {
             var iterator = new JsObject();
             var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
@@ -1029,7 +1074,8 @@ public static partial class StandardLibrary
             return iterator;
         }
 
-        HostFunction DefineArrayIteratorFunction(string name, Func<IJsPropertyAccessor, object?, Func<uint, object?>> projectorFactory)
+        HostFunction DefineArrayIteratorFunction(string name,
+            Func<IJsPropertyAccessor, object?, Func<uint, object?>> projectorFactory)
         {
             var fn = new HostFunction((thisValue, args) =>
             {
@@ -1051,33 +1097,17 @@ public static partial class StandardLibrary
 
                 var projector = projectorFactory(accessor, thisValue);
                 return CreateArrayIterator(thisValue, accessor, projector);
-            })
-            {
-                IsConstructor = false
-            };
+            }) { IsConstructor = false };
 
-            fn.DefineProperty("name", new PropertyDescriptor
-            {
-                Value = name,
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
+            fn.DefineProperty("name",
+                new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
 
-            fn.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = 0d,
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
+            fn.DefineProperty("length",
+                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
 
             var descriptor = new PropertyDescriptor
             {
-                Value = fn,
-                Writable = true,
-                Enumerable = false,
-                Configurable = true
+                Value = fn, Writable = true, Enumerable = false, Configurable = true
             };
 
             if (array is IJsObjectLike objectLike)
@@ -1213,7 +1243,7 @@ public static partial class StandardLibrary
         }
     }
 
-    public static HostFunction CreateArrayConstructor(Runtime.RealmState realm)
+    public static HostFunction CreateArrayConstructor(RealmState realm)
     {
         JsObject? arrayPrototype = null;
 
@@ -1304,30 +1334,15 @@ public static partial class StandardLibrary
             return false;
         });
 
-        isArrayFn.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = "isArray",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        isArrayFn.DefineProperty("name",
+            new PropertyDescriptor { Value = "isArray", Writable = false, Enumerable = false, Configurable = true });
 
-        isArrayFn.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = 1d,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        isArrayFn.DefineProperty("length",
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         isArrayFn.IsConstructor = false;
 
-        arrayConstructor.DefineProperty("isArray", new PropertyDescriptor
-        {
-            Value = isArrayFn,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
+        arrayConstructor.DefineProperty("isArray",
+            new PropertyDescriptor { Value = isArrayFn, Writable = true, Enumerable = false, Configurable = true });
 
         // Array.from(arrayLike)
         HostFunction arrayFrom = null!;
@@ -1350,7 +1365,8 @@ public static partial class StandardLibrary
             {
                 var error = TypeErrorConstructor is IJsCallable ctor2
                     ? ctor2.Invoke(["Array.from: when provided, the mapping callback must be callable"], null)
-                    : new InvalidOperationException("Array.from: when provided, the mapping callback must be callable.");
+                    : new InvalidOperationException(
+                        "Array.from: when provided, the mapping callback must be callable.");
                 throw new ThrowSignal(error);
             }
 
@@ -1462,10 +1478,7 @@ public static partial class StandardLibrary
 
                 var descriptor = new PropertyDescriptor
                 {
-                    Value = value,
-                    Writable = true,
-                    Enumerable = true,
-                    Configurable = true
+                    Value = value, Writable = true, Enumerable = true, Configurable = true
                 };
 
                 target.DefineProperty(propertyKey, descriptor);
@@ -1638,30 +1651,16 @@ public static partial class StandardLibrary
 
                 result.SetProperty("length", (double)lengthInt);
             }
+
             return result;
         });
-        arrayFrom.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = "from",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        arrayFrom.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = 1d,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        arrayFrom.DefineProperty("name",
+            new PropertyDescriptor { Value = "from", Writable = false, Enumerable = false, Configurable = true });
+        arrayFrom.DefineProperty("length",
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         arrayFrom.IsConstructor = false;
-        arrayConstructor.DefineProperty("from", new PropertyDescriptor
-        {
-            Value = arrayFrom,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
+        arrayConstructor.DefineProperty("from",
+            new PropertyDescriptor { Value = arrayFrom, Writable = true, Enumerable = false, Configurable = true });
 
         // Array.of(...elements)
         arrayConstructor.SetProperty("of", new HostFunction(args =>
@@ -1686,46 +1685,30 @@ public static partial class StandardLibrary
             {
                 arrayProtoObj.SetPrototype(realm.ObjectPrototype);
             }
+
             arrayPrototype = arrayProtoObj;
             realm.ArrayPrototype ??= arrayProtoObj;
             ArrayPrototype ??= arrayProtoObj;
             AddArrayMethods(arrayProtoObj);
-            arrayProtoObj.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = 0d,
-                Writable = true,
-                Enumerable = false,
-                Configurable = false
-            });
+            arrayProtoObj.DefineProperty("length",
+                new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
             var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
             var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
             if (arrayProtoObj.TryGetProperty("values", out var valuesFn))
             {
-                arrayProtoObj.DefineProperty(iteratorKey, new PropertyDescriptor
-                {
-                    Value = valuesFn,
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
-                });
+                arrayProtoObj.DefineProperty(iteratorKey,
+                    new PropertyDescriptor
+                    {
+                        Value = valuesFn, Writable = true, Enumerable = false, Configurable = true
+                    });
             }
         }
 
-        arrayConstructor.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = 1d,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        arrayConstructor.DefineProperty("length",
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
 
-        arrayConstructor.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = "Array",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        arrayConstructor.DefineProperty("name",
+            new PropertyDescriptor { Value = "Array", Writable = false, Enumerable = false, Configurable = true });
 
         return arrayConstructor;
     }
@@ -1782,17 +1765,19 @@ public static partial class StandardLibrary
 
         if (receiver is IJsPropertyAccessor accessor)
         {
-            if (accessor is JsObject jsObj && jsObj.TryGetProperty("__value__", out var inner) && inner is string sInner)
+            if (accessor is JsObject jsObj && jsObj.TryGetProperty("__value__", out var inner) &&
+                inner is string sInner)
             {
                 if (!jsObj.TryGetProperty("length", out _))
                 {
-                    jsObj.DefineProperty("length", new PropertyDescriptor
-                    {
-                        Value = (double)sInner.Length,
-                        Writable = false,
-                        Enumerable = false,
-                        Configurable = false
-                    });
+                    jsObj.DefineProperty("length",
+                        new PropertyDescriptor
+                        {
+                            Value = (double)sInner.Length,
+                            Writable = false,
+                            Enumerable = false,
+                            Configurable = false
+                        });
 
                     for (var i = 0; i < sInner.Length; i++)
                     {
@@ -1812,13 +1797,11 @@ public static partial class StandardLibrary
             var obj = new JsObject();
             obj.SetPrototype(StringPrototype);
             obj.SetProperty("__value__", s);
-            obj.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = (double)s.Length,
-                Writable = false,
-                Enumerable = false,
-                Configurable = false
-            });
+            obj.DefineProperty("length",
+                new PropertyDescriptor
+                {
+                    Value = (double)s.Length, Writable = false, Enumerable = false, Configurable = false
+                });
 
             for (var i = 0; i < s.Length; i++)
             {
@@ -1852,5 +1835,4 @@ public static partial class StandardLibrary
 
         throw ThrowTypeError($"{methodName} called on non-object");
     }
-
 }

@@ -2,14 +2,14 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
     /// <summary>
     /// Creates the Boolean constructor function.
     /// </summary>
-    public static HostFunction CreateBooleanConstructor(Runtime.RealmState realm)
+    public static HostFunction CreateBooleanConstructor(RealmState realm)
     {
         // Boolean(value) -> boolean primitive using ToBoolean semantics.
         var booleanConstructor = new HostFunction((thisValue, args) =>
@@ -38,6 +38,7 @@ public static partial class StandardLibrary
         {
             prototype.SetPrototype(realm.ObjectPrototype);
         }
+
         booleanConstructor.SetProperty("prototype", prototype);
 
         return booleanConstructor;
@@ -49,10 +50,7 @@ public static partial class StandardLibrary
     /// </summary>
     public static JsObject CreateBooleanWrapper(bool value, EvaluationContext? context = null)
     {
-        var booleanObj = new JsObject
-        {
-            ["__value__"] = value
-        };
+        var booleanObj = new JsObject { ["__value__"] = value };
 
         var prototype = context?.RealmState?.BooleanPrototype ?? BooleanPrototype;
         if (prototype is not null)

@@ -64,5 +64,4 @@ public sealed class JsUint8ClampedArray(JsArrayBuffer buffer, int byteOffset, in
     {
         return FromLength(length);
     }
-
 }

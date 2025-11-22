@@ -1,6 +1,6 @@
 using Asynkron.JsEngine.JsTypes;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
@@ -63,6 +63,4 @@ public static partial class StandardLibrary
             return regex.Exec(input);
         }));
     }
-
-
 }

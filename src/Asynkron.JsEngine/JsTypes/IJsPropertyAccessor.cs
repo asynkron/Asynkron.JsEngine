@@ -25,13 +25,19 @@ public interface IJsPropertyAccessor
     /// Optional hook to provide property descriptors to APIs like
     /// Object.getOwnPropertyDescriptor without exposing JsObject directly.
     /// </summary>
-    PropertyDescriptor? GetOwnPropertyDescriptor(string name) => null;
+    PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+    {
+        return null;
+    }
 
     /// <summary>
     /// Optional hook to enumerate own property names for accessor types that
     /// wrap a JsObject (e.g., HostFunction).
     /// </summary>
-    IEnumerable<string> GetOwnPropertyNames() => [];
+    IEnumerable<string> GetOwnPropertyNames()
+    {
+        return [];
+    }
 }
 
 /// <summary>

@@ -19,9 +19,9 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
     }
 
     /// <summary>
-        /// Direct typed parser. This currently supports only a subset of the full
-        /// JavaScript grammar required by the test suite.
-        /// </summary>
+    /// Direct typed parser. This currently supports only a subset of the full
+    /// JavaScript grammar required by the test suite.
+    /// </summary>
     private sealed class DirectParser(IReadOnlyList<Token> tokens, string source)
     {
         private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
@@ -350,7 +350,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 {
                     if (restTarget is not null)
                     {
-                        throw new ParseException("Only one rest element is allowed in a binding pattern.", Peek(), _source);
+                        throw new ParseException("Only one rest element is allowed in a binding pattern.", Peek(),
+                            _source);
                     }
 
                     restTarget = ParseBindingTarget("Expected identifier after '...'.");
@@ -391,7 +392,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 {
                     if (restTarget is not null)
                     {
-                        throw new ParseException("Only one rest element is allowed in a binding pattern.", Peek(), _source);
+                        throw new ParseException("Only one rest element is allowed in a binding pattern.", Peek(),
+                            _source);
                     }
 
                     restTarget = ParseBindingTarget("Expected identifier after '...'.");
@@ -498,7 +500,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 {
                     if (seenDefault)
                     {
-                        throw new ParseException("Switch statement can only contain one default clause.", Peek(), _source);
+                        throw new ParseException("Switch statement can only contain one default clause.", Peek(),
+                            _source);
                     }
 
                     seenDefault = true;
@@ -637,7 +640,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                     }
 
                     Match(TokenType.Semicolon);
-                    fields.Add(new ClassField(CreateSourceReference(fieldToken), fieldName, initializer, isStatic, true));
+                    fields.Add(
+                        new ClassField(CreateSourceReference(fieldToken), fieldName, initializer, isStatic, true));
                     continue;
                 }
 
@@ -654,7 +658,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                         Consume(TokenType.LeftParen, "Expected '(' after getter name.");
                         Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
                         var body = ParseBlock();
-                        var function = new FunctionExpression(body.Source ?? CreateSourceReference(methodNameToken), null,
+                        var function = new FunctionExpression(body.Source ?? CreateSourceReference(methodNameToken),
+                            null,
                             ImmutableArray<FunctionParameter>.Empty, body, false, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Getter,
                             methodName, function, isStatic));
@@ -669,7 +674,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                         Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
                         var body = ParseBlock();
                         var parameters = ImmutableArray.Create(parameter);
-                        var function = new FunctionExpression(body.Source ?? CreateSourceReference(methodNameToken), null,
+                        var function = new FunctionExpression(body.Source ?? CreateSourceReference(methodNameToken),
+                            null,
                             parameters, body, false, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Setter,
                             methodName, function, isStatic));
@@ -811,7 +817,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             var moduleTokenFinal = Consume(TokenType.String, "Expected module path.");
             var modulePathFinal = moduleTokenFinal.Literal as string ?? string.Empty;
             Consume(TokenType.Semicolon, "Expected ';' after import statement.");
-            return new ImportStatement(CreateSourceReference(keyword), modulePathFinal, defaultBinding, namespaceBinding,
+            return new ImportStatement(CreateSourceReference(keyword), modulePathFinal, defaultBinding,
+                namespaceBinding,
                 namedImports);
         }
 
@@ -1028,11 +1035,13 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             {
                 if (!InAsyncContext)
                 {
-                    throw new ParseException("'for await...of' is only allowed inside async functions.", Previous(), _source);
+                    throw new ParseException("'for await...of' is only allowed inside async functions.", Previous(),
+                        _source);
                 }
 
                 isAwait = true;
             }
+
             Consume(TokenType.LeftParen, "Expected '(' after 'for'.");
 
             StatementNode? initializer = null;
@@ -1048,19 +1057,19 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 if (Match(TokenType.Let))
                 {
                     initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Let,
-                        requireSemicolon: false, allowInitializerless: true);
+                        false, true);
                     initializer = initializerDeclaration;
                 }
                 else if (Match(TokenType.Const))
                 {
                     initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Const,
-                        requireSemicolon: false, allowInitializerless: true);
+                        false, true);
                     initializer = initializerDeclaration;
                 }
                 else if (Match(TokenType.Var))
                 {
                     initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Var,
-                        requireSemicolon: false, allowInitializerless: true);
+                        false, true);
                     initializer = initializerDeclaration;
                 }
                 else
@@ -1174,7 +1183,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 return asyncArrow;
             }
 
-            if (TryParseParenthesizedArrowFunction(isAsync: false, out var parenthesizedArrow))
+            if (TryParseParenthesizedArrowFunction(false, out var parenthesizedArrow))
             {
                 return parenthesizedArrow;
             }
@@ -1194,17 +1203,17 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                     return CreateMemberAssignment(member, value);
                 }
 
-                 if (expr is ArrayExpression arrayPattern)
-                 {
-                     var binding = ConvertArrayExpressionToBinding(arrayPattern);
-                     return new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value);
-                 }
+                if (expr is ArrayExpression arrayPattern)
+                {
+                    var binding = ConvertArrayExpressionToBinding(arrayPattern);
+                    return new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value);
+                }
 
-                 if (expr is ObjectExpression objectPattern)
-                 {
-                     var binding = ConvertObjectExpressionToBinding(objectPattern);
-                     return new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value);
-                 }
+                if (expr is ObjectExpression objectPattern)
+                {
+                    var binding = ConvertObjectExpressionToBinding(objectPattern);
+                    return new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value);
+                }
 
                 throw new NotSupportedException("Unsupported assignment target.");
             }
@@ -1356,7 +1365,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         {
             var expr = ParseRelational();
 
-            while (Match(TokenType.EqualEqual, TokenType.EqualEqualEqual, TokenType.BangEqual, TokenType.BangEqualEqual))
+            while (Match(TokenType.EqualEqual, TokenType.EqualEqualEqual, TokenType.BangEqual,
+                       TokenType.BangEqualEqual))
             {
                 var token = Previous();
                 var op = token.Type switch
@@ -1382,7 +1392,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             {
                 Token token;
                 if (Match(TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual,
-                          TokenType.Instanceof))
+                        TokenType.Instanceof))
                 {
                     token = Previous();
                 }
@@ -1789,18 +1799,19 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                     if (Match(TokenType.LeftParen))
                     {
                         var optionalArguments = ParseArgumentList();
-                        expression = new CallExpression(CreateSourceReference(Previous()), expression, optionalArguments,
+                        expression = new CallExpression(CreateSourceReference(Previous()), expression,
+                            optionalArguments,
                             true);
                         continue;
                     }
 
                     if (Match(TokenType.LeftBracket))
                     {
-                        expression = FinishIndexAccess(expression, isOptional: true);
+                        expression = FinishIndexAccess(expression, true);
                         continue;
                     }
 
-                    expression = FinishDotAccess(expression, isOptional: true);
+                    expression = FinishDotAccess(expression, true);
                     continue;
                 }
 
@@ -1953,7 +1964,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
                 if (Match(TokenType.DotDotDot))
                 {
-                var spreadExpr = ParseExpression(false);
+                    var spreadExpr = ParseExpression(false);
                     members.Add(new ObjectMember(spreadExpr.Source, ObjectMemberKind.Spread, string.Empty, spreadExpr,
                         null, false, false, null));
                     continue;
@@ -2063,7 +2074,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             return new TemplateLiteralExpression(CreateSourceReference(templateToken), builder.ToImmutable());
         }
 
-        private TaggedTemplateExpression ParseTaggedTemplateExpression(ExpressionNode tagExpression, Token templateToken)
+        private TaggedTemplateExpression ParseTaggedTemplateExpression(ExpressionNode tagExpression,
+            Token templateToken)
         {
             var parts = templateToken.Literal as List<object?> ?? [];
             var cookedStrings = new List<string>();
@@ -2246,7 +2258,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
         private ExpressionNode ParseNewExpression()
         {
-            var constructor = ParsePrimary(allowCallSuffix: false);
+            var constructor = ParsePrimary(false);
 
             while (true)
             {
@@ -2349,7 +2361,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 {
                     if (restTarget is not null)
                     {
-                        throw new NotSupportedException("Multiple rest elements are not allowed in destructuring patterns.");
+                        throw new NotSupportedException(
+                            "Multiple rest elements are not allowed in destructuring patterns.");
                     }
 
                     var restBinding = ConvertExpressionToBindingTarget(element.Expression)
@@ -2382,7 +2395,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 {
                     if (restTarget is not null)
                     {
-                        throw new NotSupportedException("Multiple rest elements are not allowed in destructuring patterns.");
+                        throw new NotSupportedException(
+                            "Multiple rest elements are not allowed in destructuring patterns.");
                     }
 
                     var restBinding = member.Value is null
@@ -2640,7 +2654,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             BlockStatement body;
             if (Match(TokenType.LeftBrace))
             {
-                body = ParseBlock(leftBraceConsumed: true);
+                body = ParseBlock(true);
             }
             else
             {
@@ -2673,7 +2687,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             }
             else
             {
-                throw new NotSupportedException("Arrow functions require an identifier or parenthesized parameter list.");
+                throw new NotSupportedException(
+                    "Arrow functions require an identifier or parenthesized parameter list.");
             }
 
             return ParseArrowFunctionBody(parameters, isAsync, null,
@@ -2930,20 +2945,20 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
             var nextType = PeekNext().Type;
             return nextType is TokenType.Semicolon or TokenType.Comma or TokenType.RightParen or
-                   TokenType.RightBracket or TokenType.RightBrace or TokenType.Colon or
-                   TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or
-                   TokenType.Percent or TokenType.StarStar or TokenType.Equal or TokenType.PlusEqual or
-                   TokenType.MinusEqual or TokenType.StarEqual or TokenType.SlashEqual or
-                   TokenType.PercentEqual or TokenType.StarStarEqual or TokenType.EqualEqual or
-                   TokenType.EqualEqualEqual or TokenType.BangEqual or TokenType.BangEqualEqual or
-                   TokenType.Greater or TokenType.GreaterEqual or TokenType.Less or TokenType.LessEqual or
-                   TokenType.AmpAmp or TokenType.PipePipe or TokenType.Amp or TokenType.Pipe or TokenType.Caret or
-                   TokenType.LessLess or TokenType.GreaterGreater or TokenType.GreaterGreaterGreater or
-                   TokenType.AmpAmpEqual or TokenType.PipePipeEqual or TokenType.AmpEqual or TokenType.PipeEqual or
-                   TokenType.CaretEqual or TokenType.LessLessEqual or TokenType.GreaterGreaterEqual or
-                   TokenType.GreaterGreaterGreaterEqual or TokenType.QuestionQuestion or
-                   TokenType.QuestionQuestionEqual or TokenType.Question or TokenType.Dot or
-                   TokenType.QuestionDot or TokenType.LeftBracket or TokenType.PlusPlus or TokenType.MinusMinus;
+                TokenType.RightBracket or TokenType.RightBrace or TokenType.Colon or
+                TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or
+                TokenType.Percent or TokenType.StarStar or TokenType.Equal or TokenType.PlusEqual or
+                TokenType.MinusEqual or TokenType.StarEqual or TokenType.SlashEqual or
+                TokenType.PercentEqual or TokenType.StarStarEqual or TokenType.EqualEqual or
+                TokenType.EqualEqualEqual or TokenType.BangEqual or TokenType.BangEqualEqual or
+                TokenType.Greater or TokenType.GreaterEqual or TokenType.Less or TokenType.LessEqual or
+                TokenType.AmpAmp or TokenType.PipePipe or TokenType.Amp or TokenType.Pipe or TokenType.Caret or
+                TokenType.LessLess or TokenType.GreaterGreater or TokenType.GreaterGreaterGreater or
+                TokenType.AmpAmpEqual or TokenType.PipePipeEqual or TokenType.AmpEqual or TokenType.PipeEqual or
+                TokenType.CaretEqual or TokenType.LessLessEqual or TokenType.GreaterGreaterEqual or
+                TokenType.GreaterGreaterGreaterEqual or TokenType.QuestionQuestion or
+                TokenType.QuestionQuestionEqual or TokenType.Question or TokenType.Dot or
+                TokenType.QuestionDot or TokenType.LeftBracket or TokenType.PlusPlus or TokenType.MinusMinus;
         }
 
         private FunctionContextScope EnterFunctionContext(bool isAsync, bool isGenerator)
@@ -2952,27 +2967,15 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             return new FunctionContextScope(this);
         }
 
-        private readonly struct FunctionContext
+        private readonly struct FunctionContext(bool isAsync, bool isGenerator)
         {
-            public FunctionContext(bool isAsync, bool isGenerator)
-            {
-                IsAsync = isAsync;
-                IsGenerator = isGenerator;
-            }
-
-            public bool IsAsync { get; }
-            public bool IsGenerator { get; }
+            public bool IsAsync { get; } = isAsync;
+            public bool IsGenerator { get; } = isGenerator;
         }
 
-        private sealed class FunctionContextScope : IDisposable
+        private sealed class FunctionContextScope(DirectParser parser) : IDisposable
         {
-            private readonly DirectParser _parser;
             private bool _disposed;
-
-            public FunctionContextScope(DirectParser parser)
-            {
-                _parser = parser;
-            }
 
             public void Dispose()
             {
@@ -2981,9 +2984,9 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                     return;
                 }
 
-                if (_parser._functionContexts.Count > 0)
+                if (parser._functionContexts.Count > 0)
                 {
-                    _parser._functionContexts.Pop();
+                    parser._functionContexts.Pop();
                 }
 
                 _disposed = true;

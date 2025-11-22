@@ -1,5 +1,5 @@
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -143,9 +143,15 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike, IJsEnvironmentAwa
 
     internal JsObject PropertiesObject => _properties;
 
-    public PropertyDescriptor? GetOwnPropertyDescriptor(string name) => _properties.GetOwnPropertyDescriptor(name);
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+    {
+        return _properties.GetOwnPropertyDescriptor(name);
+    }
 
-    public IEnumerable<string> GetOwnPropertyNames() => _properties.GetOwnPropertyNames();
+    public IEnumerable<string> GetOwnPropertyNames()
+    {
+        return _properties.GetOwnPropertyNames();
+    }
 
     public JsObject? Prototype
     {

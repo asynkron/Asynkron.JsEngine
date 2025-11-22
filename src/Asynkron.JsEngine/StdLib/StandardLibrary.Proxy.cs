@@ -2,11 +2,11 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static HostFunction CreateProxyConstructor(Runtime.RealmState realm)
+    public static HostFunction CreateProxyConstructor(RealmState realm)
     {
         JsObject? proxyPrototype = null;
 
@@ -56,23 +56,14 @@ public static partial class StandardLibrary
         {
             proxyPrototype.SetPrototype(realm.ObjectPrototype);
         }
+
         proxyConstructor.SetProperty("prototype", proxyPrototype);
 
-        proxyConstructor.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = "Proxy",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        proxyConstructor.DefineProperty("name",
+            new PropertyDescriptor { Value = "Proxy", Writable = false, Enumerable = false, Configurable = true });
 
-        proxyConstructor.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = 2d,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        proxyConstructor.DefineProperty("length",
+            new PropertyDescriptor { Value = 2d, Writable = false, Enumerable = false, Configurable = true });
 
         var revocableFn = new HostFunction((thisValue, args) =>
         {
@@ -120,15 +111,9 @@ public static partial class StandardLibrary
             return container;
         });
         revocableFn.IsConstructor = false;
-        proxyConstructor.DefineProperty("revocable", new PropertyDescriptor
-        {
-            Value = revocableFn,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
+        proxyConstructor.DefineProperty("revocable",
+            new PropertyDescriptor { Value = revocableFn, Writable = true, Enumerable = false, Configurable = true });
 
         return proxyConstructor;
     }
-
 }

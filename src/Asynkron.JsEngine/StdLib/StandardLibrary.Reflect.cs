@@ -1,7 +1,7 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
@@ -127,7 +127,7 @@ public static partial class StandardLibrary
 
             if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
             {
-                return jsArray.DefineLength(descriptor, null, throwOnWritableFailure: false);
+                return jsArray.DefineLength(descriptor, null, false);
             }
 
             try
@@ -265,7 +265,7 @@ public static partial class StandardLibrary
             var value = args[2];
             if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
             {
-                return jsArray.SetLength(value, null, throwOnWritableFailure: false);
+                return jsArray.SetLength(value, null, false);
             }
 
             try
@@ -307,7 +307,8 @@ public static partial class StandardLibrary
         // Step 2: try realm default for Array (handles cross-realm Array subclassing)
         if (ReferenceEquals(target, ArrayConstructor) || ReferenceEquals(newTarget, ArrayConstructor))
         {
-            if (newTarget is HostFunction hostFn && hostFn.RealmState?.ArrayPrototype is JsObject realmArrayProtoFromState)
+            if (newTarget is HostFunction hostFn &&
+                hostFn.RealmState?.ArrayPrototype is JsObject realmArrayProtoFromState)
             {
                 return realmArrayProtoFromState;
             }
@@ -362,6 +363,7 @@ public static partial class StandardLibrary
         {
             return true;
         }
+
         if (hostFunction.RealmState is RealmState realmDefaults &&
             realmDefaults.ObjectPrototype is not null)
         {
@@ -377,6 +379,7 @@ public static partial class StandardLibrary
             prototype = realmProto;
             return true;
         }
+
         if (hostFunction.Realm is JsObject fallbackRealm &&
             fallbackRealm.TryGetProperty("Object", out var objectCtor) &&
             objectCtor is not null &&

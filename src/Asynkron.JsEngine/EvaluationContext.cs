@@ -1,4 +1,3 @@
-using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
@@ -9,42 +8,32 @@ namespace Asynkron.JsEngine;
 /// Tracks the current control flow state during evaluation using typed signals.
 /// Used as an alternative to exception-based control flow.
 /// </summary>
-public sealed class EvaluationContext
+public sealed class EvaluationContext(RealmState realmState, CancellationToken cancellationToken = default)
 {
-    private readonly CancellationToken _cancellationToken;
-
-    public EvaluationContext(RealmState realmState, CancellationToken cancellationToken = default)
-    {
-        RealmState = realmState ?? throw new ArgumentNullException(nameof(realmState));
-        _cancellationToken = cancellationToken;
-    }
-
     /// <summary>
     /// Realm-specific state (prototypes/constructors) for the current execution.
     /// </summary>
-    public RealmState RealmState { get; }
+    public RealmState RealmState { get; } = realmState ?? throw new ArgumentNullException(nameof(realmState));
 
     /// <summary>
     /// The current control flow signal, if any.
     /// </summary>
     public ISignal? CurrentSignal { get; private set; }
 
-    private bool _thisInitialized = true;
-
     /// <summary>
     /// Indicates whether the current execution context has an initialized
     /// <c>this</c> binding (used for derived class constructor checks).
     /// </summary>
-    public bool IsThisInitialized => _thisInitialized;
+    public bool IsThisInitialized { get; private set; } = true;
 
     public void MarkThisUninitialized()
     {
-        _thisInitialized = false;
+        IsThisInitialized = false;
     }
 
     public void MarkThisInitialized()
     {
-        _thisInitialized = true;
+        IsThisInitialized = true;
     }
 
     /// <summary>
@@ -57,14 +46,14 @@ public sealed class EvaluationContext
     /// </summary>
     public void ThrowIfCancellationRequested()
     {
-        _cancellationToken.ThrowIfCancellationRequested();
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     /// <summary>
     /// Stack of enclosing labels (innermost first). Used to determine if a labeled
     /// break/continue should be handled by the current statement.
     /// </summary>
-    private Stack<Symbol> _labelStack = new();
+    private readonly Stack<Symbol> _labelStack = new();
 
     /// <summary>
     /// Pushes a label onto the label stack.
@@ -183,17 +172,6 @@ public sealed class EvaluationContext
     }
 
     /// <summary>
-    /// Clears the Break signal (used when a loop or switch consumes it).
-    /// </summary>
-    public void ClearBreak()
-    {
-        if (CurrentSignal is BreakSignal)
-        {
-            CurrentSignal = null;
-        }
-    }
-
-    /// <summary>
     /// Clears the Break signal only if it matches the given label (or has no label).
     /// Returns true if the signal was cleared, false if it should propagate.
     /// </summary>
@@ -253,6 +231,4 @@ public sealed class EvaluationContext
     /// Returns true if the current signal is Yield.
     /// </summary>
     public bool IsYield => CurrentSignal is YieldSignal;
-
-    internal CancellationToken CancellationToken => _cancellationToken;
 }

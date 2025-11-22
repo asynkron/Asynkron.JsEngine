@@ -2,11 +2,10 @@ using System.Globalization;
 using System.Numerics;
 using System.Text;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 /// <summary>
 /// Provides standard JavaScript library objects and functions (Math, JSON, etc.)
@@ -331,10 +330,9 @@ public static partial class StandardLibrary
             null => "null",
             string s => s,
             bool b => b ? "true" : "false",
-            double d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            double d => d.ToString(CultureInfo.InvariantCulture),
             IJsCallable => "function() { [native code] }",
             _ => value.ToString() ?? ""
         };
     }
-
 }

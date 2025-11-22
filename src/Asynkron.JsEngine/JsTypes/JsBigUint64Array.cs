@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Numerics;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 

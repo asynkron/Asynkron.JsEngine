@@ -16,12 +16,12 @@ internal static class LoopNormalizer
     {
         plan = CreateSimplePlan(
             LoopKind.While,
-            leading: ImmutableArray<StatementNode>.Empty,
-            conditionPrologue: ImmutableArray<StatementNode>.Empty,
-            condition: statement.Condition,
-            body: EnsureBlock(statement.Body, isStrict),
-            postIteration: ImmutableArray<StatementNode>.Empty,
-            conditionAfterBody: false);
+            ImmutableArray<StatementNode>.Empty,
+            ImmutableArray<StatementNode>.Empty,
+            statement.Condition,
+            EnsureBlock(statement.Body, isStrict),
+            ImmutableArray<StatementNode>.Empty,
+            false);
         failureReason = null;
         return true;
     }
@@ -31,12 +31,12 @@ internal static class LoopNormalizer
     {
         plan = CreateSimplePlan(
             LoopKind.DoWhile,
-            leading: ImmutableArray<StatementNode>.Empty,
-            conditionPrologue: ImmutableArray<StatementNode>.Empty,
-            condition: statement.Condition,
-            body: EnsureBlock(statement.Body, isStrict),
-            postIteration: ImmutableArray<StatementNode>.Empty,
-            conditionAfterBody: true);
+            ImmutableArray<StatementNode>.Empty,
+            ImmutableArray<StatementNode>.Empty,
+            statement.Condition,
+            EnsureBlock(statement.Body, isStrict),
+            ImmutableArray<StatementNode>.Empty,
+            true);
         failureReason = null;
         return true;
     }
@@ -64,11 +64,11 @@ internal static class LoopNormalizer
         plan = CreateSimplePlan(
             LoopKind.For,
             leadingStatements,
-            conditionPrologue: ImmutableArray<StatementNode>.Empty,
+            ImmutableArray<StatementNode>.Empty,
             condition,
             EnsureBlock(statement.Body, isStrict),
             postIteration,
-            conditionAfterBody: false);
+            false);
         failureReason = null;
         return true;
     }

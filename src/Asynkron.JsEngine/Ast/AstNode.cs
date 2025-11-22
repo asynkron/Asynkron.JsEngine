@@ -27,4 +27,3 @@ public abstract record ExpressionNode(SourceReference? Source) : AstNode(Source)
 /// <param name="IsStrict">Whether the program was prefixed with a "use strict" directive.</param>
 public sealed record ProgramNode(SourceReference? Source, ImmutableArray<StatementNode> Body, bool IsStrict)
     : AstNode(Source);
-

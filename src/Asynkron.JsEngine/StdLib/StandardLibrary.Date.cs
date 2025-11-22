@@ -3,7 +3,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
@@ -89,7 +89,7 @@ public static partial class StandardLibrary
     /// <summary>
     /// Creates a Date instance constructor.
     /// </summary>
-    public static HostFunction CreateDateConstructor(Runtime.RealmState realm)
+    public static HostFunction CreateDateConstructor(RealmState realm)
     {
         HostFunction? dateConstructor = null;
         JsObject? datePrototype = null;
@@ -118,7 +118,7 @@ public static partial class StandardLibrary
         static string FormatDateToJsString(DateTimeOffset localTime)
         {
             // Match the typical "Wed Jan 02 2008 00:00:00 GMT+0100 (Central European Standard Time)" output.
-            var culture = System.Globalization.CultureInfo.InvariantCulture;
+            var culture = CultureInfo.InvariantCulture;
             var weekday = localTime.ToString("ddd", culture);
             var month = localTime.ToString("MMM", culture);
             var day = localTime.ToString("dd", culture);
@@ -138,7 +138,7 @@ public static partial class StandardLibrary
         static string FormatUtcToJsUtcString(DateTimeOffset utcTime)
         {
             // Match Node/ECMAScript style: "Thu, 01 Jan 1970 00:00:00 GMT"
-            var culture = System.Globalization.CultureInfo.InvariantCulture;
+            var culture = CultureInfo.InvariantCulture;
             return utcTime.UtcDateTime.ToString("ddd, dd MMM yyyy HH:mm:ss 'GMT'", culture);
         }
 
@@ -223,6 +223,7 @@ public static partial class StandardLibrary
                     StoreInternalDate(obj, utc);
                     return (double)utc.ToUnixTimeMilliseconds();
                 }
+
                 return double.NaN;
             });
 
@@ -384,7 +385,7 @@ public static partial class StandardLibrary
                 if (thisVal is JsObject obj)
                 {
                     var local = GetLocalTimeFromInternalDate(obj);
-                    return (double)(-local.Offset.TotalMinutes);
+                    return (double)-local.Offset.TotalMinutes;
                 }
 
                 return double.NaN;
@@ -549,25 +550,16 @@ public static partial class StandardLibrary
         {
             datePrototype.SetPrototype(realm.ObjectPrototype);
         }
+
         dateConstructor.SetProperty("prototype", datePrototype);
         realm.DatePrototype ??= datePrototype;
         DatePrototype ??= datePrototype;
 
-        dateConstructor.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = "Date",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        dateConstructor.DefineProperty("name",
+            new PropertyDescriptor { Value = "Date", Writable = false, Enumerable = false, Configurable = true });
 
-        dateConstructor.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = 7d,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        dateConstructor.DefineProperty("length",
+            new PropertyDescriptor { Value = 7d, Writable = false, Enumerable = false, Configurable = true });
 
         return dateConstructor;
 
@@ -580,5 +572,4 @@ public static partial class StandardLibrary
             return DateTimeOffset.FromUnixTimeMilliseconds(truncated);
         }
     }
-
 }

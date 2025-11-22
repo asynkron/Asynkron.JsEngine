@@ -233,7 +233,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             setter.Invoke([value], this);
             return;
         }
-        
+
         // Check if property has a descriptor that makes it non-writable
         if (_descriptors.TryGetValue(name, out var descriptor))
         {
@@ -317,10 +317,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             {
                 _descriptors[key] = new PropertyDescriptor
                 {
-                    Value = this[key],
-                    Writable = false,
-                    Enumerable = true,
-                    Configurable = false
+                    Value = this[key], Writable = false, Enumerable = true, Configurable = false
                 };
             }
         }
@@ -346,10 +343,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             {
                 _descriptors[key] = new PropertyDescriptor
                 {
-                    Value = this[key],
-                    Writable = true,
-                    Enumerable = true,
-                    Configurable = false
+                    Value = this[key], Writable = true, Enumerable = true, Configurable = false
                 };
             }
         }
@@ -365,7 +359,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             value = getter.Invoke([], this);
             return true;
         }
-        
+
         return TryGetProperty(name, new HashSet<JsObject>(ReferenceEqualityComparer<JsObject>.Instance), out value);
     }
 

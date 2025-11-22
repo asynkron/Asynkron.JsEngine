@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 

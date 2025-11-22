@@ -1,8 +1,7 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
@@ -21,20 +20,14 @@ public static partial class StandardLibrary
 
             return Symbols.Undefined;
         });
-        calendarGetter.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = "get calendar",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        calendarGetter.DefineProperty("name",
+            new PropertyDescriptor
+            {
+                Value = "get calendar", Writable = false, Enumerable = false, Configurable = true
+            });
 
-        localePrototype.DefineProperty("calendar", new PropertyDescriptor
-        {
-            Get = calendarGetter,
-            Enumerable = false,
-            Configurable = true
-        });
+        localePrototype.DefineProperty("calendar",
+            new PropertyDescriptor { Get = calendarGetter, Enumerable = false, Configurable = true });
 
         var localeCtor = new HostFunction((thisValue, args) =>
         {
@@ -51,10 +44,7 @@ public static partial class StandardLibrary
             }
 
             return instance;
-        })
-        {
-            IsConstructor = true
-        };
+        }) { IsConstructor = true };
 
         localeCtor.SetProperty("prototype", localePrototype);
         localePrototype.SetProperty("constructor", localeCtor);
@@ -73,49 +63,30 @@ public static partial class StandardLibrary
             var instance = thisValue as JsObject ?? new JsObject();
             instance.SetPrototype(durationFormatPrototype);
             return instance;
-        })
-        {
-            IsConstructor = true
-        };
+        }) { IsConstructor = true };
 
-        durationFormatCtor.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = 0d,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        durationFormatCtor.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = "DurationFormat",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        durationFormatCtor.DefineProperty("prototype", new PropertyDescriptor
-        {
-            Value = durationFormatPrototype,
-            Writable = false,
-            Enumerable = false,
-            Configurable = false
-        });
-        durationFormatPrototype.DefineProperty("constructor", new PropertyDescriptor
-        {
-            Value = durationFormatCtor,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
-
-        durationFormatPrototype.SetProperty("format", new HostFunction((thisValue, args) => "PT0S")
-        {
-            IsConstructor = false
-        });
-        durationFormatPrototype.SetProperty("formatToParts",
-            new HostFunction((thisValue, args) => new JsArray())
+        durationFormatCtor.DefineProperty("length",
+            new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+        durationFormatCtor.DefineProperty("name",
+            new PropertyDescriptor
             {
-                IsConstructor = false
+                Value = "DurationFormat", Writable = false, Enumerable = false, Configurable = true
             });
+        durationFormatCtor.DefineProperty("prototype",
+            new PropertyDescriptor
+            {
+                Value = durationFormatPrototype, Writable = false, Enumerable = false, Configurable = false
+            });
+        durationFormatPrototype.DefineProperty("constructor",
+            new PropertyDescriptor
+            {
+                Value = durationFormatCtor, Writable = true, Enumerable = false, Configurable = true
+            });
+
+        durationFormatPrototype.SetProperty("format",
+            new HostFunction((thisValue, args) => "PT0S") { IsConstructor = false });
+        durationFormatPrototype.SetProperty("formatToParts",
+            new HostFunction((thisValue, args) => new JsArray()) { IsConstructor = false });
         durationFormatPrototype.SetProperty("resolvedOptions",
             new HostFunction((thisValue, args) =>
             {
@@ -144,18 +115,13 @@ public static partial class StandardLibrary
                 obj.SetProperty("nanosecondsDisplay", "auto");
                 obj.SetProperty("locale", "en");
                 return obj;
-            })
-            {
-                IsConstructor = false
-            });
+            }) { IsConstructor = false });
         var durationToStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
-        durationFormatPrototype.DefineProperty(durationToStringTagKey, new PropertyDescriptor
-        {
-            Value = "Intl.DurationFormat",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        durationFormatPrototype.DefineProperty(durationToStringTagKey,
+            new PropertyDescriptor
+            {
+                Value = "Intl.DurationFormat", Writable = false, Enumerable = false, Configurable = true
+            });
 
         durationFormatCtor.DefineProperty("supportedLocalesOf", new PropertyDescriptor
         {
@@ -167,7 +133,7 @@ public static partial class StandardLibrary
                     return result;
                 }
 
-                object? locales = args[0];
+                var locales = args[0];
                 if (locales is string localeString)
                 {
                     result.Push(localeString);
@@ -191,10 +157,7 @@ public static partial class StandardLibrary
                 }
 
                 throw ThrowTypeError("Invalid locales argument");
-            })
-            {
-                IsConstructor = false
-            },
+            }) { IsConstructor = false },
             Writable = true,
             Enumerable = false,
             Configurable = true
@@ -202,20 +165,13 @@ public static partial class StandardLibrary
         if (durationFormatCtor.TryGetProperty("supportedLocalesOf", out var supportedLocalesOf) &&
             supportedLocalesOf is IJsObjectLike supportedLocalesAccessor)
         {
-            supportedLocalesAccessor.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = 1d,
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-            supportedLocalesAccessor.DefineProperty("name", new PropertyDescriptor
-            {
-                Value = "supportedLocalesOf",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
+            supportedLocalesAccessor.DefineProperty("length",
+                new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+            supportedLocalesAccessor.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
+                });
         }
 
         intl.SetProperty("DurationFormat", durationFormatCtor);
@@ -242,64 +198,37 @@ public static partial class StandardLibrary
                     > 0 => 1d,
                     _ => 0d
                 };
-            })
-            {
-                IsConstructor = false
-            });
+            }) { IsConstructor = false });
             return instance;
-        })
-        {
-            IsConstructor = true
-        };
+        }) { IsConstructor = true };
 
-        collatorCtor.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = 0d,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        collatorCtor.DefineProperty("prototype", new PropertyDescriptor
-        {
-            Value = collatorPrototype,
-            Writable = false,
-            Enumerable = false,
-            Configurable = false
-        });
-        collatorPrototype.DefineProperty("constructor", new PropertyDescriptor
-        {
-            Value = collatorCtor,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
-        collatorCtor.DefineProperty("supportedLocalesOf", new PropertyDescriptor
-        {
-            Value = new HostFunction(args => new JsArray())
+        collatorCtor.DefineProperty("length",
+            new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+        collatorCtor.DefineProperty("prototype",
+            new PropertyDescriptor
             {
-                IsConstructor = false
-            },
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
+                Value = collatorPrototype, Writable = false, Enumerable = false, Configurable = false
+            });
+        collatorPrototype.DefineProperty("constructor",
+            new PropertyDescriptor { Value = collatorCtor, Writable = true, Enumerable = false, Configurable = true });
+        collatorCtor.DefineProperty("supportedLocalesOf",
+            new PropertyDescriptor
+            {
+                Value = new HostFunction(args => new JsArray()) { IsConstructor = false },
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
         if (collatorCtor.TryGetProperty("supportedLocalesOf", out var collatorSupported) &&
             collatorSupported is IJsObjectLike collatorSupportedAccessor)
         {
-            collatorSupportedAccessor.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = 1d,
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-            collatorSupportedAccessor.DefineProperty("name", new PropertyDescriptor
-            {
-                Value = "supportedLocalesOf",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
+            collatorSupportedAccessor.DefineProperty("length",
+                new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+            collatorSupportedAccessor.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
+                });
         }
 
         intl.SetProperty("Collator", collatorCtor);
@@ -327,11 +256,9 @@ public static partial class StandardLibrary
                     instance.SetProperty(key, source[key]);
                 }
             }
+
             return instance;
-        })
-        {
-            IsConstructor = true
-        };
+        }) { IsConstructor = true };
 
         var durationFrom = new HostFunction(args =>
         {
@@ -339,18 +266,10 @@ public static partial class StandardLibrary
             var instance = durationCtor.Invoke([input], null) as JsObject ?? new JsObject();
             instance.SetPrototype(durationPrototype);
             return instance;
-        })
-        {
-            IsConstructor = false
-        };
+        }) { IsConstructor = false };
 
-        durationCtor.DefineProperty("from", new PropertyDescriptor
-        {
-            Value = durationFrom,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
+        durationCtor.DefineProperty("from",
+            new PropertyDescriptor { Value = durationFrom, Writable = true, Enumerable = false, Configurable = true });
 
         durationPrototype.SetProperty("toLocaleString", new HostFunction((thisValue, args) =>
         {
@@ -374,28 +293,17 @@ public static partial class StandardLibrary
             }
 
             return "";
-        })
-        {
-            IsConstructor = false
-        });
+        }) { IsConstructor = false });
 
-        durationCtor.DefineProperty("prototype", new PropertyDescriptor
-        {
-            Value = durationPrototype,
-            Writable = false,
-            Enumerable = false,
-            Configurable = false
-        });
-        durationPrototype.DefineProperty("constructor", new PropertyDescriptor
-        {
-            Value = durationCtor,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
+        durationCtor.DefineProperty("prototype",
+            new PropertyDescriptor
+            {
+                Value = durationPrototype, Writable = false, Enumerable = false, Configurable = false
+            });
+        durationPrototype.DefineProperty("constructor",
+            new PropertyDescriptor { Value = durationCtor, Writable = true, Enumerable = false, Configurable = true });
 
         temporal.SetProperty("Duration", durationCtor);
         return temporal;
     }
-
 }

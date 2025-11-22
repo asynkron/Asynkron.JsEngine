@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Runtime;
 
@@ -9,7 +10,7 @@ internal static class JsOps
 {
     public static bool IsNullish(this object? value)
     {
-        return value is null || value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined);
+        return value is null || (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined));
     }
 
     /// <summary>
@@ -717,7 +718,8 @@ internal static class JsOps
                 case JsBigInt bigInt when bigInt.Value >= BigInteger.Zero && bigInt.Value <= int.MaxValue:
                     index = (int)bigInt.Value;
                     return true;
-                case string s when int.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0:
+                case string s when int.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) &&
+                                   parsed >= 0:
                     index = parsed;
                     return true;
             }
@@ -873,6 +875,7 @@ internal static class JsOps
             value = Symbols.Undefined;
             return false;
         }
+
         if (propertyName is null)
         {
             value = Symbols.Undefined;

@@ -7,7 +7,10 @@ namespace Asynkron.JsEngine;
 /// Exposes the prototype through <see cref="IJsPropertyAccessor"/> so the typed evaluator can treat the binding
 /// as a regular property accessor when resolving <c>super.prop</c> and <c>super[expr]</c> lookups.
 /// </summary>
-public sealed class SuperBinding(IJsEnvironmentAwareCallable? constructor, IJsPropertyAccessor? prototype, object? thisValue)
+public sealed class SuperBinding(
+    IJsEnvironmentAwareCallable? constructor,
+    IJsPropertyAccessor? prototype,
+    object? thisValue)
     : IJsPropertyAccessor
 {
     public IJsEnvironmentAwareCallable? Constructor { get; } = constructor;
@@ -73,7 +76,6 @@ public sealed class SuperBinding(IJsEnvironmentAwareCallable? constructor, IJsPr
 
         value = null;
         return false;
-
     }
 
     public void SetProperty(string name, object? value)

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Execution;
@@ -52,9 +51,9 @@ internal static class IteratorInstructionTemplate
     public static void Wire(IteratorInstructionPlan plan, int bodyEntryIndex, List<GeneratorInstruction> instructions)
     {
         instructions[plan.MoveNextIndex] =
-            ((IteratorMoveNextInstruction)instructions[plan.MoveNextIndex]) with { Next = bodyEntryIndex };
+            (IteratorMoveNextInstruction)instructions[plan.MoveNextIndex] with { Next = bodyEntryIndex };
 
         instructions[plan.InitIndex] =
-            ((IteratorInitInstruction)instructions[plan.InitIndex]) with { Next = plan.MoveNextIndex };
+            (IteratorInitInstruction)instructions[plan.InitIndex] with { Next = plan.MoveNextIndex };
     }
 }

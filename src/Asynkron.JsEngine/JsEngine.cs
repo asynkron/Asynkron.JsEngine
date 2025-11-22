@@ -1,19 +1,17 @@
-using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
-using JetBrains.Annotations;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine;
 
-    /// <summary>
-    /// High level façade that turns JavaScript source into S-expressions and evaluates them.
-    /// </summary>
-    public sealed class JsEngine : IAsyncDisposable
-    {
+/// <summary>
+/// High level façade that turns JavaScript source into S-expressions and evaluates them.
+/// </summary>
+public sealed class JsEngine : IAsyncDisposable
+{
     private readonly TaskCompletionSource _doneTcs = new();
     private readonly JsEnvironment _global = new(isFunctionScope: true);
     private readonly JsObject _globalObject = new();
@@ -31,7 +29,7 @@ namespace Asynkron.JsEngine;
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
     private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
     private readonly Channel<ExceptionInfo> _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
-    private bool _asyncIteratorTracingEnabled;
+    private readonly bool _asyncIteratorTracingEnabled;
     //-------
 
     // Module registry: maps module paths to their exported values
@@ -85,20 +83,17 @@ namespace Asynkron.JsEngine;
         {
             arrayHost.RealmState = _realm;
         }
-        _globalObject.DefineProperty("Array", new PropertyDescriptor
-        {
-            Value = arrayConstructor,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
-        _globalObject.DefineProperty("BigInt", new PropertyDescriptor
-        {
-            Value = bigIntFunction,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
+
+        _globalObject.DefineProperty("Array",
+            new PropertyDescriptor
+            {
+                Value = arrayConstructor, Writable = true, Enumerable = false, Configurable = true
+            });
+        _globalObject.DefineProperty("BigInt",
+            new PropertyDescriptor
+            {
+                Value = bigIntFunction, Writable = true, Enumerable = false, Configurable = true
+            });
 
         // Register global constants
         SetGlobal("Infinity", double.PositiveInfinity);
@@ -234,7 +229,8 @@ namespace Asynkron.JsEngine;
     /// <summary>
     /// Captures the current execution state and writes a debug message to the debug channel.
     /// </summary>
-    private object? CaptureDebugMessage(JsEnvironment environment, EvaluationContext context, IReadOnlyList<object?> args)
+    private object? CaptureDebugMessage(JsEnvironment environment, EvaluationContext context,
+        IReadOnlyList<object?> args)
     {
         // Get all variables from the current environment and parent scopes
         var variables = environment.GetAllVariables();
@@ -309,7 +305,8 @@ namespace Asynkron.JsEngine;
     /// cons interpreter is no longer part of the runtime path; cons data is only
     /// used earlier for parsing and transformation.
     /// </summary>
-    internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment, CancellationToken cancellationToken = default)
+    internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment,
+        CancellationToken cancellationToken = default)
     {
         return _typedExecutor.Evaluate(program, environment, _realm, cancellationToken);
     }
@@ -319,7 +316,8 @@ namespace Asynkron.JsEngine;
     /// Parses JavaScript source code and returns the typed AST at each major
     /// transformation stage (original, constant folded, CPS-transformed).
     /// </summary>
-    public (ProgramNode original, ProgramNode constantFolded, ProgramNode cpsTransformed) ParseWithTransformationSteps(string source)
+    public (ProgramNode original, ProgramNode constantFolded, ProgramNode cpsTransformed)
+        ParseWithTransformationSteps(string source)
     {
         var original = ParseTypedProgram(source);
         var constantFolded = _typedConstantTransformer.Transform(original);
@@ -485,6 +483,7 @@ namespace Asynkron.JsEngine;
                 hostFunction.Properties.SetPrototype(StandardLibrary.FunctionPrototype);
             }
         }
+
         _globalObject.SetProperty(name, value);
     }
 
@@ -567,10 +566,7 @@ namespace Asynkron.JsEngine;
     public void ScheduleTask(Func<Task> task)
     {
         Interlocked.Increment(ref _pendingTaskCount);
-        _eventQueue.Writer.TryWrite(async () =>
-        {
-            await task().ConfigureAwait(false);
-        });
+        _eventQueue.Writer.TryWrite(async () => { await task().ConfigureAwait(false); });
     }
 
     /// <summary>
@@ -857,22 +853,22 @@ namespace Asynkron.JsEngine;
         {
             switch (statement)
             {
-            case ImportStatement importStatement:
-                EvaluateImport(importStatement, moduleEnv);
-                break;
-            case ExportDefaultStatement exportDefault:
-                var defaultValue = EvaluateExportDefault(exportDefault, moduleEnv, program.Typed.IsStrict);
-                exports["default"] = defaultValue;
-                break;
-            case ExportNamedStatement exportNamed:
-                EvaluateExportNamed(exportNamed, moduleEnv, exports);
-                break;
-            case ExportDeclarationStatement exportDeclaration:
-                EvaluateExportDeclaration(exportDeclaration, moduleEnv, exports, program.Typed.IsStrict);
-                break;
-            default:
-                lastValue = ExecuteTypedStatement(statement, moduleEnv, program.Typed.IsStrict);
-                break;
+                case ImportStatement importStatement:
+                    EvaluateImport(importStatement, moduleEnv);
+                    break;
+                case ExportDefaultStatement exportDefault:
+                    var defaultValue = EvaluateExportDefault(exportDefault, moduleEnv, program.Typed.IsStrict);
+                    exports["default"] = defaultValue;
+                    break;
+                case ExportNamedStatement exportNamed:
+                    EvaluateExportNamed(exportNamed, moduleEnv, exports);
+                    break;
+                case ExportDeclarationStatement exportDeclaration:
+                    EvaluateExportDeclaration(exportDeclaration, moduleEnv, exports, program.Typed.IsStrict);
+                    break;
+                default:
+                    lastValue = ExecuteTypedStatement(statement, moduleEnv, program.Typed.IsStrict);
+                    break;
             }
         }
 

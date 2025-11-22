@@ -1,5 +1,3 @@
-using System.Threading.Tasks;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using JsSymbols = Asynkron.JsEngine.Ast.Symbols;
 

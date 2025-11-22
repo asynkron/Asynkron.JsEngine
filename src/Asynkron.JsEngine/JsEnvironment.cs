@@ -129,7 +129,7 @@ public sealed class JsEnvironment(
         }
 
         // Non-strict mode: Create the variable in the global scope (this environment)
-        Define(name, value, isConst: false);
+        Define(name, value, false);
         if (_enclosing is null && _values.TryGetValue(Symbols.This, out var thisBinding) &&
             thisBinding.Value is JsObject globalObject)
         {
@@ -141,8 +141,10 @@ public sealed class JsEnvironment(
     {
         var current = this;
         while (!current._isFunctionScope)
+        {
             current = current._enclosing
                       ?? throw new InvalidOperationException("Unable to locate function scope for var declaration.");
+        }
 
         return current;
     }
@@ -228,5 +230,4 @@ public sealed class JsEnvironment(
             ? "unknown"
             : firstToken.ToLowerInvariant();
     }
-
 }

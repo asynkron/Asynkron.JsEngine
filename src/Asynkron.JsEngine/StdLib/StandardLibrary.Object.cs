@@ -2,11 +2,11 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static HostFunction CreateObjectConstructor(Runtime.RealmState realm)
+    public static HostFunction CreateObjectConstructor(RealmState realm)
     {
         // Object constructor function
         var objectConstructor = new HostFunction(args =>
@@ -28,6 +28,7 @@ public static partial class StandardLibrary
             {
                 return CreateBlank();
             }
+
             // If value is already an object, return it as-is
             if (args[0] is JsObject jsObj)
             {
@@ -66,13 +67,11 @@ public static partial class StandardLibrary
 
             realm.StringPrototype?.SetPrototype(objectProtoObj);
 
-            objectProtoObj.DefineProperty("constructor", new PropertyDescriptor
-            {
-                Value = objectConstructor,
-                Writable = true,
-                Enumerable = false,
-                Configurable = true
-            });
+            objectProtoObj.DefineProperty("constructor",
+                new PropertyDescriptor
+                {
+                    Value = objectConstructor, Writable = true, Enumerable = false, Configurable = true
+                });
 
             if (realm.ErrorPrototype is not null && realm.ErrorPrototype.Prototype is null)
             {
@@ -736,7 +735,7 @@ public static partial class StandardLibrary
 
                 if (obj is JsArray jsArray && string.Equals(propName, "length", StringComparison.Ordinal))
                 {
-                    jsArray.DefineLength(descriptor, null, throwOnWritableFailure: true);
+                    jsArray.DefineLength(descriptor, null, true);
                 }
                 else
                 {
@@ -749,5 +748,4 @@ public static partial class StandardLibrary
 
         return objectConstructor;
     }
-
 }

@@ -3,7 +3,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
@@ -16,16 +16,14 @@ public static partial class StandardLibrary
         {
             numberObj.SetPrototype(prototype);
         }
+
         AddNumberMethods(numberObj, num);
         return numberObj;
     }
 
     public static JsObject CreateBigIntWrapper(JsBigInt value, EvaluationContext? context = null)
     {
-        var wrapper = new JsObject
-        {
-            ["__value__"] = value
-        };
+        var wrapper = new JsObject { ["__value__"] = value };
 
         var prototype = context?.RealmState?.BigIntPrototype ?? BigIntPrototype;
         if (prototype is not null)
@@ -203,7 +201,7 @@ public static partial class StandardLibrary
         numberObj.SetProperty("valueOf", new HostFunction(args => num));
     }
 
-    public static HostFunction CreateBigIntFunction(Runtime.RealmState realm)
+    public static HostFunction CreateBigIntFunction(RealmState realm)
     {
         HostFunction bigIntFunction = null!;
         bigIntFunction = new HostFunction((thisValue, args) =>
@@ -214,28 +212,13 @@ public static partial class StandardLibrary
             }
 
             return ToBigInt(args[0]);
-        })
-        {
-            IsConstructor = true,
-            DisallowConstruct = true,
-            ConstructErrorMessage = "BigInt is not a constructor"
-        };
+        }) { IsConstructor = true, DisallowConstruct = true, ConstructErrorMessage = "BigInt is not a constructor" };
         // length/name descriptors
-        bigIntFunction.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = 1d,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        bigIntFunction.DefineProperty("length",
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         // name is already set on HostFunction; normalize attributes
-        bigIntFunction.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = "BigInt",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        bigIntFunction.DefineProperty("name",
+            new PropertyDescriptor { Value = "BigInt", Writable = false, Enumerable = false, Configurable = true });
 
         if (bigIntFunction.TryGetProperty("prototype", out var protoValue) && protoValue is JsObject proto)
         {
@@ -246,13 +229,11 @@ public static partial class StandardLibrary
                 proto.SetPrototype(realm.ObjectPrototype);
             }
 
-            proto.DefineProperty("constructor", new PropertyDescriptor
-            {
-                Value = bigIntFunction,
-                Writable = true,
-                Enumerable = false,
-                Configurable = true
-            });
+            proto.DefineProperty("constructor",
+                new PropertyDescriptor
+                {
+                    Value = bigIntFunction, Writable = true, Enumerable = false, Configurable = true
+                });
 
             var toStringFn = new HostFunction((thisValue, args) =>
             {
@@ -275,57 +256,30 @@ public static partial class StandardLibrary
                 }
 
                 return BigIntToString(value.Value, intRadix);
-            })
-            {
-                IsConstructor = false
-            };
-            toStringFn.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = 0d,
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-            toStringFn.DefineProperty("name", new PropertyDescriptor
-            {
-                Value = "toString",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-            proto.DefineProperty("toString", new PropertyDescriptor
-            {
-                Value = toStringFn,
-                Writable = true,
-                Enumerable = false,
-                Configurable = true
-            });
+            }) { IsConstructor = false };
+            toStringFn.DefineProperty("length",
+                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+            toStringFn.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = "toString", Writable = false, Enumerable = false, Configurable = true
+                });
+            proto.DefineProperty("toString",
+                new PropertyDescriptor
+                {
+                    Value = toStringFn, Writable = true, Enumerable = false, Configurable = true
+                });
 
-            var valueOfFn = new HostFunction((thisValue, args) => ThisBigIntValue(thisValue))
-            {
-                IsConstructor = false
-            };
-            valueOfFn.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = 0d,
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-            valueOfFn.DefineProperty("name", new PropertyDescriptor
-            {
-                Value = "valueOf",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-            proto.DefineProperty("valueOf", new PropertyDescriptor
-            {
-                Value = valueOfFn,
-                Writable = true,
-                Enumerable = false,
-                Configurable = true
-            });
+            var valueOfFn = new HostFunction((thisValue, args) => ThisBigIntValue(thisValue)) { IsConstructor = false };
+            valueOfFn.DefineProperty("length",
+                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+            valueOfFn.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = "valueOf", Writable = false, Enumerable = false, Configurable = true
+                });
+            proto.DefineProperty("valueOf",
+                new PropertyDescriptor { Value = valueOfFn, Writable = true, Enumerable = false, Configurable = true });
 
             var toLocaleStringFn = new HostFunction((thisValue, args) =>
             {
@@ -333,31 +287,19 @@ public static partial class StandardLibrary
                 // use base-10 formatting per spec default.
                 var value = ThisBigIntValue(thisValue);
                 return BigIntToString(value.Value, 10);
-            })
-            {
-                IsConstructor = false
-            };
-            toLocaleStringFn.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = 0d,
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-            toLocaleStringFn.DefineProperty("name", new PropertyDescriptor
-            {
-                Value = "toLocaleString",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-            proto.DefineProperty("toLocaleString", new PropertyDescriptor
-            {
-                Value = toLocaleStringFn,
-                Writable = true,
-                Enumerable = false,
-                Configurable = true
-            });
+            }) { IsConstructor = false };
+            toLocaleStringFn.DefineProperty("length",
+                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+            toLocaleStringFn.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = "toLocaleString", Writable = false, Enumerable = false, Configurable = true
+                });
+            proto.DefineProperty("toLocaleString",
+                new PropertyDescriptor
+                {
+                    Value = toLocaleStringFn, Writable = true, Enumerable = false, Configurable = true
+                });
 
             // Spec: built-in functions that are not constructors must not have
             // an own prototype property. Remove the default prototype from these
@@ -366,7 +308,6 @@ public static partial class StandardLibrary
             {
                 fn.PropertiesObject.DeleteOwnProperty("prototype");
             }
-
         }
 
         bigIntFunction.SetProperty("asIntN", new HostFunction(args =>
@@ -463,7 +404,7 @@ public static partial class StandardLibrary
     /// <summary>
     /// Creates the Number constructor with static methods.
     /// </summary>
-    public static HostFunction CreateNumberConstructor(Runtime.RealmState realm)
+    public static HostFunction CreateNumberConstructor(RealmState realm)
     {
         // Number constructor
         var numberConstructor = new HostFunction((thisValue, args) =>
@@ -739,5 +680,4 @@ public static partial class StandardLibrary
 
         return numberConstructor;
     }
-
 }

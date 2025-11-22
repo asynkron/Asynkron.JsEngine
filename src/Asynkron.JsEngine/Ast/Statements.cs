@@ -12,7 +12,9 @@ public sealed record BlockStatement(SourceReference? Source, ImmutableArray<Stat
 /// <summary>
 /// Represents a variable declaration (let/var/const).
 /// </summary>
-public sealed record VariableDeclaration(SourceReference? Source, VariableKind Kind,
+public sealed record VariableDeclaration(
+    SourceReference? Source,
+    VariableKind Kind,
     ImmutableArray<VariableDeclarator> Declarators) : StatementNode(Source);
 
 /// <summary>
@@ -43,7 +45,9 @@ public sealed record IdentifierBinding(SourceReference? Source, Symbol Name) : B
 /// <summary>
 /// Represents an array destructuring binding with optional rest element.
 /// </summary>
-public sealed record ArrayBinding(SourceReference? Source, ImmutableArray<ArrayBindingElement> Elements,
+public sealed record ArrayBinding(
+    SourceReference? Source,
+    ImmutableArray<ArrayBindingElement> Elements,
     BindingTarget? RestElement) : BindingTarget(Source);
 
 /// <summary>
@@ -55,13 +59,18 @@ public sealed record ArrayBindingElement(SourceReference? Source, BindingTarget?
 /// <summary>
 /// Represents an object destructuring binding with optional rest binding.
 /// </summary>
-public sealed record ObjectBinding(SourceReference? Source, ImmutableArray<ObjectBindingProperty> Properties,
+public sealed record ObjectBinding(
+    SourceReference? Source,
+    ImmutableArray<ObjectBindingProperty> Properties,
     BindingTarget? RestElement) : BindingTarget(Source);
 
 /// <summary>
 /// Represents a single property inside an object destructuring binding.
 /// </summary>
-public sealed record ObjectBindingProperty(SourceReference? Source, string Name, BindingTarget Target,
+public sealed record ObjectBindingProperty(
+    SourceReference? Source,
+    string Name,
+    BindingTarget Target,
     ExpressionNode? DefaultValue) : AstNode(Source);
 
 /// <summary>
@@ -92,7 +101,10 @@ public sealed record ContinueStatement(SourceReference? Source, Symbol? Label) :
 /// <summary>
 /// Represents an if/else statement.
 /// </summary>
-public sealed record IfStatement(SourceReference? Source, ExpressionNode Condition, StatementNode Then,
+public sealed record IfStatement(
+    SourceReference? Source,
+    ExpressionNode Condition,
+    StatementNode Then,
     StatementNode? Else) : StatementNode(Source);
 
 /// <summary>
@@ -110,14 +122,23 @@ public sealed record DoWhileStatement(SourceReference? Source, StatementNode Bod
 /// <summary>
 /// Represents a classic C-style for loop.
 /// </summary>
-public sealed record ForStatement(SourceReference? Source, StatementNode? Initializer, ExpressionNode? Condition,
-    ExpressionNode? Increment, StatementNode Body) : StatementNode(Source);
+public sealed record ForStatement(
+    SourceReference? Source,
+    StatementNode? Initializer,
+    ExpressionNode? Condition,
+    ExpressionNode? Increment,
+    StatementNode Body) : StatementNode(Source);
 
 /// <summary>
 /// Represents for...in / for...of / for await...of loops.
 /// </summary>
-public sealed record ForEachStatement(SourceReference? Source, BindingTarget Target, ExpressionNode Iterable,
-    StatementNode Body, ForEachKind Kind, VariableKind? DeclarationKind) : StatementNode(Source);
+public sealed record ForEachStatement(
+    SourceReference? Source,
+    BindingTarget Target,
+    ExpressionNode Iterable,
+    StatementNode Body,
+    ForEachKind Kind,
+    VariableKind? DeclarationKind) : StatementNode(Source);
 
 /// <summary>
 /// Distinguishes the different for-each loop flavours.
@@ -138,7 +159,10 @@ public sealed record LabeledStatement(SourceReference? Source, Symbol Label, Sta
 /// <summary>
 /// Represents a try/catch/finally statement.
 /// </summary>
-public sealed record TryStatement(SourceReference? Source, BlockStatement TryBlock, CatchClause? Catch,
+public sealed record TryStatement(
+    SourceReference? Source,
+    BlockStatement TryBlock,
+    CatchClause? Catch,
     BlockStatement? Finally) : StatementNode(Source);
 
 /// <summary>
@@ -149,7 +173,9 @@ public sealed record CatchClause(SourceReference? Source, Symbol Binding, BlockS
 /// <summary>
 /// Represents a switch statement with its cases.
 /// </summary>
-public sealed record SwitchStatement(SourceReference? Source, ExpressionNode Discriminant,
+public sealed record SwitchStatement(
+    SourceReference? Source,
+    ExpressionNode Discriminant,
     ImmutableArray<SwitchCase> Cases) : StatementNode(Source);
 
 /// <summary>
@@ -177,14 +203,22 @@ public sealed record ClassDeclaration(SourceReference? Source, Symbol Name, Clas
 /// <summary>
 /// Captures the structure of a class body.
 /// </summary>
-public sealed record ClassDefinition(SourceReference? Source, ExpressionNode? Extends, FunctionExpression Constructor,
-    ImmutableArray<ClassMember> Members, ImmutableArray<ClassField> Fields) : AstNode(Source);
+public sealed record ClassDefinition(
+    SourceReference? Source,
+    ExpressionNode? Extends,
+    FunctionExpression Constructor,
+    ImmutableArray<ClassMember> Members,
+    ImmutableArray<ClassField> Fields) : AstNode(Source);
 
 /// <summary>
 /// Represents a single method/getter/setter within a class body.
 /// </summary>
-public sealed record ClassMember(SourceReference? Source, ClassMemberKind Kind, string Name,
-    FunctionExpression Function, bool IsStatic) : AstNode(Source);
+public sealed record ClassMember(
+    SourceReference? Source,
+    ClassMemberKind Kind,
+    string Name,
+    FunctionExpression Function,
+    bool IsStatic) : AstNode(Source);
 
 /// <summary>
 /// Distinguishes between regular methods, getters and setters.
@@ -199,8 +233,12 @@ public enum ClassMemberKind
 /// <summary>
 /// Represents a field declared on a class.
 /// </summary>
-public sealed record ClassField(SourceReference? Source, string Name, ExpressionNode? Initializer,
-    bool IsStatic, bool IsPrivate) : AstNode(Source);
+public sealed record ClassField(
+    SourceReference? Source,
+    string Name,
+    ExpressionNode? Initializer,
+    bool IsStatic,
+    bool IsPrivate) : AstNode(Source);
 
 /// <summary>
 /// Base type for module import/export statements. Concrete records capture the
@@ -212,8 +250,12 @@ public abstract record ModuleStatement(SourceReference? Source) : StatementNode(
 /// <summary>
 /// Represents an <c>import</c> declaration.
 /// </summary>
-public sealed record ImportStatement(SourceReference? Source, string ModulePath, Symbol? DefaultBinding,
-    Symbol? NamespaceBinding, ImmutableArray<ImportBinding> NamedImports) : ModuleStatement(Source);
+public sealed record ImportStatement(
+    SourceReference? Source,
+    string ModulePath,
+    Symbol? DefaultBinding,
+    Symbol? NamespaceBinding,
+    ImmutableArray<ImportBinding> NamedImports) : ModuleStatement(Source);
 
 /// <summary>
 /// Represents a single named binding within an <c>import</c> declaration.
@@ -246,7 +288,9 @@ public sealed record ExportDefaultDeclaration(SourceReference? Source, Statement
 /// <summary>
 /// Represents <c>export { ... }</c> declarations.
 /// </summary>
-public sealed record ExportNamedStatement(SourceReference? Source, ImmutableArray<ExportSpecifier> Specifiers,
+public sealed record ExportNamedStatement(
+    SourceReference? Source,
+    ImmutableArray<ExportSpecifier> Specifiers,
     string? FromModule) : ModuleStatement(Source);
 
 /// <summary>

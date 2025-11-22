@@ -1,8 +1,7 @@
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -35,6 +34,7 @@ public sealed class JsArray : IJsObjectLike
         {
             _properties.SetPrototype(StandardLibrary.ArrayPrototype);
         }
+
         DefineInitialLengthProperty();
         SetupIterator();
     }
@@ -54,6 +54,7 @@ public sealed class JsArray : IJsObjectLike
         {
             _properties.SetPrototype(StandardLibrary.ArrayPrototype);
         }
+
         DefineInitialLengthProperty();
         SetupIterator();
     }
@@ -94,7 +95,10 @@ public sealed class JsArray : IJsObjectLike
     /// <summary>
     /// Gets an element at the specified index (alias for GetElement)
     /// </summary>
-    public object? Get(int index) => GetElement(index);
+    public object? Get(int index)
+    {
+        return GetElement(index);
+    }
 
     public void SetPrototype(object? candidate)
     {
@@ -105,7 +109,8 @@ public sealed class JsArray : IJsObjectLike
     {
         get
         {
-            if (_properties.Prototype is null && (_arrayPrototype is not null || StandardLibrary.ArrayPrototype is not null))
+            if (_properties.Prototype is null &&
+                (_arrayPrototype is not null || StandardLibrary.ArrayPrototype is not null))
             {
                 _properties.SetPrototype(_arrayPrototype ?? StandardLibrary.ArrayPrototype);
             }
@@ -113,6 +118,7 @@ public sealed class JsArray : IJsObjectLike
             return _properties.Prototype;
         }
     }
+
     public bool IsSealed => _properties.IsSealed;
     public IEnumerable<string> Keys => _properties.Keys;
 
@@ -331,7 +337,7 @@ public sealed class JsArray : IJsObjectLike
     {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            DefineLength(descriptor, null, throwOnWritableFailure: true);
+            DefineLength(descriptor, null, true);
             return;
         }
 
@@ -352,10 +358,7 @@ public sealed class JsArray : IJsObjectLike
             {
                 return new PropertyDescriptor
                 {
-                    Value = value,
-                    Writable = true,
-                    Enumerable = true,
-                    Configurable = true
+                    Value = value, Writable = true, Enumerable = true, Configurable = true
                 };
             }
         }
@@ -482,7 +485,7 @@ public sealed class JsArray : IJsObjectLike
 
     internal bool SetLength(object? value, EvaluationContext? context, bool throwOnWritableFailure = true)
     {
-        return TrySetArrayLength(hasValue: true, value, hasWritable: false, writableValue: true, context,
+        return TrySetArrayLength(true, value, false, true, context,
             throwOnWritableFailure);
     }
 
@@ -591,13 +594,11 @@ public sealed class JsArray : IJsObjectLike
 
     private void DefineInitialLengthProperty()
     {
-        _properties.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = (double)_length,
-            Writable = true,
-            Enumerable = false,
-            Configurable = false
-        });
+        _properties.DefineProperty("length",
+            new PropertyDescriptor
+            {
+                Value = (double)_length, Writable = true, Enumerable = false, Configurable = false
+            });
     }
 
     private void SetupIterator()
@@ -766,11 +767,7 @@ public sealed class JsArray : IJsObjectLike
             return new ThrowSignal(errorObj);
         }
 
-        var fallback = new JsObject
-        {
-            ["name"] = "RangeError",
-            ["message"] = message
-        };
+        var fallback = new JsObject { ["name"] = "RangeError", ["message"] = message };
 
         return new ThrowSignal(fallback);
     }
@@ -784,11 +781,7 @@ public sealed class JsArray : IJsObjectLike
             return new ThrowSignal(errorObj);
         }
 
-        var fallback = new JsObject
-        {
-            ["name"] = "TypeError",
-            ["message"] = message
-        };
+        var fallback = new JsObject { ["name"] = "TypeError", ["message"] = message };
 
         return new ThrowSignal(fallback);
     }

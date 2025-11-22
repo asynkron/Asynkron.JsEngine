@@ -16,7 +16,10 @@ public sealed record IdentifierExpression(SourceReference? Source, Symbol Name) 
 /// <summary>
 /// Represents a binary expression such as a + b.
 /// </summary>
-public sealed record BinaryExpression(SourceReference? Source, string Operator, ExpressionNode Left,
+public sealed record BinaryExpression(
+    SourceReference? Source,
+    string Operator,
+    ExpressionNode Left,
     ExpressionNode Right) : ExpressionNode(Source);
 
 /// <summary>
@@ -28,28 +31,43 @@ public sealed record UnaryExpression(SourceReference? Source, string Operator, E
 /// <summary>
 /// Represents a conditional (ternary) expression.
 /// </summary>
-public sealed record ConditionalExpression(SourceReference? Source, ExpressionNode Test, ExpressionNode Consequent,
+public sealed record ConditionalExpression(
+    SourceReference? Source,
+    ExpressionNode Test,
+    ExpressionNode Consequent,
     ExpressionNode Alternate) : ExpressionNode(Source);
 
 /// <summary>
 /// Represents a function or generator expression.
 /// </summary>
-public sealed record FunctionExpression(SourceReference? Source, Symbol? Name,
-    ImmutableArray<FunctionParameter> Parameters, BlockStatement Body, bool IsAsync, bool IsGenerator)
+public sealed record FunctionExpression(
+    SourceReference? Source,
+    Symbol? Name,
+    ImmutableArray<FunctionParameter> Parameters,
+    BlockStatement Body,
+    bool IsAsync,
+    bool IsGenerator)
     : ExpressionNode(Source);
 
 /// <summary>
 /// Represents a single function parameter. Parameters may use destructuring or rest syntax,
 /// so we capture the typed binding target while exposing default values.
 /// </summary>
-public sealed record FunctionParameter(SourceReference? Source, Symbol? Name, bool IsRest, BindingTarget? Pattern,
+public sealed record FunctionParameter(
+    SourceReference? Source,
+    Symbol? Name,
+    bool IsRest,
+    BindingTarget? Pattern,
     ExpressionNode? DefaultValue);
 
 /// <summary>
 /// Represents a call expression.
 /// </summary>
-public sealed record CallExpression(SourceReference? Source, ExpressionNode Callee,
-    ImmutableArray<CallArgument> Arguments, bool IsOptional) : ExpressionNode(Source);
+public sealed record CallExpression(
+    SourceReference? Source,
+    ExpressionNode Callee,
+    ImmutableArray<CallArgument> Arguments,
+    bool IsOptional) : ExpressionNode(Source);
 
 /// <summary>
 /// Represents a single call argument, optionally marked as a spread argument.
@@ -59,14 +77,20 @@ public sealed record CallArgument(SourceReference? Source, ExpressionNode Expres
 /// <summary>
 /// Represents a "new" expression.
 /// </summary>
-public sealed record NewExpression(SourceReference? Source, ExpressionNode Constructor,
+public sealed record NewExpression(
+    SourceReference? Source,
+    ExpressionNode Constructor,
     ImmutableArray<ExpressionNode> Arguments) : ExpressionNode(Source);
 
 /// <summary>
 /// Represents a property access (dot or computed) expression.
 /// </summary>
-public sealed record MemberExpression(SourceReference? Source, ExpressionNode Target, ExpressionNode Property,
-    bool IsComputed, bool IsOptional) : ExpressionNode(Source);
+public sealed record MemberExpression(
+    SourceReference? Source,
+    ExpressionNode Target,
+    ExpressionNode Property,
+    bool IsComputed,
+    bool IsOptional) : ExpressionNode(Source);
 
 /// <summary>
 /// Represents an assignment to an identifier.
@@ -77,14 +101,21 @@ public sealed record AssignmentExpression(SourceReference? Source, Symbol Target
 /// <summary>
 /// Represents an assignment to a property access.
 /// </summary>
-public sealed record PropertyAssignmentExpression(SourceReference? Source, ExpressionNode Target,
-    ExpressionNode Property, ExpressionNode Value, bool IsComputed) : ExpressionNode(Source);
+public sealed record PropertyAssignmentExpression(
+    SourceReference? Source,
+    ExpressionNode Target,
+    ExpressionNode Property,
+    ExpressionNode Value,
+    bool IsComputed) : ExpressionNode(Source);
 
 /// <summary>
 /// Represents an assignment to an indexed access.
 /// </summary>
-public sealed record IndexAssignmentExpression(SourceReference? Source, ExpressionNode Target,
-    ExpressionNode Index, ExpressionNode Value) : ExpressionNode(Source);
+public sealed record IndexAssignmentExpression(
+    SourceReference? Source,
+    ExpressionNode Target,
+    ExpressionNode Index,
+    ExpressionNode Value) : ExpressionNode(Source);
 
 /// <summary>
 /// Represents a sequence expression (comma operator).
@@ -97,7 +128,9 @@ public sealed record SequenceExpression(SourceReference? Source, ExpressionNode 
 /// The pattern is expressed via the same typed binding nodes used by declarations so the
 /// evaluator can reuse its destructuring logic.
 /// </summary>
-public sealed record DestructuringAssignmentExpression(SourceReference? Source, BindingTarget Target,
+public sealed record DestructuringAssignmentExpression(
+    SourceReference? Source,
+    BindingTarget Target,
     ExpressionNode Value) : ExpressionNode(Source);
 
 /// <summary>
@@ -120,8 +153,15 @@ public sealed record ObjectExpression(SourceReference? Source, ImmutableArray<Ob
 /// <summary>
 /// Represents a member within an object literal (data property, getter, setter, method, spread, etc.).
 /// </summary>
-public sealed record ObjectMember(SourceReference? Source, ObjectMemberKind Kind, object Key,
-    ExpressionNode? Value, FunctionExpression? Function, bool IsComputed, bool IsStatic, Symbol? Parameter);
+public sealed record ObjectMember(
+    SourceReference? Source,
+    ObjectMemberKind Kind,
+    object Key,
+    ExpressionNode? Value,
+    FunctionExpression? Function,
+    bool IsComputed,
+    bool IsStatic,
+    Symbol? Parameter);
 
 /// <summary>
 /// Enumerates the supported object literal member kinds.
@@ -152,8 +192,12 @@ public sealed record TemplateLiteralExpression(SourceReference? Source, Immutabl
 /// <summary>
 /// Represents a tagged template literal expression.
 /// </summary>
-public sealed record TaggedTemplateExpression(SourceReference? Source, ExpressionNode Tag,
-    ExpressionNode StringsArray, ExpressionNode RawStringsArray, ImmutableArray<ExpressionNode> Expressions)
+public sealed record TaggedTemplateExpression(
+    SourceReference? Source,
+    ExpressionNode Tag,
+    ExpressionNode StringsArray,
+    ExpressionNode RawStringsArray,
+    ImmutableArray<ExpressionNode> Expressions)
     : ExpressionNode(Source);
 
 /// <summary>

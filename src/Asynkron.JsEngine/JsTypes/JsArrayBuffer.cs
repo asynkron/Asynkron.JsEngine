@@ -1,5 +1,5 @@
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -178,11 +178,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
             }
         }
 
-        return new JsObject
-        {
-            ["name"] = "TypeError",
-            ["message"] = message
-        };
+        return new JsObject { ["name"] = "TypeError", ["message"] = message };
     }
 
     private static JsObject CreateRangeError(string message)
@@ -196,10 +192,6 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
             }
         }
 
-        return new JsObject
-        {
-            ["name"] = "RangeError",
-            ["message"] = message
-        };
+        return new JsObject { ["name"] = "RangeError", ["message"] = message };
     }
 }

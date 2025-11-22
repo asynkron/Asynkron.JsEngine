@@ -36,17 +36,25 @@ internal static class AstShapeAnalyzer
             counter.YieldOperandContainsYield);
     }
 
-    public static bool ContainsYield(ExpressionNode? expression, bool includeNestedFunctions = false) =>
-        AnalyzeExpression(expression, includeNestedFunctions).HasYield;
+    public static bool ContainsYield(ExpressionNode? expression, bool includeNestedFunctions = false)
+    {
+        return AnalyzeExpression(expression, includeNestedFunctions).HasYield;
+    }
 
-    public static bool ContainsAwait(ExpressionNode? expression, bool includeNestedFunctions = false) =>
-        AnalyzeExpression(expression, includeNestedFunctions).HasAwait;
+    public static bool ContainsAwait(ExpressionNode? expression, bool includeNestedFunctions = false)
+    {
+        return AnalyzeExpression(expression, includeNestedFunctions).HasAwait;
+    }
 
-    public static bool StatementContainsYield(StatementNode statement, bool includeNestedFunctions = false) =>
-        AnalyzeStatement(statement, includeNestedFunctions).HasYield;
+    public static bool StatementContainsYield(StatementNode statement, bool includeNestedFunctions = false)
+    {
+        return AnalyzeStatement(statement, includeNestedFunctions).HasYield;
+    }
 
-    public static bool StatementContainsAwait(StatementNode statement, bool includeNestedFunctions = false) =>
-        AnalyzeStatement(statement, includeNestedFunctions).HasAwait;
+    public static bool StatementContainsAwait(StatementNode statement, bool includeNestedFunctions = false)
+    {
+        return AnalyzeStatement(statement, includeNestedFunctions).HasAwait;
+    }
 
     public static bool TryFindSingleYield(ExpressionNode expression, out YieldExpression yieldExpression)
     {
@@ -101,6 +109,7 @@ internal static class AstShapeAnalyzer
                         {
                             VisitStatement(child);
                         }
+
                         return;
                     case ExpressionStatement expressionStatement:
                         VisitExpression(expressionStatement.Expression);
@@ -116,6 +125,7 @@ internal static class AstShapeAnalyzer
                         {
                             VisitExpression(declarator.Initializer);
                         }
+
                         return;
                     case FunctionDeclaration functionDeclaration:
                         if (includeNestedFunctions)
@@ -131,6 +141,7 @@ internal static class AstShapeAnalyzer
                         {
                             VisitStatement(ifStatement.Else);
                         }
+
                         return;
                     case WhileStatement whileStatement:
                         VisitExpression(whileStatement.Condition);
@@ -168,6 +179,7 @@ internal static class AstShapeAnalyzer
                         {
                             VisitStatement(tryStatement.Finally);
                         }
+
                         return;
                     case SwitchStatement switchStatement:
                         VisitExpression(switchStatement.Discriminant);
@@ -180,6 +192,7 @@ internal static class AstShapeAnalyzer
 
                             VisitStatement(switchCase.Body);
                         }
+
                         return;
                     case ClassDeclaration classDeclaration:
                         if (includeNestedFunctions)
@@ -272,7 +285,6 @@ internal static class AstShapeAnalyzer
 
                         binding = objectBinding.RestElement;
                         continue;
-
                 }
 
                 break;
@@ -324,6 +336,7 @@ internal static class AstShapeAnalyzer
                         {
                             VisitExpression(argument.Expression);
                         }
+
                         return;
                     case NewExpression @new:
                         VisitExpression(@new.Constructor);
@@ -331,6 +344,7 @@ internal static class AstShapeAnalyzer
                         {
                             VisitExpression(argument);
                         }
+
                         return;
                     case MemberExpression member:
                         VisitExpression(member.Target);
@@ -361,6 +375,7 @@ internal static class AstShapeAnalyzer
                         {
                             VisitExpression(element.Expression);
                         }
+
                         return;
                     case ObjectExpression obj:
                         foreach (var member in obj.Members)
@@ -380,6 +395,7 @@ internal static class AstShapeAnalyzer
                                 VisitFunction(member.Function);
                             }
                         }
+
                         return;
                     case FunctionExpression functionExpression:
                         if (includeNestedFunctions)
@@ -403,6 +419,7 @@ internal static class AstShapeAnalyzer
                                 VisitExpression(field.Initializer);
                             }
                         }
+
                         return;
                     case TemplateLiteralExpression template:
                         foreach (var part in template.Parts)
@@ -412,6 +429,7 @@ internal static class AstShapeAnalyzer
                                 VisitExpression(part.Expression);
                             }
                         }
+
                         return;
                     case TaggedTemplateExpression taggedTemplate:
                         VisitExpression(taggedTemplate.Tag);
@@ -421,6 +439,7 @@ internal static class AstShapeAnalyzer
                         {
                             VisitExpression(expr);
                         }
+
                         return;
                     case DestructuringAssignmentExpression destructuringAssignment:
                         VisitBinding(destructuringAssignment.Target);
@@ -465,6 +484,7 @@ internal static class AstShapeAnalyzer
                                 return;
                             }
                         }
+
                         return;
                     case NewExpression @new:
                         VisitExpression(@new.Constructor);
@@ -476,6 +496,7 @@ internal static class AstShapeAnalyzer
                                 return;
                             }
                         }
+
                         return;
                     case MemberExpression member:
                         VisitExpression(member.Target);
@@ -510,6 +531,7 @@ internal static class AstShapeAnalyzer
                                 return;
                             }
                         }
+
                         return;
                     case ObjectExpression obj:
                         foreach (var member in obj.Members)
@@ -529,6 +551,7 @@ internal static class AstShapeAnalyzer
                                 return;
                             }
                         }
+
                         return;
                     case FunctionExpression:
                     case ClassExpression:
@@ -545,6 +568,7 @@ internal static class AstShapeAnalyzer
                                 }
                             }
                         }
+
                         return;
                     case TaggedTemplateExpression taggedTemplate:
                         VisitExpression(taggedTemplate.Tag);
@@ -558,6 +582,7 @@ internal static class AstShapeAnalyzer
                                 return;
                             }
                         }
+
                         return;
                     case DestructuringAssignmentExpression destructuringAssignment:
                         VisitExpression(destructuringAssignment.Value);
@@ -569,26 +594,16 @@ internal static class AstShapeAnalyzer
         }
     }
 
-    private sealed class SingleYieldRewriter
+    private sealed class SingleYieldRewriter(Symbol replacementSymbol)
     {
-        private readonly Symbol _replacementSymbol;
         public YieldExpression? FoundYield { get; private set; }
-
-        public SingleYieldRewriter(Symbol replacementSymbol)
-        {
-            _replacementSymbol = replacementSymbol;
-        }
 
         public ExpressionNode Rewrite(ExpressionNode expression)
         {
             return expression switch
             {
                 YieldExpression yieldExpression => RewriteYield(yieldExpression),
-                BinaryExpression binary => binary with
-                {
-                    Left = Rewrite(binary.Left),
-                    Right = Rewrite(binary.Right)
-                },
+                BinaryExpression binary => binary with { Left = Rewrite(binary.Left), Right = Rewrite(binary.Right) },
                 ConditionalExpression conditional => conditional with
                 {
                     Test = Rewrite(conditional.Test),
@@ -597,18 +612,15 @@ internal static class AstShapeAnalyzer
                 },
                 CallExpression call => call with
                 {
-                    Callee = Rewrite(call.Callee),
-                    Arguments = RewriteArguments(call.Arguments)
+                    Callee = Rewrite(call.Callee), Arguments = RewriteArguments(call.Arguments)
                 },
                 NewExpression @new => @new with
                 {
-                    Constructor = Rewrite(@new.Constructor),
-                    Arguments = RewriteExpressions(@new.Arguments)
+                    Constructor = Rewrite(@new.Constructor), Arguments = RewriteExpressions(@new.Arguments)
                 },
                 MemberExpression member => member with
                 {
-                    Target = Rewrite(member.Target),
-                    Property = Rewrite(member.Property)
+                    Target = Rewrite(member.Target), Property = Rewrite(member.Property)
                 },
                 AssignmentExpression assignment => assignment with { Value = Rewrite(assignment.Value) },
                 PropertyAssignmentExpression propertyAssignment => propertyAssignment with
@@ -625,8 +637,7 @@ internal static class AstShapeAnalyzer
                 },
                 SequenceExpression sequence => sequence with
                 {
-                    Left = Rewrite(sequence.Left),
-                    Right = Rewrite(sequence.Right)
+                    Left = Rewrite(sequence.Left), Right = Rewrite(sequence.Right)
                 },
                 UnaryExpression unary => unary with { Operand = Rewrite(unary.Operand) },
                 ArrayExpression array => array with { Elements = RewriteArrayElements(array.Elements) },
@@ -650,7 +661,7 @@ internal static class AstShapeAnalyzer
         private ExpressionNode RewriteYield(YieldExpression yieldExpression)
         {
             FoundYield ??= yieldExpression;
-            return new IdentifierExpression(yieldExpression.Source, _replacementSymbol);
+            return new IdentifierExpression(yieldExpression.Source, replacementSymbol);
         }
 
         private ImmutableArray<CallArgument> RewriteArguments(ImmutableArray<CallArgument> arguments)

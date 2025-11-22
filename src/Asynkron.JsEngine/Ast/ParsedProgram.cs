@@ -4,14 +4,9 @@ namespace Asynkron.JsEngine.Ast;
 /// Represents the parsed program that the runtime executes. The primary data is
 /// the typed AST that flows through the evaluator.
 /// </summary>
-public sealed class ParsedProgram
+public sealed class ParsedProgram(ProgramNode typed)
 {
-    public ParsedProgram(ProgramNode typed)
-    {
-        Typed = typed ?? throw new ArgumentNullException(nameof(typed));
-    }
-
-    public ProgramNode Typed { get; }
+    public ProgramNode Typed { get; } = typed ?? throw new ArgumentNullException(nameof(typed));
 
     internal ParsedProgram WithTyped(ProgramNode typed)
     {

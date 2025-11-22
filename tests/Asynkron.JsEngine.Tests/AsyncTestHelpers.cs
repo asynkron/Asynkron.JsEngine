@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Tests;
 

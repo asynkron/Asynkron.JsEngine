@@ -1,9 +1,5 @@
 using System.Collections;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Threading;
-using System.Threading.Tasks;
-using Asynkron.JsEngine;
 using System.Globalization;
 using System.Numerics;
 using Asynkron.JsEngine.Converters;
@@ -11,6 +7,7 @@ using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 using JsSymbols = Asynkron.JsEngine.Ast.Symbols;
 
 namespace Asynkron.JsEngine.Ast;
@@ -27,11 +24,15 @@ public static class TypedAstEvaluator
     private static readonly Symbol YieldResumeContextSymbol = Symbol.Intern("__yieldResume__");
     private static readonly Symbol GeneratorPendingCompletionSymbol = Symbol.Intern("__generatorPending__");
     private static readonly Symbol GeneratorInstanceSymbol = Symbol.Intern("__generatorInstance__");
+
     private static readonly string IteratorSymbolPropertyName =
         $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
+
     private const string GeneratorBrandPropertyName = "__generator_brand__";
     private static readonly object GeneratorBrandMarker = new();
-    public static object? EvaluateProgram(ProgramNode program, JsEnvironment environment, RealmState realmState, CancellationToken cancellationToken = default)
+
+    public static object? EvaluateProgram(ProgramNode program, JsEnvironment environment, RealmState realmState,
+        CancellationToken cancellationToken = default)
     {
         var context = new EvaluationContext(realmState, cancellationToken) { SourceReference = program.Source };
         var executionEnvironment = program.IsStrict ? new JsEnvironment(environment, true, true) : environment;
@@ -61,7 +62,8 @@ public static class TypedAstEvaluator
         return result;
     }
 
-    private static object? EvaluateStatement(StatementNode statement, JsEnvironment environment, EvaluationContext context,
+    private static object? EvaluateStatement(StatementNode statement, JsEnvironment environment,
+        EvaluationContext context,
         Symbol? activeLabel = null)
     {
         context.SourceReference = statement.Source;
@@ -70,11 +72,13 @@ public static class TypedAstEvaluator
         return statement switch
         {
             BlockStatement block => EvaluateBlock(block, environment, context),
-            ExpressionStatement expressionStatement => EvaluateExpression(expressionStatement.Expression, environment, context),
+            ExpressionStatement expressionStatement => EvaluateExpression(expressionStatement.Expression, environment,
+                context),
             ReturnStatement returnStatement => EvaluateReturn(returnStatement, environment, context),
             ThrowStatement throwStatement => EvaluateThrow(throwStatement, environment, context),
             VariableDeclaration declaration => EvaluateVariableDeclaration(declaration, environment, context),
-            FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment, context),
+            FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment,
+                context),
             IfStatement ifStatement => EvaluateIf(ifStatement, environment, context),
             WhileStatement whileStatement => EvaluateWhile(whileStatement, environment, context, activeLabel),
             DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context, activeLabel),
@@ -110,7 +114,8 @@ public static class TypedAstEvaluator
         return result;
     }
 
-    private static object? EvaluateReturn(ReturnStatement statement, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateReturn(ReturnStatement statement, JsEnvironment environment,
+        EvaluationContext context)
     {
         var value = statement.Expression is null
             ? null
@@ -156,7 +161,7 @@ public static class TypedAstEvaluator
         return branch is null ? JsSymbols.Undefined : EvaluateStatement(branch, environment, context);
     }
 
-        private static object? EvaluateWhile(WhileStatement statement, JsEnvironment environment, EvaluationContext context,
+    private static object? EvaluateWhile(WhileStatement statement, JsEnvironment environment, EvaluationContext context,
         Symbol? loopLabel)
     {
         var isStrict = IsStrictBlock(statement.Body);
@@ -168,7 +173,8 @@ public static class TypedAstEvaluator
         return EvaluateLoopPlan(plan, environment, context, loopLabel);
     }
 
-    private static object? EvaluateDoWhile(DoWhileStatement statement, JsEnvironment environment, EvaluationContext context,
+    private static object? EvaluateDoWhile(DoWhileStatement statement, JsEnvironment environment,
+        EvaluationContext context,
         Symbol? loopLabel)
     {
         var isStrict = IsStrictBlock(statement.Body);
@@ -222,14 +228,17 @@ public static class TypedAstEvaluator
             throw new ThrowSignal("Cannot iterate properties of non-object value.");
         }
 
-        var loopEnvironment = new JsEnvironment(environment, creatingSource: statement.Source, description: "for-each-loop");
+        var loopEnvironment =
+            new JsEnvironment(environment, creatingSource: statement.Source, description: "for-each-loop");
         object? lastValue = JsSymbols.Undefined;
 
         if (statement.Kind == ForEachKind.Of &&
             TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
         {
             var plan = IteratorDriverFactory.CreatePlan(statement,
-                statement.Body is BlockStatement b ? b : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body)));
+                statement.Body is BlockStatement b
+                    ? b
+                    : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body)));
             return ExecuteIteratorDriver(plan, iterator, null, loopEnvironment, environment, context, loopLabel);
         }
 
@@ -248,10 +257,12 @@ public static class TypedAstEvaluator
             }
 
             var iterationEnvironment = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                ? new JsEnvironment(loopEnvironment, creatingSource: statement.Source, description: "for-each-iteration")
+                ? new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                    description: "for-each-iteration")
                 : loopEnvironment;
 
-            AssignLoopBinding(statement.Target, value, iterationEnvironment, environment, context, statement.DeclarationKind);
+            AssignLoopBinding(statement.Target, value, iterationEnvironment, environment, context,
+                statement.DeclarationKind);
 
             lastValue = EvaluateStatement(statement.Body, iterationEnvironment, context);
 
@@ -283,13 +294,16 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
-        var loopEnvironment = new JsEnvironment(environment, creatingSource: statement.Source, description: "for-await-of loop");
+        var loopEnvironment =
+            new JsEnvironment(environment, creatingSource: statement.Source, description: "for-await-of loop");
         object? lastValue = JsSymbols.Undefined;
 
         if (TryGetIteratorFromProtocols(iterable, out var iterator))
         {
             var plan = IteratorDriverFactory.CreatePlan(statement,
-                statement.Body is BlockStatement b ? b : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body)));
+                statement.Body is BlockStatement b
+                    ? b
+                    : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body)));
             return ExecuteIteratorDriver(plan, iterator!, null, loopEnvironment, environment, context, loopLabel);
         }
 
@@ -307,7 +321,8 @@ public static class TypedAstEvaluator
                     "for await...of in this context must be lowered via the async CPS/iterator helpers; promise-valued iteration values are not supported in the direct evaluator.");
             }
 
-            AssignLoopBinding(statement.Target, value, loopEnvironment, environment, context, statement.DeclarationKind);
+            AssignLoopBinding(statement.Target, value, loopEnvironment, environment, context,
+                statement.DeclarationKind);
             lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
 
             if (context.IsReturn || context.IsThrow)
@@ -337,13 +352,15 @@ public static class TypedAstEvaluator
             return false;
         }
 
-        if (TryInvokeSymbolMethod(jsObject, "Symbol.asyncIterator", out var asyncIterator) && asyncIterator is JsObject asyncObj)
+        if (TryInvokeSymbolMethod(jsObject, "Symbol.asyncIterator", out var asyncIterator) &&
+            asyncIterator is JsObject asyncObj)
         {
             iterator = asyncObj;
             return true;
         }
 
-        if (TryInvokeSymbolMethod(jsObject, "Symbol.iterator", out var iteratorValue) && iteratorValue is JsObject iteratorObj)
+        if (TryInvokeSymbolMethod(jsObject, "Symbol.iterator", out var iteratorValue) &&
+            iteratorValue is JsObject iteratorObj)
         {
             iterator = iteratorObj;
             return true;
@@ -440,20 +457,24 @@ public static class TypedAstEvaluator
                     : JsSymbols.Undefined;
 
                 var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
-                    ? new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
+                    ? new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source,
+                        description: "for-each-iteration")
                     : loopEnvironment;
 
-                AssignLoopBinding(plan.Target, value, iterationEnvironment, outerEnvironment, context, plan.DeclarationKind);
+                AssignLoopBinding(plan.Target, value, iterationEnvironment, outerEnvironment, context,
+                    plan.DeclarationKind);
                 lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
             }
             else
             {
                 // Enumerator path (non-object next)
                 var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
-                    ? new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
+                    ? new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source,
+                        description: "for-each-iteration")
                     : loopEnvironment;
 
-                AssignLoopBinding(plan.Target, nextResult, iterationEnvironment, outerEnvironment, context, plan.DeclarationKind);
+                AssignLoopBinding(plan.Target, nextResult, iterationEnvironment, outerEnvironment, context,
+                    plan.DeclarationKind);
                 lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
             }
 
@@ -476,7 +497,10 @@ public static class TypedAstEvaluator
         return lastValue;
     }
 
-    private static bool IsPromiseLike(object? candidate) => AwaitScheduler.IsPromiseLike(candidate);
+    private static bool IsPromiseLike(object? candidate)
+    {
+        return AwaitScheduler.IsPromiseLike(candidate);
+    }
 
     // WAITING ON FULL ASYNC/AWAIT + ASYNC GENERATOR IR SUPPORT:
     // This helper synchronously blocks on promise resolution using TaskCompletionSource.
@@ -649,7 +673,8 @@ public static class TypedAstEvaluator
         return result;
     }
 
-    private static object? EvaluateSwitch(SwitchStatement statement, JsEnvironment environment, EvaluationContext context,
+    private static object? EvaluateSwitch(SwitchStatement statement, JsEnvironment environment,
+        EvaluationContext context,
         Symbol? targetLabel)
     {
         var discriminant = EvaluateExpression(statement.Discriminant, environment, context);
@@ -934,7 +959,8 @@ public static class TypedAstEvaluator
             throw new InvalidOperationException("Classes can only extend other constructors or null.");
         }
 
-        if (!TryGetPropertyValue(baseValue, "prototype", out var prototypeValue) || prototypeValue is not JsObject prototype)
+        if (!TryGetPropertyValue(baseValue, "prototype", out var prototypeValue) ||
+            prototypeValue is not JsObject prototype)
         {
             prototype = new JsObject();
             accessor.SetProperty("prototype", prototype);
@@ -951,6 +977,7 @@ public static class TypedAstEvaluator
             {
                 prototype.SetPrototype(StandardLibrary.ObjectPrototype);
             }
+
             return prototype;
         }
 
@@ -959,6 +986,7 @@ public static class TypedAstEvaluator
         {
             created.SetPrototype(StandardLibrary.ObjectPrototype);
         }
+
         constructor.SetProperty("prototype", created);
         return created;
     }
@@ -1014,13 +1042,14 @@ public static class TypedAstEvaluator
                 : prototype as IJsObjectLike;
             if (accessorTarget is not null)
             {
-                accessorTarget.DefineProperty(member.Name, new PropertyDescriptor
-                {
-                    Get = member.Kind == ClassMemberKind.Getter ? callable : null,
-                    Set = member.Kind == ClassMemberKind.Setter ? callable : null,
-                    Enumerable = false,
-                    Configurable = true
-                });
+                accessorTarget.DefineProperty(member.Name,
+                    new PropertyDescriptor
+                    {
+                        Get = member.Kind == ClassMemberKind.Getter ? callable : null,
+                        Set = member.Kind == ClassMemberKind.Setter ? callable : null,
+                        Enumerable = false,
+                        Configurable = true
+                    });
             }
             else
             {
@@ -1029,7 +1058,8 @@ public static class TypedAstEvaluator
         }
     }
 
-    private static void InitializeStaticFields(ImmutableArray<ClassField> fields, IJsPropertyAccessor constructorAccessor,
+    private static void InitializeStaticFields(ImmutableArray<ClassField> fields,
+        IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment, EvaluationContext context)
     {
         foreach (var field in fields)
@@ -1086,14 +1116,16 @@ public static class TypedAstEvaluator
         ApplyBindingTarget(declarator.Target, value, environment, context, mode, declarator.Initializer is not null);
     }
 
-    private static object? EvaluateFunctionDeclaration(FunctionDeclaration declaration, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateFunctionDeclaration(FunctionDeclaration declaration, JsEnvironment environment,
+        EvaluationContext context)
     {
         var function = CreateFunctionValue(declaration.Function, environment, context);
         environment.Define(declaration.Name, function);
         return function;
     }
 
-    private static IJsCallable CreateFunctionValue(FunctionExpression functionExpression, JsEnvironment environment, EvaluationContext context)
+    private static IJsCallable CreateFunctionValue(FunctionExpression functionExpression, JsEnvironment environment,
+        EvaluationContext context)
     {
         if (functionExpression.IsGenerator)
         {
@@ -1108,7 +1140,8 @@ public static class TypedAstEvaluator
         return new TypedFunction(functionExpression, environment, context.RealmState);
     }
 
-    private static object? EvaluateLabeled(LabeledStatement statement, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateLabeled(LabeledStatement statement, JsEnvironment environment,
+        EvaluationContext context)
     {
         context.PushLabel(statement.Label);
         try
@@ -1222,7 +1255,7 @@ public static class TypedAstEvaluator
 
         // Plain async functions now honor pending promises via the shared scheduler.
         object? pendingPromise = null;
-        if (!AwaitScheduler.TryAwaitPromiseOrSchedule(awaited, asyncStepMode: true, ref pendingPromise, context,
+        if (!AwaitScheduler.TryAwaitPromiseOrSchedule(awaited, true, ref pendingPromise, context,
                 out var resolved))
         {
             if (context.IsThrow || context.IsReturn)
@@ -1328,6 +1361,7 @@ public static class TypedAstEvaluator
             {
                 return JsSymbols.Undefined;
             }
+
             pendingSend = null;
             hasPendingSend = false;
             pendingThrow = false;
@@ -1408,7 +1442,7 @@ public static class TypedAstEvaluator
         return DelegatedYieldState.FromEnumerable(values);
     }
 
-        private static Symbol? GetDelegatedStateKey(YieldExpression expression)
+    private static Symbol? GetDelegatedStateKey(YieldExpression expression)
     {
         if (expression.Source is null)
         {
@@ -1509,7 +1543,7 @@ public static class TypedAstEvaluator
         }
 
         var created = new GeneratorPendingCompletion();
-        environment.DefineFunctionScoped(GeneratorPendingCompletionSymbol, created, hasInitializer: true);
+        environment.DefineFunctionScoped(GeneratorPendingCompletionSymbol, created, true);
         return created;
     }
 
@@ -1552,9 +1586,21 @@ public static class TypedAstEvaluator
     private readonly record struct ResumePayload(bool HasValue, bool IsThrow, bool IsReturn, object? Value)
     {
         public static ResumePayload Empty { get; } = new(false, false, false, JsSymbols.Undefined);
-        public static ResumePayload FromValue(object? value) => new(true, false, false, value);
-        public static ResumePayload FromThrow(object? value) => new(true, true, false, value);
-        public static ResumePayload FromReturn(object? value) => new(true, false, true, value);
+
+        public static ResumePayload FromValue(object? value)
+        {
+            return new ResumePayload(true, false, false, value);
+        }
+
+        public static ResumePayload FromThrow(object? value)
+        {
+            return new ResumePayload(true, true, false, value);
+        }
+
+        public static ResumePayload FromReturn(object? value)
+        {
+            return new ResumePayload(true, false, true, value);
+        }
     }
 
     private static object? EvaluateDestructuringAssignment(DestructuringAssignmentExpression expression,
@@ -1572,7 +1618,8 @@ public static class TypedAstEvaluator
         return assignedValue;
     }
 
-    private static object? EvaluatePropertyAssignment(PropertyAssignmentExpression expression, JsEnvironment environment,
+    private static object? EvaluatePropertyAssignment(PropertyAssignmentExpression expression,
+        JsEnvironment environment,
         EvaluationContext context)
     {
         if (expression.Target is MemberExpression superMember && superMember.Target is SuperExpression)
@@ -1581,6 +1628,7 @@ public static class TypedAstEvaluator
             {
                 throw CreateSuperReferenceError(environment, context, null);
             }
+
             var propertyKey = EvaluateExpression(superMember.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
@@ -1764,7 +1812,8 @@ public static class TypedAstEvaluator
             : EvaluateExpression(expression.Alternate, environment, context);
     }
 
-    private static object? EvaluateUnary(UnaryExpression expression, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateUnary(UnaryExpression expression, JsEnvironment environment,
+        EvaluationContext context)
     {
         if (expression.Operator is "++" or "--")
         {
@@ -1815,14 +1864,15 @@ public static class TypedAstEvaluator
             "+" => operand is JsBigInt
                 ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context)
                 : JsOps.ToNumber(operand, context),
-            "-" => operand is JsBigInt bigInt ? (object)(-bigInt) : -JsOps.ToNumber(operand, context),
+            "-" => operand is JsBigInt bigInt ? (object)-bigInt : -JsOps.ToNumber(operand, context),
             "~" => BitwiseNot(operand, context),
             "void" => JsSymbols.Undefined,
             _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
         };
     }
 
-    private static object? EvaluateBinary(BinaryExpression expression, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateBinary(BinaryExpression expression, JsEnvironment environment,
+        EvaluationContext context)
     {
         var left = EvaluateExpression(expression.Left, environment, context);
         if (context.ShouldStopEvaluation)
@@ -2653,7 +2703,8 @@ public static class TypedAstEvaluator
 
         if (leftPrimitive is JsBigInt || rightPrimitive is JsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
         }
 
         return JsOps.ToNumber(leftPrimitive, context) + JsOps.ToNumber(rightPrimitive, context);
@@ -2713,7 +2764,8 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
         }
 
         return numericOp(JsOps.ToNumber(left, context), JsOps.ToNumber(right, context));
@@ -2760,7 +2812,7 @@ public static class TypedAstEvaluator
             return ~bigInt;
         }
 
-        return (double)(~ToInt32(operand, context));
+        return (double)~ToInt32(operand, context);
     }
 
     private static object LeftShift(object? left, object? right, EvaluationContext context)
@@ -2777,7 +2829,8 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
         }
 
         var leftInt = ToInt32(left, context);
@@ -2799,7 +2852,8 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
         }
 
         var leftInt = ToInt32(left, context);
@@ -2833,7 +2887,8 @@ public static class TypedAstEvaluator
 
         if (left is JsBigInt || right is JsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
         }
 
         var leftInt = ToInt32(left, context);
@@ -2914,7 +2969,8 @@ public static class TypedAstEvaluator
         }
     }
 
-    private static void HoistFromStatement(StatementNode statement, JsEnvironment environment, EvaluationContext context)
+    private static void HoistFromStatement(StatementNode statement, JsEnvironment environment,
+        EvaluationContext context)
     {
         while (true)
         {
@@ -2987,7 +3043,7 @@ public static class TypedAstEvaluator
                 case FunctionDeclaration functionDeclaration:
                 {
                     var functionValue = CreateFunctionValue(functionDeclaration.Function, environment, context);
-                    environment.DefineFunctionScoped(functionDeclaration.Name, functionValue, hasInitializer: true);
+                    environment.DefineFunctionScoped(functionDeclaration.Name, functionValue, true);
                     break;
                 }
                 case ClassDeclaration:
@@ -3149,7 +3205,7 @@ public static class TypedAstEvaluator
                 environment.Define(identifier.Name, value);
                 break;
             case BindingMode.DefineConst:
-                environment.Define(identifier.Name, value, isConst: true);
+                environment.Define(identifier.Name, value, true);
                 break;
             case BindingMode.DefineVar:
                 environment.DefineFunctionScoped(identifier.Name, value, hasInitializer);
@@ -3256,6 +3312,7 @@ public static class TypedAstEvaluator
         {
             throw CreateSuperReferenceError(environment, context, null);
         }
+
         var binding = ExpectSuperBinding(environment, context);
         var propertyValue = EvaluateExpression(expression.Property, environment, context);
         if (context.ShouldStopEvaluation)
@@ -3364,13 +3421,8 @@ public static class TypedAstEvaluator
             array.Push(arguments[i]);
         }
 
-        array.DefineProperty("__arguments__", new PropertyDescriptor
-        {
-            Value = true,
-            Writable = false,
-            Enumerable = false,
-            Configurable = false
-        });
+        array.DefineProperty("__arguments__",
+            new PropertyDescriptor { Value = true, Writable = false, Enumerable = false, Configurable = false });
 
         return array;
     }
@@ -3772,7 +3824,8 @@ public static class TypedAstEvaluator
                 // Pending step. For now _pendingPromise always remains null.
                 if (_pendingPromise is JsObject pending)
                 {
-                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsSymbols.Undefined, false, pending);
+                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsSymbols.Undefined, false,
+                        pending);
                 }
 
                 if (result is JsObject obj &&
@@ -3834,34 +3887,32 @@ public static class TypedAstEvaluator
             return environment;
         }
 
-    private static JsObject CreateIteratorResult(object? value, bool done)
-    {
-        var result = new JsObject();
-        result.SetProperty("value", value);
-        result.SetProperty("done", done);
-        return result;
-    }
-
-    private static IteratorDriverState CreateIteratorDriverState(object? iterable, IteratorDriverKind kind)
-    {
-        if (TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
+        private static JsObject CreateIteratorResult(object? value, bool done)
         {
+            var result = new JsObject();
+            result.SetProperty("value", value);
+            result.SetProperty("done", done);
+            return result;
+        }
+
+        private static IteratorDriverState CreateIteratorDriverState(object? iterable, IteratorDriverKind kind)
+        {
+            if (TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
+            {
+                return new IteratorDriverState
+                {
+                    IteratorObject = iterator, Enumerator = null, IsAsyncIterator = kind == IteratorDriverKind.Await
+                };
+            }
+
+            var enumerable = EnumerateValues(iterable);
             return new IteratorDriverState
             {
-                IteratorObject = iterator,
-                Enumerator = null,
+                IteratorObject = null,
+                Enumerator = enumerable.GetEnumerator(),
                 IsAsyncIterator = kind == IteratorDriverKind.Await
             };
         }
-
-        var enumerable = EnumerateValues(iterable);
-        return new IteratorDriverState
-        {
-            IteratorObject = null,
-            Enumerator = enumerable.GetEnumerator(),
-            IsAsyncIterator = kind == IteratorDriverKind.Await
-        };
-    }
 
         private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? value)
         {
@@ -3954,106 +4005,8 @@ public static class TypedAstEvaluator
                     var instruction = _plan.Instructions[_programCounter];
                     switch (instruction)
                     {
-                    case StatementInstruction statementInstruction:
-                        EvaluateStatement(statementInstruction.Statement, environment, context);
-                        if (context.IsThrow)
-                        {
-                            var thrown = context.FlowValue;
-                            context.Clear();
-                            if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                            {
-                                continue;
-                            }
-
-                            _tryStack.Clear();
-                            throw new ThrowSignal(thrown);
-                        }
-
-                        if (context.IsReturn)
-                        {
-                            var returnSignalValue = context.FlowValue;
-                            context.ClearReturn();
-                            if (HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
-                            {
-                                continue;
-                            }
-
-                            return CompleteReturn(returnSignalValue);
-                        }
-
-                        _programCounter = statementInstruction.Next;
-                        continue;
-
-                    case YieldInstruction yieldInstruction:
-                        object? yieldedValue = JsSymbols.Undefined;
-                        if (yieldInstruction.YieldExpression is not null)
-                        {
-                            yieldedValue = EvaluateExpression(yieldInstruction.YieldExpression, environment, context);
-                            if (context.IsThrow)
-                            {
-                                var thrown = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                {
-                                    continue;
-                                }
-
-                                _tryStack.Clear();
-                                throw new ThrowSignal(thrown);
-                            }
-                        }
-
-                        _programCounter = yieldInstruction.Next;
-                        _state = GeneratorState.Suspended;
-                        return CreateIteratorResult(yieldedValue, false);
-
-                    case YieldStarInstruction yieldStarInstruction:
-                    {
-                        var currentIndex = _programCounter;
-                        if (!TryGetSymbolValue(environment, yieldStarInstruction.StateSlotSymbol, out var stateValue) ||
-                            stateValue is not YieldStarState yieldStarState)
-                        {
-                            yieldStarState = new YieldStarState();
-                            StoreSymbolValue(environment, yieldStarInstruction.StateSlotSymbol, yieldStarState);
-                        }
-
-                        if (yieldStarState.PendingAbrupt != AbruptKind.None &&
-                            _pendingResumeKind is not ResumePayloadKind.Throw and not ResumePayloadKind.Return)
-                        {
-                            var pendingKind = yieldStarState.PendingAbrupt;
-                            var pendingValue = yieldStarState.PendingValue;
-                            yieldStarState.PendingAbrupt = AbruptKind.None;
-                            yieldStarState.PendingValue = null;
-                            yieldStarState.State = null;
-                            yieldStarState.AwaitingResume = false;
-                            environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
-
-                            if (pendingKind == AbruptKind.Throw)
-                            {
-                                if (HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment))
-                                {
-                                    continue;
-                                }
-
-                                _tryStack.Clear();
-                                throw new ThrowSignal(pendingValue);
-                            }
-
-                            if (pendingKind == AbruptKind.Return)
-                            {
-                                if (HandleAbruptCompletion(AbruptKind.Return, pendingValue, environment))
-                                {
-                                    continue;
-                                }
-
-                                return CompleteReturn(pendingValue);
-                            }
-                        }
-
-                        if (yieldStarState.State is null)
-                        {
-                            var yieldStarIterable =
-                                EvaluateExpression(yieldStarInstruction.IterableExpression, environment, context);
+                        case StatementInstruction statementInstruction:
+                            EvaluateStatement(statementInstruction.Statement, environment, context);
                             if (context.IsThrow)
                             {
                                 var thrown = context.FlowValue;
@@ -4067,352 +4020,509 @@ public static class TypedAstEvaluator
                                 throw new ThrowSignal(thrown);
                             }
 
-                            yieldStarState.State = CreateDelegatedState(yieldStarIterable);
-                            yieldStarState.AwaitingResume = false;
-                        }
-
-                        while (true)
-                        {
-                            object? sendValue = JsSymbols.Undefined;
-                            var hasSendValue = false;
-                            var propagateThrow = false;
-                            var propagateReturn = false;
-
-                            if (yieldStarState.AwaitingResume)
+                            if (context.IsReturn)
                             {
-                                var (delegatedResumeKind, delegatedResumePayload) = ConsumeResumeValue();
-                                switch (delegatedResumeKind)
+                                var returnSignalValue = context.FlowValue;
+                                context.ClearReturn();
+                                if (HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
                                 {
-                                    case ResumePayloadKind.Throw:
-                                        propagateThrow = true;
-                                        hasSendValue = true;
-                                        sendValue = delegatedResumePayload;
-                                        break;
-                                    case ResumePayloadKind.Return:
-                                        propagateReturn = true;
-                                        hasSendValue = true;
-                                        sendValue = delegatedResumePayload;
-                                        break;
-                                    default:
-                                        hasSendValue = true;
-                                        sendValue = delegatedResumePayload;
-                                        break;
+                                    continue;
                                 }
+
+                                return CompleteReturn(returnSignalValue);
                             }
 
-                            var iteratorResult = yieldStarState.State!.MoveNext(
-                                sendValue,
-                                hasSendValue,
-                                propagateThrow,
-                                propagateReturn,
-                                context,
-                                out _);
+                            _programCounter = statementInstruction.Next;
+                            continue;
 
-                            if (iteratorResult.IsDelegatedCompletion)
+                        case YieldInstruction yieldInstruction:
+                            object? yieldedValue = JsSymbols.Undefined;
+                            if (yieldInstruction.YieldExpression is not null)
                             {
-                                var pendingKind = propagateThrow ? AbruptKind.Throw : AbruptKind.Return;
-                                object? abruptValue;
-                                if (pendingKind == AbruptKind.Throw && context.IsThrow)
+                                yieldedValue = EvaluateExpression(yieldInstruction.YieldExpression, environment,
+                                    context);
+                                if (context.IsThrow)
                                 {
-                                    abruptValue = context.FlowValue;
+                                    var thrown = context.FlowValue;
                                     context.Clear();
-                                }
-                                else
-                                {
-                                    abruptValue = pendingKind == AbruptKind.Throw ? sendValue : iteratorResult.Value;
-                                }
-                                if (!iteratorResult.Done)
-                                {
-                                    yieldStarState.PendingAbrupt = pendingKind;
-                                    yieldStarState.PendingValue = sendValue;
-                                    yieldStarState.AwaitingResume = true;
-                                    _programCounter = currentIndex;
-                                    _state = GeneratorState.Suspended;
-                                    return CreateIteratorResult(iteratorResult.Value, false);
-                                }
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                                    {
+                                        continue;
+                                    }
 
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(thrown);
+                                }
+                            }
+
+                            _programCounter = yieldInstruction.Next;
+                            _state = GeneratorState.Suspended;
+                            return CreateIteratorResult(yieldedValue, false);
+
+                        case YieldStarInstruction yieldStarInstruction:
+                        {
+                            var currentIndex = _programCounter;
+                            if (!TryGetSymbolValue(environment, yieldStarInstruction.StateSlotSymbol,
+                                    out var stateValue) ||
+                                stateValue is not YieldStarState yieldStarState)
+                            {
+                                yieldStarState = new YieldStarState();
+                                StoreSymbolValue(environment, yieldStarInstruction.StateSlotSymbol, yieldStarState);
+                            }
+
+                            if (yieldStarState.PendingAbrupt != AbruptKind.None &&
+                                _pendingResumeKind is not ResumePayloadKind.Throw and not ResumePayloadKind.Return)
+                            {
+                                var pendingKind = yieldStarState.PendingAbrupt;
+                                var pendingValue = yieldStarState.PendingValue;
+                                yieldStarState.PendingAbrupt = AbruptKind.None;
+                                yieldStarState.PendingValue = null;
                                 yieldStarState.State = null;
                                 yieldStarState.AwaitingResume = false;
                                 environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
 
                                 if (pendingKind == AbruptKind.Throw)
                                 {
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, abruptValue, environment))
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(pendingValue);
+                                }
+
+                                if (pendingKind == AbruptKind.Return)
+                                {
+                                    if (HandleAbruptCompletion(AbruptKind.Return, pendingValue, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    return CompleteReturn(pendingValue);
+                                }
+                            }
+
+                            if (yieldStarState.State is null)
+                            {
+                                var yieldStarIterable =
+                                    EvaluateExpression(yieldStarInstruction.IterableExpression, environment, context);
+                                if (context.IsThrow)
+                                {
+                                    var thrown = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(thrown);
+                                }
+
+                                yieldStarState.State = CreateDelegatedState(yieldStarIterable);
+                                yieldStarState.AwaitingResume = false;
+                            }
+
+                            while (true)
+                            {
+                                object? sendValue = JsSymbols.Undefined;
+                                var hasSendValue = false;
+                                var propagateThrow = false;
+                                var propagateReturn = false;
+
+                                if (yieldStarState.AwaitingResume)
+                                {
+                                    var (delegatedResumeKind, delegatedResumePayload) = ConsumeResumeValue();
+                                    switch (delegatedResumeKind)
+                                    {
+                                        case ResumePayloadKind.Throw:
+                                            propagateThrow = true;
+                                            hasSendValue = true;
+                                            sendValue = delegatedResumePayload;
+                                            break;
+                                        case ResumePayloadKind.Return:
+                                            propagateReturn = true;
+                                            hasSendValue = true;
+                                            sendValue = delegatedResumePayload;
+                                            break;
+                                        default:
+                                            hasSendValue = true;
+                                            sendValue = delegatedResumePayload;
+                                            break;
+                                    }
+                                }
+
+                                var iteratorResult = yieldStarState.State!.MoveNext(
+                                    sendValue,
+                                    hasSendValue,
+                                    propagateThrow,
+                                    propagateReturn,
+                                    context,
+                                    out _);
+
+                                if (iteratorResult.IsDelegatedCompletion)
+                                {
+                                    var pendingKind = propagateThrow ? AbruptKind.Throw : AbruptKind.Return;
+                                    object? abruptValue;
+                                    if (pendingKind == AbruptKind.Throw && context.IsThrow)
+                                    {
+                                        abruptValue = context.FlowValue;
+                                        context.Clear();
+                                    }
+                                    else
+                                    {
+                                        abruptValue = pendingKind == AbruptKind.Throw
+                                            ? sendValue
+                                            : iteratorResult.Value;
+                                    }
+
+                                    if (!iteratorResult.Done)
+                                    {
+                                        yieldStarState.PendingAbrupt = pendingKind;
+                                        yieldStarState.PendingValue = sendValue;
+                                        yieldStarState.AwaitingResume = true;
+                                        _programCounter = currentIndex;
+                                        _state = GeneratorState.Suspended;
+                                        return CreateIteratorResult(iteratorResult.Value, false);
+                                    }
+
+                                    yieldStarState.State = null;
+                                    yieldStarState.AwaitingResume = false;
+                                    environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+
+                                    if (pendingKind == AbruptKind.Throw)
+                                    {
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, abruptValue, environment))
+                                        {
+                                            break;
+                                        }
+
+                                        _tryStack.Clear();
+                                        throw new ThrowSignal(abruptValue);
+                                    }
+
+                                    if (HandleAbruptCompletion(AbruptKind.Return, abruptValue, environment))
                                     {
                                         break;
                                     }
 
-                                    _tryStack.Clear();
-                                    throw new ThrowSignal(abruptValue);
+                                    return CompleteReturn(abruptValue);
                                 }
 
-                                if (HandleAbruptCompletion(AbruptKind.Return, abruptValue, environment))
+                                if (iteratorResult.Done && !propagateThrow && !propagateReturn)
                                 {
+                                    yieldStarState.State = null;
+                                    yieldStarState.AwaitingResume = false;
+                                    environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                    if (yieldStarInstruction.ResultSlotSymbol is { } resultSlot)
+                                    {
+                                        StoreSymbolValue(environment, resultSlot, iteratorResult.Value);
+                                    }
+
+                                    _programCounter = yieldStarInstruction.Next;
                                     break;
                                 }
 
-                                return CompleteReturn(abruptValue);
+                                yieldStarState.AwaitingResume = true;
+                                _programCounter = currentIndex;
+                                _state = GeneratorState.Suspended;
+                                var resultDone = propagateReturn ? iteratorResult.Done : false;
+                                return CreateIteratorResult(iteratorResult.Value, resultDone);
                             }
 
-                            if (iteratorResult.Done && !propagateThrow && !propagateReturn)
+                            continue;
+                        }
+
+                        case StoreResumeValueInstruction storeResumeValueInstruction:
+                            var (resumeKind, resumePayload) = ConsumeResumeValue();
+                            if (resumeKind == ResumePayloadKind.Throw)
                             {
-                                yieldStarState.State = null;
-                                yieldStarState.AwaitingResume = false;
-                                environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
-                                if (yieldStarInstruction.ResultSlotSymbol is { } resultSlot)
+                                context.SetThrow(resumePayload);
+                            }
+                            else if (resumeKind == ResumePayloadKind.Return)
+                            {
+                                context.SetReturn(resumePayload);
+                            }
+                            else if (storeResumeValueInstruction.TargetSymbol is { } resumeSymbol)
+                            {
+                                if (environment.TryGet(resumeSymbol, out _))
                                 {
-                                    StoreSymbolValue(environment, resultSlot, iteratorResult.Value);
+                                    environment.Assign(resumeSymbol, resumePayload);
                                 }
-
-                                _programCounter = yieldStarInstruction.Next;
-                                break;
-                            }
-
-                            yieldStarState.AwaitingResume = true;
-                            _programCounter = currentIndex;
-                            _state = GeneratorState.Suspended;
-                            var resultDone = propagateReturn ? iteratorResult.Done : false;
-                            return CreateIteratorResult(iteratorResult.Value, resultDone);
-                        }
-
-                        continue;
-                    }
-
-                    case StoreResumeValueInstruction storeResumeValueInstruction:
-                        var (resumeKind, resumePayload) = ConsumeResumeValue();
-                        if (resumeKind == ResumePayloadKind.Throw)
-                        {
-                            context.SetThrow(resumePayload);
-                        }
-                        else if (resumeKind == ResumePayloadKind.Return)
-                        {
-                            context.SetReturn(resumePayload);
-                        }
-                        else if (storeResumeValueInstruction.TargetSymbol is { } resumeSymbol)
-                        {
-                            if (environment.TryGet(resumeSymbol, out _))
-                            {
-                                environment.Assign(resumeSymbol, resumePayload);
-                            }
-                            else
-                            {
-                                environment.Define(resumeSymbol, resumePayload);
-                            }
-                        }
-
-                        if (context.IsThrow)
-                        {
-                            var thrownPayload = context.FlowValue;
-                            context.Clear();
-                            if (HandleAbruptCompletion(AbruptKind.Throw, thrownPayload, environment))
-                            {
-                                continue;
-                            }
-
-                            _tryStack.Clear();
-                            throw new ThrowSignal(thrownPayload);
-                        }
-
-                        if (context.IsReturn)
-                        {
-                            var resumeReturnValue = context.FlowValue;
-                            context.ClearReturn();
-                            if (HandleAbruptCompletion(AbruptKind.Return, resumeReturnValue, environment))
-                            {
-                                continue;
-                            }
-
-                            return CompleteReturn(resumeReturnValue);
-                        }
-
-                        _programCounter = storeResumeValueInstruction.Next;
-                        continue;
-
-                    case EnterTryInstruction enterTryInstruction:
-                        PushTryFrame(enterTryInstruction, environment);
-                        _programCounter = enterTryInstruction.Next;
-                        continue;
-
-                    case LeaveTryInstruction leaveTryInstruction:
-                        CompleteTryNormally(leaveTryInstruction.Next);
-                        continue;
-
-                    case EndFinallyInstruction endFinallyInstruction:
-                        if (_tryStack.Count == 0)
-                        {
-                            _programCounter = endFinallyInstruction.Next;
-                            continue;
-                        }
-
-                        var completedFrame = _tryStack.Pop();
-                        var pending = completedFrame.PendingCompletion;
-                        // Console.WriteLine($"[IR] EndFinally: pending={pending.Kind}, value={pending.Value}, resume={pending.ResumeTarget}, stack={_tryStack.Count}");
-                        if (pending.Kind == AbruptKind.None)
-                        {
-                            var target = pending.ResumeTarget >= 0 ? pending.ResumeTarget : endFinallyInstruction.Next;
-                            _programCounter = target;
-                            continue;
-                        }
-
-                        if (pending.Kind == AbruptKind.Return)
-                        {
-                            if (HandleAbruptCompletion(AbruptKind.Return, pending.Value, environment))
-                            {
-                                continue;
-                            }
-
-                            return CompleteReturn(pending.Value);
-                        }
-
-                        if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
-                        {
-                            if (HandleAbruptCompletion(pending.Kind, pending.Value, environment))
-                            {
-                                continue;
-                            }
-
-                            _programCounter = pending.Value is int idx ? idx : endFinallyInstruction.Next;
-                            continue;
-                        }
-
-                        if (HandleAbruptCompletion(AbruptKind.Throw, pending.Value, environment))
-                        {
-                            continue;
-                        }
-
-                        _tryStack.Clear();
-                        throw new ThrowSignal(pending.Value);
-
-                    case IteratorInitInstruction iteratorInitInstruction:
-                        var iterableValue = EvaluateExpression(iteratorInitInstruction.IterableExpression, environment, context);
-                        if (context.IsThrow)
-                        {
-                            var initThrown = context.FlowValue;
-                            context.Clear();
-                            if (HandleAbruptCompletion(AbruptKind.Throw, initThrown, environment))
-                            {
-                                continue;
-                            }
-
-                            _tryStack.Clear();
-                            throw new ThrowSignal(initThrown);
-                        }
-
-                        var iteratorState = CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind);
-                        StoreSymbolValue(environment, iteratorInitInstruction.IteratorSlot, iteratorState);
-                        _programCounter = iteratorInitInstruction.Next;
-                        continue;
-
-                    case IteratorMoveNextInstruction iteratorMoveNextInstruction:
-                        var iteratorIndex = _programCounter;
-                        if (!TryGetSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, out var iteratorStateValue) ||
-                            iteratorStateValue is not IteratorDriverState driverState)
-                        {
-                            _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                            continue;
-                        }
-
-                        if (!driverState.IsAsyncIterator)
-                        {
-                            object? currentValue;
-                            if (driverState.IteratorObject is JsObject iteratorObj)
-                            {
-                                var nextResult = InvokeIteratorNext(iteratorObj);
-                                if (nextResult is not JsObject resultObj)
+                                else
                                 {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
+                                    environment.Define(resumeSymbol, resumePayload);
                                 }
-
-                                var done = resultObj.TryGetProperty("done", out var doneValue) &&
-                                           doneValue is bool completed && completed;
-                                if (done)
-                                {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                currentValue = resultObj.TryGetProperty("value", out var yielded)
-                                    ? yielded
-                                    : JsSymbols.Undefined;
-                            }
-                            else if (driverState.Enumerator is IEnumerator<object?> enumerator)
-                            {
-                                if (!enumerator.MoveNext())
-                                {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                currentValue = enumerator.Current;
-                            }
-                            else
-                            {
-                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                continue;
                             }
 
-                            StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue);
-                            _programCounter = iteratorMoveNextInstruction.Next;
-                            continue;
-                        }
-
-                        object? awaitedValue = null;
-                        object? awaitedNextResult = null;
-
-                        // If we're resuming after a pending await from this
-                        // iterator site, consume the resume payload and treat
-                        // it as the awaited result instead of calling into the
-                        // iterator again.
-                        if (driverState.AwaitingNextResult || driverState.AwaitingValue)
-                        {
-                            var awaitingValue = driverState.AwaitingValue;
-                            driverState.AwaitingNextResult = false;
-                            driverState.AwaitingValue = false;
-                            var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
-                            StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
-
-                            if (forAwaitResumeKind == ResumePayloadKind.Throw)
+                            if (context.IsThrow)
                             {
-                                if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload, environment))
+                                var thrownPayload = context.FlowValue;
+                                context.Clear();
+                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownPayload, environment))
                                 {
                                     continue;
                                 }
 
                                 _tryStack.Clear();
-                                throw new ThrowSignal(forAwaitResumePayload);
+                                throw new ThrowSignal(thrownPayload);
                             }
 
-                            if (forAwaitResumeKind == ResumePayloadKind.Return)
+                            if (context.IsReturn)
                             {
-                                if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload, environment))
+                                var resumeReturnValue = context.FlowValue;
+                                context.ClearReturn();
+                                if (HandleAbruptCompletion(AbruptKind.Return, resumeReturnValue, environment))
                                 {
                                     continue;
                                 }
 
-                                return CompleteReturn(forAwaitResumePayload);
+                                return CompleteReturn(resumeReturnValue);
                             }
 
-                            if (awaitingValue)
+                            _programCounter = storeResumeValueInstruction.Next;
+                            continue;
+
+                        case EnterTryInstruction enterTryInstruction:
+                            PushTryFrame(enterTryInstruction, environment);
+                            _programCounter = enterTryInstruction.Next;
+                            continue;
+
+                        case LeaveTryInstruction leaveTryInstruction:
+                            CompleteTryNormally(leaveTryInstruction.Next);
+                            continue;
+
+                        case EndFinallyInstruction endFinallyInstruction:
+                            if (_tryStack.Count == 0)
                             {
-                                awaitedValue = forAwaitResumePayload;
-                                goto StoreIteratorValue;
+                                _programCounter = endFinallyInstruction.Next;
+                                continue;
                             }
 
-                            awaitedNextResult = forAwaitResumePayload;
-                        }
-
-                        if (driverState.IteratorObject is JsObject awaitIteratorObj)
-                        {
-                            if (awaitedNextResult is null)
+                            var completedFrame = _tryStack.Pop();
+                            var pending = completedFrame.PendingCompletion;
+                            // Console.WriteLine($"[IR] EndFinally: pending={pending.Kind}, value={pending.Value}, resume={pending.ResumeTarget}, stack={_tryStack.Count}");
+                            if (pending.Kind == AbruptKind.None)
                             {
-                                var nextResult = InvokeIteratorNext(awaitIteratorObj);
-                                if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNext))
+                                var target = pending.ResumeTarget >= 0
+                                    ? pending.ResumeTarget
+                                    : endFinallyInstruction.Next;
+                                _programCounter = target;
+                                continue;
+                            }
+
+                            if (pending.Kind == AbruptKind.Return)
+                            {
+                                if (HandleAbruptCompletion(AbruptKind.Return, pending.Value, environment))
+                                {
+                                    continue;
+                                }
+
+                                return CompleteReturn(pending.Value);
+                            }
+
+                            if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
+                            {
+                                if (HandleAbruptCompletion(pending.Kind, pending.Value, environment))
+                                {
+                                    continue;
+                                }
+
+                                _programCounter = pending.Value is int idx ? idx : endFinallyInstruction.Next;
+                                continue;
+                            }
+
+                            if (HandleAbruptCompletion(AbruptKind.Throw, pending.Value, environment))
+                            {
+                                continue;
+                            }
+
+                            _tryStack.Clear();
+                            throw new ThrowSignal(pending.Value);
+
+                        case IteratorInitInstruction iteratorInitInstruction:
+                            var iterableValue = EvaluateExpression(iteratorInitInstruction.IterableExpression,
+                                environment, context);
+                            if (context.IsThrow)
+                            {
+                                var initThrown = context.FlowValue;
+                                context.Clear();
+                                if (HandleAbruptCompletion(AbruptKind.Throw, initThrown, environment))
+                                {
+                                    continue;
+                                }
+
+                                _tryStack.Clear();
+                                throw new ThrowSignal(initThrown);
+                            }
+
+                            var iteratorState = CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind);
+                            StoreSymbolValue(environment, iteratorInitInstruction.IteratorSlot, iteratorState);
+                            _programCounter = iteratorInitInstruction.Next;
+                            continue;
+
+                        case IteratorMoveNextInstruction iteratorMoveNextInstruction:
+                            var iteratorIndex = _programCounter;
+                            if (!TryGetSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                    out var iteratorStateValue) ||
+                                iteratorStateValue is not IteratorDriverState driverState)
+                            {
+                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                continue;
+                            }
+
+                            if (!driverState.IsAsyncIterator)
+                            {
+                                object? currentValue;
+                                if (driverState.IteratorObject is JsObject iteratorObj)
+                                {
+                                    var nextResult = InvokeIteratorNext(iteratorObj);
+                                    if (nextResult is not JsObject resultObj)
+                                    {
+                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                        continue;
+                                    }
+
+                                    var done = resultObj.TryGetProperty("done", out var doneValue) &&
+                                               doneValue is bool completed && completed;
+                                    if (done)
+                                    {
+                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                        continue;
+                                    }
+
+                                    currentValue = resultObj.TryGetProperty("value", out var yielded)
+                                        ? yielded
+                                        : JsSymbols.Undefined;
+                                }
+                                else if (driverState.Enumerator is IEnumerator<object?> enumerator)
+                                {
+                                    if (!enumerator.MoveNext())
+                                    {
+                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                        continue;
+                                    }
+
+                                    currentValue = enumerator.Current;
+                                }
+                                else
+                                {
+                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                    continue;
+                                }
+
+                                StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue);
+                                _programCounter = iteratorMoveNextInstruction.Next;
+                                continue;
+                            }
+
+                            object? awaitedValue = null;
+                            object? awaitedNextResult = null;
+
+                            // If we're resuming after a pending await from this
+                            // iterator site, consume the resume payload and treat
+                            // it as the awaited result instead of calling into the
+                            // iterator again.
+                            if (driverState.AwaitingNextResult || driverState.AwaitingValue)
+                            {
+                                var awaitingValue = driverState.AwaitingValue;
+                                driverState.AwaitingNextResult = false;
+                                driverState.AwaitingValue = false;
+                                var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
+                                StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
+
+                                if (forAwaitResumeKind == ResumePayloadKind.Throw)
+                                {
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(forAwaitResumePayload);
+                                }
+
+                                if (forAwaitResumeKind == ResumePayloadKind.Return)
+                                {
+                                    if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    return CompleteReturn(forAwaitResumePayload);
+                                }
+
+                                if (awaitingValue)
+                                {
+                                    awaitedValue = forAwaitResumePayload;
+                                    goto StoreIteratorValue;
+                                }
+
+                                awaitedNextResult = forAwaitResumePayload;
+                            }
+
+                            if (driverState.IteratorObject is JsObject awaitIteratorObj)
+                            {
+                                if (awaitedNextResult is null)
+                                {
+                                    var nextResult = InvokeIteratorNext(awaitIteratorObj);
+                                    if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNext))
+                                    {
+                                        if (_asyncStepMode && _pendingPromise is JsObject)
+                                        {
+                                            driverState.AwaitingNextResult = true;
+                                            StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                                driverState);
+                                            _state = GeneratorState.Suspended;
+                                            _programCounter = iteratorIndex;
+                                            return CreateIteratorResult(JsSymbols.Undefined, false);
+                                        }
+
+                                        if (context.IsThrow)
+                                        {
+                                            var thrownAwait = context.FlowValue;
+                                            context.Clear();
+                                            if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait, environment))
+                                            {
+                                                continue;
+                                            }
+
+                                            _tryStack.Clear();
+                                            throw new ThrowSignal(thrownAwait);
+                                        }
+
+                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                        continue;
+                                    }
+
+                                    awaitedNextResult = awaitedNext;
+                                }
+
+                                if (awaitedNextResult is not JsObject awaitResultObj)
+                                {
+                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                    continue;
+                                }
+
+                                var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
+                                                awaitDoneValue is bool awaitCompleted && awaitCompleted;
+                                if (doneAwait)
+                                {
+                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                    continue;
+                                }
+
+                                var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
+                                    ? yieldedAwait
+                                    : JsSymbols.Undefined;
+                                if (!TryAwaitPromiseOrSchedule(rawValue, context, out var fullyAwaitedValue))
                                 {
                                     if (_asyncStepMode && _pendingPromise is JsObject)
                                     {
-                                        driverState.AwaitingNextResult = true;
-                                        StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
+                                        driverState.AwaitingValue = true;
+                                        StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                            driverState);
                                         _state = GeneratorState.Suspended;
                                         _programCounter = iteratorIndex;
                                         return CreateIteratorResult(JsSymbols.Undefined, false);
@@ -4420,200 +4530,155 @@ public static class TypedAstEvaluator
 
                                     if (context.IsThrow)
                                     {
-                                        var thrownAwait = context.FlowValue;
+                                        var thrownAwaitValue = context.FlowValue;
                                         context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait, environment))
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitValue, environment))
                                         {
                                             continue;
                                         }
 
                                         _tryStack.Clear();
-                                        throw new ThrowSignal(thrownAwait);
+                                        throw new ThrowSignal(thrownAwaitValue);
                                     }
 
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                     continue;
                                 }
 
-                                awaitedNextResult = awaitedNext;
+                                awaitedValue = fullyAwaitedValue;
                             }
-
-                            if (awaitedNextResult is not JsObject awaitResultObj)
+                            else if (driverState.Enumerator is IEnumerator<object?> awaitEnumerator)
                             {
-                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                continue;
-                            }
-
-                            var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
-                                            awaitDoneValue is bool awaitCompleted && awaitCompleted;
-                            if (doneAwait)
-                            {
-                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                continue;
-                            }
-
-                            var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
-                                ? yieldedAwait
-                                : JsSymbols.Undefined;
-                            if (!TryAwaitPromiseOrSchedule(rawValue, context, out var fullyAwaitedValue))
-                            {
-                                if (_asyncStepMode && _pendingPromise is JsObject)
+                                if (!awaitEnumerator.MoveNext())
                                 {
-                                    driverState.AwaitingValue = true;
-                                    StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
-                                    _state = GeneratorState.Suspended;
-                                    _programCounter = iteratorIndex;
-                                    return CreateIteratorResult(JsSymbols.Undefined, false);
+                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                    continue;
                                 }
 
-                                if (context.IsThrow)
+                                var enumerated = awaitEnumerator.Current;
+                                if (!TryAwaitPromiseOrSchedule(enumerated, context, out var awaitedEnumerated))
                                 {
-                                    var thrownAwaitValue = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitValue, environment))
+                                    if (_asyncStepMode && _pendingPromise is JsObject)
                                     {
-                                        continue;
+                                        driverState.AwaitingValue = true;
+                                        StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                            driverState);
+                                        _state = GeneratorState.Suspended;
+                                        _programCounter = iteratorIndex;
+                                        return CreateIteratorResult(JsSymbols.Undefined, false);
                                     }
 
-                                    _tryStack.Clear();
-                                    throw new ThrowSignal(thrownAwaitValue);
-                                }
-
-                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                continue;
-                            }
-
-                            awaitedValue = fullyAwaitedValue;
-                        }
-                        else if (driverState.Enumerator is IEnumerator<object?> awaitEnumerator)
-                        {
-                            if (!awaitEnumerator.MoveNext())
-                            {
-                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                continue;
-                            }
-
-                            var enumerated = awaitEnumerator.Current;
-                            if (!TryAwaitPromiseOrSchedule(enumerated, context, out var awaitedEnumerated))
-                            {
-                                if (_asyncStepMode && _pendingPromise is JsObject)
-                                {
-                                    driverState.AwaitingValue = true;
-                                    StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
-                                    _state = GeneratorState.Suspended;
-                                    _programCounter = iteratorIndex;
-                                    return CreateIteratorResult(JsSymbols.Undefined, false);
-                                }
-
-                                if (context.IsThrow)
-                                {
-                                    var thrownAwaitEnum = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitEnum, environment))
+                                    if (context.IsThrow)
                                     {
-                                        continue;
+                                        var thrownAwaitEnum = context.FlowValue;
+                                        context.Clear();
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitEnum, environment))
+                                        {
+                                            continue;
+                                        }
+
+                                        _tryStack.Clear();
+                                        throw new ThrowSignal(thrownAwaitEnum);
                                     }
 
-                                    _tryStack.Clear();
-                                    throw new ThrowSignal(thrownAwaitEnum);
+                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                    continue;
                                 }
 
+                                awaitedValue = awaitedEnumerated;
+                            }
+                            else
+                            {
                                 _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                 continue;
                             }
 
-                            awaitedValue = awaitedEnumerated;
-                        }
-                        else
-                        {
-                            _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                            StoreIteratorValue:
+                            StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue);
+                            _programCounter = iteratorMoveNextInstruction.Next;
                             continue;
-                        }
 
-                    StoreIteratorValue:
-                        StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue);
-                        _programCounter = iteratorMoveNextInstruction.Next;
-                        continue;
+                        case JumpInstruction jumpInstruction:
+                            _programCounter = jumpInstruction.TargetIndex;
+                            continue;
 
-                    case JumpInstruction jumpInstruction:
-                        _programCounter = jumpInstruction.TargetIndex;
-                        continue;
+                        case BranchInstruction branchInstruction:
+                            var testValue = EvaluateExpression(branchInstruction.Condition, environment, context);
+                            if (context.IsThrow)
+                            {
+                                var thrownBranch = context.FlowValue;
+                                context.Clear();
+                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownBranch, environment))
+                                {
+                                    continue;
+                                }
 
-                    case BranchInstruction branchInstruction:
-                        var testValue = EvaluateExpression(branchInstruction.Condition, environment, context);
-                        if (context.IsThrow)
-                        {
-                            var thrownBranch = context.FlowValue;
-                            context.Clear();
-                            if (HandleAbruptCompletion(AbruptKind.Throw, thrownBranch, environment))
+                                _tryStack.Clear();
+                                throw new ThrowSignal(thrownBranch);
+                            }
+
+                            _programCounter = IsTruthy(testValue)
+                                ? branchInstruction.ConsequentIndex
+                                : branchInstruction.AlternateIndex;
+                            continue;
+
+                        case BreakInstruction breakInstruction:
+                            if (HandleAbruptCompletion(AbruptKind.Break, breakInstruction.TargetIndex, environment))
                             {
                                 continue;
                             }
 
-                            _tryStack.Clear();
-                            throw new ThrowSignal(thrownBranch);
-                        }
-
-                        _programCounter = IsTruthy(testValue)
-                            ? branchInstruction.ConsequentIndex
-                            : branchInstruction.AlternateIndex;
-                        continue;
-
-                    case BreakInstruction breakInstruction:
-                        if (HandleAbruptCompletion(AbruptKind.Break, breakInstruction.TargetIndex, environment))
-                        {
+                            _programCounter = breakInstruction.TargetIndex;
                             continue;
-                        }
 
-                        _programCounter = breakInstruction.TargetIndex;
-                        continue;
-
-                    case ContinueInstruction continueInstruction:
-                        if (HandleAbruptCompletion(AbruptKind.Continue, continueInstruction.TargetIndex, environment))
-                        {
-                            continue;
-                        }
-
-                        _programCounter = continueInstruction.TargetIndex;
-                        continue;
-
-                    case ReturnInstruction returnInstruction:
-                        var returnValue = returnInstruction.ReturnExpression is null
-                            ? JsSymbols.Undefined
-                            : EvaluateExpression(returnInstruction.ReturnExpression, environment, context);
-                        if (context.IsThrow)
-                        {
-                            var pendingThrow = context.FlowValue;
-                            context.Clear();
-                            if (HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
+                        case ContinueInstruction continueInstruction:
+                            if (HandleAbruptCompletion(AbruptKind.Continue, continueInstruction.TargetIndex,
+                                    environment))
                             {
                                 continue;
                             }
 
-                            _tryStack.Clear();
-                            throw new ThrowSignal(pendingThrow);
-                        }
-
-                        if (context.IsReturn)
-                        {
-                            var pendingReturn = context.FlowValue;
-                            context.ClearReturn();
-                            returnValue = pendingReturn;
-                        }
-
-                        if (HandleAbruptCompletion(AbruptKind.Return, returnValue, environment))
-                        {
+                            _programCounter = continueInstruction.TargetIndex;
                             continue;
-                        }
 
-                        _programCounter = -1;
-                        _state = GeneratorState.Completed;
-                        _done = true;
-                        _tryStack.Clear();
-                        return CreateIteratorResult(returnValue, true);
+                        case ReturnInstruction returnInstruction:
+                            var returnValue = returnInstruction.ReturnExpression is null
+                                ? JsSymbols.Undefined
+                                : EvaluateExpression(returnInstruction.ReturnExpression, environment, context);
+                            if (context.IsThrow)
+                            {
+                                var pendingThrow = context.FlowValue;
+                                context.Clear();
+                                if (HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
+                                {
+                                    continue;
+                                }
 
-                    default:
-                        throw new InvalidOperationException($"Unsupported generator instruction {instruction.GetType().Name}");
+                                _tryStack.Clear();
+                                throw new ThrowSignal(pendingThrow);
+                            }
+
+                            if (context.IsReturn)
+                            {
+                                var pendingReturn = context.FlowValue;
+                                context.ClearReturn();
+                                returnValue = pendingReturn;
+                            }
+
+                            if (HandleAbruptCompletion(AbruptKind.Return, returnValue, environment))
+                            {
+                                continue;
+                            }
+
+                            _programCounter = -1;
+                            _state = GeneratorState.Completed;
+                            _done = true;
+                            _tryStack.Clear();
+                            return CreateIteratorResult(returnValue, true);
+
+                        default:
+                            throw new InvalidOperationException(
+                                $"Unsupported generator instruction {instruction.GetType().Name}");
                     }
                 }
             }
@@ -4840,7 +4905,8 @@ public static class TypedAstEvaluator
         private bool TryAwaitPromiseOrSchedule(object? candidate, EvaluationContext context, out object? resolvedValue)
         {
             var pendingPromise = _pendingPromise;
-            var result = AwaitScheduler.TryAwaitPromiseOrSchedule(candidate, _asyncStepMode, ref pendingPromise, context, out resolvedValue);
+            var result = AwaitScheduler.TryAwaitPromiseOrSchedule(candidate, _asyncStepMode, ref pendingPromise,
+                context, out resolvedValue);
             _pendingPromise = pendingPromise;
             return result;
         }
@@ -5004,22 +5070,14 @@ public static class TypedAstEvaluator
             Continue
         }
 
-        private sealed class TryFrame
+        private sealed class TryFrame(int handlerIndex, Symbol? catchSlotSymbol, int finallyIndex)
         {
-            public TryFrame(int handlerIndex, Symbol? catchSlotSymbol, int finallyIndex)
-            {
-                HandlerIndex = handlerIndex;
-                CatchSlotSymbol = catchSlotSymbol;
-                FinallyIndex = finallyIndex;
-                PendingCompletion = PendingCompletion.None;
-            }
-
-            public int HandlerIndex { get; }
-            public Symbol? CatchSlotSymbol { get; }
-            public int FinallyIndex { get; }
+            public int HandlerIndex { get; } = handlerIndex;
+            public Symbol? CatchSlotSymbol { get; } = catchSlotSymbol;
+            public int FinallyIndex { get; } = finallyIndex;
             public bool CatchUsed { get; set; }
             public bool FinallyScheduled { get; set; }
-            public PendingCompletion PendingCompletion { get; set; }
+            public PendingCompletion PendingCompletion { get; set; } = PendingCompletion.None;
         }
 
         private readonly record struct PendingCompletion(AbruptKind Kind, object? Value, int ResumeTarget)
@@ -5027,10 +5085,14 @@ public static class TypedAstEvaluator
             public static PendingCompletion None { get; } = new(AbruptKind.None, null, -1);
 
             public static PendingCompletion FromNormal(int resumeTarget)
-                => new(AbruptKind.None, null, resumeTarget);
+            {
+                return new PendingCompletion(AbruptKind.None, null, resumeTarget);
+            }
 
             public static PendingCompletion FromAbrupt(AbruptKind kind, object? value)
-                => new(kind, value, -1);
+            {
+                return new PendingCompletion(kind, value, -1);
+            }
         }
 
         private sealed class YieldStarState
@@ -5040,38 +5102,30 @@ public static class TypedAstEvaluator
             public AbruptKind PendingAbrupt { get; set; }
             public object? PendingValue { get; set; }
         }
-
     }
 
-    private sealed class AsyncGeneratorInstance
+    private sealed class AsyncGeneratorInstance(
+        FunctionExpression function,
+        JsEnvironment closure,
+        IReadOnlyList<object?> arguments,
+        object? thisValue,
+        IJsCallable callable,
+        RealmState realmState)
     {
-        private readonly FunctionExpression _function;
-        private readonly JsEnvironment _closure;
-        private readonly IReadOnlyList<object?> _arguments;
-        private readonly object? _thisValue;
-        private readonly IJsCallable _callable;
-        private readonly TypedGeneratorInstance _inner;
-        private readonly RealmState _realmState;
+        private readonly FunctionExpression _function = function;
+        private readonly IReadOnlyList<object?> _arguments = arguments;
+        private readonly object? _thisValue = thisValue;
+        private readonly IJsCallable _callable = callable;
+        private readonly TypedGeneratorInstance _inner = new(function, closure, arguments, thisValue, callable, realmState);
+        private readonly RealmState _realmState = realmState;
 
-        public AsyncGeneratorInstance(FunctionExpression function, JsEnvironment closure,
-            IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable, RealmState realmState)
-        {
-            _function = function;
-            _closure = closure;
-            _arguments = arguments;
-            _thisValue = thisValue;
-            _callable = callable;
-            _realmState = realmState;
-
-            // WAITING ON FULL ASYNC GENERATOR IR SUPPORT:
-            // For now we reuse the sync generator IR plan and runtime to execute
-            // the body. Async semantics are modeled by driving the shared plan
-            // through a small step API and wrapping each step in a Promise. Once
-            // we have a dedicated async-generator IR executor, this wiring
-            // should be revisited so await/yield drive a single non-blocking
-            // state machine.
-            _inner = new TypedGeneratorInstance(function, closure, arguments, thisValue, callable, realmState);
-        }
+        // WAITING ON FULL ASYNC GENERATOR IR SUPPORT:
+        // For now we reuse the sync generator IR plan and runtime to execute
+        // the body. Async semantics are modeled by driving the shared plan
+        // through a small step API and wrapping each step in a Promise. Once
+        // we have a dedicated async-generator IR executor, this wiring
+        // should be revisited so await/yield drive a single non-blocking
+        // state machine.
 
         public JsObject CreateAsyncIteratorObject()
         {
@@ -5094,7 +5148,7 @@ public static class TypedAstEvaluator
         private object? CreateStepPromise(TypedGeneratorInstance.ResumeMode mode, object? argument)
         {
             // Look up the global Promise constructor from the closure environment.
-            if (!_closure.TryGet(Symbol.Intern("Promise"), out var promiseCtorObj) ||
+            if (!closure.TryGet(Symbol.Intern("Promise"), out var promiseCtorObj) ||
                 promiseCtorObj is not IJsCallable promiseCtor)
             {
                 throw new InvalidOperationException("Promise constructor is not available in the current environment.");
@@ -5229,7 +5283,8 @@ public static class TypedAstEvaluator
         {
             if (function.IsAsync || function.IsGenerator)
             {
-                throw new NotSupportedException("Async and generator functions are not supported by the typed evaluator yet.");
+                throw new NotSupportedException(
+                    "Async and generator functions are not supported by the typed evaluator yet.");
             }
 
             _function = function;
@@ -5243,13 +5298,11 @@ public static class TypedAstEvaluator
 
             // Functions expose a prototype object so instances created via `new` can inherit from it.
             _properties.SetProperty("prototype", new JsObject());
-            _properties.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = (double)paramCount,
-                Writable = false,
-                Enumerable = false,
-                Configurable = false
-            });
+            _properties.DefineProperty("length",
+                new PropertyDescriptor
+                {
+                    Value = (double)paramCount, Writable = false, Enumerable = false, Configurable = false
+                });
         }
 
         public JsEnvironment? CallingJsEnvironment { get; set; }
@@ -5278,7 +5331,7 @@ public static class TypedAstEvaluator
 
             environment.Define(JsSymbols.This, boundThis ?? new JsObject());
 
-            IJsPropertyAccessor? prototypeForSuper = _superPrototype;
+            var prototypeForSuper = _superPrototype;
             if (prototypeForSuper is null && _homeObject is not null)
             {
                 prototypeForSuper = _homeObject.Prototype;
@@ -5332,7 +5385,6 @@ public static class TypedAstEvaluator
             var value = context.FlowValue;
             context.ClearReturn();
             return value;
-
         }
 
         public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype)

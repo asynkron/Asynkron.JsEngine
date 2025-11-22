@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
@@ -47,7 +46,8 @@ public sealed class TypedConstantExpressionTransformer
             FunctionDeclaration functionDeclaration => TransformFunctionDeclaration(functionDeclaration),
             ClassDeclaration classDeclaration => TransformClassDeclaration(classDeclaration),
             ExportDefaultStatement exportDefaultStatement => TransformExportDefault(exportDefaultStatement),
-            ExportDeclarationStatement exportDeclarationStatement => TransformExportDeclaration(exportDeclarationStatement),
+            ExportDeclarationStatement exportDeclarationStatement => TransformExportDeclaration(
+                exportDeclarationStatement),
             _ => statement
         };
     }
@@ -61,19 +61,25 @@ public sealed class TypedConstantExpressionTransformer
     private StatementNode TransformExpressionStatement(ExpressionStatement statement)
     {
         var expression = TransformExpression(statement.Expression);
-        return ReferenceEquals(expression, statement.Expression) ? statement : statement with { Expression = expression };
+        return ReferenceEquals(expression, statement.Expression)
+            ? statement
+            : statement with { Expression = expression };
     }
 
     private StatementNode TransformReturn(ReturnStatement statement)
     {
         var expression = TransformOptionalExpression(statement.Expression);
-        return ReferenceEquals(expression, statement.Expression) ? statement : statement with { Expression = expression };
+        return ReferenceEquals(expression, statement.Expression)
+            ? statement
+            : statement with { Expression = expression };
     }
 
     private StatementNode TransformThrow(ThrowStatement statement)
     {
         var expression = TransformExpression(statement.Expression);
-        return ReferenceEquals(expression, statement.Expression) ? statement : statement with { Expression = expression };
+        return ReferenceEquals(expression, statement.Expression)
+            ? statement
+            : statement with { Expression = expression };
     }
 
     private StatementNode TransformIf(IfStatement statement)
@@ -206,7 +212,9 @@ public sealed class TypedConstantExpressionTransformer
     private StatementNode TransformClassDeclaration(ClassDeclaration declaration)
     {
         var definition = TransformClassDefinition(declaration.Definition);
-        return ReferenceEquals(definition, declaration.Definition) ? declaration : declaration with { Definition = definition };
+        return ReferenceEquals(definition, declaration.Definition)
+            ? declaration
+            : declaration with { Definition = definition };
     }
 
     private StatementNode TransformExportDefault(ExportDefaultStatement statement)
@@ -225,7 +233,8 @@ public sealed class TypedConstantExpressionTransformer
 
     private VariableDeclaration TransformVariableDeclaration(VariableDeclaration declaration)
     {
-        var declarators = TransformImmutableArray(declaration.Declarators, TransformVariableDeclarator, out var changed);
+        var declarators =
+            TransformImmutableArray(declaration.Declarators, TransformVariableDeclarator, out var changed);
         return !changed ? declaration : declaration with { Declarators = declarators };
     }
 
@@ -283,7 +292,8 @@ public sealed class TypedConstantExpressionTransformer
 
     private ObjectBinding TransformObjectBinding(ObjectBinding binding)
     {
-        var properties = TransformImmutableArray(binding.Properties, TransformObjectBindingProperty, out var changedProperties);
+        var properties = TransformImmutableArray(binding.Properties, TransformObjectBindingProperty,
+            out var changedProperties);
         var rest = TransformOptionalBindingTarget(binding.RestElement);
         if (!changedProperties && ReferenceEquals(rest, binding.RestElement))
         {
@@ -307,7 +317,8 @@ public sealed class TypedConstantExpressionTransformer
 
     private FunctionExpression TransformFunctionExpression(FunctionExpression expression)
     {
-        var parameters = TransformImmutableArray(expression.Parameters, TransformFunctionParameter, out var changedParameters);
+        var parameters =
+            TransformImmutableArray(expression.Parameters, TransformFunctionParameter, out var changedParameters);
         var body = TransformBlock(expression.Body);
         if (!changedParameters && ReferenceEquals(body, expression.Body))
         {
@@ -336,13 +347,17 @@ public sealed class TypedConstantExpressionTransformer
         var members = TransformImmutableArray(definition.Members, TransformClassMember, out var membersChanged);
         var fields = TransformImmutableArray(definition.Fields, TransformClassField, out var fieldsChanged);
 
-        if (ReferenceEquals(extendsExpression, definition.Extends) && ReferenceEquals(constructor, definition.Constructor) &&
+        if (ReferenceEquals(extendsExpression, definition.Extends) &&
+            ReferenceEquals(constructor, definition.Constructor) &&
             !membersChanged && !fieldsChanged)
         {
             return definition;
         }
 
-        return definition with { Extends = extendsExpression, Constructor = constructor, Members = members, Fields = fields };
+        return definition with
+        {
+            Extends = extendsExpression, Constructor = constructor, Members = members, Fields = fields
+        };
     }
 
     private ClassMember TransformClassMember(ClassMember member)
@@ -603,7 +618,9 @@ public sealed class TypedConstantExpressionTransformer
     private ExpressionNode TransformClassExpression(ClassExpression expression)
     {
         var definition = TransformClassDefinition(expression.Definition);
-        return ReferenceEquals(definition, expression.Definition) ? expression : expression with { Definition = definition };
+        return ReferenceEquals(definition, expression.Definition)
+            ? expression
+            : expression with { Definition = definition };
     }
 
     private ExpressionNode TransformTemplateLiteral(TemplateLiteralExpression expression)
@@ -623,7 +640,8 @@ public sealed class TypedConstantExpressionTransformer
         var tag = TransformExpression(expression.Tag);
         var stringsArray = TransformExpression(expression.StringsArray);
         var rawStringsArray = TransformExpression(expression.RawStringsArray);
-        var expressions = TransformImmutableArray(expression.Expressions, TransformExpression, out var changedExpressions);
+        var expressions =
+            TransformImmutableArray(expression.Expressions, TransformExpression, out var changedExpressions);
 
         if (ReferenceEquals(tag, expression.Tag) && ReferenceEquals(stringsArray, expression.StringsArray) &&
             ReferenceEquals(rawStringsArray, expression.RawStringsArray) && !changedExpressions)
@@ -633,10 +651,7 @@ public sealed class TypedConstantExpressionTransformer
 
         return expression with
         {
-            Tag = tag,
-            StringsArray = stringsArray,
-            RawStringsArray = rawStringsArray,
-            Expressions = expressions
+            Tag = tag, StringsArray = stringsArray, RawStringsArray = rawStringsArray, Expressions = expressions
         };
     }
 

@@ -3,6 +3,7 @@ using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine;
 
@@ -110,7 +111,7 @@ internal static class JsValueExtensions
 
         public string ToJsStringForArray()
         {
-            if (value is null || value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
+            if (value is null || (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined)))
             {
                 return string.Empty;
             }

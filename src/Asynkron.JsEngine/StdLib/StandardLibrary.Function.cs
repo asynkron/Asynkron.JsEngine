@@ -2,11 +2,11 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static IJsCallable CreateFunctionConstructor(Runtime.RealmState realm)
+    public static IJsCallable CreateFunctionConstructor(RealmState realm)
     {
         // Minimal Function constructor: for now we ignore the body and
         // arguments and just return a no-op function value.
@@ -17,8 +17,7 @@ public static partial class StandardLibrary
             var realm = functionConstructor.Realm ?? thisValue as JsObject;
             return new HostFunction((innerThis, innerArgs) => Symbols.Undefined)
             {
-                Realm = realm,
-                RealmState = functionConstructor.RealmState
+                Realm = realm, RealmState = functionConstructor.RealmState
             };
         });
         functionConstructor.RealmState = realm;
@@ -64,6 +63,7 @@ public static partial class StandardLibrary
         {
             functionPrototype.SetPrototype(realm.ObjectPrototype);
         }
+
         var hasInstanceKey = $"@@symbol:{TypedAstSymbol.For("Symbol.hasInstance").GetHashCode()}";
         functionPrototype.SetProperty(hasInstanceKey, new HostFunction((thisValue, args) =>
         {
@@ -110,5 +110,4 @@ public static partial class StandardLibrary
 
         return functionConstructor;
     }
-
 }

@@ -77,7 +77,8 @@ internal static class TypedAstSupportAnalyzer
                     case FunctionDeclaration functionDeclaration:
                         return VisitFunction(functionDeclaration.Function);
                     case IfStatement ifStatement:
-                        return VisitExpression(ifStatement.Condition) && VisitStatement(ifStatement.Then) && (ifStatement.Else is null || VisitStatement(ifStatement.Else));
+                        return VisitExpression(ifStatement.Condition) && VisitStatement(ifStatement.Then) &&
+                               (ifStatement.Else is null || VisitStatement(ifStatement.Else));
                     case WhileStatement whileStatement:
                         return VisitExpression(whileStatement.Condition) && VisitStatement(whileStatement.Body);
                     case DoWhileStatement doWhileStatement:
@@ -101,7 +102,8 @@ internal static class TypedAstSupportAnalyzer
                         statement = forStatement.Body;
                         continue;
                     case ForEachStatement forEach:
-                        return IsSupportedBinding(forEach.Target) && VisitExpression(forEach.Iterable) && VisitStatement(forEach.Body);
+                        return IsSupportedBinding(forEach.Target) && VisitExpression(forEach.Iterable) &&
+                               VisitStatement(forEach.Body);
                     case LabeledStatement labeled:
                         statement = labeled.Statement;
                         continue;
@@ -151,7 +153,8 @@ internal static class TypedAstSupportAnalyzer
                     case ModuleStatement:
                         return Fail("module import/export statements are not supported by the typed evaluator yet.");
                     default:
-                        return Fail($"Statement '{statement.GetType().Name}' is not supported by the typed evaluator yet.");
+                        return Fail(
+                            $"Statement '{statement.GetType().Name}' is not supported by the typed evaluator yet.");
                 }
             }
         }
@@ -231,7 +234,8 @@ internal static class TypedAstSupportAnalyzer
                         expression = unary.Operand;
                         continue;
                     case ConditionalExpression conditional:
-                        return VisitExpression(conditional.Test) && VisitExpression(conditional.Consequent) && VisitExpression(conditional.Alternate);
+                        return VisitExpression(conditional.Test) && VisitExpression(conditional.Consequent) &&
+                               VisitExpression(conditional.Alternate);
                     case CallExpression call:
                         if (!VisitExpression(call.Callee))
                         {
@@ -253,9 +257,12 @@ internal static class TypedAstSupportAnalyzer
                         expression = assignment.Value;
                         continue;
                     case PropertyAssignmentExpression propertyAssignment:
-                        return VisitExpression(propertyAssignment.Target) && VisitExpression(propertyAssignment.Property) && VisitExpression(propertyAssignment.Value);
+                        return VisitExpression(propertyAssignment.Target) &&
+                               VisitExpression(propertyAssignment.Property) &&
+                               VisitExpression(propertyAssignment.Value);
                     case IndexAssignmentExpression indexAssignment:
-                        return VisitExpression(indexAssignment.Target) && VisitExpression(indexAssignment.Index) && VisitExpression(indexAssignment.Value);
+                        return VisitExpression(indexAssignment.Target) && VisitExpression(indexAssignment.Index) &&
+                               VisitExpression(indexAssignment.Value);
                     case SequenceExpression sequence:
                         return VisitExpression(sequence.Left) && VisitExpression(sequence.Right);
                     case MemberExpression member:
@@ -336,7 +343,8 @@ internal static class TypedAstSupportAnalyzer
                     case SuperExpression:
                         return Fail("super expressions are not supported by the typed evaluator yet.");
                     default:
-                        return Fail($"Expression '{expression.GetType().Name}' is not supported by the typed evaluator yet.");
+                        return Fail(
+                            $"Expression '{expression.GetType().Name}' is not supported by the typed evaluator yet.");
                 }
             }
         }

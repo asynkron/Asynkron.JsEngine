@@ -60,7 +60,6 @@ public sealed class TypedAstSymbol
         }
 
         return $"Symbol({Description})";
-
     }
 
     public override bool Equals(object? obj)

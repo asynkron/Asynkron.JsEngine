@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Execution;
@@ -113,7 +111,8 @@ internal sealed class SyncGeneratorIrBuilder
         return true;
     }
 
-    private bool TryBuildStatement(StatementNode statement, int nextIndex, out int entryIndex, Symbol? activeLabel = null)
+    private bool TryBuildStatement(StatementNode statement, int nextIndex, out int entryIndex,
+        Symbol? activeLabel = null)
     {
         while (true)
         {
@@ -138,7 +137,7 @@ internal sealed class SyncGeneratorIrBuilder
                             return false;
                         }
 
-                        entryIndex = AppendYieldStarSequence(yieldExpression, nextIndex, resultSlot: null);
+                        entryIndex = AppendYieldStarSequence(yieldExpression, nextIndex, null);
                         return true;
                     }
 
@@ -148,11 +147,14 @@ internal sealed class SyncGeneratorIrBuilder
                         return false;
                     }
 
-                    entryIndex = AppendYieldSequence(yieldExpression.Expression, nextIndex, resumeSlot: null);
+                    entryIndex = AppendYieldSequence(yieldExpression.Expression, nextIndex, null);
                     return true;
 
                 case ExpressionStatement expressionStatement:
-                    if (expressionStatement.Expression is AssignmentExpression { Target: { } targetSymbol, Value: YieldExpression yieldAssignment } &&
+                    if (expressionStatement.Expression is AssignmentExpression
+                        {
+                            Target: { } targetSymbol, Value: YieldExpression yieldAssignment
+                        } &&
                         IsLowererTemp(targetSymbol) &&
                         !AstShapeAnalyzer.ContainsYield(yieldAssignment.Expression))
                     {
@@ -287,7 +289,8 @@ internal sealed class SyncGeneratorIrBuilder
                         return true;
                     }
 
-                    if (returnStatement.Expression is not null && AstShapeAnalyzer.ContainsYield(returnStatement.Expression))
+                    if (returnStatement.Expression is not null &&
+                        AstShapeAnalyzer.ContainsYield(returnStatement.Expression))
                     {
                         entryIndex = -1;
                         _failureReason ??= "Return expression contains unsupported yield shape.";
@@ -328,7 +331,8 @@ internal sealed class SyncGeneratorIrBuilder
             return false;
         }
 
-        if (!IsLowererTemp(targetSymbol) || yieldInitializer.IsDelegated || AstShapeAnalyzer.ContainsYield(yieldInitializer.Expression))
+        if (!IsLowererTemp(targetSymbol) || yieldInitializer.IsDelegated ||
+            AstShapeAnalyzer.ContainsYield(yieldInitializer.Expression))
         {
             return false;
         }
@@ -750,17 +754,20 @@ internal sealed class SyncGeneratorIrBuilder
             : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body));
         var iteratorPlan = IteratorDriverFactory.CreatePlan(statement, planBody);
 
-        var iteratorInstructions = IteratorInstructionTemplate.AppendInstructions(_instructions, iteratorPlan, nextIndex);
+        var iteratorInstructions =
+            IteratorInstructionTemplate.AppendInstructions(_instructions, iteratorPlan, nextIndex);
 
         var perIterationBlock = CreateIteratorIterationBlock(iteratorPlan, iteratorInstructions.ValueSlot);
         var scope = new LoopScope(label, iteratorInstructions.MoveNextIndex, nextIndex);
         _loopScopes.Push(scope);
-        var bodyBuilt = TryBuildStatement(perIterationBlock, iteratorInstructions.MoveNextIndex, out var iterationEntry, label);
+        var bodyBuilt = TryBuildStatement(perIterationBlock, iteratorInstructions.MoveNextIndex, out var iterationEntry,
+            label);
         _loopScopes.Pop();
 
         if (!bodyBuilt)
         {
-            _instructions.RemoveRange(iteratorInstructions.InitIndex, _instructions.Count - iteratorInstructions.InitIndex);
+            _instructions.RemoveRange(iteratorInstructions.InitIndex,
+                _instructions.Count - iteratorInstructions.InitIndex);
             entryIndex = -1;
             return false;
         }
@@ -855,7 +862,8 @@ internal sealed class SyncGeneratorIrBuilder
         return target switch
         {
             IdentifierBinding identifier => new AssignmentExpression(target.Source, identifier.Name, valueExpression),
-            ArrayBinding or ObjectBinding => new DestructuringAssignmentExpression(target.Source, target, valueExpression),
+            ArrayBinding or ObjectBinding => new DestructuringAssignmentExpression(target.Source, target,
+                valueExpression),
             _ => throw new NotSupportedException($"Unsupported for-of binding target '{target.GetType().Name}'.")
         };
     }

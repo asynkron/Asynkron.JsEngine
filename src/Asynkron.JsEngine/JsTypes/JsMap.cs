@@ -26,7 +26,7 @@ public sealed class JsMap : IJsPropertyAccessor
             value = (double)Size;
             return true;
         }
-        
+
         return _properties.TryGetProperty(name, out value);
     }
 
@@ -42,11 +42,13 @@ public sealed class JsMap : IJsPropertyAccessor
     {
         // Find existing entry with the same key
         for (var i = 0; i < _entries.Count; i++)
+        {
             if (SameValueZero(_entries[i].Key, key))
             {
                 _entries[i] = new KeyValuePair<object?, object?>(key, value);
                 return this;
             }
+        }
 
         // Key not found, add new entry
         _entries.Add(new KeyValuePair<object?, object?>(key, value));
@@ -92,11 +94,13 @@ public sealed class JsMap : IJsPropertyAccessor
     public bool Delete(object? key)
     {
         for (var i = 0; i < _entries.Count; i++)
+        {
             if (SameValueZero(_entries[i].Key, key))
             {
                 _entries.RemoveAt(i);
                 return true;
             }
+        }
 
         return false;
     }
@@ -171,7 +175,7 @@ public sealed class JsMap : IJsPropertyAccessor
         }
 
         // Handle NaN (NaN is equal to NaN in SameValueZero)
-        if (x is double and Double.NaN && y is double and Double.NaN)
+        if (x is double and double.NaN && y is double and double.NaN)
         {
             return true;
         }

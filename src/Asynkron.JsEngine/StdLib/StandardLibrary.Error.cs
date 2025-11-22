@@ -2,11 +2,11 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static HostFunction CreateErrorConstructor(Runtime.RealmState realm, string errorType = "Error")
+    public static HostFunction CreateErrorConstructor(RealmState realm, string errorType = "Error")
     {
         JsObject? prototype = null;
 
@@ -48,13 +48,11 @@ public static partial class StandardLibrary
             return errorType;
         }));
 
-        prototype.DefineProperty("constructor", new PropertyDescriptor
-        {
-            Value = errorConstructor,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
+        prototype.DefineProperty("constructor",
+            new PropertyDescriptor
+            {
+                Value = errorConstructor, Writable = true, Enumerable = false, Configurable = true
+            });
 
         errorConstructor.SetProperty("prototype", prototype);
 

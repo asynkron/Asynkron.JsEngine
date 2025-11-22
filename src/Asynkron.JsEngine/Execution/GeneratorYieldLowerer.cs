@@ -130,7 +130,8 @@ internal static class GeneratorYieldLowerer
                 [new VariableDeclarator(statement.Source, resumeIdentifier, null)]);
             var assignResume = new ExpressionStatement(yieldExpression.Source,
                 new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
-                    new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated)));
+                    new YieldExpression(yieldExpression.Source, yieldExpression.Expression,
+                        yieldExpression.IsDelegated)));
             var loweredReturn = new ReturnStatement(statement.Source,
                 new IdentifierExpression(yieldExpression.Source, resumeIdentifier.Name));
 
@@ -168,7 +169,8 @@ internal static class GeneratorYieldLowerer
                     [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]),
                 new ExpressionStatement(yieldExpression.Source,
                     new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
-                        new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated))),
+                        new YieldExpression(yieldExpression.Source, yieldExpression.Expression,
+                            yieldExpression.IsDelegated))),
                 rewrittenDeclaration
             ];
             return true;
@@ -231,7 +233,10 @@ internal static class GeneratorYieldLowerer
         private bool TryRewriteYieldingAssignment(StatementNode statement,
             out ImmutableArray<StatementNode> replacement)
         {
-            if (statement is not ExpressionStatement { Expression: AssignmentExpression assignment } expressionStatement ||
+            if (statement is not ExpressionStatement
+                {
+                    Expression: AssignmentExpression assignment
+                } expressionStatement ||
                 assignment.Value is not YieldExpression yieldExpression)
             {
                 replacement = default;
@@ -260,7 +265,8 @@ internal static class GeneratorYieldLowerer
                     [new VariableDeclarator(expressionStatement.Source, resumeIdentifier, null)]),
                 new ExpressionStatement(yieldExpression.Source,
                     new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
-                        new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated))),
+                        new YieldExpression(yieldExpression.Source, yieldExpression.Expression,
+                            yieldExpression.IsDelegated))),
                 rewrittenStatement
             ];
             return true;
@@ -294,16 +300,15 @@ internal static class GeneratorYieldLowerer
 
                     var loweredIf = ifStatement with
                     {
-                        Condition = rewrittenCondition,
-                        Then = rewrittenThen,
-                        Else = rewrittenElse
+                        Condition = rewrittenCondition, Then = rewrittenThen, Else = rewrittenElse
                     };
 
                     var declareResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
                         [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]);
                     var assignResume = new ExpressionStatement(yieldExpression.Source,
                         new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
-                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated)));
+                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression,
+                                yieldExpression.IsDelegated)));
 
                     replacement =
                     [
@@ -334,7 +339,8 @@ internal static class GeneratorYieldLowerer
                         return false;
                     }
 
-                    replacement = BuildYieldedLoop(resumeIdentifier, yieldExpression, rewrittenCondition, plan, isStrict);
+                    replacement = BuildYieldedLoop(resumeIdentifier, yieldExpression, rewrittenCondition, plan,
+                        isStrict);
                     return true;
                 }
 
@@ -358,7 +364,8 @@ internal static class GeneratorYieldLowerer
                         return false;
                     }
 
-                    replacement = BuildYieldedLoop(resumeIdentifier, yieldExpression, rewrittenCondition, plan, isStrict);
+                    replacement = BuildYieldedLoop(resumeIdentifier, yieldExpression, rewrittenCondition, plan,
+                        isStrict);
 
                     return true;
                 }
@@ -440,12 +447,14 @@ internal static class GeneratorYieldLowerer
 
                 if (!incrementHasYield &&
                     TryRewriteIncrementWithTwoYields(forStatement.Increment,
-                        out incrementYieldLeft, out incrementYieldRight, out incrementBinary, out incrementAssignmentTarget))
+                        out incrementYieldLeft, out incrementYieldRight, out incrementBinary,
+                        out incrementAssignmentTarget))
                 {
                     incrementHasTwoYields = true;
                 }
 
-                if (AstShapeAnalyzer.ContainsYield(forStatement.Increment) && !incrementHasYield && !incrementHasTwoYields)
+                if (AstShapeAnalyzer.ContainsYield(forStatement.Increment) && !incrementHasYield &&
+                    !incrementHasTwoYields)
                 {
                     return false;
                 }
@@ -534,7 +543,8 @@ internal static class GeneratorYieldLowerer
                         new YieldExpression(incrementYieldRight.Source, incrementYieldRight.Expression,
                             incrementYieldRight.IsDelegated))));
 
-                ExpressionNode substitutedIncrement = new BinaryExpression(incrementBinary.Source, incrementBinary.Operator,
+                ExpressionNode substitutedIncrement = new BinaryExpression(incrementBinary.Source,
+                    incrementBinary.Operator,
                     new IdentifierExpression(incrementYieldLeft.Source, incrementResumeLeftIdentifier.Name),
                     new IdentifierExpression(incrementYieldRight.Source, incrementResumeRightIdentifier.Name));
 
@@ -578,7 +588,8 @@ internal static class GeneratorYieldLowerer
                 case BinaryExpression asBinary:
                     binary = asBinary;
                     break;
-                case AssignmentExpression { Value: BinaryExpression assignBinary } assignment when assignment.Target is not null:
+                case AssignmentExpression { Value: BinaryExpression assignBinary } assignment
+                    when assignment.Target is not null:
                     assignmentTarget = assignment.Target;
                     binary = assignBinary;
                     break;

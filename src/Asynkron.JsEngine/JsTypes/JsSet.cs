@@ -23,7 +23,7 @@ public sealed class JsSet : IJsPropertyAccessor
             value = (double)Size;
             return true;
         }
-        
+
         return _properties.TryGetProperty(name, out value);
     }
 
@@ -70,11 +70,13 @@ public sealed class JsSet : IJsPropertyAccessor
     public bool Delete(object? value)
     {
         for (var i = 0; i < _values.Count; i++)
+        {
             if (SameValueZero(_values[i], value))
             {
                 _values.RemoveAt(i);
                 return true;
             }
+        }
 
         return false;
     }
@@ -151,7 +153,7 @@ public sealed class JsSet : IJsPropertyAccessor
         }
 
         // Handle NaN (NaN is equal to NaN in SameValueZero)
-        if (x is double and Double.NaN && y is double and Double.NaN)
+        if (x is double and double.NaN && y is double and double.NaN)
         {
             return true;
         }

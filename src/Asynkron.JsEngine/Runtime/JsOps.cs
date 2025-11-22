@@ -50,6 +50,8 @@ internal static class JsOps
                     return 0;
                 case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
                     return double.NaN;
+                case Symbol:
+                    throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number"));
                 case double d:
                     return d;
                 case float f:

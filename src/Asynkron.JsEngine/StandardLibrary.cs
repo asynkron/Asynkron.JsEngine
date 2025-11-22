@@ -2135,6 +2135,27 @@ public static class StandardLibrary
 
         if (receiver is IJsPropertyAccessor accessor)
         {
+            if (accessor is JsObject jsObj && jsObj.TryGetProperty("__value__", out var inner) && inner is string sInner)
+            {
+                if (!jsObj.TryGetProperty("length", out _))
+                {
+                    jsObj.DefineProperty("length", new PropertyDescriptor
+                    {
+                        Value = (double)sInner.Length,
+                        Writable = false,
+                        Enumerable = false,
+                        Configurable = false
+                    });
+
+                    for (var i = 0; i < sInner.Length; i++)
+                    {
+                        jsObj.SetProperty(i.ToString(CultureInfo.InvariantCulture), sInner[i].ToString());
+                    }
+                }
+
+                return jsObj;
+            }
+
             return accessor;
         }
 

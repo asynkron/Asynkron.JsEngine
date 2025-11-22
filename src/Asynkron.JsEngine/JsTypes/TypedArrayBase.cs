@@ -23,6 +23,22 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     private readonly HostFunction _sliceFunction;
     private readonly HostFunction _indexOfFunction;
 
+    private static double ToIntegerOrInfinity(object? value)
+    {
+        var number = JsOps.ToNumberWithContext(value);
+        if (double.IsNaN(number))
+        {
+            return 0;
+        }
+
+        if (double.IsInfinity(number) || number == 0)
+        {
+            return number;
+        }
+
+        return Math.Sign(number) * Math.Floor(Math.Abs(number));
+    }
+
     protected TypedArrayBase(JsArrayBuffer buffer, int byteOffset, int length, int bytesPerElement)
     {
         _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
@@ -94,6 +110,10 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         _indexOfFunction = new HostFunction((thisValue, args) =>
         {
             var target = ResolveThis(thisValue, this);
+            if (target.IsDetachedOrOutOfBounds())
+            {
+                throw CreateOutOfBoundsTypeError();
+            }
             if (args.Count == 0)
             {
                 return -1d;
@@ -101,7 +121,15 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
             var searchElement = args[0];
             var len = target.Length;
-            var fromIndex = args.Count > 1 ? JsOps.ToNumberWithContext(args[1]) : 0d;
+            double fromIndex;
+            try
+            {
+                fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
+            }
+            catch (ThrowSignal signal)
+            {
+                throw;
+            }
 
             if (double.IsPositiveInfinity(fromIndex))
             {

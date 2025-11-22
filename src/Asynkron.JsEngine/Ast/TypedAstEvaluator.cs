@@ -5276,6 +5276,13 @@ public static class TypedAstEvaluator
 
             // Functions expose a prototype object so instances created via `new` can inherit from it.
             _properties.SetProperty("prototype", new JsObject());
+            _properties.DefineProperty("length", new PropertyDescriptor
+            {
+                Value = (double)function.Parameters.Length,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
+            });
         }
 
         public JsEnvironment? CallingJsEnvironment { get; set; }

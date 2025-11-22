@@ -30,6 +30,8 @@ internal static class JsValueExtensions
                 sbyte sb => sb,
                 bool flag => flag ? 1 : 0,
                 string str => StringToNumber(str),
+                Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => double.NaN,
+                Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number"),
                 JsArray arr => ArrayToNumber(arr),
                 JsObject obj => obj.TryGetProperty("__value__", out var inner)
                     ? ToNumber(inner)

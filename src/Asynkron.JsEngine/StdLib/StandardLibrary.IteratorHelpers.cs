@@ -175,13 +175,25 @@ public static partial class StandardLibrary
                 return rejectedPromise.JsObject;
             }
 
+            // Iterator.next must return an object; if it doesn't, surface a
+            // rejection so async iteration can stop instead of recursing forever.
+            if (result is not JsObject resultObject)
+            {
+                var rejectedPromise = new JsPromise(engine);
+                AddPromiseInstanceMethods(rejectedPromise.JsObject, rejectedPromise, engine);
+                var error = CreateTypeError("Iterator.next() did not return an object");
+                rejectedPromise.Reject(error);
+                engine.WriteAsyncIteratorTrace("iteratorNext: rejected promise because next() returned non-object");
+                return rejectedPromise.JsObject;
+            }
+
             // Check if result is already a promise (has a "then" method)
-            if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
+            if (resultObject.TryGetProperty("then", out var thenMethod) &&
                 thenMethod is IJsCallable)
             {
                 engine.WriteAsyncIteratorTrace("iteratorNext: result already promise-like, returning as-is");
                 // Already a promise, return as-is
-                return result;
+                return resultObject;
             }
 
             // Not a promise, wrap in Promise.resolve()

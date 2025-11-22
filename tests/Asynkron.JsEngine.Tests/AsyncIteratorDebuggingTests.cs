@@ -736,7 +736,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     }
 
 
-    [Fact(Timeout = 5000, Skip = "kills all other tests")]
+    [Fact(Timeout = 5000)]
     public async Task TestH_CheckPromiseRejectionHandling()
     {
         output.WriteLine("=== Test H: Check if Promise Rejections are Handled ===");
@@ -921,4 +921,3 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         output.WriteLine("  3. Something about Symbol.iterator specifically");
     }
 }
-

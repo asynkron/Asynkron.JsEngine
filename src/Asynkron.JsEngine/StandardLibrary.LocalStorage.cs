@@ -54,8 +54,4 @@ public static partial class StandardLibrary
         return storage;
     }
 
-    /// <summary>
-    /// Creates a Console object with common logging methods.
-    /// </summary>
-
 }

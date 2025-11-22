@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
@@ -109,11 +110,5 @@ public static partial class StandardLibrary
 
         return functionConstructor;
     }
-
-    /// <summary>
-    /// Creates a minimal window.localStorage-like object used by libraries
-    /// such as debug/babel-standalone. This implementation keeps values in
-    /// an in-memory dictionary and exposes the standard getItem/setItem API.
-    /// </summary>
 
 }

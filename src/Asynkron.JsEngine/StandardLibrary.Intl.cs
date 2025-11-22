@@ -398,10 +398,4 @@ public static partial class StandardLibrary
         return temporal;
     }
 
-    /// <summary>
-    /// Creates a minimal Function constructor with a callable `Function`
-    /// value and a `Function.call` helper that can be used with patterns
-    /// like <c>Function.call.bind(Object.prototype.hasOwnProperty)</c>.
-    /// </summary>
-
 }

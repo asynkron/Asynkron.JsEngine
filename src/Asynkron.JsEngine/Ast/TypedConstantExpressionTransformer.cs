@@ -1082,18 +1082,7 @@ public sealed class TypedConstantExpressionTransformer
 
     private static double StringToNumber(string str)
     {
-        if (string.IsNullOrEmpty(str))
-        {
-            return 0.0;
-        }
-
-        str = str.Trim();
-        if (str.Length == 0)
-        {
-            return 0.0;
-        }
-
-        return double.TryParse(str, out var result) ? result : double.NaN;
+        return NumericStringParser.ParseJsNumber(str);
     }
 
     private static bool StrictEquals(object? left, object? right)

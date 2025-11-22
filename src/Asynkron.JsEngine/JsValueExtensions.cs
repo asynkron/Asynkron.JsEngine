@@ -115,20 +115,7 @@ internal static class JsValueExtensions
 
     private static double StringToNumber(string str)
     {
-        if (string.IsNullOrEmpty(str))
-        {
-            return 0;
-        }
-
-        var trimmed = str.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return 0;
-        }
-
-        return double.TryParse(trimmed, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed
-            : double.NaN;
+        return NumericStringParser.ParseJsNumber(str);
     }
 
     private static double ArrayToNumber(JsArray arr)

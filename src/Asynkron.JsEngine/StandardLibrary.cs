@@ -778,6 +778,64 @@ public static class StandardLibrary
         return math;
     }
 
+    public static JsObject CreateIntlObject()
+    {
+        var intl = new JsObject();
+
+        // Minimal Locale constructor with a prototype exposing a calendar accessor.
+        var localePrototype = new JsObject();
+        var calendarGetter = new HostFunction((thisValue, _) =>
+        {
+            if (thisValue is JsObject self && self.TryGetProperty("__calendar__", out var value))
+            {
+                return value;
+            }
+
+            return Symbols.Undefined;
+        });
+        calendarGetter.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = "get calendar",
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        localePrototype.DefineProperty("calendar", new PropertyDescriptor
+        {
+            Get = calendarGetter,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        var localeCtor = new HostFunction((thisValue, args) =>
+        {
+            var instance = thisValue as JsObject ?? new JsObject();
+            if (args.Count > 0 && args[0] is string tag)
+            {
+                instance.SetProperty("__tag__", tag);
+            }
+
+            // Optionally capture calendar option if provided.
+            if (args.Count > 1 && args[1] is JsObject options && options.TryGetProperty("calendar", out var calendar))
+            {
+                instance.SetProperty("__calendar__", calendar);
+            }
+
+            return instance;
+        })
+        {
+            IsConstructor = true
+        };
+
+        localeCtor.SetProperty("prototype", localePrototype);
+        localePrototype.SetProperty("constructor", localeCtor);
+
+        intl.SetProperty("Locale", localeCtor);
+
+        return intl;
+    }
+
     /// <summary>
     /// Creates a minimal Function constructor with a callable `Function`
     /// value and a `Function.call` helper that can be used with patterns

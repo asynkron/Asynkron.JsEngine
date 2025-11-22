@@ -79,7 +79,7 @@ internal static class JsOps
                 case bool flag:
                     return flag ? 1 : 0;
                 case string str:
-                    return str.ToNumber();
+                    return NumericStringParser.ParseJsNumber(str);
             }
 
             if (value is JsObject jsObj && jsObj.TryGetValue("__value__", out var inner))

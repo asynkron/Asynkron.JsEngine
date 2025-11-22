@@ -171,6 +171,7 @@ namespace Asynkron.JsEngine;
         SetGlobal("Float64Array", StandardLibrary.CreateFloat64ArrayConstructor());
         SetGlobal("BigInt64Array", StandardLibrary.CreateBigInt64ArrayConstructor());
         SetGlobal("BigUint64Array", StandardLibrary.CreateBigUint64ArrayConstructor());
+        SetGlobal("Intl", StandardLibrary.CreateIntlObject());
 
         // Register Error constructors
         SetGlobal("Error", StandardLibrary.CreateErrorConstructor(_realm, "Error"));

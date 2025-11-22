@@ -9,7 +9,7 @@ public class ArrayIteratorMethodsTests
         var result = await engine.Evaluate("""
 
                                                        let arr = ['a', 'b', 'c'];
-                                                       let entries = arr.entries();
+                                                       let entries = Array.from(arr.entries());
                                                        entries[0][0] + entries[0][1];
 
                                            """);
@@ -23,7 +23,7 @@ public class ArrayIteratorMethodsTests
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
-                                                       let entries = arr.entries();
+                                                       let entries = Array.from(arr.entries());
                                                        entries[1][0] + entries[1][1];
 
                                            """);
@@ -37,7 +37,7 @@ public class ArrayIteratorMethodsTests
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4, 5];
-                                                       let entries = arr.entries();
+                                                       let entries = Array.from(arr.entries());
                                                        entries.length;
 
                                            """);
@@ -53,7 +53,7 @@ public class ArrayIteratorMethodsTests
         var result = await engine.Evaluate("""
 
                                                        let arr = ['a', 'b', 'c'];
-                                                       let keys = arr.keys();
+                                                       let keys = Array.from(arr.keys());
                                                        keys[0] + keys[1] + keys[2];
 
                                            """);
@@ -67,7 +67,7 @@ public class ArrayIteratorMethodsTests
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4];
-                                                       let keys = arr.keys();
+                                                       let keys = Array.from(arr.keys());
                                                        keys.length;
 
                                            """);
@@ -81,7 +81,7 @@ public class ArrayIteratorMethodsTests
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
-                                                       let values = arr.values();
+                                                       let values = Array.from(arr.values());
                                                        values[0] + values[1] + values[2];
 
                                            """);
@@ -95,7 +95,7 @@ public class ArrayIteratorMethodsTests
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3];
-                                                       let values = arr.values();
+                                                       let values = Array.from(arr.values());
                                                        values.length;
 
                                            """);
@@ -109,7 +109,7 @@ public class ArrayIteratorMethodsTests
         var result = await engine.Evaluate("""
 
                                                        let arr = ['hello', 'world'];
-                                                       let values = arr.values();
+                                                       let values = Array.from(arr.values());
                                                        values[0] + ' ' + values[1];
 
                                            """);
@@ -123,7 +123,7 @@ public class ArrayIteratorMethodsTests
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3];
-                                                       let entries = arr.entries();
+                                                       let entries = Array.from(arr.entries());
                                                        let sum = 0;
                                                        for (let i = 0; i < entries.length; i++) {
                                                            sum += entries[i][1];
@@ -141,7 +141,7 @@ public class ArrayIteratorMethodsTests
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
-                                                       let keys = arr.keys();
+                                                       let keys = Array.from(arr.keys());
                                                        let sum = 0;
                                                        for (let i = 0; i < keys.length; i++) {
                                                            sum += keys[i];
@@ -159,7 +159,7 @@ public class ArrayIteratorMethodsTests
         var result = await engine.Evaluate("""
 
                                                        let arr = [5, 10, 15];
-                                                       let values = arr.values();
+                                                       let values = Array.from(arr.values());
                                                        let product = 1;
                                                        for (let i = 0; i < values.length; i++) {
                                                            product *= values[i];

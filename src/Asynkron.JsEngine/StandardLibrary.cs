@@ -392,6 +392,24 @@ public static class StandardLibrary
             throw ThrowSyntaxError("Invalid BigInt literal");
         }
 
+        // A sign is only permitted with decimal strings.
+        if (sign < 0 && numberBase != 10)
+        {
+            throw ThrowSyntaxError("Invalid BigInt literal");
+        }
+
+        // For decimal strings, reject any non-digit content.
+        if (numberBase == 10)
+        {
+            for (var i = 0; i < text.Length; i++)
+            {
+                if (text[i] is < '0' or > '9')
+                {
+                    throw ThrowSyntaxError("Invalid BigInt literal");
+                }
+            }
+        }
+
         if (text.Length == 0)
         {
             throw ThrowSyntaxError("Invalid BigInt literal");
@@ -2337,13 +2355,35 @@ public static class StandardLibrary
 
             var separator = args.Count > 0 && args[0] is string sep ? sep : ",";
 
-            var parts = new List<string>();
-            foreach (var item in jsArray.Items)
+            var length = jsArray.Length > int.MaxValue ? int.MaxValue : (int)jsArray.Length;
+            var parts = new List<string>(length);
+            for (var i = 0; i < length; i++)
             {
-                parts.Add(item.ToJsStringForArray());
+                var element = jsArray.GetElement(i);
+                parts.Add(element.ToJsStringForArray());
             }
 
             return string.Join(separator, parts);
+        }));
+
+        // toString - delegates to join with the default separator
+        array.SetProperty("toString", new HostFunction((thisValue, args) =>
+        {
+            if (thisValue is JsArray jsArray)
+            {
+                return array.TryGetProperty("join", out var join) && join is IJsCallable joinFn
+                    ? joinFn.Invoke(Array.Empty<object?>(), jsArray)
+                    : string.Empty;
+            }
+
+            if (thisValue is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("join", out var joinVal) &&
+                joinVal is IJsCallable callableJoin)
+            {
+                return callableJoin.Invoke(Array.Empty<object?>(), thisValue);
+            }
+
+            return "[object Object]";
         }));
 
         // includes

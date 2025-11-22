@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 public class ArrayLengthTest(ITestOutputHelper output)
 {
     [Fact]
-    public async Task TestStr2binlLength()
+    public async Task TestStr2BinlLength()
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"

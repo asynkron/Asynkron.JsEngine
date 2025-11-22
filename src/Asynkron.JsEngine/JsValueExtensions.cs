@@ -43,6 +43,37 @@ internal static class JsValueExtensions
 
         public string ToJsString()
         {
+            // Fast-path common primitives/wrappers before general object coercion.
+            if (value is null)
+            {
+                return "null";
+            }
+
+            if (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
+            {
+                return "undefined";
+            }
+
+            if (value is Symbol symVal)
+            {
+                return symVal.Name;
+            }
+
+            if (value is bool b)
+            {
+                return b ? "true" : "false";
+            }
+
+            if (value is JsBigInt bigIntVal)
+            {
+                return bigIntVal.ToString();
+            }
+
+            if (value is JsArray arrayVal)
+            {
+                return ArrayToString(arrayVal);
+            }
+
             if (value is IJsPropertyAccessor accessor)
             {
                 var primitive = JsOps.ToPrimitive(accessor, "string");
@@ -51,12 +82,6 @@ internal static class JsValueExtensions
 
             return value switch
             {
-                null => "null",
-                Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => "undefined",
-                Symbol sym => sym.Name,
-                bool b => b ? "true" : "false",
-                JsBigInt bigInt => bigInt.ToString(),
-                JsArray array => ArrayToString(array),
                 IJsCallable => "function() { [native code] }",
                 string s => s,
                 double d => d.ToString(CultureInfo.InvariantCulture),
@@ -116,15 +141,19 @@ internal static class JsValueExtensions
 
     private static string ArrayToString(JsArray array)
     {
-        var builder = new StringBuilder();
-        for (var i = 0; i < array.Items.Count; i++)
+        // Use the logical length and element lookup so holes become empty strings,
+        // matching Array.prototype.join/ToString behaviour.
+        var length = array.Length > int.MaxValue ? int.MaxValue : (int)array.Length;
+        var builder = new StringBuilder(length * 2);
+        for (var i = 0; i < length; i++)
         {
             if (i > 0)
             {
                 builder.Append(',');
             }
 
-            builder.Append(array.Items[i].ToJsStringForArray());
+            var element = array.GetElement(i);
+            builder.Append(element.ToJsStringForArray());
         }
 
         return builder.ToString();

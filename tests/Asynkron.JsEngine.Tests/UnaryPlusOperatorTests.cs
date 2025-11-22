@@ -192,10 +192,8 @@ public class UnaryPlusOperatorTests
     {
         await using var engine = new JsEngine();
 
-        await Assert.ThrowsAsync<Exception>(async () =>
-        {
-            await engine.Evaluate("+10n;");
-        });
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("+10n;"));
+        Assert.Contains("TypeError", ex.Message);
     }
 
     [Fact(Timeout = 2000)]

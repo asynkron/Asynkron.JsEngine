@@ -1651,6 +1651,7 @@ public static class TypedAstEvaluator
             {
                 "iterator" => TypedAstSymbol.For("Symbol.iterator"),
                 "asyncIterator" => TypedAstSymbol.For("Symbol.asyncIterator"),
+                "toStringTag" => TypedAstSymbol.For("Symbol.toStringTag"),
                 _ => EvaluateDefaultMember(expression, environment, context)
             };
         }

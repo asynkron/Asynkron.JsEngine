@@ -272,16 +272,27 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public bool DeleteOwnProperty(string name)
     {
-        if (_descriptors.TryGetValue(name, out var descriptor) && !descriptor.Configurable)
+        if (_descriptors.TryGetValue(name, out var descriptor))
         {
-            return false;
+            if (!descriptor.Configurable)
+            {
+                return false;
+            }
+
+            _descriptors.Remove(name);
+            Remove(GetterPrefix + name);
+            Remove(SetterPrefix + name);
+            Remove(name);
+            return true;
         }
 
-        _descriptors.Remove(name);
-        Remove(GetterPrefix + name);
-        Remove(SetterPrefix + name);
+        if (Remove(name))
+        {
+            return true;
+        }
 
-        return Remove(name);
+        // Property does not exist; delete is a no-op that succeeds.
+        return true;
     }
 
     public void Freeze()

@@ -1,4 +1,7 @@
+using Asynkron.JsEngine;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 using Test262Harness;
 
 namespace Asynkron.JsEngine.Tests.Test262;
@@ -80,7 +83,10 @@ public abstract partial class Test262Test
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 return null;
-            })
+            }),
+
+            // %AbstractModuleSource% intrinsic (minimal host stub for Test262)
+            ["AbstractModuleSource"] = CreateAbstractModuleSource(engine)
         };
 
         engine.SetGlobalValue("$262", obj262);
@@ -103,6 +109,113 @@ public abstract partial class Test262Test
     private static async Task<object?> ExecuteSource(JsEngine engine, string source)
     {
         return await engine.Evaluate(source);
+    }
+
+    private static HostFunction CreateAbstractModuleSource(JsEngine engine)
+    {
+        // Prototype [[Prototype]] should be Object.prototype when available.
+        var prototype = new JsObject();
+        if (engine.GlobalObject.TryGetValue("Object", out var objectCtor) &&
+            objectCtor is IJsPropertyAccessor objAccessor &&
+            objAccessor.TryGetProperty("prototype", out var objectProto) &&
+            objectProto is JsObject protoObj)
+        {
+            prototype.SetPrototype(protoObj);
+        }
+
+        var constructor = new HostFunction((thisValue, _) =>
+        {
+            object? error = "%AbstractModuleSource% is not constructable";
+            if (engine.GlobalObject.TryGetValue("TypeError", out var typeErrorValue) &&
+                typeErrorValue is IJsCallable typeErrorCtor)
+            {
+                try
+                {
+                    error = typeErrorCtor.Invoke([error], null);
+                }
+                catch (ThrowSignal signal)
+                {
+                    error = signal.ThrownValue;
+                }
+            }
+
+            throw new ThrowSignal(error);
+        })
+        {
+            IsConstructor = true
+        };
+
+        constructor.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = 0,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        constructor.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = "AbstractModuleSource",
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        constructor.DefineProperty("prototype", new PropertyDescriptor
+        {
+            Value = prototype,
+            Writable = false,
+            Enumerable = false,
+            Configurable = false
+        });
+
+        prototype.DefineProperty("constructor", new PropertyDescriptor
+        {
+            Value = constructor,
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+        var ctorDescriptor = prototype.GetOwnPropertyDescriptor("constructor");
+        if (ctorDescriptor is not null)
+        {
+            ctorDescriptor.Configurable = true;
+        }
+
+        var toStringTagGetter = new HostFunction((thisValue, _) =>
+        {
+            if (thisValue is JsObject obj &&
+                obj.TryGetProperty("__moduleSourceClassName__", out var name) &&
+                name is string tag)
+            {
+                return tag;
+            }
+
+            return Symbols.Undefined;
+        });
+
+        var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        prototype.DefineProperty(toStringTagKey, new PropertyDescriptor
+        {
+            Get = toStringTagGetter,
+            Enumerable = false,
+            Configurable = true
+        });
+        var tagDescriptor = prototype.GetOwnPropertyDescriptor(toStringTagKey);
+        if (tagDescriptor is not null)
+        {
+            tagDescriptor.Configurable = true;
+        }
+
+        if (engine.GlobalObject.TryGetValue("Function", out var functionCtor) &&
+            functionCtor is IJsPropertyAccessor fnAccessor &&
+            fnAccessor.TryGetProperty("prototype", out var fnProto) &&
+            fnProto is JsObject fnProtoObj)
+        {
+            constructor.SetProperty("__proto__", fnProtoObj);
+        }
+
+        return constructor;
     }
 
     private static void ExecuteTest(JsEngine engine, Test262File file)

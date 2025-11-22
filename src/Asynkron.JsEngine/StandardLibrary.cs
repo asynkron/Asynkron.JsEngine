@@ -4694,8 +4694,8 @@ public static class StandardLibrary
                 switch (thisValue)
                 {
                     case JsObject obj:
-                        // Only own properties; JsObject.ContainsKey checks own keys.
-                        return obj.ContainsKey(propertyName);
+                        // Accessor descriptors are stored outside the value map; use descriptors.
+                        return obj.GetOwnPropertyDescriptor(propertyName) is not null;
                     case JsArray array:
                         if (string.Equals(propertyName, "length", StringComparison.Ordinal))
                         {
@@ -5199,7 +5199,7 @@ public static class StandardLibrary
                 return Symbols.Undefined;
             }
 
-            var propName = args[1]?.ToString() ?? "";
+            var propName = JsOps.GetRequiredPropertyName(args[1]);
 
             var desc = obj.GetOwnPropertyDescriptor(propName);
             if (desc == null)
@@ -5864,6 +5864,7 @@ public static class StandardLibrary
         symbolConstructor.SetProperty("iterator", TypedAstSymbol.For("Symbol.iterator"));
         symbolConstructor.SetProperty("asyncIterator", TypedAstSymbol.For("Symbol.asyncIterator"));
         symbolConstructor.SetProperty("toPrimitive", TypedAstSymbol.For("Symbol.toPrimitive"));
+        symbolConstructor.SetProperty("toStringTag", TypedAstSymbol.For("Symbol.toStringTag"));
 
         return symbolConstructor;
     }

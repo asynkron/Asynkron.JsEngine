@@ -1034,12 +1034,7 @@ internal static class JsOps
 
         if (target is JsObject jsObject)
         {
-            if (!jsObject.ContainsKey(resolvedName))
-            {
-                return true;
-            }
-
-            return jsObject.Remove(resolvedName);
+            return jsObject.DeleteOwnProperty(resolvedName);
         }
 
         // Deleting primitives or other non-object values is a no-op that succeeds

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Execution;
@@ -39,7 +40,7 @@ internal sealed class SyncGeneratorIrBuilder
         // Only handle simple `yield` / `yield*` used directly as the return
         // expression, and reject nested `yield` inside the yielded expression
         // for now.
-        if (ContainsYield(yieldExpression.Expression))
+        if (AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
         {
             entryIndex = -1;
             return false;
@@ -131,7 +132,7 @@ internal sealed class SyncGeneratorIrBuilder
                 case ExpressionStatement { Expression: YieldExpression yieldExpression }:
                     if (yieldExpression.IsDelegated)
                     {
-                        if (ContainsYield(yieldExpression.Expression))
+                        if (AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
                         {
                             entryIndex = -1;
                             return false;
@@ -141,7 +142,7 @@ internal sealed class SyncGeneratorIrBuilder
                         return true;
                     }
 
-                    if (ContainsYield(yieldExpression.Expression))
+                    if (AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
                     {
                         entryIndex = -1;
                         return false;
@@ -153,7 +154,7 @@ internal sealed class SyncGeneratorIrBuilder
                 case ExpressionStatement expressionStatement:
                     if (expressionStatement.Expression is AssignmentExpression { Target: { } targetSymbol, Value: YieldExpression yieldAssignment } &&
                         IsLowererTemp(targetSymbol) &&
-                        !ContainsYield(yieldAssignment.Expression))
+                        !AstShapeAnalyzer.ContainsYield(yieldAssignment.Expression))
                     {
                         entryIndex = yieldAssignment.IsDelegated
                             ? AppendYieldStarSequence(yieldAssignment, nextIndex, targetSymbol)
@@ -161,7 +162,7 @@ internal sealed class SyncGeneratorIrBuilder
                         return true;
                     }
 
-                    if (ContainsYield(expressionStatement.Expression))
+                    if (AstShapeAnalyzer.ContainsYield(expressionStatement.Expression))
                     {
                         entryIndex = -1;
                         return false;
@@ -214,8 +215,8 @@ internal sealed class SyncGeneratorIrBuilder
                     // When the loop body and iterable are yield-free, we can safely delegate to the typed evaluator
                     // (no generator yields inside the loop), preserving correct closure capture semantics.
                     if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-                        !StatementContainsYield(forEachStatement.Body) &&
-                        !ContainsYield(forEachStatement.Iterable))
+                        !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
+                        !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
                     {
                         entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
                         return true;
@@ -238,7 +239,7 @@ internal sealed class SyncGeneratorIrBuilder
                         return true;
                     }
 
-                    if (returnStatement.Expression is not null && ContainsYield(returnStatement.Expression))
+                    if (returnStatement.Expression is not null && AstShapeAnalyzer.ContainsYield(returnStatement.Expression))
                     {
                         entryIndex = -1;
                         _failureReason ??= "Return expression contains unsupported yield shape.";
@@ -279,7 +280,7 @@ internal sealed class SyncGeneratorIrBuilder
             return false;
         }
 
-        if (!IsLowererTemp(targetSymbol) || yieldInitializer.IsDelegated || ContainsYield(yieldInitializer.Expression))
+        if (!IsLowererTemp(targetSymbol) || yieldInitializer.IsDelegated || AstShapeAnalyzer.ContainsYield(yieldInitializer.Expression))
         {
             return false;
         }
@@ -290,7 +291,7 @@ internal sealed class SyncGeneratorIrBuilder
 
     private bool TryBuildIfStatement(IfStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
     {
-        if (ContainsYield(statement.Condition))
+        if (AstShapeAnalyzer.ContainsYield(statement.Condition))
         {
             entryIndex = -1;
             _failureReason ??= "If condition contains unsupported yield shape.";
@@ -324,7 +325,7 @@ internal sealed class SyncGeneratorIrBuilder
 
     private bool TryBuildWhileStatement(WhileStatement statement, int nextIndex, out int entryIndex, Symbol? label)
     {
-        if (statement.Condition is not null && ContainsYield(statement.Condition))
+        if (statement.Condition is not null && AstShapeAnalyzer.ContainsYield(statement.Condition))
         {
             entryIndex = -1;
             _failureReason ??= "While condition contains unsupported yield shape.";
@@ -362,7 +363,7 @@ internal sealed class SyncGeneratorIrBuilder
 
     private bool TryBuildDoWhileStatement(DoWhileStatement statement, int nextIndex, out int entryIndex, Symbol? label)
     {
-        if (statement.Condition is not null && ContainsYield(statement.Condition))
+        if (statement.Condition is not null && AstShapeAnalyzer.ContainsYield(statement.Condition))
         {
             entryIndex = -1;
             _failureReason ??= "Do/while condition contains unsupported yield shape.";
@@ -395,14 +396,14 @@ internal sealed class SyncGeneratorIrBuilder
 
     private bool TryBuildForStatement(ForStatement statement, int nextIndex, out int entryIndex, Symbol? label)
     {
-        if (statement.Condition is not null && ContainsYield(statement.Condition))
+        if (statement.Condition is not null && AstShapeAnalyzer.ContainsYield(statement.Condition))
         {
             entryIndex = -1;
             _failureReason ??= "For condition contains unsupported yield shape.";
             return false;
         }
 
-        if (statement.Increment is not null && ContainsYield(statement.Increment))
+        if (statement.Increment is not null && AstShapeAnalyzer.ContainsYield(statement.Increment))
         {
             entryIndex = -1;
             _failureReason ??= "For increment contains unsupported yield shape.";
@@ -513,7 +514,7 @@ internal sealed class SyncGeneratorIrBuilder
         // tests are yield-free, and whose case bodies only contain at most a
         // single trailing unlabeled `break;` at top level. More complex break
         // shapes (including non-trailing `break`) continue to be rejected.
-        if (ContainsYield(statement.Discriminant))
+        if (AstShapeAnalyzer.ContainsYield(statement.Discriminant))
         {
             entryIndex = -1;
             return false;
@@ -521,7 +522,7 @@ internal sealed class SyncGeneratorIrBuilder
 
         foreach (var switchCase in statement.Cases)
         {
-            if (switchCase.Test is not null && ContainsYield(switchCase.Test))
+            if (switchCase.Test is not null && AstShapeAnalyzer.ContainsYield(switchCase.Test))
             {
                 entryIndex = -1;
                 return false;
@@ -743,157 +744,9 @@ internal sealed class SyncGeneratorIrBuilder
         }
     }
 
-    private static bool StatementContainsYield(StatementNode statement)
-    {
-        while (true)
-        {
-            switch (statement)
-            {
-                case BlockStatement block:
-                    foreach (var s in block.Statements)
-                    {
-                        if (StatementContainsYield(s))
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-
-                case ExpressionStatement expressionStatement:
-                    return ContainsYield(expressionStatement.Expression);
-
-                case VariableDeclaration declaration:
-                    return DeclarationContainsYield(declaration);
-
-                case IfStatement ifStatement:
-                    if (ContainsYield(ifStatement.Condition))
-                    {
-                        return true;
-                    }
-
-                    if (StatementContainsYield(ifStatement.Then))
-                    {
-                        return true;
-                    }
-
-                    if (ifStatement.Else is not null && StatementContainsYield(ifStatement.Else))
-                    {
-                        return true;
-                    }
-
-                    return false;
-
-                case WhileStatement whileStatement:
-                    if (ContainsYield(whileStatement.Condition))
-                    {
-                        return true;
-                    }
-
-                    statement = whileStatement.Body;
-                    continue;
-
-                case DoWhileStatement doWhileStatement:
-                    if (ContainsYield(doWhileStatement.Condition))
-                    {
-                        return true;
-                    }
-
-                    statement = doWhileStatement.Body;
-                    continue;
-
-                case ForStatement forStatement:
-                    if (forStatement.Initializer is ExpressionStatement initExpr &&
-                        ContainsYield(initExpr.Expression))
-                    {
-                        return true;
-                    }
-
-                    if (forStatement.Initializer is VariableDeclaration initDecl &&
-                        DeclarationContainsYield(initDecl))
-                    {
-                        return true;
-                    }
-
-                    if (forStatement.Condition is not null && ContainsYield(forStatement.Condition))
-                    {
-                        return true;
-                    }
-
-                    if (forStatement.Increment is not null && ContainsYield(forStatement.Increment))
-                    {
-                        return true;
-                    }
-
-                    statement = forStatement.Body;
-                    continue;
-
-                case ForEachStatement forEachStatement:
-                    if (ContainsYield(forEachStatement.Iterable))
-                    {
-                        return true;
-                    }
-
-                    statement = forEachStatement.Body;
-                    continue;
-
-                case ReturnStatement returnStatement:
-                    return returnStatement.Expression is not null &&
-                           ContainsYield(returnStatement.Expression);
-
-                case SwitchStatement switchStatement:
-                    if (ContainsYield(switchStatement.Discriminant))
-                    {
-                        return true;
-                    }
-
-                    foreach (var c in switchStatement.Cases)
-                    {
-                        if (c.Test is not null && ContainsYield(c.Test))
-                        {
-                            return true;
-                        }
-
-                        if (StatementContainsYield(c.Body))
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-
-                case TryStatement tryStatement:
-                    if (StatementContainsYield(tryStatement.TryBlock))
-                    {
-                        return true;
-                    }
-
-                    if (tryStatement.Catch is not null && StatementContainsYield(tryStatement.Catch.Body))
-                    {
-                        return true;
-                    }
-
-                    if (tryStatement.Finally is not null && StatementContainsYield(tryStatement.Finally))
-                    {
-                        return true;
-                    }
-
-                    return false;
-
-                case LabeledStatement labeledStatement:
-                    statement = labeledStatement.Statement;
-                    continue;
-
-                // Break/continue/throw etc. cannot contain yield directly.
-                default:
-                    return false;
-            }
-        }
-    }
-
     private bool TryBuildForOfStatement(ForEachStatement statement, int nextIndex, out int entryIndex, Symbol? label)
     {
-        if (ContainsYield(statement.Iterable))
+        if (AstShapeAnalyzer.ContainsYield(statement.Iterable))
         {
             entryIndex = -1;
             return false;
@@ -934,7 +787,7 @@ internal sealed class SyncGeneratorIrBuilder
     private bool TryBuildForAwaitStatement(ForEachStatement statement, int nextIndex, out int entryIndex,
         Symbol? label)
     {
-        if (ContainsYield(statement.Iterable))
+        if (AstShapeAnalyzer.ContainsYield(statement.Iterable))
         {
             entryIndex = -1;
             return false;
@@ -994,7 +847,7 @@ internal sealed class SyncGeneratorIrBuilder
     {
         return declaration.Declarators.Any(d =>
             d.Initializer is not null &&
-            ContainsYield(d.Initializer) &&
+            AstShapeAnalyzer.ContainsYield(d.Initializer) &&
             !IsLowererTemp(d.Target));
     }
 
@@ -1166,94 +1019,6 @@ internal sealed class SyncGeneratorIrBuilder
 
         target = -1;
         return false;
-    }
-
-    private static bool ContainsYield(ExpressionNode? expression)
-    {
-        while (true)
-        {
-            switch (expression)
-            {
-                case null:
-                    return false;
-                case YieldExpression:
-                    return true;
-                case BinaryExpression binary:
-                    return ContainsYield(binary.Left) || ContainsYield(binary.Right);
-                case ConditionalExpression conditional:
-                    return ContainsYield(conditional.Test) || ContainsYield(conditional.Consequent) || ContainsYield(conditional.Alternate);
-                case CallExpression call:
-                    if (ContainsYield(call.Callee))
-                    {
-                        return true;
-                    }
-
-                    foreach (var argument in call.Arguments)
-                    {
-                        if (ContainsYield(argument.Expression))
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-                case NewExpression @new:
-                    if (ContainsYield(@new.Constructor))
-                    {
-                        return true;
-                    }
-
-                    foreach (var argument in @new.Arguments)
-                    {
-                        if (ContainsYield(argument))
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-                case MemberExpression member:
-                    return ContainsYield(member.Target) || ContainsYield(member.Property);
-                case AssignmentExpression assignment:
-                    expression = assignment.Value;
-                    continue;
-                case PropertyAssignmentExpression propertyAssignment:
-                    return ContainsYield(propertyAssignment.Target) || ContainsYield(propertyAssignment.Property) || ContainsYield(propertyAssignment.Value);
-                case IndexAssignmentExpression indexAssignment:
-                    return ContainsYield(indexAssignment.Target) || ContainsYield(indexAssignment.Index) || ContainsYield(indexAssignment.Value);
-                case SequenceExpression sequence:
-                    return ContainsYield(sequence.Left) || ContainsYield(sequence.Right);
-                case UnaryExpression unary:
-                    expression = unary.Operand;
-                    continue;
-                case ArrayExpression array:
-                    foreach (var element in array.Elements)
-                    {
-                        if (element.Expression is not null && ContainsYield(element.Expression))
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-                case ObjectExpression obj:
-                    foreach (var member in obj.Members)
-                    {
-                        if (member.Value is not null && ContainsYield(member.Value))
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-                case FunctionExpression:
-                case ClassExpression:
-                    // Nested functions/classes can capture yield expressions that should be handled within their own scope.
-                    return false;
-                default:
-                    return false;
-            }
-        }
     }
 
     private int Append(GeneratorInstruction instruction)

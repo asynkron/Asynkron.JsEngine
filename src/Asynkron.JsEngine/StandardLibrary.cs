@@ -7527,25 +7527,16 @@ public static class StandardLibrary
                 }
 
                 var length = args.Count;
-                var ta = ctor.Invoke([ (double)length ], ctor);
-                if (ta is not TypedArrayBase typed)
+                // Invoke the constructor with the desired length.
+                var taObj = ctor.Invoke([(double)length], ctor);
+                if (taObj is not TypedArrayBase typed)
                 {
                     throw ThrowTypeError("%TypedArray%.of constructor did not return a typed array");
                 }
 
                 for (var i = 0; i < length; i++)
                 {
-                    var val = args[i];
-                    if (typed.IsBigIntArray)
-                    {
-                        val = ToBigInt(val);
-                    }
-                    else
-                    {
-                        val = JsOps.ToNumber(val);
-                    }
-
-                    typed.SetValue(i, val);
+                    typed.SetValue(i, args[i]);
                 }
 
                 return typed;

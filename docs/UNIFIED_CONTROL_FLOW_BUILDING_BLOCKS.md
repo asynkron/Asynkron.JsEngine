@@ -41,7 +41,7 @@
 - Move yield-star state management (`YieldStarState` creation/reset, pending abrupt completion handling) behind a helper used by both builder and executor, so delegated yields reuse the same bookkeeping regardless of who is driving execution.
 
 ## Rollout steps
-1. Land `AstShapeVisitor`/`AstRewriter` and port `ContainsYield`/`StatementContainsYield`/single-yield rewrites in the lowerer + builder to it. Update `TypedCpsTransformer` and `TypedAstSupportAnalyzer` to consume the shared visitor.
+1. ✅ Land `AstShapeAnalyzer`/rewriter and port `ContainsYield`/`StatementContainsYield`/single-yield rewrites in the lowerer + builder to it. `TypedCpsTransformer` now uses the shared visitor for await detection.
 2. Add `LoopPlan` + `LoopNormalizer`, refactor generator yield lowering to emit plans, and teach the IR builder to consume them (including resume-slot declarations). Mirror a `LoopRunner` for the typed evaluator using the same plan shape.
 3. Introduce `IteratorDriver` + `ForEachPlan`, refactor `for...of`/`for await...of` in both the evaluator and generator executor to use it, and collapse IR builder iterator loop code to the shared template.
 4. Replace blocking awaits with `AwaitScheduler` wiring in generators, async generators, async functions, and iterator drivers; integrate pending-resume state (`AwaitSiteState`) with the generator executor’s existing resume-slot handling.

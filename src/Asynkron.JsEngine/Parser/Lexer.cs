@@ -553,7 +553,7 @@ public sealed class Lexer(string source)
         }
 
         // Regular decimal number
-        while (IsDigit(Peek())) Advance();
+        while (IsDigitOrUnderscore(Peek())) Advance();
 
         // Check for decimal point (makes it a regular number, not BigInt)
         var hasDecimal = false;
@@ -561,7 +561,7 @@ public sealed class Lexer(string source)
         {
             hasDecimal = true;
             Advance();
-            while (IsDigit(Peek())) Advance();
+            while (IsDigitOrUnderscore(Peek())) Advance();
         }
 
         // Check for exponential notation (e or E followed by optional +/- and digits)
@@ -585,7 +585,7 @@ public sealed class Lexer(string source)
                     throw new ParseException($"Expected digit after exponent on line {_line} column {_column}.");
                 }
 
-                while (IsDigit(Peek())) Advance();
+                while (IsDigitOrUnderscore(Peek())) Advance();
 
                 hasDecimal = true; // exponential notation makes it a regular number, not BigInt
             }
@@ -617,7 +617,7 @@ public sealed class Lexer(string source)
     private void ReadLeadingDotNumber()
     {
         // We have already consumed the '.' and confirmed the next char is a digit.
-        while (IsDigit(Peek())) Advance();
+        while (IsDigitOrUnderscore(Peek())) Advance();
 
         // Optional exponent
         if (Peek() is 'e' or 'E')
@@ -632,7 +632,7 @@ public sealed class Lexer(string source)
                     throw new ParseException($"Expected digit after exponent on line {_line} column {_column}.");
                 }
 
-                while (IsDigit(Peek())) Advance();
+                while (IsDigitOrUnderscore(Peek())) Advance();
             }
         }
 
@@ -845,6 +845,11 @@ public sealed class Lexer(string source)
     private static bool IsDigit(char c)
     {
         return c is >= '0' and <= '9';
+    }
+
+    private static bool IsDigitOrUnderscore(char c)
+    {
+        return IsDigit(c) || c == '_';
     }
 
     private static bool IsAlpha(char c)

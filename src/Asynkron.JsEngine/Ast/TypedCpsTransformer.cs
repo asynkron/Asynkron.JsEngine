@@ -42,6 +42,11 @@ public sealed class TypedCpsTransformer
 
     private static bool StatementNeedsTransformation(StatementNode statement)
     {
+        if (AstShapeAnalyzer.StatementContainsAwait(statement, includeNestedFunctions: true))
+        {
+            return true;
+        }
+
         while (true)
         {
             switch (statement)
@@ -153,6 +158,11 @@ public sealed class TypedCpsTransformer
 
     private static bool ExpressionNeedsTransformation(ExpressionNode expression)
     {
+        if (AstShapeAnalyzer.ContainsAwait(expression, includeNestedFunctions: true))
+        {
+            return true;
+        }
+
         while (true)
         {
             switch (expression)

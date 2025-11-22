@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.Runtime;
 using JetBrains.Annotations;
 
 namespace Asynkron.JsEngine;
@@ -16,6 +17,7 @@ namespace Asynkron.JsEngine;
     private readonly TaskCompletionSource _doneTcs = new();
     private readonly JsEnvironment _global = new(isFunctionScope: true);
     private readonly JsObject _globalObject = new();
+    private readonly RealmState _realm = new();
 
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
@@ -52,16 +54,7 @@ namespace Asynkron.JsEngine;
     /// </summary>
     public JsEngine()
     {
-        // Reset shared standard-library prototypes for each engine instance so
-        // built-ins in different realms do not share cross-engine singletons.
-        StandardLibrary.BooleanPrototype = null;
-        StandardLibrary.NumberPrototype = null;
-        StandardLibrary.StringPrototype = null;
-        StandardLibrary.ObjectPrototype = null;
-        StandardLibrary.FunctionPrototype = null;
-        StandardLibrary.ArrayPrototype = null;
-        StandardLibrary.ErrorPrototype = null;
-        StandardLibrary.TypeErrorPrototype = null;
+        StandardLibrary.BindRealm(_realm);
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).
@@ -75,12 +68,20 @@ namespace Asynkron.JsEngine;
         // Register standard library objects
         SetGlobal("console", StandardLibrary.CreateConsoleObject());
         SetGlobal("Math", StandardLibrary.CreateMathObject());
-        SetGlobal("Function", StandardLibrary.CreateFunctionConstructor());
-        SetGlobal("Number", StandardLibrary.CreateNumberConstructor());
-        SetGlobal("Boolean", StandardLibrary.CreateBooleanConstructor());
-        SetGlobal("String", StandardLibrary.CreateStringConstructor());
-        SetGlobal("Object", StandardLibrary.CreateObjectConstructor());
-        SetGlobal("Array", StandardLibrary.CreateArrayConstructor());
+        SetGlobal("Object", StandardLibrary.CreateObjectConstructor(_realm));
+        SetGlobal("Function", StandardLibrary.CreateFunctionConstructor(_realm));
+        SetGlobal("Number", StandardLibrary.CreateNumberConstructor(_realm));
+        SetGlobal("Boolean", StandardLibrary.CreateBooleanConstructor(_realm));
+        SetGlobal("String", StandardLibrary.CreateStringConstructor(_realm));
+        var arrayConstructor = StandardLibrary.CreateArrayConstructor(_realm);
+        SetGlobal("Array", arrayConstructor);
+        _globalObject.DefineProperty("Array", new PropertyDescriptor
+        {
+            Value = arrayConstructor,
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
 
         // Register global constants
         SetGlobal("Infinity", double.PositiveInfinity);
@@ -154,11 +155,11 @@ namespace Asynkron.JsEngine;
         SetGlobal("Float64Array", StandardLibrary.CreateFloat64ArrayConstructor());
 
         // Register Error constructors
-        SetGlobal("Error", StandardLibrary.CreateErrorConstructor("Error"));
-        SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor("TypeError"));
-        SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor("RangeError"));
-        SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor("ReferenceError"));
-        SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor("SyntaxError"));
+        SetGlobal("Error", StandardLibrary.CreateErrorConstructor(_realm, "Error"));
+        SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor(_realm, "TypeError"));
+        SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor(_realm, "RangeError"));
+        SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor(_realm, "ReferenceError"));
+        SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor(_realm, "SyntaxError"));
 
         // Register eval function as an environment-aware callable
         // This allows eval to execute code in the caller's scope without blocking the event loop
@@ -290,6 +291,7 @@ namespace Asynkron.JsEngine;
     /// </summary>
     internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment, CancellationToken cancellationToken = default)
     {
+        StandardLibrary.BindRealm(_realm);
         return _typedExecutor.Evaluate(program, environment, cancellationToken);
     }
 
@@ -347,6 +349,7 @@ namespace Asynkron.JsEngine;
     /// </summary>
     public Task<object?> Evaluate(string source, CancellationToken cancellationToken = default)
     {
+        StandardLibrary.BindRealm(_realm);
         var program = ParseForExecution(source);
         return Evaluate(program, cancellationToken);
     }
@@ -358,6 +361,7 @@ namespace Asynkron.JsEngine;
     /// </summary>
     private async Task<object?> Evaluate(ParsedProgram program, CancellationToken cancellationToken = default)
     {
+        StandardLibrary.BindRealm(_realm);
         var tcs = new TaskCompletionSource<object?>();
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
 

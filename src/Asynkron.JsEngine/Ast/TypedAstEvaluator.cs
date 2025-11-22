@@ -9,6 +9,7 @@ using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.Runtime;
 using JsSymbols = Asynkron.JsEngine.Ast.Symbols;
 
 namespace Asynkron.JsEngine.Ast;
@@ -2291,7 +2292,16 @@ public static class TypedAstEvaluator
             }
         }
 
-        var result = callable.Invoke(args.MoveToImmutable(), instance);
+        object? result;
+        try
+        {
+            result = callable.Invoke(args.MoveToImmutable(), instance);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return signal.ThrownValue;
+        }
 
         // In JavaScript, constructors can explicitly return an object to override the
         // default instance that `new` creates. Our host objects (Map, Set, custom

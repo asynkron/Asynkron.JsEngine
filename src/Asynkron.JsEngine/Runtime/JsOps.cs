@@ -1,9 +1,9 @@
-using System.Numerics;
 using System.Globalization;
+using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
-namespace Asynkron.JsEngine;
+namespace Asynkron.JsEngine.Runtime;
 
 internal static class JsOps
 {
@@ -38,6 +38,131 @@ internal static class JsOps
     public static double ToNumber(object? value)
     {
         return value.ToNumber();
+    }
+
+    public static double ToNumberWithContext(object? value, EvaluationContext? context = null)
+    {
+        while (true)
+        {
+            switch (value)
+            {
+                case null:
+                    return 0;
+                case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
+                    return double.NaN;
+                case double d:
+                    return d;
+                case float f:
+                    return f;
+                case decimal m:
+                    return (double)m;
+                case int i:
+                    return i;
+                case uint ui:
+                    return ui;
+                case long l:
+                    return l;
+                case ulong ul:
+                    return ul;
+                case short s:
+                    return s;
+                case ushort us:
+                    return us;
+                case byte b:
+                    return b;
+                case sbyte sb:
+                    return sb;
+                case bool flag:
+                    return flag ? 1 : 0;
+                case string str:
+                    return str.ToNumber();
+            }
+
+            if (value is JsObject jsObj && jsObj.TryGetValue("__value__", out var inner))
+            {
+                value = inner;
+                continue;
+            }
+
+            if (value is IJsPropertyAccessor accessor)
+            {
+                if (TryConvertToNumericPrimitive(accessor, out var primitive, context))
+                {
+                    value = primitive;
+                    continue;
+                }
+
+                if (context is not null && context.IsThrow)
+                {
+                    return double.NaN;
+                }
+
+                var typeError = CreateTypeError("Cannot convert object to number");
+                if (context is not null)
+                {
+                    context.SetThrow(typeError);
+                    return double.NaN;
+                }
+
+                throw new ThrowSignal(typeError);
+            }
+
+            throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
+        }
+    }
+
+    private static bool TryConvertToNumericPrimitive(IJsPropertyAccessor accessor, out object? primitive,
+        EvaluationContext? context)
+    {
+        primitive = null;
+
+        var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
+        var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
+        if (accessor.TryGetProperty(symbolPropertyName, out var toPrimitive) && toPrimitive is IJsCallable toPrimFn)
+        {
+            try
+            {
+                var result = toPrimFn.Invoke(["number"], accessor);
+                if (result is not IJsPropertyAccessor && result is not JsObject)
+                {
+                    primitive = result;
+                    return true;
+                }
+            }
+            catch (ThrowSignal signal)
+            {
+                if (context is not null)
+                {
+                    context.SetThrow(signal.ThrownValue);
+                    return false;
+                }
+
+                throw;
+            }
+        }
+
+        if (TryInvokePropertyMethod(accessor, "valueOf", out var valueOfResult, context) &&
+            valueOfResult is not IJsPropertyAccessor &&
+            valueOfResult is not JsObject)
+        {
+            primitive = valueOfResult;
+            return true;
+        }
+
+        if (context is not null && context.IsThrow)
+        {
+            return false;
+        }
+
+        if (TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context) &&
+            toStringResult is not IJsPropertyAccessor &&
+            toStringResult is not JsObject)
+        {
+            primitive = toStringResult;
+            return true;
+        }
+
+        return false;
     }
 
     public static string ToJsString(object? value)
@@ -281,40 +406,44 @@ internal static class JsOps
 
     public static string? ToPropertyName(object? value, EvaluationContext? context = null)
     {
-        switch (value)
+        while (true)
         {
-            case null:
-                return "null";
-            case string s:
-                return s;
-            case Symbol symbol:
-                return symbol.Name;
-            case TypedAstSymbol jsSymbol:
-                return $"@@symbol:{jsSymbol.GetHashCode()}";
-            case bool b:
-                return b ? "true" : "false";
-            case JsObject jsObj when jsObj.TryGetValue("__value__", out var inner):
-                return ToPropertyName(inner, context);
-            case int i:
-                return i.ToString(CultureInfo.InvariantCulture);
-            case long l:
-                return l.ToString(CultureInfo.InvariantCulture);
-            case double d when !double.IsNaN(d) && !double.IsInfinity(d):
-                return d.ToString(CultureInfo.InvariantCulture);
-        }
+            switch (value)
+            {
+                case null:
+                    return "null";
+                case string s:
+                    return s;
+                case Symbol symbol:
+                    return symbol.Name;
+                case TypedAstSymbol jsSymbol:
+                    return $"@@symbol:{jsSymbol.GetHashCode()}";
+                case bool b:
+                    return b ? "true" : "false";
+                case JsObject jsObj when jsObj.TryGetValue("__value__", out var inner):
+                    value = inner;
+                    continue;
+                case int i:
+                    return i.ToString(CultureInfo.InvariantCulture);
+                case long l:
+                    return l.ToString(CultureInfo.InvariantCulture);
+                case double d when !double.IsNaN(d) && !double.IsInfinity(d):
+                    return d.ToString(CultureInfo.InvariantCulture);
+            }
 
-        if (value is IJsPropertyAccessor accessor &&
-            TryConvertObjectToPropertyKey(accessor, out var primitive, context))
-        {
-            return ToPropertyName(primitive, context);
-        }
+            if (value is IJsPropertyAccessor accessor && TryConvertObjectToPropertyKey(accessor, out var primitive, context))
+            {
+                value = primitive;
+                continue;
+            }
 
-        if (context is not null && context.IsThrow)
-        {
-            return null;
-        }
+            if (context is not null && context.IsThrow)
+            {
+                return null;
+            }
 
-        return Convert.ToString(value, CultureInfo.InvariantCulture);
+            return Convert.ToString(value, CultureInfo.InvariantCulture);
+        }
     }
 
     private static bool TryConvertObjectToPropertyKey(IJsPropertyAccessor accessor, out object? key,
@@ -466,51 +595,59 @@ internal static class JsOps
 
     public static bool TryResolveArrayIndex(object? candidate, out int index, EvaluationContext? context = null)
     {
-        switch (candidate)
+        while (true)
         {
-            case int i when i >= 0:
-                index = i;
-                return true;
-            case long l and >= 0 when l <= int.MaxValue:
-                index = (int)l;
-                return true;
-            case double d when !double.IsNaN(d) && !double.IsInfinity(d):
-                if (d < 0)
-                {
-                    break;
-                }
-                var truncated = Math.Truncate(d);
-                if (Math.Abs(truncated - d) > double.Epsilon)
-                {
-                    break;
-                }
-                if (truncated > int.MaxValue)
-                {
-                    break;
-                }
-                index = (int)truncated;
-                return true;
-            case JsBigInt bigInt when bigInt.Value >= BigInteger.Zero && bigInt.Value <= int.MaxValue:
-                index = (int)bigInt.Value;
-                return true;
-            case string s when int.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0:
-                index = parsed;
-                return true;
-        }
+            switch (candidate)
+            {
+                case int i when i >= 0:
+                    index = i;
+                    return true;
+                case long l and >= 0 and <= int.MaxValue:
+                    index = (int)l;
+                    return true;
+                case double d when !double.IsNaN(d) && !double.IsInfinity(d):
+                    if (d < 0)
+                    {
+                        break;
+                    }
 
-        if (candidate is JsObject jsObj && jsObj.TryGetValue("__value__", out var innerValue))
-        {
-            return TryResolveArrayIndex(innerValue, out index, context);
-        }
+                    var truncated = Math.Truncate(d);
+                    if (Math.Abs(truncated - d) > double.Epsilon)
+                    {
+                        break;
+                    }
 
-        var coerced = ToPropertyName(candidate, context);
-        if (coerced is not null && !ReferenceEquals(coerced, candidate))
-        {
-            return TryResolveArrayIndex(coerced, out index, context);
-        }
+                    if (truncated > int.MaxValue)
+                    {
+                        break;
+                    }
 
-        index = 0;
-        return false;
+                    index = (int)truncated;
+                    return true;
+                case JsBigInt bigInt when bigInt.Value >= BigInteger.Zero && bigInt.Value <= int.MaxValue:
+                    index = (int)bigInt.Value;
+                    return true;
+                case string s when int.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0:
+                    index = parsed;
+                    return true;
+            }
+
+            if (candidate is JsObject jsObj && jsObj.TryGetValue("__value__", out var innerValue))
+            {
+                candidate = innerValue;
+                continue;
+            }
+
+            var coerced = ToPropertyName(candidate, context);
+            if (coerced is not null && !ReferenceEquals(coerced, candidate))
+            {
+                candidate = coerced;
+                continue;
+            }
+
+            index = 0;
+            return false;
+        }
     }
 
     public static string GetTypeofString(object? value)
@@ -708,10 +845,25 @@ internal static class JsOps
     private static bool TryAssignArrayLikeValue(object? target, object? propertyKey, object? value,
         EvaluationContext? context)
     {
-        if (target is JsArray jsArray && TryResolveArrayIndex(propertyKey, out var index, context))
+        if (target is JsArray jsArray)
         {
-            jsArray.SetElement(index, value);
-            return true;
+            var propertyName = ToPropertyName(propertyKey, context);
+            if (context is not null && context.IsThrow)
+            {
+                return true;
+            }
+
+            if (string.Equals(propertyName, "length", StringComparison.Ordinal))
+            {
+                jsArray.SetLength(value, context);
+                return true;
+            }
+
+            if (TryResolveArrayIndex(propertyKey, out var index, context))
+            {
+                jsArray.SetElement(index, value);
+                return true;
+            }
         }
 
         if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
@@ -728,7 +880,6 @@ internal static class JsOps
                 long l => l,
                 float f => f,
                 bool b => b ? 1.0 : 0.0,
-                null => 0.0,
                 _ => 0.0
             };
 
@@ -750,6 +901,12 @@ internal static class JsOps
 
             var propertyName = ToPropertyName(propertyKey, context);
             return propertyName is null || jsArray.DeleteProperty(propertyName);
+        }
+
+        if (target is HostFunction hostFunc)
+        {
+            var propertyName = ToPropertyName(propertyKey, context);
+            return propertyName is null || hostFunc.DeleteProperty(propertyName);
         }
 
         if (target is TypedArrayBase typedArray)

@@ -25,20 +25,14 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike
 
         _handler = (_, args) => handler(args);
         _properties.SetProperty("prototype", new JsObject());
-        if (StandardLibrary.FunctionPrototype is not null)
-        {
-            _properties.SetPrototype(StandardLibrary.FunctionPrototype);
-        }
+        EnsureFunctionPrototype();
     }
 
     public HostFunction(Func<object?, IReadOnlyList<object?>, object?> handler)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
         _properties.SetProperty("prototype", new JsObject());
-        if (StandardLibrary.FunctionPrototype is not null)
-        {
-            _properties.SetPrototype(StandardLibrary.FunctionPrototype);
-        }
+        EnsureFunctionPrototype();
     }
 
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
@@ -48,6 +42,7 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike
 
     public bool TryGetProperty(string name, out object? value)
     {
+        EnsureFunctionPrototype();
         if (_properties.TryGetProperty(name, out value))
         {
             return true;
@@ -123,7 +118,14 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike
 
     public IEnumerable<string> GetOwnPropertyNames() => _properties.GetOwnPropertyNames();
 
-    public JsObject? Prototype => _properties.Prototype;
+    public JsObject? Prototype
+    {
+        get
+        {
+            EnsureFunctionPrototype();
+            return _properties.Prototype;
+        }
+    }
 
     public bool IsSealed => _properties.IsSealed;
 
@@ -134,8 +136,21 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike
         _properties.SetPrototype(candidate);
     }
 
+    public bool DeleteProperty(string name)
+    {
+        return _properties.DeleteOwnProperty(name);
+    }
+
     public void Seal()
     {
         _properties.Seal();
+    }
+
+    private void EnsureFunctionPrototype()
+    {
+        if (_properties.Prototype is null && StandardLibrary.FunctionPrototype is not null)
+        {
+            _properties.SetPrototype(StandardLibrary.FunctionPrototype);
+        }
     }
 }

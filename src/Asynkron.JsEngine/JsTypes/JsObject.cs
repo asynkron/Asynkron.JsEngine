@@ -7,10 +7,56 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class PropertyDescriptor
 {
-    public object? Value { get; set; }
-    public bool Writable { get; set; } = true;
-    public bool Enumerable { get; set; } = true;
-    public bool Configurable { get; set; } = true;
+    private object? _value;
+    private bool _writable = true;
+    private bool _enumerable = true;
+    private bool _configurable = true;
+
+    public object? Value
+    {
+        get => _value;
+        set
+        {
+            _value = value;
+            HasValue = true;
+        }
+    }
+
+    public bool Writable
+    {
+        get => _writable;
+        set
+        {
+            _writable = value;
+            HasWritable = true;
+        }
+    }
+
+    public bool Enumerable
+    {
+        get => _enumerable;
+        set
+        {
+            _enumerable = value;
+            HasEnumerable = true;
+        }
+    }
+
+    public bool Configurable
+    {
+        get => _configurable;
+        set
+        {
+            _configurable = value;
+            HasConfigurable = true;
+        }
+    }
+
+    public bool HasValue { get; set; }
+    public bool HasWritable { get; set; }
+    public bool HasEnumerable { get; set; }
+    public bool HasConfigurable { get; set; }
+
     public IJsCallable? Get { get; set; }
     public IJsCallable? Set { get; set; }
 
@@ -222,6 +268,20 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
 
         this[name] = value;
+    }
+
+    public bool DeleteOwnProperty(string name)
+    {
+        if (_descriptors.TryGetValue(name, out var descriptor) && !descriptor.Configurable)
+        {
+            return false;
+        }
+
+        _descriptors.Remove(name);
+        Remove(GetterPrefix + name);
+        Remove(SetterPrefix + name);
+
+        return Remove(name);
     }
 
     public void Freeze()

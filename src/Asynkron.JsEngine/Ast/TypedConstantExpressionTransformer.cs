@@ -2,6 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Ast;
 

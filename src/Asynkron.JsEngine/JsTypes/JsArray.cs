@@ -2,6 +2,7 @@ using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -20,20 +21,29 @@ public sealed class JsArray : IJsObjectLike
     private readonly List<object?> _items = [];
     private Dictionary<uint, object?>? _sparseItems;
     private uint _length;
+    private readonly IJsCallable? _rangeErrorCtor;
+    private readonly IJsCallable? _typeErrorCtor;
+    private readonly JsObject? _arrayPrototype;
 
     public JsArray()
     {
+        _rangeErrorCtor = StandardLibrary.RangeErrorConstructor;
+        _typeErrorCtor = StandardLibrary.TypeErrorConstructor;
+        _arrayPrototype = StandardLibrary.ArrayPrototype;
         _length = 0;
         if (StandardLibrary.ArrayPrototype is not null)
         {
             _properties.SetPrototype(StandardLibrary.ArrayPrototype);
         }
-        UpdateLengthProperty();
+        DefineInitialLengthProperty();
         SetupIterator();
     }
 
     public JsArray(IEnumerable<object?> items)
     {
+        _rangeErrorCtor = StandardLibrary.RangeErrorConstructor;
+        _typeErrorCtor = StandardLibrary.TypeErrorConstructor;
+        _arrayPrototype = StandardLibrary.ArrayPrototype;
         if (items is not null)
         {
             _items.AddRange(items);
@@ -44,7 +54,7 @@ public sealed class JsArray : IJsObjectLike
         {
             _properties.SetPrototype(StandardLibrary.ArrayPrototype);
         }
-        UpdateLengthProperty();
+        DefineInitialLengthProperty();
         SetupIterator();
     }
 
@@ -91,12 +101,28 @@ public sealed class JsArray : IJsObjectLike
         _properties.SetPrototype(candidate);
     }
 
-    public JsObject? Prototype => _properties.Prototype;
+    public JsObject? Prototype
+    {
+        get
+        {
+            if (_properties.Prototype is null && (_arrayPrototype is not null || StandardLibrary.ArrayPrototype is not null))
+            {
+                _properties.SetPrototype(_arrayPrototype ?? StandardLibrary.ArrayPrototype);
+            }
+
+            return _properties.Prototype;
+        }
+    }
     public bool IsSealed => _properties.IsSealed;
     public IEnumerable<string> Keys => _properties.Keys;
 
     public bool TryGetProperty(string name, out object? value)
     {
+        if (_properties.Prototype is null && StandardLibrary.ArrayPrototype is not null)
+        {
+            _properties.SetPrototype(StandardLibrary.ArrayPrototype);
+        }
+
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
             value = (double)_length;
@@ -120,12 +146,7 @@ public sealed class JsArray : IJsObjectLike
     {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            if (!TryCoerceLength(value, out var newLength))
-            {
-                throw CreateRangeError("Invalid array length");
-            }
-
-            SetExplicitLength(newLength);
+            SetLength(value, null);
             return;
         }
 
@@ -289,6 +310,12 @@ public sealed class JsArray : IJsObjectLike
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            TryDefineLengthProperty(descriptor, null, throwOnWritableFailure: true);
+            return;
+        }
+
         _properties.DefineProperty(name, descriptor);
     }
 
@@ -414,6 +441,28 @@ public sealed class JsArray : IJsObjectLike
         }
     }
 
+    internal bool SetLength(object? value, EvaluationContext? context, bool throwOnWritableFailure = true)
+    {
+        return TrySetArrayLength(hasValue: true, value, hasWritable: false, writableValue: true, context,
+            throwOnWritableFailure);
+    }
+
+    internal bool DefineLength(PropertyDescriptor descriptor, EvaluationContext? context, bool throwOnWritableFailure)
+    {
+        return TryDefineLengthProperty(descriptor, context, throwOnWritableFailure);
+    }
+
+    private bool TryDefineLengthProperty(PropertyDescriptor descriptor, EvaluationContext? context,
+        bool throwOnWritableFailure)
+    {
+        var hasValue = descriptor.HasValue;
+        var hasWritable = descriptor.HasWritable;
+        var writableValue = descriptor.Writable;
+
+        return TrySetArrayLength(hasValue, descriptor.Value, hasWritable, writableValue, context,
+            throwOnWritableFailure);
+    }
+
     private void SetExplicitLength(uint newLength)
     {
         if (newLength > MaxArrayLength)
@@ -442,7 +491,26 @@ public sealed class JsArray : IJsObjectLike
 
     private void UpdateLengthProperty()
     {
-        _properties.SetProperty("length", (double)_length);
+        var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length");
+        if (lengthDescriptor is null)
+        {
+            DefineInitialLengthProperty();
+            return;
+        }
+
+        lengthDescriptor.Value = (double)_length;
+        _properties["length"] = (double)_length;
+    }
+
+    private void DefineInitialLengthProperty()
+    {
+        _properties.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = (double)_length,
+            Writable = true,
+            Enumerable = false,
+            Configurable = false
+        });
     }
 
     private void SetupIterator()
@@ -514,35 +582,95 @@ public sealed class JsArray : IJsObjectLike
         return true;
     }
 
-    private static bool TryCoerceLength(object? value, out uint length)
+    private bool TrySetArrayLength(bool hasValue, object? value, bool hasWritable, bool writableValue,
+        EvaluationContext? context, bool throwOnWritableFailure)
     {
-        length = 0;
+        uint newLength = _length;
 
-        var numericValue = JsOps.ToNumber(value);
-
-        if (double.IsNaN(numericValue) || double.IsInfinity(numericValue) || numericValue < 0)
+        if (hasValue)
         {
+            var numberForUint32 = JsOps.ToNumberWithContext(value, context);
+            if (context is not null && context.IsThrow)
+            {
+                return false;
+            }
+
+            var coercedUint = unchecked((uint)(long)numberForUint32);
+            var numberLen = JsOps.ToNumberWithContext(value, context);
+            if (context is not null && context.IsThrow)
+            {
+                return false;
+            }
+
+            if (double.IsNaN(numberLen) || double.IsInfinity(numberLen) || numberLen != coercedUint)
+            {
+                return FailRangeError(context);
+            }
+
+            if (coercedUint > MaxArrayLength)
+            {
+                return FailRangeError(context);
+            }
+
+            newLength = coercedUint;
+        }
+
+        var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length") ??
+                               new PropertyDescriptor
+                               {
+                                   Value = (double)_length,
+                                   Writable = true,
+                                   Enumerable = false,
+                                   Configurable = false
+                               };
+
+        var oldLength = _length;
+
+        if (!lengthDescriptor.Writable)
+        {
+            if (hasValue || (hasWritable && writableValue))
+            {
+                return FailTypeError(context, throwOnWritableFailure);
+            }
+
+            if (hasWritable && !writableValue)
+            {
+                lengthDescriptor.Writable = false;
+            }
+
             return false;
         }
 
-        var truncated = Math.Truncate(numericValue);
-        if (Math.Abs(numericValue - truncated) > double.Epsilon)
+        var newWritable = lengthDescriptor.Writable;
+        if (hasWritable)
         {
-            return false;
+            newWritable = writableValue;
         }
 
-        if (truncated > MaxArrayLength)
+        if (hasValue)
         {
-            return false;
+            if (newLength < oldLength)
+            {
+                SetExplicitLength(newLength);
+            }
+            else if (newLength > oldLength)
+            {
+                _length = newLength;
+                UpdateLengthProperty();
+            }
+
+            lengthDescriptor.Writable = newWritable;
+            UpdateLengthProperty();
+            return true;
         }
 
-        length = (uint)truncated;
+        lengthDescriptor.Writable = newWritable;
         return true;
     }
 
-    private static ThrowSignal CreateRangeError(string message)
+    private ThrowSignal CreateRangeError(string message)
     {
-        if (StandardLibrary.RangeErrorConstructor is IJsCallable ctor)
+        if (_rangeErrorCtor is IJsCallable ctor)
         {
             var errorObj = ctor.Invoke([message], null);
             return new ThrowSignal(errorObj);
@@ -555,5 +683,51 @@ public sealed class JsArray : IJsObjectLike
         };
 
         return new ThrowSignal(fallback);
+    }
+
+    private ThrowSignal CreateTypeError(string message)
+    {
+        if (_typeErrorCtor is IJsCallable ctor)
+        {
+            var errorObj = ctor.Invoke([message], null);
+            return new ThrowSignal(errorObj);
+        }
+
+        var fallback = new JsObject
+        {
+            ["name"] = "TypeError",
+            ["message"] = message
+        };
+
+        return new ThrowSignal(fallback);
+    }
+
+    private bool FailRangeError(EvaluationContext? context)
+    {
+        var signal = CreateRangeError("Invalid array length");
+        if (context is not null)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return false;
+        }
+
+        throw signal;
+    }
+
+    private bool FailTypeError(EvaluationContext? context, bool throwOnWritableFailure)
+    {
+        if (!throwOnWritableFailure)
+        {
+            return false;
+        }
+
+        var signal = CreateTypeError("Invalid array length");
+        if (context is not null)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return false;
+        }
+
+        throw signal;
     }
 }

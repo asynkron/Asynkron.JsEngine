@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine;
 
@@ -11,19 +13,176 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public static class StandardLibrary
 {
+    private static readonly AsyncLocal<RealmState?> CurrentRealmState = new();
+
+    private static JsObject? _fallbackBooleanPrototype;
+    private static JsObject? _fallbackNumberPrototype;
+    private static JsObject? _fallbackStringPrototype;
+    private static JsObject? _fallbackObjectPrototype;
+    private static JsObject? _fallbackFunctionPrototype;
+    private static JsObject? _fallbackArrayPrototype;
+    private static JsObject? _fallbackErrorPrototype;
+    private static JsObject? _fallbackTypeErrorPrototype;
+    private static HostFunction? _fallbackTypeErrorConstructor;
+    private static HostFunction? _fallbackRangeErrorConstructor;
+    private static HostFunction? _fallbackArrayConstructor;
+
+    internal static RealmState? CurrentRealm
+    {
+        get => CurrentRealmState.Value;
+        private set => CurrentRealmState.Value = value;
+    }
+
+    internal static void BindRealm(RealmState realm)
+    {
+        CurrentRealm = realm;
+    }
+
     // Shared prototypes for primitive wrapper objects so that host-provided
     // globals like Boolean.prototype can be extended from JavaScript and still
     // be visible via auto-boxing of primitives.
-    internal static JsObject? BooleanPrototype;
-    internal static JsObject? NumberPrototype;
-    internal static JsObject? StringPrototype;
-    internal static JsObject? ObjectPrototype;
-    internal static JsObject? FunctionPrototype;
-    internal static JsObject? ArrayPrototype;
-    internal static JsObject? ErrorPrototype;
-    internal static JsObject? TypeErrorPrototype;
-    internal static HostFunction? TypeErrorConstructor;
-    internal static HostFunction? RangeErrorConstructor;
+    internal static JsObject? BooleanPrototype
+    {
+        get => CurrentRealm?.BooleanPrototype ?? _fallbackBooleanPrototype;
+        set
+        {
+            _fallbackBooleanPrototype = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.BooleanPrototype = value;
+            }
+        }
+    }
+
+    internal static JsObject? NumberPrototype
+    {
+        get => CurrentRealm?.NumberPrototype ?? _fallbackNumberPrototype;
+        set
+        {
+            _fallbackNumberPrototype = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.NumberPrototype = value;
+            }
+        }
+    }
+
+    internal static JsObject? StringPrototype
+    {
+        get => CurrentRealm?.StringPrototype ?? _fallbackStringPrototype;
+        set
+        {
+            _fallbackStringPrototype = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.StringPrototype = value;
+            }
+        }
+    }
+
+    internal static JsObject? ObjectPrototype
+    {
+        get => CurrentRealm?.ObjectPrototype ?? _fallbackObjectPrototype;
+        set
+        {
+            _fallbackObjectPrototype = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.ObjectPrototype = value;
+            }
+        }
+    }
+
+    internal static JsObject? FunctionPrototype
+    {
+        get => CurrentRealm?.FunctionPrototype ?? _fallbackFunctionPrototype;
+        set
+        {
+            _fallbackFunctionPrototype = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.FunctionPrototype = value;
+            }
+        }
+    }
+
+    internal static JsObject? ArrayPrototype
+    {
+        get => CurrentRealm?.ArrayPrototype ?? _fallbackArrayPrototype;
+        set
+        {
+            _fallbackArrayPrototype = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.ArrayPrototype = value;
+            }
+        }
+    }
+
+    internal static JsObject? ErrorPrototype
+    {
+        get => CurrentRealm?.ErrorPrototype ?? _fallbackErrorPrototype;
+        set
+        {
+            _fallbackErrorPrototype = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.ErrorPrototype = value;
+            }
+        }
+    }
+
+    internal static JsObject? TypeErrorPrototype
+    {
+        get => CurrentRealm?.TypeErrorPrototype ?? _fallbackTypeErrorPrototype;
+        set
+        {
+            _fallbackTypeErrorPrototype = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.TypeErrorPrototype = value;
+            }
+        }
+    }
+
+    internal static HostFunction? TypeErrorConstructor
+    {
+        get => CurrentRealm?.TypeErrorConstructor ?? _fallbackTypeErrorConstructor;
+        set
+        {
+            _fallbackTypeErrorConstructor = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.TypeErrorConstructor = value;
+            }
+        }
+    }
+
+    internal static HostFunction? RangeErrorConstructor
+    {
+        get => CurrentRealm?.RangeErrorConstructor ?? _fallbackRangeErrorConstructor;
+        set
+        {
+            _fallbackRangeErrorConstructor = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.RangeErrorConstructor = value;
+            }
+        }
+    }
+
+    internal static HostFunction? ArrayConstructor
+    {
+        get => CurrentRealm?.ArrayConstructor ?? _fallbackArrayConstructor;
+        set
+        {
+            _fallbackArrayConstructor = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.ArrayConstructor = value;
+            }
+        }
+    }
 
     /// <summary>
     /// Converts a JavaScript value to its string representation, handling functions appropriately.
@@ -512,7 +671,7 @@ public static class StandardLibrary
     /// value and a `Function.call` helper that can be used with patterns
     /// like <c>Function.call.bind(Object.prototype.hasOwnProperty)</c>.
     /// </summary>
-    public static IJsCallable CreateFunctionConstructor()
+    public static IJsCallable CreateFunctionConstructor(Runtime.RealmState realm)
     {
         // Minimal Function constructor: for now we ignore the body and
         // arguments and just return a no-op function value.
@@ -562,9 +721,9 @@ public static class StandardLibrary
         // work as expected.
         var functionPrototype = new JsObject();
         functionPrototype.SetProperty("call", callHelper);
-        if (ObjectPrototype is not null)
+        if (realm.ObjectPrototype is not null)
         {
-            functionPrototype.SetPrototype(ObjectPrototype);
+            functionPrototype.SetPrototype(realm.ObjectPrototype);
         }
         var hasInstanceKey = $"@@symbol:{TypedAstSymbol.For("Symbol.hasInstance").GetHashCode()}";
         functionPrototype.SetProperty(hasInstanceKey, new HostFunction((thisValue, args) =>
@@ -606,7 +765,7 @@ public static class StandardLibrary
 
             return false;
         }));
-        FunctionPrototype = functionPrototype;
+        realm.FunctionPrototype ??= functionPrototype;
         functionConstructor.SetProperty("prototype", functionPrototype);
         functionConstructor.Properties.SetPrototype(functionPrototype);
 
@@ -2411,7 +2570,7 @@ public static class StandardLibrary
     /// <summary>
     /// Creates the Boolean constructor function.
     /// </summary>
-    public static HostFunction CreateBooleanConstructor()
+    public static HostFunction CreateBooleanConstructor(Runtime.RealmState realm)
     {
         // Boolean(value) -> boolean primitive using ToBoolean semantics.
         var booleanConstructor = new HostFunction((thisValue, args) =>
@@ -2434,7 +2593,12 @@ public static class StandardLibrary
         // Expose Boolean.prototype so user code can attach methods (e.g.
         // Boolean.prototype.toJSONString in string-tagcloud.js).
         var prototype = new JsObject();
-        BooleanPrototype = prototype;
+        realm.BooleanPrototype ??= prototype;
+        BooleanPrototype ??= prototype;
+        if (realm.ObjectPrototype is not null && prototype.Prototype is null)
+        {
+            prototype.SetPrototype(realm.ObjectPrototype);
+        }
         booleanConstructor.SetProperty("prototype", prototype);
 
         return booleanConstructor;
@@ -3676,7 +3840,7 @@ public static class StandardLibrary
     /// <summary>
     /// Creates the Object constructor with static methods.
     /// </summary>
-    public static HostFunction CreateObjectConstructor()
+    public static HostFunction CreateObjectConstructor(Runtime.RealmState realm)
     {
         // Object constructor function
         var objectConstructor = new HostFunction(args =>
@@ -3700,31 +3864,32 @@ public static class StandardLibrary
         if (objectConstructor.TryGetProperty("prototype", out var objectProto) &&
             objectProto is JsObject objectProtoObj)
         {
-            ObjectPrototype = objectProtoObj;
+            realm.ObjectPrototype ??= objectProtoObj;
+            ObjectPrototype ??= objectProtoObj;
 
-            if (FunctionPrototype is not null)
+            if (realm.FunctionPrototype is not null)
             {
-                FunctionPrototype.SetPrototype(objectProtoObj);
+                realm.FunctionPrototype.SetPrototype(objectProtoObj);
             }
 
-            if (BooleanPrototype is not null)
+            if (realm.BooleanPrototype is not null)
             {
-                BooleanPrototype.SetPrototype(objectProtoObj);
+                realm.BooleanPrototype.SetPrototype(objectProtoObj);
             }
 
-            if (NumberPrototype is not null)
+            if (realm.NumberPrototype is not null)
             {
-                NumberPrototype.SetPrototype(objectProtoObj);
+                realm.NumberPrototype.SetPrototype(objectProtoObj);
             }
 
-            if (StringPrototype is not null)
+            if (realm.StringPrototype is not null)
             {
-                StringPrototype.SetPrototype(objectProtoObj);
+                realm.StringPrototype.SetPrototype(objectProtoObj);
             }
 
-            if (ErrorPrototype is not null && ErrorPrototype.Prototype is null)
+            if (realm.ErrorPrototype is not null && realm.ErrorPrototype.Prototype is null)
             {
-                ErrorPrototype.SetPrototype(objectProtoObj);
+                realm.ErrorPrototype.SetPrototype(objectProtoObj);
             }
 
             // Object.prototype.toString
@@ -3788,38 +3953,62 @@ public static class StandardLibrary
 
             objectProtoObj.SetProperty("hasOwnProperty", hasOwn);
 
+            // Object.prototype.propertyIsEnumerable
+            var propertyIsEnumerable = new HostFunction((thisValue, args) =>
+            {
+                if (args.Count == 0)
+                {
+                    return false;
+                }
+
+                var propertyName = JsOps.ToPropertyName(args[0]);
+                if (propertyName is null)
+                {
+                    return false;
+                }
+
+                if (thisValue is not IJsObjectLike accessor)
+                {
+                    return false;
+                }
+
+                var desc = accessor.GetOwnPropertyDescriptor(propertyName);
+                return desc is not null && desc.Enumerable;
+            });
+
+            objectProtoObj.SetProperty("propertyIsEnumerable", propertyIsEnumerable);
+
             // Object.prototype.isPrototypeOf
             var isPrototypeOf = new HostFunction((thisValue, args) =>
             {
                 if (thisValue is null || ReferenceEquals(thisValue, Symbols.Undefined))
                 {
-                    throw new InvalidOperationException("Object.prototype.isPrototypeOf called on null or undefined");
+                    var error = TypeErrorConstructor is IJsCallable ctor
+                        ? ctor.Invoke(["Object.prototype.isPrototypeOf called on null or undefined"], null)
+                        : new InvalidOperationException(
+                            "Object.prototype.isPrototypeOf called on null or undefined");
+                    throw new ThrowSignal(error);
                 }
 
-            if (args.Count == 0 || args[0] is not object targetObj)
-            {
-                return false;
-            }
+                if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbols.Undefined))
+                {
+                    return false;
+                }
 
-            JsObject? cursor = null;
-            switch (targetObj)
-            {
-                case JsObject target:
-                    cursor = target.Prototype;
-                    break;
-                case IJsObjectLike objectLike:
-                    cursor = objectLike.Prototype;
-                    break;
-            }
-
-            while (cursor is not null)
-            {
-                if (ReferenceEquals(cursor, thisValue))
+                if (args[0] is JsArray && ReferenceEquals(thisValue, ArrayPrototype))
                 {
                     return true;
+                }
+
+                object? cursor = args[0];
+                while (TryGetPrototype(cursor!, out var proto) && proto is not null)
+                {
+                    if (ReferenceEquals(proto, thisValue))
+                    {
+                        return true;
                     }
 
-                    cursor = cursor.Prototype;
+                    cursor = proto;
                 }
 
                 return false;
@@ -4329,7 +4518,14 @@ public static class StandardLibrary
                     descriptor.Configurable = configurableVal is bool b ? b : ToBoolean(configurableVal);
                 }
 
-                obj.DefineProperty(propName, descriptor);
+                if (obj is JsArray jsArray && string.Equals(propName, "length", StringComparison.Ordinal))
+                {
+                    jsArray.DefineLength(descriptor, null, throwOnWritableFailure: true);
+                }
+                else
+                {
+                    obj.DefineProperty(propName, descriptor);
+                }
             }
 
             return args[0];
@@ -4341,7 +4537,7 @@ public static class StandardLibrary
     /// <summary>
     /// Creates the Array constructor with static methods.
     /// </summary>
-    public static HostFunction CreateArrayConstructor()
+    public static HostFunction CreateArrayConstructor(Runtime.RealmState realm)
     {
         // Array constructor
         var arrayConstructor = new HostFunction(args =>
@@ -4360,11 +4556,14 @@ public static class StandardLibrary
             return array;
         });
 
+        realm.ArrayConstructor ??= arrayConstructor;
+        ArrayConstructor ??= arrayConstructor;
+
         // Ensure Array.[[Prototype]] is %FunctionPrototype% even if the shared
         // prototype was not available when the HostFunction was created.
-        if (FunctionPrototype is not null)
+        if (realm.FunctionPrototype is not null)
         {
-            arrayConstructor.Properties.SetPrototype(FunctionPrototype);
+            arrayConstructor.Properties.SetPrototype(realm.FunctionPrototype);
         }
 
         // Array.isArray(value)
@@ -4429,11 +4628,19 @@ public static class StandardLibrary
 
         if (arrayConstructor.TryGetProperty("prototype", out var proto) && proto is JsObject arrayProtoObj)
         {
-            if (ObjectPrototype is not null && arrayProtoObj.Prototype is null)
+            if (realm.ObjectPrototype is not null && arrayProtoObj.Prototype is null)
             {
-                arrayProtoObj.SetPrototype(ObjectPrototype);
+                arrayProtoObj.SetPrototype(realm.ObjectPrototype);
             }
-            ArrayPrototype = arrayProtoObj;
+            realm.ArrayPrototype ??= arrayProtoObj;
+            ArrayPrototype ??= arrayProtoObj;
+            arrayProtoObj.DefineProperty("length", new PropertyDescriptor
+            {
+                Value = 0d,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
+            });
             AddArrayMethods(arrayProtoObj);
         }
 
@@ -4961,7 +5168,7 @@ public static class StandardLibrary
     /// <summary>
     /// Creates the Number constructor with static methods.
     /// </summary>
-    public static HostFunction CreateNumberConstructor()
+    public static HostFunction CreateNumberConstructor(Runtime.RealmState realm)
     {
         // Number constructor
         var numberConstructor = new HostFunction((thisValue, args) =>
@@ -4994,7 +5201,12 @@ public static class StandardLibrary
         if (numberConstructor.TryGetProperty("prototype", out var numberProto) &&
             numberProto is JsObject numberProtoObj)
         {
-            NumberPrototype = numberProtoObj;
+            realm.NumberPrototype ??= numberProtoObj;
+            NumberPrototype ??= numberProtoObj;
+            if (realm.ObjectPrototype is not null && numberProtoObj.Prototype is null)
+            {
+                numberProtoObj.SetPrototype(realm.ObjectPrototype);
+            }
 
             numberProtoObj.SetProperty("toString", new HostFunction((thisValue, args) =>
             {
@@ -5236,7 +5448,7 @@ public static class StandardLibrary
     /// <summary>
     /// Creates the String constructor with static methods.
     /// </summary>
-    public static HostFunction CreateStringConstructor()
+    public static HostFunction CreateStringConstructor(Runtime.RealmState realm)
     {
         // String constructor
         var stringConstructor = new HostFunction((thisValue, args) =>
@@ -5256,9 +5468,9 @@ public static class StandardLibrary
             {
                 obj.SetProperty("__value__", str);
                 obj.SetProperty("length", (double)str.Length);
-                if (StringPrototype is not null)
+                if (realm.StringPrototype is not null)
                 {
-                    obj.SetPrototype(StringPrototype);
+                    obj.SetPrototype(realm.StringPrototype);
                 }
 
                 return obj;
@@ -5274,7 +5486,12 @@ public static class StandardLibrary
         if (stringConstructor.TryGetProperty("prototype", out var stringProto) &&
             stringProto is JsObject stringProtoObj)
         {
-            StringPrototype = stringProtoObj;
+            realm.StringPrototype ??= stringProtoObj;
+            StringPrototype ??= stringProtoObj;
+            if (realm.ObjectPrototype is not null && stringProtoObj.Prototype is null)
+            {
+                stringProtoObj.SetPrototype(realm.ObjectPrototype);
+            }
 
             stringProtoObj.SetProperty("slice", new HostFunction((thisValue, args) =>
             {
@@ -5473,7 +5690,7 @@ public static class StandardLibrary
     /// <summary>
     /// Creates error constructor functions for standard JavaScript error types.
     /// </summary>
-    public static HostFunction CreateErrorConstructor(string errorType = "Error")
+    public static HostFunction CreateErrorConstructor(Runtime.RealmState realm, string errorType = "Error")
     {
         JsObject? prototype = null;
 
@@ -5494,13 +5711,13 @@ public static class StandardLibrary
         });
 
         prototype = new JsObject();
-        if (!string.Equals(errorType, "Error", StringComparison.Ordinal) && ErrorPrototype is not null)
+        if (!string.Equals(errorType, "Error", StringComparison.Ordinal) && realm.ErrorPrototype is not null)
         {
-            prototype.SetPrototype(ErrorPrototype);
+            prototype.SetPrototype(realm.ErrorPrototype);
         }
-        else if (ObjectPrototype is not null)
+        else if (realm.ObjectPrototype is not null)
         {
-            prototype.SetPrototype(ObjectPrototype);
+            prototype.SetPrototype(realm.ObjectPrototype);
         }
 
         prototype.SetProperty("toString", new HostFunction((errThis, toStringArgs) =>
@@ -5515,21 +5732,33 @@ public static class StandardLibrary
             return errorType;
         }));
 
+        prototype.DefineProperty("constructor", new PropertyDescriptor
+        {
+            Value = errorConstructor,
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+
         errorConstructor.SetProperty("prototype", prototype);
 
         if (string.Equals(errorType, "Error", StringComparison.Ordinal))
         {
+            realm.ErrorPrototype = prototype;
             ErrorPrototype = prototype;
         }
 
         if (string.Equals(errorType, "TypeError", StringComparison.Ordinal))
         {
+            realm.TypeErrorPrototype = prototype;
+            realm.TypeErrorConstructor = errorConstructor;
             TypeErrorPrototype = prototype;
             TypeErrorConstructor = errorConstructor;
         }
 
         if (string.Equals(errorType, "RangeError", StringComparison.Ordinal))
         {
+            realm.RangeErrorConstructor = errorConstructor;
             RangeErrorConstructor = errorConstructor;
         }
 
@@ -6277,23 +6506,51 @@ public static class StandardLibrary
                 throw new Exception("Reflect.defineProperty: descriptor must be an object.");
             }
 
-            var descriptor = new PropertyDescriptor
+            var descriptor = new PropertyDescriptor();
+            if (descriptorObj.TryGetProperty("value", out var value))
             {
-                Value = descriptorObj.TryGetProperty("value", out var value) ? value : null,
-                Writable = descriptorObj.TryGetProperty("writable", out var writable) && writable is true,
-                Enumerable = !descriptorObj.TryGetProperty("enumerable", out var enumerable) || enumerable is true,
-                Configurable = !descriptorObj.TryGetProperty("configurable", out var configurable) ||
-                               configurable is true,
-                Get = descriptorObj.TryGetProperty("get", out var getter) && getter is IJsCallable getterFn
-                    ? getterFn
-                    : null,
-                Set = descriptorObj.TryGetProperty("set", out var setter) && setter is IJsCallable setterFn
-                    ? setterFn
-                    : null
-            };
+                descriptor.Value = value;
+            }
 
-            target.DefineProperty(propertyKey, descriptor);
-            return true;
+            if (descriptorObj.TryGetProperty("writable", out var writable))
+            {
+                descriptor.Writable = writable is bool b ? b : ToBoolean(writable);
+            }
+
+            if (descriptorObj.TryGetProperty("enumerable", out var enumerable))
+            {
+                descriptor.Enumerable = enumerable is bool b ? b : ToBoolean(enumerable);
+            }
+
+            if (descriptorObj.TryGetProperty("configurable", out var configurable))
+            {
+                descriptor.Configurable = configurable is bool b ? b : ToBoolean(configurable);
+            }
+
+            if (descriptorObj.TryGetProperty("get", out var getter) && getter is IJsCallable getterFn)
+            {
+                descriptor.Get = getterFn;
+            }
+
+            if (descriptorObj.TryGetProperty("set", out var setter) && setter is IJsCallable setterFn)
+            {
+                descriptor.Set = setterFn;
+            }
+
+            if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
+            {
+                return jsArray.DefineLength(descriptor, null, throwOnWritableFailure: false);
+            }
+
+            try
+            {
+                target.DefineProperty(propertyKey, descriptor);
+                return true;
+            }
+            catch (ThrowSignal)
+            {
+                return false;
+            }
         }));
 
         reflect.SetProperty("deleteProperty", new HostFunction(args =>
@@ -6418,8 +6675,20 @@ public static class StandardLibrary
 
             var propertyKey = args[1]?.ToString() ?? string.Empty;
             var value = args[2];
-            target.SetProperty(propertyKey, value);
-            return true;
+            if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
+            {
+                return jsArray.SetLength(value, null, throwOnWritableFailure: false);
+            }
+
+            try
+            {
+                target.SetProperty(propertyKey, value);
+                return true;
+            }
+            catch (ThrowSignal)
+            {
+                return false;
+            }
         }));
 
         reflect.SetProperty("setPrototypeOf", new HostFunction(args =>
@@ -6464,6 +6733,19 @@ public static class StandardLibrary
     private static bool TryGetPrototype(object candidate, out JsObject? prototype)
     {
         prototype = null;
+
+        if (candidate is IJsObjectLike objectLike && objectLike.Prototype is not null)
+        {
+            prototype = objectLike.Prototype;
+            return true;
+        }
+
+        if (candidate is JsObject jsObject && jsObject.Prototype is not null)
+        {
+            prototype = jsObject.Prototype;
+            return true;
+        }
+
         if (candidate is IJsPropertyAccessor accessor &&
             accessor.TryGetProperty("prototype", out var protoValue) &&
             protoValue is JsObject proto)

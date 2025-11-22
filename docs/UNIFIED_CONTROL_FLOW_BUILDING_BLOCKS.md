@@ -42,7 +42,7 @@
 
 ## Rollout steps
 1. ✅ Land `AstShapeAnalyzer`/rewriter and port `ContainsYield`/`StatementContainsYield`/single-yield rewrites in the lowerer + builder to it. `TypedCpsTransformer` now uses the shared visitor for await detection.
-2. Add `LoopPlan` + `LoopNormalizer`, refactor generator yield lowering to emit plans, and teach the IR builder to consume them (including resume-slot declarations). Mirror a `LoopRunner` for the typed evaluator using the same plan shape.
+2. ⚙️ Add `LoopPlan` + `LoopNormalizer`, refactor generator yield lowering to emit plans, and teach the IR builder to consume them (including resume-slot declarations). Mirror a `LoopRunner` for the typed evaluator using the same plan shape. (LoopPlan/Normalizer are in place; SyncGeneratorIrBuilder now consumes LoopPlan. Lowerer/runner wiring still pending.)
 3. Introduce `IteratorDriver` + `ForEachPlan`, refactor `for...of`/`for await...of` in both the evaluator and generator executor to use it, and collapse IR builder iterator loop code to the shared template.
 4. Replace blocking awaits with `AwaitScheduler` wiring in generators, async generators, async functions, and iterator drivers; integrate pending-resume state (`AwaitSiteState`) with the generator executor’s existing resume-slot handling.
 5. Apply infrastructure helpers (`InstructionScope`, `LoopScopeGuard`, `YieldOperandValidator`, `InvalidIndex`) across builder code to eliminate ad-hoc rollback/label logic and make future IR extensions less error-prone.

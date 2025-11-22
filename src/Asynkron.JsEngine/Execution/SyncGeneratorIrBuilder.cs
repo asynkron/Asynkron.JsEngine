@@ -188,13 +188,68 @@ internal sealed class SyncGeneratorIrBuilder
                     return true;
 
                 case WhileStatement whileStatement:
-                    return TryBuildWhileStatement(whileStatement, nextIndex, out entryIndex, activeLabel);
+                    if (AstShapeAnalyzer.ContainsYield(whileStatement.Condition))
+                    {
+                        entryIndex = -1;
+                        _failureReason ??= "While condition contains unsupported yield shape.";
+                        return false;
+                    }
+
+                    var whileStrict = IsStrictBlock(whileStatement.Body);
+                    if (!LoopNormalizer.TryNormalize(whileStatement, whileStrict, out var whilePlan,
+                            out var whileFailure))
+                    {
+                        entryIndex = -1;
+                        _failureReason ??= whileFailure ?? "Failed to normalize while loop.";
+                        return false;
+                    }
+
+                    return TryBuildLoopPlan(whilePlan, nextIndex, out entryIndex, activeLabel);
 
                 case DoWhileStatement doWhileStatement:
-                    return TryBuildDoWhileStatement(doWhileStatement, nextIndex, out entryIndex, activeLabel);
+                    if (AstShapeAnalyzer.ContainsYield(doWhileStatement.Condition))
+                    {
+                        entryIndex = -1;
+                        _failureReason ??= "Do/while condition contains unsupported yield shape.";
+                        return false;
+                    }
+
+                    var doStrict = IsStrictBlock(doWhileStatement.Body);
+                    if (!LoopNormalizer.TryNormalize(doWhileStatement, doStrict,
+                            out var doWhilePlan, out var doFailure))
+                    {
+                        entryIndex = -1;
+                        _failureReason ??= doFailure ?? "Failed to normalize do/while loop.";
+                        return false;
+                    }
+
+                    return TryBuildLoopPlan(doWhilePlan, nextIndex, out entryIndex, activeLabel);
 
                 case ForStatement forStatement:
-                    return TryBuildForStatement(forStatement, nextIndex, out entryIndex, activeLabel);
+                    if (forStatement.Condition is not null && AstShapeAnalyzer.ContainsYield(forStatement.Condition))
+                    {
+                        entryIndex = -1;
+                        _failureReason ??= "For condition contains unsupported yield shape.";
+                        return false;
+                    }
+
+                    if (forStatement.Increment is not null && AstShapeAnalyzer.ContainsYield(forStatement.Increment))
+                    {
+                        entryIndex = -1;
+                        _failureReason ??= "For increment contains unsupported yield shape.";
+                        return false;
+                    }
+
+                    var forStrict = IsStrictBlock(forStatement.Body);
+                    if (!LoopNormalizer.TryNormalize(forStatement, forStrict, out var forPlan,
+                            out var forFailure))
+                    {
+                        entryIndex = -1;
+                        _failureReason ??= forFailure ?? "Failed to normalize for loop.";
+                        return false;
+                    }
+
+                    return TryBuildLoopPlan(forPlan, nextIndex, out entryIndex, activeLabel);
 
                 case SwitchStatement switchStatement:
                     if (TryBuildSwitchStatement(switchStatement, nextIndex, out entryIndex, activeLabel))
@@ -323,125 +378,58 @@ internal sealed class SyncGeneratorIrBuilder
         return true;
     }
 
-    private bool TryBuildWhileStatement(WhileStatement statement, int nextIndex, out int entryIndex, Symbol? label)
-    {
-        if (statement.Condition is not null && AstShapeAnalyzer.ContainsYield(statement.Condition))
-        {
-            entryIndex = -1;
-            _failureReason ??= "While condition contains unsupported yield shape.";
-            return false;
-        }
-
-        return TryBuildWhileLoop(statement, nextIndex, out entryIndex, label);
-    }
-
-    private bool TryBuildWhileLoop(WhileStatement statement, int nextIndex, out int entryIndex, Symbol? label)
+    private bool TryBuildLoopPlan(LoopPlan plan, int nextIndex, out int entryIndex, Symbol? label)
     {
         var instructionStart = _instructions.Count;
-        var jumpIndex = Append(new JumpInstruction(-1));
-
-        var continueTarget = jumpIndex;
-        var breakTarget = nextIndex;
-        var scope = new LoopScope(label, continueTarget, breakTarget);
-        _loopScopes.Push(scope);
-
-        var bodyBuilt = TryBuildStatement(statement.Body, jumpIndex, out var bodyEntry);
-        _loopScopes.Pop();
-
-        if (!bodyBuilt)
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        var branchIndex = Append(new BranchInstruction(statement.Condition, bodyEntry, nextIndex));
-        _instructions[jumpIndex] = new JumpInstruction(branchIndex);
-        entryIndex = branchIndex;
-        return true;
-    }
-
-    private bool TryBuildDoWhileStatement(DoWhileStatement statement, int nextIndex, out int entryIndex, Symbol? label)
-    {
-        if (statement.Condition is not null && AstShapeAnalyzer.ContainsYield(statement.Condition))
-        {
-            entryIndex = -1;
-            _failureReason ??= "Do/while condition contains unsupported yield shape.";
-            return false;
-        }
-
-        var instructionStart = _instructions.Count;
-        var conditionJumpIndex = Append(new JumpInstruction(-1));
-
-        var continueTarget = conditionJumpIndex;
-        var breakTarget = nextIndex;
-        var scope = new LoopScope(label, continueTarget, breakTarget);
-        _loopScopes.Push(scope);
-        var bodyBuilt = TryBuildStatement(statement.Body, conditionJumpIndex, out var bodyEntry, label);
-        _loopScopes.Pop();
-
-        if (!bodyBuilt)
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        var branchIndex = Append(new BranchInstruction(statement.Condition, bodyEntry, nextIndex));
-        _instructions[conditionJumpIndex] = new JumpInstruction(branchIndex);
-
-        entryIndex = bodyEntry;
-        return true;
-    }
-
-    private bool TryBuildForStatement(ForStatement statement, int nextIndex, out int entryIndex, Symbol? label)
-    {
-        if (statement.Condition is not null && AstShapeAnalyzer.ContainsYield(statement.Condition))
-        {
-            entryIndex = -1;
-            _failureReason ??= "For condition contains unsupported yield shape.";
-            return false;
-        }
-
-        if (statement.Increment is not null && AstShapeAnalyzer.ContainsYield(statement.Increment))
-        {
-            entryIndex = -1;
-            _failureReason ??= "For increment contains unsupported yield shape.";
-            return false;
-        }
-
-        var instructionStart = _instructions.Count;
-        var conditionExpression = statement.Condition ?? TrueLiteralExpression;
 
         var conditionJumpIndex = Append(new JumpInstruction(-1));
-        var continueTarget = conditionJumpIndex;
         var breakTarget = nextIndex;
 
-        if (statement.Increment is not null)
+        var postIterationEntry = conditionJumpIndex;
+        if (!plan.PostIteration.IsDefaultOrEmpty)
         {
-            var incrementStatement = new ExpressionStatement(statement.Increment.Source, statement.Increment);
-            continueTarget = Append(new StatementInstruction(conditionJumpIndex, incrementStatement));
+            if (!TryBuildStatementList(plan.PostIteration, conditionJumpIndex, out postIterationEntry))
+            {
+                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+                entryIndex = -1;
+                return false;
+            }
         }
 
+        var continueTarget = postIterationEntry;
         var scope = new LoopScope(label, continueTarget, breakTarget);
         _loopScopes.Push(scope);
-        var bodyBuilt = TryBuildStatement(statement.Body, continueTarget, out var bodyEntry, label);
-        _loopScopes.Pop();
 
-        if (!bodyBuilt)
+        if (!TryBuildStatement(plan.Body, continueTarget, out var bodyEntry, label))
         {
+            _loopScopes.Pop();
             _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
             entryIndex = -1;
             return false;
         }
 
-        var branchIndex = Append(new BranchInstruction(conditionExpression, bodyEntry, nextIndex));
-        _instructions[conditionJumpIndex] = new JumpInstruction(branchIndex);
+        _loopScopes.Pop();
 
-        var loopEntry = bodyEntry;
-        if (statement.Initializer is not null)
+        var branchIndex = Append(new BranchInstruction(plan.Condition, bodyEntry, nextIndex));
+
+        var conditionEntry = branchIndex;
+        if (!plan.ConditionPrologue.IsDefaultOrEmpty)
         {
-            if (!TryBuildStatement(statement.Initializer, loopEntry, out loopEntry))
+            if (!TryBuildStatementList(plan.ConditionPrologue, branchIndex, out conditionEntry))
+            {
+                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+                entryIndex = -1;
+                return false;
+            }
+        }
+
+        _instructions[conditionJumpIndex] = new JumpInstruction(conditionEntry);
+
+        var loopEntry = plan.ConditionAfterBody ? bodyEntry : conditionJumpIndex;
+
+        if (!plan.LeadingStatements.IsDefaultOrEmpty)
+        {
+            if (!TryBuildStatementList(plan.LeadingStatements, loopEntry, out loopEntry))
             {
                 _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
                 entryIndex = -1;
@@ -930,6 +918,11 @@ internal sealed class SyncGeneratorIrBuilder
     {
         var symbolName = $"{YieldStarStatePrefix}{_yieldStarStateCounter++}";
         return Symbol.Intern(symbolName);
+    }
+
+    private static bool IsStrictBlock(StatementNode statement)
+    {
+        return statement is BlockStatement block && block.IsStrict;
     }
 
     private int AppendYieldSequence(ExpressionNode? expression, int continuationIndex, Symbol? resumeSlot)

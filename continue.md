@@ -21,6 +21,7 @@
 - `docs/GENERATOR_IR_LIMITATIONS.md` captures which generator constructs lower to IR, which ones intentionally fall back, and what follow-up work is still open.
 - `docs/UNIFIED_CONTROL_FLOW_BUILDING_BLOCKS.md` outlines shared visitors/loop plans/await schedulers to deduplicate loop/yield/await handling across the lowerer, IR builders, and the typed evaluator.
 - Shared `AstShapeAnalyzer` now owns yield/await detection and single-yield rewrites; generator lowering, generator IR building, and `TypedCpsTransformer` now consume it instead of bespoke `ContainsYield` visitors.
+- Loop normalization scaffolding (`LoopPlan` + `LoopNormalizer`) is in place, and `SyncGeneratorIrBuilder` now builds while/do/for via LoopPlan; lowerer/evaluator loop runners still need to adopt it.
 - Date instances now use the constructor-created prototype chain instead of copying methods, fixing the `date-format-xparb.js` SunSpider failure caused by `this[func]()` seeing an undefined prototype method, and keeping dynamically-added `Date.prototype` methods visible to existing instances.
 - A minimal `Function` constructor and `Function.call` helper have been added so patterns like `Function.call.bind(Object.prototype.hasOwnProperty)` behave as expected, and a stub `localStorage` object is exposed globally so `babel-standalone.js` can probe storage without throwing.
 - Program-level and function-level function declarations are now hoisted via `HoistVarDeclarations`/`HoistFromStatement`, so cases like `exports.formatArgs = formatArgs;` before the `function formatArgs(...) {}` body in Babel’s bundled `debug` module resolve correctly rather than throwing `Undefined symbol` at module initialisation.
@@ -42,4 +43,4 @@
 3. **Broaden lowerer coverage and tests**
    - Add unit tests around the normalized conditional/`for` rewrites and any remaining multi-yield expressions to lock in the new lowering surface and guard against regressions as more IR shapes are added.
 4. **Unify control-flow building blocks**
-   - Next steps from `docs/UNIFIED_CONTROL_FLOW_BUILDING_BLOCKS.md`: introduce `LoopPlan`/`LoopNormalizer` feeding both the generator lowerer and IR builder, add shared iterator drivers for `for...of`/`for await...of`, wire non-blocking await scheduling, and adopt the shared rollback/loop helpers.
+   - Next steps from `docs/UNIFIED_CONTROL_FLOW_BUILDING_BLOCKS.md`: finish threading `LoopPlan` through generator lowering and a shared loop runner, add shared iterator drivers for `for...of`/`for await...of`, wire non-blocking await scheduling, and adopt the shared rollback/loop helpers.

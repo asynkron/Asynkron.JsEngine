@@ -7741,14 +7741,11 @@ public static class StandardLibrary
 
             // JavaScript parseFloat allows partial parsing - parse as much as possible
             var i = 0;
-            var hasSign = false;
             var hasDigits = false;
-            var hasDecimal = false;
 
             // Handle sign
             if (i < str.Length && (str[i] == '+' || str[i] == '-'))
             {
-                hasSign = true;
                 i++;
             }
 
@@ -7762,7 +7759,6 @@ public static class StandardLibrary
             // Parse decimal point and digits after
             if (i < str.Length && str[i] == '.')
             {
-                hasDecimal = true;
                 i++;
                 while (i < str.Length && char.IsDigit(str[i]))
                 {

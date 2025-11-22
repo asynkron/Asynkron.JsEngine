@@ -13,23 +13,7 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public static class StandardLibrary
 {
-    private static RealmState? _currentRealm;
-
-    private static JsObject? _fallbackBooleanPrototype;
-    private static JsObject? _fallbackNumberPrototype;
-    private static JsObject? _fallbackStringPrototype;
-    private static JsObject? _fallbackObjectPrototype;
-    private static JsObject? _fallbackFunctionPrototype;
-    private static JsObject? _fallbackArrayPrototype;
-    private static JsObject? _fallbackBigIntPrototype;
-    private static JsObject? _fallbackDatePrototype;
-    private static JsObject? _fallbackErrorPrototype;
-    private static JsObject? _fallbackTypeErrorPrototype;
-    private static JsObject? _fallbackSyntaxErrorPrototype;
-    private static HostFunction? _fallbackTypeErrorConstructor;
-    private static HostFunction? _fallbackRangeErrorConstructor;
-    private static HostFunction? _fallbackSyntaxErrorConstructor;
-    private static HostFunction? _fallbackArrayConstructor;
+    // No shared current realm: rely on per-context RealmState instead.
 
     /// <summary>
     /// Clears cached realm state so consecutive engine instances in the same
@@ -38,242 +22,65 @@ public static class StandardLibrary
     /// </summary>
     internal static void ResetGlobalState()
     {
-        CurrentRealm = null;
-        _fallbackBooleanPrototype = null;
-        _fallbackNumberPrototype = null;
-        _fallbackStringPrototype = null;
-        _fallbackObjectPrototype = null;
-        _fallbackFunctionPrototype = null;
-        _fallbackArrayPrototype = null;
-        _fallbackBigIntPrototype = null;
-        _fallbackDatePrototype = null;
-        _fallbackErrorPrototype = null;
-        _fallbackTypeErrorPrototype = null;
-        _fallbackSyntaxErrorPrototype = null;
-        _fallbackTypeErrorConstructor = null;
-        _fallbackRangeErrorConstructor = null;
-        _fallbackSyntaxErrorConstructor = null;
-        _fallbackArrayConstructor = null;
-    }
-
-    internal static RealmState? CurrentRealm
-    {
-        get => _currentRealm;
-        private set => _currentRealm = value;
-    }
-
-    internal static void BindRealm(RealmState realm)
-    {
-        CurrentRealm = realm;
+        BooleanPrototype = null;
+        NumberPrototype = null;
+        StringPrototype = null;
+        ObjectPrototype = null;
+        FunctionPrototype = null;
+        ArrayPrototype = null;
+        BigIntPrototype = null;
+        DatePrototype = null;
+        ErrorPrototype = null;
+        TypeErrorPrototype = null;
+        SyntaxErrorPrototype = null;
+        TypeErrorConstructor = null;
+        RangeErrorConstructor = null;
+        SyntaxErrorConstructor = null;
+        ArrayConstructor = null;
     }
 
     private static RealmState? ResolveRealm(EvaluationContext? context = null)
     {
-        return context?.RealmState ?? CurrentRealm;
+        return context?.RealmState;
     }
 
     // Shared prototypes for primitive wrapper objects so that host-provided
     // globals like Boolean.prototype can be extended from JavaScript and still
     // be visible via auto-boxing of primitives.
-    internal static JsObject? BooleanPrototype
-    {
-        get => CurrentRealm?.BooleanPrototype ?? _fallbackBooleanPrototype;
-        set
-        {
-            _fallbackBooleanPrototype = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.BooleanPrototype = value;
-            }
-        }
-    }
+    internal static JsObject? BooleanPrototype { get; set; }
 
-    internal static JsObject? NumberPrototype
-    {
-        get => CurrentRealm?.NumberPrototype ?? _fallbackNumberPrototype;
-        set
-        {
-            _fallbackNumberPrototype = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.NumberPrototype = value;
-            }
-        }
-    }
+    internal static JsObject? NumberPrototype { get; set; }
 
-    internal static JsObject? StringPrototype
-    {
-        get => CurrentRealm?.StringPrototype ?? _fallbackStringPrototype;
-        set
-        {
-            _fallbackStringPrototype = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.StringPrototype = value;
-            }
-        }
-    }
+    internal static JsObject? StringPrototype { get; set; }
 
-    internal static JsObject? ObjectPrototype
-    {
-        get => CurrentRealm?.ObjectPrototype ?? _fallbackObjectPrototype;
-        set
-        {
-            _fallbackObjectPrototype = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.ObjectPrototype = value;
-            }
-        }
-    }
+    internal static JsObject? ObjectPrototype { get; set; }
 
-    internal static JsObject? FunctionPrototype
-    {
-        get => CurrentRealm?.FunctionPrototype ?? _fallbackFunctionPrototype;
-        set
-        {
-            _fallbackFunctionPrototype = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.FunctionPrototype = value;
-            }
-        }
-    }
+    internal static JsObject? FunctionPrototype { get; set; }
 
-    internal static JsObject? ArrayPrototype
-    {
-        get => CurrentRealm?.ArrayPrototype ?? _fallbackArrayPrototype;
-        set
-        {
-            _fallbackArrayPrototype = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.ArrayPrototype = value;
-            }
-        }
-    }
+    internal static JsObject? ArrayPrototype { get; set; }
 
-    internal static JsObject? BigIntPrototype
-    {
-        get => CurrentRealm?.BigIntPrototype ?? _fallbackBigIntPrototype;
-        set
-        {
-            _fallbackBigIntPrototype = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.BigIntPrototype = value;
-            }
-        }
-    }
+    internal static JsObject? BigIntPrototype { get; set; }
 
-    internal static JsObject? DatePrototype
-    {
-        get => CurrentRealm?.DatePrototype ?? _fallbackDatePrototype;
-        set
-        {
-            _fallbackDatePrototype = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.DatePrototype = value;
-            }
-        }
-    }
+    internal static JsObject? DatePrototype { get; set; }
 
-    internal static JsObject? ErrorPrototype
-    {
-        get => CurrentRealm?.ErrorPrototype ?? _fallbackErrorPrototype;
-        set
-        {
-            _fallbackErrorPrototype = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.ErrorPrototype = value;
-            }
-        }
-    }
+    internal static JsObject? ErrorPrototype { get; set; }
 
-    internal static JsObject? TypeErrorPrototype
-    {
-        get => CurrentRealm?.TypeErrorPrototype ?? _fallbackTypeErrorPrototype;
-        set
-        {
-            _fallbackTypeErrorPrototype = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.TypeErrorPrototype = value;
-            }
-        }
-    }
+    internal static JsObject? TypeErrorPrototype { get; set; }
 
-    internal static JsObject? SyntaxErrorPrototype
-    {
-        get => CurrentRealm?.SyntaxErrorPrototype ?? _fallbackSyntaxErrorPrototype;
-        set
-        {
-            _fallbackSyntaxErrorPrototype = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.SyntaxErrorPrototype = value;
-            }
-        }
-    }
+    internal static JsObject? SyntaxErrorPrototype { get; set; }
 
-    internal static HostFunction? TypeErrorConstructor
-    {
-        get => CurrentRealm?.TypeErrorConstructor ?? _fallbackTypeErrorConstructor;
-        set
-        {
-            _fallbackTypeErrorConstructor = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.TypeErrorConstructor = value;
-            }
-        }
-    }
+    internal static HostFunction? TypeErrorConstructor { get; set; }
 
-    internal static HostFunction? RangeErrorConstructor
-    {
-        get => CurrentRealm?.RangeErrorConstructor ?? _fallbackRangeErrorConstructor;
-        set
-        {
-            _fallbackRangeErrorConstructor = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.RangeErrorConstructor = value;
-            }
-        }
-    }
+    internal static HostFunction? RangeErrorConstructor { get; set; }
 
-    internal static HostFunction? SyntaxErrorConstructor
-    {
-        get => CurrentRealm?.SyntaxErrorConstructor ?? _fallbackSyntaxErrorConstructor;
-        set
-        {
-            _fallbackSyntaxErrorConstructor = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.SyntaxErrorConstructor = value;
-            }
-        }
-    }
+    internal static HostFunction? SyntaxErrorConstructor { get; set; }
 
-    internal static HostFunction? ArrayConstructor
-    {
-        get => CurrentRealm?.ArrayConstructor ?? _fallbackArrayConstructor;
-        set
-        {
-            _fallbackArrayConstructor = value;
-            if (CurrentRealm is not null)
-            {
-                CurrentRealm.ArrayConstructor = value;
-            }
-        }
-    }
+    internal static HostFunction? ArrayConstructor { get; set; }
 
     internal static object CreateTypeError(string message, EvaluationContext? context = null)
     {
         var realm = ResolveRealm(context);
-        var ctor = realm?.TypeErrorConstructor ?? _fallbackTypeErrorConstructor;
+        var ctor = realm?.TypeErrorConstructor ?? TypeErrorConstructor;
         if (ctor is IJsCallable callable)
         {
             return callable.Invoke([message], null) ?? new InvalidOperationException(message);
@@ -318,7 +125,7 @@ public static class StandardLibrary
     internal static object CreateRangeError(string message, EvaluationContext? context = null)
     {
         var realm = ResolveRealm(context);
-        var ctor = realm?.RangeErrorConstructor ?? _fallbackRangeErrorConstructor;
+        var ctor = realm?.RangeErrorConstructor ?? RangeErrorConstructor;
         if (ctor is IJsCallable callable)
         {
             return callable.Invoke([message], null) ?? new InvalidOperationException(message);
@@ -362,7 +169,7 @@ public static class StandardLibrary
     internal static object CreateSyntaxError(string message, EvaluationContext? context = null)
     {
         var realm = ResolveRealm(context);
-        var ctor = realm?.SyntaxErrorConstructor ?? _fallbackSyntaxErrorConstructor;
+        var ctor = realm?.SyntaxErrorConstructor ?? SyntaxErrorConstructor;
         if (ctor is IJsCallable callable)
         {
             return callable.Invoke([message], null) ?? new InvalidOperationException(message);
@@ -1060,7 +867,7 @@ public static class StandardLibrary
             return new HostFunction((innerThis, innerArgs) => Symbols.Undefined)
             {
                 Realm = realm,
-                RealmState = functionConstructor.RealmState ?? CurrentRealm
+                RealmState = functionConstructor.RealmState
             };
         });
         functionConstructor.RealmState = realm;
@@ -1092,7 +899,7 @@ public static class StandardLibrary
             return target.Invoke(callArgs, thisArg);
         });
         callHelper.Realm = functionConstructor.Realm;
-        callHelper.RealmState = functionConstructor.RealmState ?? CurrentRealm;
+        callHelper.RealmState = functionConstructor.RealmState;
 
         functionConstructor.SetProperty("call", callHelper);
 
@@ -3518,7 +3325,7 @@ public static class StandardLibrary
             ["__value__"] = value
         };
 
-        var prototype = ResolveRealm(context)?.BooleanPrototype ?? _fallbackBooleanPrototype;
+        var prototype = ResolveRealm(context)?.BooleanPrototype ?? BooleanPrototype;
         if (prototype is not null)
         {
             booleanObj.SetPrototype(prototype);
@@ -3822,7 +3629,7 @@ public static class StandardLibrary
         var stringObj = new JsObject();
         stringObj["__value__"] = str;
         stringObj["length"] = (double)str.Length;
-        var prototype = ResolveRealm(context)?.StringPrototype ?? _fallbackStringPrototype;
+        var prototype = ResolveRealm(context)?.StringPrototype ?? StringPrototype;
         if (prototype is not null)
         {
             stringObj.SetPrototype(prototype);
@@ -4542,7 +4349,7 @@ public static class StandardLibrary
     {
         var numberObj = new JsObject();
         numberObj["__value__"] = num;
-        var prototype = ResolveRealm(context)?.NumberPrototype ?? _fallbackNumberPrototype;
+        var prototype = ResolveRealm(context)?.NumberPrototype ?? NumberPrototype;
         if (prototype is not null)
         {
             numberObj.SetPrototype(prototype);
@@ -4558,7 +4365,7 @@ public static class StandardLibrary
             ["__value__"] = value
         };
 
-        var prototype = ResolveRealm(context)?.BigIntPrototype ?? _fallbackBigIntPrototype;
+        var prototype = ResolveRealm(context)?.BigIntPrototype ?? BigIntPrototype;
         if (prototype is not null)
         {
             wrapper.SetPrototype(prototype);

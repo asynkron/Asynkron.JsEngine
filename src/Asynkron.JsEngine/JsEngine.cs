@@ -63,8 +63,6 @@ namespace Asynkron.JsEngine;
         // leak between runs.
         StandardLibrary.ResetGlobalState();
 
-        var previousRealm = StandardLibrary.CurrentRealm;
-        StandardLibrary.BindRealm(_realm);
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).
@@ -206,13 +204,6 @@ namespace Asynkron.JsEngine;
         // Register debug function as a debug-aware host function
         _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));
 
-        // Avoid leaking a temporary realm when new engines are created from an
-        // existing engine (e.g. $262.createRealm).
-        if (previousRealm is not null)
-        {
-            StandardLibrary.BindRealm(previousRealm);
-        }
-
         _ = Task.Run(ProcessEventQueue);
     }
 
@@ -322,7 +313,6 @@ namespace Asynkron.JsEngine;
     /// </summary>
     internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment, CancellationToken cancellationToken = default)
     {
-        StandardLibrary.BindRealm(_realm);
         return _typedExecutor.Evaluate(program, environment, _realm, cancellationToken);
     }
 
@@ -380,7 +370,6 @@ namespace Asynkron.JsEngine;
     /// </summary>
     public Task<object?> Evaluate(string source, CancellationToken cancellationToken = default)
     {
-        StandardLibrary.BindRealm(_realm);
         var program = ParseForExecution(source);
         return Evaluate(program, cancellationToken);
     }
@@ -392,7 +381,6 @@ namespace Asynkron.JsEngine;
     /// </summary>
     private async Task<object?> Evaluate(ParsedProgram program, CancellationToken cancellationToken = default)
     {
-        StandardLibrary.BindRealm(_realm);
         var tcs = new TaskCompletionSource<object?>();
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
 

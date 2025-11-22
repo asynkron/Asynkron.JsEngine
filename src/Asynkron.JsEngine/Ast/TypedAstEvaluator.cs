@@ -23,6 +23,7 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 public static class TypedAstEvaluator
 {
+    private sealed record PendingAwaitResult(JsObject Promise);
     private static readonly Symbol YieldTrackerSymbol = Symbol.Intern("__yieldTracker__");
     private static readonly Symbol YieldResumeContextSymbol = Symbol.Intern("__yieldResume__");
     private static readonly Symbol GeneratorPendingCompletionSymbol = Symbol.Intern("__generatorPending__");
@@ -156,167 +157,41 @@ public static class TypedAstEvaluator
         return branch is null ? JsSymbols.Undefined : EvaluateStatement(branch, environment, context);
     }
 
-    private static object? EvaluateWhile(WhileStatement statement, JsEnvironment environment, EvaluationContext context,
+        private static object? EvaluateWhile(WhileStatement statement, JsEnvironment environment, EvaluationContext context,
         Symbol? loopLabel)
     {
-        object? lastValue = JsSymbols.Undefined;
-
-        while (true)
+        var isStrict = IsStrictBlock(statement.Body);
+        if (!LoopNormalizer.TryNormalize(statement, isStrict, out var plan, out _))
         {
-            context.ThrowIfCancellationRequested();
-            var test = EvaluateExpression(statement.Condition, environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return lastValue;
-            }
-
-            if (!IsTruthy(test))
-            {
-                break;
-            }
-
-            lastValue = EvaluateStatement(statement.Body, environment, context);
-            if (context.IsReturn || context.IsThrow)
-            {
-                break;
-            }
-
-            if (context.TryClearContinue(loopLabel))
-            {
-                continue;
-            }
-
-            if (context.TryClearBreak(loopLabel))
-            {
-                break;
-            }
-
-            if (context.ShouldStopEvaluation)
-            {
-                break;
-            }
+            throw new NotSupportedException("Failed to normalize while loop.");
         }
 
-        return lastValue;
+        return EvaluateLoopPlan(plan, environment, context, loopLabel);
     }
 
     private static object? EvaluateDoWhile(DoWhileStatement statement, JsEnvironment environment, EvaluationContext context,
         Symbol? loopLabel)
     {
-        object? lastValue = JsSymbols.Undefined;
-
-        do
+        var isStrict = IsStrictBlock(statement.Body);
+        if (!LoopNormalizer.TryNormalize(statement, isStrict, out var plan, out _))
         {
-            context.ThrowIfCancellationRequested();
-            lastValue = EvaluateStatement(statement.Body, environment, context);
-            if (context.IsReturn || context.IsThrow)
-            {
-                break;
-            }
+            throw new NotSupportedException("Failed to normalize do/while loop.");
+        }
 
-            if (context.TryClearContinue(loopLabel))
-            {
-                // continue with next iteration
-            }
-            else if (context.TryClearBreak(loopLabel))
-            {
-                break;
-            }
-            else if (context.ShouldStopEvaluation)
-            {
-                break;
-            }
-
-            var test = EvaluateExpression(statement.Condition, environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                break;
-            }
-
-            if (!IsTruthy(test))
-            {
-                break;
-            }
-        } while (true);
-
-        return lastValue;
+        return EvaluateLoopPlan(plan, environment, context, loopLabel);
     }
 
     private static object? EvaluateFor(ForStatement statement, JsEnvironment environment, EvaluationContext context,
         Symbol? loopLabel)
     {
+        var isStrict = IsStrictBlock(statement.Body);
+        if (!LoopNormalizer.TryNormalize(statement, isStrict, out var plan, out _))
+        {
+            throw new NotSupportedException("Failed to normalize for loop.");
+        }
+
         var loopEnvironment = new JsEnvironment(environment, creatingSource: statement.Source, description: "for-loop");
-        object? lastValue = JsSymbols.Undefined;
-
-        if (statement.Initializer is not null)
-        {
-            EvaluateStatement(statement.Initializer, loopEnvironment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return JsSymbols.Undefined;
-            }
-        }
-
-        bool ContinueLoop()
-        {
-            if (statement.Condition is null)
-            {
-                return true;
-            }
-
-            var test = EvaluateExpression(statement.Condition, loopEnvironment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return false;
-            }
-
-            return IsTruthy(test);
-        }
-
-        while (ContinueLoop())
-        {
-            context.ThrowIfCancellationRequested();
-            lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
-            if (context.IsReturn || context.IsThrow)
-            {
-                break;
-            }
-
-            if (context.TryClearContinue(loopLabel))
-            {
-                if (statement.Increment is not null)
-                {
-                    EvaluateExpression(statement.Increment, loopEnvironment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        break;
-                    }
-                }
-
-                continue;
-            }
-
-            if (context.TryClearBreak(loopLabel))
-            {
-                break;
-            }
-
-            if (context.ShouldStopEvaluation)
-            {
-                break;
-            }
-
-            if (statement.Increment is not null)
-            {
-                EvaluateExpression(statement.Increment, loopEnvironment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    break;
-                }
-            }
-        }
-
-        return lastValue;
+        return EvaluateLoopPlan(plan, loopEnvironment, context, loopLabel);
     }
 
     private static object? EvaluateForEach(ForEachStatement statement, JsEnvironment environment,
@@ -354,7 +229,9 @@ public static class TypedAstEvaluator
         if (statement.Kind == ForEachKind.Of &&
             TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
         {
-            return IterateIteratorValues(statement, iterator, loopEnvironment, environment, context, loopLabel);
+            var plan = IteratorDriverFactory.CreatePlan(statement,
+                statement.Body is BlockStatement b ? b : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body)));
+            return ExecuteIteratorDriver(plan, iterator, null, loopEnvironment, environment, context, loopLabel);
         }
 
         IEnumerable<object?> values = statement.Kind switch
@@ -375,7 +252,7 @@ public static class TypedAstEvaluator
                 ? new JsEnvironment(loopEnvironment, creatingSource: statement.Source, description: "for-each-iteration")
                 : loopEnvironment;
 
-            AssignLoopBinding(statement, value, iterationEnvironment, environment, context);
+            AssignLoopBinding(statement.Target, value, iterationEnvironment, environment, context, statement.DeclarationKind);
 
             lastValue = EvaluateStatement(statement.Body, iterationEnvironment, context);
 
@@ -412,62 +289,9 @@ public static class TypedAstEvaluator
 
         if (TryGetIteratorFromProtocols(iterable, out var iterator))
         {
-            while (!context.ShouldStopEvaluation)
-            {
-                var nextResult = InvokeIteratorNext(iterator!);
-                var awaitedNextResult = nextResult;
-                if (IsPromiseLike(awaitedNextResult))
-                {
-                    throw new NotSupportedException(
-                        "for await...of in this context must be lowered via the async CPS/iterator helpers; promise-valued iterator results are not supported in the direct evaluator.");
-                }
-
-                if (awaitedNextResult is not JsObject resultObj)
-                {
-                    break;
-                }
-
-                if (resultObj.TryGetProperty("done", out var doneValue) &&
-                    doneValue is bool completed && completed)
-                {
-                    break;
-                }
-
-                if (!resultObj.TryGetProperty("value", out var value))
-                {
-                    continue;
-                }
-
-                var iterationEnvironment = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                    ? new JsEnvironment(loopEnvironment, creatingSource: statement.Source, description: "for-await-of iteration")
-                    : loopEnvironment;
-
-                if (IsPromiseLike(value))
-                {
-                    throw new NotSupportedException(
-                        "for await...of in this context must be lowered via the async CPS/iterator helpers; promise-valued iteration values are not supported in the direct evaluator.");
-                }
-
-                AssignLoopBinding(statement, value, iterationEnvironment, environment, context);
-                lastValue = EvaluateStatement(statement.Body, iterationEnvironment, context);
-
-                if (context.IsReturn || context.IsThrow)
-                {
-                    break;
-                }
-
-                if (context.TryClearContinue(loopLabel))
-                {
-                    continue;
-                }
-
-                if (context.TryClearBreak(loopLabel))
-                {
-                    break;
-                }
-            }
-
-            return lastValue;
+            var plan = IteratorDriverFactory.CreatePlan(statement,
+                statement.Body is BlockStatement b ? b : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body)));
+            return ExecuteIteratorDriver(plan, iterator!, null, loopEnvironment, environment, context, loopLabel);
         }
 
         var values = EnumerateValues(iterable);
@@ -484,58 +308,8 @@ public static class TypedAstEvaluator
                     "for await...of in this context must be lowered via the async CPS/iterator helpers; promise-valued iteration values are not supported in the direct evaluator.");
             }
 
-            AssignLoopBinding(statement, value, loopEnvironment, environment, context);
+            AssignLoopBinding(statement.Target, value, loopEnvironment, environment, context, statement.DeclarationKind);
             lastValue = EvaluateStatement(statement.Body, loopEnvironment, context);
-
-            if (context.IsReturn || context.IsThrow)
-            {
-                break;
-            }
-
-            if (context.TryClearContinue(loopLabel))
-            {
-                continue;
-            }
-
-            if (context.TryClearBreak(loopLabel))
-            {
-                break;
-            }
-        }
-
-        return lastValue;
-    }
-
-    private static object? IterateIteratorValues(ForEachStatement statement, JsObject iterator,
-        JsEnvironment loopEnvironment, JsEnvironment outerEnvironment, EvaluationContext context, Symbol? loopLabel)
-    {
-        object? lastValue = JsSymbols.Undefined;
-
-        while (!context.ShouldStopEvaluation)
-        {
-            context.ThrowIfCancellationRequested();
-            var nextResult = InvokeIteratorNext(iterator);
-            if (nextResult is not JsObject resultObj)
-            {
-                break;
-            }
-
-            var done = resultObj.TryGetProperty("done", out var doneValue) && doneValue is bool completed && completed;
-            if (done)
-            {
-                break;
-            }
-
-            var value = resultObj.TryGetProperty("value", out var yielded)
-                ? yielded
-                : JsSymbols.Undefined;
-
-            var iterationEnvironment = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                ? new JsEnvironment(loopEnvironment, creatingSource: statement.Source, description: "for-each-iteration")
-                : loopEnvironment;
-
-            AssignLoopBinding(statement, value, iterationEnvironment, outerEnvironment, context);
-            lastValue = EvaluateStatement(statement.Body, iterationEnvironment, context);
 
             if (context.IsReturn || context.IsThrow)
             {
@@ -617,11 +391,93 @@ public static class TypedAstEvaluator
         return true;
     }
 
-    private static bool IsPromiseLike(object? candidate)
+    private static object? ExecuteIteratorDriver(IteratorDriverPlan plan,
+        JsObject iterator,
+        IEnumerator<object?>? enumerator,
+        JsEnvironment loopEnvironment,
+        JsEnvironment outerEnvironment,
+        EvaluationContext context,
+        Symbol? loopLabel)
     {
-        return candidate is JsObject jsObject && jsObject.TryGetProperty("then", out var thenValue) &&
-               thenValue is IJsCallable;
+        object? lastValue = JsSymbols.Undefined;
+
+        var state = new IteratorDriverState
+        {
+            IteratorObject = iterator,
+            Enumerator = enumerator,
+            IsAsyncIterator = plan.Kind == IteratorDriverKind.Await
+        };
+
+        while (!context.ShouldStopEvaluation)
+        {
+            context.ThrowIfCancellationRequested();
+
+            object? nextResult = null;
+            if (state.IteratorObject is not null)
+            {
+                nextResult = InvokeIteratorNext(state.IteratorObject);
+            }
+            else if (state.Enumerator is not null)
+            {
+                if (!state.Enumerator.MoveNext())
+                {
+                    break;
+                }
+
+                nextResult = state.Enumerator.Current;
+            }
+
+            if (nextResult is JsObject resultObj)
+            {
+                var done = resultObj.TryGetProperty("done", out var doneValue) &&
+                           doneValue is bool completed && completed;
+                if (done)
+                {
+                    break;
+                }
+
+                var value = resultObj.TryGetProperty("value", out var yielded)
+                    ? yielded
+                    : JsSymbols.Undefined;
+
+                var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
+                    ? new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
+                    : loopEnvironment;
+
+                AssignLoopBinding(plan.Target, value, iterationEnvironment, outerEnvironment, context, plan.DeclarationKind);
+                lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+            }
+            else
+            {
+                // Enumerator path (non-object next)
+                var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
+                    ? new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
+                    : loopEnvironment;
+
+                AssignLoopBinding(plan.Target, nextResult, iterationEnvironment, outerEnvironment, context, plan.DeclarationKind);
+                lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+            }
+
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;
+            }
+
+            if (context.TryClearContinue(loopLabel))
+            {
+                continue;
+            }
+
+            if (context.TryClearBreak(loopLabel))
+            {
+                break;
+            }
+        }
+
+        return lastValue;
     }
+
+    private static bool IsPromiseLike(object? candidate) => AwaitScheduler.IsPromiseLike(candidate);
 
     // WAITING ON FULL ASYNC/AWAIT + ASYNC GENERATOR IR SUPPORT:
     // This helper synchronously blocks on promise resolution using TaskCompletionSource.
@@ -630,96 +486,27 @@ public static class TypedAstEvaluator
     // pipeline is in place.
     private static bool TryAwaitPromise(object? candidate, EvaluationContext context, out object? resolvedValue)
     {
-        resolvedValue = candidate;
-
-        while (resolvedValue is JsObject promiseObj && IsPromiseLike(promiseObj))
-        {
-            if (!promiseObj.TryGetProperty("then", out var thenValue) || thenValue is not IJsCallable thenCallable)
-            {
-                break;
-            }
-
-            var tcs = new TaskCompletionSource<(bool Success, object? Value)>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-
-            var onFulfilled = new HostFunction(args =>
-            {
-                var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
-                tcs.TrySetResult((true, value));
-                return null;
-            });
-
-            var onRejected = new HostFunction(args =>
-            {
-                var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
-                tcs.TrySetResult((false, value));
-                return null;
-            });
-
-            try
-            {
-                thenCallable.Invoke([onFulfilled, onRejected], promiseObj);
-            }
-            catch (Exception ex)
-            {
-                context.SetThrow(ex.Message);
-                resolvedValue = JsSymbols.Undefined;
-                return false;
-            }
-
-            (bool Success, object? Value) awaited;
-            try
-            {
-                if (tcs.Task.IsCompleted)
-                {
-                    awaited = tcs.Task.GetAwaiter().GetResult();
-                }
-                else
-                {
-                    //TODO: ENSURE ALL CODE IS LOWERED TO ASYNC, THEN REMOVE THIS
-                    // DO NOT REPLACE WITH BLOCKING WAIT:
-                    throw new InvalidOperationException(
-                        "Asynchronous promise resolution is not supported in the synchronous evaluator.");
-                }
-            }
-            catch (Exception ex)
-            {
-                context.SetThrow(ex.Message);
-                resolvedValue = JsSymbols.Undefined;
-                return false;
-            }
-
-            if (!awaited.Success)
-            {
-                context.SetThrow(awaited.Value);
-                resolvedValue = JsSymbols.Undefined;
-                return false;
-            }
-
-            resolvedValue = awaited.Value;
-        }
-
-        return true;
+        return AwaitScheduler.TryAwaitPromiseSync(candidate, context, out resolvedValue);
     }
 
-    private static void AssignLoopBinding(ForEachStatement statement, object? value, JsEnvironment loopEnvironment,
-        JsEnvironment outerEnvironment, EvaluationContext context)
+    private static void AssignLoopBinding(BindingTarget target, object? value, JsEnvironment loopEnvironment,
+        JsEnvironment outerEnvironment, EvaluationContext context, VariableKind? declarationKind)
     {
-        if (statement.DeclarationKind is null)
+        if (declarationKind is null)
         {
-            AssignBindingTarget(statement.Target, value, outerEnvironment, context);
+            AssignBindingTarget(target, value, outerEnvironment, context);
             return;
         }
 
-        switch (statement.DeclarationKind)
+        switch (declarationKind)
         {
             case VariableKind.Var:
-                DefineOrAssignVar(statement.Target, value, loopEnvironment, context);
+                DefineOrAssignVar(target, value, loopEnvironment, context);
                 break;
             case VariableKind.Let:
             case VariableKind.Const:
-                DefineBindingTarget(statement.Target, value, loopEnvironment, context,
-                    statement.DeclarationKind == VariableKind.Const);
+                DefineBindingTarget(target, value, loopEnvironment, context,
+                    declarationKind == VariableKind.Const);
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -926,6 +713,126 @@ public static class TypedAstEvaluator
 
         environment.Define(declaration.Name, constructorValue);
         return constructorValue;
+    }
+
+    private static object? EvaluateLoopPlan(LoopPlan plan, JsEnvironment environment, EvaluationContext context,
+        Symbol? loopLabel)
+    {
+        object? lastValue = JsSymbols.Undefined;
+
+        if (!plan.LeadingStatements.IsDefaultOrEmpty)
+        {
+            foreach (var statement in plan.LeadingStatements)
+            {
+                lastValue = EvaluateStatement(statement, environment, context, loopLabel);
+                if (context.ShouldStopEvaluation)
+                {
+                    return lastValue;
+                }
+            }
+        }
+
+        while (true)
+        {
+            context.ThrowIfCancellationRequested();
+
+            if (!plan.ConditionAfterBody)
+            {
+                if (!ExecuteCondition(plan, environment, context))
+                {
+                    break;
+                }
+            }
+
+            lastValue = EvaluateStatement(plan.Body, environment, context, loopLabel);
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;
+            }
+
+            if (context.TryClearContinue(loopLabel))
+            {
+                if (!ExecutePostIteration(plan, environment, context, ref lastValue))
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            if (context.TryClearBreak(loopLabel))
+            {
+                break;
+            }
+
+            if (context.ShouldStopEvaluation)
+            {
+                break;
+            }
+
+            if (!ExecutePostIteration(plan, environment, context, ref lastValue))
+            {
+                break;
+            }
+
+            if (plan.ConditionAfterBody)
+            {
+                if (!ExecuteCondition(plan, environment, context))
+                {
+                    break;
+                }
+            }
+        }
+
+        return lastValue;
+    }
+
+    private static bool ExecuteCondition(LoopPlan plan, JsEnvironment environment, EvaluationContext context)
+    {
+        if (!plan.ConditionPrologue.IsDefaultOrEmpty)
+        {
+            foreach (var statement in plan.ConditionPrologue)
+            {
+                _ = EvaluateStatement(statement, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return false;
+                }
+            }
+        }
+
+        var test = EvaluateExpression(plan.Condition, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return false;
+        }
+
+        return IsTruthy(test);
+    }
+
+    private static bool ExecutePostIteration(LoopPlan plan, JsEnvironment environment, EvaluationContext context,
+        ref object? lastValue)
+    {
+        if (plan.PostIteration.IsDefaultOrEmpty)
+        {
+            return true;
+        }
+
+        foreach (var statement in plan.PostIteration)
+        {
+            lastValue = EvaluateStatement(statement, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsStrictBlock(StatementNode statement)
+    {
+        return statement is BlockStatement block && block.IsStrict;
     }
 
     private static object? EvaluateClassExpression(ClassExpression expression, JsEnvironment environment,
@@ -1293,19 +1200,23 @@ public static class TypedAstEvaluator
             return awaited;
         }
 
-        // Non-IR async functions should have been rewritten by the CPS transformer
-        // to use Promise-based helpers (__await, __getAsyncIterator, etc.) so this
-        // direct await evaluator should never see real promise objects. If it does,
-        // treat it as an unsupported execution path rather than attempting any
-        // synchronous waiting.
-        if (IsPromiseLike(awaited))
+        // Plain async functions now honor pending promises via the shared scheduler.
+        object? pendingPromise = null;
+        if (!AwaitScheduler.TryAwaitPromiseOrSchedule(awaited, asyncStepMode: true, ref pendingPromise, context,
+                out var resolved))
         {
-            throw new NotSupportedException(
-                "Await in this context must be lowered via the async CPS transformer; promise-valued awaits are not supported in the direct evaluator.");
+            if (context.IsThrow || context.IsReturn)
+            {
+                return resolved;
+            }
+
+            if (pendingPromise is JsObject promise && AwaitScheduler.IsPromiseLike(promise))
+            {
+                return new PendingAwaitResult(promise);
+            }
         }
 
-        // For non-promise values, await is effectively a no-op.
-        return awaited;
+        return resolved;
     }
 
     private static object? EvaluateYield(YieldExpression expression, JsEnvironment environment,
@@ -3521,7 +3432,7 @@ public static class TypedAstEvaluator
                 if (nextCandidate is JsObject promiseCandidate && IsPromiseLike(promiseCandidate))
                 {
                     awaitedPromise = true;
-                    if (!TryAwaitPromise(promiseCandidate, context, out awaitedCandidate))
+                    if (!AwaitScheduler.TryAwaitPromiseSync(promiseCandidate, context, out awaitedCandidate))
                     {
                         return (JsSymbols.Undefined, true, true, propagateThrow);
                     }
@@ -3669,6 +3580,7 @@ public static class TypedAstEvaluator
         private sealed class PendingAwaitException : Exception
         {
         }
+
 
         private sealed class AwaitState
         {
@@ -3832,16 +3744,26 @@ public static class TypedAstEvaluator
         return result;
     }
 
-        private static ForOfState CreateForOfState(object? iterable)
+    private static IteratorDriverState CreateIteratorDriverState(object? iterable, IteratorDriverKind kind)
+    {
+        if (TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
         {
-            if (TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
+            return new IteratorDriverState
             {
-                return new ForOfState(iterator, null);
-            }
-
-            var enumerable = EnumerateValues(iterable);
-            return new ForOfState(null, enumerable.GetEnumerator());
+                IteratorObject = iterator,
+                Enumerator = null,
+                IsAsyncIterator = kind == IteratorDriverKind.Await
+            };
         }
+
+        var enumerable = EnumerateValues(iterable);
+        return new IteratorDriverState
+        {
+            IteratorObject = null,
+            Enumerator = enumerable.GetEnumerator(),
+            IsAsyncIterator = kind == IteratorDriverKind.Await
+        };
+    }
 
         private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? value)
         {
@@ -4263,8 +4185,8 @@ public static class TypedAstEvaluator
                         _tryStack.Clear();
                         throw new ThrowSignal(pending.Value);
 
-                    case ForOfInitInstruction forOfInitInstruction:
-                        var iterableValue = EvaluateExpression(forOfInitInstruction.IterableExpression, environment, context);
+                    case IteratorInitInstruction iteratorInitInstruction:
+                        var iterableValue = EvaluateExpression(iteratorInitInstruction.IterableExpression, environment, context);
                         if (context.IsThrow)
                         {
                             var initThrown = context.FlowValue;
@@ -4278,88 +4200,62 @@ public static class TypedAstEvaluator
                             throw new ThrowSignal(initThrown);
                         }
 
-                        var state = CreateForOfState(iterableValue);
-                        StoreSymbolValue(environment, forOfInitInstruction.IteratorSlot, state);
-                        _programCounter = forOfInitInstruction.Next;
+                        var iteratorState = CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind);
+                        StoreSymbolValue(environment, iteratorInitInstruction.IteratorSlot, iteratorState);
+                        _programCounter = iteratorInitInstruction.Next;
                         continue;
 
-                    case ForOfMoveNextInstruction forOfMoveNextInstruction:
-                        if (!TryGetSymbolValue(environment, forOfMoveNextInstruction.IteratorSlot, out var iteratorState) ||
-                            iteratorState is not ForOfState forOfState)
+                    case IteratorMoveNextInstruction iteratorMoveNextInstruction:
+                        var iteratorIndex = _programCounter;
+                        if (!TryGetSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, out var iteratorStateValue) ||
+                            iteratorStateValue is not IteratorDriverState driverState)
                         {
-                            _programCounter = forOfMoveNextInstruction.BreakIndex;
+                            _programCounter = iteratorMoveNextInstruction.BreakIndex;
                             continue;
                         }
 
-                        object? currentValue;
-                        if (forOfState.Iterator is JsObject iteratorObj)
+                        if (!driverState.IsAsyncIterator)
                         {
-                            var nextResult = InvokeIteratorNext(iteratorObj);
-                            if (nextResult is not JsObject resultObj)
+                            object? currentValue;
+                            if (driverState.IteratorObject is JsObject iteratorObj)
                             {
-                                _programCounter = forOfMoveNextInstruction.BreakIndex;
+                                var nextResult = InvokeIteratorNext(iteratorObj);
+                                if (nextResult is not JsObject resultObj)
+                                {
+                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                    continue;
+                                }
+
+                                var done = resultObj.TryGetProperty("done", out var doneValue) &&
+                                           doneValue is bool completed && completed;
+                                if (done)
+                                {
+                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                    continue;
+                                }
+
+                                currentValue = resultObj.TryGetProperty("value", out var yielded)
+                                    ? yielded
+                                    : JsSymbols.Undefined;
+                            }
+                            else if (driverState.Enumerator is IEnumerator<object?> enumerator)
+                            {
+                                if (!enumerator.MoveNext())
+                                {
+                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                    continue;
+                                }
+
+                                currentValue = enumerator.Current;
+                            }
+                            else
+                            {
+                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                 continue;
                             }
 
-                            var done = resultObj.TryGetProperty("done", out var doneValue) &&
-                                       doneValue is bool completed && completed;
-                            if (done)
-                            {
-                                _programCounter = forOfMoveNextInstruction.BreakIndex;
-                                continue;
-                            }
-
-                            currentValue = resultObj.TryGetProperty("value", out var yielded)
-                                ? yielded
-                                : JsSymbols.Undefined;
-                        }
-                        else if (forOfState.Enumerator is IEnumerator<object?> enumerator)
-                        {
-                            if (!enumerator.MoveNext())
-                            {
-                                _programCounter = forOfMoveNextInstruction.BreakIndex;
-                                continue;
-                            }
-
-                            currentValue = enumerator.Current;
-                        }
-                        else
-                        {
-                            _programCounter = forOfMoveNextInstruction.BreakIndex;
-                            continue;
-                        }
-
-                        StoreSymbolValue(environment, forOfMoveNextInstruction.ValueSlot, currentValue);
-                        _programCounter = forOfMoveNextInstruction.Next;
-                        continue;
-
-                    case ForAwaitInitInstruction forAwaitInitInstruction:
-                        var awaitIterable =
-                            EvaluateExpression(forAwaitInitInstruction.IterableExpression, environment, context);
-                        if (context.IsThrow)
-                        {
-                            var initThrownAwait = context.FlowValue;
-                            context.Clear();
-                            if (HandleAbruptCompletion(AbruptKind.Throw, initThrownAwait, environment))
-                            {
-                                continue;
-                            }
-
-                            _tryStack.Clear();
-                            throw new ThrowSignal(initThrownAwait);
-                        }
-
-                        var awaitState = CreateForOfState(awaitIterable);
-                        StoreSymbolValue(environment, forAwaitInitInstruction.IteratorSlot, awaitState);
-                        _programCounter = forAwaitInitInstruction.Next;
-                        continue;
-
-                    case ForAwaitMoveNextInstruction forAwaitMoveNextInstruction:
-                        var forAwaitIndex = _programCounter;
-                        if (!TryGetSymbolValue(environment, forAwaitMoveNextInstruction.IteratorSlot, out var awaitIteratorState) ||
-                            awaitIteratorState is not ForOfState forAwaitState)
-                        {
-                            _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                            StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue);
+                            _programCounter = iteratorMoveNextInstruction.Next;
                             continue;
                         }
 
@@ -4367,15 +4263,16 @@ public static class TypedAstEvaluator
                         object? awaitedNextResult = null;
 
                         // If we're resuming after a pending await from this
-                        // for-await site, consume the resume payload and treat
+                        // iterator site, consume the resume payload and treat
                         // it as the awaited result instead of calling into the
                         // iterator again.
-                        if (forAwaitState.AwaitStage != ForAwaitStage.None)
+                        if (driverState.AwaitingNextResult || driverState.AwaitingValue)
                         {
-                            var previousStage = forAwaitState.AwaitStage;
+                            var awaitingValue = driverState.AwaitingValue;
+                            driverState.AwaitingNextResult = false;
+                            driverState.AwaitingValue = false;
                             var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
-                            forAwaitState.AwaitStage = ForAwaitStage.None;
-                            StoreSymbolValue(environment, forAwaitMoveNextInstruction.IteratorSlot, forAwaitState);
+                            StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
 
                             if (forAwaitResumeKind == ResumePayloadKind.Throw)
                             {
@@ -4398,18 +4295,16 @@ public static class TypedAstEvaluator
                                 return CompleteReturn(forAwaitResumePayload);
                             }
 
-                            if (previousStage == ForAwaitStage.AwaitingNextResult)
-                            {
-                                awaitedNextResult = forAwaitResumePayload;
-                            }
-                            else if (previousStage == ForAwaitStage.AwaitingValue)
+                            if (awaitingValue)
                             {
                                 awaitedValue = forAwaitResumePayload;
-                                goto StoreForAwaitValue;
+                                goto StoreIteratorValue;
                             }
+
+                            awaitedNextResult = forAwaitResumePayload;
                         }
 
-                        if (forAwaitState.Iterator is JsObject awaitIteratorObj)
+                        if (driverState.IteratorObject is JsObject awaitIteratorObj)
                         {
                             if (awaitedNextResult is null)
                             {
@@ -4418,10 +4313,10 @@ public static class TypedAstEvaluator
                                 {
                                     if (_asyncStepMode && _pendingPromise is JsObject)
                                     {
-                                        forAwaitState.AwaitStage = ForAwaitStage.AwaitingNextResult;
-                                        StoreSymbolValue(environment, forAwaitMoveNextInstruction.IteratorSlot, forAwaitState);
+                                        driverState.AwaitingNextResult = true;
+                                        StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
                                         _state = GeneratorState.Suspended;
-                                        _programCounter = forAwaitIndex;
+                                        _programCounter = iteratorIndex;
                                         return CreateIteratorResult(JsSymbols.Undefined, false);
                                     }
 
@@ -4438,7 +4333,7 @@ public static class TypedAstEvaluator
                                         throw new ThrowSignal(thrownAwait);
                                     }
 
-                                    _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                     continue;
                                 }
 
@@ -4447,7 +4342,7 @@ public static class TypedAstEvaluator
 
                             if (awaitedNextResult is not JsObject awaitResultObj)
                             {
-                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                 continue;
                             }
 
@@ -4455,7 +4350,7 @@ public static class TypedAstEvaluator
                                             awaitDoneValue is bool awaitCompleted && awaitCompleted;
                             if (doneAwait)
                             {
-                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                 continue;
                             }
 
@@ -4466,10 +4361,10 @@ public static class TypedAstEvaluator
                             {
                                 if (_asyncStepMode && _pendingPromise is JsObject)
                                 {
-                                    forAwaitState.AwaitStage = ForAwaitStage.AwaitingValue;
-                                    StoreSymbolValue(environment, forAwaitMoveNextInstruction.IteratorSlot, forAwaitState);
+                                    driverState.AwaitingValue = true;
+                                    StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
                                     _state = GeneratorState.Suspended;
-                                    _programCounter = forAwaitIndex;
+                                    _programCounter = iteratorIndex;
                                     return CreateIteratorResult(JsSymbols.Undefined, false);
                                 }
 
@@ -4486,17 +4381,17 @@ public static class TypedAstEvaluator
                                     throw new ThrowSignal(thrownAwaitValue);
                                 }
 
-                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                 continue;
                             }
 
                             awaitedValue = fullyAwaitedValue;
                         }
-                        else if (forAwaitState.Enumerator is IEnumerator<object?> awaitEnumerator)
+                        else if (driverState.Enumerator is IEnumerator<object?> awaitEnumerator)
                         {
                             if (!awaitEnumerator.MoveNext())
                             {
-                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                 continue;
                             }
 
@@ -4505,10 +4400,10 @@ public static class TypedAstEvaluator
                             {
                                 if (_asyncStepMode && _pendingPromise is JsObject)
                                 {
-                                    forAwaitState.AwaitStage = ForAwaitStage.AwaitingValue;
-                                    StoreSymbolValue(environment, forAwaitMoveNextInstruction.IteratorSlot, forAwaitState);
+                                    driverState.AwaitingValue = true;
+                                    StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
                                     _state = GeneratorState.Suspended;
-                                    _programCounter = forAwaitIndex;
+                                    _programCounter = iteratorIndex;
                                     return CreateIteratorResult(JsSymbols.Undefined, false);
                                 }
 
@@ -4525,7 +4420,7 @@ public static class TypedAstEvaluator
                                     throw new ThrowSignal(thrownAwaitEnum);
                                 }
 
-                                _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                 continue;
                             }
 
@@ -4533,13 +4428,13 @@ public static class TypedAstEvaluator
                         }
                         else
                         {
-                            _programCounter = forAwaitMoveNextInstruction.BreakIndex;
+                            _programCounter = iteratorMoveNextInstruction.BreakIndex;
                             continue;
                         }
 
-                    StoreForAwaitValue:
-                        StoreSymbolValue(environment, forAwaitMoveNextInstruction.ValueSlot, awaitedValue);
-                        _programCounter = forAwaitMoveNextInstruction.Next;
+                    StoreIteratorValue:
+                        StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue);
+                        _programCounter = iteratorMoveNextInstruction.Next;
                         continue;
 
                     case JumpInstruction jumpInstruction:
@@ -4846,27 +4741,10 @@ public static class TypedAstEvaluator
 
         private bool TryAwaitPromiseOrSchedule(object? candidate, EvaluationContext context, out object? resolvedValue)
         {
-            // When not running under async-generator step execution, keep the
-            // existing blocking semantics.
-            if (!_asyncStepMode)
-            {
-                return TryAwaitPromise(candidate, context, out resolvedValue);
-            }
-
-            // Async-aware mode: if this is a promise-like object, surface it as
-            // a pending step instead of blocking. The actual Pending result is
-            // produced by ExecuteAsyncStep after ExecutePlan returns.
-            if (candidate is JsObject promiseObj && IsPromiseLike(promiseObj))
-            {
-                _pendingPromise = promiseObj;
-                resolvedValue = JsSymbols.Undefined;
-                return false;
-            }
-
-            // Non-promise value in async mode: no need to suspend, just pass
-            // the value through.
-            resolvedValue = candidate;
-            return true;
+            var pendingPromise = _pendingPromise;
+            var result = AwaitScheduler.TryAwaitPromiseOrSchedule(candidate, _asyncStepMode, ref pendingPromise, context, out resolvedValue);
+            _pendingPromise = pendingPromise;
+            return result;
         }
 
         private void PreparePendingResumeValue(ResumeMode mode, object? resumeValue, bool wasStart)
@@ -5063,27 +4941,6 @@ public static class TypedAstEvaluator
             public bool AwaitingResume { get; set; }
             public AbruptKind PendingAbrupt { get; set; }
             public object? PendingValue { get; set; }
-        }
-
-        private enum ForAwaitStage
-        {
-            None,
-            AwaitingNextResult,
-            AwaitingValue
-        }
-
-        private sealed class ForOfState
-        {
-            public ForOfState(JsObject? iterator, IEnumerator<object?>? enumerator)
-            {
-                Iterator = iterator;
-                Enumerator = enumerator;
-                AwaitStage = ForAwaitStage.None;
-            }
-
-            public JsObject? Iterator { get; }
-            public IEnumerator<object?>? Enumerator { get; }
-            public ForAwaitStage AwaitStage { get; set; }
         }
 
     }

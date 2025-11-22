@@ -320,30 +320,13 @@ internal static class GeneratorYieldLowerer
                         return false;
                     }
 
-                    var rewrittenBody = RewriteEmbedded(whileStatement.Body, isStrict);
+                    if (!LoopNormalizer.TryNormalize(whileStatement, isStrict, out var plan, out _))
+                    {
+                        replacement = default;
+                        return false;
+                    }
 
-                    var declareResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
-                        [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]);
-
-                    var assignResume = new ExpressionStatement(yieldExpression.Source,
-                        new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
-                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated)));
-
-                    var breakCheck = new IfStatement(whileStatement.Source,
-                        new UnaryExpression(whileStatement.Source, "!",
-                            rewrittenCondition, true),
-                        new BreakStatement(whileStatement.Source, null),
-                        null);
-
-                    var loopBlock = new BlockStatement(whileStatement.Source,
-                        ImmutableArray.Create<StatementNode>(assignResume, breakCheck, rewrittenBody),
-                        isStrict);
-
-                    var loweredWhile = new WhileStatement(whileStatement.Source,
-                        new LiteralExpression(whileStatement.Source, true),
-                        loopBlock);
-
-                    replacement = ImmutableArray.Create<StatementNode>(declareResume, loweredWhile);
+                    replacement = BuildYieldedLoop(resumeIdentifier, yieldExpression, rewrittenCondition, plan, isStrict);
                     return true;
                 }
 
@@ -361,25 +344,13 @@ internal static class GeneratorYieldLowerer
                         return false;
                     }
 
-                    var rewrittenBody = RewriteEmbedded(doWhileStatement.Body, isStrict);
+                    if (!LoopNormalizer.TryNormalize(doWhileStatement, isStrict, out var plan, out _))
+                    {
+                        replacement = default;
+                        return false;
+                    }
 
-                    var declareResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
-                        [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]);
-                    var assignResume = new ExpressionStatement(yieldExpression.Source,
-                        new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
-                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression, yieldExpression.IsDelegated)));
-
-                    var loopBodyStatements = ImmutableArray.Create<StatementNode>(
-                        rewrittenBody,
-                        assignResume);
-
-                    var loweredBody = new BlockStatement(doWhileStatement.Source, loopBodyStatements, isStrict);
-
-                    var loweredDoWhile = new DoWhileStatement(doWhileStatement.Source,
-                        loweredBody,
-                        rewrittenCondition);
-
-                    replacement = ImmutableArray.Create<StatementNode>(declareResume, loweredDoWhile);
+                    replacement = BuildYieldedLoop(resumeIdentifier, yieldExpression, rewrittenCondition, plan, isStrict);
 
                     return true;
                 }
@@ -645,6 +616,48 @@ internal static class GeneratorYieldLowerer
         {
             var symbol = Symbol.Intern($"__yield_lower_resume{_resumeCounter++}");
             return new IdentifierBinding(null, symbol);
+        }
+
+        private ImmutableArray<StatementNode> BuildYieldedLoop(
+            IdentifierBinding? resumeIdentifier,
+            YieldExpression? yieldExpression,
+            ExpressionNode? rewrittenCondition,
+            LoopPlan plan,
+            bool isStrict)
+        {
+            var statements = ImmutableArray.CreateBuilder<StatementNode>();
+
+            if (resumeIdentifier is not null && yieldExpression is not null)
+            {
+                statements.Add(new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
+                    [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]));
+            }
+
+            if (!plan.LeadingStatements.IsDefaultOrEmpty)
+            {
+                statements.AddRange(plan.LeadingStatements);
+            }
+
+            var loopBlock = plan.Body;
+            if (loopBlock.IsStrict != isStrict)
+            {
+                loopBlock = loopBlock with { IsStrict = isStrict };
+            }
+
+            if (!plan.ConditionPrologue.IsDefaultOrEmpty)
+            {
+                loopBlock = loopBlock with
+                {
+                    Statements = plan.ConditionPrologue.AddRange(loopBlock.Statements)
+                };
+            }
+
+            StatementNode loweredLoop = plan.ConditionAfterBody
+                ? new DoWhileStatement(plan.Body.Source, loopBlock, rewrittenCondition ?? plan.Condition)
+                : new WhileStatement(plan.Body.Source, rewrittenCondition ?? plan.Condition, loopBlock);
+
+            statements.Add(loweredLoop);
+            return statements.ToImmutable();
         }
     }
 }

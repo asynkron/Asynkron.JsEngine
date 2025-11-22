@@ -86,25 +86,13 @@ internal sealed record LeaveTryInstruction(int Next) : GeneratorInstruction(Next
 internal sealed record EndFinallyInstruction(int Next) : GeneratorInstruction(Next);
 
 /// <summary>
-/// Initializes the iterator for a <c>for...of</c> loop.
+/// Initializes the iterator for a <c>for...of</c> or <c>for await...of</c> loop.
 /// </summary>
-internal sealed record ForOfInitInstruction(ExpressionNode IterableExpression, Symbol IteratorSlot, int Next)
+internal sealed record IteratorInitInstruction(IteratorDriverKind Kind, ExpressionNode IterableExpression, Symbol IteratorSlot, int Next)
     : GeneratorInstruction(Next);
 
 /// <summary>
-/// Advances the iterator for a <c>for...of</c> loop.
+/// Advances the iterator for a <c>for...of</c> or <c>for await...of</c> loop.
 /// </summary>
-internal sealed record ForOfMoveNextInstruction(Symbol IteratorSlot, Symbol ValueSlot, int BreakIndex, int Next)
-    : GeneratorInstruction(Next);
-
-/// <summary>
-/// Initializes the iterator for a <c>for await...of</c> loop.
-/// </summary>
-internal sealed record ForAwaitInitInstruction(ExpressionNode IterableExpression, Symbol IteratorSlot, int Next)
-    : GeneratorInstruction(Next);
-
-/// <summary>
-/// Advances the iterator for a <c>for await...of</c> loop.
-/// </summary>
-internal sealed record ForAwaitMoveNextInstruction(Symbol IteratorSlot, Symbol ValueSlot, int BreakIndex, int Next)
+internal sealed record IteratorMoveNextInstruction(IteratorDriverKind Kind, Symbol IteratorSlot, Symbol ValueSlot, int BreakIndex, int Next)
     : GeneratorInstruction(Next);

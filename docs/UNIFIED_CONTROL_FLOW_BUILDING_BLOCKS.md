@@ -36,13 +36,18 @@
 - Standardize await-site state (`AwaitSiteState` keyed by source span or synthetic symbol) so both the generator executor and plain async functions can stash resolved values without re-evaluating side-effecting expressions.
 - Thread the scheduler through `EvaluateAwait`, async iterator drivers, and generator `YieldStar`/`for await...of` paths so pending awaits always surface as resumable completions instead of throwing `NotSupportedException` or blocking.
 
+**Current state**
+- `AwaitScheduler` now centralizes promise detection and the “pending promise” contract. In synchronous mode it preserves existing “only already-resolved promises” behaviour; in async-generator step mode it stashes the promise on the executor so `AsyncGeneratorInstance` can return an `AsyncGeneratorStepResult.Pending` and hook the promise’s `then`/`catch` to resume the generator with the fulfilled/rejected value.
+- Generator awaits use per-site await state (by synthetic symbol) to avoid re-evaluating side-effecting expressions after a pending await resolves; the resolved value is written back into the environment on resume and consumed exactly once.
+- Direct async functions/other iterator paths still need to adopt the scheduler and resume plumbing so pending promises can flow through a common queue instead of throwing or blocking.
+
 ### 5) IR builder infrastructure helpers
 - Add small utilities: `InstructionScope` (checkpoint/rollback), `LoopScopeGuard` (push/pop loop targets), `YieldOperandValidator` (shared nested-yield/delegated checks), and a single `InvalidIndex` sentinel to replace repeated `-1` literals.
 - Move yield-star state management (`YieldStarState` creation/reset, pending abrupt completion handling) behind a helper used by both builder and executor, so delegated yields reuse the same bookkeeping regardless of who is driving execution.
 
 ## Rollout steps
 1. ✅ Land `AstShapeAnalyzer`/rewriter and port `ContainsYield`/`StatementContainsYield`/single-yield rewrites in the lowerer + builder to it. `TypedCpsTransformer` now uses the shared visitor for await detection.
-2. ⚙️ Add `LoopPlan` + `LoopNormalizer`, refactor generator yield lowering to emit plans, and teach the IR builder to consume them (including resume-slot declarations). Mirror a `LoopRunner` for the typed evaluator using the same plan shape. (LoopPlan/Normalizer are in place; SyncGeneratorIrBuilder now consumes LoopPlan. Lowerer/runner wiring still pending.)
-3. Introduce `IteratorDriver` + `ForEachPlan`, refactor `for...of`/`for await...of` in both the evaluator and generator executor to use it, and collapse IR builder iterator loop code to the shared template.
+2. ⚙️ Add `LoopPlan` + `LoopNormalizer`, refactor generator yield lowering to emit plans, and teach the IR builder to consume them (including resume-slot declarations). Mirror a `LoopRunner` for the typed evaluator using the same plan shape. (LoopPlan/Normalizer are in place; SyncGeneratorIrBuilder and GeneratorYieldLowerer use LoopPlan; TypedAstEvaluator runs while/do/for via LoopPlan.)
+3. ⚙️ Introduce `IteratorDriver` + `ForEachPlan`, refactor `for...of`/`for await...of` in both the evaluator and generator executor to use it, and collapse IR builder iterator loop code to the shared template. (`IteratorDriverPlan`/`IteratorDriverState` exist, the typed evaluator uses the shared driver, and the generator IR executor now runs `for...of`/`for await...of` via shared `IteratorInit`/`IteratorMoveNext` instructions; the IR builder now builds iteration bodies from `IteratorDriverPlan` but still hand-assembles the instruction sequence instead of reusing a shared template.)
 4. Replace blocking awaits with `AwaitScheduler` wiring in generators, async generators, async functions, and iterator drivers; integrate pending-resume state (`AwaitSiteState`) with the generator executor’s existing resume-slot handling.
 5. Apply infrastructure helpers (`InstructionScope`, `LoopScopeGuard`, `YieldOperandValidator`, `InvalidIndex`) across builder code to eliminate ad-hoc rollback/label logic and make future IR extensions less error-prone.

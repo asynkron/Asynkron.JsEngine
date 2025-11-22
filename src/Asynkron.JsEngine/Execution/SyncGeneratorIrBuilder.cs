@@ -266,9 +266,6 @@ internal sealed class SyncGeneratorIrBuilder
 
                 case ForEachStatement forEachStatement
                     when forEachStatement.Kind == ForEachKind.Of && IsSimpleForOfBinding(forEachStatement):
-                    // For-of with block-scoped bindings and closures requires per-iteration lexical environments.
-                    // When the loop body and iterable are yield-free, we can safely delegate to the typed evaluator
-                    // (no generator yields inside the loop), preserving correct closure capture semantics.
                     if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const &&
                         !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
                         !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
@@ -281,10 +278,6 @@ internal sealed class SyncGeneratorIrBuilder
 
                 case ForEachStatement forEachStatement
                     when forEachStatement.Kind == ForEachKind.AwaitOf && IsSimpleForOfBinding(forEachStatement):
-                    // Async `for await...of` loops inside generator bodies now
-                    // use the dedicated IR instructions so async generators can
-                    // share the same non-blocking await pipeline as the rest of
-                    // the generator IR executor.
                     return TryBuildForAwaitStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
                 case ReturnStatement returnStatement:
@@ -734,45 +727,16 @@ internal sealed class SyncGeneratorIrBuilder
 
     private bool TryBuildForOfStatement(ForEachStatement statement, int nextIndex, out int entryIndex, Symbol? label)
     {
-        if (AstShapeAnalyzer.ContainsYield(statement.Iterable))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        if (!IsSimpleForOfBinding(statement))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var instructionStart = _instructions.Count;
-        var iteratorSymbol = Symbol.Intern($"__forOf_iter_{instructionStart}");
-        var valueSymbol = Symbol.Intern($"__forOf_value_{instructionStart}");
-
-        var moveNextIndex = Append(new ForOfMoveNextInstruction(iteratorSymbol, valueSymbol, nextIndex, -1));
-        var perIterationBlock = CreateForOfIterationBlock(statement, valueSymbol);
-
-        var scope = new LoopScope(label, moveNextIndex, nextIndex);
-        _loopScopes.Push(scope);
-        var bodyBuilt = TryBuildStatement(perIterationBlock, moveNextIndex, out var iterationEntry, label);
-        _loopScopes.Pop();
-
-        if (!bodyBuilt)
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        _instructions[moveNextIndex] = ((ForOfMoveNextInstruction)_instructions[moveNextIndex]) with { Next = iterationEntry };
-
-        var initIndex = Append(new ForOfInitInstruction(statement.Iterable, iteratorSymbol, moveNextIndex));
-        entryIndex = initIndex;
-        return true;
+        return TryBuildIteratorPlan(statement, nextIndex, out entryIndex, label);
     }
 
     private bool TryBuildForAwaitStatement(ForEachStatement statement, int nextIndex, out int entryIndex,
+        Symbol? label)
+    {
+        return TryBuildIteratorPlan(statement, nextIndex, out entryIndex, label);
+    }
+
+    private bool TryBuildIteratorPlan(ForEachStatement statement, int nextIndex, out int entryIndex,
         Symbol? label)
     {
         if (AstShapeAnalyzer.ContainsYield(statement.Iterable))
@@ -781,29 +745,29 @@ internal sealed class SyncGeneratorIrBuilder
             return false;
         }
 
-        var instructionStart = _instructions.Count;
-        var iteratorSymbol = Symbol.Intern($"__forAwait_iter_{instructionStart}");
-        var valueSymbol = Symbol.Intern($"__forAwait_value_{instructionStart}");
+        var planBody = statement.Body is BlockStatement blockBody
+            ? blockBody
+            : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body));
+        var iteratorPlan = IteratorDriverFactory.CreatePlan(statement, planBody);
 
-        var moveNextIndex = Append(new ForAwaitMoveNextInstruction(iteratorSymbol, valueSymbol, nextIndex, -1));
-        var perIterationBlock = CreateForOfIterationBlock(statement, valueSymbol);
+        var iteratorInstructions = IteratorInstructionTemplate.AppendInstructions(_instructions, iteratorPlan, nextIndex);
 
-        var scope = new LoopScope(label, moveNextIndex, nextIndex);
+        var perIterationBlock = CreateIteratorIterationBlock(iteratorPlan, iteratorInstructions.ValueSlot);
+        var scope = new LoopScope(label, iteratorInstructions.MoveNextIndex, nextIndex);
         _loopScopes.Push(scope);
-        var bodyBuilt = TryBuildStatement(perIterationBlock, moveNextIndex, out var iterationEntry, label);
+        var bodyBuilt = TryBuildStatement(perIterationBlock, iteratorInstructions.MoveNextIndex, out var iterationEntry, label);
         _loopScopes.Pop();
 
         if (!bodyBuilt)
         {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            _instructions.RemoveRange(iteratorInstructions.InitIndex, _instructions.Count - iteratorInstructions.InitIndex);
             entryIndex = -1;
             return false;
         }
 
-        _instructions[moveNextIndex] = ((ForAwaitMoveNextInstruction)_instructions[moveNextIndex]) with { Next = iterationEntry };
+        IteratorInstructionTemplate.Wire(iteratorInstructions, iterationEntry, _instructions);
 
-        var initIndex = Append(new ForAwaitInitInstruction(statement.Iterable, iteratorSymbol, moveNextIndex));
-        entryIndex = initIndex;
+        entryIndex = iteratorInstructions.InitIndex;
         return true;
     }
 
@@ -845,32 +809,26 @@ internal sealed class SyncGeneratorIrBuilder
         return Symbol.Intern(symbolName);
     }
 
-    private static bool IsSimpleForOfBinding(ForEachStatement statement)
+    private static StatementNode CreateIteratorIterationBlock(IteratorDriverPlan plan, Symbol valueSymbol)
     {
-        // We now allow identifier or destructuring targets for all declaration kinds.
-        return statement.Target is not null;
-    }
-
-    private static StatementNode CreateForOfIterationBlock(ForEachStatement statement, Symbol valueSymbol)
-    {
-        var valueExpression = new IdentifierExpression(statement.Source, valueSymbol);
+        var valueExpression = new IdentifierExpression(plan.Body.Source, valueSymbol);
         StatementNode bindingStatement;
 
-        if (statement.DeclarationKind is null)
+        if (plan.DeclarationKind is null)
         {
-            bindingStatement = new ExpressionStatement(statement.Source,
-                CreateAssignmentExpression(statement.Target, valueExpression));
+            bindingStatement = new ExpressionStatement(plan.Body.Source,
+                CreateAssignmentExpression(plan.Target, valueExpression));
         }
         else
         {
-            var declarator = new VariableDeclarator(statement.Source, statement.Target, valueExpression);
-            bindingStatement = new VariableDeclaration(statement.Source, statement.DeclarationKind.Value,
+            var declarator = new VariableDeclarator(plan.Body.Source, plan.Target, valueExpression);
+            bindingStatement = new VariableDeclaration(plan.Body.Source, plan.DeclarationKind.Value,
                 [declarator]);
         }
 
         ImmutableArray<StatementNode> bodyStatements;
         var isStrict = false;
-        if (statement.Body is BlockStatement block)
+        if (plan.Body is BlockStatement block)
         {
             var builder = ImmutableArray.CreateBuilder<StatementNode>(block.Statements.Length + 1);
             builder.Add(bindingStatement);
@@ -880,10 +838,16 @@ internal sealed class SyncGeneratorIrBuilder
         }
         else
         {
-            bodyStatements = [bindingStatement, statement.Body];
+            bodyStatements = [bindingStatement, plan.Body];
         }
 
-        return new BlockStatement(statement.Source, bodyStatements, isStrict);
+        return new BlockStatement(plan.Body.Source, bodyStatements, isStrict);
+    }
+
+    private static bool IsSimpleForOfBinding(ForEachStatement statement)
+    {
+        // We now allow identifier or destructuring targets for all declaration kinds.
+        return statement.Target is not null;
     }
 
     private static ExpressionNode CreateAssignmentExpression(BindingTarget target, ExpressionNode valueExpression)

@@ -236,44 +236,53 @@ internal static class AstShapeAnalyzer
 
         public void VisitBinding(BindingTarget binding)
         {
-            switch (binding)
+            while (true)
             {
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
-                    {
-                        if (element.Target is not null)
+                switch (binding)
+                {
+                    case ArrayBinding arrayBinding:
+                        foreach (var element in arrayBinding.Elements)
                         {
-                            VisitBinding(element.Target);
+                            if (element.Target is not null)
+                            {
+                                VisitBinding(element.Target);
+                            }
+
+                            if (element.DefaultValue is not null)
+                            {
+                                VisitExpression(element.DefaultValue);
+                            }
                         }
 
-                        if (element.DefaultValue is not null)
+                        if (arrayBinding.RestElement is null)
                         {
-                            VisitExpression(element.DefaultValue);
+                            return;
                         }
-                    }
 
-                    if (arrayBinding.RestElement is not null)
-                    {
-                        VisitBinding(arrayBinding.RestElement);
-                    }
+                        binding = arrayBinding.RestElement;
+                        continue;
 
-                    return;
-                case ObjectBinding objectBinding:
-                    foreach (var property in objectBinding.Properties)
-                    {
-                        VisitBinding(property.Target);
-                        if (property.DefaultValue is not null)
+                    case ObjectBinding objectBinding:
+                        foreach (var property in objectBinding.Properties)
                         {
-                            VisitExpression(property.DefaultValue);
+                            VisitBinding(property.Target);
+                            if (property.DefaultValue is not null)
+                            {
+                                VisitExpression(property.DefaultValue);
+                            }
                         }
-                    }
 
-                    if (objectBinding.RestElement is not null)
-                    {
-                        VisitBinding(objectBinding.RestElement);
-                    }
+                        if (objectBinding.RestElement is null)
+                        {
+                            return;
+                        }
 
-                    return;
+                        binding = objectBinding.RestElement;
+                        continue;
+
+                }
+
+                break;
             }
         }
 

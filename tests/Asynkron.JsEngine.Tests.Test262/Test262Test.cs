@@ -9,7 +9,7 @@ public abstract partial class Test262Test
 {
     private static readonly List<JsEngine> _realmEngines = new();
 
-    private static async Task<JsEngine> BuildTestExecutor(Test262File file)
+    private static JsEngine BuildTestExecutor(Test262File file)
     {
         var engine = new JsEngine
         {
@@ -23,8 +23,8 @@ public abstract partial class Test262Test
         }
 
         // Execute test harness files
-        await ExecuteSource(engine, State.Sources["assert.js"]);
-        await ExecuteSource(engine, State.Sources["sta.js"]);
+        ExecuteSource(engine, State.Sources["assert.js"]).Wait();
+        ExecuteSource(engine, State.Sources["sta.js"]).Wait();
 
         // Add print function
         engine.SetGlobalFunction("print", args =>
@@ -91,12 +91,12 @@ public abstract partial class Test262Test
         var includes = file.Includes.ToArray();
         foreach (var include in includes)
         {
-            await ExecuteSource(engine, State.Sources[include]);
+            ExecuteSource(engine, State.Sources[include]).Wait();
         }
 
         if (file.Flags.Contains("async"))
         {
-            await ExecuteSource(engine, State.Sources["doneprintHandle.js"]);
+            ExecuteSource(engine, State.Sources["doneprintHandle.js"]).Wait();
         }
 
         return engine;
@@ -107,7 +107,12 @@ public abstract partial class Test262Test
         return await engine.Evaluate(source);
     }
 
-    private static async Task ExecuteTest(JsEngine engine, Test262File file)
+    private static void ExecuteTest(JsEngine engine, Test262File file)
+    {
+        ExecuteTestAsync(engine, file).GetAwaiter().GetResult();
+    }
+
+    private static async Task ExecuteTestAsync(JsEngine engine, Test262File file)
     {
         if (file.Type == ProgramType.Module)
         {

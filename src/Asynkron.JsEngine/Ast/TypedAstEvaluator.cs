@@ -23,7 +23,6 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 public static class TypedAstEvaluator
 {
-    private sealed record PendingAwaitResult(JsObject Promise);
     private static readonly Symbol YieldTrackerSymbol = Symbol.Intern("__yieldTracker__");
     private static readonly Symbol YieldResumeContextSymbol = Symbol.Intern("__yieldResume__");
     private static readonly Symbol GeneratorPendingCompletionSymbol = Symbol.Intern("__generatorPending__");
@@ -234,7 +233,7 @@ public static class TypedAstEvaluator
             return ExecuteIteratorDriver(plan, iterator, null, loopEnvironment, environment, context, loopLabel);
         }
 
-        IEnumerable<object?> values = statement.Kind switch
+        var values = statement.Kind switch
         {
             ForEachKind.In => EnumeratePropertyKeys(iterable),
             ForEachKind.Of => EnumerateValues(iterable),
@@ -1210,10 +1209,10 @@ public static class TypedAstEvaluator
                 return resolved;
             }
 
-            if (pendingPromise is JsObject promise && AwaitScheduler.IsPromiseLike(promise))
-            {
-                return new PendingAwaitResult(promise);
-            }
+            // if (pendingPromise is JsObject promise && AwaitScheduler.IsPromiseLike(promise))
+            // {
+            //     return new PendingAwaitResult(promise);
+            // }
         }
 
         return resolved;
@@ -1292,8 +1291,8 @@ public static class TypedAstEvaluator
         var tracker = GetYieldTracker(environment);
         object? pendingSend = null;
         var hasPendingSend = false;
-        bool pendingThrow = false;
-        bool pendingReturn = false;
+        var pendingThrow = false;
+        var pendingReturn = false;
 
         while (true)
         {
@@ -2998,7 +2997,7 @@ public static class TypedAstEvaluator
             throw new InvalidOperationException("Right-hand side of 'instanceof' is not a constructor.");
         }
 
-        JsObject? current = left switch
+        var current = left switch
         {
             JsObject obj => obj.Prototype,
             IJsObjectLike objectLike => objectLike.Prototype,

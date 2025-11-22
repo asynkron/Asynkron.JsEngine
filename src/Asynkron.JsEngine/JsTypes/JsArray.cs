@@ -674,7 +674,7 @@ public sealed class JsArray : IJsObjectLike
     private bool TrySetArrayLength(bool hasValue, object? value, bool hasWritable, bool writableValue,
         EvaluationContext? context, bool throwOnWritableFailure)
     {
-        uint newLength = _length;
+        var newLength = _length;
         double numberLen = _length;
         if (hasValue)
         {

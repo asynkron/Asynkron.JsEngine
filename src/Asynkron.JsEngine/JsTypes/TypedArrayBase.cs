@@ -53,7 +53,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         var searchElement = args[0];
         var len = target.Length;
-        double fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
 
         if (double.IsPositiveInfinity(fromIndex))
         {

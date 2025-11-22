@@ -1653,7 +1653,7 @@ public sealed class TypedCpsTransformer
                 case TryStatement tryStatement:
                     var tryBlock = RewriteLoopControlBlock(tryStatement.TryBlock, loopResolveSymbol, loopBreakSymbol,
                         rewriteBreak, rewriteContinue, out var tryChanged);
-                    CatchClause? catchClause = tryStatement.Catch;
+                    var catchClause = tryStatement.Catch;
                     var catchChanged = false;
                     if (tryStatement.Catch is { } existingCatch)
                     {
@@ -1661,7 +1661,7 @@ public sealed class TypedCpsTransformer
                             rewriteBreak, rewriteContinue, out catchChanged);
                     }
 
-                    BlockStatement? finallyBlock = tryStatement.Finally;
+                    var finallyBlock = tryStatement.Finally;
                     var finallyChanged = false;
                     if (tryStatement.Finally is { } existingFinally)
                     {

@@ -1082,7 +1082,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             }
 
             var isForEach = false;
-            ForEachKind eachKind = ForEachKind.Of;
+            var eachKind = ForEachKind.Of;
 
             if (!firstClauseTerminated)
             {
@@ -2170,7 +2170,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         {
             var functionKeyword = Previous();
             var isGenerator = Match(TokenType.Star);
-            Symbol? name = explicitName;
+            var name = explicitName;
             if (name is null && CheckParameterIdentifier())
             {
                 var nameToken = Advance();

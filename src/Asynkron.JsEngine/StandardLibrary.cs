@@ -5051,7 +5051,7 @@ public static class StandardLibrary
 
             var target = args[0];
             var protoValue = args[1];
-            JsObject? proto = protoValue as JsObject;
+            var proto = protoValue as JsObject;
 
             switch (target)
             {
@@ -5557,7 +5557,7 @@ public static class StandardLibrary
                 return false;
             }
 
-            object? candidate = args[0];
+            var candidate = args[0];
             while (candidate is JsProxy proxy)
             {
                 if (proxy.Handler is null)
@@ -5764,7 +5764,7 @@ public static class StandardLibrary
                 }
             }
 
-            IJsCallable? constructor = thisValue as IJsCallable;
+            var constructor = thisValue as IJsCallable;
             var useConstructor = constructor is not null &&
                                  (constructor is not HostFunction hostFn || hostFn.IsConstructor);
             if (!useConstructor)
@@ -5772,7 +5772,7 @@ public static class StandardLibrary
                 constructor = ArrayConstructor;
             }
 
-            object? lengthValue = source switch
+            var lengthValue = source switch
             {
                 string str => (double)str.Length,
                 JsArray arr => (double)arr.Length,
@@ -8173,7 +8173,7 @@ public static class StandardLibrary
                 throw new ThrowSignal(error);
             }
 
-            JsObject? proto = ResolveConstructPrototype(newTarget, target);
+            var proto = ResolveConstructPrototype(newTarget, target);
 
             // If we are constructing Array (or a subclass), create a real JsArray
             // so length/index semantics behave correctly, then invoke the

@@ -462,7 +462,7 @@ internal sealed class SyncGeneratorIrBuilder
         var leaveNext = exitIndex;
         var leaveTryIndex = Append(new LeaveTryInstruction(leaveNext));
 
-        int catchEntry = -1;
+        var catchEntry = -1;
         Symbol? catchSlotSymbol = null;
         if (hasCatch && statement.Catch is not null)
         {

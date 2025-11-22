@@ -131,6 +131,10 @@ public sealed class Lexer(string source)
                 {
                     AddToken(TokenType.DotDotDot);
                 }
+                else if (IsDigit(Peek()))
+                {
+                    ReadLeadingDotNumber();
+                }
                 else
                 {
                     AddToken(TokenType.Dot);
@@ -608,6 +612,33 @@ public sealed class Lexer(string source)
         var text2 = _source[_start.._current];
         var value2 = double.Parse(text2, CultureInfo.InvariantCulture);
         AddToken(TokenType.Number, value2);
+    }
+
+    private void ReadLeadingDotNumber()
+    {
+        // We have already consumed the '.' and confirmed the next char is a digit.
+        while (IsDigit(Peek())) Advance();
+
+        // Optional exponent
+        if (Peek() is 'e' or 'E')
+        {
+            var next = PeekNext();
+            if (IsDigit(next) || next is '+' or '-')
+            {
+                Advance(); // e/E
+                if (Peek() is '+' or '-') Advance();
+                if (!IsDigit(Peek()))
+                {
+                    throw new ParseException($"Expected digit after exponent on line {_line} column {_column}.");
+                }
+
+                while (IsDigit(Peek())) Advance();
+            }
+        }
+
+        var text = _source[_start.._current];
+        var value = double.Parse(text, CultureInfo.InvariantCulture);
+        AddToken(TokenType.Number, value);
     }
 
     private void ReadString()

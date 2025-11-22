@@ -8,74 +8,82 @@ namespace Asynkron.JsEngine;
 
 internal static class JsValueExtensions
 {
-    public static double ToNumber(this object? value)
+    extension(object? value)
     {
-        return value switch
+        public double ToNumber()
         {
-            null => 0,
-            Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => double.NaN,
-            JsBigInt => throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number"),
-            double d => d,
-            float f => f,
-            decimal m => (double)m,
-            int i => i,
-            uint ui => ui,
-            long l => l,
-            ulong ul => ul,
-            short s => s,
-            ushort us => us,
-            byte b => b,
-            sbyte sb => sb,
-            bool flag => flag ? 1 : 0,
-            string str => StringToNumber(str),
-            JsArray arr => ArrayToNumber(arr),
-            JsObject obj => obj.TryGetProperty("__value__", out var inner)
-                ? ToNumber(inner)
-                : double.NaN,
-            IJsPropertyAccessor accessor => accessor.TryGetProperty("__value__", out var inner)
-                ? ToNumber(inner)
-                : double.NaN,
-            _ => throw new InvalidOperationException($"Cannot convert value '{value}' to a number.")
-        };
-    }
-
-    public static string ToJsString(this object? value)
-    {
-        return value switch
-        {
-            null => "null",
-            Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => "undefined",
-            Symbol sym => sym.Name,
-            bool b => b ? "true" : "false",
-            JsBigInt bigInt => bigInt.ToString(),
-            JsArray array => ArrayToString(array),
-            IJsPropertyAccessor accessor => JsOps.ToPropertyName(accessor) ?? string.Empty,
-            IJsCallable => "function() { [native code] }",
-            string s => s,
-            double d => d.ToString(CultureInfo.InvariantCulture),
-            float f => f.ToString(CultureInfo.InvariantCulture),
-            decimal m => m.ToString(CultureInfo.InvariantCulture),
-            int i => i.ToString(CultureInfo.InvariantCulture),
-            uint ui => ui.ToString(CultureInfo.InvariantCulture),
-            long l => l.ToString(CultureInfo.InvariantCulture),
-            ulong ul => ul.ToString(CultureInfo.InvariantCulture),
-            short s16 => s16.ToString(CultureInfo.InvariantCulture),
-            ushort us16 => us16.ToString(CultureInfo.InvariantCulture),
-            byte b8 => b8.ToString(CultureInfo.InvariantCulture),
-            sbyte sb8 => sb8.ToString(CultureInfo.InvariantCulture),
-            TypedAstSymbol jsSymbol => jsSymbol.ToString(),
-            _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
-        };
-    }
-
-    public static string ToJsStringForArray(this object? value)
-    {
-        if (value is null || value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
-        {
-            return string.Empty;
+            return value switch
+            {
+                null => 0,
+                Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => double.NaN,
+                JsBigInt => throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number"),
+                double d => d,
+                float f => f,
+                decimal m => (double)m,
+                int i => i,
+                uint ui => ui,
+                long l => l,
+                ulong ul => ul,
+                short s => s,
+                ushort us => us,
+                byte b => b,
+                sbyte sb => sb,
+                bool flag => flag ? 1 : 0,
+                string str => StringToNumber(str),
+                JsArray arr => ArrayToNumber(arr),
+                JsObject obj => obj.TryGetProperty("__value__", out var inner)
+                    ? ToNumber(inner)
+                    : double.NaN,
+                IJsPropertyAccessor accessor => accessor.TryGetProperty("__value__", out var inner)
+                    ? ToNumber(inner)
+                    : double.NaN,
+                _ => throw new InvalidOperationException($"Cannot convert value '{value}' to a number.")
+            };
         }
 
-        return ToJsString(value);
+        public string ToJsString()
+        {
+            if (value is IJsPropertyAccessor accessor)
+            {
+                var primitive = JsOps.ToPrimitive(accessor, "string");
+                return primitive is IJsPropertyAccessor ? "[object Object]" : primitive.ToJsString();
+            }
+
+            return value switch
+            {
+                null => "null",
+                Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => "undefined",
+                Symbol sym => sym.Name,
+                bool b => b ? "true" : "false",
+                JsBigInt bigInt => bigInt.ToString(),
+                JsArray array => ArrayToString(array),
+                IJsCallable => "function() { [native code] }",
+                string s => s,
+                double d => d.ToString(CultureInfo.InvariantCulture),
+                float f => f.ToString(CultureInfo.InvariantCulture),
+                decimal m => m.ToString(CultureInfo.InvariantCulture),
+                int i => i.ToString(CultureInfo.InvariantCulture),
+                uint ui => ui.ToString(CultureInfo.InvariantCulture),
+                long l => l.ToString(CultureInfo.InvariantCulture),
+                ulong ul => ul.ToString(CultureInfo.InvariantCulture),
+                short s16 => s16.ToString(CultureInfo.InvariantCulture),
+                ushort us16 => us16.ToString(CultureInfo.InvariantCulture),
+                byte b8 => b8.ToString(CultureInfo.InvariantCulture),
+                sbyte sb8 => sb8.ToString(CultureInfo.InvariantCulture),
+                TypedAstSymbol jsSymbol => jsSymbol.ToString(),
+                _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+            };
+        }
+
+        public string ToJsStringForArray()
+        {
+            if (value is null || value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
+            {
+                return string.Empty;
+            }
+
+            return ToJsString(value);
+        }
     }
 
     private static double StringToNumber(string str)

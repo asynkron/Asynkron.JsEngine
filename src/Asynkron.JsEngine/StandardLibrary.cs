@@ -387,6 +387,10 @@ public static class StandardLibrary
             numberBase = 8;
             text = text[2..];
         }
+        else if (text.StartsWith("0") && text.Length > 1 && char.IsDigit(text[1]))
+        {
+            throw ThrowSyntaxError("Invalid BigInt literal");
+        }
 
         if (text.Length == 0)
         {
@@ -6172,6 +6176,22 @@ public static class StandardLibrary
             DisallowConstruct = true,
             ConstructErrorMessage = "BigInt is not a constructor"
         };
+        // length/name descriptors
+        bigIntFunction.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = 1d,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+        // name is already set on HostFunction; normalize attributes
+        bigIntFunction.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = "BigInt",
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
 
         if (bigIntFunction.TryGetProperty("prototype", out var protoValue) && protoValue is JsObject proto)
         {

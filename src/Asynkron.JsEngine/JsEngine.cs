@@ -42,7 +42,9 @@ namespace Asynkron.JsEngine;
     /// Maximum wall-clock time to allow a single evaluation to run before failing.
     /// Null or non-positive values disable the timeout.
     /// </summary>
-    public TimeSpan? ExecutionTimeout { get; set; } = TimeSpan.FromSeconds(2);
+    // Keep a finite timeout to avoid runaway scripts, but give heavy test cases
+    // (e.g. crypto/NBody fixtures) enough headroom to finish.
+    public TimeSpan? ExecutionTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// Exposes the global object for realm-like scenarios (e.g. Test262 realms).

@@ -12,7 +12,7 @@ namespace Asynkron.JsEngine;
     /// <summary>
     /// High level façade that turns JavaScript source into S-expressions and evaluates them.
     /// </summary>
-    public sealed class JsEngine : IAsyncDisposable
+    public sealed partial class JsEngine : IAsyncDisposable
     {
     private readonly TaskCompletionSource _doneTcs = new();
     private readonly JsEnvironment _global = new(isFunctionScope: true);
@@ -65,143 +65,13 @@ namespace Asynkron.JsEngine;
 
         var previousRealm = StandardLibrary.CurrentRealm;
         StandardLibrary.BindRealm(_realm);
-        // Bind the global `this` value to a dedicated JS object so that
-        // top-level `this` behaves like the global object (e.g. for UMD
-        // wrappers such as babel-standalone).
         _global.Define(Symbols.This, _globalObject);
 
-        // Expose common aliases for the global object that many libraries
-        // expect to exist (Node-style `global`, standard `globalThis`).
-        SetGlobal("globalThis", _globalObject);
-        SetGlobal("global", _globalObject);
-
-        // Register standard library objects
-        SetGlobal("console", StandardLibrary.CreateConsoleObject());
-        SetGlobal("Math", StandardLibrary.CreateMathObject());
-        SetGlobal("Object", StandardLibrary.CreateObjectConstructor(_realm));
-        SetGlobal("Function", StandardLibrary.CreateFunctionConstructor(_realm));
-        SetGlobal("Number", StandardLibrary.CreateNumberConstructor(_realm));
-        var bigIntFunction = StandardLibrary.CreateBigIntFunction(_realm);
-        SetGlobal("BigInt", bigIntFunction);
-        SetGlobal("Boolean", StandardLibrary.CreateBooleanConstructor(_realm));
-        SetGlobal("String", StandardLibrary.CreateStringConstructor(_realm));
-        var arrayConstructor = StandardLibrary.CreateArrayConstructor(_realm);
-        SetGlobal("Array", arrayConstructor);
-        if (arrayConstructor is HostFunction arrayHost)
-        {
-            arrayHost.RealmState = _realm;
-        }
-        _globalObject.DefineProperty("Array", new PropertyDescriptor
-        {
-            Value = arrayConstructor,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
-        _globalObject.DefineProperty("BigInt", new PropertyDescriptor
-        {
-            Value = bigIntFunction,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
-
-        // Register global constants
-        SetGlobal("Infinity", double.PositiveInfinity);
-        SetGlobal("NaN", double.NaN);
-        SetGlobal("undefined", Symbols.Undefined);
-
-        // Register global functions
-        SetGlobal("parseInt", StandardLibrary.CreateParseIntFunction());
-        SetGlobal("parseFloat", StandardLibrary.CreateParseFloatFunction());
-        SetGlobal("isNaN", StandardLibrary.CreateIsNaNFunction());
-        SetGlobal("isFinite", StandardLibrary.CreateIsFiniteFunction());
-
-        // Register Date constructor as a callable object with static methods
-        var dateConstructor = StandardLibrary.CreateDateConstructor(_realm);
-        var dateObj = StandardLibrary.CreateDateObject();
-
-        // Add static methods to constructor
-        if (dateConstructor is HostFunction hf)
-        {
-            foreach (var prop in dateObj)
-            {
-                hf.SetProperty(prop.Key, prop.Value);
-            }
-        }
-
-        SetGlobal("Date", dateConstructor);
-        SetGlobal("JSON", StandardLibrary.CreateJsonObject());
-
-        // Register RegExp constructor
-        SetGlobal("RegExp", StandardLibrary.CreateRegExpConstructor());
-
-        // Register Promise constructor
-        SetGlobal("Promise", StandardLibrary.CreatePromiseConstructor(this));
-
-        // Register Symbol constructor
-        SetGlobal("Symbol", StandardLibrary.CreateSymbolConstructor());
-
-        // Register Map constructor
-        SetGlobal("Map", StandardLibrary.CreateMapConstructor());
-
-        // Register Set constructor
-        SetGlobal("Set", StandardLibrary.CreateSetConstructor());
-
-        // Register WeakMap constructor
-        SetGlobal("WeakMap", StandardLibrary.CreateWeakMapConstructor());
-
-        // Minimal Proxy constructor (used by Array.isArray proxy tests)
-        SetGlobal("Proxy", StandardLibrary.CreateProxyConstructor(_realm));
-
-        // Register WeakSet constructor
-        SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
-
-        // Minimal browser-like storage object used by debug/babel-standalone.
-        SetGlobal("localStorage", StandardLibrary.CreateLocalStorageObject());
-
-        // Reflect object
-        SetGlobal("Reflect", StandardLibrary.CreateReflectObject());
-
-        // Register ArrayBuffer and TypedArray constructors
-        SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor());
-        SetGlobal("DataView", StandardLibrary.CreateDataViewConstructor());
-        SetGlobal("Int8Array", StandardLibrary.CreateInt8ArrayConstructor());
-        SetGlobal("Uint8Array", StandardLibrary.CreateUint8ArrayConstructor());
-        SetGlobal("Uint8ClampedArray", StandardLibrary.CreateUint8ClampedArrayConstructor());
-        SetGlobal("Int16Array", StandardLibrary.CreateInt16ArrayConstructor());
-        SetGlobal("Uint16Array", StandardLibrary.CreateUint16ArrayConstructor());
-        SetGlobal("Int32Array", StandardLibrary.CreateInt32ArrayConstructor());
-        SetGlobal("Uint32Array", StandardLibrary.CreateUint32ArrayConstructor());
-        SetGlobal("Float32Array", StandardLibrary.CreateFloat32ArrayConstructor());
-        SetGlobal("Float64Array", StandardLibrary.CreateFloat64ArrayConstructor());
-        SetGlobal("BigInt64Array", StandardLibrary.CreateBigInt64ArrayConstructor());
-        SetGlobal("BigUint64Array", StandardLibrary.CreateBigUint64ArrayConstructor());
-
-        // Register Error constructors
-        SetGlobal("Error", StandardLibrary.CreateErrorConstructor(_realm, "Error"));
-        SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor(_realm, "TypeError"));
-        SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor(_realm, "RangeError"));
-        SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor(_realm, "ReferenceError"));
-        SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor(_realm, "SyntaxError"));
-
-        // Register eval function as an environment-aware callable
-        // This allows eval to execute code in the caller's scope without blocking the event loop
-        SetGlobal("eval", new EvalHostFunction(this));
-
-        // Register internal helpers for async iteration
-        SetGlobal("__getAsyncIterator", StandardLibrary.CreateGetAsyncIteratorHelper(this));
-        SetGlobal("__iteratorNext", StandardLibrary.CreateIteratorNextHelper(this));
-        SetGlobal("__awaitHelper", StandardLibrary.CreateAwaitHelper(this));
-
-        // Register timer functions
-        SetGlobalFunction("setTimeout", SetTimeout);
-        SetGlobalFunction("setInterval", SetInterval);
-        SetGlobalFunction("clearTimeout", ClearTimer);
-        SetGlobalFunction("clearInterval", ClearTimer);
-
-        // Register dynamic import function
-        SetGlobalFunction("import", DynamicImport);
+        InitializeCoreGlobals();
+        InitializeTypedArrays();
+        InitializeErrorConstructors();
+        InitializeAsyncIterationHelpers();
+        InitializeTimersAndImports();
 
         // Register debug function as a debug-aware host function
         _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));

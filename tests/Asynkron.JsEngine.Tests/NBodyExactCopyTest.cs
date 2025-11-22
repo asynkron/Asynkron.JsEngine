@@ -40,7 +40,7 @@ public class NBodyExactCopyTest
         }
     }
 
-    [Theory]
+    [Theory(Timeout = 10000)]
     [InlineData("access-nbody.js")]
     public async Task AccessNBody_ExactCopy(string filename)
     {

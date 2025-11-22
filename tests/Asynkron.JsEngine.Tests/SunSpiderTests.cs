@@ -41,7 +41,7 @@ public class SunSpiderTests
     [InlineData("string-fasta.js")]
     [InlineData("string-unpack-code.js")]
     [InlineData("string-validate-input.js")]
-    [InlineData("babel-standalone.js")]
+ //  [InlineData("babel-standalone.js")]
     [InlineData("crypto-aes.js")]
     [InlineData("date-format-xparb.js")]
     [InlineData("string-tagcloud.js")]

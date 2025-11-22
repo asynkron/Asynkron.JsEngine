@@ -2,7 +2,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class NBodyFiveBodyTest
 {
-    [Fact]
+    [Fact(Timeout = 10000)]
     public async Task FiveBodies_Energy_Works()
     {
         await using var engine = new JsEngine();

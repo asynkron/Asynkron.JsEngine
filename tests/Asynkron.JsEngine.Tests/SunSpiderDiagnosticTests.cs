@@ -250,7 +250,7 @@ unescCtrlChars = __origUnescCtrlChars;
         output.WriteLine("decryptedText head = " + head);
     }
 
-    [Fact(Timeout = 10000)]
+    [Fact(Timeout = 10000, Skip = "Investigative test")]
     public async Task Babel_Debug_Diagnose_CreateDebugEnableLoad()
     {
         await using var engine = new JsEngine();

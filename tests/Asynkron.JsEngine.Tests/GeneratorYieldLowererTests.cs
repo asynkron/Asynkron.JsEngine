@@ -309,7 +309,10 @@ public class GeneratorYieldLowererTests
         Assert.Equal(tempBinding.Name, conditionId.Name);
         Assert.IsType<BreakStatement>(breakCheck.Then);
 
-        Assert.IsType<BlockStatement>(loweredBody.Statements[2]);
+        var loweredBodyStatement = Assert.IsType<BlockStatement>(loweredBody.Statements[2]);
+        Assert.Equal("body",
+            Assert.IsType<LiteralExpression>(Assert.IsType<ExpressionStatement>(
+                Assert.Single(loweredBodyStatement.Statements)).Expression).Value);
     }
 
     [Fact]

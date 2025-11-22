@@ -83,19 +83,12 @@ internal static class AstShapeAnalyzer
         return yieldExpression is not null;
     }
 
-    private sealed class ShapeCounter
+    private sealed class ShapeCounter(bool includeNestedFunctions)
     {
         public int YieldCount;
         public int DelegatedYieldCount;
         public int AwaitCount;
         public bool YieldOperandContainsYield;
-
-        private readonly bool _includeNestedFunctions;
-
-        public ShapeCounter(bool includeNestedFunctions)
-        {
-            _includeNestedFunctions = includeNestedFunctions;
-        }
 
         public void VisitStatement(StatementNode? statement)
         {
@@ -125,7 +118,7 @@ internal static class AstShapeAnalyzer
                         }
                         return;
                     case FunctionDeclaration functionDeclaration:
-                        if (_includeNestedFunctions)
+                        if (includeNestedFunctions)
                         {
                             VisitFunction(functionDeclaration.Function);
                         }
@@ -189,7 +182,7 @@ internal static class AstShapeAnalyzer
                         }
                         return;
                     case ClassDeclaration classDeclaration:
-                        if (_includeNestedFunctions)
+                        if (includeNestedFunctions)
                         {
                             VisitExpression(classDeclaration.Definition.Extends);
                             VisitFunction(classDeclaration.Definition.Constructor);
@@ -382,21 +375,21 @@ internal static class AstShapeAnalyzer
                                 VisitExpression(keyExpression);
                             }
 
-                            if (member.Function is not null && _includeNestedFunctions)
+                            if (member.Function is not null && includeNestedFunctions)
                             {
                                 VisitFunction(member.Function);
                             }
                         }
                         return;
                     case FunctionExpression functionExpression:
-                        if (_includeNestedFunctions)
+                        if (includeNestedFunctions)
                         {
                             VisitFunction(functionExpression);
                         }
 
                         return;
                     case ClassExpression classExpression:
-                        if (_includeNestedFunctions)
+                        if (includeNestedFunctions)
                         {
                             VisitExpression(classExpression.Definition.Extends);
                             VisitFunction(classExpression.Definition.Constructor);

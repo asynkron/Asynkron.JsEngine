@@ -18,19 +18,21 @@ namespace Asynkron.JsEngine;
     private readonly JsEnvironment _global = new(isFunctionScope: true);
     private readonly JsObject _globalObject = new();
     private readonly RealmState _realm = new();
-
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private readonly TypedProgramExecutor _typedExecutor = new();
     private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
-    private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
-    private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
-    private readonly Channel<ExceptionInfo> _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly HashSet<Task> _activeTimerTasks = [];
     private int _nextTimerId = 1;
     private int _pendingTaskCount; // Track pending tasks in the event queue
+
+    //DEBUG code
+    private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
+    private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
+    private readonly Channel<ExceptionInfo> _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
     private bool _asyncIteratorTracingEnabled;
+    //-------
 
     // Module registry: maps module paths to their exported values
     private readonly Dictionary<string, JsObject> _moduleRegistry = new();

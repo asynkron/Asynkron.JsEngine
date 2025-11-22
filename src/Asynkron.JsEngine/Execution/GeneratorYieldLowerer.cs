@@ -644,12 +644,44 @@ internal static class GeneratorYieldLowerer
                 loopBlock = loopBlock with { IsStrict = isStrict };
             }
 
-            if (!plan.ConditionPrologue.IsDefaultOrEmpty)
+            // Build the per-iteration prologue that evaluates the yielded
+            // condition and, for while-loops, performs the break check.
+            var prologue = ImmutableArray.CreateBuilder<StatementNode>();
+            if (resumeIdentifier is not null && yieldExpression is not null)
             {
-                loopBlock = loopBlock with
+                prologue.Add(new ExpressionStatement(yieldExpression.Source,
+                    new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
+                        new YieldExpression(yieldExpression.Source, yieldExpression.Expression,
+                            yieldExpression.IsDelegated))));
+
+                if (!plan.ConditionAfterBody)
                 {
-                    Statements = plan.ConditionPrologue.AddRange(loopBlock.Statements)
-                };
+                    var conditionCheck = rewrittenCondition ?? plan.Condition;
+                    prologue.Add(new IfStatement(plan.Body.Source,
+                        new UnaryExpression(plan.Body.Source, "!", conditionCheck, true),
+                        new BreakStatement(plan.Body.Source, null),
+                        null));
+                }
+            }
+
+            // Merge the prologue either before or after the loop body depending
+            // on whether the condition is evaluated before or after the body.
+            if (!plan.ConditionAfterBody)
+            {
+                var blockStatements = ImmutableArray.CreateBuilder<StatementNode>(
+                    prologue.Count + plan.ConditionPrologue.Length + 1);
+                blockStatements.AddRange(plan.ConditionPrologue);
+                blockStatements.AddRange(prologue);
+                blockStatements.Add(loopBlock);
+                loopBlock = loopBlock with { Statements = blockStatements.ToImmutable() };
+            }
+            else
+            {
+                var blockStatements = ImmutableArray.CreateBuilder<StatementNode>(
+                    loopBlock.Statements.Length + prologue.Count);
+                blockStatements.AddRange(loopBlock.Statements);
+                blockStatements.AddRange(prologue);
+                loopBlock = loopBlock with { Statements = blockStatements.ToImmutable() };
             }
 
             StatementNode loweredLoop = plan.ConditionAfterBody

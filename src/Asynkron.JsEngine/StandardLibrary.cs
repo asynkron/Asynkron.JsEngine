@@ -614,17 +614,7 @@ public static class StandardLibrary
 
         math["sign"] = new HostFunction(args =>
         {
-            if (args.Count == 0)
-            {
-                return double.NaN;
-            }
-
-            if (args[0] is not double d)
-            {
-                return double.NaN;
-            }
-
-            if (double.IsNaN(d))
+            if (args.Count == 0 || args[0] is not double d || double.IsNaN(d))
             {
                 return double.NaN;
             }
@@ -666,12 +656,7 @@ public static class StandardLibrary
 
         math["fround"] = new HostFunction(args =>
         {
-            if (args.Count == 0)
-            {
-                return double.NaN;
-            }
-
-            if (args[0] is not double d)
+            if (args.Count == 0 || args[0] is not double d)
             {
                 return double.NaN;
             }
@@ -770,12 +755,7 @@ public static class StandardLibrary
 
         math["expm1"] = new HostFunction(args =>
         {
-            if (args.Count == 0)
-            {
-                return double.NaN;
-            }
-
-            if (args[0] is not double d)
+            if (args.Count == 0 || args[0] is not double d)
             {
                 return double.NaN;
             }
@@ -786,12 +766,7 @@ public static class StandardLibrary
 
         math["log1p"] = new HostFunction(args =>
         {
-            if (args.Count == 0)
-            {
-                return double.NaN;
-            }
-
-            if (args[0] is not double d)
+            if (args.Count == 0 || args[0] is not double d)
             {
                 return double.NaN;
             }
@@ -931,7 +906,7 @@ public static class StandardLibrary
             }
 
             var key = args[0]?.ToString() ?? string.Empty;
-            return backing.TryGetValue(key, out var value) ? value : null;
+            return backing.GetValueOrDefault(key);
         }));
 
         storage.SetProperty("setItem", new HostFunction((thisValue, args) =>
@@ -974,6 +949,43 @@ public static class StandardLibrary
     public static JsObject CreateConsoleObject()
     {
         var console = new JsObject();
+
+        // console.log(...args)
+        console["log"] = new HostFunction(args =>
+        {
+            Console.WriteLine(FormatArgs(args));
+            return Symbols.Undefined;
+        });
+
+        // console.error(...args)
+        console["error"] = new HostFunction(args =>
+        {
+            Console.Error.WriteLine(FormatArgs(args));
+            return Symbols.Undefined;
+        });
+
+        // console.warn(...args)
+        console["warn"] = new HostFunction(args =>
+        {
+            Console.WriteLine($"Warning: {FormatArgs(args)}");
+            return Symbols.Undefined;
+        });
+
+        // console.info(...args)
+        console["info"] = new HostFunction(args =>
+        {
+            Console.WriteLine(FormatArgs(args));
+            return Symbols.Undefined;
+        });
+
+        // console.debug(...args)
+        console["debug"] = new HostFunction(args =>
+        {
+            Console.WriteLine($"Debug: {FormatArgs(args)}");
+            return Symbols.Undefined;
+        });
+
+        return console;
 
         // Helper function to format arguments for logging
         static string FormatArgs(IReadOnlyList<object?> args)
@@ -1027,43 +1039,6 @@ public static class StandardLibrary
             }
             return string.Join(" ", parts);
         }
-
-        // console.log(...args)
-        console["log"] = new HostFunction(args =>
-        {
-            Console.WriteLine(FormatArgs(args));
-            return Symbols.Undefined;
-        });
-
-        // console.error(...args)
-        console["error"] = new HostFunction(args =>
-        {
-            Console.Error.WriteLine(FormatArgs(args));
-            return Symbols.Undefined;
-        });
-
-        // console.warn(...args)
-        console["warn"] = new HostFunction(args =>
-        {
-            Console.WriteLine($"Warning: {FormatArgs(args)}");
-            return Symbols.Undefined;
-        });
-
-        // console.info(...args)
-        console["info"] = new HostFunction(args =>
-        {
-            Console.WriteLine(FormatArgs(args));
-            return Symbols.Undefined;
-        });
-
-        // console.debug(...args)
-        console["debug"] = new HostFunction(args =>
-        {
-            Console.WriteLine($"Debug: {FormatArgs(args)}");
-            return Symbols.Undefined;
-        });
-
-        return console;
     }
 
     /// <summary>
@@ -1105,7 +1080,7 @@ public static class StandardLibrary
 
             // ECMAScript: years 0–99 are interpreted as 1900–1999.
             var year = (int)y;
-            if (0 <= year && year <= 99)
+            if (year is >= 0 and <= 99)
             {
                 year += 1900;
             }
@@ -1155,15 +1130,6 @@ public static class StandardLibrary
     {
         HostFunction? dateConstructor = null;
         JsObject? datePrototype = null;
-
-        static DateTimeOffset ConvertMillisecondsToUtc(double milliseconds)
-        {
-            // JavaScript stores Date values as milliseconds since Unix epoch in UTC.
-            // The input can be fractional, but DateTimeOffset only accepts long, so
-            // truncate toward zero like ECMAScript's ToIntegerOrInfinity.
-            var truncated = (long)Math.Truncate(milliseconds);
-            return DateTimeOffset.FromUnixTimeMilliseconds(truncated);
-        }
 
         static DateTimeOffset GetLocalTimeFromInternalDate(JsObject obj)
         {
@@ -1588,6 +1554,15 @@ public static class StandardLibrary
         });
 
         return dateConstructor;
+
+        static DateTimeOffset ConvertMillisecondsToUtc(double milliseconds)
+        {
+            // JavaScript stores Date values as milliseconds since Unix epoch in UTC.
+            // The input can be fractional, but DateTimeOffset only accepts long, so
+            // truncate toward zero like ECMAScript's ToIntegerOrInfinity.
+            var truncated = (long)Math.Truncate(milliseconds);
+            return DateTimeOffset.FromUnixTimeMilliseconds(truncated);
+        }
     }
 
     /// <summary>
@@ -1962,7 +1937,7 @@ public static class StandardLibrary
 
     private static bool SameValueZero(object? x, object? y)
     {
-        if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy))
+        if (x is double.NaN && y is double.NaN)
         {
             return true;
         }

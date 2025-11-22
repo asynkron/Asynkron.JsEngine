@@ -54,6 +54,7 @@ namespace Asynkron.JsEngine;
     /// </summary>
     public JsEngine()
     {
+        var previousRealm = StandardLibrary.CurrentRealm;
         StandardLibrary.BindRealm(_realm);
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
@@ -184,6 +185,13 @@ namespace Asynkron.JsEngine;
 
         // Register debug function as a debug-aware host function
         _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));
+
+        // Avoid leaking a temporary realm when new engines are created from an
+        // existing engine (e.g. $262.createRealm).
+        if (previousRealm is not null)
+        {
+            StandardLibrary.BindRealm(previousRealm);
+        }
 
         _ = Task.Run(ProcessEventQueue);
     }

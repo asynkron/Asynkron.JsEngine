@@ -21,7 +21,6 @@ Procedure to maintain this file:
 - You can automate collection with `python3 tools/generate_test262_report.py --groups 262tests.md --results-dir /tmp/jsengine-results`; it will run each group and print pass/total lines ready to paste back.
 
 59/90 Array_from
-54/60 Array_length
 8/32 Array_of
 2/14 Array_prototype
 6/26 Array_prototype_at

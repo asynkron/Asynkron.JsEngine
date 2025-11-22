@@ -312,7 +312,7 @@ public sealed class JsArray : IJsObjectLike
     {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            TryDefineLengthProperty(descriptor, null, throwOnWritableFailure: true);
+            DefineLength(descriptor, null, throwOnWritableFailure: true);
             return;
         }
 
@@ -469,18 +469,66 @@ public sealed class JsArray : IJsObjectLike
 
     internal bool DefineLength(PropertyDescriptor descriptor, EvaluationContext? context, bool throwOnWritableFailure)
     {
-        return TryDefineLengthProperty(descriptor, context, throwOnWritableFailure);
-    }
+        if (descriptor.IsAccessorDescriptor)
+        {
+            return FailTypeError(context, throwOnWritableFailure);
+        }
 
-    private bool TryDefineLengthProperty(PropertyDescriptor descriptor, EvaluationContext? context,
-        bool throwOnWritableFailure)
-    {
-        var hasValue = descriptor.HasValue;
-        var hasWritable = descriptor.HasWritable;
-        var writableValue = descriptor.Writable;
+        var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length") ??
+                               new PropertyDescriptor
+                               {
+                                   Value = (double)_length,
+                                   Writable = true,
+                                   Enumerable = false,
+                                   Configurable = false
+                               };
 
-        return TrySetArrayLength(hasValue, descriptor.Value, hasWritable, writableValue, context,
-            throwOnWritableFailure);
+        // When the descriptor omits [[Value]], perform ordinary validation /
+        // attribute updates without touching the numeric length.
+        if (!descriptor.HasValue)
+        {
+            // Length is non-configurable and non-enumerable; reject attempts to
+            // mutate those attributes.
+            if ((descriptor.HasConfigurable && descriptor.Configurable) ||
+                (descriptor.HasEnumerable && descriptor.Enumerable != lengthDescriptor.Enumerable))
+            {
+                return FailTypeError(context, throwOnWritableFailure);
+            }
+
+            if (!lengthDescriptor.Writable && descriptor.HasWritable && descriptor.Writable)
+            {
+                return FailTypeError(context, throwOnWritableFailure);
+            }
+
+            if (descriptor.HasWritable)
+            {
+                lengthDescriptor.Writable = descriptor.Writable;
+            }
+
+            return true;
+        }
+
+        var success = TrySetArrayLength(descriptor.HasValue, descriptor.Value, descriptor.HasWritable,
+            descriptor.Writable, context, throwOnWritableFailure);
+        if (!success)
+        {
+            return false;
+        }
+
+        // Descriptor validation happens after numeric coercion to match
+        // ArraySetLength ordering: RangeError beats descriptor errors.
+        if ((descriptor.HasConfigurable && descriptor.Configurable) ||
+            (descriptor.HasEnumerable && descriptor.Enumerable != lengthDescriptor.Enumerable))
+        {
+            return FailTypeError(context, throwOnWritableFailure);
+        }
+
+        if (descriptor.HasWritable)
+        {
+            lengthDescriptor.Writable = descriptor.Writable;
+        }
+
+        return true;
     }
 
     private void SetExplicitLength(uint newLength)
@@ -605,7 +653,7 @@ public sealed class JsArray : IJsObjectLike
         EvaluationContext? context, bool throwOnWritableFailure)
     {
         uint newLength = _length;
-
+        double numberLen = _length;
         if (hasValue)
         {
             var numberForUint32 = JsOps.ToNumberWithContext(value, context);
@@ -615,15 +663,10 @@ public sealed class JsArray : IJsObjectLike
             }
 
             var coercedUint = unchecked((uint)(long)numberForUint32);
-            var numberLen = JsOps.ToNumberWithContext(value, context);
+            numberLen = JsOps.ToNumberWithContext(value, context);
             if (context is not null && context.IsThrow)
             {
                 return false;
-            }
-
-            if (double.IsNaN(numberLen) || double.IsInfinity(numberLen) || numberLen != coercedUint)
-            {
-                return FailRangeError(context);
             }
 
             if (coercedUint > MaxArrayLength)
@@ -644,6 +687,14 @@ public sealed class JsArray : IJsObjectLike
                                };
 
         var oldLength = _length;
+
+        if (hasValue)
+        {
+            if (double.IsNaN(numberLen) || double.IsInfinity(numberLen) || numberLen != newLength)
+            {
+                return FailRangeError(context);
+            }
+        }
 
         if (!lengthDescriptor.Writable)
         {
@@ -689,9 +740,10 @@ public sealed class JsArray : IJsObjectLike
 
     private ThrowSignal CreateRangeError(string message)
     {
-        if (_rangeErrorCtor is IJsCallable ctor)
+        var ctor = StandardLibrary.RangeErrorConstructor ?? _rangeErrorCtor;
+        if (ctor is IJsCallable callable)
         {
-            var errorObj = ctor.Invoke([message], null);
+            var errorObj = callable.Invoke([message], null);
             return new ThrowSignal(errorObj);
         }
 
@@ -706,9 +758,10 @@ public sealed class JsArray : IJsObjectLike
 
     private ThrowSignal CreateTypeError(string message)
     {
-        if (_typeErrorCtor is IJsCallable ctor)
+        var ctor = StandardLibrary.TypeErrorConstructor ?? _typeErrorCtor;
+        if (ctor is IJsCallable callable)
         {
-            var errorObj = ctor.Invoke([message], null);
+            var errorObj = callable.Invoke([message], null);
             return new ThrowSignal(errorObj);
         }
 

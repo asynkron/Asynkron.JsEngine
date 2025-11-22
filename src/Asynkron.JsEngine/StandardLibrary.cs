@@ -5213,7 +5213,7 @@ public static class StandardLibrary
             prototypeObject.SetProperty("slice", new HostFunction((thisValue, args) => ArraySlice(thisValue, args)));
         }
 
-        if (arrayConstructor.TryGetProperty("prototype", out var proto) && proto is JsObject arrayProtoObj)
+        if (arrayConstructor.TryGetProperty("prototype", out var protoValue) && protoValue is JsObject arrayProtoObj)
         {
             if (realm.ObjectPrototype is not null && arrayProtoObj.Prototype is null)
             {
@@ -5222,14 +5222,26 @@ public static class StandardLibrary
             arrayPrototype = arrayProtoObj;
             realm.ArrayPrototype ??= arrayProtoObj;
             ArrayPrototype ??= arrayProtoObj;
+            AddArrayMethods(arrayProtoObj);
             arrayProtoObj.DefineProperty("length", new PropertyDescriptor
             {
                 Value = 0d,
-                Writable = false,
+                Writable = true,
                 Enumerable = false,
                 Configurable = false
             });
-            AddArrayMethods(arrayProtoObj);
+            var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+            var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+            if (arrayProtoObj.TryGetProperty("values", out var valuesFn))
+            {
+                arrayProtoObj.DefineProperty(iteratorKey, new PropertyDescriptor
+                {
+                    Value = valuesFn,
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
+                });
+            }
         }
 
         arrayConstructor.DefineProperty("length", new PropertyDescriptor
@@ -5292,6 +5304,7 @@ public static class StandardLibrary
         // Well-known symbols
         symbolConstructor.SetProperty("iterator", TypedAstSymbol.For("Symbol.iterator"));
         symbolConstructor.SetProperty("asyncIterator", TypedAstSymbol.For("Symbol.asyncIterator"));
+        symbolConstructor.SetProperty("toPrimitive", TypedAstSymbol.For("Symbol.toPrimitive"));
 
         return symbolConstructor;
     }

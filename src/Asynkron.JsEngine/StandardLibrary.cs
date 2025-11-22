@@ -27,8 +27,10 @@ public static class StandardLibrary
     private static JsObject? _fallbackDatePrototype;
     private static JsObject? _fallbackErrorPrototype;
     private static JsObject? _fallbackTypeErrorPrototype;
+    private static JsObject? _fallbackSyntaxErrorPrototype;
     private static HostFunction? _fallbackTypeErrorConstructor;
     private static HostFunction? _fallbackRangeErrorConstructor;
+    private static HostFunction? _fallbackSyntaxErrorConstructor;
     private static HostFunction? _fallbackArrayConstructor;
 
     internal static RealmState? CurrentRealm
@@ -175,6 +177,19 @@ public static class StandardLibrary
         }
     }
 
+    internal static JsObject? SyntaxErrorPrototype
+    {
+        get => CurrentRealm?.SyntaxErrorPrototype ?? _fallbackSyntaxErrorPrototype;
+        set
+        {
+            _fallbackSyntaxErrorPrototype = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.SyntaxErrorPrototype = value;
+            }
+        }
+    }
+
     internal static HostFunction? TypeErrorConstructor
     {
         get => CurrentRealm?.TypeErrorConstructor ?? _fallbackTypeErrorConstructor;
@@ -201,6 +216,19 @@ public static class StandardLibrary
         }
     }
 
+    internal static HostFunction? SyntaxErrorConstructor
+    {
+        get => CurrentRealm?.SyntaxErrorConstructor ?? _fallbackSyntaxErrorConstructor;
+        set
+        {
+            _fallbackSyntaxErrorConstructor = value;
+            if (CurrentRealm is not null)
+            {
+                CurrentRealm.SyntaxErrorConstructor = value;
+            }
+        }
+    }
+
     internal static HostFunction? ArrayConstructor
     {
         get => CurrentRealm?.ArrayConstructor ?? _fallbackArrayConstructor;
@@ -221,8 +249,8 @@ public static class StandardLibrary
             return ctor.Invoke([message], null);
         }
 
-        return new InvalidOperationException(message);
-    }
+                return new InvalidOperationException(message);
+        }
 
     internal static object CreateRangeError(string message)
     {
@@ -242,6 +270,21 @@ public static class StandardLibrary
     internal static ThrowSignal ThrowRangeError(string message)
     {
         return new ThrowSignal(CreateRangeError(message));
+    }
+
+    internal static ThrowSignal ThrowSyntaxError(string message)
+    {
+        return new ThrowSignal(CreateSyntaxError(message));
+    }
+
+    internal static object CreateSyntaxError(string message)
+    {
+        if (SyntaxErrorConstructor is IJsCallable ctor)
+        {
+            return ctor.Invoke([message], null);
+        }
+
+        return new InvalidOperationException(message);
     }
 
     internal static JsBigInt ToBigInt(object? value)
@@ -271,10 +314,8 @@ public static class StandardLibrary
                     throw ThrowTypeError("Cannot convert undefined to a BigInt");
                 case bool b:
                     return b ? JsBigInt.One : JsBigInt.Zero;
-                case string s when TryParseBigIntString(s, out var parsed):
-                    return new JsBigInt(parsed);
-                case string:
-                    throw ThrowTypeError("Cannot convert string to a BigInt");
+                case string s:
+                    return new JsBigInt(ParseBigIntString(s));
                 case double d when double.IsNaN(d) || double.IsInfinity(d) || d % 1 != 0:
                     throw ThrowRangeError("Cannot convert number to a BigInt");
                 case double d:
@@ -301,18 +342,17 @@ public static class StandardLibrary
         }
     }
 
-    private static bool TryParseBigIntString(string value, out BigInteger result)
+    private static BigInteger ParseBigIntString(string value)
     {
-        result = BigInteger.Zero;
-        if (value is null)
+        var text = value?.Trim() ?? string.Empty;
+        if (text.Length == 0)
         {
-            return false;
+            return BigInteger.Zero;
         }
 
-        var text = value.Trim();
-        if (text.Length == 0 || text.EndsWith("n", StringComparison.Ordinal))
+        if (text.EndsWith("n", StringComparison.Ordinal))
         {
-            return false;
+            throw ThrowSyntaxError("Invalid BigInt literal");
         }
 
         var sign = 1;
@@ -328,7 +368,7 @@ public static class StandardLibrary
 
         if (text.Length == 0)
         {
-            return false;
+            return BigInteger.Zero;
         }
 
         var numberBase = 10;
@@ -350,16 +390,15 @@ public static class StandardLibrary
 
         if (text.Length == 0)
         {
-            return false;
+            throw ThrowSyntaxError("Invalid BigInt literal");
         }
 
         if (!TryParseBigIntWithBase(text, numberBase, sign, out var parsed))
         {
-            return false;
+            throw ThrowSyntaxError("Invalid BigInt literal");
         }
 
-        result = parsed;
-        return true;
+        return parsed;
     }
 
     private static bool TryParseBigIntWithBase(string digits, int numberBase, int sign, out BigInteger result)
@@ -6884,6 +6923,14 @@ public static class StandardLibrary
             RangeErrorConstructor = errorConstructor;
         }
 
+        if (string.Equals(errorType, "SyntaxError", StringComparison.Ordinal))
+        {
+            realm.SyntaxErrorConstructor = errorConstructor;
+            SyntaxErrorConstructor = errorConstructor;
+            realm.SyntaxErrorPrototype = prototype;
+            SyntaxErrorPrototype = prototype;
+        }
+
         // Function.name
         errorConstructor.SetProperty("name", errorType);
 
@@ -7625,7 +7672,7 @@ public static class StandardLibrary
             }
 
             if (newTarget is HostFunction hostNewTarget &&
-                (!hostNewTarget.IsConstructor || hostNewTarget.DisallowConstruct))
+                !hostNewTarget.IsConstructor)
             {
                 var message = hostNewTarget.ConstructErrorMessage ?? "newTarget is not a constructor";
                 var error = TypeErrorConstructor is IJsCallable typeErrorCtor2

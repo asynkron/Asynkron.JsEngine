@@ -2,41 +2,9 @@
   "SuiteGitSha": "a073f479f80b336256b7fc4e04700c827293e2fe",
   "TargetPath": "./Generated",
   "Namespace": "Asynkron.JsEngine.Tests.Test262",
-  "Parallel": true,
-  "ExcludedFeatures": [
-    "Array.fromAsync",
-    "async-iteration",
-    "Atomics",
-    "decorators",
-    "import-defer",
-    "iterator-helpers",
-    "iterator-sequencing",
-    "json-parse-with-source",
-    "regexp-lookbehind",
-    "regexp-modifiers",
-    "regexp-unicode-property-escapes",
-    "regexp-v-flag",
-    "RegExp.escape",
-    "source-phase-imports",
-    "tail-call-optimization",
-    "Temporal",
-    "u180e",
-    "SharedArrayBuffer",
-    "FinalizationRegistry",
-    "WeakRef",
-    "resizable-arraybuffer",
-    "arraybuffer-transfer",
-    "ShadowRealm",
-    "import-assertions",
-    "import-attributes"
-  ],
-  "ExcludedFlags": [
-  ],
-  "ExcludedDirectories": [
-    "annexB",
-    "intl402",
-    "staging"
-  ],
-  "ExcludedFiles": [
-  ]
+  "Parallel": false,
+  "ExcludedFeatures": [],
+  "ExcludedFlags": [],
+  "ExcludedDirectories": [],
+  "ExcludedFiles": []
 }

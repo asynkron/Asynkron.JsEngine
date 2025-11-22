@@ -5283,7 +5283,13 @@ public static class TypedAstEvaluator
             var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
 
             // Bind `this`.
-            environment.Define(JsSymbols.This, thisValue ?? new JsObject());
+            var boundThis = thisValue;
+            if (!_function.Body.IsStrict && (thisValue is null || ReferenceEquals(thisValue, JsSymbols.Undefined)))
+            {
+                boundThis = CallingJsEnvironment?.Get(JsSymbols.This) ?? JsSymbols.Undefined;
+            }
+
+            environment.Define(JsSymbols.This, boundThis ?? new JsObject());
 
             if (_superConstructor is not null || _superPrototype is not null)
             {

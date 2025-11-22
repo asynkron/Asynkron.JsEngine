@@ -4030,10 +4030,22 @@ public static class StandardLibrary
         // Object constructor function
         var objectConstructor = new HostFunction(args =>
         {
+            JsObject CreateBlank()
+            {
+                var obj = new JsObject();
+                var proto = realm.ObjectPrototype ?? ObjectPrototype;
+                if (proto is not null)
+                {
+                    obj.SetPrototype(proto);
+                }
+
+                return obj;
+            }
+
             // Object() or Object(value) - creates a new object or wraps the value
             if (args.Count == 0 || args[0] == null || args[0] == Symbols.Undefined)
             {
-                return new JsObject();
+                return CreateBlank();
             }
             // If value is already an object, return it as-is
             if (args[0] is JsObject jsObj)
@@ -4041,7 +4053,7 @@ public static class StandardLibrary
                 return jsObj;
             }
             // For primitives, wrap in an object (simplified - just return a new object)
-            return new JsObject();
+            return CreateBlank();
         });
 
         // Capture Object.prototype so Object.prototype methods can be attached
@@ -4071,6 +4083,14 @@ public static class StandardLibrary
             {
                 realm.StringPrototype.SetPrototype(objectProtoObj);
             }
+
+            objectProtoObj.DefineProperty("constructor", new PropertyDescriptor
+            {
+                Value = objectConstructor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
 
             if (realm.ErrorPrototype is not null && realm.ErrorPrototype.Prototype is null)
             {
@@ -4316,6 +4336,30 @@ public static class StandardLibrary
             }
 
             return target;
+        }));
+
+        objectConstructor.SetProperty("preventExtensions", new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not IJsObjectLike target)
+            {
+                var error = TypeErrorConstructor is IJsCallable ctor
+                    ? ctor.Invoke(["Object.preventExtensions requires an object"], null)
+                    : new InvalidOperationException("Object.preventExtensions requires an object.");
+                throw new ThrowSignal(error);
+            }
+
+            target.Seal();
+            return target;
+        }));
+
+        objectConstructor.SetProperty("isExtensible", new HostFunction(args =>
+        {
+            if (args.Count == 0 || args[0] is not IJsObjectLike target)
+            {
+                return false;
+            }
+
+            return !target.IsSealed;
         }));
 
         objectConstructor.SetProperty("getOwnPropertySymbols", new HostFunction(args =>
@@ -4660,7 +4704,7 @@ public static class StandardLibrary
                 return args.Count > 0 ? args[0] : null;
             }
 
-            var propName = args[1]?.ToString() ?? "";
+            var propName = JsOps.ToPropertyName(args[1]) ?? string.Empty;
 
             if (args[2] is JsObject descriptorObj)
             {
@@ -4844,36 +4888,313 @@ public static class StandardLibrary
         });
 
         // Array.from(arrayLike)
-        arrayConstructor.SetProperty("from", new HostFunction(args =>
+        HostFunction arrayFrom = null!;
+        arrayFrom = new HostFunction((thisValue, args) =>
         {
-            if (args.Count == 0)
+            if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbols.Undefined))
             {
-                return new JsArray();
+                var error = TypeErrorConstructor is IJsCallable ctor
+                    ? ctor.Invoke(["Array.from requires an array-like or iterable"], null)
+                    : new InvalidOperationException("Array.from requires an array-like or iterable.");
+                throw new ThrowSignal(error);
             }
 
-            var items = new List<object?>();
+            var source = args[0]!;
+            var mapfn = args.Count > 1 ? args[1] : null;
+            var thisArg = args.Count > 2 ? args[2] : Symbols.Undefined;
+            var callingEnv = arrayFrom.CallingJsEnvironment;
 
-            if (args[0] is JsArray jsArray)
+            if (mapfn is not null && mapfn is not IJsCallable)
             {
-                for (var i = 0; i < jsArray.Items.Count; i++)
-                    items.Add(jsArray.GetElement(i));
+                var error = TypeErrorConstructor is IJsCallable ctor2
+                    ? ctor2.Invoke(["Array.from: when provided, the mapping callback must be callable"], null)
+                    : new InvalidOperationException("Array.from: when provided, the mapping callback must be callable.");
+                throw new ThrowSignal(error);
             }
-            else if (args[0] is string str)
+
+            static double ToLength(object? value)
             {
-                foreach (var c in str)
+                while (true)
                 {
-                    items.Add(c.ToString());
+                    if (value is double d)
+                    {
+                        if (double.IsNaN(d) || d <= 0)
+                        {
+                            return 0;
+                        }
+
+                        if (double.IsPositiveInfinity(d))
+                        {
+                            return double.MaxValue;
+                        }
+
+                        return Math.Floor(d);
+                    }
+
+                    if (value is int i)
+                    {
+                        return i < 0 ? 0 : i;
+                    }
+
+                    if (value is string s && double.TryParse(s, out var parsed))
+                    {
+                        value = parsed;
+                        continue;
+                    }
+
+                    return 0;
                 }
+            }
+
+            static object? GetAt(object target, int index)
+            {
+                var key = index.ToString(CultureInfo.InvariantCulture);
+                if (target is JsArray jsArr)
+                {
+                    return index < jsArr.Items.Count ? jsArr.GetElement(index) : Symbols.Undefined;
+                }
+
+                if (target is string str)
+                {
+                    return index < str.Length ? str[index].ToString() : Symbols.Undefined;
+                }
+
+                if (target is JsObject jsObj && jsObj.TryGetProperty(key, out var value))
+                {
+                    return value;
+                }
+
+                return Symbols.Undefined;
+            }
+
+            static bool TryGetIteratorMethod(object sourceObj, out IJsCallable? method)
+            {
+                var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+                var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+                method = null;
+                if (sourceObj is IJsPropertyAccessor accessor &&
+                    accessor.TryGetProperty(iteratorKey, out var value) &&
+                    !ReferenceEquals(value, Symbols.Undefined))
+                {
+                    method = value as IJsCallable;
+                }
+
+                return method is not null;
+            }
+
+            static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
+                IJsCallable? typeErrorCtor)
+            {
+                var existing = target.GetOwnPropertyDescriptor(propertyKey);
+                if (existing is null)
+                {
+                    if (target.IsSealed)
+                    {
+                        var error = typeErrorCtor is not null
+                            ? typeErrorCtor.Invoke([$"Cannot define property {propertyKey} on a sealed object"], null)
+                            : new InvalidOperationException(
+                                $"Cannot define property {propertyKey} on a sealed object");
+                        throw new ThrowSignal(error);
+                    }
+                }
+                else if (!existing.Configurable)
+                {
+                    if (existing.IsAccessorDescriptor && existing.Set is null)
+                    {
+                        var error = typeErrorCtor is not null
+                            ? typeErrorCtor.Invoke([$"Property {propertyKey} is non-writable"], null)
+                            : new InvalidOperationException($"Property {propertyKey} is non-writable");
+                        throw new ThrowSignal(error);
+                    }
+
+                    if (!existing.Writable)
+                    {
+                        var error = typeErrorCtor is not null
+                            ? typeErrorCtor.Invoke([$"Property {propertyKey} is non-writable"], null)
+                            : new InvalidOperationException($"Property {propertyKey} is non-writable");
+                        throw new ThrowSignal(error);
+                    }
+                }
+
+                var descriptor = new PropertyDescriptor
+                {
+                    Value = value,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                };
+
+                target.DefineProperty(propertyKey, descriptor);
+
+                var defined = target.GetOwnPropertyDescriptor(propertyKey);
+                if (defined is null || !defined.Writable || !defined.Enumerable || !defined.Configurable)
+                {
+                    var error = typeErrorCtor is not null
+                        ? typeErrorCtor.Invoke([$"Failed to create data property {propertyKey}"], null)
+                        : new InvalidOperationException($"Failed to create data property {propertyKey}");
+                    throw new ThrowSignal(error);
+                }
+            }
+
+            IJsCallable? constructor = thisValue as IJsCallable;
+            var useConstructor = constructor is not null &&
+                                 (constructor is not HostFunction hostFn || hostFn.IsConstructor);
+            if (!useConstructor)
+            {
+                constructor = ArrayConstructor;
+            }
+
+            object? lengthValue = source switch
+            {
+                string str => (double)str.Length,
+                JsArray arr => (double)arr.Length,
+                JsObject obj when obj.TryGetProperty("length", out var lenVal) => lenVal,
+                _ => 0d
+            };
+            var len = ToLength(lengthValue);
+            var lengthInt = len > int.MaxValue ? int.MaxValue : (int)len;
+
+            IJsObjectLike result;
+            if (constructor is HostFunction targetCtor && ReferenceEquals(targetCtor, ArrayConstructor))
+            {
+                var array = new JsArray();
+                if (arrayPrototype is not null)
+                {
+                    array.SetPrototype(arrayPrototype);
+                }
+
+                array.SetProperty("length", (double)lengthInt);
+                AddArrayMethods(array, arrayPrototype);
+                result = array;
             }
             else
             {
-                return new JsArray();
+                IJsObjectLike instance;
+                var proto = constructor is not null ? ResolveConstructPrototype(constructor, constructor) : null;
+                if (constructor is HostFunction hostFunction && ReferenceEquals(hostFunction, ArrayConstructor))
+                {
+                    instance = new JsArray();
+                }
+                else
+                {
+                    instance = new JsObject();
+                }
+
+                if (proto is not null)
+                {
+                    instance.SetPrototype(proto);
+                }
+
+                var constructed = constructor?.Invoke(new object?[] { (double)lengthInt }, instance);
+                result = constructed is IJsObjectLike objectLike ? objectLike : instance;
             }
 
-            var result = new JsArray(items);
-            AddArrayMethods(result);
+            if (TryGetIteratorMethod(source, out var iteratorMethod))
+            {
+                if (iteratorMethod is not IJsCallable callableIterator)
+                {
+                    var error = TypeErrorConstructor is IJsCallable ctor3
+                        ? ctor3.Invoke(["Iterator method is not callable"], null)
+                        : new InvalidOperationException("Iterator method is not callable.");
+                    throw new ThrowSignal(error);
+                }
+
+                var iteratorObj = callableIterator.Invoke(Array.Empty<object?>(), source);
+                if (iteratorObj is not JsObject iter)
+                {
+                    var error = TypeErrorConstructor is IJsCallable ctor4
+                        ? ctor4.Invoke(["Iterator method did not return an object"], null)
+                        : new InvalidOperationException("Iterator method did not return an object.");
+                    throw new ThrowSignal(error);
+                }
+
+                var nextVal = iter.TryGetProperty("next", out var nextProp) ? nextProp : null;
+                if (nextVal is not IJsCallable nextFn)
+                {
+                    var error = TypeErrorConstructor is IJsCallable ctor5
+                        ? ctor5.Invoke(["Iterator.next is not callable"], null)
+                        : new InvalidOperationException("Iterator.next is not callable.");
+                    throw new ThrowSignal(error);
+                }
+
+                var k = 0;
+                while (true)
+                {
+                    var step = nextFn.Invoke(Array.Empty<object?>(), iter);
+                    if (step is not JsObject stepObj)
+                    {
+                        break;
+                    }
+
+                    var done = stepObj.TryGetProperty("done", out var doneVal) && ToBoolean(doneVal);
+                    if (done)
+                    {
+                        break;
+                    }
+
+                    var value = stepObj.TryGetProperty("value", out var val) ? val : Symbols.Undefined;
+                    if (mapfn is IJsCallable mapper)
+                    {
+                        if (mapper is IJsEnvironmentAwareCallable envAware && callingEnv is not null)
+                        {
+                            envAware.CallingJsEnvironment = callingEnv;
+                        }
+
+                        value = mapper.Invoke(new object?[] { value, (double)k }, thisArg);
+                    }
+
+                    CreateDataPropertyOrThrow(result, k.ToString(CultureInfo.InvariantCulture), value,
+                        TypeErrorConstructor);
+                    k++;
+                }
+
+                result.SetProperty("length", (double)k);
+            }
+            else
+            {
+                for (var k = 0; k < lengthInt; k++)
+                {
+                    var value = GetAt(source, k);
+                    if (mapfn is IJsCallable mapper)
+                    {
+                        if (mapper is IJsEnvironmentAwareCallable envAware && callingEnv is not null)
+                        {
+                            envAware.CallingJsEnvironment = callingEnv;
+                        }
+
+                        value = mapper.Invoke(new object?[] { value, (double)k }, thisArg);
+                    }
+
+                    CreateDataPropertyOrThrow(result, k.ToString(CultureInfo.InvariantCulture), value,
+                        TypeErrorConstructor);
+                }
+
+                result.SetProperty("length", (double)lengthInt);
+            }
             return result;
-        }));
+        });
+        arrayFrom.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = "from",
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+        arrayFrom.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = 1d,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+        arrayFrom.IsConstructor = false;
+        arrayConstructor.DefineProperty("from", new PropertyDescriptor
+        {
+            Value = arrayFrom,
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
 
         // Array.of(...elements)
         arrayConstructor.SetProperty("of", new HostFunction(args =>
@@ -7060,12 +7381,25 @@ public static class StandardLibrary
         {
             return true;
         }
+        if (hostFunction.RealmState is RealmState realmDefaults &&
+            realmDefaults.ObjectPrototype is not null)
+        {
+            prototype = realmDefaults.ObjectPrototype;
+            return true;
+        }
 
         if (hostFunction.Realm is JsObject realmObj &&
             realmObj.TryGetProperty(ctorName, out var realmCtor) &&
             TryGetPrototype(realmCtor, out var realmProto))
         {
             prototype = realmProto;
+            return true;
+        }
+        if (hostFunction.Realm is JsObject fallbackRealm &&
+            fallbackRealm.TryGetProperty("Object", out var objectCtor) &&
+            TryGetPrototype(objectCtor, out var objectProto))
+        {
+            prototype = objectProto;
             return true;
         }
 

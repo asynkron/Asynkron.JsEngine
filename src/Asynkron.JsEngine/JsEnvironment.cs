@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine;
 
@@ -37,17 +38,33 @@ public sealed class JsEnvironment(
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
         var scope = GetFunctionScope();
+        var isGlobalScope = scope._enclosing is null;
+        JsObject? globalThis = null;
+        if (isGlobalScope && scope._values.TryGetValue(Symbols.This, out var thisBinding) &&
+            thisBinding.Value is JsObject globalObject)
+        {
+            globalThis = globalObject;
+        }
+
         if (scope._values.TryGetValue(name, out var existing))
         {
             if (hasInitializer)
             {
                 existing.Value = value;
+                if (globalThis is not null)
+                {
+                    globalThis.SetProperty(name.Name, value);
+                }
             }
 
             return;
         }
 
         scope._values[name] = new Binding(value, false);
+        if (globalThis is not null)
+        {
+            globalThis.SetProperty(name.Name, value);
+        }
     }
 
     public object? Get(Symbol name)
@@ -119,6 +136,11 @@ public sealed class JsEnvironment(
 
         // Non-strict mode: Create the variable in the global scope (this environment)
         Define(name, value, isConst: false);
+        if (_enclosing is null && _values.TryGetValue(Symbols.This, out var thisBinding) &&
+            thisBinding.Value is JsObject globalObject)
+        {
+            globalObject.SetProperty(name.Name, value);
+        }
     }
 
     private JsEnvironment GetFunctionScope()

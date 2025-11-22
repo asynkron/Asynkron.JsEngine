@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 /// Represents a host function that can be called from JavaScript.
 /// </summary>
-public sealed class HostFunction : IJsCallable, IJsObjectLike
+public sealed class HostFunction : IJsCallable, IJsObjectLike, IJsEnvironmentAwareCallable
 {
     private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
     private readonly JsObject _properties = new();
@@ -26,6 +26,12 @@ public sealed class HostFunction : IJsCallable, IJsObjectLike
     /// Indicates whether this host function can be used with <c>new</c>.
     /// </summary>
     public bool IsConstructor { get; set; } = true;
+
+    /// <summary>
+    /// Captures the environment that invoked this host function so nested
+    /// callbacks can inherit the correct global `this` binding.
+    /// </summary>
+    public JsEnvironment? CallingJsEnvironment { get; set; }
 
     internal JsObject Properties => _properties;
 

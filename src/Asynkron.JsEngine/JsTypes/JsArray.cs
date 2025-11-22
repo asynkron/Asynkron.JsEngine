@@ -316,11 +316,31 @@ public sealed class JsArray : IJsObjectLike
             return;
         }
 
+        if (TryParseArrayIndex(name, out var index) && !descriptor.IsAccessorDescriptor)
+        {
+            // Keep the indexed storage in sync with defined data properties.
+            SetElement(index, descriptor.Value);
+        }
+
         _properties.DefineProperty(name, descriptor);
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
+        if (TryParseArrayIndex(name, out var index))
+        {
+            if (index < _length && TryGetOwnIndex(index, out var value))
+            {
+                return new PropertyDescriptor
+                {
+                    Value = value,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                };
+            }
+        }
+
         return _properties.GetOwnPropertyDescriptor(name);
     }
 
@@ -530,11 +550,10 @@ public sealed class JsArray : IJsObjectLike
             iterator.SetProperty("next", new HostFunction((nextThisValue, nextArgs) =>
             {
                 var result = new JsObject();
-                if (indexHolder[0] < _items.Count)
+                if (indexHolder[0] < _length)
                 {
-                    var value = _items[indexHolder[0]];
-                    // Return undefined for holes in the array
-                    result.SetProperty("value", ReferenceEquals(value, ArrayHole) ? Symbols.Undefined : value);
+                    var value = GetElement(indexHolder[0]);
+                    result.SetProperty("value", value);
                     result.SetProperty("done", false);
                     indexHolder[0]++;
                 }

@@ -13,14 +13,21 @@ Or a specific test within that group:
 dotnet test tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj --filter "Name~Array/proto-from-ctor-realm-one"
 ```
 
+Procedure to maintain this file:
+- Run one group at a time with the `--filter "FullyQualifiedName=...<Group>"` pattern.
+- Record pass/total as `X/Y GroupName`. Use a ✅ prefix if the group is 100% passing.
+- Keep partially passing groups with numeric counts so progress is visible.
+- Avoid running the entire suite in one shot (too slow and may crash); iterate group-by-group instead.
+- You can automate collection with `python3 tools/generate_test262_report.py --groups 262tests.md --results-dir /tmp/jsengine-results`; it will run each group and print pass/total lines ready to paste back.
+
 ✅ AbstractModuleSource
 ✅ AbstractModuleSource_prototype
-Array
-Array_from
-Array_fromAsync
-Array_isArray
-Array_length
-Array_of
+✅ Array
+59/90 Array_from
+✅ Array_fromAsync
+✅ Array_isArray
+54/60 Array_length
+8/32 Array_of
 Array_prototype
 Array_prototype_at
 Array_prototype_concat

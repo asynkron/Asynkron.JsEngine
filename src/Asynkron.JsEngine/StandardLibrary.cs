@@ -889,10 +889,45 @@ public static class StandardLibrary
                 IsConstructor = false
             });
         durationFormatPrototype.SetProperty("resolvedOptions",
-            new HostFunction((thisValue, args) => new JsObject())
+            new HostFunction((thisValue, args) =>
+            {
+                var obj = new JsObject();
+                obj.SetProperty("numberingSystem", "latn");
+                obj.SetProperty("style", "short");
+                obj.SetProperty("years", "auto");
+                obj.SetProperty("yearsDisplay", "auto");
+                obj.SetProperty("months", "auto");
+                obj.SetProperty("monthsDisplay", "auto");
+                obj.SetProperty("weeks", "auto");
+                obj.SetProperty("weeksDisplay", "auto");
+                obj.SetProperty("days", "auto");
+                obj.SetProperty("daysDisplay", "auto");
+                obj.SetProperty("hours", "auto");
+                obj.SetProperty("hoursDisplay", "auto");
+                obj.SetProperty("minutes", "auto");
+                obj.SetProperty("minutesDisplay", "auto");
+                obj.SetProperty("seconds", "auto");
+                obj.SetProperty("secondsDisplay", "auto");
+                obj.SetProperty("milliseconds", "auto");
+                obj.SetProperty("millisecondsDisplay", "auto");
+                obj.SetProperty("microseconds", "auto");
+                obj.SetProperty("microsecondsDisplay", "auto");
+                obj.SetProperty("nanoseconds", "auto");
+                obj.SetProperty("nanosecondsDisplay", "auto");
+                obj.SetProperty("locale", "en");
+                return obj;
+            })
             {
                 IsConstructor = false
             });
+        var durationToStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        durationFormatPrototype.DefineProperty(durationToStringTagKey, new PropertyDescriptor
+        {
+            Value = "Intl.DurationFormat",
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
 
         durationFormatCtor.DefineProperty("supportedLocalesOf", new PropertyDescriptor
         {
@@ -4975,25 +5010,13 @@ public static class StandardLibrary
             realm.ObjectPrototype ??= objectProtoObj;
             ObjectPrototype ??= objectProtoObj;
 
-            if (realm.FunctionPrototype is not null)
-            {
-                realm.FunctionPrototype.SetPrototype(objectProtoObj);
-            }
+            realm.FunctionPrototype?.SetPrototype(objectProtoObj);
 
-            if (realm.BooleanPrototype is not null)
-            {
-                realm.BooleanPrototype.SetPrototype(objectProtoObj);
-            }
+            realm.BooleanPrototype?.SetPrototype(objectProtoObj);
 
-            if (realm.NumberPrototype is not null)
-            {
-                realm.NumberPrototype.SetPrototype(objectProtoObj);
-            }
+            realm.NumberPrototype?.SetPrototype(objectProtoObj);
 
-            if (realm.StringPrototype is not null)
-            {
-                realm.StringPrototype.SetPrototype(objectProtoObj);
-            }
+            realm.StringPrototype?.SetPrototype(objectProtoObj);
 
             objectProtoObj.DefineProperty("constructor", new PropertyDescriptor
             {
@@ -5089,7 +5112,7 @@ public static class StandardLibrary
                 }
 
                 var desc = accessor.GetOwnPropertyDescriptor(propertyName);
-                return desc is not null && desc.Enumerable;
+                return desc?.Enumerable == true;
             });
 
             objectProtoObj.SetProperty("propertyIsEnumerable", propertyIsEnumerable);
@@ -5940,7 +5963,7 @@ public static class StandardLibrary
                 target.DefineProperty(propertyKey, descriptor);
 
                 var defined = target.GetOwnPropertyDescriptor(propertyKey);
-                if (defined is null || !defined.Writable || !defined.Enumerable || !defined.Configurable)
+                if (defined?.Writable != true || !defined.Enumerable || !defined.Configurable)
                 {
                     var error = typeErrorCtor is not null
                         ? typeErrorCtor.Invoke([$"Failed to create data property {propertyKey}"], null)

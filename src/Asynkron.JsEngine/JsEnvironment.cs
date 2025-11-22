@@ -51,20 +51,14 @@ public sealed class JsEnvironment(
             if (hasInitializer)
             {
                 existing.Value = value;
-                if (globalThis is not null)
-                {
-                    globalThis.SetProperty(name.Name, value);
-                }
+                globalThis?.SetProperty(name.Name, value);
             }
 
             return;
         }
 
         scope._values[name] = new Binding(value, false);
-        if (globalThis is not null)
-        {
-            globalThis.SetProperty(name.Name, value);
-        }
+        globalThis?.SetProperty(name.Name, value);
     }
 
     public object? Get(Symbol name)

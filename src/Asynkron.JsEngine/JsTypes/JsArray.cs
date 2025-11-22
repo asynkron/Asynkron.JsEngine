@@ -197,7 +197,7 @@ public sealed class JsArray : IJsObjectLike
             return !ReferenceEquals(_items[(int)index], ArrayHole);
         }
 
-        return _sparseItems is not null && _sparseItems.ContainsKey(index);
+        return _sparseItems?.ContainsKey(index) == true;
     }
 
     public bool HasOwnIndex(int index)
@@ -309,10 +309,7 @@ public sealed class JsArray : IJsObjectLike
             return true;
         }
 
-        if (_sparseItems is not null)
-        {
-            _sparseItems.Remove(uintIndex);
-        }
+        _sparseItems?.Remove(uintIndex);
 
         return true;
     }
@@ -539,7 +536,7 @@ public sealed class JsArray : IJsObjectLike
 
         // Descriptor validation happens after numeric coercion to match
         // ArraySetLength ordering: RangeError beats descriptor errors.
-        if ((descriptor.HasConfigurable && descriptor.Configurable) ||
+        if (descriptor is { HasConfigurable: true, Configurable: true } ||
             (descriptor.HasEnumerable && descriptor.Enumerable != lengthDescriptor.Enumerable))
         {
             return FailTypeError(context, throwOnWritableFailure);
@@ -613,7 +610,7 @@ public sealed class JsArray : IJsObjectLike
         var iteratorFunction = new HostFunction((thisValue, args) =>
         {
             // Use array to hold index so it can be mutated in closure
-            var indexHolder = new int[] { 0 };
+            int[] indexHolder = [0];
             var iterator = new JsObject();
 
             // Add next() method to iterator
@@ -679,14 +676,14 @@ public sealed class JsArray : IJsObjectLike
         if (hasValue)
         {
             var numberForUint32 = JsOps.ToNumberWithContext(value, context);
-            if (context is not null && context.IsThrow)
+            if (context?.IsThrow == true)
             {
                 return false;
             }
 
             var coercedUint = unchecked((uint)(long)numberForUint32);
             numberLen = JsOps.ToNumberWithContext(value, context);
-            if (context is not null && context.IsThrow)
+            if (context?.IsThrow == true)
             {
                 return false;
             }
@@ -763,9 +760,9 @@ public sealed class JsArray : IJsObjectLike
     private ThrowSignal CreateRangeError(string message)
     {
         var ctor = StandardLibrary.RangeErrorConstructor ?? _rangeErrorCtor;
-        if (ctor is IJsCallable callable)
+        if (ctor is IJsCallable)
         {
-            var errorObj = callable.Invoke([message], null);
+            var errorObj = ctor.Invoke([message], null);
             return new ThrowSignal(errorObj);
         }
 
@@ -781,9 +778,9 @@ public sealed class JsArray : IJsObjectLike
     private ThrowSignal CreateTypeError(string message)
     {
         var ctor = StandardLibrary.TypeErrorConstructor ?? _typeErrorCtor;
-        if (ctor is IJsCallable callable)
+        if (ctor is IJsCallable)
         {
-            var errorObj = callable.Invoke([message], null);
+            var errorObj = ctor.Invoke([message], null);
             return new ThrowSignal(errorObj);
         }
 

@@ -99,7 +99,7 @@ internal static class JsOps
                     continue;
                 }
 
-                if (context is not null && context.IsThrow)
+                if (context?.IsThrow == true)
                 {
                     return double.NaN;
                 }
@@ -156,7 +156,7 @@ internal static class JsOps
             return true;
         }
 
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             return false;
         }
@@ -216,7 +216,7 @@ internal static class JsOps
                 continue;
             }
 
-            if (context is not null && context.IsThrow)
+            if (context?.IsThrow == true)
             {
                 return value;
             }
@@ -506,14 +506,14 @@ internal static class JsOps
                     continue;
                 }
 
-                if (context is not null && context.IsThrow)
+                if (context?.IsThrow == true)
                 {
                     return null;
                 }
 
                 // Fallback: use general ToPrimitive(string) semantics before converting to string
                 var primitiveValue = ToPrimitive(accessor, "string", context);
-                if (context is not null && context.IsThrow)
+                if (context?.IsThrow == true)
                 {
                     return null;
                 }
@@ -522,7 +522,7 @@ internal static class JsOps
                 continue;
             }
 
-            if (context is not null && context.IsThrow)
+            if (context?.IsThrow == true)
             {
                 return null;
             }
@@ -548,7 +548,7 @@ internal static class JsOps
             }
         }
 
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             key = null;
             return false;
@@ -564,7 +564,7 @@ internal static class JsOps
             }
         }
 
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             key = null;
             return false;
@@ -675,7 +675,7 @@ internal static class JsOps
     public static string GetRequiredPropertyName(object? value, EvaluationContext? context = null)
     {
         var name = ToPropertyName(value, context);
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             return string.Empty;
         }
@@ -846,7 +846,7 @@ internal static class JsOps
     public static bool TryGetPropertyValue(object? target, object? propertyKey, out object? value,
         EvaluationContext? context = null)
     {
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             value = Symbols.Undefined;
             return false;
@@ -861,14 +861,14 @@ internal static class JsOps
             return true;
         }
 
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             value = Symbols.Undefined;
             return false;
         }
 
         var propertyName = ToPropertyName(propertyKey, context);
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             value = Symbols.Undefined;
             return false;
@@ -962,7 +962,7 @@ internal static class JsOps
         if (target is JsArray jsArray)
         {
             var propertyName = ToPropertyName(propertyKey, context);
-            if (context is not null && context.IsThrow)
+            if (context?.IsThrow == true)
             {
                 return true;
             }

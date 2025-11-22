@@ -729,6 +729,7 @@ public sealed class Lexer(string source)
         var currentString = new StringBuilder();
 
         while (!IsAtEnd && Peek() != '`')
+        {
             if (Peek() == '$' && PeekNext() == '{')
             {
                 // Save the string part so far
@@ -792,6 +793,7 @@ public sealed class Lexer(string source)
 
                 currentString.Append(Advance());
             }
+        }
 
         if (IsAtEnd)
         {
@@ -930,6 +932,7 @@ public sealed class Lexer(string source)
 
         // Read pattern until unescaped /
         while (!IsAtEnd && Peek() != '/')
+        {
             if (Peek() == '\\')
             {
                 // Include escape sequences in the pattern
@@ -948,6 +951,7 @@ public sealed class Lexer(string source)
                 // Character class - read until ]
                 pattern.Append(Advance());
                 while (!IsAtEnd && Peek() != ']')
+                {
                     if (Peek() == '\\')
                     {
                         pattern.Append(Advance());
@@ -960,6 +964,7 @@ public sealed class Lexer(string source)
                     {
                         pattern.Append(Advance());
                     }
+                }
 
                 if (!IsAtEnd && Peek() == ']')
                 {
@@ -970,6 +975,7 @@ public sealed class Lexer(string source)
             {
                 pattern.Append(Advance());
             }
+        }
 
         if (IsAtEnd)
         {

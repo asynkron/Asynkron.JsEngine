@@ -868,8 +868,7 @@ internal sealed class SyncGeneratorIrBuilder
 
     private static bool IsLowererTemp(Symbol symbol)
     {
-        return symbol.Name is not null &&
-               symbol.Name.StartsWith("__yield_lower_", StringComparison.Ordinal);
+        return symbol.Name?.StartsWith("__yield_lower_", StringComparison.Ordinal) == true;
     }
 
     private Symbol CreateCatchSlotSymbol()

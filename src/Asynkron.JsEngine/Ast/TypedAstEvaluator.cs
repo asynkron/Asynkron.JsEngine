@@ -623,7 +623,7 @@ public static class TypedAstEvaluator
             _ = EvaluateBlock(statement.Finally, environment, context);
             if (context.CurrentSignal is null)
             {
-                if (isGenerator && pending is not null && pending.HasValue)
+                if (isGenerator && pending?.HasValue == true)
                 {
                     if (pending.IsThrow)
                     {

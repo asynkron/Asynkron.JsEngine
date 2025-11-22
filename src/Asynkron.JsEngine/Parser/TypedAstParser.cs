@@ -2899,7 +2899,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 return false;
             }
 
-            return _tokens[_current + 1].Type == TokenType.Colon;
+            var next = _tokens[_current + 1].Type;
+            return next == TokenType.Colon || next == TokenType.LeftParen;
         }
 
         private bool HasLineTerminatorBefore()

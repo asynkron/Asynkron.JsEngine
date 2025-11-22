@@ -15,43 +15,14 @@ public static class StandardLibrary
 {
     // No shared current realm: rely on per-context RealmState instead.
 
-    /// <summary>
-    /// Clears cached realm state so consecutive engine instances in the same
-    /// process don't leak prototypes/constructors across runs (e.g. when test
-    /// assemblies share a host process).
-    /// </summary>
-    internal static void ResetGlobalState()
-    {
-        BooleanPrototype = null;
-        NumberPrototype = null;
-        StringPrototype = null;
-        ObjectPrototype = null;
-        FunctionPrototype = null;
-        ArrayPrototype = null;
-        BigIntPrototype = null;
-        DatePrototype = null;
-        ErrorPrototype = null;
-        TypeErrorPrototype = null;
-        SyntaxErrorPrototype = null;
-        TypeErrorConstructor = null;
-        RangeErrorConstructor = null;
-        SyntaxErrorConstructor = null;
-        ArrayConstructor = null;
-    }
-
-    private static RealmState? ResolveRealm(EvaluationContext? context = null)
-    {
-        return context?.RealmState;
-    }
-
     // Shared prototypes for primitive wrapper objects so that host-provided
     // globals like Boolean.prototype can be extended from JavaScript and still
     // be visible via auto-boxing of primitives.
-    internal static JsObject? BooleanPrototype { get; set; }
+    public static JsObject? BooleanPrototype { get; set; }
 
-    internal static JsObject? NumberPrototype { get; set; }
+    public static JsObject? NumberPrototype { get; set; }
 
-    internal static JsObject? StringPrototype { get; set; }
+    public static JsObject? StringPrototype { get; set; }
 
     internal static JsObject? ObjectPrototype { get; set; }
 
@@ -59,9 +30,9 @@ public static class StandardLibrary
 
     internal static JsObject? ArrayPrototype { get; set; }
 
-    internal static JsObject? BigIntPrototype { get; set; }
+    public static JsObject? BigIntPrototype { get; set; }
 
-    internal static JsObject? DatePrototype { get; set; }
+    public static JsObject? DatePrototype { get; set; }
 
     internal static JsObject? ErrorPrototype { get; set; }
 
@@ -73,13 +44,13 @@ public static class StandardLibrary
 
     internal static HostFunction? RangeErrorConstructor { get; set; }
 
-    internal static HostFunction? SyntaxErrorConstructor { get; set; }
+    public static HostFunction? SyntaxErrorConstructor { get; set; }
 
-    internal static HostFunction? ArrayConstructor { get; set; }
+    public static HostFunction? ArrayConstructor { get; set; }
 
     internal static object CreateTypeError(string message, EvaluationContext? context = null)
     {
-        var realm = ResolveRealm(context);
+        var realm = context?.RealmState;
         var ctor = realm?.TypeErrorConstructor ?? TypeErrorConstructor;
         if (ctor is IJsCallable callable)
         {
@@ -89,42 +60,31 @@ public static class StandardLibrary
         return new InvalidOperationException(message);
     }
 
+    //TODO: why is this not used?
     // ECMAScript Type(x) == "bigint" when x is JsBigInt.
     private static string TypeOf(object? value)
     {
-        if (value is null)
-        {
-            return "object";
-        }
-
-        if (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
-        {
-            return "undefined";
-        }
-
-        if (value is TypedAstSymbol)
-        {
-            return "symbol";
-        }
-
-        if (value is JsBigInt)
-        {
-            return "bigint";
-        }
-
         return value switch
         {
-            bool => "boolean",
-            double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
-            string => "string",
-            IJsCallable => "function",
-            _ => "object"
+            null => "object",
+            Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => "undefined",
+            TypedAstSymbol => "symbol",
+            JsBigInt => "bigint",
+            _ => value switch
+            {
+                bool => "boolean",
+                double or float or decimal or int or uint or long or ulong or short or ushort or byte
+                    or sbyte => "number",
+                string => "string",
+                IJsCallable => "function",
+                _ => "object"
+            }
         };
     }
 
     internal static object CreateRangeError(string message, EvaluationContext? context = null)
     {
-        var realm = ResolveRealm(context);
+        var realm = context?.RealmState;
         var ctor = realm?.RangeErrorConstructor ?? RangeErrorConstructor;
         if (ctor is IJsCallable callable)
         {
@@ -151,24 +111,17 @@ public static class StandardLibrary
 
     private static JsBigInt ThisBigIntValue(object? receiver)
     {
-        if (receiver is JsBigInt bi)
+        return receiver switch
         {
-            return bi;
-        }
-
-        if (receiver is JsObject obj &&
-            obj.TryGetValue("__value__", out var inner) &&
-            inner is JsBigInt wrapped)
-        {
-            return wrapped;
-        }
-
-        throw ThrowTypeError("BigInt.prototype method called on incompatible receiver");
+            JsBigInt bi => bi,
+            JsObject obj when obj.TryGetValue("__value__", out var inner) && inner is JsBigInt wrapped => wrapped,
+            _ => throw ThrowTypeError("BigInt.prototype method called on incompatible receiver")
+        };
     }
 
     internal static object CreateSyntaxError(string message, EvaluationContext? context = null)
     {
-        var realm = ResolveRealm(context);
+        var realm = context?.RealmState;
         var ctor = realm?.SyntaxErrorConstructor ?? SyntaxErrorConstructor;
         if (ctor is IJsCallable callable)
         {
@@ -241,13 +194,13 @@ public static class StandardLibrary
             return BigInteger.Zero;
         }
 
-        if (text.EndsWith("n", StringComparison.Ordinal))
+        if (text.EndsWith('n'))
         {
             throw ThrowSyntaxError("Invalid BigInt literal");
         }
 
         var sign = 1;
-        if (text.StartsWith("+", StringComparison.Ordinal) || text.StartsWith("-", StringComparison.Ordinal))
+        if (text.StartsWith('+') || text.StartsWith('-'))
         {
             if (text[0] == '-')
             {
@@ -535,7 +488,7 @@ public static class StandardLibrary
             return min;
         });
 
-        math["random"] = new HostFunction(args => { return Random.Shared.NextDouble(); });
+        math["random"] = new HostFunction(args => Random.Shared.NextDouble());
 
         math["sin"] = new HostFunction(args =>
         {
@@ -3325,7 +3278,7 @@ public static class StandardLibrary
             ["__value__"] = value
         };
 
-        var prototype = ResolveRealm(context)?.BooleanPrototype ?? BooleanPrototype;
+        var prototype = context?.RealmState?.BooleanPrototype ?? BooleanPrototype;
         if (prototype is not null)
         {
             booleanObj.SetPrototype(prototype);
@@ -3629,7 +3582,7 @@ public static class StandardLibrary
         var stringObj = new JsObject();
         stringObj["__value__"] = str;
         stringObj["length"] = (double)str.Length;
-        var prototype = ResolveRealm(context)?.StringPrototype ?? StringPrototype;
+        var prototype = context?.RealmState?.StringPrototype ?? StringPrototype;
         if (prototype is not null)
         {
             stringObj.SetPrototype(prototype);
@@ -4349,7 +4302,7 @@ public static class StandardLibrary
     {
         var numberObj = new JsObject();
         numberObj["__value__"] = num;
-        var prototype = ResolveRealm(context)?.NumberPrototype ?? NumberPrototype;
+        var prototype = context?.RealmState?.NumberPrototype ?? NumberPrototype;
         if (prototype is not null)
         {
             numberObj.SetPrototype(prototype);
@@ -4365,7 +4318,7 @@ public static class StandardLibrary
             ["__value__"] = value
         };
 
-        var prototype = ResolveRealm(context)?.BigIntPrototype ?? BigIntPrototype;
+        var prototype = context?.RealmState?.BigIntPrototype ?? BigIntPrototype;
         if (prototype is not null)
         {
             wrapper.SetPrototype(prototype);

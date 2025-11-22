@@ -58,11 +58,6 @@ namespace Asynkron.JsEngine;
     /// </summary>
     public JsEngine()
     {
-        // When multiple test assemblies or engine instances share a host
-        // process, reset any cached realm state so globals/prototypes do not
-        // leak between runs.
-        StandardLibrary.ResetGlobalState();
-
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).

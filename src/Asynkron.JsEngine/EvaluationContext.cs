@@ -16,9 +16,7 @@ public sealed class EvaluationContext
     public EvaluationContext(RealmState realmState, CancellationToken cancellationToken = default)
     {
         RealmState = realmState ?? throw new ArgumentNullException(nameof(realmState));
-        _cancellationToken = cancellationToken.CanBeCanceled
-            ? cancellationToken
-            : EvaluationCancellationScope.CurrentToken;
+        _cancellationToken = cancellationToken;
     }
 
     /// <summary>
@@ -239,40 +237,4 @@ public sealed class EvaluationContext
     public bool IsYield => CurrentSignal is YieldSignal;
 
     internal CancellationToken CancellationToken => _cancellationToken;
-}
-
-internal static class EvaluationCancellationScope
-{
-    private static readonly AsyncLocal<CancellationToken> CurrentTokenHolder = new();
-
-    public static CancellationToken CurrentToken => CurrentTokenHolder.Value;
-
-    public static IDisposable Enter(CancellationToken token)
-    {
-        var previous = CurrentTokenHolder.Value;
-        CurrentTokenHolder.Value = token;
-        return new Scope(previous);
-    }
-
-    private sealed class Scope : IDisposable
-    {
-        private readonly CancellationToken _previous;
-        private bool _disposed;
-
-        public Scope(CancellationToken previous)
-        {
-            _previous = previous;
-        }
-
-        public void Dispose()
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            CurrentTokenHolder.Value = _previous;
-            _disposed = true;
-        }
-    }
 }

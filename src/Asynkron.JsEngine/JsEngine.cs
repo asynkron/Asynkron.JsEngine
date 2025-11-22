@@ -400,7 +400,6 @@ namespace Asynkron.JsEngine;
         // This ensures ALL code runs through the event loop
         ScheduleTask(() =>
         {
-            using var scope = EvaluationCancellationScope.Enter(combinedToken);
             try
             {
                 object? result;
@@ -581,11 +580,9 @@ namespace Asynkron.JsEngine;
     /// <param name="task">The task to schedule</param>
     public void ScheduleTask(Func<Task> task)
     {
-        var capturedToken = EvaluationCancellationScope.CurrentToken;
         Interlocked.Increment(ref _pendingTaskCount);
         _eventQueue.Writer.TryWrite(async () =>
         {
-            using var scope = EvaluationCancellationScope.Enter(capturedToken);
             await task().ConfigureAwait(false);
         });
     }

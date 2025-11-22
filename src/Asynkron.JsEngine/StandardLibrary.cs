@@ -276,7 +276,7 @@ public static class StandardLibrary
         var ctor = realm?.TypeErrorConstructor ?? _fallbackTypeErrorConstructor;
         if (ctor is IJsCallable callable)
         {
-            return callable.Invoke([message], null);
+            return callable.Invoke([message], null) ?? new InvalidOperationException(message);
         }
 
         return new InvalidOperationException(message);
@@ -321,7 +321,7 @@ public static class StandardLibrary
         var ctor = realm?.RangeErrorConstructor ?? _fallbackRangeErrorConstructor;
         if (ctor is IJsCallable callable)
         {
-            return callable.Invoke([message], null);
+            return callable.Invoke([message], null) ?? new InvalidOperationException(message);
         }
 
         return new InvalidOperationException(message);
@@ -365,7 +365,7 @@ public static class StandardLibrary
         var ctor = realm?.SyntaxErrorConstructor ?? _fallbackSyntaxErrorConstructor;
         if (ctor is IJsCallable callable)
         {
-            return callable.Invoke([message], null);
+            return callable.Invoke([message], null) ?? new InvalidOperationException(message);
         }
 
         return new InvalidOperationException(message);
@@ -8518,6 +8518,7 @@ public static class StandardLibrary
 
         if (hostFunction.Realm is JsObject realmObj &&
             realmObj.TryGetProperty(ctorName, out var realmCtor) &&
+            realmCtor is not null &&
             TryGetPrototype(realmCtor, out var realmProto))
         {
             prototype = realmProto;
@@ -8525,6 +8526,7 @@ public static class StandardLibrary
         }
         if (hostFunction.Realm is JsObject fallbackRealm &&
             fallbackRealm.TryGetProperty("Object", out var objectCtor) &&
+            objectCtor is not null &&
             TryGetPrototype(objectCtor, out var objectProto))
         {
             prototype = objectProto;

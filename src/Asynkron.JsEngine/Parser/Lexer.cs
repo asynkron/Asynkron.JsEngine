@@ -328,12 +328,17 @@ public sealed class Lexer(string source)
                 ReadSingleQuotedString();
                 break;
             case ' ': // ignore insignificant whitespace
-            case '\r':
             case '\t':
                 break;
+            case '\r':
+                HandleLineTerminator('\r');
+                break;
             case '\n':
-                _line++;
-                _column = 1;
+                HandleLineTerminator('\n');
+                break;
+            case '\u2028': // Line Separator
+            case '\u2029': // Paragraph Separator
+                HandleLineTerminator(c);
                 break;
             case '"':
                 ReadString();
@@ -366,6 +371,11 @@ public sealed class Lexer(string source)
     {
         while (!IsAtEnd && Peek() != '\n')
         {
+            if (IsLineTerminator(Peek()))
+            {
+                return;
+            }
+
             Advance();
         }
     }
@@ -374,17 +384,18 @@ public sealed class Lexer(string source)
     {
         while (!IsAtEnd)
         {
-            if (Peek() == '*' && PeekNext() == '/')
+            var ch = Peek();
+            if (ch == '*' && PeekNext() == '/')
             {
                 Advance(); // consume '*'
                 Advance(); // consume '/'
                 return;
             }
 
-            if (Peek() == '\n')
+            if (IsLineTerminator(ch))
             {
-                _line++;
-                _column = 1;
+                ConsumeLineTerminator(ch);
+                continue;
             }
 
             Advance();
@@ -439,17 +450,7 @@ public sealed class Lexer(string source)
                 // Hexadecimal literal
                 var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'x' or 'X'
-                if (!IsHexDigit(Peek()))
-                {
-                    throw new ParseException(
-                        $"Expected hexadecimal digit after '0x' on line {_line} column {_column}.");
-                }
-
-                var digitStart = _current; // Remember where hex digits start
-                while (IsHexDigit(Peek()))
-                {
-                    Advance();
-                }
+                var hexDigits = ReadDigitsWithSeparators(IsHexDigit, "hexadecimal");
 
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
@@ -459,8 +460,6 @@ public sealed class Lexer(string source)
                     if (isEndOrNonAlphaNum)
                     {
                         Advance(); // consume 'n'
-                        var hexDigits = _source[digitStart..(_current - 1)]; // Only the hex digits, not the 'n'
-
                         var bigIntValue = BigInteger.Parse(hexDigits, NumberStyles.HexNumber,
                             CultureInfo.InvariantCulture);
                         var value = new JsBigInt(bigIntValue);
@@ -469,10 +468,7 @@ public sealed class Lexer(string source)
                     }
                 }
 
-                var hexDigits2 = _source[digitStart.._current]; // Only the hex digits, not the prefix
-                // Use BigInteger to handle values larger than long.MaxValue, then convert to double
-                // Prepend "0" to ensure the value is treated as unsigned (positive)
-                var hexBigInt = BigInteger.Parse("0" + hexDigits2, NumberStyles.HexNumber,
+                var hexBigInt = BigInteger.Parse("0" + hexDigits, NumberStyles.HexNumber,
                     CultureInfo.InvariantCulture);
                 var hexValue = (double)hexBigInt;
                 AddToken(TokenType.Number, hexValue);
@@ -484,16 +480,7 @@ public sealed class Lexer(string source)
                 // Octal literal
                 var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'o' or 'O'
-                if (!IsOctalDigit(Peek()))
-                {
-                    throw new ParseException($"Expected octal digit after '0o' on line {_line} column {_column}.");
-                }
-
-                var digitStart = _current; // Remember where octal digits start
-                while (IsOctalDigit(Peek()))
-                {
-                    Advance();
-                }
+                var octalDigits = ReadDigitsWithSeparators(IsOctalDigit, "octal");
 
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
@@ -503,7 +490,6 @@ public sealed class Lexer(string source)
                     if (isEndOrNonAlphaNum)
                     {
                         Advance(); // consume 'n'
-                        var octalDigits = _source[digitStart..(_current - 1)]; // Only the octal digits, not the 'n'
                         // Convert octal string to BigInteger by parsing each digit
                         var bigIntValue = BigInteger.Zero;
                         foreach (var c in octalDigits)
@@ -516,11 +502,8 @@ public sealed class Lexer(string source)
                         return;
                     }
                 }
-
-                var octalDigits2 = _source[digitStart.._current]; // Only the octal digits, not the prefix
-                // Use BigInteger to handle values larger than long.MaxValue, then convert to double
                 var octalBigInt = BigInteger.Zero;
-                foreach (var c in octalDigits2)
+                foreach (var c in octalDigits)
                 {
                     octalBigInt = octalBigInt * 8 + (c - '0');
                 }
@@ -535,16 +518,7 @@ public sealed class Lexer(string source)
                 // Binary literal
                 var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'b' or 'B'
-                if (!IsBinaryDigit(Peek()))
-                {
-                    throw new ParseException($"Expected binary digit after '0b' on line {_line} column {_column}.");
-                }
-
-                var digitStart = _current; // Remember where binary digits start
-                while (IsBinaryDigit(Peek()))
-                {
-                    Advance();
-                }
+                var binaryDigits = ReadDigitsWithSeparators(IsBinaryDigit, "binary");
 
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
@@ -554,7 +528,6 @@ public sealed class Lexer(string source)
                     if (isEndOrNonAlphaNum)
                     {
                         Advance(); // consume 'n'
-                        var binaryDigits = _source[digitStart..(_current - 1)]; // Only the binary digits, not the 'n'
                         // Convert binary string to BigInteger by parsing each digit
                         var bigIntValue = BigInteger.Zero;
                         foreach (var c in binaryDigits)
@@ -567,11 +540,8 @@ public sealed class Lexer(string source)
                         return;
                     }
                 }
-
-                var binaryDigits2 = _source[digitStart.._current]; // Only the binary digits, not the prefix
-                // Use BigInteger to handle values larger than long.MaxValue, then convert to double
                 var binaryBigInt = BigInteger.Zero;
-                foreach (var c in binaryDigits2)
+                foreach (var c in binaryDigits)
                 {
                     binaryBigInt = binaryBigInt * 2 + (c - '0');
                 }
@@ -583,10 +553,7 @@ public sealed class Lexer(string source)
         }
 
         // Regular decimal number
-        while (IsDigitOrUnderscore(Peek()))
-        {
-            Advance();
-        }
+        ReadDigitsWithSeparators(IsDigit, "decimal", true);
 
         // Check for decimal point (makes it a regular number, not BigInt)
         var hasDecimal = false;
@@ -594,10 +561,7 @@ public sealed class Lexer(string source)
         {
             hasDecimal = true;
             Advance();
-            while (IsDigitOrUnderscore(Peek()))
-            {
-                Advance();
-            }
+            ReadDigitsWithSeparators(IsDigit, "fractional");
         }
 
         // Check for exponential notation (e or E followed by optional +/- and digits)
@@ -621,10 +585,7 @@ public sealed class Lexer(string source)
                     throw new ParseException($"Expected digit after exponent on line {_line} column {_column}.");
                 }
 
-                while (IsDigitOrUnderscore(Peek()))
-                {
-                    Advance();
-                }
+                ReadDigitsWithSeparators(IsDigit, "exponent");
 
                 hasDecimal = true; // exponential notation makes it a regular number, not BigInt
             }
@@ -640,7 +601,7 @@ public sealed class Lexer(string source)
             if (isEndOrNonAlphaNum)
             {
                 Advance(); // consume 'n'
-                var text = _source[_start..(_current - 1)]; // exclude the 'n'
+                var text = _source[_start..(_current - 1)].Replace("_", string.Empty); // exclude the 'n'
                 var value = new JsBigInt(text);
                 AddToken(TokenType.BigInt, value);
                 return;
@@ -648,7 +609,7 @@ public sealed class Lexer(string source)
         }
 
         // Regular number
-        var text2 = _source[_start.._current];
+        var text2 = _source[_start.._current].Replace("_", string.Empty);
         var value2 = double.Parse(text2, CultureInfo.InvariantCulture);
         AddToken(TokenType.Number, value2);
     }
@@ -656,10 +617,7 @@ public sealed class Lexer(string source)
     private void ReadLeadingDotNumber()
     {
         // We have already consumed the '.' and confirmed the next char is a digit.
-        while (IsDigitOrUnderscore(Peek()))
-        {
-            Advance();
-        }
+        ReadDigitsWithSeparators(IsDigit, "fractional");
 
         // Optional exponent
         if (Peek() is 'e' or 'E')
@@ -678,14 +636,11 @@ public sealed class Lexer(string source)
                     throw new ParseException($"Expected digit after exponent on line {_line} column {_column}.");
                 }
 
-                while (IsDigitOrUnderscore(Peek()))
-                {
-                    Advance();
-                }
+                ReadDigitsWithSeparators(IsDigit, "exponent");
             }
         }
 
-        var text = _source[_start.._current];
+        var text = _source[_start.._current].Replace("_", string.Empty);
         var value = double.Parse(text, CultureInfo.InvariantCulture);
         AddToken(TokenType.Number, value);
     }
@@ -700,20 +655,18 @@ public sealed class Lexer(string source)
                 Advance(); // consume '\'
                 if (!IsAtEnd)
                 {
-                    if (Peek() == '\n')
+                    if (IsLineTerminator(Peek()))
                     {
-                        _line++;
-                        _column = 1;
+                        ConsumeLineTerminator(Peek());
+                        continue;
                     }
 
                     Advance(); // consume the escaped character
                 }
             }
-            else if (Peek() == '\n')
+            else if (IsLineTerminator(Peek()))
             {
-                _line++;
-                _column = 1;
-                Advance();
+                ConsumeLineTerminator(Peek());
             }
             else
             {
@@ -751,11 +704,9 @@ public sealed class Lexer(string source)
                     Advance(); // consume the escaped character
                 }
             }
-            else if (Peek() == '\n')
+            else if (IsLineTerminator(Peek()))
             {
-                _line++;
-                _column = 1;
-                Advance();
+                ConsumeLineTerminator(Peek());
             }
             else
             {
@@ -808,16 +759,18 @@ public sealed class Lexer(string source)
                         braceCount--;
                     }
 
-                    if (braceCount > 0)
+                    if (braceCount <= 0)
                     {
-                        if (c == '\n')
-                        {
-                            _line++;
-                            _column = 1;
-                        }
-
-                        Advance();
+                        break;
                     }
+
+                    if (IsLineTerminator(c))
+                    {
+                        ConsumeLineTerminator(c);
+                        continue;
+                    }
+
+                    Advance();
                 }
 
                 if (IsAtEnd)
@@ -834,10 +787,10 @@ public sealed class Lexer(string source)
             }
             else
             {
-                if (Peek() == '\n')
+                if (IsLineTerminator(Peek()))
                 {
-                    _line++;
-                    _column = 1;
+                    AppendAndConsumeLineTerminator(currentString);
+                    continue;
                 }
 
                 currentString.Append(Advance());
@@ -879,6 +832,48 @@ public sealed class Lexer(string source)
         return true;
     }
 
+    private static bool IsLineTerminator(char c)
+    {
+        return c is '\n' or '\r' or '\u2028' or '\u2029';
+    }
+
+    private void HandleLineTerminator(char terminator)
+    {
+        // Treat CRLF as a single line terminator
+        if (terminator == '\r' && Match('\n'))
+        {
+            // Already advanced over '\n' via Match; column will be reset below.
+        }
+
+        _line++;
+        _column = 1;
+    }
+
+    private void ConsumeLineTerminator(char terminator)
+    {
+        Advance(); // consume the terminator
+        if (terminator == '\r' && Peek() == '\n')
+        {
+            Advance(); // consume LF in CRLF
+        }
+
+        _line++;
+        _column = 1;
+    }
+
+    private void AppendAndConsumeLineTerminator(StringBuilder builder)
+    {
+        var terminator = Advance();
+        builder.Append(terminator);
+        if (terminator == '\r' && Peek() == '\n')
+        {
+            builder.Append(Advance());
+        }
+
+        _line++;
+        _column = 1;
+    }
+
     private char Peek()
     {
         return IsAtEnd ? '\0' : _source[_current];
@@ -897,6 +892,54 @@ public sealed class Lexer(string source)
     private static bool IsDigitOrUnderscore(char c)
     {
         return IsDigit(c) || c == '_';
+    }
+
+    private string ReadDigitsWithSeparators(Func<char, bool> isDigit, string context, bool hasLeadingDigit = false)
+    {
+        var builder = new StringBuilder();
+        var sawDigit = hasLeadingDigit;
+        var lastUnderscore = false;
+
+        while (!IsAtEnd)
+        {
+            var c = Peek();
+            if (isDigit(c))
+            {
+                builder.Append(c);
+                sawDigit = true;
+                lastUnderscore = false;
+                Advance();
+                continue;
+            }
+
+            if (c == '_')
+            {
+                if (!sawDigit || lastUnderscore)
+                {
+                    throw new ParseException(
+                        $"Invalid numeric separator in {context} literal at line {_line} column {_column}.");
+                }
+
+                lastUnderscore = true;
+                Advance();
+                continue;
+            }
+
+            break;
+        }
+
+        if (!sawDigit)
+        {
+            throw new ParseException($"Expected digit in {context} literal at line {_line} column {_column}.");
+        }
+
+        if (lastUnderscore)
+        {
+            throw new ParseException(
+                $"Numeric separator may not be trailing in {context} literal at line {_line} column {_column}.");
+        }
+
+        return builder.ToString();
     }
 
     private static bool IsAlpha(char c)

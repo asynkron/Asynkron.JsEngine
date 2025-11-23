@@ -133,6 +133,17 @@ public sealed class JsEngine : IAsyncDisposable
         // Register WeakSet constructor
         SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
 
+        // Annex B escape/unescape
+        var escapeFn = StandardLibrary.CreateEscapeFunction();
+        SetGlobal("escape", escapeFn);
+        GlobalObject.DefineProperty("escape",
+            new PropertyDescriptor { Value = escapeFn, Writable = true, Enumerable = false, Configurable = true });
+
+        var unescapeFn = StandardLibrary.CreateUnescapeFunction();
+        SetGlobal("unescape", unescapeFn);
+        GlobalObject.DefineProperty("unescape",
+            new PropertyDescriptor { Value = unescapeFn, Writable = true, Enumerable = false, Configurable = true });
+
         // Minimal browser-like storage object used by debug/babel-standalone.
         SetGlobal("localStorage", StandardLibrary.CreateLocalStorageObject());
 

@@ -416,6 +416,9 @@ public sealed class JsEngine : IAsyncDisposable
 
     private async Task DrainEventLoopAsync(CancellationToken cancellationToken)
     {
+        var start = DateTime.UtcNow;
+        var maxWait = TimeSpan.FromMilliseconds(1500);
+
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -429,6 +432,12 @@ public sealed class JsEngine : IAsyncDisposable
             var hasPendingTasks = Interlocked.CompareExchange(ref _pendingTaskCount, 0, 0) > 0;
             if (!hasActiveTimerTasks && !hasPendingTasks)
             {
+                break;
+            }
+
+            if (DateTime.UtcNow - start > maxWait)
+            {
+                CancelAllTimers();
                 break;
             }
 
@@ -566,6 +575,7 @@ public sealed class JsEngine : IAsyncDisposable
                 CancelAllTimers();
             }
 
+            CancelAllTimers();
             await StopEventLoopAsync().ConfigureAwait(false);
             timeoutCts?.Dispose();
         }
@@ -696,13 +706,11 @@ public sealed class JsEngine : IAsyncDisposable
     /// <param name="task">The task to schedule</param>
     public void ScheduleTask(Func<Task> task)
     {
-        if (_eventQueue is null)
-        {
-            throw new InvalidOperationException("Event loop is not running.");
-        }
+        StartEventLoop();
+        var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
 
         Interlocked.Increment(ref _pendingTaskCount);
-        _eventQueue.Writer.TryWrite(async () => { await task().ConfigureAwait(false); });
+        queue.Writer.TryWrite(async () => { await task().ConfigureAwait(false); });
     }
 
     /// <summary>

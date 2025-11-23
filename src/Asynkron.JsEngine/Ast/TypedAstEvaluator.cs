@@ -565,6 +565,12 @@ public static class TypedAstEvaluator
             {
                 foreach (var key in accessor.GetOwnPropertyNames())
                 {
+                    var desc = accessor.GetOwnPropertyDescriptor(key);
+                    if (desc is { Enumerable: false })
+                    {
+                        continue;
+                    }
+
                     yield return key;
                 }
 

@@ -4,24 +4,48 @@ using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine;
 
-public sealed class JsEnvironment(
-    JsEnvironment? enclosing = null,
-    bool isFunctionScope = false,
-    bool isStrict = false,
-    SourceReference? creatingSource = null,
-    string? description = null)
+public sealed class JsEnvironment
 {
-    private readonly SourceReference? _creatingSource = creatingSource;
-    private readonly string? _description = description;
-    private readonly JsEnvironment? _enclosing = enclosing;
-    private readonly bool _isFunctionScope = isFunctionScope;
+    private const int MaxDepth = 10_000;
+    private readonly SourceReference? _creatingSource;
+    private readonly string? _description;
+    private readonly JsEnvironment? _enclosing;
+    private readonly bool _isFunctionScope;
 
     private readonly Dictionary<Symbol, Binding> _values = new();
+
+    public JsEnvironment(
+        JsEnvironment? enclosing = null,
+        bool isFunctionScope = false,
+        bool isStrict = false,
+        SourceReference? creatingSource = null,
+        string? description = null)
+    {
+        _enclosing = enclosing;
+        _isFunctionScope = isFunctionScope;
+        _creatingSource = creatingSource;
+        _description = description;
+        IsStrictLocal = isStrict;
+
+        Depth = (_enclosing?.Depth ?? -1) + 1;
+        if (Depth > MaxDepth)
+        {
+            throw new InvalidOperationException(
+                $"Exceeded maximum environment depth of {MaxDepth}. Possible unbounded recursion detected.");
+        }
+    }
+
+    /// <summary>
+    ///     Depth of the environment chain (0 for the root/global).
+    /// </summary>
+    public int Depth { get; }
+
+    private bool IsStrictLocal { get; }
 
     /// <summary>
     ///     Returns true if this environment or any enclosing environment is in strict mode.
     /// </summary>
-    public bool IsStrict => isStrict || (_enclosing?.IsStrict ?? false);
+    public bool IsStrict => IsStrictLocal || (_enclosing?.IsStrict ?? false);
 
     public void Define(Symbol name, object? value, bool isConst = false, bool isGlobalConstant = false)
     {

@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
@@ -9,289 +12,360 @@ public static partial class StandardLibrary
     {
         var reflect = new JsObject();
 
-        reflect.SetProperty("apply", new HostFunction(args =>
-        {
-            if (args.Count < 2 || args[0] is not IJsCallable callable)
-            {
-                throw new Exception("Reflect.apply: target must be callable.");
-            }
-
-            var thisArg = args[1];
-            var argList = args.Count > 2 && args[2] is JsArray arr
-                ? arr.Items.ToArray()
-                : [];
-
-            return callable.Invoke(argList, thisArg);
-        }));
-
-        reflect.SetProperty("construct", new HostFunction(args =>
-        {
-            if (args.Count < 2 || args[0] is not IJsCallable target)
-            {
-                throw new Exception("Reflect.construct: target must be a constructor.");
-            }
-
-            var argList = args[1] is JsArray arr ? arr.Items.ToArray() : [];
-            var newTarget = args.Count > 2 && args[2] is IJsCallable ctor ? ctor : target;
-
-            if (target is HostFunction hostTarget &&
-                (!hostTarget.IsConstructor || hostTarget.DisallowConstruct))
-            {
-                var message = hostTarget.ConstructErrorMessage ?? "Target is not a constructor";
-                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([message], null)
-                    : new InvalidOperationException(message);
-                throw new ThrowSignal(error);
-            }
-
-            if (newTarget is HostFunction { IsConstructor: false } hostNewTarget)
-            {
-                var message = hostNewTarget.ConstructErrorMessage ?? "newTarget is not a constructor";
-                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor2
-                    ? typeErrorCtor2.Invoke([message], null)
-                    : new InvalidOperationException(message);
-                throw new ThrowSignal(error);
-            }
-
-            var proto = ResolveConstructPrototype(newTarget, target, realm);
-
-            // If we are constructing Array (or a subclass), create a real JsArray
-            // so length/index semantics behave correctly, then invoke the
-            // constructor with that receiver.
-            if ((realm.ArrayConstructor is not null && ReferenceEquals(target, realm.ArrayConstructor)) ||
-                (realm.ArrayConstructor is not null && ReferenceEquals(newTarget, realm.ArrayConstructor)))
-            {
-                var arrayInstance = new JsArray(realm);
-                if (proto is not null)
-                {
-                    arrayInstance.SetPrototype(proto);
-                }
-
-                var result = target.Invoke(argList, arrayInstance);
-                return result is JsObject jsObj ? jsObj : arrayInstance;
-            }
-
-            var instance = new JsObject();
-            if (proto is not null)
-            {
-                instance.SetPrototype(proto);
-            }
-
-            var constructed = target.Invoke(argList, instance);
-            return constructed is JsObject obj ? obj : instance;
-        }));
-
-        reflect.SetProperty("defineProperty", new HostFunction(args =>
-        {
-            if (args.Count < 3 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                throw new Exception("Reflect.defineProperty: target must be an object.");
-            }
-
-            var propertyKey = args[1]?.ToString() ?? string.Empty;
-            if (args[2] is not JsObject descriptorObj)
-            {
-                throw new Exception("Reflect.defineProperty: descriptor must be an object.");
-            }
-
-            var descriptor = new PropertyDescriptor();
-            if (descriptorObj.TryGetProperty("value", out var value))
-            {
-                descriptor.Value = value;
-            }
-
-            if (descriptorObj.TryGetProperty("writable", out var writable))
-            {
-                descriptor.Writable = writable is bool b ? b : ToBoolean(writable);
-            }
-
-            if (descriptorObj.TryGetProperty("enumerable", out var enumerable))
-            {
-                descriptor.Enumerable = enumerable is bool b ? b : ToBoolean(enumerable);
-            }
-
-            if (descriptorObj.TryGetProperty("configurable", out var configurable))
-            {
-                descriptor.Configurable = configurable is bool b ? b : ToBoolean(configurable);
-            }
-
-            if (descriptorObj.TryGetProperty("get", out var getter) && getter is IJsCallable getterFn)
-            {
-                descriptor.Get = getterFn;
-            }
-
-            if (descriptorObj.TryGetProperty("set", out var setter) && setter is IJsCallable setterFn)
-            {
-                descriptor.Set = setterFn;
-            }
-
-            if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
-            {
-                return jsArray.DefineLength(descriptor, null, false);
-            }
-
-            try
-            {
-                target.DefineProperty(propertyKey, descriptor);
-                return true;
-            }
-            catch (ThrowSignal)
-            {
-                return false;
-            }
-        }));
-
-        reflect.SetProperty("deleteProperty", new HostFunction(args =>
-        {
-            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                throw new Exception("Reflect.deleteProperty: target must be an object.");
-            }
-
-            var propertyKey = args[1]?.ToString() ?? string.Empty;
-            return target is JsObject jsObj && jsObj.Remove(propertyKey);
-        }));
-
-        reflect.SetProperty("get", new HostFunction(args =>
-        {
-            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                throw new Exception("Reflect.get: target must be an object.");
-            }
-
-            var propertyKey = args[1]?.ToString() ?? string.Empty;
-            return target.TryGetProperty(propertyKey, out var value) ? value : null;
-        }));
-
-        reflect.SetProperty("getOwnPropertyDescriptor", new HostFunction(args =>
-        {
-            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                throw new Exception("Reflect.getOwnPropertyDescriptor: target must be an object.");
-            }
-
-            var propertyKey = args[1]?.ToString() ?? string.Empty;
-            var descriptor = target.GetOwnPropertyDescriptor(propertyKey);
-            if (descriptor is null)
-            {
-                return null;
-            }
-
-            var descObj = new JsObject
-            {
-                ["value"] = descriptor.Value,
-                ["writable"] = descriptor.Writable,
-                ["enumerable"] = descriptor.Enumerable,
-                ["configurable"] = descriptor.Configurable
-            };
-
-            if (descriptor.Get is not null)
-            {
-                descObj["get"] = descriptor.Get;
-            }
-
-            if (descriptor.Set is not null)
-            {
-                descObj["set"] = descriptor.Set;
-            }
-
-            return descObj;
-        }));
-
-        reflect.SetProperty("getPrototypeOf", new HostFunction(args =>
-        {
-            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                throw new Exception("Reflect.getPrototypeOf: target must be an object.");
-            }
-
-            return target.Prototype;
-        }));
-
-        reflect.SetProperty("has", new HostFunction(args =>
-        {
-            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                throw new Exception("Reflect.has: target must be an object.");
-            }
-
-            var propertyKey = args[1]?.ToString() ?? string.Empty;
-            return target.TryGetProperty(propertyKey, out _);
-        }));
-
-        reflect.SetProperty("isExtensible", new HostFunction(args =>
-        {
-            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                throw new Exception("Reflect.isExtensible: target must be an object.");
-            }
-
-            return !target.IsSealed;
-        }));
-
-        reflect.SetProperty("ownKeys", new HostFunction(args =>
-        {
-            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                throw new Exception("Reflect.ownKeys: target must be an object.");
-            }
-
-            var keys = target.Keys
-                .Where(k => !k.StartsWith("__getter__", StringComparison.Ordinal) &&
-                            !k.StartsWith("__setter__", StringComparison.Ordinal))
-                .ToArray();
-            return new JsArray(keys);
-        }));
-
-        reflect.SetProperty("preventExtensions", new HostFunction(args =>
-        {
-            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                throw new Exception("Reflect.preventExtensions: target must be an object.");
-            }
-
-            target.Seal();
-            return true;
-        }));
-
-        reflect.SetProperty("set", new HostFunction(args =>
-        {
-            if (args.Count < 3 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                throw new Exception("Reflect.set: target must be an object.");
-            }
-
-            var propertyKey = args[1]?.ToString() ?? string.Empty;
-            var value = args[2];
-            if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
-            {
-                return jsArray.SetLength(value, null, false);
-            }
-
-            try
-            {
-                target.SetProperty(propertyKey, value);
-                return true;
-            }
-            catch (ThrowSignal)
-            {
-                return false;
-            }
-        }));
-
-        reflect.SetProperty("setPrototypeOf", new HostFunction(args =>
-        {
-            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                throw new Exception("Reflect.setPrototypeOf: target must be an object.");
-            }
-
-            var proto = args[1];
-            target.SetPrototype(proto);
-            return true;
-        }));
+        reflect.SetHostedProperty("apply", ReflectApply, realm);
+        reflect.SetHostedProperty("construct", ReflectConstruct, realm);
+        reflect.SetHostedProperty("defineProperty", ReflectDefineProperty, realm);
+        reflect.SetHostedProperty("deleteProperty", ReflectDeleteProperty, realm);
+        reflect.SetHostedProperty("get", ReflectGet, realm);
+        reflect.SetHostedProperty("getOwnPropertyDescriptor", ReflectGetOwnPropertyDescriptor, realm);
+        reflect.SetHostedProperty("getPrototypeOf", ReflectGetPrototypeOf, realm);
+        reflect.SetHostedProperty("has", ReflectHas, realm);
+        reflect.SetHostedProperty("isExtensible", ReflectIsExtensible, realm);
+        reflect.SetHostedProperty("ownKeys", ReflectOwnKeys, realm);
+        reflect.SetHostedProperty("preventExtensions", ReflectPreventExtensions, realm);
+        reflect.SetHostedProperty("set", ReflectSet, realm);
+        reflect.SetHostedProperty("setPrototypeOf", ReflectSetPrototypeOf, realm);
 
         return reflect;
+    }
+
+    private static object? ReflectApply(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (args.Count < 2 || args[0] is not IJsCallable callable)
+        {
+            throw new Exception("Reflect.apply: target must be callable.");
+        }
+
+        var thisArg = args[1];
+        var argList = args.Count > 2 && args[2] is JsArray arr
+            ? arr.Items.ToArray()
+            : Array.Empty<object?>();
+
+        return callable.Invoke(argList, thisArg);
+    }
+
+    private static object? ReflectConstruct(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.construct.");
+        }
+
+        if (args.Count < 2 || args[0] is not IJsCallable target)
+        {
+            throw new Exception("Reflect.construct: target must be a constructor.");
+        }
+
+        var argList = args[1] is JsArray arr ? arr.Items.ToArray() : Array.Empty<object?>();
+        var newTarget = args.Count > 2 && args[2] is IJsCallable ctor ? ctor : target;
+
+        if (target is HostFunction hostTarget &&
+            (!hostTarget.IsConstructor || hostTarget.DisallowConstruct))
+        {
+            var message = hostTarget.ConstructErrorMessage ?? "Target is not a constructor";
+            var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                ? typeErrorCtor.Invoke([message], null)
+                : new InvalidOperationException(message);
+            throw new ThrowSignal(error);
+        }
+
+        if (newTarget is HostFunction { IsConstructor: false } hostNewTarget)
+        {
+            var message = hostNewTarget.ConstructErrorMessage ?? "newTarget is not a constructor";
+            var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor2
+                ? typeErrorCtor2.Invoke([message], null)
+                : new InvalidOperationException(message);
+            throw new ThrowSignal(error);
+        }
+
+        var proto = ResolveConstructPrototype(newTarget, target, realm);
+
+        if ((realm.ArrayConstructor is not null && ReferenceEquals(target, realm.ArrayConstructor)) ||
+            (realm.ArrayConstructor is not null && ReferenceEquals(newTarget, realm.ArrayConstructor)))
+        {
+            var arrayInstance = new JsArray(realm);
+            if (proto is not null)
+            {
+                arrayInstance.SetPrototype(proto);
+            }
+
+            var result = target.Invoke(argList, arrayInstance);
+            return result is JsObject jsObj ? jsObj : arrayInstance;
+        }
+
+        var instance = new JsObject();
+        if (proto is not null)
+        {
+            instance.SetPrototype(proto);
+        }
+
+        var constructed = target.Invoke(argList, instance);
+        return constructed is JsObject obj ? obj : instance;
+    }
+
+    private static object? ReflectDefineProperty(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.defineProperty.");
+        }
+
+        if (args.Count < 3 || !TryGetObject(args[0]!, realm, out var target))
+        {
+            throw new Exception("Reflect.defineProperty: target must be an object.");
+        }
+
+        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        if (args[2] is not JsObject descriptorObj)
+        {
+            throw new Exception("Reflect.defineProperty: descriptor must be an object.");
+        }
+
+        var descriptor = new PropertyDescriptor();
+        if (descriptorObj.TryGetProperty("value", out var value))
+        {
+            descriptor.Value = value;
+        }
+
+        if (descriptorObj.TryGetProperty("writable", out var writable))
+        {
+            descriptor.Writable = writable is bool b ? b : ToBoolean(writable);
+        }
+
+        if (descriptorObj.TryGetProperty("enumerable", out var enumerable))
+        {
+            descriptor.Enumerable = enumerable is bool b ? b : ToBoolean(enumerable);
+        }
+
+        if (descriptorObj.TryGetProperty("configurable", out var configurable))
+        {
+            descriptor.Configurable = configurable is bool b ? b : ToBoolean(configurable);
+        }
+
+        if (descriptorObj.TryGetProperty("get", out var getter) && getter is IJsCallable getterFn)
+        {
+            descriptor.Get = getterFn;
+        }
+
+        if (descriptorObj.TryGetProperty("set", out var setter) && setter is IJsCallable setterFn)
+        {
+            descriptor.Set = setterFn;
+        }
+
+        if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
+        {
+            return jsArray.DefineLength(descriptor, null, false);
+        }
+
+        try
+        {
+            target.DefineProperty(propertyKey, descriptor);
+            return true;
+        }
+        catch (ThrowSignal)
+        {
+            return false;
+        }
+    }
+
+    private static object? ReflectDeleteProperty(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.deleteProperty.");
+        }
+
+        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
+        {
+            throw new Exception("Reflect.deleteProperty: target must be an object.");
+        }
+
+        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        return target is JsObject jsObj && jsObj.Remove(propertyKey);
+    }
+
+    private static object? ReflectGet(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.get.");
+        }
+
+        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
+        {
+            throw new Exception("Reflect.get: target must be an object.");
+        }
+
+        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        return target.TryGetProperty(propertyKey, out var value) ? value : null;
+    }
+
+    private static object? ReflectGetOwnPropertyDescriptor(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.getOwnPropertyDescriptor.");
+        }
+
+        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
+        {
+            throw new Exception("Reflect.getOwnPropertyDescriptor: target must be an object.");
+        }
+
+        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        var descriptor = target.GetOwnPropertyDescriptor(propertyKey);
+        if (descriptor is null)
+        {
+            return null;
+        }
+
+        var descObj = new JsObject
+        {
+            ["value"] = descriptor.Value,
+            ["writable"] = descriptor.Writable,
+            ["enumerable"] = descriptor.Enumerable,
+            ["configurable"] = descriptor.Configurable
+        };
+
+        if (descriptor.Get is not null)
+        {
+            descObj["get"] = descriptor.Get;
+        }
+
+        if (descriptor.Set is not null)
+        {
+            descObj["set"] = descriptor.Set;
+        }
+
+        return descObj;
+    }
+
+    private static object? ReflectGetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.getPrototypeOf.");
+        }
+
+        if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
+        {
+            throw new Exception("Reflect.getPrototypeOf: target must be an object.");
+        }
+
+        return target.Prototype;
+    }
+
+    private static object? ReflectHas(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.has.");
+        }
+
+        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
+        {
+            throw new Exception("Reflect.has: target must be an object.");
+        }
+
+        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        return target.TryGetProperty(propertyKey, out _);
+    }
+
+    private static object? ReflectIsExtensible(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.isExtensible.");
+        }
+
+        if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
+        {
+            throw new Exception("Reflect.isExtensible: target must be an object.");
+        }
+
+        return !target.IsSealed;
+    }
+
+    private static object? ReflectOwnKeys(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.ownKeys.");
+        }
+
+        if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
+        {
+            throw new Exception("Reflect.ownKeys: target must be an object.");
+        }
+
+        var keys = target.Keys
+            .Where(k => !k.StartsWith("__getter__", StringComparison.Ordinal) &&
+                        !k.StartsWith("__setter__", StringComparison.Ordinal))
+            .ToArray();
+        return new JsArray(keys);
+    }
+
+    private static object? ReflectPreventExtensions(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.preventExtensions.");
+        }
+
+        if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
+        {
+            throw new Exception("Reflect.preventExtensions: target must be an object.");
+        }
+
+        target.Seal();
+        return true;
+    }
+
+    private static object? ReflectSet(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.set.");
+        }
+
+        if (args.Count < 3 || !TryGetObject(args[0]!, realm, out var target))
+        {
+            throw new Exception("Reflect.set: target must be an object.");
+        }
+
+        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        var value = args[2];
+        if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
+        {
+            return jsArray.SetLength(value, null, false);
+        }
+
+        try
+        {
+            target.SetProperty(propertyKey, value);
+            return true;
+        }
+        catch (ThrowSignal)
+        {
+            return false;
+        }
+    }
+
+    private static object? ReflectSetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Reflect.setPrototypeOf.");
+        }
+
+        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
+        {
+            throw new Exception("Reflect.setPrototypeOf: target must be an object.");
+        }
+
+        var proto = args[1];
+        target.SetPrototype(proto);
+        return true;
     }
 
     private static JsObject? ResolveConstructPrototype(IJsCallable newTarget, IJsCallable target,

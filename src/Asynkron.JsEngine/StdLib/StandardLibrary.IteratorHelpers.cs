@@ -16,6 +16,50 @@ public static partial class StandardLibrary
 
             var iterable = args[0];
 
+            if (iterable is JsObject jsObject)
+            {
+                if (HasCallableNext(jsObject))
+                {
+                    engine.WriteAsyncIteratorTrace("getAsyncIterator: branch=next-property");
+                    return jsObject;
+                }
+
+                if (TryInvokeSymbolIterator(jsObject, "Symbol.asyncIterator", out var asyncIterator))
+                {
+                    engine.WriteAsyncIteratorTrace(
+                        $"getAsyncIterator: branch=symbol-asyncIterator hasCallableNext={HasCallableNext(asyncIterator)}");
+                    return asyncIterator;
+                }
+
+                if (TryInvokeSymbolIterator(jsObject, "Symbol.iterator", out var iterator))
+                {
+                    engine.WriteAsyncIteratorTrace(
+                        $"getAsyncIterator: branch=symbol-iterator hasCallableNext={HasCallableNext(iterator)}");
+                    return iterator;
+                }
+
+                throw new InvalidOperationException(
+                    "Object is not iterable (no Symbol.asyncIterator or Symbol.iterator method)");
+            }
+
+            if (iterable is JsArray jsArray)
+            {
+                var iteratorObj = CreateArrayIterator(jsArray);
+                engine.WriteAsyncIteratorTrace(
+                    $"getAsyncIterator: branch=array length={jsArray.Length}");
+                return iteratorObj;
+            }
+
+            if (iterable is string str)
+            {
+                var iteratorObj = CreateStringIterator(str);
+                engine.WriteAsyncIteratorTrace(
+                    $"getAsyncIterator: branch=string hasCallableNext={HasCallableNext(iteratorObj)} length={str.Length}");
+                return iteratorObj;
+            }
+
+            throw new InvalidOperationException($"Value is not iterable: {iterable?.GetType().Name}");
+
             static bool TryInvokeSymbolIterator(JsObject target, string symbolName, out JsObject? iterator)
             {
                 var symbol = TypedAstSymbol.For(symbolName);
@@ -79,50 +123,6 @@ public static partial class StandardLibrary
 
                 return iteratorObj;
             }
-
-            if (iterable is JsObject jsObject)
-            {
-                if (HasCallableNext(jsObject))
-                {
-                    engine.WriteAsyncIteratorTrace("getAsyncIterator: branch=next-property");
-                    return jsObject;
-                }
-
-                if (TryInvokeSymbolIterator(jsObject, "Symbol.asyncIterator", out var asyncIterator))
-                {
-                    engine.WriteAsyncIteratorTrace(
-                        $"getAsyncIterator: branch=symbol-asyncIterator hasCallableNext={HasCallableNext(asyncIterator)}");
-                    return asyncIterator;
-                }
-
-                if (TryInvokeSymbolIterator(jsObject, "Symbol.iterator", out var iterator))
-                {
-                    engine.WriteAsyncIteratorTrace(
-                        $"getAsyncIterator: branch=symbol-iterator hasCallableNext={HasCallableNext(iterator)}");
-                    return iterator;
-                }
-
-                throw new InvalidOperationException(
-                    "Object is not iterable (no Symbol.asyncIterator or Symbol.iterator method)");
-            }
-
-            if (iterable is JsArray jsArray)
-            {
-                var iteratorObj = CreateArrayIterator(jsArray);
-                engine.WriteAsyncIteratorTrace(
-                    $"getAsyncIterator: branch=array length={jsArray.Length}");
-                return iteratorObj;
-            }
-
-            if (iterable is string str)
-            {
-                var iteratorObj = CreateStringIterator(str);
-                engine.WriteAsyncIteratorTrace(
-                    $"getAsyncIterator: branch=string hasCallableNext={HasCallableNext(iteratorObj)} length={str.Length}");
-                return iteratorObj;
-            }
-
-            throw new InvalidOperationException($"Value is not iterable: {iterable?.GetType().Name}");
 
             static bool HasCallableNext(object? candidate)
             {

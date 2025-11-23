@@ -21,40 +21,40 @@ public static partial class StandardLibrary
         }
 
         // push - already implemented natively
-        array.SetHostProperty("push", ArrayPush);
+        array.SetHostedProperty("push", ArrayPush);
 
-        array.SetHostProperty("pop", ArrayPop);
-        array.SetHostProperty("map", ArrayMap, realm);
-        array.SetHostProperty("filter", ArrayFilter, realm);
-        array.SetHostProperty("reduce", ArrayReduce);
-        array.SetHostProperty("forEach", ArrayForEach);
-        array.SetHostProperty("find", ArrayFind);
-        array.SetHostProperty("findIndex", ArrayFindIndex);
-        array.SetHostProperty("some", ArraySome);
-        array.SetHostProperty("every", ArrayEvery);
-        array.SetHostProperty("join", ArrayJoin);
-        array.SetHostProperty("toString", (thisValue, _) => ArrayToString(thisValue, array));
-        array.SetHostProperty("includes", ArrayIncludes, realm);
-        array.SetHostProperty("indexOf", ArrayIndexOf, realm);
-        array.SetHostProperty("toLocaleString", ArrayToLocaleString, realm);
-        array.SetHostProperty("slice", ArraySlice, realm);
-        array.SetHostProperty("shift", ArrayShift);
-        array.SetHostProperty("unshift", ArrayUnshift);
-        array.SetHostProperty("splice", ArraySplice, realm);
-        array.SetHostProperty("concat", ArrayConcat, realm);
-        array.SetHostProperty("reverse", ArrayReverse);
-        array.SetHostProperty("sort", ArraySort);
-        array.SetHostProperty("at", ArrayAt);
-        array.SetHostProperty("flat", ArrayFlat, realm);
-        array.SetHostProperty("flatMap", ArrayFlatMap, realm);
-        array.SetHostProperty("findLast", ArrayFindLast);
-        array.SetHostProperty("findLastIndex", ArrayFindLastIndex);
-        array.SetHostProperty("fill", ArrayFill);
-        array.SetHostProperty("copyWithin", ArrayCopyWithin);
-        array.SetHostProperty("toSorted", ArrayToSorted, realm);
-        array.SetHostProperty("toReversed", ArrayToReversed, realm);
-        array.SetHostProperty("toSpliced", ArrayToSpliced, realm);
-        array.SetHostProperty("with", ArrayWith, realm);
+        array.SetHostedProperty("pop", ArrayPop);
+        array.SetHostedProperty("map", ArrayMap, realm);
+        array.SetHostedProperty("filter", ArrayFilter, realm);
+        array.SetHostedProperty("reduce", ArrayReduce);
+        array.SetHostedProperty("forEach", ArrayForEach);
+        array.SetHostedProperty("find", ArrayFind);
+        array.SetHostedProperty("findIndex", ArrayFindIndex);
+        array.SetHostedProperty("some", ArraySome);
+        array.SetHostedProperty("every", ArrayEvery);
+        array.SetHostedProperty("join", ArrayJoin);
+        array.SetHostedProperty("toString", (thisValue, _) => ArrayToString(thisValue, array));
+        array.SetHostedProperty("includes", ArrayIncludes, realm);
+        array.SetHostedProperty("indexOf", ArrayIndexOf, realm);
+        array.SetHostedProperty("toLocaleString", ArrayToLocaleString, realm);
+        array.SetHostedProperty("slice", ArraySlice, realm);
+        array.SetHostedProperty("shift", ArrayShift);
+        array.SetHostedProperty("unshift", ArrayUnshift);
+        array.SetHostedProperty("splice", ArraySplice, realm);
+        array.SetHostedProperty("concat", ArrayConcat, realm);
+        array.SetHostedProperty("reverse", ArrayReverse);
+        array.SetHostedProperty("sort", ArraySort);
+        array.SetHostedProperty("at", ArrayAt);
+        array.SetHostedProperty("flat", ArrayFlat, realm);
+        array.SetHostedProperty("flatMap", ArrayFlatMap, realm);
+        array.SetHostedProperty("findLast", ArrayFindLast);
+        array.SetHostedProperty("findLastIndex", ArrayFindLastIndex);
+        array.SetHostedProperty("fill", ArrayFill);
+        array.SetHostedProperty("copyWithin", ArrayCopyWithin);
+        array.SetHostedProperty("toSorted", ArrayToSorted, realm);
+        array.SetHostedProperty("toReversed", ArrayToReversed, realm);
+        array.SetHostedProperty("toSpliced", ArrayToSpliced, realm);
+        array.SetHostedProperty("with", ArrayWith, realm);
 
         // entries() - returns an iterator of [index, value] pairs
         DefineArrayIteratorFunction("entries", (accessor, _) => idx =>

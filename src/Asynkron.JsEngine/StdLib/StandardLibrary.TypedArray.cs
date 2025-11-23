@@ -8,7 +8,13 @@ public static partial class StandardLibrary
 {
     public static HostFunction CreateArrayBufferConstructor(RealmState realm)
     {
-        var constructor = new HostFunction((_, args) =>
+        var constructor = new HostFunction(ArrayBufferCtor, realm);
+
+        constructor.SetHostedProperty("isView", ArrayBufferIsView);
+
+        return constructor;
+
+        object? ArrayBufferCtor(object? _, IReadOnlyList<object?> args)
         {
             var length = args.Count > 0 ? args[0] : 0d;
             var byteLength = length switch
@@ -19,30 +25,18 @@ public static partial class StandardLibrary
             };
 
             int? maxByteLength = null;
-            if (args.Count > 1 && args[1] is JsObject opts)
+            if (args.Count <= 1 || args[1] is not JsObject opts)
             {
-                if (opts.TryGetProperty("maxByteLength", out var maxVal) && maxVal is double maxD)
-                {
-                    maxByteLength = (int)maxD;
-                }
+                return new JsArrayBuffer(byteLength, maxByteLength, realm);
+            }
+
+            if (opts.TryGetProperty("maxByteLength", out var maxVal) && maxVal is double maxD)
+            {
+                maxByteLength = (int)maxD;
             }
 
             return new JsArrayBuffer(byteLength, maxByteLength, realm);
-        });
-
-        constructor.RealmState = realm;
-
-        constructor.SetProperty("isView", new HostFunction(args =>
-        {
-            if (args.Count == 0)
-            {
-                return false;
-            }
-
-            return args[0] is TypedArrayBase || args[0] is JsDataView;
-        }));
-
-        return constructor;
+        }
     }
 
     /// <summary>
@@ -50,7 +44,11 @@ public static partial class StandardLibrary
     /// </summary>
     public static HostFunction CreateDataViewConstructor(RealmState realm)
     {
-        var constructor = new HostFunction((_, args) =>
+        var constructor = new HostFunction(DataViewCtor);
+        constructor.RealmState = realm;
+        return constructor;
+
+        object? DataViewCtor(object? _, IReadOnlyList<object?> args)
         {
             if (args.Count == 0 || args[0] is not JsArrayBuffer buffer)
             {
@@ -61,9 +59,7 @@ public static partial class StandardLibrary
             int? byteLength = args.Count > 2 && args[2] is double d2 ? (int)d2 : null;
 
             return new JsDataView(buffer, byteOffset, byteLength);
-        });
-        constructor.RealmState = realm;
-        return constructor;
+        }
     }
 
     /// <summary>
@@ -77,7 +73,33 @@ public static partial class StandardLibrary
         RealmState realm) where T : TypedArrayBase
     {
         var prototype = new JsObject();
-        var constructor = new HostFunction((_, args) =>
+
+        var constructor = new HostFunction(TypedArrayCtor);
+        constructor.RealmState = realm;
+
+        constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
+        prototype.SetPrototype(realm.ObjectPrototype);
+        prototype.SetProperty("constructor", constructor);
+        constructor.DefineProperty("of", new PropertyDescriptor
+        {
+            Value = new HostFunction(TypedArrayOf) { IsConstructor = false },
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+        constructor.DefineProperty("from", new PropertyDescriptor
+        {
+            Value = new HostFunction(TypedArrayFrom) { IsConstructor = false },
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
+        prototype.SetHostedProperty("indexOf", TypedArrayIndexOf);
+        constructor.SetProperty("prototype", prototype);
+
+        return constructor;
+
+        object? TypedArrayCtor(object? _, IReadOnlyList<object?> args)
         {
             if (args.Count == 0)
             {
@@ -129,107 +151,56 @@ public static partial class StandardLibrary
             var fallback = fromLength(0, realm);
             fallback.SetPrototype(prototype);
             return fallback;
-        });
-        constructor.RealmState = realm;
+        }
 
-        constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
-        prototype.SetPrototype(realm.ObjectPrototype);
-        prototype.SetProperty("constructor", constructor);
-        constructor.DefineProperty("of", new PropertyDescriptor
+        object? TypedArrayOf(object? thisValue, IReadOnlyList<object?> args)
         {
-            Value = new HostFunction((thisValue, args) =>
+            if (thisValue is not HostFunction ctor)
             {
-                if (thisValue is not HostFunction ctor)
-                {
-                    throw ThrowTypeError("%TypedArray%.of called on incompatible receiver");
-                }
+                throw ThrowTypeError("%TypedArray%.of called on incompatible receiver");
+            }
 
-                var length = args.Count;
-                // Invoke the constructor with the desired length.
-                var taObj = ctor.Invoke([(double)length], ctor);
-                if (taObj is not TypedArrayBase typed)
-                {
-                    throw ThrowTypeError("%TypedArray%.of constructor did not return a typed array");
-                }
+            var length = args.Count;
+            var taObj = ctor.Invoke([(double)length], ctor);
+            if (taObj is not TypedArrayBase typed)
+            {
+                throw ThrowTypeError("%TypedArray%.of constructor did not return a typed array");
+            }
 
-                for (var i = 0; i < length; i++)
-                {
-                    typed.SetValue(i, args[i]);
-                }
+            for (var i = 0; i < length; i++)
+            {
+                typed.SetValue(i, args[i]);
+            }
 
-                return typed;
-            }) { IsConstructor = false },
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
-        constructor.DefineProperty("from", new PropertyDescriptor
+            return typed;
+        }
+
+        object? TypedArrayFrom(object? thisValue, IReadOnlyList<object?> args)
         {
-            Value = new HostFunction((thisValue, args) =>
+            var callingEnv = (thisValue as HostFunction)?.CallingJsEnvironment;
+            IJsCallable? mapFn = null;
+            object? mapThis = Symbols.Undefined;
+
+            if (args.Count == 0)
             {
-                IJsCallable? ResolveTypeErrorCtor(JsEnvironment? env)
-                {
-                    if (env is not null &&
-                        env.TryGet(Symbol.Intern("TypeError"), out var typeErrorVal) &&
-                        typeErrorVal is IJsCallable typeErrorFromEnv)
-                    {
-                        return typeErrorFromEnv;
-                    }
+                return CreateTarget(0);
+            }
 
-                    return realm.TypeErrorConstructor;
+            if (args.Count > 1 && !ReferenceEquals(args[1], Symbols.Undefined))
+            {
+                if (args[1] is not IJsCallable callableMap)
+                {
+                    throw new ThrowSignal(WrapTypeError("mapfn is not callable", callingEnv));
                 }
 
-                object WrapTypeError(string message, JsEnvironment? env)
-                {
-                    var typeErrorCtor = ResolveTypeErrorCtor(env);
-                    if (typeErrorCtor is not null)
-                    {
-                        var errorValue = typeErrorCtor.Invoke([message], null);
-                        if (errorValue is JsObject errorObj)
-                        {
-                            errorObj.SetProperty("constructor", typeErrorCtor);
-                        }
+                mapFn = callableMap;
+                mapThis = args.Count > 2 ? args[2] : Symbols.Undefined;
+            }
 
-                        return errorValue ?? new InvalidOperationException(message);
-                    }
-
-                    return new InvalidOperationException(message);
-                }
-
-                var callingEnv = (thisValue as HostFunction)?.CallingJsEnvironment;
-                IJsCallable? mapFn = null;
-                object? mapThis = Symbols.Undefined;
-
-                TypedArrayBase CreateTarget(int length)
-                {
-                    var target = fromLength(length, realm);
-                    target.SetPrototype(prototype);
-                    return target;
-                }
-
-                object? ApplyMap(int index, object? value)
-                {
-                    return mapFn is null ? value : mapFn.Invoke([value, (double)index], mapThis);
-                }
-
-                if (args.Count == 0)
-                {
-                    return CreateTarget(0);
-                }
-
-                if (args.Count > 1 && !ReferenceEquals(args[1], Symbols.Undefined))
-                {
-                    if (args[1] is not IJsCallable callableMap)
-                    {
-                        throw new ThrowSignal(WrapTypeError("mapfn is not callable", callingEnv));
-                    }
-
-                    mapFn = callableMap;
-                    mapThis = args.Count > 2 ? args[2] : Symbols.Undefined;
-                }
-
-                var source = args[0];
-                if (source is JsArray jsArray)
+            var source = args[0];
+            switch (source)
+            {
+                case JsArray jsArray:
                 {
                     var target = CreateTarget(jsArray.Items.Count);
                     for (var i = 0; i < jsArray.Items.Count; i++)
@@ -239,8 +210,7 @@ public static partial class StandardLibrary
 
                     return target;
                 }
-
-                if (source is TypedArrayBase typedSource)
+                case TypedArrayBase typedSource:
                 {
                     var target = CreateTarget(typedSource.Length);
                     for (var i = 0; i < typedSource.Length; i++)
@@ -256,95 +226,122 @@ public static partial class StandardLibrary
 
                     return target;
                 }
-
-                var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-                var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-                if (source is IJsPropertyAccessor accessor &&
-                    accessor.TryGetProperty(iteratorKey, out var methodVal) &&
-                    !ReferenceEquals(methodVal, Symbols.Undefined))
-                {
-                    if (methodVal is not IJsCallable callableIterator)
-                    {
-                        throw new ThrowSignal(WrapTypeError("Iterator method is not callable", callingEnv));
-                    }
-
-                    var iteratorObj = callableIterator.Invoke([], source);
-                    if (iteratorObj is not IJsPropertyAccessor iteratorAccessor)
-                    {
-                        throw new ThrowSignal(WrapTypeError("Iterator method did not return an object", callingEnv));
-                    }
-
-                    if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
-                        nextVal is not IJsCallable nextCallable)
-                    {
-                        throw new ThrowSignal(WrapTypeError("Iterator result does not expose next", callingEnv));
-                    }
-
-                    var collected = new List<object?>();
-                    while (true)
-                    {
-                        var nextResult = nextCallable.Invoke([], iteratorObj);
-                        if (nextResult is not IJsPropertyAccessor nextResultAccessor)
-                        {
-                            throw new ThrowSignal(WrapTypeError("Iterator result is not an object", callingEnv));
-                        }
-
-                        var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&
-                                   JsOps.ToBoolean(doneVal);
-                        if (done)
-                        {
-                            var target = CreateTarget(collected.Count);
-                            for (var i = 0; i < collected.Count; i++)
-                            {
-                                target.SetValue(i, ApplyMap(i, collected[i]));
-                            }
-
-                            return target;
-                        }
-
-                        var value = nextResultAccessor.TryGetProperty("value", out var valueVal)
-                            ? valueVal
-                            : Symbols.Undefined;
-                        collected.Add(value);
-                    }
-                }
-
-                if (source is IJsPropertyAccessor arrayLike &&
-                    arrayLike.TryGetProperty("length", out var lengthVal))
-                {
-                    var lenNumber = JsOps.ToNumberWithContext(lengthVal);
-                    var length = double.IsNaN(lenNumber) || lenNumber < 0
-                        ? 0
-                        : (int)Math.Min(lenNumber, int.MaxValue);
-                    var target = CreateTarget(length);
-                    for (var i = 0; i < length; i++)
-                    {
-                        var key = i.ToString();
-                        var hasElement = arrayLike.TryGetProperty(key, out var element);
-                        target.SetValue(i, ApplyMap(i, hasElement ? element : Symbols.Undefined));
-                    }
-
-                    return target;
-                }
-
-                return CreateTarget(0);
-            }) { IsConstructor = false },
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
-        prototype.SetProperty("indexOf", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not TypedArrayBase typed)
-            {
-                throw ThrowTypeError("TypedArray.prototype.indexOf called on incompatible receiver");
             }
 
-            return TypedArrayBase.IndexOfInternal(typed, args);
-        }));
-        constructor.SetProperty("prototype", prototype);
+            var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+            var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+            if (source is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty(iteratorKey, out var methodVal) &&
+                !ReferenceEquals(methodVal, Symbols.Undefined))
+            {
+                if (methodVal is not IJsCallable callableIterator)
+                {
+                    throw new ThrowSignal(WrapTypeError("Iterator method is not callable", callingEnv));
+                }
 
-        return constructor;
+                var iteratorObj = callableIterator.Invoke([], source);
+                if (iteratorObj is not IJsPropertyAccessor iteratorAccessor)
+                {
+                    throw new ThrowSignal(WrapTypeError("Iterator method did not return an object", callingEnv));
+                }
+
+                if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
+                    nextVal is not IJsCallable nextCallable)
+                {
+                    throw new ThrowSignal(WrapTypeError("Iterator result does not expose next", callingEnv));
+                }
+
+                var collected = new List<object?>();
+                while (true)
+                {
+                    var nextResult = nextCallable.Invoke([], iteratorObj);
+                    if (nextResult is not IJsPropertyAccessor nextResultAccessor)
+                    {
+                        throw new ThrowSignal(WrapTypeError("Iterator result is not an object", callingEnv));
+                    }
+
+                    var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&
+                               JsOps.ToBoolean(doneVal);
+                    if (done)
+                    {
+                        var target = CreateTarget(collected.Count);
+                        for (var i = 0; i < collected.Count; i++)
+                        {
+                            target.SetValue(i, ApplyMap(i, collected[i]));
+                        }
+
+                        return target;
+                    }
+
+                    var value = nextResultAccessor.TryGetProperty("value", out var valueVal)
+                        ? valueVal
+                        : Symbols.Undefined;
+                    collected.Add(value);
+                }
+            }
+
+            if (source is IJsPropertyAccessor arrayLike &&
+                arrayLike.TryGetProperty("length", out var lengthVal))
+            {
+                var lenNumber = JsOps.ToNumberWithContext(lengthVal);
+                var length = double.IsNaN(lenNumber) || lenNumber < 0
+                    ? 0
+                    : (int)Math.Min(lenNumber, int.MaxValue);
+                var target = CreateTarget(length);
+                for (var i = 0; i < length; i++)
+                {
+                    var key = i.ToString();
+                    var hasElement = arrayLike.TryGetProperty(key, out var element);
+                    target.SetValue(i, ApplyMap(i, hasElement ? element : Symbols.Undefined));
+                }
+
+                return target;
+            }
+
+            return CreateTarget(0);
+
+            IJsCallable? ResolveTypeErrorCtor(JsEnvironment? env)
+            {
+                if (env is not null &&
+                    env.TryGet(Symbol.Intern("TypeError"), out var typeErrorVal) &&
+                    typeErrorVal is IJsCallable typeErrorFromEnv)
+                {
+                    return typeErrorFromEnv;
+                }
+
+                return realm.TypeErrorConstructor;
+            }
+
+            object WrapTypeError(string message, JsEnvironment? env)
+            {
+                var typeErrorCtor = ResolveTypeErrorCtor(env);
+                if (typeErrorCtor is null)
+                {
+                    return new InvalidOperationException(message);
+                }
+
+                var errorValue = typeErrorCtor.Invoke([message], null);
+                if (errorValue is JsObject errorObj)
+                {
+                    errorObj.SetProperty("constructor", typeErrorCtor);
+                }
+
+                return errorValue ?? new InvalidOperationException(message);
+
+            }
+
+            TypedArrayBase CreateTarget(int length)
+            {
+                var target = fromLength(length, realm);
+                target.SetPrototype(prototype);
+                return target;
+            }
+
+            object? ApplyMap(int index, object? value)
+            {
+                return mapFn is null ? value : mapFn.Invoke([value, (double)index], mapThis);
+            }
+        }
     }
 
     public static HostFunction CreateInt8ArrayConstructor(RealmState realm)
@@ -455,5 +452,25 @@ public static partial class StandardLibrary
             (buffer, offset, length, _) => new JsBigUint64Array(buffer, offset, length),
             JsBigUint64Array.BYTES_PER_ELEMENT,
             realm);
+    }
+
+    private static object? ArrayBufferIsView(object? _, IReadOnlyList<object?> args)
+    {
+        if (args.Count == 0)
+        {
+            return false;
+        }
+
+        return args[0] is TypedArrayBase || args[0] is JsDataView;
+    }
+
+    private static object? TypedArrayIndexOf(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not TypedArrayBase typed)
+        {
+            throw ThrowTypeError("TypedArray.prototype.indexOf called on incompatible receiver");
+        }
+
+        return TypedArrayBase.IndexOfInternal(typed, args);
     }
 }

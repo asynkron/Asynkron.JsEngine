@@ -94,54 +94,6 @@ public static partial class StandardLibrary
         HostFunction? dateConstructor = null;
         JsObject? datePrototype = null;
 
-        static DateTimeOffset GetLocalTimeFromInternalDate(JsObject obj)
-        {
-            var utc = GetUtcTimeFromInternalDate(obj);
-            return utc.ToLocalTime();
-        }
-
-        static DateTimeOffset GetUtcTimeFromInternalDate(JsObject obj)
-        {
-            if (obj.TryGetProperty("_internalDate", out var stored) && stored is double storedMs)
-            {
-                return ConvertMillisecondsToUtc(storedMs);
-            }
-
-            return ConvertMillisecondsToUtc(0);
-        }
-
-        static void StoreInternalDate(JsObject obj, DateTimeOffset dateTime)
-        {
-            obj.SetProperty("_internalDate", (double)dateTime.ToUnixTimeMilliseconds());
-        }
-
-        static string FormatDateToJsString(DateTimeOffset localTime)
-        {
-            // Match the typical "Wed Jan 02 2008 00:00:00 GMT+0100 (Central European Standard Time)" output.
-            var culture = CultureInfo.InvariantCulture;
-            var weekday = localTime.ToString("ddd", culture);
-            var month = localTime.ToString("MMM", culture);
-            var day = localTime.ToString("dd", culture);
-            var time = localTime.ToString("HH:mm:ss", culture);
-            var year = localTime.ToString("yyyy", culture);
-
-            // ECMAScript requires the GMT offset in the form GMT+HHMM.
-            var offset = localTime.ToString("zzz", culture).Replace(":", string.Empty);
-
-            var timeZone = TimeZoneInfo.Local.IsDaylightSavingTime(localTime.DateTime)
-                ? TimeZoneInfo.Local.DaylightName
-                : TimeZoneInfo.Local.StandardName;
-
-            return $"{weekday} {month} {day} {year} {time} GMT{offset} ({timeZone})";
-        }
-
-        static string FormatUtcToJsUtcString(DateTimeOffset utcTime)
-        {
-            // Match Node/ECMAScript style: "Thu, 01 Jan 1970 00:00:00 GMT"
-            var culture = CultureInfo.InvariantCulture;
-            return utcTime.UtcDateTime.ToString("ddd, dd MMM yyyy HH:mm:ss 'GMT'", culture);
-        }
-
         dateConstructor = new HostFunction((thisValue, args) =>
         {
             // For `new Date(...)`, the typed evaluator creates the instance
@@ -561,6 +513,54 @@ public static partial class StandardLibrary
             new PropertyDescriptor { Value = 7d, Writable = false, Enumerable = false, Configurable = true });
 
         return dateConstructor;
+
+        static DateTimeOffset GetLocalTimeFromInternalDate(JsObject obj)
+        {
+            var utc = GetUtcTimeFromInternalDate(obj);
+            return utc.ToLocalTime();
+        }
+
+        static DateTimeOffset GetUtcTimeFromInternalDate(JsObject obj)
+        {
+            if (obj.TryGetProperty("_internalDate", out var stored) && stored is double storedMs)
+            {
+                return ConvertMillisecondsToUtc(storedMs);
+            }
+
+            return ConvertMillisecondsToUtc(0);
+        }
+
+        static void StoreInternalDate(JsObject obj, DateTimeOffset dateTime)
+        {
+            obj.SetProperty("_internalDate", (double)dateTime.ToUnixTimeMilliseconds());
+        }
+
+        static string FormatDateToJsString(DateTimeOffset localTime)
+        {
+            // Match the typical "Wed Jan 02 2008 00:00:00 GMT+0100 (Central European Standard Time)" output.
+            var culture = CultureInfo.InvariantCulture;
+            var weekday = localTime.ToString("ddd", culture);
+            var month = localTime.ToString("MMM", culture);
+            var day = localTime.ToString("dd", culture);
+            var time = localTime.ToString("HH:mm:ss", culture);
+            var year = localTime.ToString("yyyy", culture);
+
+            // ECMAScript requires the GMT offset in the form GMT+HHMM.
+            var offset = localTime.ToString("zzz", culture).Replace(":", string.Empty);
+
+            var timeZone = TimeZoneInfo.Local.IsDaylightSavingTime(localTime.DateTime)
+                ? TimeZoneInfo.Local.DaylightName
+                : TimeZoneInfo.Local.StandardName;
+
+            return $"{weekday} {month} {day} {year} {time} GMT{offset} ({timeZone})";
+        }
+
+        static string FormatUtcToJsUtcString(DateTimeOffset utcTime)
+        {
+            // Match Node/ECMAScript style: "Thu, 01 Jan 1970 00:00:00 GMT"
+            var culture = CultureInfo.InvariantCulture;
+            return utcTime.UtcDateTime.ToString("ddd, dd MMM yyyy HH:mm:ss 'GMT'", culture);
+        }
 
         static DateTimeOffset ConvertMillisecondsToUtc(double milliseconds)
         {

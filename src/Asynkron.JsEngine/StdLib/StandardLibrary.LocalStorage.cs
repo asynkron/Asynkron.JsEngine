@@ -9,7 +9,14 @@ public static partial class StandardLibrary
         var storage = new JsObject();
         var backing = new Dictionary<string, string?>(StringComparer.Ordinal);
 
-        storage.SetProperty("getItem", new HostFunction((_, args) =>
+        storage.SetHostedProperty("getItem", GetItem);
+        storage.SetHostedProperty("setItem", SetItem);
+        storage.SetHostedProperty("removeItem", RemoveItem);
+        storage.SetHostedProperty("clear", Clear);
+
+        return storage;
+
+        object? GetItem(object? _, IReadOnlyList<object?> args)
         {
             if (args.Count == 0)
             {
@@ -18,9 +25,9 @@ public static partial class StandardLibrary
 
             var key = args[0]?.ToString() ?? string.Empty;
             return backing.GetValueOrDefault(key);
-        }));
+        }
 
-        storage.SetProperty("setItem", new HostFunction((_, args) =>
+        object? SetItem(object? _, IReadOnlyList<object?> args)
         {
             if (args.Count < 2)
             {
@@ -31,9 +38,9 @@ public static partial class StandardLibrary
             var value = args[1]?.ToString() ?? string.Empty;
             backing[key] = value;
             return null;
-        }));
+        }
 
-        storage.SetProperty("removeItem", new HostFunction((_, args) =>
+        object? RemoveItem(object? _, IReadOnlyList<object?> args)
         {
             if (args.Count == 0)
             {
@@ -43,14 +50,12 @@ public static partial class StandardLibrary
             var key = args[0]?.ToString() ?? string.Empty;
             backing.Remove(key);
             return null;
-        }));
+        }
 
-        storage.SetProperty("clear", new HostFunction((_, _) =>
+        object? Clear(object? _, IReadOnlyList<object?> __)
         {
             backing.Clear();
             return null;
-        }));
-
-        return storage;
+        }
     }
 }

@@ -102,13 +102,16 @@ public static partial class StandardLibrary
 
             var container = new JsObject();
             container.SetProperty("proxy", proxy);
-            container.SetProperty("revoke", new HostFunction((_, _) =>
+
+            container.SetHostedProperty("revoke", Revoke);
+
+            return container;
+
+            object? Revoke(object? _, IReadOnlyList<object?> __)
             {
                 proxy.Handler = null;
                 return Symbols.Undefined;
-            }));
-
-            return container;
+            }
         });
         revocableFn.IsConstructor = false;
         proxyConstructor.DefineProperty("revocable",

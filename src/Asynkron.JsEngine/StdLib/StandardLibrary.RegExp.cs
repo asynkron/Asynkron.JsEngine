@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
@@ -41,27 +42,60 @@ public static partial class StandardLibrary
     private static void AddRegExpMethods(JsRegExp regex, RealmState? realm)
     {
         // test(string) - returns boolean
-        regex.SetProperty("test", new HostFunction((_, args) =>
-        {
-            if (args.Count == 0)
-            {
-                return false;
-            }
-
-            var input = args[0]?.ToString() ?? "";
-            return regex.Test(input);
-        }));
+        regex.JsObject.SetHostedProperty("test", RegExpTest);
 
         // exec(string) - returns array with match details or null
-        regex.SetProperty("exec", new HostFunction((_, args) =>
-        {
-            if (args.Count == 0)
-            {
-                return null;
-            }
+        regex.JsObject.SetHostedProperty("exec", RegExpExec);
+    }
 
-            var input = args[0]?.ToString() ?? "";
-            return regex.Exec(input);
-        }));
+    private static object? RegExpTest(object? thisValue, IReadOnlyList<object?> args)
+    {
+        var resolved = ResolveRegExpInstance(thisValue);
+        if (resolved is null)
+        {
+            return false;
+        }
+
+        if (args.Count == 0)
+        {
+            return false;
+        }
+
+        var input = args[0]?.ToString() ?? string.Empty;
+        return resolved.Test(input);
+    }
+
+    private static object? RegExpExec(object? thisValue, IReadOnlyList<object?> args)
+    {
+        var resolved = ResolveRegExpInstance(thisValue);
+        if (resolved is null)
+        {
+            return null;
+        }
+
+        if (args.Count == 0)
+        {
+            return null;
+        }
+
+        var input = args[0]?.ToString() ?? string.Empty;
+        return resolved.Exec(input);
+    }
+
+    private static JsRegExp? ResolveRegExpInstance(object? thisValue)
+    {
+        if (thisValue is JsRegExp direct)
+        {
+            return direct;
+        }
+
+        if (thisValue is JsObject obj &&
+            obj.TryGetProperty("__regex__", out var internalRegex) &&
+            internalRegex is JsRegExp stored)
+        {
+            return stored;
+        }
+
+        return null;
     }
 }

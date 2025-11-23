@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
@@ -33,33 +35,75 @@ public static partial class StandardLibrary
     /// </summary>
     private static void AddStringMethods(JsObject stringObj, string str, RealmState? realm)
     {
-        // charAt(index)
-        stringObj.SetProperty("charAt", new HostFunction(args =>
+        stringObj.SetHostedProperty("charAt", CharAt);
+        stringObj.SetHostedProperty("charCodeAt", CharCodeAt);
+        stringObj.SetHostedProperty("indexOf", IndexOf);
+        stringObj.SetHostedProperty("lastIndexOf", LastIndexOf);
+        stringObj.SetHostedProperty("substring", Substring);
+        stringObj.SetHostedProperty("slice", Slice);
+        stringObj.SetHostedProperty("substr", Substr);
+        stringObj.SetHostedProperty("concat", Concat);
+        stringObj.SetHostedProperty("toLowerCase", ToLowerCase);
+        stringObj.SetHostedProperty("toUpperCase", ToUpperCase);
+        stringObj.SetHostedProperty("trim", Trim);
+        stringObj.SetHostedProperty("trimStart", TrimStart);
+        stringObj.SetHostedProperty("trimLeft", TrimStart);
+        stringObj.SetHostedProperty("trimEnd", TrimEnd);
+        stringObj.SetHostedProperty("trimRight", TrimEnd);
+        stringObj.SetHostedProperty("split", Split, realm);
+        stringObj.SetHostedProperty("replace", Replace);
+        stringObj.SetHostedProperty("match", Match);
+        stringObj.SetHostedProperty("search", Search);
+        stringObj.SetHostedProperty("startsWith", StartsWith);
+        stringObj.SetHostedProperty("endsWith", EndsWith);
+        stringObj.SetHostedProperty("includes", Includes);
+        stringObj.SetHostedProperty("repeat", Repeat);
+        stringObj.SetHostedProperty("padStart", PadStart);
+        stringObj.SetHostedProperty("padEnd", PadEnd);
+        stringObj.SetHostedProperty("replaceAll", ReplaceAll);
+        stringObj.SetHostedProperty("at", At);
+        stringObj.SetHostedProperty("codePointAt", CodePointAt);
+        stringObj.SetHostedProperty("localeCompare", LocaleCompare);
+        stringObj.SetHostedProperty("normalize", Normalize);
+        stringObj.SetHostedProperty("matchAll", MatchAll);
+        stringObj.SetHostedProperty("anchor", Anchor);
+        stringObj.SetHostedProperty("link", Link);
+
+        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+
+        stringObj.SetHostedProperty(iteratorKey, CreateIterator);
+        return;
+
+        string ResolveString(object? thisValue) => JsValueToString(thisValue);
+
+        object? CharAt(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             var index = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            if (index < 0 || index >= str.Length)
+            if (index < 0 || index >= value.Length)
             {
                 return "";
             }
 
-            return str[index].ToString();
-        }));
+            return value[index].ToString();
+        }
 
-        // charCodeAt(index)
-        stringObj.SetProperty("charCodeAt", new HostFunction(args =>
+        object? CharCodeAt(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             var index = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            if (index < 0 || index >= str.Length)
+            if (index < 0 || index >= value.Length)
             {
                 return double.NaN;
             }
 
-            return (double)str[index];
-        }));
+            return (double)value[index];
+        }
 
-        // indexOf(searchString, position?)
-        stringObj.SetProperty("indexOf", new HostFunction(args =>
+        object? IndexOf(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
                 return -1d;
@@ -67,72 +111,72 @@ public static partial class StandardLibrary
 
             var searchStr = args[0]?.ToString() ?? "";
             var position = args.Count > 1 && args[1] is double d ? Math.Max(0, (int)d) : 0;
-            var result = str.IndexOf(searchStr, position, StringComparison.Ordinal);
+            var result = value.IndexOf(searchStr, position, StringComparison.Ordinal);
             return (double)result;
-        }));
+        }
 
-        // lastIndexOf(searchString, position?)
-        stringObj.SetProperty("lastIndexOf", new HostFunction(args =>
+        object? LastIndexOf(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
                 return -1d;
             }
 
             var searchStr = args[0]?.ToString() ?? "";
-            var position = args.Count > 1 && args[1] is double d ? Math.Min((int)d, str.Length - 1) : str.Length - 1;
-            var result = position >= 0 ? str.LastIndexOf(searchStr, position, StringComparison.Ordinal) : -1;
+            var position = args.Count > 1 && args[1] is double d
+                ? Math.Min((int)d, value.Length - 1)
+                : value.Length - 1;
+            var result = position >= 0 ? value.LastIndexOf(searchStr, position, StringComparison.Ordinal) : -1;
             return (double)result;
-        }));
+        }
 
-        // substring(start, end?)
-        stringObj.SetProperty("substring", new HostFunction(args =>
+        object? Substring(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return str;
+                return value;
             }
 
-            var start = args[0] is double d1 ? Math.Max(0, Math.Min((int)d1, str.Length)) : 0;
-            var end = args.Count > 1 && args[1] is double d2 ? Math.Max(0, Math.Min((int)d2, str.Length)) : str.Length;
+            var start = args[0] is double d1 ? Math.Max(0, Math.Min((int)d1, value.Length)) : 0;
+            var end = args.Count > 1 && args[1] is double d2 ? Math.Max(0, Math.Min((int)d2, value.Length)) : value.Length;
 
-            // JavaScript substring swaps if start > end
             if (start > end)
             {
                 (start, end) = (end, start);
             }
 
-            return str.Substring(start, end - start);
-        }));
+            return value.Substring(start, end - start);
+        }
 
-        // slice(start, end?)
-        stringObj.SetProperty("slice", new HostFunction(args =>
+        object? Slice(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return str;
+                return value;
             }
 
             var start = args[0] is double d1 ? (int)d1 : 0;
-            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : str.Length;
+            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : value.Length;
 
-            // Handle negative indices
             if (start < 0)
             {
-                start = Math.Max(0, str.Length + start);
+                start = Math.Max(0, value.Length + start);
             }
             else
             {
-                start = Math.Min(start, str.Length);
+                start = Math.Min(start, value.Length);
             }
 
             if (end < 0)
             {
-                end = Math.Max(0, str.Length + end);
+                end = Math.Max(0, value.Length + end);
             }
             else
             {
-                end = Math.Min(end, str.Length);
+                end = Math.Min(end, value.Length);
             }
 
             if (start >= end)
@@ -140,16 +184,16 @@ public static partial class StandardLibrary
                 return "";
             }
 
-            return str.Substring(start, end - start);
-        }));
+            return value.Substring(start, end - start);
+        }
 
-        // substr(start, length?)
-        stringObj.SetProperty("substr", new HostFunction(args =>
+        object? Substr(object? thisValue, IReadOnlyList<object?> args)
         {
-            var length = str.Length;
+            var value = ResolveString(thisValue);
+            var length = value.Length;
             if (args.Count == 0)
             {
-                return str;
+                return value;
             }
 
             var start = args[0] is double d1 ? (int)d1 : 0;
@@ -177,44 +221,51 @@ public static partial class StandardLibrary
                 substrLength = length - start;
             }
 
-            return str.Substring(start, substrLength);
-        }));
+            return value.Substring(start, substrLength);
+        }
 
-        // concat(...strings)
-        stringObj.SetProperty("concat", new HostFunction(args =>
+        object? Concat(object? thisValue, IReadOnlyList<object?> args)
         {
-            var result = str;
+            var result = ResolveString(thisValue);
             foreach (var arg in args)
             {
                 result += JsValueToString(arg);
             }
 
             return result;
-        }));
+        }
 
-        // toLowerCase()
-        stringObj.SetProperty("toLowerCase", new HostFunction(_ => str.ToLowerInvariant()));
-
-        // toUpperCase()
-        stringObj.SetProperty("toUpperCase", new HostFunction(_ => str.ToUpperInvariant()));
-
-        // trim()
-        stringObj.SetProperty("trim", new HostFunction(_ => str.Trim()));
-
-        // trimStart() / trimLeft()
-        stringObj.SetProperty("trimStart", new HostFunction(_ => str.TrimStart()));
-        stringObj.SetProperty("trimLeft", new HostFunction(_ => str.TrimStart()));
-
-        // trimEnd() / trimRight()
-        stringObj.SetProperty("trimEnd", new HostFunction(_ => str.TrimEnd()));
-        stringObj.SetProperty("trimRight", new HostFunction(_ => str.TrimEnd()));
-
-        // split(separator, limit?)
-        stringObj.SetProperty("split", new HostFunction(args =>
+        object? ToLowerCase(object? thisValue, IReadOnlyList<object?> _)
         {
+            return ResolveString(thisValue).ToLowerInvariant();
+        }
+
+        object? ToUpperCase(object? thisValue, IReadOnlyList<object?> _)
+        {
+            return ResolveString(thisValue).ToUpperInvariant();
+        }
+
+        object? Trim(object? thisValue, IReadOnlyList<object?> _)
+        {
+            return ResolveString(thisValue).Trim();
+        }
+
+        object? TrimStart(object? thisValue, IReadOnlyList<object?> _)
+        {
+            return ResolveString(thisValue).TrimStart();
+        }
+
+        object? TrimEnd(object? thisValue, IReadOnlyList<object?> _)
+        {
+            return ResolveString(thisValue).TrimEnd();
+        }
+
+        object? Split(object? thisValue, IReadOnlyList<object?> args, RealmState? realmState)
+        {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return CreateArrayFromStrings([str], realm);
+                return CreateArrayFromStrings([value], realmState ?? realm);
             }
 
             var separator = args[0]?.ToString();
@@ -222,35 +273,32 @@ public static partial class StandardLibrary
 
             if (separator is null or "")
             {
-                // Split into individual characters
-                var chars = str.Select(c => c.ToString()).Take(limit).ToArray();
-                return CreateArrayFromStrings(chars, realm);
+                var chars = value.Select(c => c.ToString()).Take(limit).ToArray();
+                return CreateArrayFromStrings(chars, realmState ?? realm);
             }
 
-            var parts = str.Split([separator], StringSplitOptions.None);
+            var parts = value.Split([separator], StringSplitOptions.None);
             if (limit < parts.Length)
             {
                 parts = parts.Take(limit).ToArray();
             }
 
-            return CreateArrayFromStrings(parts, realm);
-        }));
+            return CreateArrayFromStrings(parts, realmState ?? realm);
+        }
 
-        // replace(searchValue, replaceValue)
-        stringObj.SetProperty("replace", new HostFunction(args =>
+        object? Replace(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count < 2)
             {
-                return str;
+                return value;
             }
 
             var search = args[0];
             var replacement = args[1];
 
-            // Function-replacer form: str.replace(pattern, (match) => ...)
             if (replacement is IJsCallable replacer)
             {
-                // Regex search
                 if (search is JsObject regexObj &&
                     regexObj.TryGetProperty("__regex__", out var regexValue) &&
                     regexValue is JsRegExp regex)
@@ -261,10 +309,10 @@ public static partial class StandardLibrary
 
                     if (regex.Global)
                     {
-                        var matches = dotNetRegex.Matches(str);
+                        var matches = dotNetRegex.Matches(value);
                         if (matches.Count == 0)
                         {
-                            return str;
+                            return value;
                         }
 
                         foreach (Match match in matches)
@@ -276,10 +324,10 @@ public static partial class StandardLibrary
 
                             if (match.Index > lastIndex)
                             {
-                                result.Append(str.AsSpan(lastIndex, match.Index - lastIndex));
+                                result.Append(value.AsSpan(lastIndex, match.Index - lastIndex));
                             }
 
-                            var replacementValue = replacer.Invoke([match.Value], str);
+                            var replacementValue = replacer.Invoke([match.Value], value);
                             var replacementString = replacementValue.ToJsString();
                             result.Append(replacementString);
 
@@ -288,90 +336,85 @@ public static partial class StandardLibrary
                     }
                     else
                     {
-                        var match = dotNetRegex.Match(str);
+                        var match = dotNetRegex.Match(value);
                         if (!match.Success)
                         {
-                            return str;
+                            return value;
                         }
 
                         if (match.Index > 0)
                         {
-                            result.Append(str.AsSpan(0, match.Index));
+                            result.Append(value.AsSpan(0, match.Index));
                         }
 
-                        var replacementValue = replacer.Invoke([match.Value], str);
+                        var replacementValue = replacer.Invoke([match.Value], value);
                         var replacementString = replacementValue.ToJsString();
                         result.Append(replacementString);
 
                         lastIndex = match.Index + match.Length;
                     }
 
-                    if (lastIndex < str.Length)
+                    if (lastIndex < value.Length)
                     {
-                        result.Append(str.AsSpan(lastIndex));
+                        result.Append(value.AsSpan(lastIndex));
                     }
 
                     return result.ToString();
                 }
 
-                // String search with function replacer: only first occurrence
                 var searchValueFunc = search?.ToString() ?? "";
                 if (searchValueFunc.Length == 0)
                 {
-                    var replacementValue = replacer.Invoke([""], str);
+                    var replacementValue = replacer.Invoke([""], value);
                     var replacementString = replacementValue.ToJsString();
-                    return replacementString + str;
+                    return replacementString + value;
                 }
 
-                var idx = str.IndexOf(searchValueFunc, StringComparison.Ordinal);
+                var idx = value.IndexOf(searchValueFunc, StringComparison.Ordinal);
                 if (idx < 0)
                 {
-                    return str;
+                    return value;
                 }
 
-                var prefix = str[..idx];
-                var suffix = str[(idx + searchValueFunc.Length)..];
-                var replacedSegment = replacer.Invoke([searchValueFunc], str).ToJsString();
+                var prefix = value[..idx];
+                var suffix = value[(idx + searchValueFunc.Length)..];
+                var replacedSegment = replacer.Invoke([searchValueFunc], value).ToJsString();
                 return prefix + replacedSegment + suffix;
             }
 
-            // Non-function replacer: existing behavior.
-
-            // Check if first argument is a RegExp (JsObject with __regex__ property)
             if (search is JsObject regexObj2 && regexObj2.TryGetProperty("__regex__", out var regexValue2) &&
                 regexValue2 is JsRegExp regex2)
             {
                 var replaceValue = replacement?.ToString() ?? "";
                 if (regex2.Global)
                 {
-                    return Regex.Replace(str, regex2.Pattern, replaceValue);
+                    return Regex.Replace(value, regex2.Pattern, replaceValue);
                 }
 
-                var match = Regex.Match(str, regex2.Pattern);
+                var match = Regex.Match(value, regex2.Pattern);
                 if (match.Success)
                 {
-                    return string.Concat(str.AsSpan(0, match.Index), replaceValue,
-                        str.AsSpan(match.Index + match.Length));
+                    return string.Concat(value.AsSpan(0, match.Index), replaceValue,
+                        value.AsSpan(match.Index + match.Length));
                 }
 
-                return str;
+                return value;
             }
 
-            // String replacement (only first occurrence)
             var searchValue = search?.ToString() ?? "";
             var replaceStr = replacement?.ToString() ?? "";
-            var index = str.IndexOf(searchValue, StringComparison.Ordinal);
+            var index = value.IndexOf(searchValue, StringComparison.Ordinal);
             if (index == -1)
             {
-                return str;
+                return value;
             }
 
-            return string.Concat(str.AsSpan(0, index), replaceStr, str.AsSpan(index + searchValue.Length));
-        }));
+            return string.Concat(value.AsSpan(0, index), replaceStr, value.AsSpan(index + searchValue.Length));
+        }
 
-        // match(regexp)
-        stringObj.SetProperty("match", new HostFunction(args =>
+        object? Match(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
                 return null;
@@ -383,18 +426,12 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            if (regex.Global)
-            {
-                return regex.MatchAll(str);
-            }
+            return regex.Global ? regex.MatchAll(value) : regex.Exec(value);
+        }
 
-            return regex.Exec(str);
-
-        }));
-
-        // search(regexp)
-        stringObj.SetProperty("search", new HostFunction(args =>
+        object? Search(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
                 return -1d;
@@ -406,7 +443,7 @@ public static partial class StandardLibrary
                 return -1d;
             }
 
-            var result = regex.Exec(str);
+            var result = regex.Exec(value);
             if (result is JsArray arr && arr.TryGetProperty("index", out var indexObj) &&
                 indexObj is double d)
             {
@@ -414,11 +451,11 @@ public static partial class StandardLibrary
             }
 
             return -1d;
-        }));
+        }
 
-        // startsWith(searchString, position?)
-        stringObj.SetProperty("startsWith", new HostFunction(args =>
+        object? StartsWith(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
                 return true;
@@ -426,36 +463,36 @@ public static partial class StandardLibrary
 
             var searchStr = args[0]?.ToString() ?? "";
             var position = args.Count > 1 && args[1] is double d ? (int)d : 0;
-            if (position < 0 || position >= str.Length)
+            if (position < 0 || position >= value.Length)
             {
                 return false;
             }
 
-            return str[position..].StartsWith(searchStr, StringComparison.Ordinal);
-        }));
+            return value[position..].StartsWith(searchStr, StringComparison.Ordinal);
+        }
 
-        // endsWith(searchString, length?)
-        stringObj.SetProperty("endsWith", new HostFunction(args =>
+        object? EndsWith(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
                 return true;
             }
 
             var searchStr = args[0]?.ToString() ?? "";
-            var length = args.Count > 1 && args[1] is double d ? (int)d : str.Length;
+            var length = args.Count > 1 && args[1] is double d ? (int)d : value.Length;
             if (length < 0)
             {
                 return false;
             }
 
-            length = Math.Min(length, str.Length);
-            return str[..length].EndsWith(searchStr, StringComparison.Ordinal);
-        }));
+            length = Math.Min(length, value.Length);
+            return value[..length].EndsWith(searchStr, StringComparison.Ordinal);
+        }
 
-        // includes(searchString, position?)
-        stringObj.SetProperty("includes", new HostFunction(args =>
+        object? Includes(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
                 return true;
@@ -463,17 +500,17 @@ public static partial class StandardLibrary
 
             var searchStr = args[0]?.ToString() ?? "";
             var position = args.Count > 1 && args[1] is double d ? Math.Max(0, (int)d) : 0;
-            if (position >= str.Length)
+            if (position >= value.Length)
             {
-                return searchStr?.Length == 0;
+                return searchStr.Length == 0;
             }
 
-            return str.IndexOf(searchStr, position, StringComparison.Ordinal) >= 0;
-        }));
+            return value.IndexOf(searchStr, position, StringComparison.Ordinal) >= 0;
+        }
 
-        // repeat(count)
-        stringObj.SetProperty("repeat", new HostFunction(args =>
+        object? Repeat(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0 || args[0] is not double d)
             {
                 return "";
@@ -482,7 +519,7 @@ public static partial class StandardLibrary
             var count = (int)d;
             if (count is < 0 or int.MaxValue)
             {
-                return ""; // JavaScript throws RangeError, we return empty
+                return "";
             }
 
             if (count == 0)
@@ -490,185 +527,167 @@ public static partial class StandardLibrary
                 return "";
             }
 
-            return string.Concat(Enumerable.Repeat(str, count));
-        }));
+            return string.Concat(Enumerable.Repeat(value, count));
+        }
 
-        // padStart(targetLength, padString?)
-        stringObj.SetProperty("padStart", new HostFunction(args =>
+        object? PadStart(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return str;
+                return value;
             }
 
             var targetLength = args[0] is double d ? (int)d : 0;
-            if (targetLength <= str.Length)
+            if (targetLength <= value.Length)
             {
-                return str;
+                return value;
             }
 
             var padString = args.Count > 1 ? args[1]?.ToString() ?? " " : " ";
             if (padString.Length == 0)
             {
-                return str;
+                return value;
             }
 
-            var padLength = targetLength - str.Length;
+            var padLength = targetLength - value.Length;
             var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
             var padding = string.Concat(Enumerable.Repeat(padString, padCount));
-            return string.Concat(padding.AsSpan(0, padLength), str);
-        }));
+            return string.Concat(padding.AsSpan(0, padLength), value);
+        }
 
-        // padEnd(targetLength, padString?)
-        stringObj.SetProperty("padEnd", new HostFunction(args =>
+        object? PadEnd(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return str;
+                return value;
             }
 
             var targetLength = args[0] is double d ? (int)d : 0;
-            if (targetLength <= str.Length)
+            if (targetLength <= value.Length)
             {
-                return str;
+                return value;
             }
 
             var padString = args.Count > 1 ? args[1]?.ToString() ?? " " : " ";
             if (padString.Length == 0)
             {
-                return str;
+                return value;
             }
 
-            var padLength = targetLength - str.Length;
+            var padLength = targetLength - value.Length;
             var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
             var padding = string.Concat(Enumerable.Repeat(padString, padCount));
-            return string.Concat(str, padding.AsSpan(0, padLength));
-        }));
+            return string.Concat(value, padding.AsSpan(0, padLength));
+        }
 
-        // replaceAll(searchValue, replaceValue)
-        stringObj.SetProperty("replaceAll", new HostFunction(args =>
+        object? ReplaceAll(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count < 2)
             {
-                return str;
+                return value;
             }
 
             var searchValue = args[0]?.ToString() ?? "";
             var replaceValue = args[1]?.ToString() ?? "";
-            return str.Replace(searchValue, replaceValue);
-        }));
+            return value.Replace(searchValue, replaceValue);
+        }
 
-        // at(index)
-        stringObj.SetProperty("at", new HostFunction(args =>
+        object? At(object? thisValue, IReadOnlyList<object?> args)
         {
-            if (args.Count == 0)
-            {
-                return null;
-            }
-
-            if (args[0] is not double d)
-            {
-                return null;
-            }
-
-            var index = (int)d;
-            // Handle negative indices
-            if (index < 0)
-            {
-                index = str.Length + index;
-            }
-
-            if (index < 0 || index >= str.Length)
-            {
-                return null;
-            }
-
-            return str[index].ToString();
-        }));
-
-        // trimStart() / trimLeft()
-        stringObj.SetProperty("trimStart", new HostFunction(_ => str.TrimStart()));
-        stringObj.SetProperty("trimLeft", new HostFunction(_ => str.TrimStart()));
-
-        // trimEnd() / trimRight()
-        stringObj.SetProperty("trimEnd", new HostFunction(_ => str.TrimEnd()));
-        stringObj.SetProperty("trimRight", new HostFunction(_ => str.TrimEnd()));
-
-        // codePointAt(index)
-        stringObj.SetProperty("codePointAt", new HostFunction(args =>
-        {
+            var value = ResolveString(thisValue);
             if (args.Count == 0 || args[0] is not double d)
             {
                 return null;
             }
 
             var index = (int)d;
-            if (index < 0 || index >= str.Length)
+            if (index < 0)
+            {
+                index = value.Length + index;
+            }
+
+            if (index < 0 || index >= value.Length)
             {
                 return null;
             }
 
-            // Get the code point at the given position
-            // Handle surrogate pairs for characters outside the BMP (Basic Multilingual Plane)
-            var c = str[index];
-            if (!char.IsHighSurrogate(c) || index + 1 >= str.Length)
+            return value[index].ToString();
+        }
+
+        object? CodePointAt(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            if (args.Count == 0 || args[0] is not double d)
+            {
+                return null;
+            }
+
+            var index = (int)d;
+            if (index < 0 || index >= value.Length)
+            {
+                return null;
+            }
+
+            var c = value[index];
+            if (!char.IsHighSurrogate(c) || index + 1 >= value.Length)
             {
                 return (double)c;
             }
 
-            var low = str[index + 1];
+            var low = value[index + 1];
             if (!char.IsLowSurrogate(low))
             {
                 return (double)c;
             }
 
-            // Calculate the code point from the surrogate pair
             var high = (int)c;
             var lowInt = (int)low;
             var codePoint = ((high - 0xD800) << 10) + (lowInt - 0xDC00) + 0x10000;
             return (double)codePoint;
+        }
 
-        }));
-
-        // localeCompare(compareString)
-        stringObj.SetProperty("localeCompare", new HostFunction(args =>
+        object? LocaleCompare(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
                 return 0d;
             }
 
             var compareString = args[0]?.ToString() ?? "";
-            var result = string.Compare(str, compareString, StringComparison.CurrentCulture);
+            var result = string.Compare(value, compareString, StringComparison.CurrentCulture);
             return (double)result;
-        }));
+        }
 
-        // normalize(form) - Unicode normalization
-        stringObj.SetProperty("normalize", new HostFunction(args =>
+        object? Normalize(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             var form = args.Count > 0 && args[0] != null ? args[0]!.ToString() : "NFC";
 
             try
             {
                 return form switch
                 {
-                    "NFC" => str.Normalize(NormalizationForm.FormC),
-                    "NFD" => str.Normalize(NormalizationForm.FormD),
-                    "NFKC" => str.Normalize(NormalizationForm.FormKC),
-                    "NFKD" => str.Normalize(NormalizationForm.FormKD),
+                    "NFC" => value.Normalize(NormalizationForm.FormC),
+                    "NFD" => value.Normalize(NormalizationForm.FormD),
+                    "NFKC" => value.Normalize(NormalizationForm.FormKC),
+                    "NFKD" => value.Normalize(NormalizationForm.FormKD),
                     _ => throw new Exception(
                         "RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.")
                 };
             }
             catch
             {
-                return str;
+                return value;
             }
-        }));
+        }
 
-        // matchAll(regexp) - returns an array of all matches
-        stringObj.SetProperty("matchAll", new HostFunction(args =>
+        object? MatchAll(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
                 return null;
@@ -677,51 +696,46 @@ public static partial class StandardLibrary
             if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) &&
                 regexValue is JsRegExp regex)
             {
-                return regex.MatchAll(str);
+                return regex.MatchAll(value);
             }
 
-            // If not a RegExp, convert to one
             var pattern = args[0]?.ToString() ?? "";
             var tempRegex = new JsRegExp(pattern, "g");
-            return tempRegex.MatchAll(str);
-        }));
+            return tempRegex.MatchAll(value);
+        }
 
-        // anchor(name) - deprecated HTML wrapper method
-        stringObj.SetProperty("anchor", new HostFunction(args =>
+        object? Anchor(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             var name = args.Count > 0 ? args[0]?.ToString() ?? "" : "";
-            // Escape quotes in name
             name = name.Replace("\"", "&quot;");
-            return $"<a name=\"{name}\">{str}</a>";
-        }));
+            return $"<a name=\"{name}\">{value}</a>";
+        }
 
-        // link(url) - deprecated HTML wrapper method
-        stringObj.SetProperty("link", new HostFunction(args =>
+        object? Link(object? thisValue, IReadOnlyList<object?> args)
         {
+            var value = ResolveString(thisValue);
             var url = args.Count > 0 ? args[0]?.ToString() ?? "" : "";
-            // Escape quotes in url
             url = url.Replace("\"", "&quot;");
-            return $"<a href=\"{url}\">{str}</a>";
-        }));
+            return $"<a href=\"{url}\">{value}</a>";
+        }
 
-        // Set up Symbol.iterator for string
-        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-
-        // Create iterator function that returns an iterator object
-        var iteratorFunction = new HostFunction((_, _) =>
+        object? CreateIterator(object? thisValue, IReadOnlyList<object?> _)
         {
-            // Use array to hold index so it can be mutated in closure
+            var value = ResolveString(thisValue);
             var indexHolder = new[] { 0 };
             var iterator = new JsObject();
 
-            // Add next() method to iterator
-            iterator.SetProperty("next", new HostFunction((_, _) =>
+            iterator.SetHostedProperty("next", Next);
+
+            return iterator;
+
+            object? Next(object? _, IReadOnlyList<object?> __)
             {
                 var result = new JsObject();
-                if (indexHolder[0] < str.Length)
+                if (indexHolder[0] < value.Length)
                 {
-                    result.SetProperty("value", str[indexHolder[0]].ToString());
+                    result.SetProperty("value", value[indexHolder[0]].ToString());
                     result.SetProperty("done", false);
                     indexHolder[0]++;
                 }
@@ -732,12 +746,8 @@ public static partial class StandardLibrary
                 }
 
                 return result;
-            }));
-
-            return iterator;
-        });
-
-        stringObj.SetProperty(iteratorKey, iteratorFunction);
+            }
+        }
     }
 
     private static JsArray CreateArrayFromStrings(string[] strings, RealmState? realm)

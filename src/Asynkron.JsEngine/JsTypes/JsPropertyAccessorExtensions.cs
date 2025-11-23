@@ -8,6 +8,23 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public static class JsPropertyAccessorExtensions
 {
+    /// <summary>
+    ///     Convenience overload for host-backed functions.
+    /// </summary>
+    public static void SetHostProperty(this IJsPropertyAccessor accessor, string name, Func<object?, IReadOnlyList<object?>, object?> handler)
+    {
+        accessor.SetProperty(name, new HostFunction(handler));
+    }
+
+    /// <summary>
+    ///     Convenience overload for realm-aware host-backed functions.
+    /// </summary>
+    public static void SetHostProperty(this IJsPropertyAccessor accessor, string name, Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler,
+        RealmState? realmState)
+    {
+        accessor.SetProperty(name, new HostFunction(handler, realmState));
+    }
+
     public static void SetProperty(this IJsPropertyAccessor accessor, string name,
         Func<object?, IReadOnlyList<object?>, object?> handler)
     {

@@ -27,10 +27,11 @@ public class JsRegExp
         JsObject = new JsObject();
 
         ValidateFlags(Flags);
-        _normalizedPattern = NormalizePattern(pattern, Flags.Contains('u'));
+        var hasUnicodeFlag = Flags.Contains('u');
+        _normalizedPattern = NormalizePattern(pattern, hasUnicodeFlag, IgnoreCase);
 
         // Convert JavaScript regex flags to .NET RegexOptions
-        var options = RegexOptions.None;
+        var options = RegexOptions.CultureInvariant;
         if (IgnoreCase)
         {
             options |= RegexOptions.IgnoreCase;
@@ -223,7 +224,7 @@ public class JsRegExp
         }
     }
 
-    private static string NormalizePattern(string pattern, bool hasUnicodeFlag)
+    private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool ignoreCase)
     {
         if (string.IsNullOrEmpty(pattern))
         {
@@ -244,6 +245,27 @@ public class JsRegExp
                 builder.Append(c);
                 escaped = false;
                 continue;
+            }
+
+            if (hasUnicodeFlag && !inCharClass)
+            {
+                if (char.IsHighSurrogate(c))
+                {
+                    if (i + 1 >= pattern.Length || !char.IsLowSurrogate(pattern[i + 1]))
+                    {
+                        throw new ParseException("Invalid regular expression: invalid unicode escape.");
+                    }
+
+                    var cp = char.ConvertToUtf32(c, pattern[i + 1]);
+                    AppendCodePoint(builder, cp, hasUnicodeFlag, ignoreCase, false);
+                    i++;
+                    continue;
+                }
+
+                if (char.IsLowSurrogate(c))
+                {
+                    throw new ParseException("Invalid regular expression: invalid unicode escape.");
+                }
             }
 
             if (c == '\\')
@@ -275,8 +297,7 @@ public class JsRegExp
                         throw new ParseException("Invalid regular expression: invalid unicode escape.");
                     }
 
-                    var rune = new Rune(codePoint);
-                    builder.Append(EscapeLiteralRune(rune));
+                    AppendCodePoint(builder, codePoint, hasUnicodeFlag, ignoreCase, true);
                     i = endBrace;
                     continue;
                 }
@@ -301,8 +322,7 @@ public class JsRegExp
                             if (trail is >= 0xDC00 and <= 0xDFFF)
                             {
                                 var cp = char.ConvertToUtf32((char)codeUnit, (char)trail);
-                                var rune = new Rune(cp);
-                                builder.Append(EscapeLiteralRune(rune));
+                                AppendCodePoint(builder, cp, hasUnicodeFlag, ignoreCase, true);
                                 i += 11;
                                 continue;
                             }
@@ -318,15 +338,7 @@ public class JsRegExp
                         continue;
                     }
 
-                    if (char.IsSurrogate((char)codeUnit))
-                    {
-                        builder.Append(EscapeCodeUnit(codeUnit));
-                    }
-                    else
-                    {
-                        var rune = new Rune(codeUnit);
-                        builder.Append(EscapeLiteralRune(rune));
-                    }
+                    AppendCodePoint(builder, codeUnit, hasUnicodeFlag, ignoreCase, true);
                     i += 5;
                     continue;
                 }
@@ -336,16 +348,16 @@ public class JsRegExp
                 {
                     var hexDigits = pattern.Substring(i + 2, 2);
                     var codeUnit = int.Parse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                    if (char.IsSurrogate((char)codeUnit))
-                    {
-                        builder.Append(EscapeCodeUnit(codeUnit));
-                    }
-                    else
-                    {
-                        var rune = new Rune(codeUnit);
-                        builder.Append(EscapeLiteralRune(rune));
-                    }
+                    AppendCodePoint(builder, codeUnit, hasUnicodeFlag, ignoreCase, true);
                     i += 3;
+                    continue;
+                }
+
+                if (!inCharClass && i + 1 < pattern.Length && pattern[i + 1] == '0' &&
+                    (i + 2 >= pattern.Length || !char.IsDigit(pattern[i + 2])))
+                {
+                    AppendCodePoint(builder, 0, hasUnicodeFlag, ignoreCase, true);
+                    i++;
                     continue;
                 }
 
@@ -358,26 +370,26 @@ public class JsRegExp
                         throw new ParseException("Invalid regular expression: incomplete named backreference.");
                     }
 
-            var name = pattern.Substring(i + 3, end - (i + 3));
-            var normalizedName = NormalizeGroupNameToken(name);
-            if (!allGroupNames.Contains(normalizedName))
-            {
-                throw new ParseException($"Invalid regular expression: unknown group '{name}'.");
-            }
+                    var name = pattern.Substring(i + 3, end - (i + 3));
+                    var normalizedName = NormalizeGroupNameToken(name);
+                    if (!allGroupNames.Contains(normalizedName))
+                    {
+                        throw new ParseException($"Invalid regular expression: unknown group '{name}'.");
+                    }
 
-            if (definedSoFar.Contains(normalizedName))
-            {
-                builder.Append(pattern, i, end - i + 1);
-            }
-            else
-            {
-                // Forward reference behaves like an empty string in JS.
-                builder.Append("(?:)");
-            }
+                    if (definedSoFar.Contains(normalizedName))
+                    {
+                        builder.Append(pattern, i, end - i + 1);
+                    }
+                    else
+                    {
+                        // Forward reference behaves like an empty string in JS.
+                        builder.Append("(?:)");
+                    }
 
-            definedSoFar.Add(normalizedName);
-            i = end;
-            continue;
+                    definedSoFar.Add(normalizedName);
+                    i = end;
+                    continue;
                 }
 
                 if (i + 1 >= pattern.Length || IsLineTerminator(pattern[i + 1]))
@@ -386,16 +398,15 @@ public class JsRegExp
                 }
 
                 var next = pattern[i + 1];
+                if (hasUnicodeFlag && !inCharClass && next is 'S')
+                {
+                    builder.Append(UnicodeNonWhitespacePattern);
+                    i++;
+                    continue;
+                }
+
                 var codeUnitLiteral = (int)next;
-                if (char.IsSurrogate(next))
-                {
-                    builder.Append(EscapeCodeUnit(codeUnitLiteral));
-                }
-                else
-                {
-                    var literalRune = new Rune(codeUnitLiteral);
-                    builder.Append(EscapeLiteralRune(literalRune));
-                }
+                AppendCodePoint(builder, codeUnitLiteral, hasUnicodeFlag, ignoreCase, true);
                 i++; // skip escaped character
                 continue;
             }
@@ -411,10 +422,23 @@ public class JsRegExp
                 continue;
             }
 
+            if (c == '[' && hasUnicodeFlag)
+            {
+                var normalized = NormalizeUnicodeCharacterClass(pattern, ref i);
+                builder.Append(normalized);
+                continue;
+            }
+
             if (c == '[')
             {
                 inCharClass = true;
                 builder.Append(c);
+                continue;
+            }
+
+            if (hasUnicodeFlag && c == '.')
+            {
+                builder.Append(UnicodeDotPattern);
                 continue;
             }
 
@@ -429,13 +453,17 @@ public class JsRegExp
 
                 var name = pattern.Substring(i + 3, end - (i + 3));
                 var normalizedName = NormalizeGroupNameToken(name);
+                if (ContainsSurrogateCodeUnit(normalizedName))
+                {
+                    throw new ParseException("Invalid regular expression: invalid group name.");
+                }
                 definedSoFar.Add(normalizedName);
                 builder.Append(pattern, i, end - i + 1);
                 i = end;
                 continue;
             }
 
-            builder.Append(c);
+            AppendCodePoint(builder, c, hasUnicodeFlag, ignoreCase, false);
         }
 
         return builder.ToString();
@@ -496,8 +524,41 @@ public class JsRegExp
         return names;
     }
 
-    private static string NormalizeGroupNameToken(string rawName)
+    internal static string NormalizeGroupNameToken(string rawName)
     {
+        for (var i = 0; i < rawName.Length; i++)
+        {
+            if (rawName[i] == '\\' && i + 1 < rawName.Length && rawName[i + 1] == 'u')
+            {
+                if (i + 2 < rawName.Length && rawName[i + 2] == '{')
+                {
+                    var endBrace = rawName.IndexOf('}', i + 3);
+                    if (endBrace == -1)
+                    {
+                        throw new ParseException("Invalid regular expression: invalid group name.");
+                    }
+
+                    var hex = rawName.Substring(i + 3, endBrace - (i + 3));
+                    if (int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var cp) &&
+                        cp is >= 0xD800 and <= 0xDFFF)
+                    {
+                        throw new ParseException("Invalid regular expression: invalid group name.");
+                    }
+                }
+                else if (i + 5 < rawName.Length &&
+                         IsHexDigit(rawName[i + 2]) && IsHexDigit(rawName[i + 3]) &&
+                         IsHexDigit(rawName[i + 4]) && IsHexDigit(rawName[i + 5]))
+                {
+                    var hex = rawName.Substring(i + 2, 4);
+                    if (int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var cp) &&
+                        cp is >= 0xD800 and <= 0xDFFF)
+                    {
+                        throw new ParseException("Invalid regular expression: invalid group name.");
+                    }
+                }
+            }
+        }
+
         foreach (var ch in rawName)
         {
             if (char.IsSurrogate(ch))
@@ -538,6 +599,18 @@ public class JsRegExp
         }
 
         return builder.ToString();
+    }
+    private static bool ContainsSurrogateCodeUnit(string value)
+    {
+        foreach (var ch in value)
+        {
+            if (char.IsSurrogate(ch))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static List<Rune> DecodeGroupName(string name)
@@ -676,4 +749,402 @@ public class JsRegExp
 
         return $"\\u{codeUnit:X4}";
     }
+
+    private static void AppendCodePoint(StringBuilder builder, int codePoint, bool unicodeMode, bool ignoreCase,
+        bool asLiteral)
+    {
+        if (!unicodeMode && ignoreCase && codePoint == 0x212A)
+        {
+            builder.Append("(?-i:\\u212A)");
+            return;
+        }
+
+        if (!unicodeMode)
+        {
+            if (char.IsSurrogate((char)codePoint))
+            {
+                var escaped = $"\\u{codePoint:X4}";
+                builder.Append(escaped);
+                return;
+            }
+
+            var text = char.ConvertFromUtf32(codePoint);
+            builder.Append(asLiteral ? Regex.Escape(text) : text);
+            return;
+        }
+
+        if (codePoint > 0x10FFFF || codePoint < 0)
+        {
+            throw new ParseException("Invalid regular expression: invalid unicode escape.");
+        }
+
+        if (codePoint is >= 0xD800 and <= 0xDFFF)
+        {
+            throw new ParseException("Invalid regular expression: invalid unicode escape.");
+        }
+
+        if (codePoint <= 0xFFFF)
+        {
+            var text = char.ConvertFromUtf32(codePoint);
+            builder.Append(asLiteral ? Regex.Escape(text) : text);
+            return;
+        }
+
+        builder.Append("(?:");
+        builder.Append(FormatAstralAsSurrogates(codePoint));
+        builder.Append(')');
+    }
+
+    private static string NormalizeUnicodeCharacterClass(string pattern, ref int index)
+    {
+        var start = index + 1;
+        if (start >= pattern.Length)
+        {
+            throw new ParseException("Invalid regular expression: unterminated character class.");
+        }
+
+        var negate = pattern[start] == '^';
+        var cursor = negate ? start + 1 : start;
+
+        var bmpRanges = new List<(int Start, int End)>();
+        var astralRanges = new List<(int Start, int End)>();
+
+        while (cursor < pattern.Length)
+        {
+            if (pattern[cursor] == ']' && cursor > start)
+            {
+                break;
+            }
+
+            var cp = ParseClassCodePoint(pattern, ref cursor);
+            if (IsHighSurrogate(cp) &&
+                TryParseLowSurrogate(pattern, ref cursor, out var trail))
+            {
+                cp = char.ConvertToUtf32((char)cp, (char)trail);
+            }
+            else if (IsSurrogate(cp))
+            {
+                throw new ParseException("Invalid regular expression: invalid unicode escape.");
+            }
+
+            var endCp = cp;
+            if (cursor < pattern.Length && pattern[cursor] == '-' && cursor + 1 < pattern.Length &&
+                pattern[cursor + 1] != ']')
+            {
+                cursor++;
+                endCp = ParseClassCodePoint(pattern, ref cursor);
+                if (IsHighSurrogate(endCp) &&
+                    TryParseLowSurrogate(pattern, ref cursor, out var rangeTrail))
+                {
+                    endCp = char.ConvertToUtf32((char)endCp, (char)rangeTrail);
+                }
+                else if (IsSurrogate(endCp))
+                {
+                    throw new ParseException("Invalid regular expression: invalid unicode escape.");
+                }
+
+                if (endCp < cp)
+                {
+                    throw new ParseException("Invalid regular expression: inverted character class range.");
+                }
+            }
+
+            if (endCp > 0xFFFF)
+            {
+                astralRanges.Add((cp, endCp));
+            }
+            else
+            {
+                bmpRanges.Add((cp, endCp));
+            }
+        }
+
+        if (cursor >= pattern.Length || pattern[cursor] != ']')
+        {
+            throw new ParseException("Invalid regular expression: unterminated character class.");
+        }
+
+        index = cursor;
+        return BuildUnicodeClassPattern(negate, bmpRanges, astralRanges);
+    }
+
+    private static string BuildUnicodeClassPattern(bool negate, List<(int Start, int End)> bmpRanges,
+        List<(int Start, int End)> astralRanges)
+    {
+        var bmpContent = BuildBmpClassContent(bmpRanges);
+        var astralContent = BuildAstralAlternation(astralRanges);
+
+        if (!negate)
+        {
+            if (astralContent.Length == 0)
+            {
+                return $"[{bmpContent}]";
+            }
+
+            var sb = new StringBuilder();
+            sb.Append("(?:");
+            var needsPipe = false;
+            if (bmpContent.Length > 0)
+            {
+                sb.Append('[');
+                sb.Append(bmpContent);
+                sb.Append(']');
+                needsPipe = true;
+            }
+
+            if (astralContent.Length > 0)
+            {
+                if (needsPipe)
+                {
+                    sb.Append('|');
+                }
+
+                sb.Append(astralContent);
+            }
+
+            sb.Append(')');
+            return sb.ToString();
+        }
+
+        var disallowed = new StringBuilder();
+        disallowed.Append("(?:");
+        var needsSeparator = false;
+        if (bmpContent.Length > 0)
+        {
+            disallowed.Append('[');
+            disallowed.Append(bmpContent);
+            disallowed.Append(']');
+            needsSeparator = true;
+        }
+
+        if (astralContent.Length > 0)
+        {
+            if (needsSeparator)
+            {
+                disallowed.Append('|');
+            }
+
+            disallowed.Append(astralContent);
+        }
+
+        disallowed.Append(')');
+        return $"(?:(?!{disallowed}){AnyCodePointPattern})";
+    }
+
+    private static string BuildBmpClassContent(List<(int Start, int End)> ranges)
+    {
+        if (ranges.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder();
+        foreach (var (start, end) in ranges)
+        {
+            if (start == end)
+            {
+                sb.Append(EscapeCharClassCodeUnit(start));
+                continue;
+            }
+
+            sb.Append(EscapeCharClassCodeUnit(start));
+            sb.Append('-');
+            sb.Append(EscapeCharClassCodeUnit(end));
+        }
+
+        return sb.ToString();
+    }
+
+    private static string BuildAstralAlternation(List<(int Start, int End)> ranges)
+    {
+        if (ranges.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder();
+        var first = true;
+        foreach (var (start, end) in ranges)
+        {
+            for (var cp = start; cp <= end; cp++)
+            {
+                if (!first)
+                {
+                    sb.Append('|');
+                }
+
+                sb.Append("(?:");
+                sb.Append(FormatAstralAsSurrogates(cp));
+                sb.Append(')');
+                first = false;
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    private static int ParseClassCodePoint(string pattern, ref int index)
+    {
+        if (index >= pattern.Length)
+        {
+            throw new ParseException("Invalid regular expression: incomplete character class.");
+        }
+
+        var ch = pattern[index];
+        if (ch != '\\')
+        {
+            if (Rune.DecodeFromUtf16(pattern.AsSpan(index), out var rune, out var consumed) != OperationStatus.Done)
+            {
+                throw new ParseException("Invalid regular expression: invalid character class.");
+            }
+
+            index += consumed;
+            return rune.Value;
+        }
+
+        if (index + 1 >= pattern.Length)
+        {
+            throw new ParseException("Invalid regular expression: invalid escape.");
+        }
+
+        var escape = pattern[index + 1];
+        if (escape == 'u')
+        {
+            if (index + 2 < pattern.Length && pattern[index + 2] == '{')
+            {
+                var endBrace = pattern.IndexOf('}', index + 3);
+                if (endBrace == -1)
+                {
+                    throw new ParseException("Invalid regular expression: invalid unicode escape.");
+                }
+
+                var hex = pattern.Substring(index + 3, endBrace - (index + 3));
+                if (hex.Length < 1 || !int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                        out var cp))
+                {
+                    throw new ParseException("Invalid regular expression: invalid unicode escape.");
+                }
+
+                if (cp is < 0 or > 0x10FFFF)
+                {
+                    throw new ParseException("Invalid regular expression: invalid unicode escape.");
+                }
+
+                index = endBrace + 1;
+                return cp;
+            }
+
+            if (index + 5 >= pattern.Length)
+            {
+                throw new ParseException("Invalid regular expression: invalid unicode escape.");
+            }
+
+            var hexDigits = pattern.Substring(index + 2, 4);
+            if (!int.TryParse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value))
+            {
+                throw new ParseException("Invalid regular expression: invalid unicode escape.");
+            }
+
+            index += 6;
+            return value;
+        }
+
+        if (escape == 'x')
+        {
+            if (index + 3 >= pattern.Length)
+            {
+                throw new ParseException("Invalid regular expression: invalid unicode escape.");
+            }
+
+            var hexDigits = pattern.Substring(index + 2, 2);
+            if (!int.TryParse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value))
+            {
+                throw new ParseException("Invalid regular expression: invalid unicode escape.");
+            }
+
+            index += 4;
+            return value;
+        }
+
+        if (escape == '0' && (index + 2 >= pattern.Length || !char.IsDigit(pattern[index + 2])))
+        {
+            index += 2;
+            return 0;
+        }
+
+        index += 2;
+        return escape;
+    }
+
+    private static bool TryParseLowSurrogate(string pattern, ref int index, out int codePoint)
+    {
+        var snapshot = index;
+        if (snapshot >= pattern.Length)
+        {
+            codePoint = 0;
+            return false;
+        }
+
+        var cp = ParseClassCodePoint(pattern, ref snapshot);
+        if (cp is >= 0xDC00 and <= 0xDFFF)
+        {
+            index = snapshot;
+            codePoint = cp;
+            return true;
+        }
+
+        codePoint = 0;
+        return false;
+    }
+
+    private static bool IsHighSurrogate(int value)
+    {
+        return value is >= 0xD800 and <= 0xDBFF;
+    }
+
+    private static bool IsSurrogate(int value)
+    {
+        return value is >= 0xD800 and <= 0xDFFF;
+    }
+
+    private static string EscapeCharClassCodeUnit(int codeUnit)
+    {
+        switch (codeUnit)
+        {
+            case (int)'-':
+                return "\\-";
+            case (int)']':
+                return "\\]";
+            case (int)'\\':
+                return "\\\\";
+        }
+
+        if (codeUnit < 0x20 || codeUnit > 0x7E)
+        {
+            return $"\\u{codeUnit:X4}";
+        }
+
+        return char.ConvertFromUtf32(codeUnit);
+    }
+
+    private static string FormatAstralAsSurrogates(int codePoint)
+    {
+        var text = char.ConvertFromUtf32(codePoint);
+        var builder = new StringBuilder();
+        foreach (var ch in text)
+        {
+            builder.Append($"\\u{(int)ch:X4}");
+        }
+
+        return builder.ToString();
+    }
+
+    private const string AnyCodePointPattern =
+        @"(?<![\uD800-\uDBFF])(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u0000-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
+
+    private const string UnicodeDotPattern =
+        @"(?<![\uD800-\uDBFF])(?:[^\n\r\u2028\u2029]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
+
+    private const string UnicodeNonWhitespacePattern =
+        @"(?<![\uD800-\uDBFF])(?:[^\s]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
 }

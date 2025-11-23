@@ -2,6 +2,7 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
+using System.Text.RegularExpressions;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -44,6 +45,7 @@ public static partial class StandardLibrary
     {
         try
         {
+            ValidateGroupNames(pattern);
             var regex = new JsRegExp(pattern, flags, realm);
             regex.JsObject["__regex__"] = regex;
             if (realm?.RegExpPrototype is not null)
@@ -62,6 +64,29 @@ public static partial class StandardLibrary
         {
             var error = CreateSyntaxError(ex.Message, realm);
             throw new ThrowSignal(error);
+        }
+    }
+
+    private static void ValidateGroupNames(string pattern)
+    {
+        var index = 0;
+        while (true)
+        {
+            var start = pattern.IndexOf("(?<", index, StringComparison.Ordinal);
+            if (start == -1)
+            {
+                break;
+            }
+
+            var end = pattern.IndexOf('>', start + 3);
+            if (end == -1)
+            {
+                break;
+            }
+
+            var name = pattern.Substring(start + 3, end - (start + 3));
+            JsRegExp.NormalizeGroupNameToken(name);
+            index = end + 1;
         }
     }
 

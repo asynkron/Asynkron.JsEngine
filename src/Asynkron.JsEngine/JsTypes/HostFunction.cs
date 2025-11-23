@@ -20,9 +20,36 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
         EnsureFunctionPrototype();
     }
 
+    public HostFunction(Func<IReadOnlyList<object?>, object?> handler, RealmState? realmState)
+        : this(handler)
+    {
+        RealmState = realmState;
+    }
+
     public HostFunction(Func<object?, IReadOnlyList<object?>, object?> handler)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
+        Properties.SetProperty("prototype", new JsObject());
+        EnsureFunctionPrototype();
+    }
+
+    public HostFunction(Func<object?, IReadOnlyList<object?>, object?> handler, RealmState? realmState)
+        : this(handler)
+    {
+        RealmState = realmState;
+    }
+
+    public HostFunction(
+        Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler,
+        RealmState? realmState)
+    {
+        if (handler is null)
+        {
+            throw new ArgumentNullException(nameof(handler));
+        }
+
+        RealmState = realmState;
+        _handler = (thisValue, args) => handler(thisValue, args, realmState);
         Properties.SetProperty("prototype", new JsObject());
         EnsureFunctionPrototype();
     }

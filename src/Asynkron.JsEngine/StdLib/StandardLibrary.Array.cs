@@ -7,16 +7,11 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static void AddArrayMethods(IJsPropertyAccessor array)
-    {
-        AddArrayMethods(array, null, null);
-    }
-
     public static void AddArrayMethods(IJsPropertyAccessor array, RealmState? realm = null, JsObject? prototypeOverride = null)
     {
-        // Once the shared Array prototype has been initialised, new arrays
+        // Once the shared Array prototype has been initialized, new arrays
         // should inherit from it instead of receiving per-instance copies of
-        // every method. This keeps prototype mutations (e.g. in tests) visible
+        // every method. This keeps prototype mutations (e.g., in tests) visible
         // to existing arrays.
         var resolvedPrototype = prototypeOverride ?? realm?.ArrayPrototype;
         if (resolvedPrototype is not null && array is JsArray jsArray)
@@ -28,105 +23,38 @@ public static partial class StandardLibrary
         // push - already implemented natively
         array.SetProperty("push", new HostFunction(ArrayPush));
 
-        // pop
         array.SetProperty("pop", new HostFunction(ArrayPop));
-
-        // map
-        array.SetProperty("map", new HostFunction((thisValue, args) => ArrayMap(thisValue, args, realm)));
-
-        // filter
-        array.SetProperty("filter",
-            new HostFunction((thisValue, args) => ArrayFilter(thisValue, args, realm)));
-
-        // reduce
+        array.SetProperty("map", new HostFunction(ArrayMap, realm));
+        array.SetProperty("filter", new HostFunction(ArrayFilter, realm));
         array.SetProperty("reduce", new HostFunction(ArrayReduce));
-
-        // forEach
         array.SetProperty("forEach", new HostFunction(ArrayForEach));
-
-        // find
         array.SetProperty("find", new HostFunction(ArrayFind));
-
-        // findIndex
         array.SetProperty("findIndex", new HostFunction(ArrayFindIndex));
-
-        // some
         array.SetProperty("some", new HostFunction(ArraySome));
-
-        // every
         array.SetProperty("every", new HostFunction(ArrayEvery));
-
-        // join
         array.SetProperty("join", new HostFunction(ArrayJoin));
-
-        // toString - delegates to join with the default separator
         array.SetProperty("toString", new HostFunction((thisValue, _) => ArrayToString(thisValue, array)));
-
-        // includes
-        array.SetProperty("includes", new HostFunction((thisValue, args) => ArrayIncludes(thisValue, args, realm)));
-
-        // indexOf
-        array.SetProperty("indexOf",
-            new HostFunction((thisValue, args) => ArrayIndexOf(thisValue, args, realm)));
-
-        // toLocaleString
-        array.SetProperty("toLocaleString",
-            new HostFunction((thisValue, args) => ArrayToLocaleString(thisValue, args, realm)));
-
-        // slice
-        array.SetProperty("slice", new HostFunction((thisValue, args) => ArraySlice(thisValue, args, realm)));
-
-        // shift
+        array.SetProperty("includes", new HostFunction(ArrayIncludes, realm));
+        array.SetProperty("indexOf", new HostFunction(ArrayIndexOf, realm));
+        array.SetProperty("toLocaleString", new HostFunction(ArrayToLocaleString, realm));
+        array.SetProperty("slice", new HostFunction(ArraySlice, realm));
         array.SetProperty("shift", new HostFunction(ArrayShift));
-
-        // unshift
         array.SetProperty("unshift", new HostFunction(ArrayUnshift));
-
-        // splice
-        array.SetProperty("splice", new HostFunction((thisValue, args) => ArraySplice(thisValue, args, realm)));
-
-        // concat
-        array.SetProperty("concat", new HostFunction((thisValue, args) => ArrayConcat(thisValue, args, realm)));
-
-        // reverse
+        array.SetProperty("splice", new HostFunction(ArraySplice, realm));
+        array.SetProperty("concat", new HostFunction(ArrayConcat, realm));
         array.SetProperty("reverse", new HostFunction(ArrayReverse));
-
-        // sort
         array.SetProperty("sort", new HostFunction(ArraySort));
-
-        // at(index)
         array.SetProperty("at", new HostFunction(ArrayAt));
-
-        // flat(depth = 1)
-        array.SetProperty("flat", new HostFunction((thisValue, args) => ArrayFlat(thisValue, args, realm)));
-
-        // flatMap(callback)
-        array.SetProperty("flatMap", new HostFunction((thisValue, args) => ArrayFlatMap(thisValue, args, realm)));
-
-        // findLast(callback)
+        array.SetProperty("flat", new HostFunction(ArrayFlat, realm));
+        array.SetProperty("flatMap", new HostFunction(ArrayFlatMap, realm));
         array.SetProperty("findLast", new HostFunction(ArrayFindLast));
-
-        // findLastIndex(callback)
         array.SetProperty("findLastIndex", new HostFunction(ArrayFindLastIndex));
-
-        // fill(value, start = 0, end = length)
         array.SetProperty("fill", new HostFunction(ArrayFill));
-
-        // copyWithin(target, start = 0, end = length)
         array.SetProperty("copyWithin", new HostFunction(ArrayCopyWithin));
-
-        // toSorted(compareFn) - non-mutating sort
-        array.SetProperty("toSorted", new HostFunction((thisValue, args) => ArrayToSorted(thisValue, args, realm)));
-
-        // toReversed() - non-mutating reverse
-        array.SetProperty("toReversed", new HostFunction((thisValue, _) => ArrayToReversed(thisValue, realm)));
-
-        // toSpliced(start, deleteCount, ...items) - non-mutating splice
-        array.SetProperty("toSpliced",
-            new HostFunction((thisValue, args) => ArrayToSpliced(thisValue, args, realm)));
-
-        // with(index, value) - non-mutating element replacement
-        array.SetProperty("with", new HostFunction((thisValue, args) => ArrayWith(thisValue, args, realm)));
+        array.SetProperty("toSorted", new HostFunction(ArrayToSorted, realm));
+        array.SetProperty("toReversed", new HostFunction(ArrayToReversed, realm));
+        array.SetProperty("toSpliced", new HostFunction(ArrayToSpliced, realm));
+        array.SetProperty("with", new HostFunction(ArrayWith, realm));
 
         static double ToLengthValue(object? candidate)
         {
@@ -1014,7 +942,7 @@ public static partial class StandardLibrary
         return result;
     }
 
-    private static object? ArrayToReversed(object? thisValue, RealmState? realm)
+    private static object? ArrayToReversed(object? thisValue, IReadOnlyList<object?> _, RealmState? realm)
     {
         if (thisValue is not JsArray jsArray)
         {
@@ -1639,7 +1567,7 @@ public static partial class StandardLibrary
             prototypeValue is JsObject prototypeObject)
         {
             prototypeObject.SetProperty("slice",
-                new HostFunction((thisValue, args) => ArraySlice(thisValue, args, realm)));
+                new HostFunction((thisValue, args) => ArraySlice(thisValue, args, realm), realm));
         }
 
         if (arrayConstructor.TryGetProperty("prototype", out var protoValue) && protoValue is JsObject arrayProtoObj)

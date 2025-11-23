@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.JsTypes;
@@ -7,6 +8,18 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public static class JsPropertyAccessorExtensions
 {
+    public static void SetProperty(this IJsPropertyAccessor accessor, string name,
+        Func<object?, IReadOnlyList<object?>, object?> handler)
+    {
+        accessor.SetProperty(name, new HostFunction(handler));
+    }
+
+    public static void SetProperty(this IJsPropertyAccessor accessor, string name,
+        Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler, RealmState? realmState)
+    {
+        accessor.SetProperty(name, new HostFunction(handler, realmState));
+    }
+
     public static void SetProperty(this IJsPropertyAccessor accessor, string name, HostFunction function,
         RealmState? realmState = null)
     {
@@ -16,6 +29,18 @@ public static class JsPropertyAccessorExtensions
         }
 
         accessor.SetProperty(name, (object?)function);
+    }
+
+    public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
+        Func<object?, IReadOnlyList<object?>, object?> handler)
+    {
+        accessor.SetHostProperty(name, handler);
+    }
+
+    public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
+        Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler, RealmState? realmState)
+    {
+        accessor.SetHostProperty(name, handler, realmState);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name, HostFunction function,

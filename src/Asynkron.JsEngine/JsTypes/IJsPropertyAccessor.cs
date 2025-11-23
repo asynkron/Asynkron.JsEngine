@@ -27,7 +27,7 @@ public interface IJsPropertyAccessor
     /// <summary>
     ///     Convenience overload for host-backed functions.
     /// </summary>
-    void SetProperty(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
+    void SetHostProperty(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
     {
         SetProperty(name, new HostFunction(handler));
     }
@@ -35,7 +35,7 @@ public interface IJsPropertyAccessor
     /// <summary>
     ///     Convenience overload for realm-aware host-backed functions.
     /// </summary>
-    void SetProperty(string name, Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler,
+    void SetHostProperty(string name, Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler,
         RealmState? realmState)
     {
         SetProperty(name, new HostFunction(handler, realmState));
@@ -46,7 +46,7 @@ public interface IJsPropertyAccessor
     /// </summary>
     void SetHostedProperty(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
     {
-        SetProperty(name, handler);
+        SetHostProperty(name, handler);
     }
 
     /// <summary>
@@ -55,7 +55,7 @@ public interface IJsPropertyAccessor
     void SetHostedProperty(string name, Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler,
         RealmState? realmState)
     {
-        SetProperty(name, handler, realmState);
+        SetHostProperty(name, handler, realmState);
     }
 
     /// <summary>

@@ -21,40 +21,69 @@ public static partial class StandardLibrary
         }
 
         // push - already implemented natively
-        array.SetProperty("push", ArrayPush);
+        array.SetHostProperty("push", ArrayPush);
 
-        array.SetProperty("pop", ArrayPop);
-        array.SetProperty("map", ArrayMap, realm);
-        array.SetProperty("filter", ArrayFilter, realm);
-        array.SetProperty("reduce", ArrayReduce);
-        array.SetProperty("forEach", ArrayForEach);
-        array.SetProperty("find", ArrayFind);
-        array.SetProperty("findIndex", ArrayFindIndex);
-        array.SetProperty("some", ArraySome);
-        array.SetProperty("every", ArrayEvery);
-        array.SetProperty("join", ArrayJoin);
-        array.SetProperty("toString", (thisValue, _) => ArrayToString(thisValue, array));
-        array.SetProperty("includes", ArrayIncludes, realm);
-        array.SetProperty("indexOf", ArrayIndexOf, realm);
-        array.SetProperty("toLocaleString", ArrayToLocaleString, realm);
-        array.SetProperty("slice", ArraySlice, realm);
-        array.SetProperty("shift", ArrayShift);
-        array.SetProperty("unshift", ArrayUnshift);
-        array.SetProperty("splice", ArraySplice, realm);
-        array.SetProperty("concat", ArrayConcat, realm);
-        array.SetProperty("reverse", ArrayReverse);
-        array.SetProperty("sort", ArraySort);
-        array.SetProperty("at", ArrayAt);
-        array.SetProperty("flat", ArrayFlat, realm);
-        array.SetProperty("flatMap", ArrayFlatMap, realm);
-        array.SetProperty("findLast", ArrayFindLast);
-        array.SetProperty("findLastIndex", ArrayFindLastIndex);
-        array.SetProperty("fill", ArrayFill);
-        array.SetProperty("copyWithin", ArrayCopyWithin);
-        array.SetProperty("toSorted", ArrayToSorted, realm);
-        array.SetProperty("toReversed", ArrayToReversed, realm);
-        array.SetProperty("toSpliced", ArrayToSpliced, realm);
-        array.SetProperty("with", ArrayWith, realm);
+        array.SetHostProperty("pop", ArrayPop);
+        array.SetHostProperty("map", ArrayMap, realm);
+        array.SetHostProperty("filter", ArrayFilter, realm);
+        array.SetHostProperty("reduce", ArrayReduce);
+        array.SetHostProperty("forEach", ArrayForEach);
+        array.SetHostProperty("find", ArrayFind);
+        array.SetHostProperty("findIndex", ArrayFindIndex);
+        array.SetHostProperty("some", ArraySome);
+        array.SetHostProperty("every", ArrayEvery);
+        array.SetHostProperty("join", ArrayJoin);
+        array.SetHostProperty("toString", (thisValue, _) => ArrayToString(thisValue, array));
+        array.SetHostProperty("includes", ArrayIncludes, realm);
+        array.SetHostProperty("indexOf", ArrayIndexOf, realm);
+        array.SetHostProperty("toLocaleString", ArrayToLocaleString, realm);
+        array.SetHostProperty("slice", ArraySlice, realm);
+        array.SetHostProperty("shift", ArrayShift);
+        array.SetHostProperty("unshift", ArrayUnshift);
+        array.SetHostProperty("splice", ArraySplice, realm);
+        array.SetHostProperty("concat", ArrayConcat, realm);
+        array.SetHostProperty("reverse", ArrayReverse);
+        array.SetHostProperty("sort", ArraySort);
+        array.SetHostProperty("at", ArrayAt);
+        array.SetHostProperty("flat", ArrayFlat, realm);
+        array.SetHostProperty("flatMap", ArrayFlatMap, realm);
+        array.SetHostProperty("findLast", ArrayFindLast);
+        array.SetHostProperty("findLastIndex", ArrayFindLastIndex);
+        array.SetHostProperty("fill", ArrayFill);
+        array.SetHostProperty("copyWithin", ArrayCopyWithin);
+        array.SetHostProperty("toSorted", ArrayToSorted, realm);
+        array.SetHostProperty("toReversed", ArrayToReversed, realm);
+        array.SetHostProperty("toSpliced", ArrayToSpliced, realm);
+        array.SetHostProperty("with", ArrayWith, realm);
+
+        // entries() - returns an iterator of [index, value] pairs
+        DefineArrayIteratorFunction("entries", (accessor, _) => idx =>
+        {
+            var pair = new JsArray(realm);
+            pair.Push((double)idx);
+            if (accessor.TryGetProperty(idx.ToString(CultureInfo.InvariantCulture), out var value))
+            {
+                pair.Push(value);
+            }
+            else
+            {
+                pair.Push(Symbols.Undefined);
+            }
+
+            AddArrayMethods(pair, realm);
+            return pair;
+        });
+
+        // keys() - returns an iterator of indices
+        DefineArrayIteratorFunction("keys", (_, _) => idx => (double)idx);
+
+        // values() - returns an iterator of values
+        var valuesFn = DefineArrayIteratorFunction("values", (accessor, _) => idx =>
+        {
+            var key = idx.ToString(CultureInfo.InvariantCulture);
+            return accessor.TryGetProperty(key, out var value) ? value : Symbols.Undefined;
+        });
+        return;
 
         static double ToLengthValue(object? candidate)
         {
@@ -162,34 +191,6 @@ public static partial class StandardLibrary
 
             return fn;
         }
-
-        // entries() - returns an iterator of [index, value] pairs
-        DefineArrayIteratorFunction("entries", (accessor, _) => idx =>
-        {
-            var pair = new JsArray(realm);
-            pair.Push((double)idx);
-            if (accessor.TryGetProperty(idx.ToString(CultureInfo.InvariantCulture), out var value))
-            {
-                pair.Push(value);
-            }
-            else
-            {
-                pair.Push(Symbols.Undefined);
-            }
-
-            AddArrayMethods(pair, realm);
-            return pair;
-        });
-
-        // keys() - returns an iterator of indices
-        DefineArrayIteratorFunction("keys", (_, _) => idx => (double)idx);
-
-        // values() - returns an iterator of values
-        var valuesFn = DefineArrayIteratorFunction("values", (accessor, _) => idx =>
-        {
-            var key = idx.ToString(CultureInfo.InvariantCulture);
-            return accessor.TryGetProperty(key, out var value) ? value : Symbols.Undefined;
-        });
     }
 
     private static object? ArrayPush(object? thisValue, IReadOnlyList<object?> args)
@@ -1260,49 +1261,6 @@ public static partial class StandardLibrary
                 throw new ThrowSignal(error);
             }
 
-            static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
-                IJsCallable? typeErrorCtor)
-            {
-                var existing = target.GetOwnPropertyDescriptor(propertyKey);
-                if (existing is null)
-                {
-                    if (target.IsSealed)
-                    {
-                        var error = typeErrorCtor is not null
-                            ? typeErrorCtor.Invoke([$"Cannot define property {propertyKey} on a sealed object"], null)
-                            : new InvalidOperationException(
-                                $"Cannot define property {propertyKey} on a sealed object");
-                        throw new ThrowSignal(error);
-                    }
-                }
-                else if (!existing.Configurable)
-                {
-                    if (existing is { IsAccessorDescriptor: true, Set: null } || !existing.Writable)
-                    {
-                        var error = typeErrorCtor is not null
-                            ? typeErrorCtor.Invoke([$"Property {propertyKey} is non-writable"], null)
-                            : new InvalidOperationException($"Property {propertyKey} is non-writable");
-                        throw new ThrowSignal(error);
-                    }
-                }
-
-                var descriptor = new PropertyDescriptor
-                {
-                    Value = value, Writable = true, Enumerable = true, Configurable = true
-                };
-
-                target.DefineProperty(propertyKey, descriptor);
-
-                var defined = target.GetOwnPropertyDescriptor(propertyKey);
-                if (defined?.Writable != true || !defined.Enumerable || !defined.Configurable)
-                {
-                    var error = typeErrorCtor is not null
-                        ? typeErrorCtor.Invoke([$"Failed to create data property {propertyKey}"], null)
-                        : new InvalidOperationException($"Failed to create data property {propertyKey}");
-                    throw new ThrowSignal(error);
-                }
-            }
-
             var constructor = thisValue as IJsCallable;
             var useConstructor = constructor is not null &&
                                  (constructor is not HostFunction hostFn || hostFn.IsConstructor);
@@ -1354,18 +1312,6 @@ public static partial class StandardLibrary
 
                 var constructed = constructor?.Invoke([(double)lengthInt], instance);
                 result = constructed as IJsObjectLike ?? instance;
-            }
-
-            IJsCallable? ResolveTypeErrorCtor()
-            {
-                if (callingEnv is not null &&
-                    callingEnv.TryGet(Symbol.Intern("TypeError"), out var typeErrorVal) &&
-                    typeErrorVal is IJsCallable typeErrorFromEnv)
-                {
-                    return typeErrorFromEnv;
-                }
-
-                return realm.TypeErrorConstructor;
             }
 
             if (TryGetIteratorMethod(source, out var iteratorMethod))
@@ -1446,6 +1392,61 @@ public static partial class StandardLibrary
             }
 
             return result;
+
+            static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
+                IJsCallable? typeErrorCtor)
+            {
+                var existing = target.GetOwnPropertyDescriptor(propertyKey);
+                if (existing is null)
+                {
+                    if (target.IsSealed)
+                    {
+                        var error = typeErrorCtor is not null
+                            ? typeErrorCtor.Invoke([$"Cannot define property {propertyKey} on a sealed object"], null)
+                            : new InvalidOperationException(
+                                $"Cannot define property {propertyKey} on a sealed object");
+                        throw new ThrowSignal(error);
+                    }
+                }
+                else if (!existing.Configurable)
+                {
+                    if (existing is { IsAccessorDescriptor: true, Set: null } || !existing.Writable)
+                    {
+                        var error = typeErrorCtor is not null
+                            ? typeErrorCtor.Invoke([$"Property {propertyKey} is non-writable"], null)
+                            : new InvalidOperationException($"Property {propertyKey} is non-writable");
+                        throw new ThrowSignal(error);
+                    }
+                }
+
+                var descriptor = new PropertyDescriptor
+                {
+                    Value = value, Writable = true, Enumerable = true, Configurable = true
+                };
+
+                target.DefineProperty(propertyKey, descriptor);
+
+                var defined = target.GetOwnPropertyDescriptor(propertyKey);
+                if (defined?.Writable != true || !defined.Enumerable || !defined.Configurable)
+                {
+                    var error = typeErrorCtor is not null
+                        ? typeErrorCtor.Invoke([$"Failed to create data property {propertyKey}"], null)
+                        : new InvalidOperationException($"Failed to create data property {propertyKey}");
+                    throw new ThrowSignal(error);
+                }
+            }
+
+            IJsCallable? ResolveTypeErrorCtor()
+            {
+                if (callingEnv is not null &&
+                    callingEnv.TryGet(Symbol.Intern("TypeError"), out var typeErrorVal) &&
+                    typeErrorVal is IJsCallable typeErrorFromEnv)
+                {
+                    return typeErrorFromEnv;
+                }
+
+                return realm.TypeErrorConstructor;
+            }
 
             object WrapTypeError(string message)
             {

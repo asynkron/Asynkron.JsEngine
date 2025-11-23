@@ -37,116 +37,15 @@ public static partial class StandardLibrary
     {
         // Note: size needs special handling as a getter - for now we'll just access it dynamically in the methods
 
-        // set(key, value)
-        map.SetProperty("set", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsMap m)
-            {
-                return Symbols.Undefined;
-            }
-
-            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var value = args.Count > 1 ? args[1] : Symbols.Undefined;
-            return m.Set(key, value);
-        }));
-
-        // get(key)
-        map.SetProperty("get", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsMap m)
-            {
-                return Symbols.Undefined;
-            }
-
-            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return m.Get(key);
-        }));
-
-        // has(key)
-        map.SetProperty("has", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsMap m)
-            {
-                return false;
-            }
-
-            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return m.Has(key);
-        }));
-
-        // delete(key)
-        map.SetProperty("delete", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsMap m)
-            {
-                return false;
-            }
-
-            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return m.Delete(key);
-        }));
-
-        // clear()
-        map.SetProperty("clear", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is JsMap m)
-            {
-                m.Clear();
-            }
-
-            return Symbols.Undefined;
-        }));
-
-        // forEach(callback, thisArg)
-        map.SetProperty("forEach", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsMap m)
-            {
-                return Symbols.Undefined;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return Symbols.Undefined;
-            }
-
-            var thisArg = args.Count > 1 ? args[1] : null;
-            m.ForEach(callback, thisArg);
-            return Symbols.Undefined;
-        }));
-
-        // entries()
-        map.SetProperty("entries", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is not JsMap m)
-            {
-                return Symbols.Undefined;
-            }
-
-            return m.Entries();
-        }));
-
-        // keys()
-        map.SetProperty("keys", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is not JsMap m)
-            {
-                return Symbols.Undefined;
-            }
-
-            return m.Keys();
-        }));
-
-        // values()
-        map.SetProperty("values", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is not JsMap m)
-            {
-                return Symbols.Undefined;
-            }
-
-            return m.Values();
-        }));
+        map.SetHostedProperty("set", MapSet_Set);
+        map.SetHostedProperty("get", MapSet_Get);
+        map.SetHostedProperty("has", MapSet_Has);
+        map.SetHostedProperty("delete", MapSet_Delete);
+        map.SetHostedProperty("clear", MapSet_Clear);
+        map.SetHostedProperty("forEach", MapSet_ForEach);
+        map.SetHostedProperty("entries", MapSet_Entries);
+        map.SetHostedProperty("keys", MapSet_Keys);
+        map.SetHostedProperty("values", MapSet_Values);
     }
 
     /// <summary>
@@ -181,103 +80,24 @@ public static partial class StandardLibrary
     {
         // Note: size needs special handling as a getter - handled in Evaluator.TryGetPropertyValue
 
-        // add(value)
-        set.SetProperty("add", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsSet s)
-            {
-                return Symbols.Undefined;
-            }
+        set.SetHostedProperty("add", Set_Add);
 
-            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return s.Add(value);
-        }));
+        set.SetHostedProperty("has", Set_Has);
 
-        // has(value)
-        set.SetProperty("has", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsSet s)
-            {
-                return false;
-            }
-
-            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return s.Has(value);
-        }));
-
-        // delete(value)
-        set.SetProperty("delete", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsSet s)
-            {
-                return false;
-            }
-
-            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return s.Delete(value);
-        }));
-
-        // clear()
-        set.SetProperty("clear", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is JsSet s)
-            {
-                s.Clear();
-            }
-
-            return Symbols.Undefined;
-        }));
+        set.SetHostedProperty("delete", Set_Delete);
+        set.SetHostedProperty("clear", Set_Clear);
 
         // forEach(callback, thisArg)
-        set.SetProperty("forEach", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsSet s)
-            {
-                return Symbols.Undefined;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return Symbols.Undefined;
-            }
-
-            var thisArg = args.Count > 1 ? args[1] : null;
-            s.ForEach(callback, thisArg);
-            return Symbols.Undefined;
-        }));
+        set.SetHostedProperty("forEach", Set_ForEach);
 
         // entries()
-        set.SetProperty("entries", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is not JsSet s)
-            {
-                return Symbols.Undefined;
-            }
-
-            return s.Entries();
-        }));
+        set.SetHostedProperty("entries", Set_Entries);
 
         // keys()
-        set.SetProperty("keys", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is not JsSet s)
-            {
-                return Symbols.Undefined;
-            }
-
-            return s.Keys();
-        }));
+        set.SetHostedProperty("keys", Set_Keys);
 
         // values()
-        set.SetProperty("values", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is not JsSet s)
-            {
-                return Symbols.Undefined;
-            }
-
-            return s.Values();
-        }));
+        set.SetHostedProperty("values", Set_Values);
     }
 
     /// <summary>
@@ -321,61 +141,10 @@ public static partial class StandardLibrary
     /// </summary>
     private static void AddWeakMapMethods(JsWeakMap weakMap)
     {
-        // set(key, value)
-        weakMap.SetProperty("set", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsWeakMap wm)
-            {
-                return Symbols.Undefined;
-            }
-
-            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var value = args.Count > 1 ? args[1] : Symbols.Undefined;
-            try
-            {
-                return wm.Set(key, value);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
-        }));
-
-        // get(key)
-        weakMap.SetProperty("get", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsWeakMap wm)
-            {
-                return Symbols.Undefined;
-            }
-
-            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return wm.Get(key);
-        }));
-
-        // has(key)
-        weakMap.SetProperty("has", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsWeakMap wm)
-            {
-                return false;
-            }
-
-            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return wm.Has(key);
-        }));
-
-        // delete(key)
-        weakMap.SetProperty("delete", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsWeakMap wm)
-            {
-                return false;
-            }
-
-            var key = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return wm.Delete(key);
-        }));
+        weakMap.SetHostedProperty("set", WeakMap_Set);
+        weakMap.SetHostedProperty("get", WeakMap_Get);
+        weakMap.SetHostedProperty("has", WeakMap_Has);
+        weakMap.SetHostedProperty("delete", WeakMap_Delete);
     }
 
     /// <summary>
@@ -415,47 +184,262 @@ public static partial class StandardLibrary
     /// </summary>
     private static void AddWeakSetMethods(JsWeakSet weakSet)
     {
-        // add(value)
-        weakSet.SetProperty("add", new HostFunction((thisValue, args) =>
+        weakSet.SetHostedProperty("add", WeakSet_Add);
+        weakSet.SetHostedProperty("has", WeakSet_Has);
+        weakSet.SetHostedProperty("delete", WeakSet_Delete);
+    }
+
+    private static object? MapSet_Set(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsMap map)
         {
-            if (thisValue is not JsWeakSet ws)
-            {
-                return Symbols.Undefined;
-            }
+            return Symbols.Undefined;
+        }
 
-            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
-            try
-            {
-                return ws.Add(value);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
-        }));
+        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var value = args.Count > 1 ? args[1] : Symbols.Undefined;
+        return map.Set(key, value);
+    }
 
-        // has(value)
-        weakSet.SetProperty("has", new HostFunction((thisValue, args) =>
+    private static object? MapSet_Get(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsMap map)
         {
-            if (thisValue is not JsWeakSet ws)
-            {
-                return false;
-            }
+            return Symbols.Undefined;
+        }
 
-            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return ws.Has(value);
-        }));
+        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        return map.Get(key);
+    }
 
-        // delete(value)
-        weakSet.SetProperty("delete", new HostFunction((thisValue, args) =>
+    private static object MapSet_Has(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsMap map)
         {
-            if (thisValue is not JsWeakSet ws)
-            {
-                return false;
-            }
+            return false;
+        }
 
-            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
-            return ws.Delete(value);
-        }));
+        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        return map.Has(key);
+    }
+
+    private static object MapSet_Delete(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsMap map)
+        {
+            return false;
+        }
+
+        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        return map.Delete(key);
+    }
+
+    private static object? MapSet_Clear(object? thisValue, IReadOnlyList<object?> _)
+    {
+        if (thisValue is JsMap map)
+        {
+            map.Clear();
+        }
+
+        return Symbols.Undefined;
+    }
+
+    private static object? MapSet_ForEach(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsMap map)
+        {
+            return Symbols.Undefined;
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return Symbols.Undefined;
+        }
+
+        var thisArg = args.Count > 1 ? args[1] : null;
+        map.ForEach(callback, thisArg);
+        return Symbols.Undefined;
+    }
+
+    private static object? MapSet_Entries(object? thisValue, IReadOnlyList<object?> _)
+    {
+        return thisValue is JsMap map ? map.Entries() : Symbols.Undefined;
+    }
+
+    private static object? MapSet_Keys(object? thisValue, IReadOnlyList<object?> _)
+    {
+        return thisValue is JsMap map ? map.Keys() : Symbols.Undefined;
+    }
+
+    private static object? MapSet_Values(object? thisValue, IReadOnlyList<object?> _)
+    {
+        return thisValue is JsMap map ? map.Values() : Symbols.Undefined;
+    }
+
+    private static object? Set_Add(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsSet set)
+        {
+            return Symbols.Undefined;
+        }
+
+        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        return set.Add(value);
+    }
+
+    private static object Set_Has(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsSet set)
+        {
+            return false;
+        }
+
+        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        return set.Has(value);
+    }
+
+    private static object Set_Delete(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsSet set)
+        {
+            return false;
+        }
+
+        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        return set.Delete(value);
+    }
+
+    private static object? Set_Clear(object? thisValue, IReadOnlyList<object?> _)
+    {
+        if (thisValue is JsSet set)
+        {
+            set.Clear();
+        }
+
+        return Symbols.Undefined;
+    }
+
+    private static object? Set_ForEach(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsSet set)
+        {
+            return Symbols.Undefined;
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return Symbols.Undefined;
+        }
+
+        var thisArg = args.Count > 1 ? args[1] : null;
+        set.ForEach(callback, thisArg);
+        return Symbols.Undefined;
+    }
+
+    private static object? Set_Entries(object? thisValue, IReadOnlyList<object?> _)
+    {
+        return thisValue is JsSet set ? set.Entries() : Symbols.Undefined;
+    }
+
+    private static object? Set_Keys(object? thisValue, IReadOnlyList<object?> _)
+    {
+        return thisValue is JsSet set ? set.Keys() : Symbols.Undefined;
+    }
+
+    private static object? Set_Values(object? thisValue, IReadOnlyList<object?> _)
+    {
+        return thisValue is JsSet set ? set.Values() : Symbols.Undefined;
+    }
+
+    private static object? WeakMap_Set(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsWeakMap weakMap)
+        {
+            return Symbols.Undefined;
+        }
+
+        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var value = args.Count > 1 ? args[1] : Symbols.Undefined;
+        try
+        {
+            return weakMap.Set(key, value);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception(ex.Message);
+        }
+    }
+
+    private static object? WeakMap_Get(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsWeakMap weakMap)
+        {
+            return Symbols.Undefined;
+        }
+
+        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        return weakMap.Get(key);
+    }
+
+    private static object WeakMap_Has(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsWeakMap weakMap)
+        {
+            return false;
+        }
+
+        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        return weakMap.Has(key);
+    }
+
+    private static object WeakMap_Delete(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsWeakMap weakMap)
+        {
+            return false;
+        }
+
+        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        return weakMap.Delete(key);
+    }
+
+    private static object? WeakSet_Add(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsWeakSet weakSet)
+        {
+            return Symbols.Undefined;
+        }
+
+        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        try
+        {
+            return weakSet.Add(value);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception(ex.Message);
+        }
+    }
+
+    private static object WeakSet_Has(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsWeakSet weakSet)
+        {
+            return false;
+        }
+
+        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        return weakSet.Has(value);
+    }
+
+    private static object WeakSet_Delete(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsWeakSet weakSet)
+        {
+            return false;
+        }
+
+        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        return weakSet.Delete(value);
     }
 }

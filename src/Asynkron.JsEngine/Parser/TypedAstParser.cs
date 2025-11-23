@@ -766,7 +766,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             return new FunctionExpression(source, functionName, parameters, body, false, isGenerator);
         }
 
-        private FunctionExpression CreateDefaultConstructor(Symbol? className)
+        private static FunctionExpression CreateDefaultConstructor(Symbol? className)
         {
             var body = new BlockStatement(null, ImmutableArray<StatementNode>.Empty, false);
             return new FunctionExpression(body.Source, className, ImmutableArray<FunctionParameter>.Empty, body, false,
@@ -2327,13 +2327,13 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             return new NewExpression(constructor.Source, constructor, args);
         }
 
-        private BinaryExpression CreateBinaryExpression(string op, ExpressionNode left, ExpressionNode right)
+        private static BinaryExpression CreateBinaryExpression(string op, ExpressionNode left, ExpressionNode right)
         {
             var source = left.Source ?? right.Source;
             return new BinaryExpression(source, op, left, right);
         }
 
-        private ExpressionNode CreateMemberAssignment(MemberExpression member, ExpressionNode value)
+        private static ExpressionNode CreateMemberAssignment(MemberExpression member, ExpressionNode value)
         {
             if (member.IsOptional)
             {
@@ -2666,7 +2666,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             return true;
         }
 
-        private FunctionParameter CreateParameterFromBinding(BindingTarget target, bool isRest,
+        private static FunctionParameter CreateParameterFromBinding(BindingTarget target, bool isRest,
             ExpressionNode? defaultValue)
         {
             return target switch
@@ -2910,7 +2910,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             return token.Literal?.ToString() ?? string.Empty;
         }
 
-        private bool IsPropertyNameToken(Token token)
+        private static bool IsPropertyNameToken(Token token)
         {
             return token.Type == TokenType.Identifier || IsContextualIdentifierToken(token) || IsKeyword(token);
         }

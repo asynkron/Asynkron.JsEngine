@@ -5047,7 +5047,7 @@ public static class TypedAstEvaluator
             }
         }
 
-        private object? FinishExternalCompletion(ResumeMode mode, object? value)
+        private static object? FinishExternalCompletion(ResumeMode mode, object? value)
         {
             return mode switch
             {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -290,7 +291,7 @@ public static partial class StandardLibrary
                 var target = CreateTarget(length);
                 for (var i = 0; i < length; i++)
                 {
-                    var key = i.ToString();
+                    var key = i.ToString(CultureInfo.InvariantCulture);
                     var hasElement = arrayLike.TryGetProperty(key, out var element);
                     target.SetValue(i, ApplyMap(i, hasElement ? element : Symbols.Undefined));
                 }

@@ -358,7 +358,7 @@ public sealed class JsEngine : IAsyncDisposable
         CancellationToken cancellationToken = default,
         ExecutionKind executionKind = ExecutionKind.Script)
     {
-        return _typedExecutor.Evaluate(program, environment, _realm, cancellationToken, executionKind);
+        return TypedProgramExecutor.Evaluate(program, environment, _realm, cancellationToken, executionKind);
     }
 
     /// <summary>

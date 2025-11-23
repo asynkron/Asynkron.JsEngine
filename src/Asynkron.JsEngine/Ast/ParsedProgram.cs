@@ -8,7 +8,7 @@ public sealed class ParsedProgram(ProgramNode typed)
 {
     public ProgramNode Typed { get; } = typed ?? throw new ArgumentNullException(nameof(typed));
 
-    internal ParsedProgram WithTyped(ProgramNode typed)
+    internal static ParsedProgram WithTyped(ProgramNode typed)
     {
         return new ParsedProgram(typed);
     }

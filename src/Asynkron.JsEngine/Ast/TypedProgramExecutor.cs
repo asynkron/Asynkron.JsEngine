@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 internal sealed class TypedProgramExecutor
 {
-    public object? Evaluate(
+    public static object? Evaluate(
         ParsedProgram program,
         JsEnvironment environment,
         RealmState realmState,

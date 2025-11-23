@@ -637,7 +637,7 @@ internal static class GeneratorYieldLowerer
             return new IdentifierBinding(null, symbol);
         }
 
-        private ImmutableArray<StatementNode> BuildYieldedLoop(
+        private static ImmutableArray<StatementNode> BuildYieldedLoop(
             IdentifierBinding? resumeIdentifier,
             YieldExpression? yieldExpression,
             ExpressionNode? rewrittenCondition,

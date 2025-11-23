@@ -10,21 +10,7 @@ public static partial class StandardLibrary
     {
         JsObject? prototype = null;
 
-        var errorConstructor = new HostFunction((thisValue, args) =>
-        {
-            var message = args.Count > 0 && args[0] != null ? args[0]!.ToString() : "";
-            var errorObj = thisValue as JsObject ?? new JsObject();
-
-            if (prototype is not null && errorObj.Prototype is null)
-            {
-                errorObj.SetPrototype(prototype);
-            }
-
-            errorObj["name"] = errorType;
-            errorObj["message"] = message;
-
-            return errorObj;
-        });
+        var errorConstructor = new HostFunction(ErrorConstructor);
         errorConstructor.RealmState = realm;
 
         prototype = new JsObject();
@@ -37,17 +23,7 @@ public static partial class StandardLibrary
             prototype.SetPrototype(realm.ObjectPrototype);
         }
 
-        prototype.SetProperty("toString", new HostFunction((errThis, _) =>
-        {
-            if (errThis is JsObject err)
-            {
-                var name = err.TryGetValue("name", out var n) ? n?.ToString() : errorType;
-                var msg = err.TryGetValue("message", out var m) ? m?.ToString() : "";
-                return string.IsNullOrEmpty(msg) ? name : $"{name}: {msg}";
-            }
-
-            return errorType;
-        }));
+        prototype.SetHostedProperty("toString", ErrorToString);
 
         prototype.DefineProperty("constructor",
             new PropertyDescriptor
@@ -83,6 +59,34 @@ public static partial class StandardLibrary
         errorConstructor.SetProperty("name", errorType);
 
         return errorConstructor;
+
+        object? ErrorConstructor(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var message = args.Count > 0 && args[0] != null ? args[0]!.ToString() : "";
+            var errorObj = thisValue as JsObject ?? new JsObject();
+
+            if (prototype is not null && errorObj.Prototype is null)
+            {
+                errorObj.SetPrototype(prototype);
+            }
+
+            errorObj["name"] = errorType;
+            errorObj["message"] = message;
+
+            return errorObj;
+        }
+
+        object? ErrorToString(object? errThis, IReadOnlyList<object?> _)
+        {
+            if (errThis is JsObject err)
+            {
+                var name = err.TryGetValue("name", out var n) ? n?.ToString() : errorType;
+                var msg = err.TryGetValue("message", out var m) ? m?.ToString() : "";
+                return string.IsNullOrEmpty(msg) ? name : $"{name}: {msg}";
+            }
+
+            return errorType;
+        }
     }
 
     /// <summary>

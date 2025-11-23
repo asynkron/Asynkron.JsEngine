@@ -108,7 +108,12 @@ public static partial class StandardLibrary
             uint index = 0;
             var exhausted = false;
 
-            iterator.SetProperty("next", new HostFunction((_, _) =>
+            iterator.SetHostedProperty("next", Next);
+
+            iterator.SetHostedProperty(iteratorKey, ReturnIterator);
+            return iterator;
+
+            object? Next(object? _, IReadOnlyList<object?> __)
             {
                 if (exhausted)
                 {
@@ -139,10 +144,12 @@ public static partial class StandardLibrary
                 }
 
                 return result;
-            }));
+            }
 
-            iterator.SetProperty(iteratorKey, new HostFunction((_, _) => iterator));
-            return iterator;
+            object? ReturnIterator(object? _, IReadOnlyList<object?> __)
+            {
+                return iterator;
+            }
         }
 
         HostFunction DefineArrayIteratorFunction(string name,
@@ -1527,12 +1534,7 @@ public static partial class StandardLibrary
             new PropertyDescriptor { Value = arrayFrom, Writable = true, Enumerable = false, Configurable = true });
 
         // Array.of(...elements)
-        arrayConstructor.SetProperty("of", new HostFunction(args =>
-        {
-            var arr = new JsArray(args, realm);
-            AddArrayMethods(arr, realm);
-            return arr;
-        }));
+        arrayConstructor.SetHostedProperty("of", ArrayOf);
 
         // Expose core Array prototype methods (such as slice) on
         // Array.prototype so patterns like `Array.prototype.slice.call`
@@ -1540,8 +1542,7 @@ public static partial class StandardLibrary
         if (arrayConstructor.TryGetProperty("prototype", out var prototypeValue) &&
             prototypeValue is JsObject prototypeObject)
         {
-            prototypeObject.SetProperty("slice",
-                new HostFunction((thisValue, args) => ArraySlice(thisValue, args, realm), realm));
+            prototypeObject.SetHostedProperty("slice", ArraySlice, realm);
         }
 
         if (arrayConstructor.TryGetProperty("prototype", out var protoValue) && protoValue is JsObject arrayProtoObj)
@@ -1575,6 +1576,13 @@ public static partial class StandardLibrary
             new PropertyDescriptor { Value = "Array", Writable = false, Enumerable = false, Configurable = true });
 
         return arrayConstructor;
+
+        object? ArrayOf(IReadOnlyList<object?> args)
+        {
+            var arr = new JsArray(args, realm);
+            AddArrayMethods(arr, realm);
+            return arr;
+        }
     }
 
     private static double ToLengthOrZero(object? value)

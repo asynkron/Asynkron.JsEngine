@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine;
 
 public sealed class JsEnvironment
 {
-    private const int MaxDepth = 10_000;
+    private const int MaxDepth = 1_000;
     private readonly SourceReference? _creatingSource;
     private readonly string? _description;
     private readonly JsEnvironment? _enclosing;

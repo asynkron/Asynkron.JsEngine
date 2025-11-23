@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Collections.Generic;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -286,15 +287,19 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public IJsCallable? GetGetter(string name)
     {
-        if (TryGetValue(GetterPrefix + name, out var getter))
-        {
-            return getter as IJsCallable;
-        }
+        var current = this;
+        var visited = ReferenceEqualityComparer.Instance;
+        var seen = new HashSet<JsObject>(visited);
 
-        // Check prototype chain
-        if (Prototype != null)
+        while (current is not null && seen.Add(current))
         {
-            return Prototype.GetGetter(name);
+            if (current.TryGetValue(GetterPrefix + name, out var getter) &&
+                getter is IJsCallable callable)
+            {
+                return callable;
+            }
+
+            current = current.Prototype;
         }
 
         return null;
@@ -302,15 +307,19 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public IJsCallable? GetSetter(string name)
     {
-        if (TryGetValue(SetterPrefix + name, out var setter))
-        {
-            return setter as IJsCallable;
-        }
+        var current = this;
+        var visited = ReferenceEqualityComparer.Instance;
+        var seen = new HashSet<JsObject>(visited);
 
-        // Check prototype chain
-        if (Prototype != null)
+        while (current is not null && seen.Add(current))
         {
-            return Prototype.GetSetter(name);
+            if (current.TryGetValue(SetterPrefix + name, out var setter) &&
+                setter is IJsCallable callable)
+            {
+                return callable;
+            }
+
+            current = current.Prototype;
         }
 
         return null;

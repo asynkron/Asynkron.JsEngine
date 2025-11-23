@@ -184,24 +184,7 @@ public static partial class StandardLibrary
             collatorPrototype.SetPrototype(realm.ObjectPrototype);
         }
 
-        var collatorCtor = new HostFunction((thisValue, _) =>
-        {
-            var instance = thisValue as JsObject ?? new JsObject();
-            instance.SetPrototype(collatorPrototype);
-            instance.SetProperty("compare", new HostFunction((_, compareArgs) =>
-            {
-                // Basic comparison using string coercion.
-                var a = compareArgs.Count > 0 ? JsValueToString(compareArgs[0]) : string.Empty;
-                var b = compareArgs.Count > 1 ? JsValueToString(compareArgs[1]) : string.Empty;
-                return string.CompareOrdinal(a, b) switch
-                {
-                    < 0 => -1d,
-                    > 0 => 1d,
-                    _ => 0d
-                };
-            }) { IsConstructor = false });
-            return instance;
-        }) { IsConstructor = true };
+        var collatorCtor = new HostFunction(CollatorCtor) { IsConstructor = true };
 
         collatorCtor.DefineProperty("length",
             new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
@@ -215,7 +198,7 @@ public static partial class StandardLibrary
         collatorCtor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor
             {
-                Value = new HostFunction(_ => new JsArray()) { IsConstructor = false },
+                Value = new HostFunction(CollatorSupportedLocalesOf) { IsConstructor = false },
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -235,6 +218,32 @@ public static partial class StandardLibrary
         intl.SetProperty("Collator", collatorCtor);
 
         return intl;
+
+        object? CollatorCtor(object? thisValue, IReadOnlyList<object?> _)
+        {
+            var instance = thisValue as JsObject ?? new JsObject();
+            instance.SetPrototype(collatorPrototype);
+            var compareFn = new HostFunction(CollatorCompare) { IsConstructor = false };
+            instance.SetProperty("compare", compareFn);
+            return instance;
+        }
+
+        object? CollatorCompare(object? _, IReadOnlyList<object?> compareArgs)
+        {
+            var a = compareArgs.Count > 0 ? JsValueToString(compareArgs[0]) : string.Empty;
+            var b = compareArgs.Count > 1 ? JsValueToString(compareArgs[1]) : string.Empty;
+            return string.CompareOrdinal(a, b) switch
+            {
+                < 0 => -1d,
+                > 0 => 1d,
+                _ => 0d
+            };
+        }
+
+        object? CollatorSupportedLocalesOf(IReadOnlyList<object?> _)
+        {
+            return new JsArray();
+        }
     }
 
     public static JsObject CreateTemporalObject(RealmState realm)
@@ -274,7 +283,21 @@ public static partial class StandardLibrary
         durationCtor.DefineProperty("from",
             new PropertyDescriptor { Value = durationFrom, Writable = true, Enumerable = false, Configurable = true });
 
-        durationPrototype.SetProperty("toLocaleString", new HostFunction((thisValue, args) =>
+        var durationToLocaleString = new HostFunction(DurationToLocaleString) { IsConstructor = false };
+        durationPrototype.SetProperty("toLocaleString", durationToLocaleString);
+
+        durationCtor.DefineProperty("prototype",
+            new PropertyDescriptor
+            {
+                Value = durationPrototype, Writable = false, Enumerable = false, Configurable = false
+            });
+        durationPrototype.DefineProperty("constructor",
+            new PropertyDescriptor { Value = durationCtor, Writable = true, Enumerable = false, Configurable = true });
+
+        temporal.SetProperty("Duration", durationCtor);
+        return temporal;
+
+        object? DurationToLocaleString(object? thisValue, IReadOnlyList<object?> args)
         {
             var locale = args.Count > 0 ? args[0] : Symbols.Undefined;
             var options = args.Count > 1 ? args[1] : Symbols.Undefined;
@@ -296,17 +319,6 @@ public static partial class StandardLibrary
             }
 
             return "";
-        }) { IsConstructor = false });
-
-        durationCtor.DefineProperty("prototype",
-            new PropertyDescriptor
-            {
-                Value = durationPrototype, Writable = false, Enumerable = false, Configurable = false
-            });
-        durationPrototype.DefineProperty("constructor",
-            new PropertyDescriptor { Value = durationCtor, Writable = true, Enumerable = false, Configurable = true });
-
-        temporal.SetProperty("Duration", durationCtor);
-        return temporal;
+        }
     }
 }

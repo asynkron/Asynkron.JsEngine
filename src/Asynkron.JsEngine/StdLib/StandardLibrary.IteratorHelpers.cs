@@ -7,7 +7,9 @@ public static partial class StandardLibrary
 {
     public static HostFunction CreateGetAsyncIteratorHelper(JsEngine engine)
     {
-        return new HostFunction(args =>
+        return new HostFunction(GetAsyncIterator);
+
+        object? GetAsyncIterator(IReadOnlyList<object?> args)
         {
             if (args.Count == 0)
             {
@@ -81,7 +83,10 @@ public static partial class StandardLibrary
             {
                 var iteratorObj = new JsObject();
                 var index = 0;
-                iteratorObj.SetProperty("next", new HostFunction(_ =>
+                iteratorObj.SetHostedProperty("next", Next);
+                return iteratorObj;
+
+                object? Next(IReadOnlyList<object?> _)
                 {
                     var result = new JsObject();
                     if (index < str.Length)
@@ -96,15 +101,17 @@ public static partial class StandardLibrary
                     }
 
                     return result;
-                }));
-                return iteratorObj;
+                }
             }
 
             static JsObject CreateArrayIterator(JsArray array)
             {
                 var iteratorObj = new JsObject();
                 var index = 0;
-                iteratorObj.SetProperty("next", new HostFunction(_ =>
+                iteratorObj.SetHostedProperty("next", Next);
+                return iteratorObj;
+
+                object? Next(IReadOnlyList<object?> _)
                 {
                     var result = new JsObject();
                     if (index < array.Length)
@@ -119,9 +126,7 @@ public static partial class StandardLibrary
                     }
 
                     return result;
-                }));
-
-                return iteratorObj;
+                }
             }
 
             static bool HasCallableNext(object? candidate)
@@ -130,7 +135,7 @@ public static partial class StandardLibrary
                        obj.TryGetProperty("next", out var nextProp) &&
                        nextProp is IJsCallable;
             }
-        });
+        }
     }
 
     /// <summary>
@@ -139,7 +144,9 @@ public static partial class StandardLibrary
     /// </summary>
     public static HostFunction CreateIteratorNextHelper(JsEngine engine)
     {
-        return new HostFunction(args =>
+        return new HostFunction(IteratorNext);
+
+        object? IteratorNext(IReadOnlyList<object?> args)
         {
             // args[0] should be the iterator object
             if (args.Count == 0 || args[0] is not JsObject iterator)
@@ -202,7 +209,7 @@ public static partial class StandardLibrary
             promise.Resolve(result);
             engine.WriteAsyncIteratorTrace("iteratorNext: wrapped result in resolved promise");
             return promise.JsObject;
-        });
+        }
     }
 
     /// <summary>
@@ -211,7 +218,9 @@ public static partial class StandardLibrary
     /// </summary>
     public static HostFunction CreateAwaitHelper(JsEngine engine)
     {
-        return new HostFunction(args =>
+        return new HostFunction(AwaitValue);
+
+        object? AwaitValue(IReadOnlyList<object?> args)
         {
             // args[0] should be the value to await
             var value = args.Count > 0 ? args[0] : null;
@@ -229,6 +238,6 @@ public static partial class StandardLibrary
             AddPromiseInstanceMethods(promise.JsObject, promise, engine);
             promise.Resolve(value);
             return promise.JsObject;
-        });
+        }
     }
 }

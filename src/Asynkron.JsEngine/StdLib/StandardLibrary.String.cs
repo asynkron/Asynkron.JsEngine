@@ -816,58 +816,9 @@ public static partial class StandardLibrary
                 stringProtoObj.SetPrototype(realm.ObjectPrototype);
             }
 
-            stringProtoObj.SetProperty("slice", new HostFunction((thisValue, args) =>
-            {
-                var str = JsValueToString(thisValue);
-                if (str is null)
-                {
-                    return "";
-                }
+            stringProtoObj.SetHostedProperty("slice", StringPrototypeSlice);
 
-                if (args.Count == 0)
-                {
-                    return str;
-                }
-
-                var start = args[0] is double d1 ? (int)d1 : 0;
-                var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : str.Length;
-
-                if (start < 0)
-                {
-                    start = Math.Max(0, str.Length + start);
-                }
-                else
-                {
-                    start = Math.Min(start, str.Length);
-                }
-
-                if (end < 0)
-                {
-                    end = Math.Max(0, str.Length + end);
-                }
-                else
-                {
-                    end = Math.Min(end, str.Length);
-                }
-
-                if (start >= end)
-                {
-                    return "";
-                }
-
-                return str.Substring(start, end - start);
-            }));
-
-            var supFn = new HostFunction((thisValue, _) =>
-            {
-                if (thisValue is null || (thisValue is Symbol sym && ReferenceEquals(sym, Symbols.Undefined)))
-                {
-                    throw ThrowTypeError("String.prototype.sup called on null or undefined");
-                }
-
-                var s = JsValueToString(thisValue);
-                return $"<sup>{s}</sup>";
-            }) { IsConstructor = false };
+            var supFn = new HostFunction(StringPrototypeSup) { IsConstructor = false };
 
             supFn.DefineProperty("length",
                 new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
@@ -876,7 +827,75 @@ public static partial class StandardLibrary
         }
 
         // String.fromCodePoint(...codePoints)
-        stringConstructor.SetProperty("fromCodePoint", new HostFunction(args =>
+        stringConstructor.SetHostedProperty("fromCodePoint", StringFromCodePoint);
+
+        // String.fromCharCode(...charCodes) - for compatibility
+        stringConstructor.SetHostedProperty("fromCharCode", StringFromCharCode);
+
+        // String.raw(template, ...substitutions)
+        // This is a special method used with tagged templates
+        stringConstructor.SetHostedProperty("raw", StringRaw);
+
+        // String.escape(string) - deprecated but used in some old code
+        // Escapes special characters for use in URIs or HTML
+        stringConstructor.SetHostedProperty("escape", StringEscape);
+
+        return stringConstructor;
+
+        object? StringPrototypeSlice(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var str = JsValueToString(thisValue);
+            if (str is null)
+            {
+                return "";
+            }
+
+            if (args.Count == 0)
+            {
+                return str;
+            }
+
+            var start = args[0] is double d1 ? (int)d1 : 0;
+            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : str.Length;
+
+            if (start < 0)
+            {
+                start = Math.Max(0, str.Length + start);
+            }
+            else
+            {
+                start = Math.Min(start, str.Length);
+            }
+
+            if (end < 0)
+            {
+                end = Math.Max(0, str.Length + end);
+            }
+            else
+            {
+                end = Math.Min(end, str.Length);
+            }
+
+            if (start >= end)
+            {
+                return "";
+            }
+
+            return str.Substring(start, end - start);
+        }
+
+        object? StringPrototypeSup(object? thisValue, IReadOnlyList<object?> _)
+        {
+            if (thisValue is null || (thisValue is Symbol sym && ReferenceEquals(sym, Symbols.Undefined)))
+            {
+                throw ThrowTypeError("String.prototype.sup called on null or undefined");
+            }
+
+            var s = JsValueToString(thisValue);
+            return $"<sup>{s}</sup>";
+        }
+
+        object? StringFromCodePoint(IReadOnlyList<object?> args)
         {
             if (args.Count == 0)
             {
@@ -893,13 +912,11 @@ public static partial class StandardLibrary
                 }
 
                 var codePoint = (int)num;
-                // Validate code point range
                 if (codePoint is < 0 or > 0x10FFFF)
                 {
                     throw new Exception("RangeError: Invalid code point " + codePoint);
                 }
 
-                // Handle surrogate pairs for code points > 0xFFFF
                 if (codePoint <= 0xFFFF)
                 {
                     result.Append((char)codePoint);
@@ -913,10 +930,9 @@ public static partial class StandardLibrary
             }
 
             return result.ToString();
-        }));
+        }
 
-        // String.fromCharCode(...charCodes) - for compatibility
-        stringConstructor.SetProperty("fromCharCode", new HostFunction(args =>
+        object? StringFromCharCode(IReadOnlyList<object?> args)
         {
             if (args.Count == 0)
             {
@@ -932,29 +948,25 @@ public static partial class StandardLibrary
                     continue;
                 }
 
-                var charCode = (int)num & 0xFFFF; // Limit to 16-bit range
+                var charCode = (int)num & 0xFFFF;
                 result.Append((char)charCode);
             }
 
             return result.ToString();
-        }));
+        }
 
-        // String.raw(template, ...substitutions)
-        // This is a special method used with tagged templates
-        stringConstructor.SetProperty("raw", new HostFunction(args =>
+        object? StringRaw(IReadOnlyList<object?> args)
         {
             if (args.Count == 0)
             {
                 return "";
             }
 
-            // First argument should be a template object with 'raw' property
             if (args[0] is not JsObject template)
             {
                 return "";
             }
 
-            // Get the raw strings array
             if (!template.TryGetProperty("raw", out var rawValue) || rawValue is not JsArray rawStrings)
             {
                 return "";
@@ -965,11 +977,9 @@ public static partial class StandardLibrary
 
             for (var i = 0; i < rawCount; i++)
             {
-                // Append the raw string part
                 var rawPart = rawStrings.GetElement(i)?.ToString() ?? "";
                 result.Append(rawPart);
 
-                // Append the substitution if there is one
                 if (i >= args.Count - 1)
                 {
                     continue;
@@ -983,11 +993,9 @@ public static partial class StandardLibrary
             }
 
             return result.ToString();
-        }));
+        }
 
-        // String.escape(string) - deprecated but used in some old code
-        // Escapes special characters for use in URIs or HTML
-        stringConstructor.SetProperty("escape", new HostFunction(args =>
+        object? StringEscape(IReadOnlyList<object?> args)
         {
             if (args.Count == 0)
             {
@@ -999,7 +1007,6 @@ public static partial class StandardLibrary
             var result = new StringBuilder();
             foreach (var ch in str)
             {
-                // Characters that don't need escaping
                 if (ch is >= 'A' and <= 'Z' ||
                     ch is >= 'a' and <= 'z' ||
                     ch is >= '0' and <= '9' ||
@@ -1008,13 +1015,11 @@ public static partial class StandardLibrary
                 {
                     result.Append(ch);
                 }
-                // Characters that need hex escaping
                 else if (ch < 256)
                 {
                     result.Append('%');
                     result.Append(((int)ch).ToString("X2", CultureInfo.InvariantCulture));
                 }
-                // Unicode characters use %uXXXX format
                 else
                 {
                     result.Append("%u");
@@ -1023,8 +1028,6 @@ public static partial class StandardLibrary
             }
 
             return result.ToString();
-        }));
-
-        return stringConstructor;
+        }
     }
 }

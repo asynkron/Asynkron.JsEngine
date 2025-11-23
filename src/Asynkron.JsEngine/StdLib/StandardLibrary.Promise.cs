@@ -9,9 +9,20 @@ public static partial class StandardLibrary
     /// </summary>
     public static IJsCallable CreatePromiseConstructor(JsEngine engine)
     {
-        var promiseConstructor = new HostFunction((_, args) =>
+        var promiseConstructor = new HostFunction(PromiseConstructor);
+
+        promiseConstructor.SetHostedProperty("resolve", PromiseResolve);
+
+        promiseConstructor.SetHostedProperty("reject", PromiseReject);
+
+        promiseConstructor.SetHostedProperty("all", PromiseAll);
+
+        promiseConstructor.SetHostedProperty("race", PromiseRace);
+
+        return promiseConstructor;
+
+        object? PromiseConstructor(object? _, IReadOnlyList<object?> args)
         {
-            // Promise constructor takes an executor function: function(resolve, reject) { ... }
             if (args.Count == 0 || args[0] is not IJsCallable executor)
             {
                 throw new InvalidOperationException("Promise constructor requires an executor function");
@@ -19,58 +30,12 @@ public static partial class StandardLibrary
 
             var promise = new JsPromise(engine);
             var promiseObj = promise.JsObject;
+            AddPromiseInstanceMethods(promiseObj, promise, engine);
 
-            // Create resolve and reject callbacks
-            var resolve = new HostFunction(resolveArgs =>
-            {
-                promise.Resolve(resolveArgs.Count > 0 ? resolveArgs[0] : null);
-                return null;
-            });
+            var resolve = new HostFunction(Resolve);
 
-            var reject = new HostFunction(rejectArgs =>
-            {
-                promise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
-                return null;
-            });
+            var reject = new HostFunction(Reject);
 
-            // Add then, catch, and finally methods
-            promiseObj["then"] = new HostFunction((_, thenArgs) =>
-            {
-                var onFulfilled = thenArgs.Count > 0 ? thenArgs[0] as IJsCallable : null;
-                var onRejected = thenArgs.Count > 1 ? thenArgs[1] as IJsCallable : null;
-                var resultPromise = promise.Then(onFulfilled, onRejected);
-                AddPromiseInstanceMethods(resultPromise.JsObject, resultPromise, engine);
-                return resultPromise.JsObject;
-            });
-
-            promiseObj["catch"] = new HostFunction((_, catchArgs) =>
-            {
-                var onRejected = catchArgs.Count > 0 ? catchArgs[0] as IJsCallable : null;
-                var resultPromise = promise.Then(null, onRejected);
-                AddPromiseInstanceMethods(resultPromise.JsObject, resultPromise, engine);
-                return resultPromise.JsObject;
-            });
-
-            promiseObj["finally"] = new HostFunction((_, finallyArgs) =>
-            {
-                var onFinally = finallyArgs.Count > 0 ? finallyArgs[0] as IJsCallable : null;
-                if (onFinally == null)
-                {
-                    return promiseObj;
-                }
-
-                var finallyWrapper = new HostFunction(wrapperArgs =>
-                {
-                    onFinally.Invoke([], null);
-                    return wrapperArgs.Count > 0 ? wrapperArgs[0] : null;
-                });
-
-                var resultPromise = promise.Then(finallyWrapper, finallyWrapper);
-                AddPromiseInstanceMethods(resultPromise.JsObject, resultPromise, engine);
-                return resultPromise.JsObject;
-            });
-
-            // Execute the executor function immediately
             try
             {
                 executor.Invoke([resolve, reject], null);
@@ -81,37 +46,41 @@ public static partial class StandardLibrary
             }
 
             return promiseObj;
-        });
 
-        // Add static methods to Promise constructor
-        // Promise.resolve(value)
-        promiseConstructor.SetProperty("resolve", new HostFunction(args =>
+            object? Resolve(IReadOnlyList<object?> resolveArgs)
+            {
+                promise.Resolve(resolveArgs.Count > 0 ? resolveArgs[0] : null);
+                return null;
+            }
+
+            object? Reject(IReadOnlyList<object?> rejectArgs)
+            {
+                promise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
+                return null;
+            }
+        }
+
+        object? PromiseResolve(IReadOnlyList<object?> args)
         {
             var value = args.Count > 0 ? args[0] : null;
             var promise = new JsPromise(engine);
-
-            // Add instance methods
             AddPromiseInstanceMethods(promise.JsObject, promise, engine);
 
             promise.Resolve(value);
             return promise.JsObject;
-        }));
+        }
 
-        // Promise.reject(reason)
-        promiseConstructor.SetProperty("reject", new HostFunction(args =>
+        object? PromiseReject(IReadOnlyList<object?> args)
         {
             var reason = args.Count > 0 ? args[0] : null;
             var promise = new JsPromise(engine);
-
-            // Add instance methods
             AddPromiseInstanceMethods(promise.JsObject, promise, engine);
 
             promise.Reject(reason);
             return promise.JsObject;
-        }));
+        }
 
-        // Promise.all(iterable)
-        promiseConstructor.SetProperty("all", new HostFunction(args =>
+        object? PromiseAll(IReadOnlyList<object?> args)
         {
             if (args.Count == 0 || args[0] is not JsArray array)
             {
@@ -137,38 +106,10 @@ public static partial class StandardLibrary
                 var index = i;
                 var item = array.Items[i];
 
-                // Check if item is a promise (JsObject with "then" method)
                 if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
                     thenMethod is IJsCallable thenCallable)
                 {
-                    thenCallable.Invoke([
-                        new HostFunction(resolveArgs =>
-                        {
-                            results[index] = resolveArgs.Count > 0 ? resolveArgs[0] : null;
-                            remaining--;
-
-                            if (remaining != 0)
-                            {
-                                return null;
-                            }
-
-                            var resultArray = new JsArray();
-                            foreach (var result in results)
-                            {
-                                resultArray.Push(result);
-                            }
-
-                            AddArrayMethods(resultArray, engine.RealmState);
-                            resultPromise.Resolve(resultArray);
-
-                            return null;
-                        }),
-                        new HostFunction(rejectArgs =>
-                        {
-                            resultPromise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
-                            return null;
-                        })
-                    ], itemObj);
+                    thenCallable.Invoke([CreateAllResolve(index), CreateAllReject()], itemObj);
                 }
                 else
                 {
@@ -192,10 +133,47 @@ public static partial class StandardLibrary
             }
 
             return resultPromise.JsObject;
-        }));
 
-        // Promise.race(iterable)
-        promiseConstructor.SetProperty("race", new HostFunction(args =>
+            HostFunction CreateAllResolve(int index)
+            {
+                object? Resolve(object? _, IReadOnlyList<object?> resolveArgs)
+                {
+                    results[index] = resolveArgs.Count > 0 ? resolveArgs[0] : null;
+                    remaining--;
+
+                    if (remaining != 0)
+                    {
+                        return null;
+                    }
+
+                    var resultArray = new JsArray();
+                    foreach (var result in results)
+                    {
+                        resultArray.Push(result);
+                    }
+
+                    AddArrayMethods(resultArray, engine.RealmState);
+                    resultPromise.Resolve(resultArray);
+
+                    return null;
+                }
+
+                return new HostFunction(Resolve);
+            }
+
+            HostFunction CreateAllReject()
+            {
+                object? Reject(object? _, IReadOnlyList<object?> rejectArgs)
+                {
+                    resultPromise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
+                    return null;
+                }
+
+                return new HostFunction(Reject);
+            }
+        }
+
+        object? PromiseRace(IReadOnlyList<object?> args)
         {
             if (args.Count == 0 || args[0] is not JsArray array)
             {
@@ -208,37 +186,11 @@ public static partial class StandardLibrary
             var settled = false;
 
             foreach (var item in array.Items)
-                // Check if item is a promise (JsObject with "then" method)
             {
                 if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
                     thenMethod is IJsCallable thenCallable)
                 {
-                    thenCallable.Invoke([
-                        new HostFunction(resolveArgs =>
-                        {
-                            if (settled)
-                            {
-                                return null;
-                            }
-
-                            settled = true;
-                            resultPromise.Resolve(resolveArgs.Count > 0 ? resolveArgs[0] : null);
-
-                            return null;
-                        }),
-                        new HostFunction(rejectArgs =>
-                        {
-                            if (settled)
-                            {
-                                return null;
-                            }
-
-                            settled = true;
-                            resultPromise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
-
-                            return null;
-                        })
-                    ], itemObj);
+                    thenCallable.Invoke([CreateRaceResolve(), CreateRaceReject()], itemObj);
                 }
                 else if (!settled)
                 {
@@ -248,9 +200,43 @@ public static partial class StandardLibrary
             }
 
             return resultPromise.JsObject;
-        }));
 
-        return promiseConstructor;
+            HostFunction CreateRaceResolve()
+            {
+                object? Resolve(object? _, IReadOnlyList<object?> resolveArgs)
+                {
+                    if (settled)
+                    {
+                        return null;
+                    }
+
+                    settled = true;
+                    resultPromise.Resolve(resolveArgs.Count > 0 ? resolveArgs[0] : null);
+
+                    return null;
+                }
+
+                return new HostFunction(Resolve);
+            }
+
+            HostFunction CreateRaceReject()
+            {
+                object? Reject(object? _, IReadOnlyList<object?> rejectArgs)
+                {
+                    if (settled)
+                    {
+                        return null;
+                    }
+
+                    settled = true;
+                    resultPromise.Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
+
+                    return null;
+                }
+
+                return new HostFunction(Reject);
+            }
+        }
     }
 
     /// <summary>
@@ -258,24 +244,31 @@ public static partial class StandardLibrary
     /// </summary>
     internal static void AddPromiseInstanceMethods(JsObject promiseObj, JsPromise promise, JsEngine engine)
     {
-        promiseObj["then"] = new HostFunction((_, thenArgs) =>
+        promiseObj.SetHostedProperty("then", PromiseThen);
+
+        promiseObj.SetHostedProperty("catch", PromiseCatch);
+
+        promiseObj.SetHostedProperty("finally", PromiseFinally);
+        return;
+
+        object? PromiseThen(object? _, IReadOnlyList<object?> thenArgs)
         {
             var onFulfilled = thenArgs.Count > 0 ? thenArgs[0] as IJsCallable : null;
             var onRejected = thenArgs.Count > 1 ? thenArgs[1] as IJsCallable : null;
             var result = promise.Then(onFulfilled, onRejected);
             AddPromiseInstanceMethods(result.JsObject, result, engine);
             return result.JsObject;
-        });
+        }
 
-        promiseObj["catch"] = new HostFunction((_, catchArgs) =>
+        object? PromiseCatch(object? _, IReadOnlyList<object?> catchArgs)
         {
             var onRejected = catchArgs.Count > 0 ? catchArgs[0] as IJsCallable : null;
             var result = promise.Then(null, onRejected);
             AddPromiseInstanceMethods(result.JsObject, result, engine);
             return result.JsObject;
-        });
+        }
 
-        promiseObj["finally"] = new HostFunction((_, finallyArgs) =>
+        object? PromiseFinally(object? _, IReadOnlyList<object?> finallyArgs)
         {
             var onFinally = finallyArgs.Count > 0 ? finallyArgs[0] as IJsCallable : null;
             if (onFinally == null)
@@ -283,15 +276,17 @@ public static partial class StandardLibrary
                 return promiseObj;
             }
 
-            var finallyWrapper = new HostFunction(wrapperArgs =>
-            {
-                onFinally.Invoke([], null);
-                return wrapperArgs.Count > 0 ? wrapperArgs[0] : null;
-            });
+            var finallyWrapper = new HostFunction(Wrapper);
 
             var result = promise.Then(finallyWrapper, finallyWrapper);
             AddPromiseInstanceMethods(result.JsObject, result, engine);
             return result.JsObject;
-        });
+
+            object? Wrapper(object? __, IReadOnlyList<object?> wrapperArgs)
+            {
+                onFinally.Invoke([], null);
+                return wrapperArgs.Count > 0 ? wrapperArgs[0] : null;
+            }
+        }
     }
 }

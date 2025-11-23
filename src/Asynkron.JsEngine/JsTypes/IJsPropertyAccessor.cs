@@ -42,23 +42,6 @@ public interface IJsPropertyAccessor
     }
 
     /// <summary>
-    ///     Alias for host-backed functions.
-    /// </summary>
-    void SetHostedProperty(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
-    {
-        SetHostProperty(name, handler);
-    }
-
-    /// <summary>
-    ///     Alias for realm-aware host-backed functions.
-    /// </summary>
-    void SetHostedProperty(string name, Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler,
-        RealmState? realmState)
-    {
-        SetHostProperty(name, handler, realmState);
-    }
-
-    /// <summary>
     ///     Optional hook to provide property descriptors to APIs like
     ///     Object.getOwnPropertyDescriptor without exposing JsObject directly.
     /// </summary>
@@ -88,8 +71,6 @@ public interface IJsObjectLike : IJsPropertyAccessor
     IEnumerable<string> Keys { get; }
 
     void DefineProperty(string name, PropertyDescriptor descriptor);
-    new PropertyDescriptor? GetOwnPropertyDescriptor(string name);
-    new IEnumerable<string> GetOwnPropertyNames();
     void SetPrototype(object? candidate);
     void Seal();
 }

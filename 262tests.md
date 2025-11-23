@@ -210,7 +210,6 @@ Procedure to maintain this file:
 0/12 GeneratorFunction_prototype
 0/4 GeneratorPrototype
 17/56 Global
-3/10 Infinity
 4/30 IsFinite
 4/30 IsNaN
 0/12 Iterator_prototype_Symbol_dispose
@@ -258,7 +257,6 @@ Math_expm1
 Math_f16round
 Math_floor
 Math_fround
-Math_hypot
 Math_imul
 Math_LN10
 Math_LN2

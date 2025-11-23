@@ -265,6 +265,13 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
                 continue;
             }
 
+            if (_descriptors.TryGetValue(key, out var descriptor) &&
+                descriptor.HasEnumerable &&
+                descriptor.Enumerable == false)
+            {
+                continue;
+            }
+
             yield return key;
         }
     }

@@ -334,34 +334,56 @@ public static partial class StandardLibrary
             return (double)(float)d;
         });
 
-        math["hypot"] = new HostFunction(args =>
+        var hypot = new HostFunction(args =>
         {
             if (args.Count == 0)
             {
                 return 0d;
             }
 
-            double sumOfSquares = 0;
+            var coerced = new List<double>(args.Count);
             foreach (var arg in args)
             {
-                if (arg is double d)
-                {
-                    if (double.IsNaN(d))
-                    {
-                        return double.NaN;
-                    }
-
-                    if (double.IsInfinity(d))
-                    {
-                        return double.PositiveInfinity;
-                    }
-
-                    sumOfSquares += d * d;
-                }
+                coerced.Add(JsOps.ToNumber(arg));
             }
 
-            return Math.Sqrt(sumOfSquares);
-        });
+            var hasInfinity = false;
+            var hasNaN = false;
+            double sumOfSquares = 0;
+            foreach (var number in coerced)
+            {
+                if (double.IsInfinity(number))
+                {
+                    hasInfinity = true;
+                    continue;
+                }
+
+                if (double.IsNaN(number))
+                {
+                    hasNaN = true;
+                    continue;
+                }
+
+                sumOfSquares += number * number;
+            }
+
+            if (hasInfinity)
+            {
+                return double.PositiveInfinity;
+            }
+
+            return hasNaN ? double.NaN : Math.Sqrt(sumOfSquares);
+        })
+        {
+            IsConstructor = false
+        };
+        hypot.Properties.DeleteOwnProperty("prototype");
+        hypot.DefineProperty("name",
+            new PropertyDescriptor { Value = "hypot", Writable = false, Enumerable = false, Configurable = true });
+        hypot.DefineProperty("length",
+            new PropertyDescriptor { Value = 2d, Writable = false, Enumerable = false, Configurable = true });
+        math.DefineProperty("hypot",
+            new PropertyDescriptor { Value = hypot, Writable = true, Enumerable = false, Configurable = true });
 
         math["acosh"] = new HostFunction(args =>
         {

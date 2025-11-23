@@ -23,9 +23,9 @@ public sealed class JsEnvironment(
     /// </summary>
     public bool IsStrict => isStrict || (_enclosing?.IsStrict ?? false);
 
-    public void Define(Symbol name, object? value, bool isConst = false)
+    public void Define(Symbol name, object? value, bool isConst = false, bool isGlobalConstant = false)
     {
-        _values[name] = new Binding(value, isConst);
+        _values[name] = new Binding(value, isConst, isGlobalConstant);
     }
 
     public void DefineFunctionScoped(Symbol name, object? value, bool hasInitializer)
@@ -51,7 +51,7 @@ public sealed class JsEnvironment(
             return;
         }
 
-        scope._values[name] = new Binding(value, false);
+        scope._values[name] = new Binding(value, false, false);
         globalThis?.SetProperty(name.Name, value);
     }
 
@@ -101,6 +101,16 @@ public sealed class JsEnvironment(
             if (binding.IsConst)
             {
                 throw new InvalidOperationException($"Cannot reassign constant '{name.Name}'.");
+            }
+
+            if (binding.IsGlobalConstant)
+            {
+                if (isStrictContext)
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not writable");
+                }
+
+                return;
             }
 
             binding.Value = value;
@@ -225,10 +235,12 @@ public sealed class JsEnvironment(
             : firstToken.ToLowerInvariant();
     }
 
-    private sealed class Binding(object? value, bool isConst)
+    private sealed class Binding(object? value, bool isConst, bool isGlobalConstant)
     {
         public object? Value { get; set; } = value;
 
         public bool IsConst { get; } = isConst;
+
+        public bool IsGlobalConstant { get; } = isGlobalConstant;
     }
 }

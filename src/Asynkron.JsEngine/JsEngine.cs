@@ -18,10 +18,10 @@ public sealed class JsEngine : IAsyncDisposable
 
     //DEBUG code
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
-    private readonly TaskCompletionSource _doneTcs = new();
-    private readonly Channel<Func<Task>> _eventQueue = Channel.CreateUnbounded<Func<Task>>();
     private readonly Channel<ExceptionInfo> _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
     private readonly JsEnvironment _global = new(isFunctionScope: true);
+    private Channel<Func<Task>>? _eventQueue;
+    private Task? _eventLoopTask;
 
     //-------
 
@@ -83,9 +83,35 @@ public sealed class JsEngine : IAsyncDisposable
             });
 
         // Register global constants
-        SetGlobal("Infinity", double.PositiveInfinity);
-        SetGlobal("NaN", double.NaN);
-        SetGlobal("undefined", Symbols.Undefined);
+        SetGlobal("Infinity", double.PositiveInfinity, isGlobalConstant: true);
+        GlobalObject.DefineProperty("Infinity",
+            new PropertyDescriptor
+            {
+                Value = double.PositiveInfinity,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
+            });
+
+        SetGlobal("NaN", double.NaN, isGlobalConstant: true);
+        GlobalObject.DefineProperty("NaN",
+            new PropertyDescriptor
+            {
+                Value = double.NaN,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
+            });
+
+        SetGlobal("undefined", Symbols.Undefined, isGlobalConstant: true);
+        GlobalObject.DefineProperty("undefined",
+            new PropertyDescriptor
+            {
+                Value = Symbols.Undefined,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
+            });
 
         // Register global functions
         SetGlobal("parseInt", StandardLibrary.CreateParseIntFunction());
@@ -194,8 +220,6 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Register debug function as a debug-aware host function
         _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));
-
-        _ = Task.Run(ProcessEventQueue);
     }
 
     /// <summary>
@@ -215,8 +239,8 @@ public sealed class JsEngine : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        _eventQueue.Writer.Complete();
-        await _doneTcs.Task.ConfigureAwait(false);
+        CancelAllTimers();
+        await StopEventLoopAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -377,6 +401,82 @@ public sealed class JsEngine : IAsyncDisposable
         return cancellationToken;
     }
 
+    private void StartEventLoop()
+    {
+        if (_eventQueue is not null)
+        {
+            return;
+        }
+
+        CancelAllTimers();
+        _pendingTaskCount = 0;
+        _eventQueue = Channel.CreateUnbounded<Func<Task>>();
+        _eventLoopTask = Task.Run(() => ProcessEventQueue(_eventQueue));
+    }
+
+    private async Task DrainEventLoopAsync(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            bool hasActiveTimerTasks;
+            lock (_activeTimerTasks)
+            {
+                hasActiveTimerTasks = _activeTimerTasks.Count > 0;
+            }
+
+            var hasPendingTasks = Interlocked.CompareExchange(ref _pendingTaskCount, 0, 0) > 0;
+            if (!hasActiveTimerTasks && !hasPendingTasks)
+            {
+                break;
+            }
+
+            await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private void CancelAllTimers()
+    {
+        foreach (var cts in _timers.Values)
+        {
+            cts.Cancel();
+        }
+
+        _timers.Clear();
+
+        lock (_activeTimerTasks)
+        {
+            _activeTimerTasks.Clear();
+        }
+    }
+
+    private async Task StopEventLoopAsync()
+    {
+        var queue = _eventQueue;
+        if (queue is null)
+        {
+            return;
+        }
+
+        queue.Writer.TryComplete();
+
+        if (_eventLoopTask is not null)
+        {
+            try
+            {
+                await _eventLoopTask.ConfigureAwait(false);
+            }
+            catch
+            {
+                // Ignore shutdown exceptions; we are tearing down the loop.
+            }
+        }
+
+        _eventQueue = null;
+        _eventLoopTask = null;
+    }
+
 
     /// <summary>
     ///     Parses and schedules evaluation of the provided source on the event queue.
@@ -396,6 +496,8 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     private async Task<object?> Evaluate(ParsedProgram program, CancellationToken cancellationToken = default)
     {
+        StartEventLoop();
+
         var tcs = new TaskCompletionSource<object?>();
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
 
@@ -455,6 +557,16 @@ public sealed class JsEngine : IAsyncDisposable
         }
         finally
         {
+            try
+            {
+                await DrainEventLoopAsync(combinedToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                CancelAllTimers();
+            }
+
+            await StopEventLoopAsync().ConfigureAwait(false);
             timeoutCts?.Dispose();
         }
     }
@@ -478,10 +590,10 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Registers a value in the global scope.
     /// </summary>
-    private void SetGlobal(string name, object? value)
+    private void SetGlobal(string name, object? value, bool isGlobalConstant = false)
     {
         var symbol = Symbol.Intern(name);
-        _global.Define(symbol, value);
+        _global.Define(symbol, value, isGlobalConstant: isGlobalConstant);
 
         // Also mirror globals onto the global object so that code using
         // `this.foo` or `global.foo` can see host-provided bindings.
@@ -584,6 +696,11 @@ public sealed class JsEngine : IAsyncDisposable
     /// <param name="task">The task to schedule</param>
     public void ScheduleTask(Func<Task> task)
     {
+        if (_eventQueue is null)
+        {
+            throw new InvalidOperationException("Event loop is not running.");
+        }
+
         Interlocked.Increment(ref _pendingTaskCount);
         _eventQueue.Writer.TryWrite(async () => { await task().ConfigureAwait(false); });
     }
@@ -594,9 +711,9 @@ public sealed class JsEngine : IAsyncDisposable
     ///     will also be processed.
     ///     Exceptions from individual tasks are caught and logged to prevent the event loop from stopping.
     /// </summary>
-    private async Task ProcessEventQueue()
+    private async Task ProcessEventQueue(Channel<Func<Task>> queue)
     {
-        await foreach (var x in _eventQueue.Reader.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var x in queue.Reader.ReadAllAsync().ConfigureAwait(false))
         {
             try
             {
@@ -624,8 +741,6 @@ public sealed class JsEngine : IAsyncDisposable
                 Interlocked.Decrement(ref _pendingTaskCount);
             }
         }
-
-        _doneTcs.SetResult();
     }
 
     /// <summary>

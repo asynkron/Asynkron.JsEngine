@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using Asynkron.JsEngine.Runtime;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -20,6 +23,40 @@ public interface IJsPropertyAccessor
     /// <param name="name">The name of the property to set.</param>
     /// <param name="value">The value to set for the property.</param>
     void SetProperty(string name, object? value);
+
+    /// <summary>
+    ///     Convenience overload for host-backed functions.
+    /// </summary>
+    void SetProperty(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
+    {
+        SetProperty(name, new HostFunction(handler));
+    }
+
+    /// <summary>
+    ///     Convenience overload for realm-aware host-backed functions.
+    /// </summary>
+    void SetProperty(string name, Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler,
+        RealmState? realmState)
+    {
+        SetProperty(name, new HostFunction(handler, realmState));
+    }
+
+    /// <summary>
+    ///     Alias for host-backed functions.
+    /// </summary>
+    void SetHostedProperty(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
+    {
+        SetProperty(name, handler);
+    }
+
+    /// <summary>
+    ///     Alias for realm-aware host-backed functions.
+    /// </summary>
+    void SetHostedProperty(string name, Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler,
+        RealmState? realmState)
+    {
+        SetProperty(name, handler, realmState);
+    }
 
     /// <summary>
     ///     Optional hook to provide property descriptors to APIs like

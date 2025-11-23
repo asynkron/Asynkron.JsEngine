@@ -21,40 +21,40 @@ public static partial class StandardLibrary
         }
 
         // push - already implemented natively
-        array.SetProperty("push", new HostFunction(ArrayPush));
+        array.SetProperty("push", ArrayPush);
 
-        array.SetProperty("pop", new HostFunction(ArrayPop));
-        array.SetProperty("map", new HostFunction(ArrayMap, realm));
-        array.SetProperty("filter", new HostFunction(ArrayFilter, realm));
-        array.SetProperty("reduce", new HostFunction(ArrayReduce));
-        array.SetProperty("forEach", new HostFunction(ArrayForEach));
-        array.SetProperty("find", new HostFunction(ArrayFind));
-        array.SetProperty("findIndex", new HostFunction(ArrayFindIndex));
-        array.SetProperty("some", new HostFunction(ArraySome));
-        array.SetProperty("every", new HostFunction(ArrayEvery));
-        array.SetProperty("join", new HostFunction(ArrayJoin));
-        array.SetProperty("toString", new HostFunction((thisValue, _) => ArrayToString(thisValue, array)));
-        array.SetProperty("includes", new HostFunction(ArrayIncludes, realm));
-        array.SetProperty("indexOf", new HostFunction(ArrayIndexOf, realm));
-        array.SetProperty("toLocaleString", new HostFunction(ArrayToLocaleString, realm));
-        array.SetProperty("slice", new HostFunction(ArraySlice, realm));
-        array.SetProperty("shift", new HostFunction(ArrayShift));
-        array.SetProperty("unshift", new HostFunction(ArrayUnshift));
-        array.SetProperty("splice", new HostFunction(ArraySplice, realm));
-        array.SetProperty("concat", new HostFunction(ArrayConcat, realm));
-        array.SetProperty("reverse", new HostFunction(ArrayReverse));
-        array.SetProperty("sort", new HostFunction(ArraySort));
-        array.SetProperty("at", new HostFunction(ArrayAt));
-        array.SetProperty("flat", new HostFunction(ArrayFlat, realm));
-        array.SetProperty("flatMap", new HostFunction(ArrayFlatMap, realm));
-        array.SetProperty("findLast", new HostFunction(ArrayFindLast));
-        array.SetProperty("findLastIndex", new HostFunction(ArrayFindLastIndex));
-        array.SetProperty("fill", new HostFunction(ArrayFill));
-        array.SetProperty("copyWithin", new HostFunction(ArrayCopyWithin));
-        array.SetProperty("toSorted", new HostFunction(ArrayToSorted, realm));
-        array.SetProperty("toReversed", new HostFunction(ArrayToReversed, realm));
-        array.SetProperty("toSpliced", new HostFunction(ArrayToSpliced, realm));
-        array.SetProperty("with", new HostFunction(ArrayWith, realm));
+        array.SetProperty("pop", ArrayPop);
+        array.SetProperty("map", ArrayMap, realm);
+        array.SetProperty("filter", ArrayFilter, realm);
+        array.SetProperty("reduce", ArrayReduce);
+        array.SetProperty("forEach", ArrayForEach);
+        array.SetProperty("find", ArrayFind);
+        array.SetProperty("findIndex", ArrayFindIndex);
+        array.SetProperty("some", ArraySome);
+        array.SetProperty("every", ArrayEvery);
+        array.SetProperty("join", ArrayJoin);
+        array.SetProperty("toString", (thisValue, _) => ArrayToString(thisValue, array));
+        array.SetProperty("includes", ArrayIncludes, realm);
+        array.SetProperty("indexOf", ArrayIndexOf, realm);
+        array.SetProperty("toLocaleString", ArrayToLocaleString, realm);
+        array.SetProperty("slice", ArraySlice, realm);
+        array.SetProperty("shift", ArrayShift);
+        array.SetProperty("unshift", ArrayUnshift);
+        array.SetProperty("splice", ArraySplice, realm);
+        array.SetProperty("concat", ArrayConcat, realm);
+        array.SetProperty("reverse", ArrayReverse);
+        array.SetProperty("sort", ArraySort);
+        array.SetProperty("at", ArrayAt);
+        array.SetProperty("flat", ArrayFlat, realm);
+        array.SetProperty("flatMap", ArrayFlatMap, realm);
+        array.SetProperty("findLast", ArrayFindLast);
+        array.SetProperty("findLastIndex", ArrayFindLastIndex);
+        array.SetProperty("fill", ArrayFill);
+        array.SetProperty("copyWithin", ArrayCopyWithin);
+        array.SetProperty("toSorted", ArrayToSorted, realm);
+        array.SetProperty("toReversed", ArrayToReversed, realm);
+        array.SetProperty("toSpliced", ArrayToSpliced, realm);
+        array.SetProperty("with", ArrayWith, realm);
 
         static double ToLengthValue(object? candidate)
         {

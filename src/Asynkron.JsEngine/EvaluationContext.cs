@@ -8,7 +8,10 @@ namespace Asynkron.JsEngine;
 ///     Tracks the current control flow state during evaluation using typed signals.
 ///     Used as an alternative to exception-based control flow.
 /// </summary>
-public sealed class EvaluationContext(RealmState realmState, CancellationToken cancellationToken = default)
+public sealed class EvaluationContext(
+    RealmState realmState,
+    CancellationToken cancellationToken = default,
+    ExecutionKind executionKind = ExecutionKind.Script)
 {
     /// <summary>
     ///     Stack of enclosing labels (innermost first). Used to determine if a labeled
@@ -20,6 +23,11 @@ public sealed class EvaluationContext(RealmState realmState, CancellationToken c
     ///     Realm-specific state (prototypes/constructors) for the current execution.
     /// </summary>
     public RealmState RealmState { get; } = realmState ?? throw new ArgumentNullException(nameof(realmState));
+
+    /// <summary>
+    ///     Indicates whether the current execution originated from script code or eval.
+    /// </summary>
+    public ExecutionKind ExecutionKind { get; } = executionKind;
 
     /// <summary>
     ///     The current control flow signal, if any.

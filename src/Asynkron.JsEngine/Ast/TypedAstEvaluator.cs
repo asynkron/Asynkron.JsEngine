@@ -32,10 +32,17 @@ public static class TypedAstEvaluator
 
     private static readonly object GeneratorBrandMarker = new();
 
-    public static object? EvaluateProgram(ProgramNode program, JsEnvironment environment, RealmState realmState,
-        CancellationToken cancellationToken = default)
+    public static object? EvaluateProgram(
+        ProgramNode program,
+        JsEnvironment environment,
+        RealmState realmState,
+        CancellationToken cancellationToken = default,
+        ExecutionKind executionKind = ExecutionKind.Script)
     {
-        var context = new EvaluationContext(realmState, cancellationToken) { SourceReference = program.Source };
+        var context = new EvaluationContext(realmState, cancellationToken, executionKind)
+        {
+            SourceReference = program.Source
+        };
         var executionEnvironment = program.IsStrict ? new JsEnvironment(environment, true, true) : environment;
 
         // Hoist var and function declarations in the program body so that
@@ -1130,7 +1137,13 @@ public static class TypedAstEvaluator
         environment.Define(declaration.Name, function);
         if (!environment.IsStrict)
         {
-            environment.DefineFunctionScoped(declaration.Name, function, true);
+            var configurable = context.ExecutionKind == ExecutionKind.Eval;
+            environment.DefineFunctionScoped(
+                declaration.Name,
+                function,
+                true,
+                isFunctionDeclaration: true,
+                globalFunctionConfigurable: configurable);
         }
 
         return function;
@@ -3006,7 +3019,12 @@ public static class TypedAstEvaluator
                     object? functionValue = hoistFunctionValues
                         ? CreateFunctionValue(functionDeclaration.Function, environment, context)
                         : JsSymbols.Undefined;
-                    environment.DefineFunctionScoped(functionDeclaration.Name, functionValue, hoistFunctionValues);
+                    environment.DefineFunctionScoped(
+                        functionDeclaration.Name,
+                        functionValue,
+                        hoistFunctionValues,
+                        isFunctionDeclaration: true,
+                        globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval);
                     break;
                 }
                 case ClassDeclaration:

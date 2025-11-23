@@ -352,10 +352,13 @@ public sealed class JsEngine : IAsyncDisposable
     ///     cons interpreter is no longer part of the runtime path; cons data is only
     ///     used earlier for parsing and transformation.
     /// </summary>
-    internal object? ExecuteProgram(ParsedProgram program, JsEnvironment environment,
-        CancellationToken cancellationToken = default)
+    internal object? ExecuteProgram(
+        ParsedProgram program,
+        JsEnvironment environment,
+        CancellationToken cancellationToken = default,
+        ExecutionKind executionKind = ExecutionKind.Script)
     {
-        return _typedExecutor.Evaluate(program, environment, _realm, cancellationToken);
+        return _typedExecutor.Evaluate(program, environment, _realm, cancellationToken, executionKind);
     }
 
     /// <summary>

@@ -10,9 +10,18 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 internal sealed class TypedProgramExecutor
 {
-    public object? Evaluate(ParsedProgram program, JsEnvironment environment, RealmState realmState,
-        CancellationToken cancellationToken = default)
+    public object? Evaluate(
+        ParsedProgram program,
+        JsEnvironment environment,
+        RealmState realmState,
+        CancellationToken cancellationToken = default,
+        ExecutionKind executionKind = ExecutionKind.Script)
     {
-        return TypedAstEvaluator.EvaluateProgram(program.Typed, environment, realmState, cancellationToken);
+        return TypedAstEvaluator.EvaluateProgram(
+            program.Typed,
+            environment,
+            realmState,
+            cancellationToken,
+            executionKind);
     }
 }

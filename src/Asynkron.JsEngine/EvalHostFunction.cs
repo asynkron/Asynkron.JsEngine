@@ -40,7 +40,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyA
 
         // Evaluate directly in the calling environment without going through the event queue
         // This is safe because eval() is synchronous in JavaScript
-        var result = _engine.ExecuteProgram(program, environment, CancellationToken.None);
+        var result = _engine.ExecuteProgram(program, environment, CancellationToken.None, ExecutionKind.Eval);
 
         return result;
     }

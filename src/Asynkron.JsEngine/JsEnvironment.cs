@@ -57,7 +57,12 @@ public sealed class JsEnvironment
         _values[name] = new Binding(value, isConst, isGlobalConstant);
     }
 
-    public void DefineFunctionScoped(Symbol name, object? value, bool hasInitializer)
+    public void DefineFunctionScoped(
+        Symbol name,
+        object? value,
+        bool hasInitializer,
+        bool isFunctionDeclaration = false,
+        bool? globalFunctionConfigurable = null)
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
         var scope = GetFunctionScope();
@@ -86,7 +91,10 @@ public sealed class JsEnvironment
             if (hasInitializer)
             {
                 existing.Value = value;
-                globalThis?.SetProperty(name.Name, value);
+                if (isGlobalScope && globalThis is not null)
+                {
+                    globalThis.SetProperty(name.Name, value);
+                }
             }
 
             return;
@@ -102,9 +110,23 @@ public sealed class JsEnvironment
         }
 
         scope._values[name] = new Binding(initialValue, false, false);
-        if (shouldWriteGlobal)
+        if (isGlobalScope && globalThis is not null && shouldWriteGlobal)
         {
-            globalThis?.SetProperty(name.Name, initialValue);
+            if (isFunctionDeclaration)
+            {
+                var configurable = globalFunctionConfigurable ?? false;
+                globalThis.DefineProperty(name.Name, new PropertyDescriptor
+                {
+                    Value = initialValue,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = configurable
+                });
+            }
+            else
+            {
+                globalThis.SetProperty(name.Name, initialValue);
+            }
         }
     }
 

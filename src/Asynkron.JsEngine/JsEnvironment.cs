@@ -49,6 +49,11 @@ public sealed class JsEnvironment
 
     public void Define(Symbol name, object? value, bool isConst = false, bool isGlobalConstant = false)
     {
+        if (_values.TryGetValue(name, out var existing) && existing.IsGlobalConstant)
+        {
+            return;
+        }
+
         _values[name] = new Binding(value, isConst, isGlobalConstant);
     }
 
@@ -58,14 +63,26 @@ public sealed class JsEnvironment
         var scope = GetFunctionScope();
         var isGlobalScope = scope._enclosing is null;
         JsObject? globalThis = null;
+        PropertyDescriptor? existingDescriptor = null;
+        object? existingGlobalValue = null;
         if (isGlobalScope && scope._values.TryGetValue(Symbols.This, out var thisBinding) &&
             thisBinding.Value is JsObject globalObject)
         {
             globalThis = globalObject;
+            existingDescriptor = globalObject.GetOwnPropertyDescriptor(name.Name);
+            if (existingDescriptor is not null)
+            {
+                globalObject.TryGetProperty(name.Name, out existingGlobalValue);
+            }
         }
 
         if (scope._values.TryGetValue(name, out var existing))
         {
+            if (existing.IsConst || existing.IsGlobalConstant)
+            {
+                return;
+            }
+
             if (hasInitializer)
             {
                 existing.Value = value;
@@ -75,20 +92,47 @@ public sealed class JsEnvironment
             return;
         }
 
-        scope._values[name] = new Binding(value, false, false);
-        globalThis?.SetProperty(name.Name, value);
+        var initialValue = value;
+        var shouldWriteGlobal = true;
+
+        if (isGlobalScope && existingDescriptor is not null && !hasInitializer)
+        {
+            initialValue = existingGlobalValue;
+            shouldWriteGlobal = false;
+        }
+
+        scope._values[name] = new Binding(initialValue, false, false);
+        if (shouldWriteGlobal)
+        {
+            globalThis?.SetProperty(name.Name, initialValue);
+        }
     }
 
     public object? Get(Symbol name)
     {
         if (_values.TryGetValue(name, out var binding))
         {
+            if (_enclosing is null &&
+                _values.TryGetValue(Symbols.This, out var thisBinding) &&
+                thisBinding.Value is JsObject globalObject &&
+                globalObject.TryGetProperty(name.Name, out var globalValue))
+            {
+                return globalValue;
+            }
+
             return binding.Value;
         }
 
         if (_enclosing is not null)
         {
             return _enclosing.Get(name);
+        }
+
+        if (_values.TryGetValue(Symbols.This, out var rootThis) &&
+            rootThis.Value is JsObject rootGlobal &&
+            rootGlobal.TryGetProperty(name.Name, out var propertyValue))
+        {
+            return propertyValue;
         }
 
         throw new InvalidOperationException($"Undefined symbol '{name.Name}'.");
@@ -98,6 +142,15 @@ public sealed class JsEnvironment
     {
         if (_values.TryGetValue(name, out var binding))
         {
+            if (_enclosing is null &&
+                _values.TryGetValue(Symbols.This, out var thisBinding) &&
+                thisBinding.Value is JsObject globalObject &&
+                globalObject.TryGetProperty(name.Name, out var globalValue))
+            {
+                value = globalValue;
+                return true;
+            }
+
             value = binding.Value;
             return true;
         }
@@ -105,6 +158,14 @@ public sealed class JsEnvironment
         if (_enclosing is not null)
         {
             return _enclosing.TryGet(name, out value);
+        }
+
+        if (_values.TryGetValue(Symbols.This, out var rootThis) &&
+            rootThis.Value is JsObject rootGlobal &&
+            rootGlobal.TryGetProperty(name.Name, out var propertyValue))
+        {
+            value = propertyValue;
+            return true;
         }
 
         value = null;
@@ -120,6 +181,13 @@ public sealed class JsEnvironment
 
     private void AssignInternal(Symbol name, object? value, bool isStrictContext)
     {
+        JsObject? globalObject = null;
+        if (_enclosing is null && _values.TryGetValue(Symbols.This, out var thisBinding) &&
+            thisBinding.Value is JsObject global)
+        {
+            globalObject = global;
+        }
+
         if (_values.TryGetValue(name, out var binding))
         {
             if (binding.IsConst)
@@ -138,12 +206,19 @@ public sealed class JsEnvironment
             }
 
             binding.Value = value;
+            globalObject?.SetProperty(name.Name, value);
             return;
         }
 
         if (_enclosing is not null)
         {
             _enclosing.AssignInternal(name, value, isStrictContext);
+            return;
+        }
+
+        if (globalObject is not null && globalObject.GetOwnPropertyDescriptor(name.Name) is not null)
+        {
+            globalObject.SetProperty(name.Name, value);
             return;
         }
 
@@ -158,8 +233,7 @@ public sealed class JsEnvironment
 
         // Non-strict mode: Create the variable in the global scope (this environment)
         Define(name, value);
-        if (_enclosing is null && _values.TryGetValue(Symbols.This, out var thisBinding) &&
-            thisBinding.Value is JsObject globalObject)
+        if (globalObject is not null)
         {
             globalObject.SetProperty(name.Name, value);
         }

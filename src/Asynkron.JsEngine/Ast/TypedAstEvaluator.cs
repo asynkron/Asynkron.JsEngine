@@ -1128,6 +1128,11 @@ public static class TypedAstEvaluator
     {
         var function = CreateFunctionValue(declaration.Function, environment, context);
         environment.Define(declaration.Name, function);
+        if (!environment.IsStrict)
+        {
+            environment.DefineFunctionScoped(declaration.Name, function, true);
+        }
+
         return function;
     }
 
@@ -2905,16 +2910,23 @@ public static class TypedAstEvaluator
         return JsOps.DeletePropertyValue(target, propertyKey, context);
     }
 
-    private static void HoistVarDeclarations(BlockStatement block, JsEnvironment environment, EvaluationContext context)
+    private static void HoistVarDeclarations(
+        BlockStatement block,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool hoistFunctionValues = true)
     {
         foreach (var statement in block.Statements)
         {
-            HoistFromStatement(statement, environment, context);
+            HoistFromStatement(statement, environment, context, hoistFunctionValues);
         }
     }
 
-    private static void HoistFromStatement(StatementNode statement, JsEnvironment environment,
-        EvaluationContext context)
+    private static void HoistFromStatement(
+        StatementNode statement,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool hoistFunctionValues)
     {
         while (true)
         {
@@ -2928,30 +2940,34 @@ public static class TypedAstEvaluator
 
                     break;
                 case BlockStatement block:
-                    HoistVarDeclarations(block, environment, context);
+                    HoistVarDeclarations(block, environment, context, hoistFunctionValues: false);
                     break;
                 case IfStatement ifStatement:
-                    HoistFromStatement(ifStatement.Then, environment, context);
+                    HoistFromStatement(ifStatement.Then, environment, context, hoistFunctionValues: false);
                     if (ifStatement.Else is { } elseBranch)
                     {
                         statement = elseBranch;
+                        hoistFunctionValues = false;
                         continue;
                     }
 
                     break;
                 case WhileStatement whileStatement:
                     statement = whileStatement.Body;
+                    hoistFunctionValues = false;
                     continue;
                 case DoWhileStatement doWhileStatement:
                     statement = doWhileStatement.Body;
+                    hoistFunctionValues = false;
                     continue;
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
                     {
-                        HoistFromStatement(initVar, environment, context);
+                        HoistFromStatement(initVar, environment, context, hoistFunctionValues);
                     }
 
                     statement = forStatement.Body;
+                    hoistFunctionValues = false;
                     continue;
                 case ForEachStatement forEachStatement:
                     if (forEachStatement.DeclarationKind == VariableKind.Var)
@@ -2960,34 +2976,37 @@ public static class TypedAstEvaluator
                     }
 
                     statement = forEachStatement.Body;
+                    hoistFunctionValues = false;
                     continue;
                 case LabeledStatement labeled:
                     statement = labeled.Statement;
                     continue;
                 case TryStatement tryStatement:
-                    HoistVarDeclarations(tryStatement.TryBlock, environment, context);
+                    HoistVarDeclarations(tryStatement.TryBlock, environment, context, hoistFunctionValues: false);
                     if (tryStatement.Catch is { } catchClause)
                     {
-                        HoistVarDeclarations(catchClause.Body, environment, context);
+                        HoistVarDeclarations(catchClause.Body, environment, context, hoistFunctionValues: false);
                     }
 
                     if (tryStatement.Finally is { } finallyBlock)
                     {
-                        HoistVarDeclarations(finallyBlock, environment, context);
+                        HoistVarDeclarations(finallyBlock, environment, context, hoistFunctionValues: false);
                     }
 
                     break;
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        HoistVarDeclarations(switchCase.Body, environment, context);
+                        HoistVarDeclarations(switchCase.Body, environment, context, hoistFunctionValues: false);
                     }
 
                     break;
                 case FunctionDeclaration functionDeclaration:
                 {
-                    var functionValue = CreateFunctionValue(functionDeclaration.Function, environment, context);
-                    environment.DefineFunctionScoped(functionDeclaration.Name, functionValue, true);
+                    object? functionValue = hoistFunctionValues
+                        ? CreateFunctionValue(functionDeclaration.Function, environment, context)
+                        : JsSymbols.Undefined;
+                    environment.DefineFunctionScoped(functionDeclaration.Name, functionValue, hoistFunctionValues);
                     break;
                 }
                 case ClassDeclaration:

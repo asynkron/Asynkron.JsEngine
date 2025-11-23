@@ -218,6 +218,10 @@ public sealed class JsEngine : IAsyncDisposable
         // Register dynamic import function
         SetGlobalFunction("import", DynamicImport);
 
+        // Provide a stable global object helper used by Test262 harness utilities.
+        SetGlobal("fnGlobalObject",
+            new HostFunction(_ => GlobalObject) { Realm = GlobalObject, RealmState = _realm }, true);
+
         // Register debug function as a debug-aware host function
         _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));
     }
@@ -509,6 +513,11 @@ public sealed class JsEngine : IAsyncDisposable
 
         var tcs = new TaskCompletionSource<object?>();
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
+        var configured = ExecutionTimeout;
+        var timeout = configured.HasValue && configured.Value > TimeSpan.Zero
+            ? configured.Value
+            : TimeSpan.FromSeconds(10);
+        var watchdog = Task.Delay(timeout, cancellationToken);
 
         // Schedule the evaluation on the event queue
         // This ensures ALL code runs through the event loop
@@ -549,20 +558,26 @@ public sealed class JsEngine : IAsyncDisposable
 
         try
         {
-            var completed = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, combinedToken))
-                .ConfigureAwait(false);
-            if (completed != tcs.Task)
+            var completed = await Task.WhenAny(tcs.Task, watchdog).ConfigureAwait(false);
+            if (completed == tcs.Task)
             {
-                if (timeoutCts?.IsCancellationRequested == true)
-                {
-                    throw new TimeoutException(
-                        $"JavaScript execution exceeded the configured timeout of {ExecutionTimeout}.");
-                }
+                return await tcs.Task.ConfigureAwait(false);
+            }
 
+            CancelAllTimers();
+            await StopEventLoopAsync().ConfigureAwait(false);
+            if (cancellationToken.IsCancellationRequested)
+            {
                 throw new OperationCanceledException(combinedToken);
             }
 
-            return await tcs.Task.ConfigureAwait(false);
+            if (timeoutCts?.IsCancellationRequested == true || watchdog.IsCanceled == false)
+            {
+                throw new TimeoutException(
+                    $"JavaScript execution exceeded the configured timeout of {timeout}.");
+            }
+
+            throw new OperationCanceledException(combinedToken);
         }
         finally
         {

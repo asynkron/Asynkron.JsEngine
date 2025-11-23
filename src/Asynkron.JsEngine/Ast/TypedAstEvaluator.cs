@@ -5301,7 +5301,14 @@ public static class TypedAstEvaluator
             }
 
             // Functions expose a prototype object so instances created via `new` can inherit from it.
-            _properties.SetProperty("prototype", new JsObject());
+            var functionPrototype = new JsObject();
+            functionPrototype.SetPrototype(_realmState.ObjectPrototype);
+            functionPrototype.DefineProperty("constructor",
+                new PropertyDescriptor
+                {
+                    Value = this, Writable = true, Enumerable = false, Configurable = true
+                });
+            _properties.SetProperty("prototype", functionPrototype);
             _properties.DefineProperty("length",
                 new PropertyDescriptor
                 {

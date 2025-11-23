@@ -134,12 +134,12 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
 
         // Annex B escape/unescape
-        var escapeFn = StandardLibrary.CreateEscapeFunction();
+        var escapeFn = StandardLibrary.CreateEscapeFunction(_realm);
         SetGlobal("escape", escapeFn);
         GlobalObject.DefineProperty("escape",
             new PropertyDescriptor { Value = escapeFn, Writable = true, Enumerable = false, Configurable = true });
 
-        var unescapeFn = StandardLibrary.CreateUnescapeFunction();
+        var unescapeFn = StandardLibrary.CreateUnescapeFunction(_realm);
         SetGlobal("unescape", unescapeFn);
         GlobalObject.DefineProperty("unescape",
             new PropertyDescriptor { Value = unescapeFn, Writable = true, Enumerable = false, Configurable = true });

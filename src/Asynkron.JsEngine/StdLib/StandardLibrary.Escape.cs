@@ -3,22 +3,18 @@ using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static HostFunction CreateEscapeFunction()
+    public static HostFunction CreateEscapeFunction(RealmState realm)
     {
         var escapeFn = new HostFunction(args =>
         {
             var value = args.Count > 0 ? args[0] : Symbols.Undefined;
-            if (value is Symbol or TypedAstSymbol)
-            {
-                throw ThrowTypeError("Cannot convert a Symbol value to a string");
-            }
-
-            var input = JsOps.ToJsString(value);
+            var input = ToJsStringWithRealm(value, realm);
             var builder = new StringBuilder(input.Length * 2);
             foreach (var ch in input)
             {
@@ -54,17 +50,12 @@ public static partial class StandardLibrary
         return escapeFn;
     }
 
-    public static HostFunction CreateUnescapeFunction()
+    public static HostFunction CreateUnescapeFunction(RealmState realm)
     {
         var unescapeFn = new HostFunction(args =>
         {
             var value = args.Count > 0 ? args[0] : Symbols.Undefined;
-            if (value is Symbol or TypedAstSymbol)
-            {
-                throw ThrowTypeError("Cannot convert a Symbol value to a string");
-            }
-
-            var input = JsOps.ToJsString(value);
+            var input = ToJsStringWithRealm(value, realm);
             var builder = new StringBuilder(input.Length);
 
             for (var i = 0; i < input.Length; i++)
@@ -111,6 +102,72 @@ public static partial class StandardLibrary
         return unescapeFn;
     }
 
+    private static string ToJsStringWithRealm(object? value, RealmState realm)
+    {
+        if (value is Symbol symbol)
+        {
+            if (ReferenceEquals(symbol, Symbols.Undefined))
+            {
+                return "undefined";
+            }
+
+            throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: realm);
+        }
+
+        if (value is IIsHtmlDda)
+        {
+            return "undefined";
+        }
+
+        if (value is TypedAstSymbol)
+        {
+            throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: realm);
+        }
+
+        object? primitive = value;
+
+        if (value is IJsPropertyAccessor accessor)
+        {
+            var context = new EvaluationContext(realm);
+            primitive = JsOps.ToPrimitive(accessor, "string", context);
+            if (context.IsThrow)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+        }
+
+        if (primitive is IIsHtmlDda)
+        {
+            return "undefined";
+        }
+
+        if (primitive is Symbol primitiveSymbol)
+        {
+            if (ReferenceEquals(primitiveSymbol, Symbols.Undefined))
+            {
+                return "undefined";
+            }
+
+            throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: realm);
+        }
+
+        if (primitive is TypedAstSymbol)
+        {
+            throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: realm);
+        }
+
+        if (primitive is double doubleValue && IsNegativeZero(doubleValue))
+        {
+            primitive = 0d;
+        }
+        else if (primitive is float floatValue && IsNegativeZero(floatValue))
+        {
+            primitive = 0f;
+        }
+
+        return JsOps.ToJsString(primitive);
+    }
+
     private static bool IsUnescaped(char ch)
     {
         return ch is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9'
@@ -120,5 +177,15 @@ public static partial class StandardLibrary
     private static bool IsHex(char ch)
     {
         return ch is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F';
+    }
+
+    private static bool IsNegativeZero(double value)
+    {
+        return value.Equals(0d) && double.IsNegativeInfinity(1d / value);
+    }
+
+    private static bool IsNegativeZero(float value)
+    {
+        return value.Equals(0f) && float.IsNegativeInfinity(1f / value);
     }
 }

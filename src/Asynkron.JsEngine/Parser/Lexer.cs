@@ -1120,13 +1120,36 @@ public sealed class Lexer(string source)
                         }
 
                         break;
-                    case 'u':
-                        // Unicode escape sequence \uHHHH
-                        if (i + 5 < rawString.Length)
+                case 'u':
+                    // Unicode escape sequence \uHHHH or \u{...}
+                    if (i + 2 < rawString.Length && rawString[i + 2] == '{')
+                    {
+                        var closingBrace = rawString.IndexOf('}', i + 3);
+                        if (closingBrace > i + 3)
                         {
-                            var hex = rawString.Substring(i + 2, 4);
-                            if (int.TryParse(hex, NumberStyles.HexNumber, null, out var value))
+                            var hexDigits = rawString.Substring(i + 3, closingBrace - (i + 3));
+                            if (int.TryParse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var codePoint) &&
+                                codePoint >= 0 && codePoint <= 0x10FFFF)
                             {
+                                result.Append(char.ConvertFromUtf32(codePoint));
+                                i = closingBrace + 1;
+                                break;
+                            }
+                        }
+
+                        // Invalid escape, keep the backslash and u
+                        result.Append('\\');
+                        result.Append('u');
+                        i += 2;
+                        break;
+                    }
+
+                    // Unicode escape sequence \uHHHH
+                    if (i + 5 < rawString.Length)
+                    {
+                        var hex = rawString.Substring(i + 2, 4);
+                        if (int.TryParse(hex, NumberStyles.HexNumber, null, out var value))
+                        {
                                 result.Append((char)value);
                                 i += 6;
                             }

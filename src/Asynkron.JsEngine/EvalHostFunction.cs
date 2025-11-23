@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine;
 
@@ -36,7 +37,29 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyA
             "eval() called without a calling environment");
 
         // Parse the code and build the typed AST so eval shares the same pipeline
-        var program = _engine.ParseForExecution(code);
+        ParsedProgram program;
+        try
+        {
+            program = _engine.ParseForExecution(code, environment.IsStrict);
+        }
+        catch (ParseException parseException)
+        {
+            var message = parseException.Message ?? "SyntaxError";
+            object errorObject = message;
+            if (environment.TryGet(Symbol.Intern("SyntaxError"), out var ctor) && ctor is IJsCallable callable)
+            {
+                try
+                {
+                    errorObject = callable.Invoke([message], null);
+                }
+                catch (ThrowSignal signal)
+                {
+                    errorObject = signal.ThrownValue;
+                }
+            }
+
+            throw new ThrowSignal(errorObject);
+        }
 
         // Evaluate directly in the calling environment without going through the event queue
         // This is safe because eval() is synchronous in JavaScript

@@ -7,14 +7,15 @@ namespace Asynkron.JsEngine.Parser;
 /// <summary>
 ///     Parser that builds the typed AST directly from the token stream.
 /// </summary>
-public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
+public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, bool forceStrict = false)
 {
     private readonly string _source = source ?? string.Empty;
+    private readonly bool _forceStrict = forceStrict;
     private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
     public ProgramNode ParseProgram()
     {
-        var direct = new DirectParser(_tokens, _source);
+        var direct = new DirectParser(_tokens, _source, _forceStrict);
         return direct.ParseProgram();
     }
 
@@ -22,8 +23,9 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
     ///     Direct typed parser. This currently supports only a subset of the full
     ///     JavaScript grammar required by the test suite.
     /// </summary>
-    private sealed class DirectParser(IReadOnlyList<Token> tokens, string source)
+    private sealed class DirectParser(IReadOnlyList<Token> tokens, string source, bool forceStrict)
     {
+        private readonly bool _forceStrict = forceStrict;
         private readonly Stack<FunctionContext> _functionContexts = new();
         private readonly string _source = source ?? string.Empty;
         private readonly Stack<bool> _strictContexts = new();
@@ -42,7 +44,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         public ProgramNode ParseProgram()
         {
             var statements = ImmutableArray.CreateBuilder<StatementNode>();
-            var isStrict = CheckForUseStrictDirective();
+            var isStrict = _forceStrict || CheckForUseStrictDirective();
 
             using (EnterStrictContext(isStrict))
             {
@@ -1618,9 +1620,23 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         {
             ExpressionNode expr;
 
-            if (Match(TokenType.Number) ||
-                Match(TokenType.BigInt) ||
-                Match(TokenType.RegexLiteral))
+            if (Match(TokenType.Number))
+            {
+                var token = Previous();
+                EnsureNumericLiteralAllowed(token);
+                expr = new LiteralExpression(CreateSourceReference(token), token.Literal);
+                return ApplyCallSuffix(expr, allowCallSuffix);
+            }
+
+            if (Match(TokenType.BigInt))
+            {
+                var token = Previous();
+                EnsureNumericLiteralAllowed(token);
+                expr = new LiteralExpression(CreateSourceReference(token), token.Literal);
+                return ApplyCallSuffix(expr, allowCallSuffix);
+            }
+
+            if (Match(TokenType.RegexLiteral))
             {
                 expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
                 return ApplyCallSuffix(expr, allowCallSuffix);
@@ -1794,6 +1810,55 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             }
 
             throw new ParseException($"Unexpected token '{Peek().Lexeme}'.", Peek(), _source);
+        }
+
+        private void EnsureNumericLiteralAllowed(Token token)
+        {
+            if (!InStrictContext)
+            {
+                return;
+            }
+
+            if (IsLegacyOctalLiteral(token.Lexeme))
+            {
+                throw new ParseException("Legacy octal literals are not allowed in strict mode.", token, _source);
+            }
+        }
+
+        private static bool IsLegacyOctalLiteral(string lexeme)
+        {
+            if (string.IsNullOrEmpty(lexeme) || lexeme[0] != '0' || lexeme.Length == 1)
+            {
+                return false;
+            }
+
+            var second = lexeme[1];
+            if (second is '.' or 'x' or 'X' or 'o' or 'O' or 'b' or 'B')
+            {
+                return false;
+            }
+
+            if (lexeme.Length == 2 && second == 'n')
+            {
+                return false;
+            }
+
+            if (lexeme.Contains('.') || lexeme.Contains('e') || lexeme.Contains('E'))
+            {
+                return false;
+            }
+
+            var end = lexeme.EndsWith("n", StringComparison.Ordinal) ? lexeme.Length - 1 : lexeme.Length;
+            for (var i = 1; i < end; i++)
+            {
+                var ch = lexeme[i];
+                if (!char.IsDigit(ch) && ch != '_')
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private ExpressionNode ParseCallSuffix(ExpressionNode expression)

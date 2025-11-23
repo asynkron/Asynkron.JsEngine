@@ -552,16 +552,75 @@ public sealed class Lexer(string source)
             }
         }
 
+        // Legacy octal literals (non-strict mode)
+        if (_source[_start] == '0' && IsDigit(Peek()))
+        {
+            var idx = _current;
+            var hasOctalDigits = false;
+            var isPureOctal = true;
+            while (idx < _source.Length)
+            {
+                var ch = _source[idx];
+                if (!IsDigit(ch))
+                {
+                    break;
+                }
+
+                hasOctalDigits = true;
+                if (ch is '8' or '9')
+                {
+                    isPureOctal = false;
+                    break;
+                }
+
+                idx++;
+            }
+
+            if (hasOctalDigits && isPureOctal)
+            {
+                if (idx < _source.Length)
+                {
+                    var nextChar = _source[idx];
+                    if (nextChar is '.' or 'e' or 'E' or 'n' || IsAlpha(nextChar))
+                    {
+                        isPureOctal = false;
+                    }
+                }
+            }
+
+            if (hasOctalDigits && isPureOctal)
+            {
+                while (_current < idx)
+                {
+                    Advance();
+                }
+
+                var octalDigits = _source[_start.._current];
+                var octalBigInt = BigInteger.Zero;
+                foreach (var c in octalDigits)
+                {
+                    octalBigInt = octalBigInt * 8 + (c - '0');
+                }
+
+                var octalValue = (double)octalBigInt;
+                AddToken(TokenType.Number, octalValue);
+                return;
+            }
+        }
+
         // Regular decimal number
         ReadDigitsWithSeparators(IsDigit, "decimal", true);
 
         // Check for decimal point (makes it a regular number, not BigInt)
         var hasDecimal = false;
-        if (Peek() == '.' && IsDigit(PeekNext()))
+        if (Peek() == '.')
         {
             hasDecimal = true;
             Advance();
-            ReadDigitsWithSeparators(IsDigit, "fractional");
+            if (IsDigit(Peek()))
+            {
+                ReadDigitsWithSeparators(IsDigit, "fractional");
+            }
         }
 
         // Check for exponential notation (e or E followed by optional +/- and digits)
@@ -588,6 +647,10 @@ public sealed class Lexer(string source)
                 ReadDigitsWithSeparators(IsDigit, "exponent");
 
                 hasDecimal = true; // exponential notation makes it a regular number, not BigInt
+            }
+            else
+            {
+                throw new ParseException($"Invalid exponent in decimal literal at line {_line} column {_column}.");
             }
         }
 
@@ -637,6 +700,10 @@ public sealed class Lexer(string source)
                 }
 
                 ReadDigitsWithSeparators(IsDigit, "exponent");
+            }
+            else
+            {
+                throw new ParseException($"Invalid exponent in decimal literal at line {_line} column {_column}.");
             }
         }
 

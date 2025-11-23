@@ -321,9 +321,14 @@ public sealed class JsEngine : IAsyncDisposable
     ///     typed AST. This is primarily used by the evaluator so we avoid rebuilding the typed
     ///     tree multiple times.
     /// </summary>
-    internal ParsedProgram ParseForExecution(string source)
+    internal ParsedProgram ParseForExecution(string source, bool forceStrict = false)
     {
-        var typedProgram = ParseTypedProgram(source);
+        var typedProgram = ParseTypedProgram(source, forceStrict);
+        if (forceStrict && !typedProgram.IsStrict)
+        {
+            typedProgram = new ProgramNode(typedProgram.Source, typedProgram.Body, true);
+        }
+
         typedProgram = _typedConstantTransformer.Transform(typedProgram);
 
         if (TypedCpsTransformer.NeedsTransformation(typedProgram))
@@ -367,11 +372,11 @@ public sealed class JsEngine : IAsyncDisposable
         return (original, constantFolded, cpsTransformed);
     }
 
-    private static ProgramNode ParseTypedProgram(string source)
+    private static ProgramNode ParseTypedProgram(string source, bool forceStrict = false)
     {
         var lexer = new Lexer(source);
         var tokens = lexer.Tokenize();
-        var typedParser = new TypedAstParser(tokens, source);
+        var typedParser = new TypedAstParser(tokens, source, forceStrict);
         return typedParser.ParseProgram();
     }
 

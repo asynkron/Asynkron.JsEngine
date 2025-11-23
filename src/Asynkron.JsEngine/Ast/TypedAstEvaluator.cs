@@ -1230,7 +1230,7 @@ public static class TypedAstEvaluator
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal, context),
-            IdentifierExpression identifier => environment.Get(identifier.Name),
+            IdentifierExpression identifier => EvaluateIdentifier(identifier, environment, context),
             BinaryExpression binary => EvaluateBinary(binary, environment, context),
             UnaryExpression unary => EvaluateUnary(unary, environment, context),
             ConditionalExpression conditional => EvaluateConditional(conditional, environment, context),
@@ -1287,6 +1287,35 @@ public static class TypedAstEvaluator
                 ctor is IJsCallable callable)
             {
                 errorObject = callable.Invoke([ex.Message], JsSymbols.Undefined);
+            }
+
+            context.SetThrow(errorObject);
+            return errorObject;
+        }
+    }
+
+    private static object? EvaluateIdentifier(IdentifierExpression identifier, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        try
+        {
+            return environment.Get(identifier.Name);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+        {
+            object? errorObject = ex.Message;
+
+            if (environment.TryGet(Symbol.Intern("ReferenceError"), out var ctor) &&
+                ctor is IJsCallable callable)
+            {
+                try
+                {
+                    errorObject = callable.Invoke([ex.Message], JsSymbols.Undefined);
+                }
+                catch (ThrowSignal signal)
+                {
+                    errorObject = signal.ThrownValue;
+                }
             }
 
             context.SetThrow(errorObject);

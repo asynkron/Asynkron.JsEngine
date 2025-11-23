@@ -51,7 +51,7 @@ public class SourceReferenceInExceptionsTests
         ";
 
         await using var engine = new JsEngine();
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate(source));
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate(source));
 
         // Should include source reference (though the specific format may vary)
         Assert.Contains("Super is not available", ex.Message);

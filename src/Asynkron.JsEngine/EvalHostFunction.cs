@@ -45,7 +45,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyA
         catch (ParseException parseException)
         {
             var message = parseException.Message ?? "SyntaxError";
-            object errorObject = message;
+            object? errorObject = message;
             if (environment.TryGet(Symbol.Intern("SyntaxError"), out var ctor) && ctor is IJsCallable callable)
             {
                 try

@@ -667,7 +667,7 @@ public class GeneratorTests
 
         await engine.Evaluate("g.next();");
         var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.throw('boom');"));
-        Assert.Equal("Iterator result is not an object.", signal.ThrownValue);
+        AssertIteratorResultTypeError(signal);
     }
 
     [Fact(Timeout = 2000)]
@@ -700,7 +700,26 @@ public class GeneratorTests
 
         await engine.Evaluate("g.next();");
         var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.return('done');"));
-        Assert.Equal("Iterator result is not an object.", signal.ThrownValue);
+        AssertIteratorResultTypeError(signal);
+    }
+
+    private static void AssertIteratorResultTypeError(ThrowSignal signal)
+    {
+        if (signal.ThrownValue is Asynkron.JsEngine.JsTypes.JsObject obj &&
+            obj.TryGetProperty("message", out var message) &&
+            message is string msg)
+        {
+            Assert.Equal("Iterator result is not an object.", msg);
+            return;
+        }
+
+        if (signal.ThrownValue is string str)
+        {
+            Assert.Equal("Iterator result is not an object.", str);
+            return;
+        }
+
+        Assert.Fail($"Unexpected thrown value: {signal.ThrownValue}");
     }
 
 

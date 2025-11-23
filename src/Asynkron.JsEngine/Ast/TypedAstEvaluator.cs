@@ -402,13 +402,32 @@ public static class TypedAstEvaluator
         return callable.Invoke(args, iterator);
     }
 
-    private static bool TryInvokeIteratorMethod(JsObject iterator, string methodName, object? argument,
+    private static bool TryInvokeIteratorMethod(
+        JsObject iterator,
+        string methodName,
+        object? argument,
+        EvaluationContext context,
         out object? result)
     {
         result = null;
-        if (!iterator.TryGetProperty(methodName, out var methodValue) || methodValue is not IJsCallable callable)
+        if (!iterator.TryGetProperty(methodName, out var methodValue))
         {
             return false;
+        }
+
+        if (methodValue is null)
+        {
+            return false;
+        }
+
+        if (methodValue is IIsHtmlDda && methodValue is not IJsCallable)
+        {
+            return false;
+        }
+
+        if (methodValue is not IJsCallable callable)
+        {
+            throw StandardLibrary.ThrowTypeError($"Iterator method '{methodName}' is not callable.", context);
         }
 
         result = callable.Invoke([argument], iterator);
@@ -3605,12 +3624,20 @@ public static class TypedAstEvaluator
                 var methodInvoked = false;
                 if (propagateThrow)
                 {
-                    methodInvoked = TryInvokeIteratorMethod(_iterator, "throw", sendValue ?? JsSymbols.Undefined,
+                    methodInvoked = TryInvokeIteratorMethod(
+                        _iterator,
+                        "throw",
+                        sendValue ?? JsSymbols.Undefined,
+                        context,
                         out candidate);
                 }
                 else if (propagateReturn)
                 {
-                    methodInvoked = TryInvokeIteratorMethod(_iterator, "return", sendValue ?? JsSymbols.Undefined,
+                    methodInvoked = TryInvokeIteratorMethod(
+                        _iterator,
+                        "return",
+                        sendValue ?? JsSymbols.Undefined,
+                        context,
                         out candidate);
                 }
                 else
@@ -3625,7 +3652,7 @@ public static class TypedAstEvaluator
 
                 if (methodInvoked && candidate is null)
                 {
-                    throw new ThrowSignal("Iterator result is not an object.");
+                    throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
                 }
 
                 var nextCandidate = candidate ?? throw new InvalidOperationException("Iterator result missing.");
@@ -3645,7 +3672,7 @@ public static class TypedAstEvaluator
 
                 if (awaitedCandidate is not JsObject resolvedObject)
                 {
-                    throw new ThrowSignal("Iterator result is not an object.");
+                    throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
                 }
 
                 nextResult = resolvedObject;

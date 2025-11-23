@@ -6,6 +6,7 @@ using Asynkron.JsEngine.JsTypes;
 namespace Asynkron.JsEngine.Parser;
 
 internal sealed record TemplateExpression(string ExpressionText);
+internal sealed record TemplateStringPart(string RawText, DecodedString Cooked);
 
 internal sealed record RegexLiteralValue(string Pattern, string Flags);
 
@@ -781,12 +782,10 @@ public sealed class Lexer(string source)
         {
             if (Peek() == '$' && PeekNext() == '{')
             {
-                // Save the string part so far
-                if (currentString.Length > 0)
-                {
-                    parts.Add(currentString.ToString());
-                    currentString.Clear();
-                }
+                // Save the string part so far (include empty segments to preserve positions)
+                var rawPart = currentString.ToString();
+                parts.Add(new TemplateStringPart(rawPart, DecodeEscapeSequences(rawPart)));
+                currentString.Clear();
 
                 // Skip ${
                 Advance(); // $
@@ -849,11 +848,9 @@ public sealed class Lexer(string source)
             throw new ParseException("Unterminated template literal.");
         }
 
-        // Add any remaining string content
-        if (currentString.Length > 0)
-        {
-            parts.Add(currentString.ToString());
-        }
+        // Add any remaining string content (including trailing empty part)
+        var finalRaw = currentString.ToString();
+        parts.Add(new TemplateStringPart(finalRaw, DecodeEscapeSequences(finalRaw)));
 
         // Skip closing backtick
         Advance();
@@ -1043,9 +1040,10 @@ public sealed class Lexer(string source)
         AddToken(TokenType.RegexLiteral, regexValue);
     }
 
-    private static string DecodeEscapeSequences(string rawString)
+    private static DecodedString DecodeEscapeSequences(string rawString)
     {
         var result = new StringBuilder(rawString.Length);
+        var hasLegacyOctal = false;
         var i = 0;
         while (i < rawString.Length)
         {
@@ -1079,8 +1077,20 @@ public sealed class Lexer(string source)
                         i += 2;
                         break;
                     case '0':
-                        result.Append('\0');
-                        i += 2;
+                        // \0 followed by an octal digit is a legacy octal escape
+                        if (i + 2 < rawString.Length && IsOctalDigit(rawString[i + 2]))
+                        {
+                            var (octalValue, length) = DecodeOctal(rawString, i + 1);
+                            result.Append((char)octalValue);
+                            hasLegacyOctal = true;
+                            i += 1 + length;
+                        }
+                        else
+                        {
+                            result.Append('\0');
+                            i += 2;
+                        }
+
                         break;
                     case '\\':
                         result.Append('\\');
@@ -1094,6 +1104,14 @@ public sealed class Lexer(string source)
                         result.Append('"');
                         i += 2;
                         break;
+                    case >= '1' and <= '7':
+                        {
+                            var (octalValue, length) = DecodeOctal(rawString, i + 1);
+                            result.Append((char)octalValue);
+                            hasLegacyOctal = true;
+                            i += 1 + length;
+                            break;
+                        }
                     case 'x':
                         // Hexadecimal escape sequence \xHH
                         if (i + 3 < rawString.Length)
@@ -1204,6 +1222,21 @@ public sealed class Lexer(string source)
             }
         }
 
-        return result.ToString();
+        return new DecodedString(result.ToString(), hasLegacyOctal);
+
+        static (int Value, int Length) DecodeOctal(string raw, int start)
+        {
+            var length = 0;
+            var value = 0;
+            var index = start;
+            while (index < raw.Length && length < 3 && IsOctalDigit(raw[index]))
+            {
+                value = (value * 8) + (raw[index] - '0');
+                length++;
+                index++;
+            }
+
+            return (value, length);
+        }
     }
 }

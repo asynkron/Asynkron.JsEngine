@@ -25,6 +25,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
     private sealed class DirectParser(IReadOnlyList<Token> tokens, string source)
     {
         private readonly Stack<FunctionContext> _functionContexts = new();
+        private readonly Stack<bool> _strictContexts = new();
         private readonly string _source = source ?? string.Empty;
         private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
@@ -36,15 +37,19 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
         private bool InGeneratorContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsGenerator;
         private bool InAsyncContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsAsync;
+        private bool InStrictContext => _strictContexts.Count > 0 && _strictContexts.Peek();
 
         public ProgramNode ParseProgram()
         {
             var statements = ImmutableArray.CreateBuilder<StatementNode>();
             var isStrict = CheckForUseStrictDirective();
 
-            while (!Check(TokenType.Eof))
+            using (EnterStrictContext(isStrict))
             {
-                statements.Add(ParseStatement());
+                while (!Check(TokenType.Eof))
+                {
+                    statements.Add(ParseStatement());
+                }
             }
 
             return new ProgramNode(CreateSourceReferenceFromRange(0, _current - 1), statements.ToImmutable(),
@@ -447,7 +452,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             if (Match(TokenType.String))
             {
                 var token = Previous();
-                var value = token.Literal?.ToString() ?? string.Empty;
+                var value = GetStringLiteralValue(token);
                 return (value, false, token);
             }
 
@@ -523,12 +528,16 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         private BlockStatement ParseSwitchClauseBody(Token clauseToken)
         {
             var statements = ImmutableArray.CreateBuilder<StatementNode>();
-            var isStrict = CheckForUseStrictDirective();
+            var hasDirectiveStrict = CheckForUseStrictDirective();
+            var isStrict = InStrictContext || hasDirectiveStrict;
 
-            while (!Check(TokenType.Case) && !Check(TokenType.Default) && !Check(TokenType.RightBrace) &&
-                   !Check(TokenType.Eof))
+            using (EnterStrictContext(isStrict))
             {
-                statements.Add(ParseStatement());
+                while (!Check(TokenType.Case) && !Check(TokenType.Default) && !Check(TokenType.RightBrace) &&
+                       !Check(TokenType.Eof))
+                {
+                    statements.Add(ParseStatement());
+                }
             }
 
             return new BlockStatement(CreateSourceReference(clauseToken), statements.ToImmutable(), isStrict);
@@ -772,7 +781,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             if (Check(TokenType.String))
             {
                 var moduleToken = Advance();
-                var modulePath = moduleToken.Literal as string ?? string.Empty;
+                var modulePath = GetStringLiteralValue(moduleToken);
                 Consume(TokenType.Semicolon, "Expected ';' after import statement.");
                 return new ImportStatement(CreateSourceReference(keyword), modulePath, null, null,
                     ImmutableArray<ImportBinding>.Empty);
@@ -816,7 +825,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
             ConsumeContextualKeyword("from", "Expected 'from' in import statement.");
             var moduleTokenFinal = Consume(TokenType.String, "Expected module path.");
-            var modulePathFinal = moduleTokenFinal.Literal as string ?? string.Empty;
+            var modulePathFinal = GetStringLiteralValue(moduleTokenFinal);
             Consume(TokenType.Semicolon, "Expected ';' after import statement.");
             return new ImportStatement(CreateSourceReference(keyword), modulePathFinal, defaultBinding,
                 namespaceBinding,
@@ -903,7 +912,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 if (MatchContextualKeyword("from"))
                 {
                     var moduleToken = Consume(TokenType.String, "Expected module path.");
-                    fromModule = moduleToken.Literal as string ?? string.Empty;
+                    fromModule = GetStringLiteralValue(moduleToken);
                 }
 
                 Consume(TokenType.Semicolon, "Expected ';' after export statement.");
@@ -1018,11 +1027,15 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             }
 
             var statements = ImmutableArray.CreateBuilder<StatementNode>();
-            var isStrict = CheckForUseStrictDirective();
+            var hasDirectiveStrict = CheckForUseStrictDirective();
+            var isStrict = InStrictContext || hasDirectiveStrict;
 
-            while (!Check(TokenType.RightBrace) && !Check(TokenType.Eof))
+            using (EnterStrictContext(isStrict))
             {
-                statements.Add(ParseStatement());
+                while (!Check(TokenType.RightBrace) && !Check(TokenType.Eof))
+                {
+                    statements.Add(ParseStatement());
+                }
             }
 
             Consume(TokenType.RightBrace, "Expected '}' after block.");
@@ -1609,10 +1622,17 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
             if (Match(TokenType.Number) ||
                 Match(TokenType.BigInt) ||
-                Match(TokenType.String) ||
                 Match(TokenType.RegexLiteral))
             {
                 expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
+                return ApplyCallSuffix(expr, allowCallSuffix);
+            }
+
+            if (Match(TokenType.String))
+            {
+                var token = Previous();
+                var literalValue = GetStringLiteralValue(token);
+                expr = new LiteralExpression(CreateSourceReference(token), literalValue);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
@@ -2047,7 +2067,17 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
             foreach (var part in parts)
             {
-                if (part is string text)
+                if (part is TemplateStringPart templateString)
+                {
+                    if (InStrictContext && templateString.Cooked.HasLegacyOctal)
+                    {
+                        throw new ParseException("Legacy octal escape sequences are not allowed in strict mode.",
+                            templateToken, _source);
+                    }
+
+                    builder.Add(new TemplatePart(null, templateString.Cooked.Value, null));
+                }
+                else if (part is string text)
                 {
                     builder.Add(new TemplatePart(null, text, null));
                 }
@@ -2072,7 +2102,18 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
             foreach (var part in parts)
             {
-                if (part is string text)
+                if (part is TemplateStringPart templateString)
+                {
+                    if (InStrictContext && templateString.Cooked.HasLegacyOctal)
+                    {
+                        throw new ParseException("Legacy octal escape sequences are not allowed in strict mode.",
+                            templateToken, _source);
+                    }
+
+                    cookedStrings.Add(templateString.Cooked.Value);
+                    rawStrings.Add(templateString.RawText);
+                }
+                else if (part is string text)
                 {
                     cookedStrings.Add(text);
                     rawStrings.Add(text);
@@ -2141,7 +2182,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             if (Match(TokenType.String))
             {
                 var token = Previous();
-                var value = token.Literal?.ToString() ?? string.Empty;
+                var value = GetStringLiteralValue(token);
                 return (value, false, CreateSourceReference(token));
             }
 
@@ -2826,7 +2867,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             }
 
             var token = Advance();
-            if (!string.Equals(token.Literal as string, "use strict", StringComparison.Ordinal))
+            var literalValue = GetStringLiteralValue(token);
+            if (!string.Equals(literalValue, "use strict", StringComparison.Ordinal))
             {
                 _current = saved;
                 return false;
@@ -2851,6 +2893,22 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
         private static bool IsContextualIdentifierToken(Token token)
         {
             return token.Type is TokenType.Get or TokenType.Set;
+        }
+
+        private string GetStringLiteralValue(Token token)
+        {
+            if (token.Literal is DecodedString decoded)
+            {
+                if (decoded.HasLegacyOctal && InStrictContext)
+                {
+                    throw new ParseException("Legacy octal escape sequences are not allowed in strict mode.", token,
+                        _source);
+                }
+
+                return decoded.Value;
+            }
+
+            return token.Literal?.ToString() ?? string.Empty;
         }
 
         private bool IsPropertyNameToken(Token token)
@@ -2960,6 +3018,12 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             return new FunctionContextScope(this);
         }
 
+        private StrictContextScope EnterStrictContext(bool isStrict)
+        {
+            _strictContexts.Push(isStrict);
+            return new StrictContextScope(this);
+        }
+
         private readonly struct FunctionContext(bool isAsync, bool isGenerator)
         {
             public bool IsAsync { get; } = isAsync;
@@ -2980,6 +3044,26 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
                 if (parser._functionContexts.Count > 0)
                 {
                     parser._functionContexts.Pop();
+                }
+
+                _disposed = true;
+            }
+        }
+
+        private sealed class StrictContextScope(DirectParser parser) : IDisposable
+        {
+            private bool _disposed;
+
+            public void Dispose()
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                if (parser._strictContexts.Count > 0)
+                {
+                    parser._strictContexts.Pop();
                 }
 
                 _disposed = true;

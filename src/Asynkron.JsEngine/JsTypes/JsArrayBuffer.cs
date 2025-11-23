@@ -1,5 +1,5 @@
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.StdLib;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -8,6 +8,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class JsArrayBuffer : IJsPropertyAccessor
 {
+    private readonly RealmState? _realmState;
     private readonly JsObject _properties = new();
 
     private readonly HostFunction _resizeFunction;
@@ -16,13 +17,14 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
     /// <summary>
     ///     Creates a new ArrayBuffer with the specified length in bytes.
     /// </summary>
-    public JsArrayBuffer(int byteLength, int? maxByteLength = null)
+    public JsArrayBuffer(int byteLength, int? maxByteLength = null, RealmState? realmState = null)
     {
         if (byteLength < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(byteLength), "ArrayBuffer size cannot be negative");
         }
 
+        _realmState = realmState;
         MaxByteLength = maxByteLength.HasValue ? Math.Max(maxByteLength.Value, byteLength) : byteLength;
         Resizable = maxByteLength.HasValue;
 
@@ -60,6 +62,8 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
     ///     Gets the length of the buffer in bytes.
     /// </summary>
     public int ByteLength => Buffer.Length;
+
+    internal RealmState? RealmState => _realmState;
 
     /// <summary>
     ///     Gets the underlying byte array.
@@ -134,7 +138,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
         var relativeEnd = end < 0 ? Math.Max(len + end, 0) : Math.Min(end, len);
 
         var newLen = Math.Max(relativeEnd - relativeStart, 0);
-        var newBuffer = new JsArrayBuffer(newLen);
+        var newBuffer = new JsArrayBuffer(newLen, null, _realmState);
 
         Array.Copy(Buffer, relativeStart, newBuffer.Buffer, 0, newLen);
 
@@ -164,9 +168,9 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
         Buffer = newBuffer;
     }
 
-    private static JsObject CreateTypeError(string message)
+    private JsObject CreateTypeError(string message)
     {
-        if (StandardLibrary.TypeErrorConstructor is IJsCallable ctor)
+        if (_realmState?.TypeErrorConstructor is IJsCallable ctor)
         {
             var created = ctor.Invoke([message], null);
             if (created is JsObject jsObj)
@@ -178,9 +182,9 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
         return new JsObject { ["name"] = "TypeError", ["message"] = message };
     }
 
-    private static JsObject CreateRangeError(string message)
+    private JsObject CreateRangeError(string message)
     {
-        if (StandardLibrary.RangeErrorConstructor is IJsCallable ctor)
+        if (_realmState?.RangeErrorConstructor is IJsCallable ctor)
         {
             var created = ctor.Invoke([message], null);
             if (created is JsObject jsObj)

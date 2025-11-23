@@ -38,7 +38,7 @@ public static partial class StandardLibrary
                 (!hostTarget.IsConstructor || hostTarget.DisallowConstruct))
             {
                 var message = hostTarget.ConstructErrorMessage ?? "Target is not a constructor";
-                var error = TypeErrorConstructor is IJsCallable typeErrorCtor
+                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([message], null)
                     : new InvalidOperationException(message);
                 throw new ThrowSignal(error);
@@ -47,20 +47,21 @@ public static partial class StandardLibrary
             if (newTarget is HostFunction { IsConstructor: false } hostNewTarget)
             {
                 var message = hostNewTarget.ConstructErrorMessage ?? "newTarget is not a constructor";
-                var error = TypeErrorConstructor is IJsCallable typeErrorCtor2
+                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor2
                     ? typeErrorCtor2.Invoke([message], null)
                     : new InvalidOperationException(message);
                 throw new ThrowSignal(error);
             }
 
-            var proto = ResolveConstructPrototype(newTarget, target);
+            var proto = ResolveConstructPrototype(newTarget, target, realm);
 
             // If we are constructing Array (or a subclass), create a real JsArray
             // so length/index semantics behave correctly, then invoke the
             // constructor with that receiver.
-            if (ReferenceEquals(target, ArrayConstructor) || ReferenceEquals(newTarget, ArrayConstructor))
+            if ((realm.ArrayConstructor is not null && ReferenceEquals(target, realm.ArrayConstructor)) ||
+                (realm.ArrayConstructor is not null && ReferenceEquals(newTarget, realm.ArrayConstructor)))
             {
-                var arrayInstance = new JsArray();
+                var arrayInstance = new JsArray(realm);
                 if (proto is not null)
                 {
                     arrayInstance.SetPrototype(proto);
@@ -293,7 +294,8 @@ public static partial class StandardLibrary
         return reflect;
     }
 
-    private static JsObject? ResolveConstructPrototype(IJsCallable newTarget, IJsCallable target)
+    private static JsObject? ResolveConstructPrototype(IJsCallable newTarget, IJsCallable target,
+        RealmState realmState)
     {
         // Step 1: use newTarget.prototype if it is an object
         if (newTarget is IJsPropertyAccessor accessor &&
@@ -304,7 +306,8 @@ public static partial class StandardLibrary
         }
 
         // Step 2: try realm default for Array (handles cross-realm Array subclassing)
-        if (ReferenceEquals(target, ArrayConstructor) || ReferenceEquals(newTarget, ArrayConstructor))
+        if ((realmState.ArrayConstructor is not null && ReferenceEquals(target, realmState.ArrayConstructor)) ||
+            (realmState.ArrayConstructor is not null && ReferenceEquals(newTarget, realmState.ArrayConstructor)))
         {
             if (newTarget is HostFunction { RealmState.ArrayPrototype: JsObject realmArrayProtoFromState })
             {
@@ -318,9 +321,9 @@ public static partial class StandardLibrary
                 return realmArrayProto;
             }
 
-            if (ArrayPrototype is not null)
+            if (realmState.ArrayPrototype is not null)
             {
-                return ArrayPrototype;
+                return realmState.ArrayPrototype;
             }
             // Fall through to other realm lookups if needed.
         }

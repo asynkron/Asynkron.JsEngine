@@ -553,7 +553,6 @@ public static partial class StandardLibrary
 
         dateConstructor.SetProperty("prototype", datePrototype);
         realm.DatePrototype ??= datePrototype;
-        DatePrototype ??= datePrototype;
 
         dateConstructor.DefineProperty("name",
             new PropertyDescriptor { Value = "Date", Writable = false, Enumerable = false, Configurable = true });

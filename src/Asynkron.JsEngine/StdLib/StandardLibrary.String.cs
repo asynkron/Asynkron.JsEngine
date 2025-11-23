@@ -508,7 +508,7 @@ public static partial class StandardLibrary
             }
 
             var padString = args.Count > 1 ? args[1]?.ToString() ?? " " : " ";
-            if (padString?.Length == 0)
+            if (padString.Length == 0)
             {
                 return str;
             }
@@ -534,7 +534,7 @@ public static partial class StandardLibrary
             }
 
             var padString = args.Count > 1 ? args[1]?.ToString() ?? " " : " ";
-            if (padString?.Length == 0)
+            if (padString.Length == 0)
             {
                 return str;
             }
@@ -798,7 +798,6 @@ public static partial class StandardLibrary
             stringProto is JsObject stringProtoObj)
         {
             realm.StringPrototype ??= stringProtoObj;
-            StringPrototype ??= stringProtoObj;
             if (realm.ObjectPrototype is not null && stringProtoObj.Prototype is null)
             {
                 stringProtoObj.SetPrototype(realm.ObjectPrototype);

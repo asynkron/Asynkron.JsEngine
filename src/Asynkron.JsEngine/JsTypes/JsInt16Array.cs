@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 
+using Asynkron.JsEngine.Runtime;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -10,16 +12,16 @@ public sealed class JsInt16Array(JsArrayBuffer buffer, int byteOffset, int lengt
 {
     public const int BYTES_PER_ELEMENT = 2;
 
-    public static JsInt16Array FromLength(int length)
+    public static JsInt16Array FromLength(int length, RealmState? realmState = null)
     {
-        var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT);
+        var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT, null, realmState);
         return new JsInt16Array(buffer, 0, length);
     }
 
-    public static JsInt16Array FromArray(JsArray array)
+    public static JsInt16Array FromArray(JsArray array, RealmState? realmState = null)
     {
         var length = array.Items.Count;
-        var typedArray = FromLength(length);
+        var typedArray = FromLength(length, realmState);
         typedArray.Set(array);
         return typedArray;
     }

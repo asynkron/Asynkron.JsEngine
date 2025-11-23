@@ -1,11 +1,12 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static JsObject CreateIntlObject()
+    public static JsObject CreateIntlObject(RealmState realm)
     {
         var intl = new JsObject();
 
@@ -53,9 +54,9 @@ public static partial class StandardLibrary
 
         // Minimal Intl.DurationFormat stub for Test262 coverage.
         var durationFormatPrototype = new JsObject();
-        if (ObjectPrototype is not null)
+        if (realm.ObjectPrototype is not null)
         {
-            durationFormatPrototype.SetPrototype(ObjectPrototype);
+            durationFormatPrototype.SetPrototype(realm.ObjectPrototype);
         }
 
         var durationFormatCtor = new HostFunction((thisValue, _) =>
@@ -150,13 +151,13 @@ public static partial class StandardLibrary
                             continue;
                         }
 
-                        throw ThrowTypeError("Invalid locale value");
+                        throw ThrowTypeError("Invalid locale value", realm: realm);
                     }
 
                     return result;
                 }
 
-                throw ThrowTypeError("Invalid locales argument");
+                throw ThrowTypeError("Invalid locales argument", realm: realm);
             }) { IsConstructor = false },
             Writable = true,
             Enumerable = false,
@@ -178,9 +179,9 @@ public static partial class StandardLibrary
 
         // Minimal Intl.Collator stub to satisfy supportedLocalesOf/name tests.
         var collatorPrototype = new JsObject();
-        if (ObjectPrototype is not null)
+        if (realm.ObjectPrototype is not null)
         {
-            collatorPrototype.SetPrototype(ObjectPrototype);
+            collatorPrototype.SetPrototype(realm.ObjectPrototype);
         }
 
         var collatorCtor = new HostFunction((thisValue, _) =>
@@ -236,13 +237,13 @@ public static partial class StandardLibrary
         return intl;
     }
 
-    public static JsObject CreateTemporalObject()
+    public static JsObject CreateTemporalObject(RealmState realm)
     {
         var temporal = new JsObject();
         var durationPrototype = new JsObject();
-        if (ObjectPrototype is not null)
+        if (realm.ObjectPrototype is not null)
         {
-            durationPrototype.SetPrototype(ObjectPrototype);
+            durationPrototype.SetPrototype(realm.ObjectPrototype);
         }
 
         var durationCtor = new HostFunction((thisValue, args) =>
@@ -282,7 +283,7 @@ public static partial class StandardLibrary
                 locale = args[0];
             }
 
-            var formatterObj = CreateIntlObject().TryGetProperty("DurationFormat", out var ctorVal) &&
+            var formatterObj = CreateIntlObject(realm).TryGetProperty("DurationFormat", out var ctorVal) &&
                                ctorVal is IJsCallable durationFormatCtor
                 ? durationFormatCtor.Invoke([locale, options], null)
                 : new JsObject();

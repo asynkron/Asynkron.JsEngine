@@ -16,7 +16,7 @@ public static partial class StandardLibrary
 
             var str = args[0]?.ToString() ?? "";
             str = str.Trim();
-            if (str?.Length == 0)
+            if (str.Length == 0)
             {
                 return double.NaN;
             }

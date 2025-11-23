@@ -182,9 +182,14 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
 
     private void EnsureFunctionPrototype()
     {
-        if (Properties.Prototype is null && StandardLibrary.FunctionPrototype is not null)
+        if (Properties.Prototype is not null)
         {
-            Properties.SetPrototype(StandardLibrary.FunctionPrototype);
+            return;
+        }
+
+        if (RealmState?.FunctionPrototype is JsObject functionPrototype)
+        {
+            Properties.SetPrototype(functionPrototype);
         }
     }
 }

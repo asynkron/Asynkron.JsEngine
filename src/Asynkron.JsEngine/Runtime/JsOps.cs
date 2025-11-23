@@ -617,49 +617,8 @@ internal static class JsOps
 
     private static object CreateTypeError(string message, EvaluationContext? context)
     {
-        if (context is not null)
-        {
-            return StandardLibrary.CreateTypeError(message, context);
-        }
-
-        if (StandardLibrary.TypeErrorConstructor is not null)
-        {
-            JsObject? prototype = null;
-            if (StandardLibrary.TypeErrorConstructor.TryGetProperty("prototype", out var protoVal) &&
-                protoVal is JsObject protoObj)
-            {
-                prototype = protoObj;
-            }
-
-            var created = StandardLibrary.TypeErrorConstructor.Invoke([message], new JsObject());
-            if (created is JsObject jsObj)
-            {
-                if (prototype is not null && jsObj.Prototype is null)
-                {
-                    jsObj.SetPrototype(prototype);
-                }
-
-                return jsObj;
-            }
-        }
-
-        var fallback = new JsObject();
-        if (StandardLibrary.TypeErrorPrototype is not null)
-        {
-            fallback.SetPrototype(StandardLibrary.TypeErrorPrototype);
-        }
-        else if (StandardLibrary.ErrorPrototype is not null)
-        {
-            fallback.SetPrototype(StandardLibrary.ErrorPrototype);
-        }
-        else if (StandardLibrary.ObjectPrototype is not null)
-        {
-            fallback.SetPrototype(StandardLibrary.ObjectPrototype);
-        }
-
-        fallback.SetProperty("name", "TypeError");
-        fallback.SetProperty("message", message);
-        return fallback;
+        var realm = context?.RealmState;
+        return StandardLibrary.CreateTypeError(message, context, realm);
     }
 
     public static string GetRequiredPropertyName(object? value, EvaluationContext? context = null)

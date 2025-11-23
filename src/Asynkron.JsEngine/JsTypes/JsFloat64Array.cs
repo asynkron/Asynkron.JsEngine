@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 
+using Asynkron.JsEngine.Runtime;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -10,16 +12,16 @@ public sealed class JsFloat64Array(JsArrayBuffer buffer, int byteOffset, int len
 {
     public const int BYTES_PER_ELEMENT = 8;
 
-    public static JsFloat64Array FromLength(int length)
+    public static JsFloat64Array FromLength(int length, RealmState? realmState = null)
     {
-        var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT);
+        var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT, null, realmState);
         return new JsFloat64Array(buffer, 0, length);
     }
 
-    public static JsFloat64Array FromArray(JsArray array)
+    public static JsFloat64Array FromArray(JsArray array, RealmState? realmState = null)
     {
         var length = array.Items.Count;
-        var typedArray = FromLength(length);
+        var typedArray = FromLength(length, realmState);
         typedArray.Set(array);
         return typedArray;
     }

@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.Runtime;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -8,16 +10,16 @@ public sealed class JsUint8ClampedArray(JsArrayBuffer buffer, int byteOffset, in
 {
     public const int BYTES_PER_ELEMENT = 1;
 
-    public static JsUint8ClampedArray FromLength(int length)
+    public static JsUint8ClampedArray FromLength(int length, RealmState? realmState = null)
     {
-        var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT);
+        var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT, null, realmState);
         return new JsUint8ClampedArray(buffer, 0, length);
     }
 
-    public static JsUint8ClampedArray FromArray(JsArray array)
+    public static JsUint8ClampedArray FromArray(JsArray array, RealmState? realmState = null)
     {
         var length = array.Items.Count;
-        var typedArray = FromLength(length);
+        var typedArray = FromLength(length, realmState);
         typedArray.Set(array);
         return typedArray;
     }

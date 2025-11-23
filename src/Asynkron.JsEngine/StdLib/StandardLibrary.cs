@@ -12,47 +12,9 @@ namespace Asynkron.JsEngine.StdLib;
 /// </summary>
 public static partial class StandardLibrary
 {
-    // NOTE: Prototypes/constructors are still held as static caches; these
-    // are reset per-realm during construction and should not be treated as
-    // shared mutable state across engines.
-    public static JsObject? BooleanPrototype { get; set; }
-    public static JsObject? NumberPrototype { get; set; }
-    public static JsObject? StringPrototype { get; set; }
-    public static JsObject? BigIntPrototype { get; set; }
-    internal static JsObject? ObjectPrototype { get; set; }
-    internal static JsObject? FunctionPrototype { get; set; }
-    internal static JsObject? ArrayPrototype { get; set; }
-    public static JsObject? DatePrototype { get; set; }
-    internal static JsObject? ErrorPrototype { get; set; }
-    internal static JsObject? TypeErrorPrototype { get; set; }
-    internal static JsObject? SyntaxErrorPrototype { get; set; }
-    internal static HostFunction? TypeErrorConstructor { get; set; }
-    internal static HostFunction? RangeErrorConstructor { get; set; }
-    public static HostFunction? SyntaxErrorConstructor { get; set; }
-    public static HostFunction? ArrayConstructor { get; set; }
-
-    internal static void ResetSharedState()
+    internal static object CreateTypeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
-        BooleanPrototype = null;
-        NumberPrototype = null;
-        StringPrototype = null;
-        BigIntPrototype = null;
-        ObjectPrototype = null;
-        FunctionPrototype = null;
-        ArrayPrototype = null;
-        DatePrototype = null;
-        ErrorPrototype = null;
-        TypeErrorPrototype = null;
-        SyntaxErrorPrototype = null;
-        TypeErrorConstructor = null;
-        RangeErrorConstructor = null;
-        SyntaxErrorConstructor = null;
-        ArrayConstructor = null;
-    }
-
-    internal static object CreateTypeError(string message, EvaluationContext? context = null)
-    {
-        var realm = context?.RealmState;
+        realm ??= context?.RealmState;
         if (realm?.TypeErrorConstructor is IJsCallable callable)
         {
             return callable.Invoke([message], null) ?? new InvalidOperationException(message);
@@ -83,9 +45,9 @@ public static partial class StandardLibrary
         };
     }
 
-    internal static object CreateRangeError(string message, EvaluationContext? context = null)
+    internal static object CreateRangeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
-        var realm = context?.RealmState;
+        realm ??= context?.RealmState;
         if (realm?.RangeErrorConstructor is IJsCallable callable)
         {
             return callable.Invoke([message], null) ?? new InvalidOperationException(message);
@@ -94,19 +56,19 @@ public static partial class StandardLibrary
         return new InvalidOperationException(message);
     }
 
-    internal static ThrowSignal ThrowTypeError(string message, EvaluationContext? context = null)
+    internal static ThrowSignal ThrowTypeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
-        return new ThrowSignal(CreateTypeError(message, context));
+        return new ThrowSignal(CreateTypeError(message, context, realm));
     }
 
-    internal static ThrowSignal ThrowRangeError(string message, EvaluationContext? context = null)
+    internal static ThrowSignal ThrowRangeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
-        return new ThrowSignal(CreateRangeError(message, context));
+        return new ThrowSignal(CreateRangeError(message, context, realm));
     }
 
-    internal static ThrowSignal ThrowSyntaxError(string message, EvaluationContext? context = null)
+    internal static ThrowSignal ThrowSyntaxError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
-        return new ThrowSignal(CreateSyntaxError(message, context));
+        return new ThrowSignal(CreateSyntaxError(message, context, realm));
     }
 
     private static JsBigInt ThisBigIntValue(object? receiver)
@@ -119,9 +81,9 @@ public static partial class StandardLibrary
         };
     }
 
-    internal static object CreateSyntaxError(string message, EvaluationContext? context = null)
+    internal static object CreateSyntaxError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
-        var realm = context?.RealmState;
+        realm ??= context?.RealmState;
         if (realm?.SyntaxErrorConstructor is IJsCallable callable)
         {
             return callable.Invoke([message], null) ?? new InvalidOperationException(message);

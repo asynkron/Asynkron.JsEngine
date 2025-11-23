@@ -227,7 +227,6 @@ public static partial class StandardLibrary
         if (bigIntFunction.TryGetProperty("prototype", out var protoValue) && protoValue is JsObject proto)
         {
             realm.BigIntPrototype ??= proto;
-            BigIntPrototype ??= proto;
             if (realm.ObjectPrototype is not null && proto.Prototype is null)
             {
                 proto.SetPrototype(realm.ObjectPrototype);
@@ -444,7 +443,6 @@ public static partial class StandardLibrary
             numberProto is JsObject numberProtoObj)
         {
             realm.NumberPrototype ??= numberProtoObj;
-            NumberPrototype ??= numberProtoObj;
             if (realm.ObjectPrototype is not null && numberProtoObj.Prototype is null)
             {
                 numberProtoObj.SetPrototype(realm.ObjectPrototype);
@@ -600,7 +598,7 @@ public static partial class StandardLibrary
 
             var str = args[0]?.ToString() ?? "";
             str = str.Trim();
-            if (str?.Length == 0)
+            if (str.Length == 0)
             {
                 return double.NaN;
             }

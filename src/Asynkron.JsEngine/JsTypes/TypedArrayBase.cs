@@ -247,7 +247,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     {
         if (target.IsDetachedOrOutOfBounds())
         {
-            throw CreateOutOfBoundsTypeError();
+            throw target.CreateOutOfBoundsTypeError();
         }
 
         if (args.Count == 0)
@@ -461,9 +461,9 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         return _buffer.ByteLength < _byteOffset + _length * _bytesPerElement;
     }
 
-    private static ThrowSignal CreateOutOfBoundsTypeError()
+    private ThrowSignal CreateOutOfBoundsTypeError()
     {
-        if (StandardLibrary.TypeErrorConstructor is IJsCallable ctor)
+        if (_buffer.RealmState?.TypeErrorConstructor is IJsCallable ctor)
         {
             var obj = ctor.Invoke(["Out of bounds access on TypedArray"], null);
             if (obj is not null)

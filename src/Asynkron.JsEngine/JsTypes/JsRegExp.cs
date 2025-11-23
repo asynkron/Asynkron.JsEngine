@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
@@ -8,12 +9,14 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public class JsRegExp
 {
+    private readonly RealmState? _realmState;
     private readonly Regex _regex;
 
-    public JsRegExp(string pattern, string flags = "")
+    public JsRegExp(string pattern, string flags = "", RealmState? realmState = null)
     {
         Pattern = pattern;
         Flags = flags;
+        _realmState = realmState;
         JsObject = new JsObject();
 
         // Convert JavaScript regex flags to .NET RegexOptions
@@ -141,7 +144,7 @@ public class JsRegExp
         }
 
         // Build result array
-        var result = new JsArray();
+        var result = new JsArray(_realmState);
         result.Push(match.Value); // Full match at index 0
 
         // Add capture groups
@@ -155,7 +158,7 @@ public class JsRegExp
         result.SetProperty("index", (double)match.Index);
         result.SetProperty("input", input);
 
-        StandardLibrary.AddArrayMethods(result);
+        StandardLibrary.AddArrayMethods(result, _realmState);
         return result;
     }
 
@@ -166,15 +169,15 @@ public class JsRegExp
     {
         if (input == null)
         {
-            return new JsArray();
+            return new JsArray(_realmState);
         }
 
-        var result = new JsArray();
+        var result = new JsArray(_realmState);
         var matches = _regex.Matches(input);
 
         foreach (Match match in matches)
         {
-            var matchArray = new JsArray();
+            var matchArray = new JsArray(_realmState);
             matchArray.Push(match.Value);
 
             for (var i = 1; i < match.Groups.Count; i++)
@@ -185,12 +188,12 @@ public class JsRegExp
 
             matchArray.SetProperty("index", (double)match.Index);
             matchArray.SetProperty("input", input);
-            StandardLibrary.AddArrayMethods(matchArray);
+            StandardLibrary.AddArrayMethods(matchArray, _realmState);
 
             result.Push(matchArray);
         }
 
-        StandardLibrary.AddArrayMethods(result);
+        StandardLibrary.AddArrayMethods(result, _realmState);
         return result;
     }
 }

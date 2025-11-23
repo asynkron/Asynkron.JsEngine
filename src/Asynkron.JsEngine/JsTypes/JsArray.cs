@@ -16,6 +16,7 @@ public sealed class JsArray : IJsObjectLike
 
     // Sentinel value to represent holes in sparse arrays (indices that have never been set)
     private static readonly object ArrayHole = new();
+    private readonly RealmState? _realmState;
     private readonly JsObject? _arrayPrototype;
     private readonly List<object?> _items = [];
 
@@ -25,39 +26,31 @@ public sealed class JsArray : IJsObjectLike
     private uint _length;
     private Dictionary<uint, object?>? _sparseItems;
 
-    public JsArray()
+    public JsArray(RealmState? realmState = null)
     {
-        _rangeErrorCtor = StandardLibrary.RangeErrorConstructor;
-        _typeErrorCtor = StandardLibrary.TypeErrorConstructor;
-        _arrayPrototype = StandardLibrary.ArrayPrototype;
+        _realmState = realmState;
+        _rangeErrorCtor = realmState?.RangeErrorConstructor;
+        _typeErrorCtor = realmState?.TypeErrorConstructor;
+        _arrayPrototype = realmState?.ArrayPrototype;
         _length = 0;
-        if (StandardLibrary.ArrayPrototype is not null)
+        if (_arrayPrototype is not null)
         {
-            _properties.SetPrototype(StandardLibrary.ArrayPrototype);
+            _properties.SetPrototype(_arrayPrototype);
         }
 
         DefineInitialLengthProperty();
         SetupIterator();
     }
 
-    public JsArray(IEnumerable<object?> items)
+    public JsArray(IEnumerable<object?> items, RealmState? realmState = null)
+        : this(realmState)
     {
-        _rangeErrorCtor = StandardLibrary.RangeErrorConstructor;
-        _typeErrorCtor = StandardLibrary.TypeErrorConstructor;
-        _arrayPrototype = StandardLibrary.ArrayPrototype;
         if (items is not null)
         {
             _items.AddRange(items);
         }
 
         _length = (uint)_items.Count;
-        if (StandardLibrary.ArrayPrototype is not null)
-        {
-            _properties.SetPrototype(StandardLibrary.ArrayPrototype);
-        }
-
-        DefineInitialLengthProperty();
-        SetupIterator();
     }
 
     public IReadOnlyList<object?> Items => _items;
@@ -77,9 +70,9 @@ public sealed class JsArray : IJsObjectLike
         get
         {
             if (_properties.Prototype is null &&
-                (_arrayPrototype is not null || StandardLibrary.ArrayPrototype is not null))
+                _arrayPrototype is not null)
             {
-                _properties.SetPrototype(_arrayPrototype ?? StandardLibrary.ArrayPrototype);
+                _properties.SetPrototype(_arrayPrototype);
             }
 
             return _properties.Prototype;
@@ -91,11 +84,6 @@ public sealed class JsArray : IJsObjectLike
 
     public bool TryGetProperty(string name, out object? value)
     {
-        if (_properties.Prototype is null && StandardLibrary.ArrayPrototype is not null)
-        {
-            _properties.SetPrototype(StandardLibrary.ArrayPrototype);
-        }
-
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
             value = (double)_length;
@@ -448,7 +436,7 @@ public sealed class JsArray : IJsObjectLike
         deleteCount = Math.Max(0, Math.Min(deleteCount, _items.Count - start));
 
         // Create array of deleted items
-        var deleted = new JsArray();
+        var deleted = new JsArray(_realmState);
         for (var i = 0; i < deleteCount; i++)
         {
             deleted.Push(_items[start]);
@@ -761,7 +749,7 @@ public sealed class JsArray : IJsObjectLike
 
     private ThrowSignal CreateRangeError(string message)
     {
-        var ctor = StandardLibrary.RangeErrorConstructor ?? _rangeErrorCtor;
+        var ctor = _realmState?.RangeErrorConstructor ?? _rangeErrorCtor;
         if (ctor is IJsCallable)
         {
             var errorObj = ctor.Invoke([message], null);
@@ -775,7 +763,7 @@ public sealed class JsArray : IJsObjectLike
 
     private ThrowSignal CreateTypeError(string message)
     {
-        var ctor = StandardLibrary.TypeErrorConstructor ?? _typeErrorCtor;
+        var ctor = _realmState?.TypeErrorConstructor ?? _typeErrorCtor;
         if (ctor is IJsCallable)
         {
             var errorObj = ctor.Invoke([message], null);

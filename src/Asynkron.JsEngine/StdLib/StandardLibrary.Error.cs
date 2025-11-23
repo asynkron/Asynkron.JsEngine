@@ -25,6 +25,7 @@ public static partial class StandardLibrary
 
             return errorObj;
         });
+        errorConstructor.RealmState = realm;
 
         prototype = new JsObject();
         if (!string.Equals(errorType, "Error", StringComparison.Ordinal) && realm.ErrorPrototype is not null)
@@ -59,29 +60,23 @@ public static partial class StandardLibrary
         if (string.Equals(errorType, "Error", StringComparison.Ordinal))
         {
             realm.ErrorPrototype = prototype;
-            ErrorPrototype = prototype;
         }
 
         if (string.Equals(errorType, "TypeError", StringComparison.Ordinal))
         {
             realm.TypeErrorPrototype = prototype;
             realm.TypeErrorConstructor = errorConstructor;
-            TypeErrorPrototype = prototype;
-            TypeErrorConstructor = errorConstructor;
         }
 
         if (string.Equals(errorType, "RangeError", StringComparison.Ordinal))
         {
             realm.RangeErrorConstructor = errorConstructor;
-            RangeErrorConstructor = errorConstructor;
         }
 
         if (string.Equals(errorType, "SyntaxError", StringComparison.Ordinal))
         {
             realm.SyntaxErrorConstructor = errorConstructor;
-            SyntaxErrorConstructor = errorConstructor;
             realm.SyntaxErrorPrototype = prototype;
-            SyntaxErrorPrototype = prototype;
         }
 
         // Function.name

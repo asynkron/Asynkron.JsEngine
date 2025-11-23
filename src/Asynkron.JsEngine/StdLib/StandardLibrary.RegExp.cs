@@ -1,43 +1,44 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static IJsCallable CreateRegExpConstructor()
+    public static IJsCallable CreateRegExpConstructor(RealmState realm)
     {
         return new HostFunction(args =>
         {
             if (args.Count == 0)
             {
-                return CreateRegExpLiteral("(?:)", "");
+                return CreateRegExpLiteral("(?:)", "", realm);
             }
 
             if (args is [JsObject { } existingObj] &&
                 existingObj.TryGetProperty("__regex__", out var internalRegex) &&
                 internalRegex is JsRegExp existing)
             {
-                return CreateRegExpLiteral(existing.Pattern, existing.Flags);
+                return CreateRegExpLiteral(existing.Pattern, existing.Flags, realm);
             }
 
             var pattern = args[0]?.ToString() ?? "";
             var flags = args.Count > 1 ? args[1]?.ToString() ?? "" : "";
-            return CreateRegExpLiteral(pattern, flags);
+            return CreateRegExpLiteral(pattern, flags, realm);
         });
     }
 
-    internal static JsObject CreateRegExpLiteral(string pattern, string flags)
+    internal static JsObject CreateRegExpLiteral(string pattern, string flags, RealmState? realm = null)
     {
-        var regex = new JsRegExp(pattern, flags);
+        var regex = new JsRegExp(pattern, flags, realm);
         regex.JsObject["__regex__"] = regex;
-        AddRegExpMethods(regex);
+        AddRegExpMethods(regex, realm);
         return regex.JsObject;
     }
 
     /// <summary>
     ///     Adds RegExp instance methods to a JsRegExp object.
     /// </summary>
-    private static void AddRegExpMethods(JsRegExp regex)
+    private static void AddRegExpMethods(JsRegExp regex, RealmState? realm)
     {
         // test(string) - returns boolean
         regex.SetProperty("test", new HostFunction((_, args) =>

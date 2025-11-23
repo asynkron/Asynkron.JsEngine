@@ -164,7 +164,7 @@ public static partial class StandardLibrary
             {
                 if (thisValue is null || ReferenceEquals(thisValue, Symbols.Undefined))
                 {
-                    var error = TypeErrorConstructor is IJsCallable ctor
+                    var error = realm.TypeErrorConstructor is IJsCallable ctor
                         ? ctor.Invoke(["Object.prototype.isPrototypeOf called on null or undefined"], null)
                         : new InvalidOperationException(
                             "Object.prototype.isPrototypeOf called on null or undefined");
@@ -318,7 +318,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0 || args[0] is not IJsObjectLike target)
             {
-                var error = TypeErrorConstructor is IJsCallable ctor
+                var error = realm.TypeErrorConstructor is IJsCallable ctor
                     ? ctor.Invoke(["Object.preventExtensions requires an object"], null)
                     : new InvalidOperationException("Object.preventExtensions requires an object.");
                 throw new ThrowSignal(error);
@@ -662,7 +662,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var obj))
             {
-                throw ThrowTypeError("Object.getPrototypeOf called on null or undefined");
+                throw ThrowTypeError("Object.getPrototypeOf called on null or undefined", realm: realm);
             }
 
             var proto = obj.Prototype ?? (object?)Symbols.Undefined;

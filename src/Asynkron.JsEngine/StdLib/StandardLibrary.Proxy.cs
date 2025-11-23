@@ -22,7 +22,7 @@ public static partial class StandardLibrary
 
             if (target is not IJsObjectLike)
             {
-                var error = TypeErrorConstructor is IJsCallable ctor
+                var error = realm.TypeErrorConstructor is IJsCallable ctor
                     ? ctor.Invoke(["Proxy target must be an object"], null)
                     : new InvalidOperationException("Proxy target must be an object.");
                 throw new ThrowSignal(error);
@@ -30,7 +30,7 @@ public static partial class StandardLibrary
 
             if (handler is not IJsObjectLike handlerObj)
             {
-                var error = TypeErrorConstructor is IJsCallable ctor2
+                var error = realm.TypeErrorConstructor is IJsCallable ctor2
                     ? ctor2.Invoke(["Proxy handler must be an object"], null)
                     : new InvalidOperationException("Proxy handler must be an object.");
                 throw new ThrowSignal(error);
@@ -69,7 +69,7 @@ public static partial class StandardLibrary
         {
             if (args.Count < 2)
             {
-                var error = TypeErrorConstructor is IJsCallable ctor
+                var error = realm.TypeErrorConstructor is IJsCallable ctor
                     ? ctor.Invoke(["Proxy.revocable requires a target and handler"], null)
                     : new InvalidOperationException("Proxy.revocable requires a target and handler.");
                 throw new ThrowSignal(error);
@@ -80,7 +80,7 @@ public static partial class StandardLibrary
 
             if (target is not IJsObjectLike)
             {
-                var error = TypeErrorConstructor is IJsCallable ctor2
+                var error = realm.TypeErrorConstructor is IJsCallable ctor2
                     ? ctor2.Invoke(["Proxy target must be an object"], null)
                     : new InvalidOperationException("Proxy target must be an object.");
                 throw new ThrowSignal(error);
@@ -88,7 +88,7 @@ public static partial class StandardLibrary
 
             if (handler is not IJsObjectLike handlerObj)
             {
-                var error = TypeErrorConstructor is IJsCallable ctor3
+                var error = realm.TypeErrorConstructor is IJsCallable ctor3
                     ? ctor3.Invoke(["Proxy handler must be an object"], null)
                     : new InvalidOperationException("Proxy handler must be an object.");
                 throw new ThrowSignal(error);

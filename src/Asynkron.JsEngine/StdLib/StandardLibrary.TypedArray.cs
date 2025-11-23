@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static HostFunction CreateArrayBufferConstructor()
+    public static HostFunction CreateArrayBufferConstructor(RealmState realm)
     {
         var constructor = new HostFunction((_, args) =>
         {
@@ -27,8 +27,10 @@ public static partial class StandardLibrary
                 }
             }
 
-            return new JsArrayBuffer(byteLength, maxByteLength);
+            return new JsArrayBuffer(byteLength, maxByteLength, realm);
         });
+
+        constructor.RealmState = realm;
 
         constructor.SetProperty("isView", new HostFunction(args =>
         {
@@ -46,9 +48,9 @@ public static partial class StandardLibrary
     /// <summary>
     ///     Creates the DataView constructor.
     /// </summary>
-    public static HostFunction CreateDataViewConstructor()
+    public static HostFunction CreateDataViewConstructor(RealmState realm)
     {
-        return new HostFunction((_, args) =>
+        var constructor = new HostFunction((_, args) =>
         {
             if (args.Count == 0 || args[0] is not JsArrayBuffer buffer)
             {
@@ -60,23 +62,26 @@ public static partial class StandardLibrary
 
             return new JsDataView(buffer, byteOffset, byteLength);
         });
+        constructor.RealmState = realm;
+        return constructor;
     }
 
     /// <summary>
     ///     Creates a typed array constructor.
     /// </summary>
     private static HostFunction CreateTypedArrayConstructor<T>(
-        Func<int, T> fromLength,
-        Func<JsArray, T> fromArray,
-        Func<JsArrayBuffer, int, int, T> fromBuffer,
-        int bytesPerElement) where T : TypedArrayBase
+        Func<int, RealmState?, T> fromLength,
+        Func<JsArray, RealmState?, T> fromArray,
+        Func<JsArrayBuffer, int, int, RealmState?, T> fromBuffer,
+        int bytesPerElement,
+        RealmState realm) where T : TypedArrayBase
     {
         var prototype = new JsObject();
         var constructor = new HostFunction((_, args) =>
         {
             if (args.Count == 0)
             {
-                var ta = fromLength(0);
+                var ta = fromLength(0, realm);
                 ta.SetPrototype(prototype);
                 return ta;
             }
@@ -86,7 +91,7 @@ public static partial class StandardLibrary
             // TypedArray(length)
             if (firstArg is double d)
             {
-                var ta = fromLength((int)d);
+                var ta = fromLength((int)d, realm);
                 ta.SetPrototype(prototype);
                 return ta;
             }
@@ -94,7 +99,7 @@ public static partial class StandardLibrary
             // TypedArray(array)
             if (firstArg is JsArray array)
             {
-                var ta = fromArray(array);
+                var ta = fromArray(array, realm);
                 ta.SetPrototype(prototype);
                 return ta;
             }
@@ -116,18 +121,19 @@ public static partial class StandardLibrary
                     length = remainingBytes / bytesPerElement;
                 }
 
-                var ta = fromBuffer(buffer, byteOffset, length);
+                var ta = fromBuffer(buffer, byteOffset, length, realm);
                 ta.SetPrototype(prototype);
                 return ta;
             }
 
-            var fallback = fromLength(0);
+            var fallback = fromLength(0, realm);
             fallback.SetPrototype(prototype);
             return fallback;
         });
+        constructor.RealmState = realm;
 
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
-        prototype.SetPrototype(ObjectPrototype);
+        prototype.SetPrototype(realm.ObjectPrototype);
         prototype.SetProperty("constructor", constructor);
         constructor.DefineProperty("of", new PropertyDescriptor
         {
@@ -170,7 +176,7 @@ public static partial class StandardLibrary
                         return typeErrorFromEnv;
                     }
 
-                    return TypeErrorConstructor;
+                    return realm.TypeErrorConstructor;
                 }
 
                 object WrapTypeError(string message, JsEnvironment? env)
@@ -196,7 +202,7 @@ public static partial class StandardLibrary
 
                 TypedArrayBase CreateTarget(int length)
                 {
-                    var target = fromLength(length);
+                    var target = fromLength(length, realm);
                     target.SetPrototype(prototype);
                     return target;
                 }
@@ -341,102 +347,113 @@ public static partial class StandardLibrary
         return constructor;
     }
 
-    public static HostFunction CreateInt8ArrayConstructor()
+    public static HostFunction CreateInt8ArrayConstructor(RealmState realm)
     {
         return CreateTypedArrayConstructor(
             JsInt8Array.FromLength,
             JsInt8Array.FromArray,
-            (buffer, offset, length) => new JsInt8Array(buffer, offset, length),
-            JsInt8Array.BYTES_PER_ELEMENT);
+            (buffer, offset, length, _) => new JsInt8Array(buffer, offset, length),
+            JsInt8Array.BYTES_PER_ELEMENT,
+            realm);
     }
 
-    public static HostFunction CreateUint8ArrayConstructor()
+    public static HostFunction CreateUint8ArrayConstructor(RealmState realm)
     {
         return CreateTypedArrayConstructor(
             JsUint8Array.FromLength,
             JsUint8Array.FromArray,
-            (buffer, offset, length) => new JsUint8Array(buffer, offset, length),
-            JsUint8Array.BYTES_PER_ELEMENT);
+            (buffer, offset, length, _) => new JsUint8Array(buffer, offset, length),
+            JsUint8Array.BYTES_PER_ELEMENT,
+            realm);
     }
 
-    public static HostFunction CreateUint8ClampedArrayConstructor()
+    public static HostFunction CreateUint8ClampedArrayConstructor(RealmState realm)
     {
         return CreateTypedArrayConstructor(
             JsUint8ClampedArray.FromLength,
             JsUint8ClampedArray.FromArray,
-            (buffer, offset, length) => new JsUint8ClampedArray(buffer, offset, length),
-            JsUint8ClampedArray.BYTES_PER_ELEMENT);
+            (buffer, offset, length, _) => new JsUint8ClampedArray(buffer, offset, length),
+            JsUint8ClampedArray.BYTES_PER_ELEMENT,
+            realm);
     }
 
-    public static HostFunction CreateInt16ArrayConstructor()
+    public static HostFunction CreateInt16ArrayConstructor(RealmState realm)
     {
         return CreateTypedArrayConstructor(
             JsInt16Array.FromLength,
             JsInt16Array.FromArray,
-            (buffer, offset, length) => new JsInt16Array(buffer, offset, length),
-            JsInt16Array.BYTES_PER_ELEMENT);
+            (buffer, offset, length, _) => new JsInt16Array(buffer, offset, length),
+            JsInt16Array.BYTES_PER_ELEMENT,
+            realm);
     }
 
-    public static HostFunction CreateUint16ArrayConstructor()
+    public static HostFunction CreateUint16ArrayConstructor(RealmState realm)
     {
         return CreateTypedArrayConstructor(
             JsUint16Array.FromLength,
             JsUint16Array.FromArray,
-            (buffer, offset, length) => new JsUint16Array(buffer, offset, length),
-            JsUint16Array.BYTES_PER_ELEMENT);
+            (buffer, offset, length, _) => new JsUint16Array(buffer, offset, length),
+            JsUint16Array.BYTES_PER_ELEMENT,
+            realm);
     }
 
-    public static HostFunction CreateInt32ArrayConstructor()
+    public static HostFunction CreateInt32ArrayConstructor(RealmState realm)
     {
         return CreateTypedArrayConstructor(
             JsInt32Array.FromLength,
             JsInt32Array.FromArray,
-            (buffer, offset, length) => new JsInt32Array(buffer, offset, length),
-            JsInt32Array.BYTES_PER_ELEMENT);
+            (buffer, offset, length, _) => new JsInt32Array(buffer, offset, length),
+            JsInt32Array.BYTES_PER_ELEMENT,
+            realm);
     }
 
-    public static HostFunction CreateUint32ArrayConstructor()
+    public static HostFunction CreateUint32ArrayConstructor(RealmState realm)
     {
         return CreateTypedArrayConstructor(
             JsUint32Array.FromLength,
             JsUint32Array.FromArray,
-            (buffer, offset, length) => new JsUint32Array(buffer, offset, length),
-            JsUint32Array.BYTES_PER_ELEMENT);
+            (buffer, offset, length, _) => new JsUint32Array(buffer, offset, length),
+            JsUint32Array.BYTES_PER_ELEMENT,
+            realm);
     }
 
-    public static HostFunction CreateFloat32ArrayConstructor()
+    public static HostFunction CreateFloat32ArrayConstructor(RealmState realm)
     {
         return CreateTypedArrayConstructor(
             JsFloat32Array.FromLength,
             JsFloat32Array.FromArray,
-            (buffer, offset, length) => new JsFloat32Array(buffer, offset, length),
-            JsFloat32Array.BYTES_PER_ELEMENT);
+            (buffer, offset, length, _) => new JsFloat32Array(buffer, offset, length),
+            JsFloat32Array.BYTES_PER_ELEMENT,
+            realm);
     }
 
-    public static HostFunction CreateFloat64ArrayConstructor()
+    public static HostFunction CreateFloat64ArrayConstructor(RealmState realm)
     {
         return CreateTypedArrayConstructor(
             JsFloat64Array.FromLength,
             JsFloat64Array.FromArray,
-            (buffer, offset, length) => new JsFloat64Array(buffer, offset, length),
-            JsFloat64Array.BYTES_PER_ELEMENT);
+            (buffer, offset, length, _) => new JsFloat64Array(buffer, offset, length),
+            JsFloat64Array.BYTES_PER_ELEMENT,
+            realm);
     }
 
-    public static HostFunction CreateBigInt64ArrayConstructor()
+    public static HostFunction CreateBigInt64ArrayConstructor(RealmState realm)
     {
         return CreateTypedArrayConstructor(
             JsBigInt64Array.FromLength,
             JsBigInt64Array.FromArray,
-            (buffer, offset, length) => new JsBigInt64Array(buffer, offset, length),
-            JsBigInt64Array.BYTES_PER_ELEMENT);
+            (buffer, offset, length, _) => new JsBigInt64Array(buffer, offset, length),
+            JsBigInt64Array.BYTES_PER_ELEMENT,
+            realm);
     }
 
-    public static HostFunction CreateBigUint64ArrayConstructor()
+    public static HostFunction CreateBigUint64ArrayConstructor(RealmState realm)
     {
         return CreateTypedArrayConstructor(
             JsBigUint64Array.FromLength,
             JsBigUint64Array.FromArray,
-            (buffer, offset, length) => new JsBigUint64Array(buffer, offset, length),
-            JsBigUint64Array.BYTES_PER_ELEMENT);
+            (buffer, offset, length, _) => new JsBigUint64Array(buffer, offset, length),
+            JsBigUint64Array.BYTES_PER_ELEMENT,
+            realm);
     }
 }

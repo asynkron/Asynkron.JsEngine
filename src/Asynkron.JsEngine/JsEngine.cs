@@ -43,7 +43,6 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public JsEngine()
     {
-        StandardLibrary.ResetSharedState();
         _asyncIteratorTracingEnabled = false;
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
@@ -111,7 +110,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("JSON", StandardLibrary.CreateJsonObject(_realm));
 
         // Register RegExp constructor
-        SetGlobal("RegExp", StandardLibrary.CreateRegExpConstructor());
+        SetGlobal("RegExp", StandardLibrary.CreateRegExpConstructor(_realm));
 
         // Register Promise constructor
         SetGlobal("Promise", StandardLibrary.CreatePromiseConstructor(this));
@@ -141,21 +140,21 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("Reflect", StandardLibrary.CreateReflectObject(_realm));
 
         // Register ArrayBuffer and TypedArray constructors
-        SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor());
-        SetGlobal("DataView", StandardLibrary.CreateDataViewConstructor());
-        SetGlobal("Int8Array", StandardLibrary.CreateInt8ArrayConstructor());
-        SetGlobal("Uint8Array", StandardLibrary.CreateUint8ArrayConstructor());
-        SetGlobal("Uint8ClampedArray", StandardLibrary.CreateUint8ClampedArrayConstructor());
-        SetGlobal("Int16Array", StandardLibrary.CreateInt16ArrayConstructor());
-        SetGlobal("Uint16Array", StandardLibrary.CreateUint16ArrayConstructor());
-        SetGlobal("Int32Array", StandardLibrary.CreateInt32ArrayConstructor());
-        SetGlobal("Uint32Array", StandardLibrary.CreateUint32ArrayConstructor());
-        SetGlobal("Float32Array", StandardLibrary.CreateFloat32ArrayConstructor());
-        SetGlobal("Float64Array", StandardLibrary.CreateFloat64ArrayConstructor());
-        SetGlobal("BigInt64Array", StandardLibrary.CreateBigInt64ArrayConstructor());
-        SetGlobal("BigUint64Array", StandardLibrary.CreateBigUint64ArrayConstructor());
-        SetGlobal("Intl", StandardLibrary.CreateIntlObject());
-        SetGlobal("Temporal", StandardLibrary.CreateTemporalObject());
+        SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor(_realm));
+        SetGlobal("DataView", StandardLibrary.CreateDataViewConstructor(_realm));
+        SetGlobal("Int8Array", StandardLibrary.CreateInt8ArrayConstructor(_realm));
+        SetGlobal("Uint8Array", StandardLibrary.CreateUint8ArrayConstructor(_realm));
+        SetGlobal("Uint8ClampedArray", StandardLibrary.CreateUint8ClampedArrayConstructor(_realm));
+        SetGlobal("Int16Array", StandardLibrary.CreateInt16ArrayConstructor(_realm));
+        SetGlobal("Uint16Array", StandardLibrary.CreateUint16ArrayConstructor(_realm));
+        SetGlobal("Int32Array", StandardLibrary.CreateInt32ArrayConstructor(_realm));
+        SetGlobal("Uint32Array", StandardLibrary.CreateUint32ArrayConstructor(_realm));
+        SetGlobal("Float32Array", StandardLibrary.CreateFloat32ArrayConstructor(_realm));
+        SetGlobal("Float64Array", StandardLibrary.CreateFloat64ArrayConstructor(_realm));
+        SetGlobal("BigInt64Array", StandardLibrary.CreateBigInt64ArrayConstructor(_realm));
+        SetGlobal("BigUint64Array", StandardLibrary.CreateBigUint64ArrayConstructor(_realm));
+        SetGlobal("Intl", StandardLibrary.CreateIntlObject(_realm));
+        SetGlobal("Temporal", StandardLibrary.CreateTemporalObject(_realm));
 
         // Register Error constructors
         SetGlobal("Error", StandardLibrary.CreateErrorConstructor(_realm));
@@ -487,9 +486,9 @@ public sealed class JsEngine : IAsyncDisposable
                 hostFunction.RealmState = _realm;
             }
 
-            if (StandardLibrary.FunctionPrototype is not null && hostFunction.Properties.Prototype is null)
+            if (_realm.FunctionPrototype is not null && hostFunction.Properties.Prototype is null)
             {
-                hostFunction.Properties.SetPrototype(StandardLibrary.FunctionPrototype);
+                hostFunction.Properties.SetPrototype(_realm.FunctionPrototype);
             }
         }
 

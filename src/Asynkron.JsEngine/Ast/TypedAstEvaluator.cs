@@ -887,7 +887,8 @@ public static class TypedAstEvaluator
             throw new InvalidOperationException("Class constructor must be callable.");
         }
 
-        var prototype = EnsurePrototype(constructorAccessor);
+        var realm = context.RealmState;
+        var prototype = EnsurePrototype(constructorAccessor, realm);
         if (superPrototype is not null)
         {
             prototype.SetPrototype(superPrototype);
@@ -910,9 +911,9 @@ public static class TypedAstEvaluator
             }
         }
         else if (constructorAccessor is IJsObjectLike { Prototype: null } baseCtor &&
-                 StandardLibrary.FunctionPrototype is not null)
+                 realm.FunctionPrototype is not null)
         {
-            baseCtor.SetPrototype(StandardLibrary.FunctionPrototype);
+            baseCtor.SetPrototype(realm.FunctionPrototype);
         }
 
         prototype.SetProperty("constructor", constructorValue);
@@ -969,22 +970,22 @@ public static class TypedAstEvaluator
         return (callable, prototype);
     }
 
-    private static JsObject EnsurePrototype(IJsPropertyAccessor constructor)
+    private static JsObject EnsurePrototype(IJsPropertyAccessor constructor, RealmState realm)
     {
         if (constructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue is JsObject prototype)
         {
-            if (prototype.Prototype is null && StandardLibrary.ObjectPrototype is not null)
+            if (prototype.Prototype is null && realm.ObjectPrototype is not null)
             {
-                prototype.SetPrototype(StandardLibrary.ObjectPrototype);
+                prototype.SetPrototype(realm.ObjectPrototype);
             }
 
             return prototype;
         }
 
         var created = new JsObject();
-        if (StandardLibrary.ObjectPrototype is not null)
+        if (realm.ObjectPrototype is not null)
         {
-            created.SetPrototype(StandardLibrary.ObjectPrototype);
+            created.SetPrototype(realm.ObjectPrototype);
         }
 
         constructor.SetProperty("prototype", created);
@@ -1168,7 +1169,7 @@ public static class TypedAstEvaluator
 
         return expression switch
         {
-            LiteralExpression literal => EvaluateLiteral(literal),
+            LiteralExpression literal => EvaluateLiteral(literal, context),
             IdentifierExpression identifier => environment.Get(identifier.Name),
             BinaryExpression binary => EvaluateBinary(binary, environment, context),
             UnaryExpression unary => EvaluateUnary(unary, environment, context),
@@ -1655,11 +1656,11 @@ public static class TypedAstEvaluator
             : EvaluateExpression(expression.Right, environment, context);
     }
 
-    private static object? EvaluateLiteral(LiteralExpression literal)
+    private static object? EvaluateLiteral(LiteralExpression literal, EvaluationContext context)
     {
         return literal.Value switch
         {
-            RegexLiteralValue regex => StandardLibrary.CreateRegExpLiteral(regex.Pattern, regex.Flags),
+            RegexLiteralValue regex => StandardLibrary.CreateRegExpLiteral(regex.Pattern, regex.Flags, context.RealmState),
             _ => literal.Value
         };
     }
@@ -2207,6 +2208,7 @@ public static class TypedAstEvaluator
 
     private static object? EvaluateNew(NewExpression expression, JsEnvironment environment, EvaluationContext context)
     {
+        var realm = context.RealmState;
         var constructor = EvaluateExpression(expression.Constructor, environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -2221,7 +2223,7 @@ public static class TypedAstEvaluator
         if (constructor is HostFunction hostFunction &&
             (!hostFunction.IsConstructor || hostFunction.DisallowConstruct))
         {
-            var error = StandardLibrary.TypeErrorConstructor is IJsCallable typeErrorCtor
+            var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                 ? typeErrorCtor.Invoke([hostFunction.ConstructErrorMessage ?? "is not a constructor"], null)
                 : new InvalidOperationException(hostFunction.ConstructErrorMessage ?? "Target is not a constructor.");
             throw new ThrowSignal(error);
@@ -2314,7 +2316,7 @@ public static class TypedAstEvaluator
             }
         }
 
-        StandardLibrary.AddArrayMethods(array);
+        StandardLibrary.AddArrayMethods(array, context.RealmState);
         return array;
     }
 
@@ -2343,7 +2345,7 @@ public static class TypedAstEvaluator
         EvaluationContext context)
     {
         var obj = new JsObject();
-        if (StandardLibrary.ObjectPrototype is { } objectProto)
+        if (context.RealmState.ObjectPrototype is { } objectProto)
         {
             obj.SetPrototype(objectProto);
         }
@@ -5293,9 +5295,9 @@ public static class TypedAstEvaluator
             _closure = closure;
             _realmState = realmState;
             var paramCount = function.Parameters.Length;
-            if (StandardLibrary.FunctionPrototype is not null)
+            if (_realmState.FunctionPrototype is not null)
             {
-                _properties.SetPrototype(StandardLibrary.FunctionPrototype);
+                _properties.SetPrototype(_realmState.FunctionPrototype);
             }
 
             // Functions expose a prototype object so instances created via `new` can inherit from it.

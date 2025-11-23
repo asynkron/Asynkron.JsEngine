@@ -18,7 +18,7 @@ public static partial class StandardLibrary
         // should inherit from it instead of receiving per-instance copies of
         // every method. This keeps prototype mutations (e.g. in tests) visible
         // to existing arrays.
-        var resolvedPrototype = prototypeOverride ?? realm?.ArrayPrototype ?? ArrayPrototype;
+        var resolvedPrototype = prototypeOverride ?? realm?.ArrayPrototype;
         if (resolvedPrototype is not null && array is JsArray jsArray)
         {
             jsArray.SetPrototype(resolvedPrototype);
@@ -65,7 +65,7 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            var result = new JsArray();
+            var result = new JsArray(realm);
             for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
@@ -90,7 +90,7 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            var result = new JsArray();
+            var result = new JsArray(realm);
             for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
@@ -524,7 +524,7 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            var result = new JsArray();
+            var result = new JsArray(realm);
             // Add current array items
             foreach (var item in jsArray.Items)
             {
@@ -645,7 +645,7 @@ public static partial class StandardLibrary
 
             var depth = args.Count > 0 && args[0] is double d ? (int)d : 1;
 
-            var result = new JsArray();
+            var result = new JsArray(realm);
             FlattenArray(jsArray, result, depth);
             AddArrayMethods(result, realm);
             return result;
@@ -664,7 +664,7 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            var result = new JsArray();
+            var result = new JsArray(realm);
             for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 var element = jsArray.Items[i];
@@ -856,7 +856,7 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            var result = new JsArray();
+            var result = new JsArray(realm);
             for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 result.Push(jsArray.GetElement(i));
@@ -907,7 +907,7 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            var result = new JsArray();
+            var result = new JsArray(realm);
             for (var i = jsArray.Items.Count - 1; i >= 0; i--)
             {
                 result.Push(jsArray.GetElement(i));
@@ -925,7 +925,7 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            var result = new JsArray();
+            var result = new JsArray(realm);
             var len = jsArray.Items.Count;
 
             if (args.Count == 0)
@@ -1010,7 +1010,7 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            var result = new JsArray();
+            var result = new JsArray(realm);
             for (var i = 0; i < jsArray.Items.Count; i++)
             {
                 result.Push(i == index ? value : jsArray.GetElement(i));
@@ -1086,7 +1086,7 @@ public static partial class StandardLibrary
             {
                 if (thisValue is null || ReferenceEquals(thisValue, Symbols.Undefined))
                 {
-                    var error = TypeErrorConstructor is IJsCallable ctor
+                    var error = realm?.TypeErrorConstructor is IJsCallable ctor
                         ? ctor.Invoke([$"{name} called on null or undefined"], null)
                         : new InvalidOperationException($"{name} called on null or undefined");
                     throw new ThrowSignal(error);
@@ -1094,7 +1094,7 @@ public static partial class StandardLibrary
 
                 if (thisValue is not IJsPropertyAccessor accessor)
                 {
-                    var error = TypeErrorConstructor is IJsCallable ctor2
+                    var error = realm?.TypeErrorConstructor is IJsCallable ctor2
                         ? ctor2.Invoke([$"{name} called on non-object"], null)
                         : new InvalidOperationException($"{name} called on non-object");
                     throw new ThrowSignal(error);
@@ -1130,7 +1130,7 @@ public static partial class StandardLibrary
         // entries() - returns an iterator of [index, value] pairs
         DefineArrayIteratorFunction("entries", (accessor, _) => idx =>
         {
-            var pair = new JsArray();
+            var pair = new JsArray(realm);
             pair.Push((double)idx);
             if (accessor.TryGetProperty(idx.ToString(CultureInfo.InvariantCulture), out var value))
             {
@@ -1184,7 +1184,7 @@ public static partial class StandardLibrary
             }
         }
 
-        var result = new JsArray();
+        var result = new JsArray(realm);
         for (var i = start; i < Math.Min(end, jsArray.Items.Count); i++)
         {
             result.Push(jsArray.Items[i]);
@@ -1257,7 +1257,7 @@ public static partial class StandardLibrary
         {
             // Use provided receiver when available so Reflect.construct can
             // control allocation and prototype.
-            var instance = thisValue as JsArray ?? new JsArray();
+            var instance = thisValue as JsArray ?? new JsArray(realm);
 
             // Honor an explicit prototype on the receiver; otherwise fall back
             // to the constructor's prototype if available.
@@ -1289,7 +1289,6 @@ public static partial class StandardLibrary
 
         arrayConstructor.RealmState = realm;
         realm.ArrayConstructor ??= arrayConstructor;
-        ArrayConstructor ??= arrayConstructor;
 
         // Ensure Array.[[Prototype]] is %FunctionPrototype% even if the shared
         // prototype was not available when the HostFunction was created.
@@ -1311,7 +1310,7 @@ public static partial class StandardLibrary
             {
                 if (proxy.Handler is null)
                 {
-                    var error = TypeErrorConstructor is IJsCallable ctor
+                    var error = realm.TypeErrorConstructor is IJsCallable ctor
                         ? ctor.Invoke(["Cannot perform 'isArray' with a revoked Proxy"], null)
                         : new InvalidOperationException("Cannot perform 'isArray' with a revoked Proxy.");
                     throw new ThrowSignal(error);
@@ -1330,8 +1329,8 @@ public static partial class StandardLibrary
                 return true;
             }
 
-            if (candidate is JsObject obj && ArrayPrototype is not null &&
-                ReferenceEquals(obj, ArrayPrototype))
+            if (candidate is JsObject obj && realm.ArrayPrototype is not null &&
+                ReferenceEquals(obj, realm.ArrayPrototype))
             {
                 return true;
             }
@@ -1355,7 +1354,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbols.Undefined))
             {
-                var error = TypeErrorConstructor is IJsCallable ctor
+                var error = realm.TypeErrorConstructor is IJsCallable ctor
                     ? ctor.Invoke(["Array.from requires an array-like or iterable"], null)
                     : new InvalidOperationException("Array.from requires an array-like or iterable.");
                 throw new ThrowSignal(error);
@@ -1368,7 +1367,7 @@ public static partial class StandardLibrary
 
             if (mapfn is not null && mapfn is not IJsCallable)
             {
-                var error = TypeErrorConstructor is IJsCallable ctor2
+                var error = realm.TypeErrorConstructor is IJsCallable ctor2
                     ? ctor2.Invoke(["Array.from: when provided, the mapping callback must be callable"], null)
                     : new InvalidOperationException(
                         "Array.from: when provided, the mapping callback must be callable.");
@@ -1503,7 +1502,7 @@ public static partial class StandardLibrary
                                  (constructor is not HostFunction hostFn || hostFn.IsConstructor);
             if (!useConstructor)
             {
-                constructor = ArrayConstructor;
+                constructor = realm.ArrayConstructor;
             }
 
             var lengthValue = source switch
@@ -1517,9 +1516,9 @@ public static partial class StandardLibrary
             var lengthInt = len > int.MaxValue ? int.MaxValue : (int)len;
 
             IJsObjectLike result;
-            if (constructor is HostFunction targetCtor && ReferenceEquals(targetCtor, ArrayConstructor))
+            if (constructor is HostFunction targetCtor && ReferenceEquals(targetCtor, realm.ArrayConstructor))
             {
-                var array = new JsArray();
+                var array = new JsArray(realm);
                 if (arrayPrototype is not null)
                 {
                     array.SetPrototype(arrayPrototype);
@@ -1532,10 +1531,10 @@ public static partial class StandardLibrary
             else
             {
                 IJsObjectLike instance;
-                var proto = constructor is not null ? ResolveConstructPrototype(constructor, constructor) : null;
-                if (constructor is HostFunction hostFunction && ReferenceEquals(hostFunction, ArrayConstructor))
+                var proto = constructor is not null ? ResolveConstructPrototype(constructor, constructor, realm) : null;
+                if (constructor is HostFunction hostFunction && ReferenceEquals(hostFunction, realm.ArrayConstructor))
                 {
-                    instance = new JsArray();
+                    instance = new JsArray(realm);
                 }
                 else
                 {
@@ -1560,7 +1559,7 @@ public static partial class StandardLibrary
                     return typeErrorFromEnv;
                 }
 
-                return TypeErrorConstructor;
+                return realm.TypeErrorConstructor;
             }
 
             object WrapTypeError(string message)
@@ -1629,7 +1628,7 @@ public static partial class StandardLibrary
                     }
 
                     CreateDataPropertyOrThrow(result, k.ToString(CultureInfo.InvariantCulture), value,
-                        TypeErrorConstructor);
+                        realm.TypeErrorConstructor);
                     k++;
                 }
 
@@ -1651,7 +1650,7 @@ public static partial class StandardLibrary
                     }
 
                     CreateDataPropertyOrThrow(result, k.ToString(CultureInfo.InvariantCulture), value,
-                        TypeErrorConstructor);
+                        realm.TypeErrorConstructor);
                 }
 
                 result.SetProperty("length", (double)lengthInt);
@@ -1670,7 +1669,7 @@ public static partial class StandardLibrary
         // Array.of(...elements)
         arrayConstructor.SetProperty("of", new HostFunction(args =>
         {
-            var arr = new JsArray(args);
+            var arr = new JsArray(args, realm);
             AddArrayMethods(arr, realm);
             return arr;
         }));
@@ -1765,7 +1764,7 @@ public static partial class StandardLibrary
     {
         if (receiver is null || ReferenceEquals(receiver, Symbols.Undefined))
         {
-            throw ThrowTypeError($"{methodName} called on null or undefined");
+            throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
         }
 
         if (receiver is IJsPropertyAccessor accessor)
@@ -1800,7 +1799,10 @@ public static partial class StandardLibrary
         if (receiver is string s)
         {
             var obj = new JsObject();
-            obj.SetPrototype(realm?.StringPrototype ?? StringPrototype);
+            if (realm?.StringPrototype is not null)
+            {
+                obj.SetPrototype(realm.StringPrototype);
+            }
             obj.SetProperty("__value__", s);
             obj.DefineProperty("length",
                 new PropertyDescriptor
@@ -1819,7 +1821,10 @@ public static partial class StandardLibrary
         if (receiver is double or int or uint or long or ulong or short or ushort or byte or sbyte or decimal or float)
         {
             var obj = new JsObject();
-            obj.SetPrototype(realm?.NumberPrototype ?? NumberPrototype);
+            if (realm?.NumberPrototype is not null)
+            {
+                obj.SetPrototype(realm.NumberPrototype);
+            }
             obj.SetProperty("__value__", receiver);
             return obj;
         }
@@ -1827,7 +1832,10 @@ public static partial class StandardLibrary
         if (receiver is bool b)
         {
             var obj = new JsObject();
-            obj.SetPrototype(realm?.BooleanPrototype ?? BooleanPrototype);
+            if (realm?.BooleanPrototype is not null)
+            {
+                obj.SetPrototype(realm.BooleanPrototype);
+            }
             obj.SetProperty("__value__", b);
             return obj;
         }
@@ -1835,9 +1843,9 @@ public static partial class StandardLibrary
         // Symbols and BigInts should throw TypeError for array methods
         if (receiver is TypedAstSymbol || receiver is JsBigInt)
         {
-            throw ThrowTypeError($"{methodName} called on incompatible receiver");
+            throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
         }
 
-        throw ThrowTypeError($"{methodName} called on non-object");
+        throw ThrowTypeError($"{methodName} called on non-object", realm: realm);
     }
 }

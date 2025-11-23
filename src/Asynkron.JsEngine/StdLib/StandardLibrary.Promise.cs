@@ -84,11 +84,6 @@ public static partial class StandardLibrary
         });
 
         // Add static methods to Promise constructor
-        if (promiseConstructor is null)
-        {
-            return promiseConstructor;
-        }
-
         // Promise.resolve(value)
         promiseConstructor.SetProperty("resolve", new HostFunction(args =>
         {

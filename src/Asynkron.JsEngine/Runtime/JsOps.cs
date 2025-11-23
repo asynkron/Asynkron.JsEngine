@@ -90,7 +90,8 @@ internal static class JsOps
                 case JsObject jsObj when jsObj.TryGetValue("__value__", out var inner):
                     value = inner;
                     continue;
-                case IJsPropertyAccessor accessor when TryConvertToNumericPrimitive(accessor, out var primitive, context):
+                case IJsPropertyAccessor accessor
+                    when TryConvertToNumericPrimitive(accessor, out var primitive, context):
                     value = primitive;
                     continue;
                 case IJsPropertyAccessor accessor when (context?.IsThrow == true):
@@ -105,7 +106,6 @@ internal static class JsOps
 
                     context.SetThrow(typeError);
                     return double.NaN;
-
                 }
                 default:
                     throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
@@ -160,7 +160,6 @@ internal static class JsOps
 
         primitive = toStringResult;
         return true;
-
     }
 
     public static object? ToPrimitive(object? value, string hint, EvaluationContext? context = null)
@@ -188,7 +187,6 @@ internal static class JsOps
             {
                 context.SetThrow(signal.ThrownValue);
                 return value;
-
             }
         }
 
@@ -574,7 +572,6 @@ internal static class JsOps
 
         context.SetThrow(error);
         return false;
-
     }
 
     private static bool IsPropertyKeyPrimitive(object? candidate)

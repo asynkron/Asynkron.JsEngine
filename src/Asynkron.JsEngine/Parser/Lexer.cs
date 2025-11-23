@@ -6,6 +6,7 @@ using Asynkron.JsEngine.JsTypes;
 namespace Asynkron.JsEngine.Parser;
 
 internal sealed record TemplateExpression(string ExpressionText);
+
 internal sealed record TemplateStringPart(string RawText, DecodedString Cooked);
 
 internal sealed record RegexLiteralValue(string Pattern, string Flags);
@@ -1105,13 +1106,13 @@ public sealed class Lexer(string source)
                         i += 2;
                         break;
                     case >= '1' and <= '7':
-                        {
-                            var (octalValue, length) = DecodeOctal(rawString, i + 1);
-                            result.Append((char)octalValue);
-                            hasLegacyOctal = true;
-                            i += 1 + length;
-                            break;
-                        }
+                    {
+                        var (octalValue, length) = DecodeOctal(rawString, i + 1);
+                        result.Append((char)octalValue);
+                        hasLegacyOctal = true;
+                        i += 1 + length;
+                        break;
+                    }
                     case 'x':
                         // Hexadecimal escape sequence \xHH
                         if (i + 3 < rawString.Length)
@@ -1138,36 +1139,37 @@ public sealed class Lexer(string source)
                         }
 
                         break;
-                case 'u':
-                    // Unicode escape sequence \uHHHH or \u{...}
-                    if (i + 2 < rawString.Length && rawString[i + 2] == '{')
-                    {
-                        var closingBrace = rawString.IndexOf('}', i + 3);
-                        if (closingBrace > i + 3)
+                    case 'u':
+                        // Unicode escape sequence \uHHHH or \u{...}
+                        if (i + 2 < rawString.Length && rawString[i + 2] == '{')
                         {
-                            var hexDigits = rawString.Substring(i + 3, closingBrace - (i + 3));
-                            if (int.TryParse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var codePoint) &&
-                                codePoint >= 0 && codePoint <= 0x10FFFF)
+                            var closingBrace = rawString.IndexOf('}', i + 3);
+                            if (closingBrace > i + 3)
                             {
-                                result.Append(char.ConvertFromUtf32(codePoint));
-                                i = closingBrace + 1;
-                                break;
+                                var hexDigits = rawString.Substring(i + 3, closingBrace - (i + 3));
+                                if (int.TryParse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                                        out var codePoint) &&
+                                    codePoint >= 0 && codePoint <= 0x10FFFF)
+                                {
+                                    result.Append(char.ConvertFromUtf32(codePoint));
+                                    i = closingBrace + 1;
+                                    break;
+                                }
                             }
+
+                            // Invalid escape, keep the backslash and u
+                            result.Append('\\');
+                            result.Append('u');
+                            i += 2;
+                            break;
                         }
 
-                        // Invalid escape, keep the backslash and u
-                        result.Append('\\');
-                        result.Append('u');
-                        i += 2;
-                        break;
-                    }
-
-                    // Unicode escape sequence \uHHHH
-                    if (i + 5 < rawString.Length)
-                    {
-                        var hex = rawString.Substring(i + 2, 4);
-                        if (int.TryParse(hex, NumberStyles.HexNumber, null, out var value))
+                        // Unicode escape sequence \uHHHH
+                        if (i + 5 < rawString.Length)
                         {
+                            var hex = rawString.Substring(i + 2, 4);
+                            if (int.TryParse(hex, NumberStyles.HexNumber, null, out var value))
+                            {
                                 result.Append((char)value);
                                 i += 6;
                             }
@@ -1231,7 +1233,7 @@ public sealed class Lexer(string source)
             var index = start;
             while (index < raw.Length && length < 3 && IsOctalDigit(raw[index]))
             {
-                value = (value * 8) + (raw[index] - '0');
+                value = value * 8 + (raw[index] - '0');
                 length++;
                 index++;
             }

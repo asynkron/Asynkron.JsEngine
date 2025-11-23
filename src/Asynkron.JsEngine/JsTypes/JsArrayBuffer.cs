@@ -8,7 +8,6 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class JsArrayBuffer : IJsPropertyAccessor
 {
-    private readonly RealmState? _realmState;
     private readonly JsObject _properties = new();
 
     private readonly HostFunction _resizeFunction;
@@ -24,7 +23,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
             throw new ArgumentOutOfRangeException(nameof(byteLength), "ArrayBuffer size cannot be negative");
         }
 
-        _realmState = realmState;
+        RealmState = realmState;
         MaxByteLength = maxByteLength.HasValue ? Math.Max(maxByteLength.Value, byteLength) : byteLength;
         Resizable = maxByteLength.HasValue;
 
@@ -63,7 +62,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
     /// </summary>
     public int ByteLength => Buffer.Length;
 
-    internal RealmState? RealmState => _realmState;
+    internal RealmState? RealmState { get; }
 
     /// <summary>
     ///     Gets the underlying byte array.
@@ -138,7 +137,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
         var relativeEnd = end < 0 ? Math.Max(len + end, 0) : Math.Min(end, len);
 
         var newLen = Math.Max(relativeEnd - relativeStart, 0);
-        var newBuffer = new JsArrayBuffer(newLen, null, _realmState);
+        var newBuffer = new JsArrayBuffer(newLen, null, RealmState);
 
         Array.Copy(Buffer, relativeStart, newBuffer.Buffer, 0, newLen);
 
@@ -170,7 +169,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
 
     private JsObject CreateTypeError(string message)
     {
-        if (_realmState?.TypeErrorConstructor is IJsCallable ctor)
+        if (RealmState?.TypeErrorConstructor is IJsCallable ctor)
         {
             var created = ctor.Invoke([message], null);
             if (created is JsObject jsObj)
@@ -184,7 +183,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
 
     private JsObject CreateRangeError(string message)
     {
-        if (_realmState?.RangeErrorConstructor is IJsCallable ctor)
+        if (RealmState?.RangeErrorConstructor is IJsCallable ctor)
         {
             var created = ctor.Invoke([message], null);
             if (created is JsObject jsObj)

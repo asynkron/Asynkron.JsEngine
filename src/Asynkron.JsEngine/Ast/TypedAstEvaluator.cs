@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
@@ -661,7 +660,7 @@ public static class TypedAstEvaluator
             context.Clear();
             var catchEnv = new JsEnvironment(environment, creatingSource: statement.Catch.Body.Source,
                 description: "catch");
-            DefineBindingTarget(statement.Catch.Binding, thrownValue, catchEnv, context, isConst: false);
+            DefineBindingTarget(statement.Catch.Binding, thrownValue, catchEnv, context, false);
             result = EvaluateBlock(statement.Catch.Body, catchEnv, context);
         }
 
@@ -1179,8 +1178,8 @@ public static class TypedAstEvaluator
                 declaration.Name,
                 function,
                 true,
-                isFunctionDeclaration: true,
-                globalFunctionConfigurable: configurable);
+                true,
+                configurable);
         }
 
         return function;
@@ -1721,7 +1720,8 @@ public static class TypedAstEvaluator
     {
         return literal.Value switch
         {
-            RegexLiteralValue regex => StandardLibrary.CreateRegExpLiteral(regex.Pattern, regex.Flags, context.RealmState),
+            RegexLiteralValue regex => StandardLibrary.CreateRegExpLiteral(regex.Pattern, regex.Flags,
+                context.RealmState),
             _ => literal.Value
         };
     }
@@ -1965,10 +1965,13 @@ public static class TypedAstEvaluator
                 // `.call` helper is missing or not modeled. In that case we
                 // invoke the underlying function directly with the provided
                 // `this` value and arguments instead of throwing.
-                if (member is { Property: LiteralExpression { Value: "call" }, Target: MemberExpression
+                if (member is
                     {
-                        Property: LiteralExpression { Value: "formatArgs" }
-                    } inner })
+                        Property: LiteralExpression { Value: "call" }, Target: MemberExpression
+                        {
+                            Property: LiteralExpression { Value: "formatArgs" }
+                        } inner
+                    })
                 {
                     var target = EvaluateExpression(inner.Target, environment, context);
                     if (context.ShouldStopEvaluation)
@@ -3000,10 +3003,10 @@ public static class TypedAstEvaluator
 
                     break;
                 case BlockStatement block:
-                    HoistVarDeclarations(block, environment, context, hoistFunctionValues: false, lexicalNames);
+                    HoistVarDeclarations(block, environment, context, false, lexicalNames);
                     break;
                 case IfStatement ifStatement:
-                    HoistFromStatement(ifStatement.Then, environment, context, hoistFunctionValues: false,
+                    HoistFromStatement(ifStatement.Then, environment, context, false,
                         lexicalNames);
                     if (ifStatement.Else is { } elseBranch)
                     {
@@ -3043,17 +3046,17 @@ public static class TypedAstEvaluator
                     statement = labeled.Statement;
                     continue;
                 case TryStatement tryStatement:
-                    HoistVarDeclarations(tryStatement.TryBlock, environment, context, hoistFunctionValues: false,
+                    HoistVarDeclarations(tryStatement.TryBlock, environment, context, false,
                         lexicalNames);
                     if (tryStatement.Catch is { } catchClause)
                     {
-                        HoistVarDeclarations(catchClause.Body, environment, context, hoistFunctionValues: false,
+                        HoistVarDeclarations(catchClause.Body, environment, context, false,
                             lexicalNames);
                     }
 
                     if (tryStatement.Finally is { } finallyBlock)
                     {
-                        HoistVarDeclarations(finallyBlock, environment, context, hoistFunctionValues: false,
+                        HoistVarDeclarations(finallyBlock, environment, context, false,
                             lexicalNames);
                     }
 
@@ -3061,26 +3064,43 @@ public static class TypedAstEvaluator
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        HoistVarDeclarations(switchCase.Body, environment, context, hoistFunctionValues: false,
+                        HoistVarDeclarations(switchCase.Body, environment, context, false,
                             lexicalNames);
                     }
 
                     break;
                 case FunctionDeclaration functionDeclaration:
                 {
-                    object? functionValue = hoistFunctionValues
-                        ? CreateFunctionValue(functionDeclaration.Function, environment, context)
-                        : JsSymbols.Undefined;
                     if (lexicalNames is not null && lexicalNames.Contains(functionDeclaration.Name))
                     {
                         break;
                     }
-                    environment.DefineFunctionScoped(
-                        functionDeclaration.Name,
-                        functionValue,
-                        hoistFunctionValues,
-                        isFunctionDeclaration: true,
-                        globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval);
+
+                    if (hoistFunctionValues)
+                    {
+                        var functionValue = CreateFunctionValue(functionDeclaration.Function, environment, context);
+                        environment.DefineFunctionScoped(
+                            functionDeclaration.Name,
+                            functionValue,
+                            hasInitializer: true,
+                            isFunctionDeclaration: true,
+                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval);
+                        break;
+                    }
+
+                    // Annex B: in non-strict code, function declarations inside blocks are
+                    // treated as var-scoped for the enclosing function/global scope. In
+                    // strict mode the block-scoped function should not create a var
+                    // binding.
+                    if (!environment.IsStrict)
+                    {
+                        environment.DefineFunctionScoped(
+                            functionDeclaration.Name,
+                            JsSymbols.Undefined,
+                            hasInitializer: false,
+                            isFunctionDeclaration: true,
+                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval);
+                    }
                     break;
                 }
                 case ClassDeclaration:
@@ -3141,7 +3161,10 @@ public static class TypedAstEvaluator
                     statement = doWhileStatement.Body;
                     continue;
                 case ForStatement forStatement:
-                    if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } decl)
+                    if (forStatement.Initializer is VariableDeclaration
+                        {
+                            Kind: VariableKind.Let or VariableKind.Const
+                        } decl)
                     {
                         foreach (var declarator in decl.Declarators)
                         {
@@ -5112,7 +5135,6 @@ public static class TypedAstEvaluator
                 {
                     environment.Define(awaitKey, existingState);
                 }
-
             }
 
             // Async-aware mode: surface promise-like values as pending steps
@@ -5555,10 +5577,7 @@ public static class TypedAstEvaluator
             var functionPrototype = new JsObject();
             functionPrototype.SetPrototype(_realmState.ObjectPrototype);
             functionPrototype.DefineProperty("constructor",
-                new PropertyDescriptor
-                {
-                    Value = this, Writable = true, Enumerable = false, Configurable = true
-                });
+                new PropertyDescriptor { Value = this, Writable = true, Enumerable = false, Configurable = true });
             _properties.SetProperty("prototype", functionPrototype);
             _properties.DefineProperty("length",
                 new PropertyDescriptor
@@ -5660,16 +5679,6 @@ public static class TypedAstEvaluator
             _properties.DefineProperty(name, descriptor);
         }
 
-        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
-        {
-            return _properties.GetOwnPropertyDescriptor(name);
-        }
-
-        public IEnumerable<string> GetOwnPropertyNames()
-        {
-            return _properties.GetOwnPropertyNames();
-        }
-
         public void SetPrototype(object? candidate)
         {
             _properties.SetPrototype(candidate);
@@ -5755,6 +5764,16 @@ public static class TypedAstEvaluator
         }
 
         IEnumerable<string> IJsPropertyAccessor.GetOwnPropertyNames()
+        {
+            return _properties.GetOwnPropertyNames();
+        }
+
+        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+        {
+            return _properties.GetOwnPropertyDescriptor(name);
+        }
+
+        public IEnumerable<string> GetOwnPropertyNames()
         {
             return _properties.GetOwnPropertyNames();
         }

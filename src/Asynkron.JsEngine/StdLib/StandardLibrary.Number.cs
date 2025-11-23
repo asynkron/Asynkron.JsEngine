@@ -23,7 +23,8 @@ public static partial class StandardLibrary
         return numberObj;
     }
 
-    public static JsObject CreateBigIntWrapper(JsBigInt value, EvaluationContext? context = null, RealmState? realm = null)
+    public static JsObject CreateBigIntWrapper(JsBigInt value, EvaluationContext? context = null,
+        RealmState? realm = null)
     {
         var wrapper = new JsObject { ["__value__"] = value };
 
@@ -164,7 +165,6 @@ public static partial class StandardLibrary
             }
 
             return num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
-
         }));
 
         // toPrecision(precision?)
@@ -198,7 +198,6 @@ public static partial class StandardLibrary
 
             // Format with specified precision
             return num.ToString("G" + precision, CultureInfo.InvariantCulture);
-
         }));
 
         // valueOf()
@@ -421,7 +420,6 @@ public static partial class StandardLibrary
 
                 objZero.SetProperty("__value__", 0d);
                 return objZero;
-
             }
 
             var value = args[0];
@@ -434,7 +432,6 @@ public static partial class StandardLibrary
 
             obj.SetProperty("__value__", result);
             return obj;
-
         });
 
         // Remember Number.prototype so that number wrapper objects can see

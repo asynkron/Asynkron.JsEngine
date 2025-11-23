@@ -7,7 +7,8 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static void AddArrayMethods(IJsPropertyAccessor array, RealmState? realm = null, JsObject? prototypeOverride = null)
+    public static void AddArrayMethods(IJsPropertyAccessor array, RealmState? realm = null,
+        JsObject? prototypeOverride = null)
     {
         // Once the shared Array prototype has been initialized, new arrays
         // should inherit from it instead of receiving per-instance copies of
@@ -1515,7 +1516,6 @@ public static partial class StandardLibrary
 
                 methodValue = value;
                 return true;
-
             }
         });
         arrayFrom.DefineProperty("name",
@@ -1645,10 +1645,7 @@ public static partial class StandardLibrary
                 jsObj.DefineProperty("length",
                     new PropertyDescriptor
                     {
-                        Value = (double)sInner.Length,
-                        Writable = false,
-                        Enumerable = false,
-                        Configurable = false
+                        Value = (double)sInner.Length, Writable = false, Enumerable = false, Configurable = false
                     });
 
                 for (var i = 0; i < sInner.Length; i++)
@@ -1666,6 +1663,7 @@ public static partial class StandardLibrary
                 {
                     obj.SetPrototype(realm.StringPrototype);
                 }
+
                 obj.SetProperty("__value__", s);
                 obj.DefineProperty("length",
                     new PropertyDescriptor
@@ -1687,6 +1685,7 @@ public static partial class StandardLibrary
                 {
                     obj.SetPrototype(realm.NumberPrototype);
                 }
+
                 obj.SetProperty("__value__", receiver);
                 return obj;
             }
@@ -1697,6 +1696,7 @@ public static partial class StandardLibrary
                 {
                     obj.SetPrototype(realm.BooleanPrototype);
                 }
+
                 obj.SetProperty("__value__", b);
                 return obj;
             }

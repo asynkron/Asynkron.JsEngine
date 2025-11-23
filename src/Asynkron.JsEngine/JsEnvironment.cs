@@ -144,13 +144,11 @@ public sealed class JsEnvironment
             if (isFunctionDeclaration)
             {
                 var configurable = globalFunctionConfigurable ?? false;
-                globalThis.DefineProperty(name.Name, new PropertyDescriptor
-                {
-                    Value = initialValue,
-                    Writable = true,
-                    Enumerable = true,
-                    Configurable = configurable
-                });
+                globalThis.DefineProperty(name.Name,
+                    new PropertyDescriptor
+                    {
+                        Value = initialValue, Writable = true, Enumerable = true, Configurable = configurable
+                    });
             }
             else
             {

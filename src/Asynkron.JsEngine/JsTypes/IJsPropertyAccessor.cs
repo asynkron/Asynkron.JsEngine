@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using Asynkron.JsEngine.Runtime;
-
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -23,7 +20,6 @@ public interface IJsPropertyAccessor
     /// <param name="name">The name of the property to set.</param>
     /// <param name="value">The value to set for the property.</param>
     void SetProperty(string name, object? value);
-
 
 
     /// <summary>

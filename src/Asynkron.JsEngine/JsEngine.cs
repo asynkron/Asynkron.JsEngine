@@ -20,23 +20,22 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
     private readonly Channel<ExceptionInfo> _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
     private readonly JsEnvironment _global = new(isFunctionScope: true);
-    private Channel<Func<Task>>? _eventQueue;
-    private Task? _eventLoopTask;
 
     //-------
 
     // Module registry: maps module paths to their exported values
     private readonly Dictionary<string, JsObject> _moduleRegistry = new();
-    private readonly RealmState _realm = new();
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
-    private readonly TypedProgramExecutor _typedExecutor = new();
+    private Task? _eventLoopTask;
+    private Channel<Func<Task>>? _eventQueue;
 
     // Module loader function: allows custom module loading logic
     private Func<string, string>? _moduleLoader;
     private int _nextTimerId = 1;
     private int _pendingTaskCount; // Track pending tasks in the event queue
+    private int? _eventLoopThreadId;
 
     /// <summary>
     ///     Initializes a new instance of JsEngine with standard library objects.
@@ -57,18 +56,18 @@ public sealed class JsEngine : IAsyncDisposable
         // Register standard library objects
         SetGlobal("console", StandardLibrary.CreateConsoleObject());
         SetGlobal("Math", StandardLibrary.CreateMathObject());
-        SetGlobal("Object", StandardLibrary.CreateObjectConstructor(_realm));
-        SetGlobal("Function", StandardLibrary.CreateFunctionConstructor(_realm));
-        SetGlobal("Number", StandardLibrary.CreateNumberConstructor(_realm));
-        var bigIntFunction = StandardLibrary.CreateBigIntFunction(_realm);
+        SetGlobal("Object", StandardLibrary.CreateObjectConstructor(RealmState));
+        SetGlobal("Function", StandardLibrary.CreateFunctionConstructor(RealmState));
+        SetGlobal("Number", StandardLibrary.CreateNumberConstructor(RealmState));
+        var bigIntFunction = StandardLibrary.CreateBigIntFunction(RealmState);
         SetGlobal("BigInt", bigIntFunction);
-        SetGlobal("Boolean", StandardLibrary.CreateBooleanConstructor(_realm));
-        SetGlobal("String", StandardLibrary.CreateStringConstructor(_realm));
-        var arrayConstructor = StandardLibrary.CreateArrayConstructor(_realm);
+        SetGlobal("Boolean", StandardLibrary.CreateBooleanConstructor(RealmState));
+        SetGlobal("String", StandardLibrary.CreateStringConstructor(RealmState));
+        var arrayConstructor = StandardLibrary.CreateArrayConstructor(RealmState);
         SetGlobal("Array", arrayConstructor);
         if (arrayConstructor is HostFunction arrayHost)
         {
-            arrayHost.RealmState = _realm;
+            arrayHost.RealmState = RealmState;
         }
 
         GlobalObject.DefineProperty("Array",
@@ -83,34 +82,22 @@ public sealed class JsEngine : IAsyncDisposable
             });
 
         // Register global constants
-        SetGlobal("Infinity", double.PositiveInfinity, isGlobalConstant: true);
+        SetGlobal("Infinity", double.PositiveInfinity, true);
         GlobalObject.DefineProperty("Infinity",
             new PropertyDescriptor
             {
-                Value = double.PositiveInfinity,
-                Writable = false,
-                Enumerable = false,
-                Configurable = false
+                Value = double.PositiveInfinity, Writable = false, Enumerable = false, Configurable = false
             });
 
-        SetGlobal("NaN", double.NaN, isGlobalConstant: true);
+        SetGlobal("NaN", double.NaN, true);
         GlobalObject.DefineProperty("NaN",
-            new PropertyDescriptor
-            {
-                Value = double.NaN,
-                Writable = false,
-                Enumerable = false,
-                Configurable = false
-            });
+            new PropertyDescriptor { Value = double.NaN, Writable = false, Enumerable = false, Configurable = false });
 
-        SetGlobal("undefined", Symbols.Undefined, isGlobalConstant: true);
+        SetGlobal("undefined", Symbols.Undefined, true);
         GlobalObject.DefineProperty("undefined",
             new PropertyDescriptor
             {
-                Value = Symbols.Undefined,
-                Writable = false,
-                Enumerable = false,
-                Configurable = false
+                Value = Symbols.Undefined, Writable = false, Enumerable = false, Configurable = false
             });
 
         // Register global functions
@@ -120,7 +107,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("isFinite", StandardLibrary.CreateIsFiniteFunction());
 
         // Register Date constructor as a callable object with static methods
-        var dateConstructor = StandardLibrary.CreateDateConstructor(_realm);
+        var dateConstructor = StandardLibrary.CreateDateConstructor(RealmState);
         var dateObj = StandardLibrary.CreateDateObject();
 
         // Add static methods to constructor
@@ -133,10 +120,10 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         SetGlobal("Date", dateConstructor);
-        SetGlobal("JSON", StandardLibrary.CreateJsonObject(_realm));
+        SetGlobal("JSON", StandardLibrary.CreateJsonObject(RealmState));
 
         // Register RegExp constructor
-        SetGlobal("RegExp", StandardLibrary.CreateRegExpConstructor(_realm));
+        SetGlobal("RegExp", StandardLibrary.CreateRegExpConstructor(RealmState));
 
         // Register Promise constructor
         SetGlobal("Promise", StandardLibrary.CreatePromiseConstructor(this));
@@ -154,18 +141,18 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("WeakMap", StandardLibrary.CreateWeakMapConstructor());
 
         // Minimal Proxy constructor (used by Array.isArray proxy tests)
-        SetGlobal("Proxy", StandardLibrary.CreateProxyConstructor(_realm));
+        SetGlobal("Proxy", StandardLibrary.CreateProxyConstructor(RealmState));
 
         // Register WeakSet constructor
         SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
 
         // Annex B escape/unescape
-        var escapeFn = StandardLibrary.CreateEscapeFunction(_realm);
+        var escapeFn = StandardLibrary.CreateEscapeFunction(RealmState);
         SetGlobal("escape", escapeFn);
         GlobalObject.DefineProperty("escape",
             new PropertyDescriptor { Value = escapeFn, Writable = true, Enumerable = false, Configurable = true });
 
-        var unescapeFn = StandardLibrary.CreateUnescapeFunction(_realm);
+        var unescapeFn = StandardLibrary.CreateUnescapeFunction(RealmState);
         SetGlobal("unescape", unescapeFn);
         GlobalObject.DefineProperty("unescape",
             new PropertyDescriptor { Value = unescapeFn, Writable = true, Enumerable = false, Configurable = true });
@@ -174,31 +161,31 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("localStorage", StandardLibrary.CreateLocalStorageObject());
 
         // Reflect object
-        SetGlobal("Reflect", StandardLibrary.CreateReflectObject(_realm));
+        SetGlobal("Reflect", StandardLibrary.CreateReflectObject(RealmState));
 
         // Register ArrayBuffer and TypedArray constructors
-        SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor(_realm));
-        SetGlobal("DataView", StandardLibrary.CreateDataViewConstructor(_realm));
-        SetGlobal("Int8Array", StandardLibrary.CreateInt8ArrayConstructor(_realm));
-        SetGlobal("Uint8Array", StandardLibrary.CreateUint8ArrayConstructor(_realm));
-        SetGlobal("Uint8ClampedArray", StandardLibrary.CreateUint8ClampedArrayConstructor(_realm));
-        SetGlobal("Int16Array", StandardLibrary.CreateInt16ArrayConstructor(_realm));
-        SetGlobal("Uint16Array", StandardLibrary.CreateUint16ArrayConstructor(_realm));
-        SetGlobal("Int32Array", StandardLibrary.CreateInt32ArrayConstructor(_realm));
-        SetGlobal("Uint32Array", StandardLibrary.CreateUint32ArrayConstructor(_realm));
-        SetGlobal("Float32Array", StandardLibrary.CreateFloat32ArrayConstructor(_realm));
-        SetGlobal("Float64Array", StandardLibrary.CreateFloat64ArrayConstructor(_realm));
-        SetGlobal("BigInt64Array", StandardLibrary.CreateBigInt64ArrayConstructor(_realm));
-        SetGlobal("BigUint64Array", StandardLibrary.CreateBigUint64ArrayConstructor(_realm));
-        SetGlobal("Intl", StandardLibrary.CreateIntlObject(_realm));
-        SetGlobal("Temporal", StandardLibrary.CreateTemporalObject(_realm));
+        SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor(RealmState));
+        SetGlobal("DataView", StandardLibrary.CreateDataViewConstructor(RealmState));
+        SetGlobal("Int8Array", StandardLibrary.CreateInt8ArrayConstructor(RealmState));
+        SetGlobal("Uint8Array", StandardLibrary.CreateUint8ArrayConstructor(RealmState));
+        SetGlobal("Uint8ClampedArray", StandardLibrary.CreateUint8ClampedArrayConstructor(RealmState));
+        SetGlobal("Int16Array", StandardLibrary.CreateInt16ArrayConstructor(RealmState));
+        SetGlobal("Uint16Array", StandardLibrary.CreateUint16ArrayConstructor(RealmState));
+        SetGlobal("Int32Array", StandardLibrary.CreateInt32ArrayConstructor(RealmState));
+        SetGlobal("Uint32Array", StandardLibrary.CreateUint32ArrayConstructor(RealmState));
+        SetGlobal("Float32Array", StandardLibrary.CreateFloat32ArrayConstructor(RealmState));
+        SetGlobal("Float64Array", StandardLibrary.CreateFloat64ArrayConstructor(RealmState));
+        SetGlobal("BigInt64Array", StandardLibrary.CreateBigInt64ArrayConstructor(RealmState));
+        SetGlobal("BigUint64Array", StandardLibrary.CreateBigUint64ArrayConstructor(RealmState));
+        SetGlobal("Intl", StandardLibrary.CreateIntlObject(RealmState));
+        SetGlobal("Temporal", StandardLibrary.CreateTemporalObject(RealmState));
 
         // Register Error constructors
-        SetGlobal("Error", StandardLibrary.CreateErrorConstructor(_realm));
-        SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor(_realm, "TypeError"));
-        SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor(_realm, "RangeError"));
-        SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor(_realm, "ReferenceError"));
-        SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor(_realm, "SyntaxError"));
+        SetGlobal("Error", StandardLibrary.CreateErrorConstructor(RealmState));
+        SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor(RealmState, "TypeError"));
+        SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor(RealmState, "RangeError"));
+        SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor(RealmState, "ReferenceError"));
+        SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor(RealmState, "SyntaxError"));
 
         // Register eval function as an environment-aware callable
         // This allows eval to execute code in the caller's scope without blocking the event loop
@@ -220,7 +207,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Provide a stable global object helper used by Test262 harness utilities.
         SetGlobal("fnGlobalObject",
-            new HostFunction(_ => GlobalObject) { Realm = GlobalObject, RealmState = _realm }, true);
+            new HostFunction(_ => GlobalObject) { Realm = GlobalObject, RealmState = RealmState }, true);
 
         // Register debug function as a debug-aware host function
         _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));
@@ -239,7 +226,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public JsObject GlobalObject { get; } = new();
 
-    internal RealmState RealmState => _realm;
+    internal RealmState RealmState { get; } = new();
 
     public async ValueTask DisposeAsync()
     {
@@ -358,7 +345,7 @@ public sealed class JsEngine : IAsyncDisposable
         CancellationToken cancellationToken = default,
         ExecutionKind executionKind = ExecutionKind.Script)
     {
-        return TypedProgramExecutor.Evaluate(program, environment, _realm, cancellationToken, executionKind);
+        return TypedProgramExecutor.Evaluate(program, environment, RealmState, cancellationToken, executionKind);
     }
 
     /// <summary>
@@ -512,6 +499,12 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     private async Task<object?> Evaluate(ParsedProgram program, CancellationToken cancellationToken = default)
     {
+        if (_eventQueue is not null && _eventLoopThreadId == Environment.CurrentManagedThreadId)
+        {
+            // Already running on the event loop thread; execute synchronously to avoid deadlocks
+            return EvaluateInline(program, cancellationToken);
+        }
+
         StartEventLoop();
 
         var tcs = new TaskCompletionSource<object?>();
@@ -574,7 +567,7 @@ public sealed class JsEngine : IAsyncDisposable
                 throw new OperationCanceledException(combinedToken);
             }
 
-            if (timeoutCts?.IsCancellationRequested == true || watchdog.IsCanceled == false)
+            if (timeoutCts?.IsCancellationRequested == true || !watchdog.IsCanceled)
             {
                 throw new TimeoutException(
                     $"JavaScript execution exceeded the configured timeout of {timeout}.");
@@ -595,6 +588,19 @@ public sealed class JsEngine : IAsyncDisposable
 
             CancelAllTimers();
             await StopEventLoopAsync().ConfigureAwait(false);
+            timeoutCts?.Dispose();
+        }
+    }
+
+    private object? EvaluateInline(ParsedProgram program, CancellationToken cancellationToken)
+    {
+        var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
+        try
+        {
+            return ExecuteProgram(program, _global, combinedToken);
+        }
+        finally
+        {
             timeoutCts?.Dispose();
         }
     }
@@ -634,12 +640,12 @@ public sealed class JsEngine : IAsyncDisposable
 
             if (hostFunction.RealmState is null)
             {
-                hostFunction.RealmState = _realm;
+                hostFunction.RealmState = RealmState;
             }
 
-            if (_realm.FunctionPrototype is not null && hostFunction.Properties.Prototype is null)
+            if (RealmState.FunctionPrototype is not null && hostFunction.Properties.Prototype is null)
             {
-                hostFunction.Properties.SetPrototype(_realm.FunctionPrototype);
+                hostFunction.Properties.SetPrototype(RealmState.FunctionPrototype);
             }
         }
 
@@ -739,33 +745,41 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     private async Task ProcessEventQueue(Channel<Func<Task>> queue)
     {
-        await foreach (var x in queue.Reader.ReadAllAsync().ConfigureAwait(false))
+        _eventLoopThreadId = Environment.CurrentManagedThreadId;
+        try
         {
-            try
+            await foreach (var x in queue.Reader.ReadAllAsync().ConfigureAwait(false))
             {
-                await x().ConfigureAwait(false);
+                try
+                {
+                    await x().ConfigureAwait(false);
+                }
+                catch (OutOfMemoryException)
+                {
+                    Console.Error.WriteLine("[ProcessEventQueue] OOM Exception");
+                }
+                catch (StackOverflowException)
+                {
+                    Console.Error.WriteLine("[ProcessEventQueue] Stack overflow occurred in event queue task.");
+                }
+                catch (Exception ex)
+                {
+                    // Log the exception but don't let it kill the event loop
+                    // Individual task failures should not stop the event queue processing
+                    Console.Error.WriteLine(
+                        $"[ProcessEventQueue] Unhandled exception in event queue task: {ex.GetType().Name}: {ex.Message}");
+                    Console.Error.WriteLine($"[ProcessEventQueue] Stack trace: {ex.StackTrace}");
+                }
+                finally
+                {
+                    // Decrement the pending task count after processing
+                    Interlocked.Decrement(ref _pendingTaskCount);
+                }
             }
-            catch (OutOfMemoryException)
-            {
-                Console.Error.WriteLine("[ProcessEventQueue] OOM Exception");
-            }
-            catch (StackOverflowException)
-            {
-                Console.Error.WriteLine("[ProcessEventQueue] Stack overflow occurred in event queue task.");
-            }
-            catch (Exception ex)
-            {
-                // Log the exception but don't let it kill the event loop
-                // Individual task failures should not stop the event queue processing
-                Console.Error.WriteLine(
-                    $"[ProcessEventQueue] Unhandled exception in event queue task: {ex.GetType().Name}: {ex.Message}");
-                Console.Error.WriteLine($"[ProcessEventQueue] Stack trace: {ex.StackTrace}");
-            }
-            finally
-            {
-                // Decrement the pending task count after processing
-                Interlocked.Decrement(ref _pendingTaskCount);
-            }
+        }
+        finally
+        {
+            _eventLoopThreadId = null;
         }
     }
 
@@ -1156,6 +1170,6 @@ public sealed class JsEngine : IAsyncDisposable
     private object? ExecuteTypedStatement(StatementNode statement, JsEnvironment environment, bool isStrict)
     {
         var program = new ProgramNode(statement.Source, [statement], isStrict);
-        return TypedAstEvaluator.EvaluateProgram(program, environment, _realm);
+        return TypedAstEvaluator.EvaluateProgram(program, environment, RealmState);
     }
 }

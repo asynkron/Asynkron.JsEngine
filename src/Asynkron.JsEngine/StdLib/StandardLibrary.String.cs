@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
@@ -75,7 +73,10 @@ public static partial class StandardLibrary
         stringObj.SetHostedProperty(iteratorKey, CreateIterator);
         return;
 
-        string ResolveString(object? thisValue) => JsValueToString(thisValue);
+        string ResolveString(object? thisValue)
+        {
+            return JsValueToString(thisValue);
+        }
 
         object? CharAt(object? thisValue, IReadOnlyList<object?> args)
         {
@@ -140,7 +141,9 @@ public static partial class StandardLibrary
             }
 
             var start = args[0] is double d1 ? Math.Max(0, Math.Min((int)d1, value.Length)) : 0;
-            var end = args.Count > 1 && args[1] is double d2 ? Math.Max(0, Math.Min((int)d2, value.Length)) : value.Length;
+            var end = args.Count > 1 && args[1] is double d2
+                ? Math.Max(0, Math.Min((int)d2, value.Length))
+                : value.Length;
 
             if (start > end)
             {
@@ -762,6 +765,7 @@ public static partial class StandardLibrary
         {
             AddArrayMethods(array, realm);
         }
+
         return array;
     }
 
@@ -797,7 +801,6 @@ public static partial class StandardLibrary
             }
 
             return obj;
-
         });
 
         // Remember String.prototype so that string wrapper objects can see

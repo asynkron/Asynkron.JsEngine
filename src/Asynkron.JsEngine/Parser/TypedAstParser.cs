@@ -25,8 +25,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
     private sealed class DirectParser(IReadOnlyList<Token> tokens, string source)
     {
         private readonly Stack<FunctionContext> _functionContexts = new();
-        private readonly Stack<bool> _strictContexts = new();
         private readonly string _source = source ?? string.Empty;
+        private readonly Stack<bool> _strictContexts = new();
         private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
         // Controls whether the `in` token is treated as a relational operator inside
@@ -476,7 +476,6 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
 
             var keyword = Advance();
             return (keyword.Lexeme, false, keyword);
-
         }
 
         private StatementNode ParseSwitchStatement()
@@ -2833,7 +2832,6 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             var currentToken = Peek();
             return new Token(TokenType.Semicolon, ";", null, currentToken.Line, currentToken.Column,
                 currentToken.StartPosition, currentToken.StartPosition);
-
         }
 
         private Token ConsumeParameterIdentifier(string message)

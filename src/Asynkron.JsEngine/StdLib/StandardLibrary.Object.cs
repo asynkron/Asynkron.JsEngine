@@ -405,7 +405,7 @@ public static partial class StandardLibrary
                 }
 
                 var entry = new JsArray([key, value]);
-                    AddArrayMethods(entry, realm);
+                AddArrayMethods(entry, realm);
                 entries.Push(entry);
             }
 

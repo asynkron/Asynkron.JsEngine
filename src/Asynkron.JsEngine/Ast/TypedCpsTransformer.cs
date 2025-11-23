@@ -178,7 +178,8 @@ public sealed class TypedCpsTransformer
                            ExpressionNeedsTransformation(conditionalExpression.Consequent) ||
                            ExpressionNeedsTransformation(conditionalExpression.Alternate);
                 case CallExpression callExpression:
-                    return ExpressionNeedsTransformation(callExpression.Callee) || Enumerable.Any(callExpression.Arguments, argument => ExpressionNeedsTransformation(argument.Expression));
+                    return ExpressionNeedsTransformation(callExpression.Callee) || Enumerable.Any(
+                        callExpression.Arguments, argument => ExpressionNeedsTransformation(argument.Expression));
 
                 case NewExpression newExpression:
                     if (ExpressionNeedsTransformation(newExpression.Constructor))
@@ -1328,9 +1329,12 @@ public sealed class TypedCpsTransformer
 
         private static bool ShouldRewriteFor(ForStatement statement)
         {
-            var initializerNeedsRewrite = statement.Initializer is not null && StatementNeedsTransformation(statement.Initializer);
-            var conditionNeedsRewrite = statement.Condition is not null && ExpressionNeedsTransformation(statement.Condition);
-            var incrementNeedsRewrite = statement.Increment is not null && ExpressionNeedsTransformation(statement.Increment);
+            var initializerNeedsRewrite =
+                statement.Initializer is not null && StatementNeedsTransformation(statement.Initializer);
+            var conditionNeedsRewrite =
+                statement.Condition is not null && ExpressionNeedsTransformation(statement.Condition);
+            var incrementNeedsRewrite =
+                statement.Increment is not null && ExpressionNeedsTransformation(statement.Increment);
             return initializerNeedsRewrite ||
                    conditionNeedsRewrite ||
                    incrementNeedsRewrite ||
@@ -1376,7 +1380,8 @@ public sealed class TypedCpsTransformer
             var loopBodyBlock = BuildLoopBodyBlockFromStatements(loopBodyStatements, loopCheckSymbol,
                 loopResolveSymbol, loopBreakSymbol);
             var afterLoopContinuationBlock = CreateLoopBreakInvocationBlock(loopBreakSymbol);
-            var loopCheckDeclaration = BuildWhileLoopCheckFunction(statement.Condition, loopCheckSymbol, loopBodyBlock, afterLoopContinuationBlock);
+            var loopCheckDeclaration = BuildWhileLoopCheckFunction(statement.Condition, loopCheckSymbol, loopBodyBlock,
+                afterLoopContinuationBlock);
 
             var loopInvocation = new CallExpression(null, new IdentifierExpression(null, loopCheckSymbol),
                 ImmutableArray<CallArgument>.Empty, false);
@@ -1399,7 +1404,8 @@ public sealed class TypedCpsTransformer
             var loopBodyBlock = BuildLoopBodyBlockFromStatements(loopBodyStatements, loopCheckSymbol,
                 loopResolveSymbol, loopBreakSymbol);
             var afterLoopContinuationBlock = CreateLoopBreakInvocationBlock(loopBreakSymbol);
-            var loopCheckDeclaration = BuildWhileLoopCheckFunction(statement.Condition, loopCheckSymbol, loopBodyBlock, afterLoopContinuationBlock);
+            var loopCheckDeclaration = BuildWhileLoopCheckFunction(statement.Condition, loopCheckSymbol, loopBodyBlock,
+                afterLoopContinuationBlock);
 
             var startCallExpression = CreateLoopBodyInvocation(loopBodyBlock);
             var startCallWithCatch = AttachCatch(startCallExpression, _rejectIdentifier);
@@ -1562,7 +1568,8 @@ public sealed class TypedCpsTransformer
             return new FunctionDeclaration(null, loopResolveSymbol, functionExpression);
         }
 
-        private static FunctionDeclaration CreateLoopBreakFunction(Symbol loopBreakSymbol, BlockStatement afterLoopBlock)
+        private static FunctionDeclaration CreateLoopBreakFunction(Symbol loopBreakSymbol,
+            BlockStatement afterLoopBlock)
         {
             var loopBreakFunction = new FunctionExpression(null, loopBreakSymbol,
                 ImmutableArray<FunctionParameter>.Empty, afterLoopBlock, false, false);
@@ -1806,7 +1813,8 @@ public sealed class TypedCpsTransformer
             return new ExpressionStatement(null, destructuring);
         }
 
-        private FunctionDeclaration BuildLoopCheckFunction(Symbol iteratorSymbol, Symbol loopCheckSymbol, Symbol resultSymbol, BlockStatement afterLoopBlock, BlockStatement loopBodyBlock)
+        private FunctionDeclaration BuildLoopCheckFunction(Symbol iteratorSymbol, Symbol loopCheckSymbol,
+            Symbol resultSymbol, BlockStatement afterLoopBlock, BlockStatement loopBodyBlock)
         {
             var iteratorIdentifier = new IdentifierExpression(null, iteratorSymbol);
             var iteratorNextCallee = new IdentifierExpression(null, Symbol.Intern("__iteratorNext"));
@@ -1832,7 +1840,8 @@ public sealed class TypedCpsTransformer
             return new FunctionDeclaration(null, loopCheckSymbol, loopCheckFunction);
         }
 
-        private FunctionDeclaration BuildWhileLoopCheckFunction(ExpressionNode condition, Symbol loopCheckSymbol, BlockStatement loopBodyBlock, BlockStatement afterLoopContinuationBlock)
+        private FunctionDeclaration BuildWhileLoopCheckFunction(ExpressionNode condition, Symbol loopCheckSymbol,
+            BlockStatement loopBodyBlock, BlockStatement afterLoopContinuationBlock)
         {
             var conditionStatement = BuildWhileConditionStatement(condition, loopBodyBlock, afterLoopContinuationBlock);
             var body = conditionStatement as BlockStatement ?? new BlockStatement(null, [conditionStatement], isStrict);

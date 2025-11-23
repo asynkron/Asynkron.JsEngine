@@ -81,20 +81,22 @@ public static partial class StandardLibrary
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
         prototype.SetPrototype(realm.ObjectPrototype);
         prototype.SetProperty("constructor", constructor);
-        constructor.DefineProperty("of", new PropertyDescriptor
-        {
-            Value = new HostFunction(TypedArrayOf) { IsConstructor = false },
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
-        constructor.DefineProperty("from", new PropertyDescriptor
-        {
-            Value = new HostFunction(TypedArrayFrom) { IsConstructor = false },
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
+        constructor.DefineProperty("of",
+            new PropertyDescriptor
+            {
+                Value = new HostFunction(TypedArrayOf) { IsConstructor = false },
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
+        constructor.DefineProperty("from",
+            new PropertyDescriptor
+            {
+                Value = new HostFunction(TypedArrayFrom) { IsConstructor = false },
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
         prototype.SetHostedProperty("indexOf", TypedArrayIndexOf);
         constructor.SetProperty("prototype", prototype);
 
@@ -328,7 +330,6 @@ public static partial class StandardLibrary
                 }
 
                 return errorValue ?? new InvalidOperationException(message);
-
             }
 
             TypedArrayBase CreateTarget(int length)

@@ -3,7 +3,6 @@ using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
-using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -124,7 +123,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: realm);
         }
 
-        object? primitive = value;
+        var primitive = value;
 
         if (value is IJsPropertyAccessor accessor)
         {

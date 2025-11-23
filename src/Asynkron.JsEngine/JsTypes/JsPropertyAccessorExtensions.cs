@@ -1,10 +1,9 @@
-using System.Collections.Generic;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Helper extensions to simplify attaching host-backed functions to property accessors.
+///     Helper extensions to simplify attaching host-backed functions to property accessors.
 /// </summary>
 public static class JsPropertyAccessorExtensions
 {
@@ -40,6 +39,6 @@ public static class JsPropertyAccessorExtensions
             hostFunction.RealmState = realmState;
         }
 
-        accessor.SetProperty(name, (object?)hostFunction);
+        accessor.SetProperty(name, hostFunction);
     }
 }

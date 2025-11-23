@@ -1,7 +1,6 @@
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
-using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -16,12 +15,12 @@ public sealed class JsArray : IJsObjectLike
 
     // Sentinel value to represent holes in sparse arrays (indices that have never been set)
     private static readonly object ArrayHole = new();
-    private readonly RealmState? _realmState;
     private readonly JsObject? _arrayPrototype;
     private readonly List<object?> _items = [];
 
     private readonly JsObject _properties = new();
     private readonly IJsCallable? _rangeErrorCtor;
+    private readonly RealmState? _realmState;
     private readonly IJsCallable? _typeErrorCtor;
     private uint _length;
     private Dictionary<uint, object?>? _sparseItems;

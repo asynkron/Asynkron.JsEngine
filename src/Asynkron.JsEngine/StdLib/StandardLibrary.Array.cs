@@ -1260,78 +1260,6 @@ public static partial class StandardLibrary
                 throw new ThrowSignal(error);
             }
 
-            static double ToLength(object? value)
-            {
-                while (true)
-                {
-                    if (value is double d)
-                    {
-                        if (double.IsNaN(d) || d <= 0)
-                        {
-                            return 0;
-                        }
-
-                        if (double.IsPositiveInfinity(d))
-                        {
-                            return double.MaxValue;
-                        }
-
-                        return Math.Floor(d);
-                    }
-
-                    if (value is int i)
-                    {
-                        return i < 0 ? 0 : i;
-                    }
-
-                    if (value is string s && double.TryParse(s, out var parsed))
-                    {
-                        value = parsed;
-                        continue;
-                    }
-
-                    return 0;
-                }
-            }
-
-            static object? GetAt(object target, int index)
-            {
-                var key = index.ToString(CultureInfo.InvariantCulture);
-                if (target is JsArray jsArr)
-                {
-                    return index < jsArr.Items.Count ? jsArr.GetElement(index) : Symbols.Undefined;
-                }
-
-                if (target is string str)
-                {
-                    return index < str.Length ? str[index].ToString() : Symbols.Undefined;
-                }
-
-                if (target is JsObject jsObj && jsObj.TryGetProperty(key, out var value))
-                {
-                    return value;
-                }
-
-                return Symbols.Undefined;
-            }
-
-            static bool TryGetIteratorMethod(object sourceObj, out object? methodValue)
-            {
-                var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-                var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-                methodValue = null;
-                if (sourceObj is IJsPropertyAccessor accessor &&
-                    accessor.TryGetProperty(iteratorKey, out var value) &&
-                    !ReferenceEquals(value, Symbols.Undefined) &&
-                    value is not null)
-                {
-                    methodValue = value;
-                    return true;
-                }
-
-                return false;
-            }
-
             static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
                 IJsCallable? typeErrorCtor)
             {
@@ -1349,15 +1277,7 @@ public static partial class StandardLibrary
                 }
                 else if (!existing.Configurable)
                 {
-                    if (existing is { IsAccessorDescriptor: true, Set: null })
-                    {
-                        var error = typeErrorCtor is not null
-                            ? typeErrorCtor.Invoke([$"Property {propertyKey} is non-writable"], null)
-                            : new InvalidOperationException($"Property {propertyKey} is non-writable");
-                        throw new ThrowSignal(error);
-                    }
-
-                    if (!existing.Writable)
+                    if (existing is { IsAccessorDescriptor: true, Set: null } || !existing.Writable)
                     {
                         var error = typeErrorCtor is not null
                             ? typeErrorCtor.Invoke([$"Property {propertyKey} is non-writable"], null)
@@ -1433,7 +1353,7 @@ public static partial class StandardLibrary
                 }
 
                 var constructed = constructor?.Invoke([(double)lengthInt], instance);
-                result = constructed is IJsObjectLike objectLike ? objectLike : instance;
+                result = constructed as IJsObjectLike ?? instance;
             }
 
             IJsCallable? ResolveTypeErrorCtor()
@@ -1446,23 +1366,6 @@ public static partial class StandardLibrary
                 }
 
                 return realm.TypeErrorConstructor;
-            }
-
-            object WrapTypeError(string message)
-            {
-                var typeErrorCtor = ResolveTypeErrorCtor();
-                if (typeErrorCtor is not null)
-                {
-                    var errorValue = typeErrorCtor.Invoke([message], null);
-                    if (errorValue is JsObject errorObj)
-                    {
-                        errorObj.SetProperty("constructor", typeErrorCtor);
-                    }
-
-                    return errorValue ?? new InvalidOperationException(message);
-                }
-
-                return new InvalidOperationException(message);
             }
 
             if (TryGetIteratorMethod(source, out var iteratorMethod))
@@ -1543,6 +1446,76 @@ public static partial class StandardLibrary
             }
 
             return result;
+
+            object WrapTypeError(string message)
+            {
+                var typeErrorCtor = ResolveTypeErrorCtor();
+                if (typeErrorCtor is null)
+                {
+                    return new InvalidOperationException(message);
+                }
+
+                var errorValue = typeErrorCtor.Invoke([message], null);
+                if (errorValue is JsObject errorObj)
+                {
+                    errorObj.SetProperty("constructor", typeErrorCtor);
+                }
+
+                return errorValue ?? new InvalidOperationException(message);
+            }
+
+            static double ToLength(object? value)
+            {
+                while (true)
+                {
+                    switch (value)
+                    {
+                        case double d when double.IsNaN(d) || d <= 0:
+                            return 0;
+                        case double d when double.IsPositiveInfinity(d):
+                            return double.MaxValue;
+                        case double d:
+                            return Math.Floor(d);
+                        case int i:
+                            return i < 0 ? 0 : i;
+                        case string s when double.TryParse(s, out var parsed):
+                            value = parsed;
+                            continue;
+                        default:
+                            return 0;
+                    }
+                }
+            }
+
+            static object? GetAt(object target, int index)
+            {
+                var key = index.ToString(CultureInfo.InvariantCulture);
+                return target switch
+                {
+                    JsArray jsArr => index < jsArr.Items.Count ? jsArr.GetElement(index) : Symbols.Undefined,
+                    string str => index < str.Length ? str[index].ToString() : Symbols.Undefined,
+                    JsObject jsObj when jsObj.TryGetProperty(key, out var value) => value,
+                    _ => Symbols.Undefined
+                };
+            }
+
+            static bool TryGetIteratorMethod(object sourceObj, out object? methodValue)
+            {
+                var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+                var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+                methodValue = null;
+                if (sourceObj is not IJsPropertyAccessor accessor ||
+                    !accessor.TryGetProperty(iteratorKey, out var value) ||
+                    ReferenceEquals(value, Symbols.Undefined) ||
+                    value is null)
+                {
+                    return false;
+                }
+
+                methodValue = value;
+                return true;
+
+            }
         });
         arrayFrom.DefineProperty("name",
             new PropertyDescriptor { Value = "from", Writable = false, Enumerable = false, Configurable = true });
@@ -1653,85 +1626,85 @@ public static partial class StandardLibrary
             throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
         }
 
-        if (receiver is IJsPropertyAccessor accessor)
+        switch (receiver)
         {
-            if (accessor is JsObject jsObj && jsObj.TryGetProperty("__value__", out var inner) &&
-                inner is string sInner)
+            case IJsPropertyAccessor accessor:
             {
-                if (!jsObj.TryGetProperty("length", out _))
+                if (accessor is not JsObject jsObj || !jsObj.TryGetProperty("__value__", out var inner) ||
+                    inner is not string sInner)
                 {
-                    jsObj.DefineProperty("length",
-                        new PropertyDescriptor
-                        {
-                            Value = (double)sInner.Length,
-                            Writable = false,
-                            Enumerable = false,
-                            Configurable = false
-                        });
+                    return accessor;
+                }
 
-                    for (var i = 0; i < sInner.Length; i++)
+                if (jsObj.TryGetProperty("length", out _))
+                {
+                    return jsObj;
+                }
+
+                jsObj.DefineProperty("length",
+                    new PropertyDescriptor
                     {
-                        jsObj.SetProperty(i.ToString(CultureInfo.InvariantCulture), sInner[i].ToString());
-                    }
+                        Value = (double)sInner.Length,
+                        Writable = false,
+                        Enumerable = false,
+                        Configurable = false
+                    });
+
+                for (var i = 0; i < sInner.Length; i++)
+                {
+                    jsObj.SetProperty(i.ToString(CultureInfo.InvariantCulture), sInner[i].ToString());
                 }
 
                 return jsObj;
             }
-
-            return accessor;
-        }
-
-        // Box primitives to objects per ToObject.
-        if (receiver is string s)
-        {
-            var obj = new JsObject();
-            if (realm?.StringPrototype is not null)
+            // Box primitives to objects per ToObject.
+            case string s:
             {
-                obj.SetPrototype(realm.StringPrototype);
-            }
-            obj.SetProperty("__value__", s);
-            obj.DefineProperty("length",
-                new PropertyDescriptor
+                var obj = new JsObject();
+                if (realm?.StringPrototype is not null)
                 {
-                    Value = (double)s.Length, Writable = false, Enumerable = false, Configurable = false
-                });
+                    obj.SetPrototype(realm.StringPrototype);
+                }
+                obj.SetProperty("__value__", s);
+                obj.DefineProperty("length",
+                    new PropertyDescriptor
+                    {
+                        Value = (double)s.Length, Writable = false, Enumerable = false, Configurable = false
+                    });
 
-            for (var i = 0; i < s.Length; i++)
-            {
-                obj.SetProperty(i.ToString(CultureInfo.InvariantCulture), s[i].ToString());
+                for (var i = 0; i < s.Length; i++)
+                {
+                    obj.SetProperty(i.ToString(CultureInfo.InvariantCulture), s[i].ToString());
+                }
+
+                return obj;
             }
-
-            return obj;
-        }
-
-        if (receiver is double or int or uint or long or ulong or short or ushort or byte or sbyte or decimal or float)
-        {
-            var obj = new JsObject();
-            if (realm?.NumberPrototype is not null)
+            case double or int or uint or long or ulong or short or ushort or byte or sbyte or decimal or float:
             {
-                obj.SetPrototype(realm.NumberPrototype);
+                var obj = new JsObject();
+                if (realm?.NumberPrototype is not null)
+                {
+                    obj.SetPrototype(realm.NumberPrototype);
+                }
+                obj.SetProperty("__value__", receiver);
+                return obj;
             }
-            obj.SetProperty("__value__", receiver);
-            return obj;
-        }
-
-        if (receiver is bool b)
-        {
-            var obj = new JsObject();
-            if (realm?.BooleanPrototype is not null)
+            case bool b:
             {
-                obj.SetPrototype(realm.BooleanPrototype);
+                var obj = new JsObject();
+                if (realm?.BooleanPrototype is not null)
+                {
+                    obj.SetPrototype(realm.BooleanPrototype);
+                }
+                obj.SetProperty("__value__", b);
+                return obj;
             }
-            obj.SetProperty("__value__", b);
-            return obj;
+            // Symbols and BigInts should throw TypeError for array methods
+            case TypedAstSymbol:
+            case JsBigInt:
+                throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
+            default:
+                throw ThrowTypeError($"{methodName} called on non-object", realm: realm);
         }
-
-        // Symbols and BigInts should throw TypeError for array methods
-        if (receiver is TypedAstSymbol || receiver is JsBigInt)
-        {
-            throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
-        }
-
-        throw ThrowTypeError($"{methodName} called on non-object", realm: realm);
     }
 }

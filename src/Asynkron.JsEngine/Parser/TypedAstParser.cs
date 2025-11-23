@@ -553,8 +553,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source)
             {
                 var catchToken = Previous();
                 Consume(TokenType.LeftParen, "Expected '(' after 'catch'.");
-                var identifier = ConsumeBindingIdentifier("Expected identifier in catch clause.");
-                var binding = Symbol.Intern(identifier.Lexeme);
+                var binding = ParseBindingTarget("Expected binding target in catch clause.");
                 Consume(TokenType.RightParen, "Expected ')' after catch binding.");
                 var catchBody = ParseBlock();
                 catchClause = new CatchClause(CreateSourceReference(catchToken), binding, catchBody);

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
@@ -49,7 +50,9 @@ public static class TypedAstEvaluator
         // function declarations like `function formatArgs(...) {}` are
         // available before earlier statements that reference them.
         var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
-        HoistVarDeclarations(programBlock, executionEnvironment, context);
+        var blockedNames = CollectLexicalNames(programBlock);
+        context.BlockedFunctionVarNames = blockedNames;
+        HoistVarDeclarations(programBlock, executionEnvironment, context, lexicalNames: blockedNames);
 
         object? result = JsSymbols.Undefined;
         foreach (var statement in program.Body)
@@ -166,7 +169,18 @@ public static class TypedAstEvaluator
         }
 
         var branch = IsTruthy(test) ? statement.Then : statement.Else;
-        return branch is null ? JsSymbols.Undefined : EvaluateStatement(branch, environment, context);
+        if (branch is null)
+        {
+            return JsSymbols.Undefined;
+        }
+
+        if (branch is BlockStatement block)
+        {
+            return EvaluateBlock(block, environment, context);
+        }
+
+        var branchScope = new JsEnvironment(environment, false, environment.IsStrict);
+        return EvaluateStatement(branch, branchScope, context);
     }
 
     private static object? EvaluateWhile(WhileStatement statement, JsEnvironment environment, EvaluationContext context,
@@ -557,6 +571,7 @@ public static class TypedAstEvaluator
             case VariableKind.Const:
                 DefineBindingTarget(target, value, loopEnvironment, context,
                     declarationKind == VariableKind.Const);
+                CollectSymbolsFromBinding(target, context.BlockedFunctionVarNames);
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -646,7 +661,7 @@ public static class TypedAstEvaluator
             context.Clear();
             var catchEnv = new JsEnvironment(environment, creatingSource: statement.Catch.Body.Source,
                 description: "catch");
-            catchEnv.Define(statement.Catch.Binding, thrownValue);
+            DefineBindingTarget(statement.Catch.Binding, thrownValue, catchEnv, context, isConst: false);
             result = EvaluateBlock(statement.Catch.Body, catchEnv, context);
         }
 
@@ -768,7 +783,7 @@ public static class TypedAstEvaluator
             return constructorValue;
         }
 
-        environment.Define(declaration.Name, constructorValue);
+        environment.Define(declaration.Name, constructorValue, isLexical: true, blocksFunctionScopeOverride: true);
         return constructorValue;
     }
 
@@ -1154,7 +1169,10 @@ public static class TypedAstEvaluator
     {
         var function = CreateFunctionValue(declaration.Function, environment, context);
         environment.Define(declaration.Name, function);
-        if (!environment.IsStrict)
+        var skipVarBinding = !environment.IsStrict &&
+                             context.BlockedFunctionVarNames is { } blocked &&
+                             blocked.Contains(declaration.Name);
+        if (!environment.IsStrict && !skipVarBinding)
         {
             var configurable = context.ExecutionKind == ExecutionKind.Eval;
             environment.DefineFunctionScoped(
@@ -2946,11 +2964,20 @@ public static class TypedAstEvaluator
         BlockStatement block,
         JsEnvironment environment,
         EvaluationContext context,
-        bool hoistFunctionValues = true)
+        bool hoistFunctionValues = true,
+        HashSet<Symbol>? lexicalNames = null)
     {
+        var effectiveLexicalNames = lexicalNames is null
+            ? CollectLexicalNames(block)
+            : new HashSet<Symbol>(lexicalNames);
+        if (lexicalNames is not null)
+        {
+            effectiveLexicalNames.UnionWith(CollectLexicalNames(block));
+        }
+
         foreach (var statement in block.Statements)
         {
-            HoistFromStatement(statement, environment, context, hoistFunctionValues);
+            HoistFromStatement(statement, environment, context, hoistFunctionValues, effectiveLexicalNames);
         }
     }
 
@@ -2958,7 +2985,8 @@ public static class TypedAstEvaluator
         StatementNode statement,
         JsEnvironment environment,
         EvaluationContext context,
-        bool hoistFunctionValues)
+        bool hoistFunctionValues,
+        HashSet<Symbol>? lexicalNames)
     {
         while (true)
         {
@@ -2972,10 +3000,11 @@ public static class TypedAstEvaluator
 
                     break;
                 case BlockStatement block:
-                    HoistVarDeclarations(block, environment, context, hoistFunctionValues: false);
+                    HoistVarDeclarations(block, environment, context, hoistFunctionValues: false, lexicalNames);
                     break;
                 case IfStatement ifStatement:
-                    HoistFromStatement(ifStatement.Then, environment, context, hoistFunctionValues: false);
+                    HoistFromStatement(ifStatement.Then, environment, context, hoistFunctionValues: false,
+                        lexicalNames);
                     if (ifStatement.Else is { } elseBranch)
                     {
                         statement = elseBranch;
@@ -2995,7 +3024,7 @@ public static class TypedAstEvaluator
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
                     {
-                        HoistFromStatement(initVar, environment, context, hoistFunctionValues);
+                        HoistFromStatement(initVar, environment, context, hoistFunctionValues, lexicalNames);
                     }
 
                     statement = forStatement.Body;
@@ -3014,22 +3043,26 @@ public static class TypedAstEvaluator
                     statement = labeled.Statement;
                     continue;
                 case TryStatement tryStatement:
-                    HoistVarDeclarations(tryStatement.TryBlock, environment, context, hoistFunctionValues: false);
+                    HoistVarDeclarations(tryStatement.TryBlock, environment, context, hoistFunctionValues: false,
+                        lexicalNames);
                     if (tryStatement.Catch is { } catchClause)
                     {
-                        HoistVarDeclarations(catchClause.Body, environment, context, hoistFunctionValues: false);
+                        HoistVarDeclarations(catchClause.Body, environment, context, hoistFunctionValues: false,
+                            lexicalNames);
                     }
 
                     if (tryStatement.Finally is { } finallyBlock)
                     {
-                        HoistVarDeclarations(finallyBlock, environment, context, hoistFunctionValues: false);
+                        HoistVarDeclarations(finallyBlock, environment, context, hoistFunctionValues: false,
+                            lexicalNames);
                     }
 
                     break;
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        HoistVarDeclarations(switchCase.Body, environment, context, hoistFunctionValues: false);
+                        HoistVarDeclarations(switchCase.Body, environment, context, hoistFunctionValues: false,
+                            lexicalNames);
                     }
 
                     break;
@@ -3038,6 +3071,10 @@ public static class TypedAstEvaluator
                     object? functionValue = hoistFunctionValues
                         ? CreateFunctionValue(functionDeclaration.Function, environment, context)
                         : JsSymbols.Undefined;
+                    if (lexicalNames is not null && lexicalNames.Contains(functionDeclaration.Name))
+                    {
+                        break;
+                    }
                     environment.DefineFunctionScoped(
                         functionDeclaration.Name,
                         functionValue,
@@ -3052,6 +3089,145 @@ public static class TypedAstEvaluator
             }
 
             break;
+        }
+    }
+
+    private static HashSet<Symbol> CollectLexicalNames(BlockStatement block)
+    {
+        var names = new HashSet<Symbol>();
+        CollectLexicalNamesFromStatement(block, names);
+        return names;
+    }
+
+    private static void CollectLexicalNamesFromStatement(StatementNode statement, HashSet<Symbol> names)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case BlockStatement block:
+                    foreach (var inner in block.Statements)
+                    {
+                        CollectLexicalNamesFromStatement(inner, names);
+                    }
+
+                    break;
+                case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } letDecl:
+                    foreach (var declarator in letDecl.Declarators)
+                    {
+                        CollectSymbolsFromBinding(declarator.Target, names);
+                    }
+
+                    break;
+                case ClassDeclaration classDeclaration:
+                    names.Add(classDeclaration.Name);
+                    break;
+                case FunctionDeclaration:
+                    // Function declarations are handled separately; they should not block themselves.
+                    break;
+                case IfStatement ifStatement:
+                    CollectLexicalNamesFromStatement(ifStatement.Then, names);
+                    if (ifStatement.Else is { } elseBranch)
+                    {
+                        statement = elseBranch;
+                        continue;
+                    }
+
+                    break;
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } decl)
+                    {
+                        foreach (var declarator in decl.Declarators)
+                        {
+                            CollectSymbolsFromBinding(declarator.Target, names);
+                        }
+                    }
+
+                    statement = forStatement.Body;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+                    {
+                        CollectSymbolsFromBinding(forEachStatement.Target, names);
+                    }
+
+                    statement = forEachStatement.Body;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        CollectLexicalNamesFromStatement(switchCase.Body, names);
+                    }
+
+                    break;
+                case TryStatement tryStatement:
+                    CollectLexicalNamesFromStatement(tryStatement.TryBlock, names);
+                    if (tryStatement.Catch is { } catchClause)
+                    {
+                        CollectSymbolsFromBinding(catchClause.Binding, names);
+                        CollectLexicalNamesFromStatement(catchClause.Body, names);
+                    }
+
+                    if (tryStatement.Finally is { } finallyBlock)
+                    {
+                        statement = finallyBlock;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
+    }
+
+    private static void CollectSymbolsFromBinding(BindingTarget target, HashSet<Symbol> names)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    names.Add(id.Name);
+                    return;
+                case ArrayBinding array:
+                    foreach (var element in array.Elements)
+                    {
+                        if (element.Target is not null)
+                        {
+                            CollectSymbolsFromBinding(element.Target, names);
+                        }
+                    }
+
+                    if (array.RestElement is not null)
+                    {
+                        target = array.RestElement;
+                        continue;
+                    }
+
+                    return;
+                case ObjectBinding obj:
+                    foreach (var property in obj.Properties)
+                    {
+                        CollectSymbolsFromBinding(property.Target, names);
+                    }
+
+                    if (obj.RestElement is not null)
+                    {
+                        target = obj.RestElement;
+                        continue;
+                    }
+
+                    return;
+                default:
+                    return;
+            }
         }
     }
 
@@ -3202,16 +3378,16 @@ public static class TypedAstEvaluator
                 environment.Assign(identifier.Name, value);
                 break;
             case BindingMode.DefineLet:
-                environment.Define(identifier.Name, value);
+                environment.Define(identifier.Name, value, isLexical: true, blocksFunctionScopeOverride: true);
                 break;
             case BindingMode.DefineConst:
-                environment.Define(identifier.Name, value, true);
+                environment.Define(identifier.Name, value, true, blocksFunctionScopeOverride: true);
                 break;
             case BindingMode.DefineVar:
                 environment.DefineFunctionScoped(identifier.Name, value, hasInitializer);
                 break;
             case BindingMode.DefineParameter:
-                environment.Define(identifier.Name, value);
+                environment.Define(identifier.Name, value, isLexical: false);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
@@ -3464,7 +3640,7 @@ public static class TypedAstEvaluator
                     throw new InvalidOperationException("Rest parameter must have an identifier.");
                 }
 
-                environment.Define(parameter.Name, restArray);
+                environment.Define(parameter.Name, restArray, isLexical: false);
                 continue;
             }
 
@@ -3496,7 +3672,7 @@ public static class TypedAstEvaluator
                 throw new InvalidOperationException("Parameter must have an identifier when no pattern is provided.");
             }
 
-            environment.Define(parameter.Name, value);
+            environment.Define(parameter.Name, value, isLexical: false);
         }
     }
 
@@ -3873,10 +4049,6 @@ public static class TypedAstEvaluator
             {
                 var result = ExecutePlan(mode, resumeValue);
 
-                // When the IR eventually opts into non-blocking await, it will
-                // populate _pendingPromise instead of resolving promises
-                // synchronously. At that point this check will surface a
-                // Pending step. For now _pendingPromise always remains null.
                 if (_pendingPromise is JsObject pending)
                 {
                     return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsSymbols.Undefined, false,
@@ -3896,6 +4068,16 @@ public static class TypedAstEvaluator
                 // If the plan completed without producing a well-formed iterator
                 // result, treat it as a completed step with undefined.
                 return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, JsSymbols.Undefined, true, null);
+            }
+            catch (PendingAwaitException)
+            {
+                if (_pendingPromise is JsObject pending)
+                {
+                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsSymbols.Undefined, false,
+                        pending);
+                }
+
+                throw new InvalidOperationException("Async generator awaited a non-promise value.");
             }
             finally
             {
@@ -4740,8 +4922,13 @@ public static class TypedAstEvaluator
             catch (PendingAwaitException)
             {
                 // A pending await surfaced from within the generator body.
-                // ExecuteAsyncStep will translate the pending promise into a
-                // Pending step result for AsyncGeneratorInstance.
+                // Async-aware callers translate this into a Pending step so
+                // the generator can resume once the promise settles.
+                if (_asyncStepMode)
+                {
+                    throw;
+                }
+
                 return CreateIteratorResult(JsSymbols.Undefined, false);
             }
 
@@ -4893,6 +5080,8 @@ public static class TypedAstEvaluator
             // Async-aware mode: use per-site await state so we don't re-run
             // side-effecting expressions after the promise has resolved.
             var awaitKey = GetAwaitStateKey(expression);
+            System.IO.File.AppendAllText("/tmp/awaitlog.txt",
+                $"enter key={(awaitKey?.Name ?? "null")}\n");
             AwaitState? existingState = null;
             if (awaitKey is not null &&
                 environment.TryGet(awaitKey, out var stateObj) &&
@@ -4902,8 +5091,10 @@ public static class TypedAstEvaluator
                 // for this resume, then clear the flag so future iterations
                 // (e.g. in loops) see a fresh await.
                 var result = state.Result;
-                state.HasResult = false;
-                environment.Assign(awaitKey, state);
+                System.IO.File.AppendAllText("/tmp/awaitlog.txt",
+                    $"fast key={awaitKey.Name} result={result}\n");
+                environment.Assign(awaitKey, new AwaitState());
+                _pendingAwaitKey = null;
                 return result;
             }
 
@@ -4915,14 +5106,7 @@ public static class TypedAstEvaluator
 
             if (awaitKey is not null)
             {
-                if (environment.TryGet(awaitKey, out var existing) && existing is AwaitState found)
-                {
-                    existingState = found;
-                }
-                else
-                {
-                    existingState = new AwaitState();
-                }
+                existingState = new AwaitState();
 
                 if (environment.TryGet(awaitKey, out _))
                 {
@@ -4932,6 +5116,9 @@ public static class TypedAstEvaluator
                 {
                     environment.Define(awaitKey, existingState);
                 }
+
+                System.IO.File.AppendAllText("/tmp/awaitlog.txt",
+                    $"start key={awaitKey.Name} value={awaitedValue}\n");
             }
 
             // Async-aware mode: surface promise-like values as pending steps
@@ -5289,6 +5476,8 @@ public static class TypedAstEvaluator
             IJsCallable resolve,
             IJsCallable reject)
         {
+            System.IO.File.AppendAllText("/tmp/awaitlog.txt",
+                $"step kind={step.Kind} value={step.Value} done={step.Done}\n");
             switch (step.Kind)
             {
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Yield:

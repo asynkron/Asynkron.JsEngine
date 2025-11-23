@@ -168,7 +168,8 @@ public sealed record TryStatement(
 /// <summary>
 ///     Represents a catch clause in a try statement.
 /// </summary>
-public sealed record CatchClause(SourceReference? Source, Symbol Binding, BlockStatement Body) : AstNode(Source);
+public sealed record CatchClause(SourceReference? Source, BindingTarget Binding, BlockStatement Body)
+    : AstNode(Source);
 
 /// <summary>
 ///     Represents a switch statement with its cases.

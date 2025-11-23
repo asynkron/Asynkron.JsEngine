@@ -47,14 +47,43 @@ public sealed class JsEnvironment
     /// </summary>
     public bool IsStrict => IsStrictLocal || (_enclosing?.IsStrict ?? false);
 
-    public void Define(Symbol name, object? value, bool isConst = false, bool isGlobalConstant = false)
+    public void Define(
+        Symbol name,
+        object? value,
+        bool isConst = false,
+        bool isGlobalConstant = false,
+        bool isLexical = true,
+        bool blocksFunctionScopeOverride = false)
     {
         if (_values.TryGetValue(name, out var existing) && existing.IsGlobalConstant)
         {
             return;
         }
 
-        _values[name] = new Binding(value, isConst, isGlobalConstant);
+        if (_values.TryGetValue(name, out var binding))
+        {
+            if (binding.IsConst || binding.IsGlobalConstant)
+            {
+                // Generators can execute flattened blocks without recreating the
+                // lexical environment per iteration, which would normally allow
+                // a fresh const/let binding each time. If we see a lexical
+                // redeclaration request, replace the binding so loop iterations
+                // can observe the new value instead of sticking with the first.
+                if (isLexical && blocksFunctionScopeOverride)
+                {
+                    _values[name] = new Binding(value, isConst, isGlobalConstant, isLexical,
+                        blocksFunctionScopeOverride);
+                }
+
+                return;
+            }
+
+            binding.Value = value;
+            binding.UpgradeLexical(isLexical, blocksFunctionScopeOverride);
+            return;
+        }
+
+        _values[name] = new Binding(value, isConst, isGlobalConstant, isLexical, blocksFunctionScopeOverride);
     }
 
     public void DefineFunctionScoped(
@@ -83,7 +112,7 @@ public sealed class JsEnvironment
 
         if (scope._values.TryGetValue(name, out var existing))
         {
-            if (existing.IsConst || existing.IsGlobalConstant)
+            if (existing.IsConst || existing.IsGlobalConstant || existing.BlocksFunctionScopeOverride)
             {
                 return;
             }
@@ -109,7 +138,7 @@ public sealed class JsEnvironment
             shouldWriteGlobal = false;
         }
 
-        scope._values[name] = new Binding(initialValue, false, false);
+        scope._values[name] = new Binding(initialValue, false, false, false, false);
         if (isGlobalScope && globalThis is not null && shouldWriteGlobal)
         {
             if (isFunctionDeclaration)
@@ -157,7 +186,7 @@ public sealed class JsEnvironment
             return propertyValue;
         }
 
-        throw new InvalidOperationException($"Undefined symbol '{name.Name}'.");
+        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
     }
 
     public bool TryGet(Symbol name, out object? value)
@@ -355,12 +384,34 @@ public sealed class JsEnvironment
             : firstToken.ToLowerInvariant();
     }
 
-    private sealed class Binding(object? value, bool isConst, bool isGlobalConstant)
+    private sealed class Binding(
+        object? value,
+        bool isConst,
+        bool isGlobalConstant,
+        bool isLexical,
+        bool blocksFunctionScopeOverride)
     {
         public object? Value { get; set; } = value;
 
         public bool IsConst { get; } = isConst;
 
         public bool IsGlobalConstant { get; } = isGlobalConstant;
+
+        public bool IsLexical { get; private set; } = isLexical;
+
+        public bool BlocksFunctionScopeOverride { get; private set; } = blocksFunctionScopeOverride;
+
+        public void UpgradeLexical(bool isLexical, bool blocksFunctionScopeOverride)
+        {
+            if (isLexical)
+            {
+                IsLexical = true;
+            }
+
+            if (blocksFunctionScopeOverride)
+            {
+                BlocksFunctionScopeOverride = true;
+            }
+        }
     }
 }

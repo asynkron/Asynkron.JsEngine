@@ -25,6 +25,11 @@ public sealed class EvaluationContext(
     public RealmState RealmState { get; } = realmState ?? throw new ArgumentNullException(nameof(realmState));
 
     /// <summary>
+    ///     Lexically declared names that should prevent Annex B function var bindings.
+    /// </summary>
+    public HashSet<Symbol> BlockedFunctionVarNames { get; set; } = new();
+
+    /// <summary>
     ///     Indicates whether the current execution originated from script code or eval.
     /// </summary>
     public ExecutionKind ExecutionKind { get; } = executionKind;

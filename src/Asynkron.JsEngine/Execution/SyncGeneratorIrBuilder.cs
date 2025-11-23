@@ -916,7 +916,7 @@ internal sealed class SyncGeneratorIrBuilder
     {
         var declarator = new VariableDeclarator(
             clause.Source,
-            new IdentifierBinding(clause.Source, clause.Binding),
+            clause.Binding,
             new IdentifierExpression(clause.Source, catchSlotSymbol));
         var declaration = new VariableDeclaration(
             clause.Source,

@@ -760,7 +760,7 @@ public sealed class TypedCpsTransformer
         var catchBodyStatements = ImmutableArray.Create<StatementNode>(
             new ReturnStatement(null, CreateRejectCall(new IdentifierExpression(null, CatchIdentifier))));
         var catchBody = new BlockStatement(null, catchBodyStatements, body.IsStrict);
-        var catchClause = new CatchClause(null, CatchIdentifier, catchBody);
+        var catchClause = new CatchClause(null, new IdentifierBinding(null, CatchIdentifier), catchBody);
         var tryStatement = new TryStatement(null, tryBlock, catchClause, null);
         var executorBody = new BlockStatement(null, [tryStatement], body.IsStrict);
         var executor = new FunctionExpression(null, null,
@@ -1301,9 +1301,12 @@ public sealed class TypedCpsTransformer
                 combinedBuilder.AddRange(catchStatements);
                 combinedBuilder.AddRange(continuationBlock.Statements);
                 var catchBlock = new BlockStatement(null, combinedBuilder.ToImmutable(), catchClause.Body.IsStrict);
-                var catchParameters = catchClause.Binding is { } binding
-                    ? [new FunctionParameter(null, binding, false, null, null)]
-                    : ImmutableArray<FunctionParameter>.Empty;
+                var catchParameters = catchClause.Binding switch
+                {
+                    IdentifierBinding id => [new FunctionParameter(null, id.Name, false, null, null)],
+                    null => ImmutableArray<FunctionParameter>.Empty,
+                    _ => [new FunctionParameter(null, null, false, catchClause.Binding, null)]
+                };
                 var catchHandler = new FunctionExpression(null, null, catchParameters, catchBlock, false, false);
                 finalExpression = new CallExpression(null,
                     new MemberExpression(null, thenCall, new LiteralExpression(null, "catch"), false, false),

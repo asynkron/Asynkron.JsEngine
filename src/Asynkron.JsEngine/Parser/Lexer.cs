@@ -1094,10 +1094,16 @@ public sealed class Lexer(string source)
                 pattern.Append(Advance());
                 if (!IsAtEnd)
                 {
-                    pattern.Append(Advance());
+                    var escapedChar = Advance();
+                    if (IsLineTerminator(escapedChar))
+                    {
+                        throw new ParseException("Unterminated regex literal - newline in pattern.");
+                    }
+
+                    pattern.Append(escapedChar);
                 }
             }
-            else if (Peek() == '\n')
+            else if (IsLineTerminator(Peek()))
             {
                 throw new ParseException("Unterminated regex literal - newline in pattern.");
             }

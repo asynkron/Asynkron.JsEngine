@@ -1,4 +1,6 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.StdLib;
@@ -7,7 +9,10 @@ public static partial class StandardLibrary
 {
     public static IJsCallable CreateRegExpConstructor(RealmState realm)
     {
-        return new HostFunction(args =>
+        var prototype = new JsObject();
+        realm.RegExpPrototype = prototype;
+
+        var constructor = new HostFunction(args =>
         {
             if (args.Count == 0)
             {
@@ -24,15 +29,40 @@ public static partial class StandardLibrary
             var pattern = args[0]?.ToString() ?? "";
             var flags = args.Count > 1 ? args[1]?.ToString() ?? "" : "";
             return CreateRegExpLiteral(pattern, flags, realm);
-        });
+        })
+        {
+            IsConstructor = true,
+            RealmState = realm
+        };
+
+        constructor.SetProperty("prototype", prototype);
+        prototype.SetProperty("constructor", constructor);
+        return constructor;
     }
 
     internal static JsObject CreateRegExpLiteral(string pattern, string flags, RealmState? realm = null)
     {
-        var regex = new JsRegExp(pattern, flags, realm);
-        regex.JsObject["__regex__"] = regex;
-        AddRegExpMethods(regex, realm);
-        return regex.JsObject;
+        try
+        {
+            var regex = new JsRegExp(pattern, flags, realm);
+            regex.JsObject["__regex__"] = regex;
+            if (realm?.RegExpPrototype is not null)
+            {
+                regex.JsObject.SetPrototype(realm.RegExpPrototype);
+            }
+            AddRegExpMethods(regex, realm);
+            return regex.JsObject;
+        }
+        catch (ParseException ex)
+        {
+            var error = CreateSyntaxError(ex.Message, realm);
+            throw new ThrowSignal(error);
+        }
+        catch (ArgumentException ex)
+        {
+            var error = CreateSyntaxError(ex.Message, realm);
+            throw new ThrowSignal(error);
+        }
     }
 
     /// <summary>
@@ -45,6 +75,23 @@ public static partial class StandardLibrary
 
         // exec(string) - returns array with match details or null
         regex.JsObject.SetHostedProperty("exec", RegExpExec);
+    }
+
+    private static object CreateSyntaxError(string message, RealmState? realm)
+    {
+        if (realm?.SyntaxErrorConstructor is { } ctor)
+        {
+            try
+            {
+                return ctor.Invoke([message], Symbols.Undefined);
+            }
+            catch (ThrowSignal signal)
+            {
+                return signal.ThrownValue ?? message;
+            }
+        }
+
+        return message;
     }
 
     private static object? RegExpTest(object? thisValue, IReadOnlyList<object?> args)

@@ -5080,8 +5080,6 @@ public static class TypedAstEvaluator
             // Async-aware mode: use per-site await state so we don't re-run
             // side-effecting expressions after the promise has resolved.
             var awaitKey = GetAwaitStateKey(expression);
-            System.IO.File.AppendAllText("/tmp/awaitlog.txt",
-                $"enter key={(awaitKey?.Name ?? "null")}\n");
             AwaitState? existingState = null;
             if (awaitKey is not null &&
                 environment.TryGet(awaitKey, out var stateObj) &&
@@ -5091,8 +5089,6 @@ public static class TypedAstEvaluator
                 // for this resume, then clear the flag so future iterations
                 // (e.g. in loops) see a fresh await.
                 var result = state.Result;
-                System.IO.File.AppendAllText("/tmp/awaitlog.txt",
-                    $"fast key={awaitKey.Name} result={result}\n");
                 environment.Assign(awaitKey, new AwaitState());
                 _pendingAwaitKey = null;
                 return result;
@@ -5117,8 +5113,6 @@ public static class TypedAstEvaluator
                     environment.Define(awaitKey, existingState);
                 }
 
-                System.IO.File.AppendAllText("/tmp/awaitlog.txt",
-                    $"start key={awaitKey.Name} value={awaitedValue}\n");
             }
 
             // Async-aware mode: surface promise-like values as pending steps
@@ -5476,8 +5470,6 @@ public static class TypedAstEvaluator
             IJsCallable resolve,
             IJsCallable reject)
         {
-            System.IO.File.AppendAllText("/tmp/awaitlog.txt",
-                $"step kind={step.Kind} value={step.Value} done={step.Done}\n");
             switch (step.Kind)
             {
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Yield:

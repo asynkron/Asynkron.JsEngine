@@ -26,999 +26,107 @@ public static partial class StandardLibrary
         }
 
         // push - already implemented natively
-        array.SetProperty("push", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            foreach (var arg in args)
-            {
-                jsArray.Push(arg);
-            }
-
-            return jsArray.Items.Count;
-        }));
+        array.SetProperty("push", new HostFunction(ArrayPush));
 
         // pop
-        array.SetProperty("pop", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            return jsArray.Pop();
-        }));
+        array.SetProperty("pop", new HostFunction(ArrayPop));
 
         // map
-        array.SetProperty("map", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return null;
-            }
-
-            var result = new JsArray(realm);
-            for (var i = 0; i < jsArray.Items.Count; i++)
-            {
-                var element = jsArray.Items[i];
-                var mapped = callback.Invoke([element, (double)i, jsArray], null);
-                result.Push(mapped);
-            }
-
-            AddArrayMethods(result, realm);
-            return result;
-        }));
+        array.SetProperty("map", new HostFunction((thisValue, args) => ArrayMap(thisValue, args, realm)));
 
         // filter
-        array.SetProperty("filter", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return null;
-            }
-
-            var result = new JsArray(realm);
-            for (var i = 0; i < jsArray.Items.Count; i++)
-            {
-                var element = jsArray.Items[i];
-                var keep = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(keep))
-                {
-                    result.Push(element);
-                }
-            }
-
-            AddArrayMethods(result, realm);
-            return result;
-        }));
+        array.SetProperty("filter",
+            new HostFunction((thisValue, args) => ArrayFilter(thisValue, args, realm)));
 
         // reduce
-        array.SetProperty("reduce", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return null;
-            }
-
-            if (jsArray.Items.Count == 0)
-            {
-                return args.Count > 1 ? args[1] : null;
-            }
-
-            var startIndex = 0;
-            object? accumulator;
-
-            if (args.Count > 1)
-            {
-                accumulator = args[1];
-            }
-            else
-            {
-                accumulator = jsArray.Items[0];
-                startIndex = 1;
-            }
-
-            for (var i = startIndex; i < jsArray.Items.Count; i++)
-            {
-                var element = jsArray.Items[i];
-                accumulator = callback.Invoke([accumulator, element, (double)i, jsArray], null);
-            }
-
-            return accumulator;
-        }));
+        array.SetProperty("reduce", new HostFunction(ArrayReduce));
 
         // forEach
-        array.SetProperty("forEach", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return null;
-            }
-
-            for (var i = 0; i < jsArray.Items.Count; i++)
-            {
-                var element = jsArray.Items[i];
-                callback.Invoke([element, (double)i, jsArray], null);
-            }
-
-            return null;
-        }));
+        array.SetProperty("forEach", new HostFunction(ArrayForEach));
 
         // find
-        array.SetProperty("find", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return null;
-            }
-
-            for (var i = 0; i < jsArray.Items.Count; i++)
-            {
-                var element = jsArray.Items[i];
-                var match = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(match))
-                {
-                    return element;
-                }
-            }
-
-            return null;
-        }));
+        array.SetProperty("find", new HostFunction(ArrayFind));
 
         // findIndex
-        array.SetProperty("findIndex", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return null;
-            }
-
-            for (var i = 0; i < jsArray.Items.Count; i++)
-            {
-                var element = jsArray.Items[i];
-                var match = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(match))
-                {
-                    return (double)i;
-                }
-            }
-
-            return -1d;
-        }));
+        array.SetProperty("findIndex", new HostFunction(ArrayFindIndex));
 
         // some
-        array.SetProperty("some", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return false;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return false;
-            }
-
-            for (var i = 0; i < jsArray.Items.Count; i++)
-            {
-                var element = jsArray.Items[i];
-                var result = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(result))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }));
+        array.SetProperty("some", new HostFunction(ArraySome));
 
         // every
-        array.SetProperty("every", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return true;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return true;
-            }
-
-            for (var i = 0; i < jsArray.Items.Count; i++)
-            {
-                var element = jsArray.Items[i];
-                var result = callback.Invoke([element, (double)i, jsArray], null);
-                if (!IsTruthy(result))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }));
+        array.SetProperty("every", new HostFunction(ArrayEvery));
 
         // join
-        array.SetProperty("join", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return "";
-            }
-
-            var separator = args.Count > 0 && args[0] is string sep ? sep : ",";
-
-            var length = jsArray.Length > int.MaxValue ? int.MaxValue : (int)jsArray.Length;
-            var parts = new List<string>(length);
-            for (var i = 0; i < length; i++)
-            {
-                var element = jsArray.GetElement(i);
-                parts.Add(element.ToJsStringForArray());
-            }
-
-            return string.Join(separator, parts);
-        }));
+        array.SetProperty("join", new HostFunction(ArrayJoin));
 
         // toString - delegates to join with the default separator
-        array.SetProperty("toString", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is JsArray jsArray)
-            {
-                return array.TryGetProperty("join", out var join) && join is IJsCallable joinFn
-                    ? joinFn.Invoke([], jsArray)
-                    : string.Empty;
-            }
-
-            if (thisValue is IJsPropertyAccessor accessor &&
-                accessor.TryGetProperty("join", out var joinVal) &&
-                joinVal is IJsCallable callableJoin)
-            {
-                return callableJoin.Invoke([], thisValue);
-            }
-
-            return "[object Object]";
-        }));
+        array.SetProperty("toString", new HostFunction((thisValue, _) => ArrayToString(thisValue, array)));
 
         // includes
-        array.SetProperty("includes", new HostFunction((thisValue, args) =>
-        {
-            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", realm);
-
-            var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var fromIndexArg = args.Count > 1 ? args[1] : 0d;
-            var length = 0d;
-            if (accessor.TryGetProperty("length", out var lenVal))
-            {
-                length = ToLengthOrZero(lenVal);
-            }
-
-            var fromIndex = ToIntegerOrInfinity(fromIndexArg);
-            if (double.IsPositiveInfinity(fromIndex))
-            {
-                return false;
-            }
-
-            if (fromIndex < 0)
-            {
-                fromIndex = length + Math.Ceiling(fromIndex);
-                if (fromIndex < 0)
-                {
-                    fromIndex = 0;
-                }
-            }
-
-            var start = (long)Math.Min(fromIndex, length);
-            var lenLong = (long)Math.Min(length, 9007199254740991d);
-
-            if (accessor is JsArray jsArr && lenLong > 100000)
-            {
-                var indices = jsArr.GetOwnIndices()
-                    .Where(idx => idx >= start && idx < lenLong)
-                    .OrderBy(idx => idx);
-                foreach (var idx in indices)
-                {
-                    var val = jsArr.GetElement((int)idx);
-                    if (SameValueZero(val, searchElement))
-                    {
-                        return true;
-                    }
-                }
-            }
-            else
-            {
-                for (var i = start; i < lenLong; i++)
-                {
-                    var key = i.ToString(CultureInfo.InvariantCulture);
-                    var exists = accessor.TryGetProperty(key, out var value);
-                    if (exists && SameValueZero(value, searchElement))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }));
+        array.SetProperty("includes", new HostFunction((thisValue, args) => ArrayIncludes(thisValue, args, realm)));
 
         // indexOf
-        array.SetProperty("indexOf", new HostFunction((thisValue, args) =>
-        {
-            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.indexOf", realm);
-
-            if (args.Count == 0)
-            {
-                return -1d;
-            }
-
-            var searchElement = args[0];
-            var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
-            var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
-
-            if (double.IsPositiveInfinity(fromIndex))
-            {
-                return -1d;
-            }
-
-            if (fromIndex < 0)
-            {
-                fromIndex = Math.Max(length + Math.Ceiling(fromIndex), 0);
-            }
-            else
-            {
-                fromIndex = Math.Min(fromIndex, length);
-            }
-
-            var start = (long)Math.Min(fromIndex, length);
-            var lenLong = (long)Math.Min(length, 9007199254740991d);
-
-            if (accessor is JsArray jsArr && lenLong > 100000)
-            {
-                var indices = jsArr.GetOwnIndices()
-                    .Where(idx => idx >= start && idx < lenLong)
-                    .OrderBy(idx => idx);
-                foreach (var idx in indices)
-                {
-                    if (AreStrictlyEqual(jsArr.GetElement((int)idx), searchElement))
-                    {
-                        return (double)idx;
-                    }
-                }
-            }
-            else
-            {
-                for (var i = start; i < lenLong; i++)
-                {
-                    var key = i.ToString(CultureInfo.InvariantCulture);
-                    if (accessor.TryGetProperty(key, out var value) && AreStrictlyEqual(value, searchElement))
-                    {
-                        return (double)i;
-                    }
-                }
-            }
-
-            return -1d;
-        }));
+        array.SetProperty("indexOf",
+            new HostFunction((thisValue, args) => ArrayIndexOf(thisValue, args, realm)));
 
         // toLocaleString
-        array.SetProperty("toLocaleString", new HostFunction((thisValue, args) =>
-        {
-            var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toLocaleString", realm);
-
-            var locales = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var options = args.Count > 1 ? args[1] : Symbols.Undefined;
-            var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
-            var parts = new List<string>((int)length);
-
-            for (var i = 0; i < length; i++)
-            {
-                var key = i.ToString(CultureInfo.InvariantCulture);
-                if (!accessor.TryGetProperty(key, out var element) ||
-                    element is null ||
-                    ReferenceEquals(element, Symbols.Undefined))
-                {
-                    parts.Add(string.Empty);
-                    continue;
-                }
-
-                string part;
-                if (element is IJsPropertyAccessor elementAccessor &&
-                    elementAccessor.TryGetProperty("toLocaleString", out var method) &&
-                    method is IJsCallable callable)
-                {
-                    var result = callable.Invoke([locales, options], element);
-                    part = JsOps.ToJsString(result);
-                }
-                else
-                {
-                    part = JsOps.ToJsString(element);
-                }
-
-                parts.Add(part);
-            }
-
-            return string.Join(",", parts);
-        }));
+        array.SetProperty("toLocaleString",
+            new HostFunction((thisValue, args) => ArrayToLocaleString(thisValue, args, realm)));
 
         // slice
         array.SetProperty("slice", new HostFunction((thisValue, args) => ArraySlice(thisValue, args, realm)));
 
         // shift
-        array.SetProperty("shift", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            return jsArray.Shift();
-        }));
+        array.SetProperty("shift", new HostFunction(ArrayShift));
 
         // unshift
-        array.SetProperty("unshift", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return 0;
-            }
-
-            jsArray.Unshift(args.ToArray());
-            return jsArray.Items.Count;
-        }));
+        array.SetProperty("unshift", new HostFunction(ArrayUnshift));
 
         // splice
-        array.SetProperty("splice", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            var start = args.Count > 0 && args[0] is double startD ? (int)startD : 0;
-            var deleteCount = args.Count > 1 && args[1] is double deleteD ? (int)deleteD : jsArray.Items.Count - start;
-
-            var itemsToInsert = args.Count > 2 ? args.Skip(2).ToArray() : [];
-
-            var deleted = jsArray.Splice(start, deleteCount, itemsToInsert);
-            AddArrayMethods(deleted, realm);
-            return deleted;
-        }));
+        array.SetProperty("splice", new HostFunction((thisValue, args) => ArraySplice(thisValue, args, realm)));
 
         // concat
-        array.SetProperty("concat", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            var result = new JsArray(realm);
-            // Add current array items
-            foreach (var item in jsArray.Items)
-            {
-                result.Push(item);
-            }
-
-            // Add items from arguments
-            foreach (var arg in args)
-            {
-                if (arg is JsArray argArray)
-                {
-                    foreach (var item in argArray.Items)
-                    {
-                        result.Push(item);
-                    }
-                }
-                else
-                {
-                    result.Push(arg);
-                }
-            }
-
-            AddArrayMethods(result, realm);
-            return result;
-        }));
+        array.SetProperty("concat", new HostFunction((thisValue, args) => ArrayConcat(thisValue, args, realm)));
 
         // reverse
-        array.SetProperty("reverse", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            jsArray.Reverse();
-            return jsArray;
-        }));
+        array.SetProperty("reverse", new HostFunction(ArrayReverse));
 
         // sort
-        array.SetProperty("sort", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            var items = jsArray.Items.ToList();
-
-            if (args.Count > 0 && args[0] is IJsCallable compareFn)
-                // Sort with custom compare function
-            {
-                items.Sort((a, b) =>
-                {
-                    var result = compareFn.Invoke([a, b], null);
-                    if (result is double d)
-                    {
-                        return d > 0 ? 1 : d < 0 ? -1 : 0;
-                    }
-
-                    return 0;
-                });
-            }
-            else
-                // Default sort: convert to strings and sort lexicographically
-            {
-                items.Sort((a, b) =>
-                {
-                    var aStr = JsValueToString(a);
-                    var bStr = JsValueToString(b);
-                    return string.CompareOrdinal(aStr, bStr);
-                });
-            }
-
-            // Replace array items with sorted items
-            for (var i = 0; i < items.Count; i++)
-            {
-                jsArray.SetElement(i, items[i]);
-            }
-
-            return jsArray;
-        }));
+        array.SetProperty("sort", new HostFunction(ArraySort));
 
         // at(index)
-        array.SetProperty("at", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count == 0 || args[0] is not double d)
-            {
-                return null;
-            }
-
-            var index = (int)d;
-            // Handle negative indices
-            if (index < 0)
-            {
-                index = jsArray.Items.Count + index;
-            }
-
-            if (index < 0 || index >= jsArray.Items.Count)
-            {
-                return null;
-            }
-
-            return jsArray.GetElement(index);
-        }));
+        array.SetProperty("at", new HostFunction(ArrayAt));
 
         // flat(depth = 1)
-        array.SetProperty("flat", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            var depth = args.Count > 0 && args[0] is double d ? (int)d : 1;
-
-            var result = new JsArray(realm);
-            FlattenArray(jsArray, result, depth);
-            AddArrayMethods(result, realm);
-            return result;
-        }));
+        array.SetProperty("flat", new HostFunction((thisValue, args) => ArrayFlat(thisValue, args, realm)));
 
         // flatMap(callback)
-        array.SetProperty("flatMap", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return null;
-            }
-
-            var result = new JsArray(realm);
-            for (var i = 0; i < jsArray.Items.Count; i++)
-            {
-                var element = jsArray.Items[i];
-                var mapped = callback.Invoke([element, (double)i, jsArray], null);
-
-                // Flatten one level
-                if (mapped is JsArray mappedArray)
-                {
-                    for (var j = 0; j < mappedArray.Items.Count; j++)
-                    {
-                        result.Push(mappedArray.GetElement(j));
-                    }
-                }
-                else
-                {
-                    result.Push(mapped);
-                }
-            }
-
-            AddArrayMethods(result, realm);
-            return result;
-        }));
+        array.SetProperty("flatMap", new HostFunction((thisValue, args) => ArrayFlatMap(thisValue, args, realm)));
 
         // findLast(callback)
-        array.SetProperty("findLast", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return null;
-            }
-
-            for (var i = jsArray.Items.Count - 1; i >= 0; i--)
-            {
-                var element = jsArray.Items[i];
-                var matches = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(matches))
-                {
-                    return element;
-                }
-            }
-
-            return null;
-        }));
+        array.SetProperty("findLast", new HostFunction(ArrayFindLast));
 
         // findLastIndex(callback)
-        array.SetProperty("findLastIndex", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return -1d;
-            }
-
-            if (args.Count == 0 || args[0] is not IJsCallable callback)
-            {
-                return -1d;
-            }
-
-            for (var i = jsArray.Items.Count - 1; i >= 0; i--)
-            {
-                var element = jsArray.Items[i];
-                var matches = callback.Invoke([element, (double)i, jsArray], null);
-                if (IsTruthy(matches))
-                {
-                    return (double)i;
-                }
-            }
-
-            return -1d;
-        }));
+        array.SetProperty("findLastIndex", new HostFunction(ArrayFindLastIndex));
 
         // fill(value, start = 0, end = length)
-        array.SetProperty("fill", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count == 0)
-            {
-                return jsArray;
-            }
-
-            var value = args[0];
-            var start = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
-            var end = args.Count > 2 && args[2] is double d2 ? (int)d2 : jsArray.Items.Count;
-
-            // Handle negative indices
-            if (start < 0)
-            {
-                start = Math.Max(0, jsArray.Items.Count + start);
-            }
-
-            if (end < 0)
-            {
-                end = Math.Max(0, jsArray.Items.Count + end);
-            }
-
-            // Clamp to array bounds
-            start = Math.Max(0, Math.Min(start, jsArray.Items.Count));
-            end = Math.Max(start, Math.Min(end, jsArray.Items.Count));
-
-            for (var i = start; i < end; i++)
-            {
-                jsArray.SetElement(i, value);
-            }
-
-            return jsArray;
-        }));
+        array.SetProperty("fill", new HostFunction(ArrayFill));
 
         // copyWithin(target, start = 0, end = length)
-        array.SetProperty("copyWithin", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count == 0)
-            {
-                return jsArray;
-            }
-
-            var target = args[0] is double dt ? (int)dt : 0;
-            var start = args.Count > 1 && args[1] is double ds ? (int)ds : 0;
-            var end = args.Count > 2 && args[2] is double de ? (int)de : jsArray.Items.Count;
-
-            var len = jsArray.Items.Count;
-
-            // Handle negative indices
-            if (target < 0)
-            {
-                target = Math.Max(0, len + target);
-            }
-            else
-            {
-                target = Math.Min(target, len);
-            }
-
-            if (start < 0)
-            {
-                start = Math.Max(0, len + start);
-            }
-            else
-            {
-                start = Math.Min(start, len);
-            }
-
-            if (end < 0)
-            {
-                end = Math.Max(0, len + end);
-            }
-            else
-            {
-                end = Math.Min(end, len);
-            }
-
-            var count = Math.Min(end - start, len - target);
-            if (count <= 0)
-            {
-                return jsArray;
-            }
-
-            // Copy to temporary array to handle overlapping ranges
-            var temp = new object?[count];
-            for (var i = 0; i < count; i++)
-            {
-                temp[i] = jsArray.GetElement(start + i);
-            }
-
-            for (var i = 0; i < count; i++)
-            {
-                jsArray.SetElement(target + i, temp[i]);
-            }
-
-            return jsArray;
-        }));
+        array.SetProperty("copyWithin", new HostFunction(ArrayCopyWithin));
 
         // toSorted(compareFn) - non-mutating sort
-        array.SetProperty("toSorted", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            var result = new JsArray(realm);
-            for (var i = 0; i < jsArray.Items.Count; i++)
-            {
-                result.Push(jsArray.GetElement(i));
-            }
-
-            AddArrayMethods(result, realm);
-
-            var items = result.Items.ToList();
-
-            if (args.Count > 0 && args[0] is IJsCallable compareFn)
-                // Sort with custom compare function
-            {
-                items.Sort((a, b) =>
-                {
-                    var cmp = compareFn.Invoke([a, b], null);
-                    if (cmp is double d)
-                    {
-                        return d > 0 ? 1 : d < 0 ? -1 : 0;
-                    }
-
-                    return 0;
-                });
-            }
-            else
-                // Default sort: convert to strings and sort lexicographically
-            {
-                items.Sort((a, b) =>
-                {
-                    var aStr = JsValueToString(a);
-                    var bStr = JsValueToString(b);
-                    return string.CompareOrdinal(aStr, bStr);
-                });
-            }
-
-            for (var i = 0; i < items.Count; i++)
-            {
-                result.SetElement(i, items[i]);
-            }
-
-            return result;
-        }));
+        array.SetProperty("toSorted", new HostFunction((thisValue, args) => ArrayToSorted(thisValue, args, realm)));
 
         // toReversed() - non-mutating reverse
-        array.SetProperty("toReversed", new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            var result = new JsArray(realm);
-            for (var i = jsArray.Items.Count - 1; i >= 0; i--)
-            {
-                result.Push(jsArray.GetElement(i));
-            }
-
-            AddArrayMethods(result, realm);
-            return result;
-        }));
+        array.SetProperty("toReversed", new HostFunction((thisValue, _) => ArrayToReversed(thisValue, realm)));
 
         // toSpliced(start, deleteCount, ...items) - non-mutating splice
-        array.SetProperty("toSpliced", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            var result = new JsArray(realm);
-            var len = jsArray.Items.Count;
-
-            if (args.Count == 0)
-            {
-                // No arguments, return copy
-                for (var i = 0; i < len; i++)
-                {
-                    result.Push(jsArray.GetElement(i));
-                }
-            }
-            else
-            {
-                var start = args[0] is double ds ? (int)ds : 0;
-                var deleteCount = args.Count > 1 && args[1] is double dc ? (int)dc : len - start;
-
-                // Handle negative start
-                if (start < 0)
-                {
-                    start = Math.Max(0, len + start);
-                }
-                else
-                {
-                    start = Math.Min(start, len);
-                }
-
-                // Clamp deleteCount
-                deleteCount = Math.Max(0, Math.Min(deleteCount, len - start));
-
-                // Copy elements before start
-                for (var i = 0; i < start; i++)
-                {
-                    result.Push(jsArray.GetElement(i));
-                }
-
-                // Insert new items
-                for (var i = 2; i < args.Count; i++)
-                {
-                    result.Push(args[i]);
-                }
-
-                // Copy elements after deleted section
-                for (var i = start + deleteCount; i < len; i++)
-                {
-                    result.Push(jsArray.GetElement(i));
-                }
-            }
-
-            AddArrayMethods(result, realm);
-            return result;
-        }));
+        array.SetProperty("toSpliced",
+            new HostFunction((thisValue, args) => ArrayToSpliced(thisValue, args, realm)));
 
         // with(index, value) - non-mutating element replacement
-        array.SetProperty("with", new HostFunction((thisValue, args) =>
-        {
-            if (thisValue is not JsArray jsArray)
-            {
-                return null;
-            }
-
-            if (args.Count < 2)
-            {
-                return null;
-            }
-
-            if (args[0] is not double d)
-            {
-                return null;
-            }
-
-            var index = (int)d;
-            var value = args[1];
-
-            // Handle negative indices
-            if (index < 0)
-            {
-                index = jsArray.Items.Count + index;
-            }
-
-            // Index out of bounds throws RangeError in JavaScript
-            if (index < 0 || index >= jsArray.Items.Count)
-            {
-                return null;
-            }
-
-            var result = new JsArray(realm);
-            for (var i = 0; i < jsArray.Items.Count; i++)
-            {
-                result.Push(i == index ? value : jsArray.GetElement(i));
-            }
-
-            AddArrayMethods(result, realm);
-            return result;
-        }));
+        array.SetProperty("with", new HostFunction((thisValue, args) => ArrayWith(thisValue, args, realm)));
 
         static double ToLengthValue(object? candidate)
         {
@@ -1154,6 +262,856 @@ public static partial class StandardLibrary
             var key = idx.ToString(CultureInfo.InvariantCulture);
             return accessor.TryGetProperty(key, out var value) ? value : Symbols.Undefined;
         });
+    }
+
+    private static object? ArrayPush(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return null;
+        }
+
+        foreach (var arg in args)
+        {
+            jsArray.Push(arg);
+        }
+
+        return jsArray.Items.Count;
+    }
+
+    private static object? ArrayPop(object? thisValue, IReadOnlyList<object?> _)
+    {
+        return thisValue is JsArray jsArray ? jsArray.Pop() : null;
+    }
+
+    private static object? ArrayMap(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return null;
+        }
+
+        var result = new JsArray(realm);
+        for (var i = 0; i < jsArray.Items.Count; i++)
+        {
+            var element = jsArray.Items[i];
+            var mapped = callback.Invoke([element, (double)i, jsArray], null);
+            result.Push(mapped);
+        }
+
+        AddArrayMethods(result, realm);
+        return result;
+    }
+
+    private static object? ArrayFilter(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return null;
+        }
+
+        var result = new JsArray(realm);
+        for (var i = 0; i < jsArray.Items.Count; i++)
+        {
+            var element = jsArray.Items[i];
+            var keep = callback.Invoke([element, (double)i, jsArray], null);
+            if (IsTruthy(keep))
+            {
+                result.Push(element);
+            }
+        }
+
+        AddArrayMethods(result, realm);
+        return result;
+    }
+
+    private static object? ArrayReduce(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return null;
+        }
+
+        if (jsArray.Items.Count == 0)
+        {
+            return args.Count > 1 ? args[1] : null;
+        }
+
+        var startIndex = 0;
+        object? accumulator;
+
+        if (args.Count > 1)
+        {
+            accumulator = args[1];
+        }
+        else
+        {
+            accumulator = jsArray.Items[0];
+            startIndex = 1;
+        }
+
+        for (var i = startIndex; i < jsArray.Items.Count; i++)
+        {
+            var element = jsArray.Items[i];
+            accumulator = callback.Invoke([accumulator, element, (double)i, jsArray], null);
+        }
+
+        return accumulator;
+    }
+
+    private static object? ArrayForEach(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < jsArray.Items.Count; i++)
+        {
+            var element = jsArray.Items[i];
+            callback.Invoke([element, (double)i, jsArray], null);
+        }
+
+        return null;
+    }
+
+    private static object? ArrayFind(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < jsArray.Items.Count; i++)
+        {
+            var element = jsArray.Items[i];
+            var match = callback.Invoke([element, (double)i, jsArray], null);
+            if (IsTruthy(match))
+            {
+                return element;
+            }
+        }
+
+        return null;
+    }
+
+    private static object? ArrayFindIndex(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return -1d;
+        }
+
+        for (var i = 0; i < jsArray.Items.Count; i++)
+        {
+            var element = jsArray.Items[i];
+            var match = callback.Invoke([element, (double)i, jsArray], null);
+            if (IsTruthy(match))
+            {
+                return (double)i;
+            }
+        }
+
+        return -1d;
+    }
+
+    private static object? ArraySome(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < jsArray.Items.Count; i++)
+        {
+            var element = jsArray.Items[i];
+            var result = callback.Invoke([element, (double)i, jsArray], null);
+            if (IsTruthy(result))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static object? ArrayEvery(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return true;
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return true;
+        }
+
+        for (var i = 0; i < jsArray.Items.Count; i++)
+        {
+            var element = jsArray.Items[i];
+            var result = callback.Invoke([element, (double)i, jsArray], null);
+            if (!IsTruthy(result))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static object? ArrayJoin(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return "";
+        }
+
+        var separator = args.Count > 0 && args[0] is string sep ? sep : ",";
+
+        var length = jsArray.Length > int.MaxValue ? int.MaxValue : (int)jsArray.Length;
+        var parts = new List<string>(length);
+        for (var i = 0; i < length; i++)
+        {
+            var element = jsArray.GetElement(i);
+            parts.Add(element.ToJsStringForArray());
+        }
+
+        return string.Join(separator, parts);
+    }
+
+    private static object? ArrayToString(object? thisValue, IJsPropertyAccessor arrayAccessor)
+    {
+        if (thisValue is JsArray jsArray)
+        {
+            return arrayAccessor.TryGetProperty("join", out var join) && join is IJsCallable joinFn
+                ? joinFn.Invoke([], jsArray)
+                : string.Empty;
+        }
+
+        if (thisValue is IJsPropertyAccessor accessor &&
+            accessor.TryGetProperty("join", out var joinVal) &&
+            joinVal is IJsCallable callableJoin)
+        {
+            return callableJoin.Invoke([], thisValue);
+        }
+
+        return "[object Object]";
+    }
+
+    private static object? ArrayIncludes(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", realm);
+
+        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var fromIndexArg = args.Count > 1 ? args[1] : 0d;
+        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
+
+        var fromIndex = ToIntegerOrInfinity(fromIndexArg);
+        if (double.IsPositiveInfinity(fromIndex))
+        {
+            return false;
+        }
+
+        if (fromIndex < 0)
+        {
+            fromIndex = length + Math.Ceiling(fromIndex);
+            if (fromIndex < 0)
+            {
+                fromIndex = 0;
+            }
+        }
+
+        var start = (long)Math.Min(fromIndex, length);
+        var lenLong = (long)Math.Min(length, 9007199254740991d);
+
+        if (accessor is JsArray jsArr && lenLong > 100000)
+        {
+            var indices = jsArr.GetOwnIndices()
+                .Where(idx => idx >= start && idx < lenLong)
+                .OrderBy(idx => idx);
+            foreach (var idx in indices)
+            {
+                var val = jsArr.GetElement((int)idx);
+                if (SameValueZero(val, searchElement))
+                {
+                    return true;
+                }
+            }
+        }
+        else
+        {
+            for (var i = start; i < lenLong; i++)
+            {
+                var key = i.ToString(CultureInfo.InvariantCulture);
+                var exists = accessor.TryGetProperty(key, out var value);
+                if (exists && SameValueZero(value, searchElement))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static object? ArrayIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.indexOf", realm);
+
+        if (args.Count == 0)
+        {
+            return -1d;
+        }
+
+        var searchElement = args[0];
+        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
+
+        if (double.IsPositiveInfinity(fromIndex))
+        {
+            return -1d;
+        }
+
+        if (fromIndex < 0)
+        {
+            fromIndex = Math.Max(length + Math.Ceiling(fromIndex), 0);
+        }
+        else
+        {
+            fromIndex = Math.Min(fromIndex, length);
+        }
+
+        var start = (long)Math.Min(fromIndex, length);
+        var lenLong = (long)Math.Min(length, 9007199254740991d);
+
+        if (accessor is JsArray jsArr && lenLong > 100000)
+        {
+            var indices = jsArr.GetOwnIndices()
+                .Where(idx => idx >= start && idx < lenLong)
+                .OrderBy(idx => idx);
+            foreach (var idx in indices)
+            {
+                if (AreStrictlyEqual(jsArr.GetElement((int)idx), searchElement))
+                {
+                    return (double)idx;
+                }
+            }
+        }
+        else
+        {
+            for (var i = start; i < lenLong; i++)
+            {
+                var key = i.ToString(CultureInfo.InvariantCulture);
+                if (accessor.TryGetProperty(key, out var value) && AreStrictlyEqual(value, searchElement))
+                {
+                    return (double)i;
+                }
+            }
+        }
+
+        return -1d;
+    }
+
+    private static object? ArrayToLocaleString(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toLocaleString", realm);
+
+        var locales = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var options = args.Count > 1 ? args[1] : Symbols.Undefined;
+        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
+        var parts = new List<string>((int)length);
+
+        for (var i = 0; i < length; i++)
+        {
+            var key = i.ToString(CultureInfo.InvariantCulture);
+            if (!accessor.TryGetProperty(key, out var element) ||
+                element is null ||
+                ReferenceEquals(element, Symbols.Undefined))
+            {
+                parts.Add(string.Empty);
+                continue;
+            }
+
+            string part;
+            if (element is IJsPropertyAccessor elementAccessor &&
+                elementAccessor.TryGetProperty("toLocaleString", out var method) &&
+                method is IJsCallable callable)
+            {
+                var result = callable.Invoke([locales, options], element);
+                part = JsOps.ToJsString(result);
+            }
+            else
+            {
+                part = JsOps.ToJsString(element);
+            }
+
+            parts.Add(part);
+        }
+
+        return string.Join(",", parts);
+    }
+
+    private static object? ArrayShift(object? thisValue, IReadOnlyList<object?> _)
+    {
+        return thisValue is JsArray jsArray ? jsArray.Shift() : null;
+    }
+
+    private static object? ArrayUnshift(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return 0;
+        }
+
+        jsArray.Unshift(args.ToArray());
+        return jsArray.Items.Count;
+    }
+
+    private static object? ArraySplice(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return null;
+        }
+
+        var start = args.Count > 0 && args[0] is double startD ? (int)startD : 0;
+        var deleteCount = args.Count > 1 && args[1] is double deleteD ? (int)deleteD : jsArray.Items.Count - start;
+
+        var itemsToInsert = args.Count > 2 ? args.Skip(2).ToArray() : [];
+
+        var deleted = jsArray.Splice(start, deleteCount, itemsToInsert);
+        AddArrayMethods(deleted, realm);
+        return deleted;
+    }
+
+    private static object? ArrayConcat(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return null;
+        }
+
+        var result = new JsArray(realm);
+        foreach (var item in jsArray.Items)
+        {
+            result.Push(item);
+        }
+
+        foreach (var arg in args)
+        {
+            if (arg is JsArray argArray)
+            {
+                foreach (var item in argArray.Items)
+                {
+                    result.Push(item);
+                }
+            }
+            else
+            {
+                result.Push(arg);
+            }
+        }
+
+        AddArrayMethods(result, realm);
+        return result;
+    }
+
+    private static object? ArrayReverse(object? thisValue, IReadOnlyList<object?> _)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return null;
+        }
+
+        jsArray.Reverse();
+        return jsArray;
+    }
+
+    private static object? ArraySort(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return null;
+        }
+
+        var items = jsArray.Items.ToList();
+
+        if (args.Count > 0 && args[0] is IJsCallable compareFn)
+        {
+            items.Sort((a, b) =>
+            {
+                var result = compareFn.Invoke([a, b], null);
+                if (result is double d)
+                {
+                    return d > 0 ? 1 : d < 0 ? -1 : 0;
+                }
+
+                return 0;
+            });
+        }
+        else
+        {
+            items.Sort((a, b) =>
+            {
+                var aStr = JsValueToString(a);
+                var bStr = JsValueToString(b);
+                return string.CompareOrdinal(aStr, bStr);
+            });
+        }
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            jsArray.SetElement(i, items[i]);
+        }
+
+        return jsArray;
+    }
+
+    private static object? ArrayAt(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not double d)
+        {
+            return null;
+        }
+
+        var index = (int)d;
+        if (index < 0)
+        {
+            index = jsArray.Items.Count + index;
+        }
+
+        if (index < 0 || index >= jsArray.Items.Count)
+        {
+            return null;
+        }
+
+        return jsArray.GetElement(index);
+    }
+
+    private static object? ArrayFlat(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return null;
+        }
+
+        var depth = args.Count > 0 && args[0] is double d ? (int)d : 1;
+
+        var result = new JsArray(realm);
+        FlattenArray(jsArray, result, depth);
+        AddArrayMethods(result, realm);
+        return result;
+    }
+
+    private static object? ArrayFlatMap(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return null;
+        }
+
+        var result = new JsArray(realm);
+        for (var i = 0; i < jsArray.Items.Count; i++)
+        {
+            var element = jsArray.Items[i];
+            var mapped = callback.Invoke([element, (double)i, jsArray], null);
+
+            if (mapped is JsArray mappedArray)
+            {
+                for (var j = 0; j < mappedArray.Items.Count; j++)
+                {
+                    result.Push(mappedArray.GetElement(j));
+                }
+            }
+            else
+            {
+                result.Push(mapped);
+            }
+        }
+
+        AddArrayMethods(result, realm);
+        return result;
+    }
+
+    private static object? ArrayFindLast(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return null;
+        }
+
+        for (var i = jsArray.Items.Count - 1; i >= 0; i--)
+        {
+            var element = jsArray.Items[i];
+            var matches = callback.Invoke([element, (double)i, jsArray], null);
+            if (IsTruthy(matches))
+            {
+                return element;
+            }
+        }
+
+        return null;
+    }
+
+    private static object? ArrayFindLastIndex(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            return -1d;
+        }
+
+        for (var i = jsArray.Items.Count - 1; i >= 0; i--)
+        {
+            var element = jsArray.Items[i];
+            var matches = callback.Invoke([element, (double)i, jsArray], null);
+            if (IsTruthy(matches))
+            {
+                return (double)i;
+            }
+        }
+
+        return -1d;
+    }
+
+    private static object? ArrayFill(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0)
+        {
+            return thisValue is JsArray ? thisValue : null;
+        }
+
+        var value = args[0];
+        var start = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
+        var end = args.Count > 2 && args[2] is double d2 ? (int)d2 : jsArray.Items.Count;
+
+        if (start < 0)
+        {
+            start = Math.Max(0, jsArray.Items.Count + start);
+        }
+
+        if (end < 0)
+        {
+            end = Math.Max(0, jsArray.Items.Count + end);
+        }
+
+        start = Math.Max(0, Math.Min(start, jsArray.Items.Count));
+        end = Math.Max(start, Math.Min(end, jsArray.Items.Count));
+
+        for (var i = start; i < end; i++)
+        {
+            jsArray.SetElement(i, value);
+        }
+
+        return jsArray;
+    }
+
+    private static object? ArrayCopyWithin(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not JsArray jsArray || args.Count == 0)
+        {
+            return thisValue is JsArray ? thisValue : null;
+        }
+
+        var target = args[0] is double dt ? (int)dt : 0;
+        var start = args.Count > 1 && args[1] is double ds ? (int)ds : 0;
+        var end = args.Count > 2 && args[2] is double de ? (int)de : jsArray.Items.Count;
+
+        var len = jsArray.Items.Count;
+
+        if (target < 0)
+        {
+            target = Math.Max(0, len + target);
+        }
+        else
+        {
+            target = Math.Min(target, len);
+        }
+
+        if (start < 0)
+        {
+            start = Math.Max(0, len + start);
+        }
+        else
+        {
+            start = Math.Min(start, len);
+        }
+
+        if (end < 0)
+        {
+            end = Math.Max(0, len + end);
+        }
+        else
+        {
+            end = Math.Min(end, len);
+        }
+
+        var count = Math.Min(end - start, len - target);
+        if (count <= 0)
+        {
+            return jsArray;
+        }
+
+        var temp = new object?[count];
+        for (var i = 0; i < count; i++)
+        {
+            temp[i] = jsArray.GetElement(start + i);
+        }
+
+        for (var i = 0; i < count; i++)
+        {
+            jsArray.SetElement(target + i, temp[i]);
+        }
+
+        return jsArray;
+    }
+
+    private static object? ArrayToSorted(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return null;
+        }
+
+        var result = new JsArray(realm);
+        for (var i = 0; i < jsArray.Items.Count; i++)
+        {
+            result.Push(jsArray.GetElement(i));
+        }
+
+        AddArrayMethods(result, realm);
+
+        var items = result.Items.ToList();
+
+        if (args.Count > 0 && args[0] is IJsCallable compareFn)
+        {
+            items.Sort((a, b) =>
+            {
+                var cmp = compareFn.Invoke([a, b], null);
+                if (cmp is double d)
+                {
+                    return d > 0 ? 1 : d < 0 ? -1 : 0;
+                }
+
+                return 0;
+            });
+        }
+        else
+        {
+            items.Sort((a, b) =>
+            {
+                var aStr = JsValueToString(a);
+                var bStr = JsValueToString(b);
+                return string.CompareOrdinal(aStr, bStr);
+            });
+        }
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            result.SetElement(i, items[i]);
+        }
+
+        return result;
+    }
+
+    private static object? ArrayToReversed(object? thisValue, RealmState? realm)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return null;
+        }
+
+        var result = new JsArray(realm);
+        for (var i = jsArray.Items.Count - 1; i >= 0; i--)
+        {
+            result.Push(jsArray.GetElement(i));
+        }
+
+        AddArrayMethods(result, realm);
+        return result;
+    }
+
+    private static object? ArrayToSpliced(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not JsArray jsArray)
+        {
+            return null;
+        }
+
+        var result = new JsArray(realm);
+        var len = jsArray.Items.Count;
+
+        if (args.Count == 0)
+        {
+            for (var i = 0; i < len; i++)
+            {
+                result.Push(jsArray.GetElement(i));
+            }
+        }
+        else
+        {
+            var start = args[0] is double ds ? (int)ds : 0;
+            var deleteCount = args.Count > 1 && args[1] is double dc ? (int)dc : len - start;
+
+            if (start < 0)
+            {
+                start = Math.Max(0, len + start);
+            }
+            else
+            {
+                start = Math.Min(start, len);
+            }
+
+            deleteCount = Math.Max(0, Math.Min(deleteCount, len - start));
+
+            for (var i = 0; i < start; i++)
+            {
+                result.Push(jsArray.GetElement(i));
+            }
+
+            for (var i = 2; i < args.Count; i++)
+            {
+                result.Push(args[i]);
+            }
+
+            for (var i = start + deleteCount; i < len; i++)
+            {
+                result.Push(jsArray.GetElement(i));
+            }
+        }
+
+        AddArrayMethods(result, realm);
+        return result;
+    }
+
+    private static object? ArrayWith(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not JsArray jsArray || args.Count < 2 || args[0] is not double d)
+        {
+            return null;
+        }
+
+        var index = (int)d;
+        var value = args[1];
+
+        if (index < 0)
+        {
+            index = jsArray.Items.Count + index;
+        }
+
+        if (index < 0 || index >= jsArray.Items.Count)
+        {
+            return null;
+        }
+
+        var result = new JsArray(realm);
+        for (var i = 0; i < jsArray.Items.Count; i++)
+        {
+            result.Push(i == index ? value : jsArray.GetElement(i));
+        }
+
+        AddArrayMethods(result, realm);
+        return result;
     }
 
     private static object? ArraySlice(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)

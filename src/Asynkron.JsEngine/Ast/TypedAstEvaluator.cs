@@ -33,6 +33,12 @@ public static class TypedAstEvaluator
     private static readonly object GeneratorBrandMarker = new();
     private static readonly object EmptyCompletion = new();
 
+    private enum HoistPass
+    {
+        Functions,
+        Vars
+    }
+
     public static object? EvaluateProgram(
         ProgramNode program,
         JsEnvironment environment,
@@ -59,6 +65,21 @@ public static class TypedAstEvaluator
         var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
         var blockedNames = CollectLexicalNames(programBlock);
         context.BlockedFunctionVarNames = blockedNames;
+        var functionScope = executionEnvironment.GetFunctionScope();
+        if (functionScope.IsGlobalFunctionScope)
+        {
+            foreach (var blockedName in blockedNames)
+            {
+                if (functionScope.HasFunctionScopedBinding(blockedName))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Cannot redeclare var-scoped binding '{blockedName.Name}' with lexical declaration",
+                        context,
+                        context.RealmState);
+                }
+            }
+        }
+
         HoistVarDeclarations(programBlock, executionEnvironment, context, lexicalNames: blockedNames);
 
         object? result = EmptyCompletion;
@@ -1196,7 +1217,8 @@ public static class TypedAstEvaluator
                 function,
                 true,
                 true,
-                configurable);
+                configurable,
+                context);
         }
 
         return EmptyCompletion;
@@ -3093,10 +3115,41 @@ public static class TypedAstEvaluator
             effectiveLexicalNames.UnionWith(CollectLexicalNames(block));
         }
 
+        HoistVarDeclarationsPass(
+            block,
+            environment,
+            context,
+            hoistFunctionValues,
+            effectiveLexicalNames,
+            HoistPass.Functions);
+        HoistVarDeclarationsPass(
+            block,
+            environment,
+            context,
+            hoistFunctionValues: false,
+            effectiveLexicalNames,
+            HoistPass.Vars);
+    }
+
+    private static void HoistVarDeclarationsPass(
+        BlockStatement block,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool hoistFunctionValues,
+        HashSet<Symbol> lexicalNames,
+        HoistPass pass)
+    {
         foreach (var statement in block.Statements)
         {
-            HoistFromStatement(statement, environment, context, hoistFunctionValues, effectiveLexicalNames);
+            HoistFromStatement(statement, environment, context, hoistFunctionValues, lexicalNames, pass);
         }
+    }
+
+    private static HashSet<Symbol> MergeLexicalNames(BlockStatement block, HashSet<Symbol> lexicalNames)
+    {
+        var merged = new HashSet<Symbol>(lexicalNames);
+        merged.UnionWith(CollectLexicalNames(block));
+        return merged;
     }
 
     private static void HoistFromStatement(
@@ -3104,25 +3157,32 @@ public static class TypedAstEvaluator
         JsEnvironment environment,
         EvaluationContext context,
         bool hoistFunctionValues,
-        HashSet<Symbol>? lexicalNames)
+        HashSet<Symbol> lexicalNames,
+        HoistPass pass)
     {
         while (true)
         {
             switch (statement)
             {
-                case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
+                case VariableDeclaration { Kind: VariableKind.Var } varDeclaration when pass == HoistPass.Vars:
                     foreach (var declarator in varDeclaration.Declarators)
                     {
-                        HoistFromBindingTarget(declarator.Target, environment);
+                        HoistFromBindingTarget(declarator.Target, environment, context);
                     }
 
                     break;
                 case BlockStatement block:
-                    HoistVarDeclarations(block, environment, context, false, lexicalNames);
+                    HoistVarDeclarationsPass(
+                        block,
+                        environment,
+                        context,
+                        false,
+                        MergeLexicalNames(block, lexicalNames),
+                        pass);
                     break;
                 case IfStatement ifStatement:
                     HoistFromStatement(ifStatement.Then, environment, context, false,
-                        lexicalNames);
+                        lexicalNames, pass);
                     if (ifStatement.Else is { } elseBranch)
                     {
                         statement = elseBranch;
@@ -3140,18 +3200,19 @@ public static class TypedAstEvaluator
                     hoistFunctionValues = false;
                     continue;
                 case ForStatement forStatement:
-                    if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
+                    if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar &&
+                        pass == HoistPass.Vars)
                     {
-                        HoistFromStatement(initVar, environment, context, hoistFunctionValues, lexicalNames);
+                        HoistFromStatement(initVar, environment, context, hoistFunctionValues, lexicalNames, pass);
                     }
 
                     statement = forStatement.Body;
                     hoistFunctionValues = false;
                     continue;
                 case ForEachStatement forEachStatement:
-                    if (forEachStatement.DeclarationKind == VariableKind.Var)
+                    if (pass == HoistPass.Vars && forEachStatement.DeclarationKind == VariableKind.Var)
                     {
-                        HoistFromBindingTarget(forEachStatement.Target, environment);
+                        HoistFromBindingTarget(forEachStatement.Target, environment, context);
                     }
 
                     statement = forEachStatement.Body;
@@ -3161,32 +3222,41 @@ public static class TypedAstEvaluator
                     statement = labeled.Statement;
                     continue;
                 case TryStatement tryStatement:
-                    HoistVarDeclarations(tryStatement.TryBlock, environment, context, false,
-                        lexicalNames);
+                    HoistVarDeclarationsPass(tryStatement.TryBlock, environment, context, false,
+                        MergeLexicalNames(tryStatement.TryBlock, lexicalNames),
+                        pass);
                     if (tryStatement.Catch is { } catchClause)
                     {
-                        HoistVarDeclarations(catchClause.Body, environment, context, false,
-                            lexicalNames);
+                        HoistVarDeclarationsPass(catchClause.Body, environment, context, false,
+                            MergeLexicalNames(catchClause.Body, lexicalNames),
+                            pass);
                     }
 
                     if (tryStatement.Finally is { } finallyBlock)
                     {
-                        HoistVarDeclarations(finallyBlock, environment, context, false,
-                            lexicalNames);
+                        HoistVarDeclarationsPass(finallyBlock, environment, context, false,
+                            MergeLexicalNames(finallyBlock, lexicalNames),
+                            pass);
                     }
 
                     break;
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        HoistVarDeclarations(switchCase.Body, environment, context, false,
-                            lexicalNames);
+                        HoistVarDeclarationsPass(switchCase.Body, environment, context, false,
+                            MergeLexicalNames(switchCase.Body, lexicalNames),
+                            pass);
                     }
 
                     break;
                 case FunctionDeclaration functionDeclaration:
                 {
-                    if (lexicalNames is not null && lexicalNames.Contains(functionDeclaration.Name))
+                    if (pass != HoistPass.Functions)
+                    {
+                        break;
+                    }
+
+                    if (lexicalNames.Contains(functionDeclaration.Name))
                     {
                         break;
                     }
@@ -3199,7 +3269,8 @@ public static class TypedAstEvaluator
                             functionValue,
                             hasInitializer: true,
                             isFunctionDeclaration: true,
-                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval);
+                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
+                            context);
                         break;
                     }
 
@@ -3214,7 +3285,8 @@ public static class TypedAstEvaluator
                             JsSymbols.Undefined,
                             hasInitializer: false,
                             isFunctionDeclaration: true,
-                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval);
+                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
+                            context);
                     }
                     break;
                 }
@@ -3369,21 +3441,24 @@ public static class TypedAstEvaluator
         }
     }
 
-    private static void HoistFromBindingTarget(BindingTarget target, JsEnvironment environment)
+    private static void HoistFromBindingTarget(
+        BindingTarget target,
+        JsEnvironment environment,
+        EvaluationContext context)
     {
         while (true)
         {
             switch (target)
             {
                 case IdentifierBinding identifier:
-                    environment.DefineFunctionScoped(identifier.Name, JsSymbols.Undefined, false);
+                    environment.DefineFunctionScoped(identifier.Name, JsSymbols.Undefined, false, context: context);
                     break;
                 case ArrayBinding arrayBinding:
                     foreach (var element in arrayBinding.Elements)
                     {
                         if (element.Target is not null)
                         {
-                            HoistFromBindingTarget(element.Target, environment);
+                            HoistFromBindingTarget(element.Target, environment, context);
                         }
                     }
 
@@ -3397,7 +3472,7 @@ public static class TypedAstEvaluator
                 case ObjectBinding objectBinding:
                     foreach (var property in objectBinding.Properties)
                     {
-                        HoistFromBindingTarget(property.Target, environment);
+                        HoistFromBindingTarget(property.Target, environment, context);
                     }
 
                     if (objectBinding.RestElement is not null)
@@ -3546,7 +3621,7 @@ public static class TypedAstEvaluator
         switch (target)
         {
             case IdentifierBinding identifier:
-                ApplyIdentifierBinding(identifier, value, environment, mode, hasInitializer);
+                ApplyIdentifierBinding(identifier, value, environment, context, mode, hasInitializer);
                 break;
             case ArrayBinding arrayBinding:
                 BindArrayPattern(arrayBinding, value, environment, context, mode);
@@ -3559,8 +3634,13 @@ public static class TypedAstEvaluator
         }
     }
 
-    private static void ApplyIdentifierBinding(IdentifierBinding identifier, object? value, JsEnvironment environment,
-        BindingMode mode, bool hasInitializer)
+    private static void ApplyIdentifierBinding(
+        IdentifierBinding identifier,
+        object? value,
+        JsEnvironment environment,
+        EvaluationContext context,
+        BindingMode mode,
+        bool hasInitializer)
     {
         switch (mode)
         {
@@ -3574,7 +3654,7 @@ public static class TypedAstEvaluator
                 environment.Define(identifier.Name, value, true, blocksFunctionScopeOverride: true);
                 break;
             case BindingMode.DefineVar:
-                environment.DefineFunctionScoped(identifier.Name, value, hasInitializer);
+                environment.DefineFunctionScoped(identifier.Name, value, hasInitializer, context: context);
                 break;
             case BindingMode.DefineParameter:
                 environment.Define(identifier.Name, value, isLexical: false);
@@ -4406,6 +4486,17 @@ public static class TypedAstEvaluator
             if (_plan is null)
             {
                 throw new InvalidOperationException("No generator plan available.");
+            }
+
+            if (_state == GeneratorState.Executing)
+            {
+                _state = GeneratorState.Completed;
+                _done = true;
+                _programCounter = -1;
+                _tryStack.Clear();
+                _resumeContext.Clear();
+                _context ??= new EvaluationContext(_realmState);
+                throw StandardLibrary.ThrowTypeError("Generator is already executing", _context, _realmState);
             }
 
             var wasStart = _state == GeneratorState.Start;

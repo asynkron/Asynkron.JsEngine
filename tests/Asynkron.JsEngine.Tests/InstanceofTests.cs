@@ -68,13 +68,13 @@ public class InstanceofTests
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
-            class TypeError {
+            class CustomTypeError {
                 constructor(msg) {
                     this.message = msg;
                 }
             }
-            let error = new TypeError('test');
-            if (error instanceof TypeError) {
+            let error = new CustomTypeError('test');
+            if (error instanceof CustomTypeError) {
                 'correct';
             } else {
                 'wrong';

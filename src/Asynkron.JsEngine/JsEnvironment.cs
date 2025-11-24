@@ -1,6 +1,7 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine;
 
@@ -94,7 +95,8 @@ public sealed class JsEnvironment
         object? value,
         bool hasInitializer,
         bool isFunctionDeclaration = false,
-        bool? globalFunctionConfigurable = null)
+        bool? globalFunctionConfigurable = null,
+        EvaluationContext? context = null)
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
         var scope = GetFunctionScope();
@@ -110,6 +112,19 @@ public sealed class JsEnvironment
             if (existingDescriptor is not null)
             {
                 globalObject.TryGetProperty(name.Name, out existingGlobalValue);
+            }
+        }
+
+        if (isGlobalScope && isFunctionDeclaration && existingDescriptor is not null)
+        {
+            var canDeclare = existingDescriptor.Configurable ||
+                             (existingDescriptor.IsDataDescriptor &&
+                              existingDescriptor.Writable &&
+                              existingDescriptor.Enumerable);
+            if (!canDeclare)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot redeclare non-configurable global function",
+                    context, context?.RealmState);
             }
         }
 
@@ -317,7 +332,15 @@ public sealed class JsEnvironment
         }
     }
 
-    private JsEnvironment GetFunctionScope()
+    internal bool HasFunctionScopedBinding(Symbol name)
+    {
+        var scope = GetFunctionScope();
+        return scope._values.TryGetValue(name, out var binding) && !binding.IsLexical;
+    }
+
+    internal bool IsGlobalFunctionScope => _isFunctionScope && _enclosing is null;
+
+    internal JsEnvironment GetFunctionScope()
     {
         var current = this;
         while (!current._isFunctionScope)

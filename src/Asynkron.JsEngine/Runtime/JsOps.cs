@@ -1065,6 +1065,12 @@ internal static class JsOps
             return propertyName is null || typedArray.DeleteProperty(propertyName);
         }
 
+        if (target is JsArgumentsObject argumentsObject)
+        {
+            var propertyName = ToPropertyName(propertyKey, context);
+            return propertyName is null || argumentsObject.Delete(propertyName);
+        }
+
         var resolvedName = ToPropertyName(propertyKey, context);
         if (resolvedName is null)
         {

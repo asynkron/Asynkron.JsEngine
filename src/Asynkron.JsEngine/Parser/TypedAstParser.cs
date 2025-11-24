@@ -1245,6 +1245,23 @@ public sealed class TypedAstParser(
                 var value = ParseAssignment();
                 if (expr is IdentifierExpression identifier)
                 {
+                    if (InStrictContext &&
+                        (string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal) ||
+                         string.Equals(identifier.Name.Name, "arguments", StringComparison.Ordinal)))
+                    {
+                        if (identifier.Source is { } sourceReference)
+                        {
+                            var token = new Token(TokenType.Identifier, identifier.Name.Name, identifier.Name.Name,
+                                sourceReference.StartLine, sourceReference.StartColumn,
+                                sourceReference.StartPosition, sourceReference.EndPosition);
+                            throw new ParseException(
+                                "Assignment to eval or arguments is not allowed in strict mode.", token, _source);
+                        }
+
+                        throw new ParseException(
+                            "Assignment to eval or arguments is not allowed in strict mode.", Previous(), _source);
+                    }
+
                     return new AssignmentExpression(expr.Source ?? value.Source, identifier.Name, value);
                 }
 

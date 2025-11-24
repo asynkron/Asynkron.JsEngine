@@ -1287,6 +1287,8 @@ public static class TypedAstEvaluator
     private static object? EvaluateAssignment(AssignmentExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
+        var reference = AssignmentReferenceResolver.Resolve(
+            new IdentifierExpression(expression.Source, expression.Target), environment, context, EvaluateExpression);
         var targetValue = EvaluateExpression(expression.Value, environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -1295,7 +1297,7 @@ public static class TypedAstEvaluator
 
         try
         {
-            environment.Assign(expression.Target, targetValue);
+            reference.SetValue(targetValue);
             return targetValue;
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
@@ -3773,18 +3775,45 @@ public static class TypedAstEvaluator
         return value.IsNullish();
     }
 
-    private static JsArray CreateArgumentsArray(IReadOnlyList<object?> arguments)
+    private static JsArgumentsObject CreateArgumentsObject(FunctionExpression function,
+        IReadOnlyList<object?> arguments, JsEnvironment environment, RealmState realmState, IJsCallable? callee)
     {
-        var array = new JsArray();
+        var values = new object?[arguments.Count];
         for (var i = 0; i < arguments.Count; i++)
         {
-            array.Push(arguments[i]);
+            values[i] = arguments[i];
         }
 
-        array.DefineProperty("__arguments__",
-            new PropertyDescriptor { Value = true, Writable = false, Enumerable = false, Configurable = false });
+        var mapped = !function.Body.IsStrict && IsSimpleParameterList(function);
+        var mappedParameters = new Symbol?[arguments.Count];
+        if (mapped)
+        {
+            var parameterSymbols = function.Parameters
+                .Where(p => !p.IsRest && p.Pattern is null && p.DefaultValue is null && p.Name is not null)
+                .Select(p => p.Name!)
+                .ToArray();
 
-        return array;
+            for (var i = 0; i < mappedParameters.Length && i < parameterSymbols.Length; i++)
+            {
+                mappedParameters[i] = parameterSymbols[i];
+            }
+        }
+
+        return new JsArgumentsObject(values, mappedParameters, environment, mapped, realmState, callee,
+            function.Body.IsStrict);
+    }
+
+    private static bool IsSimpleParameterList(FunctionExpression function)
+    {
+        foreach (var parameter in function.Parameters)
+        {
+            if (parameter.IsRest || parameter.Pattern is not null || parameter.DefaultValue is not null)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void RestoreSignal(EvaluationContext context, ISignal? signal)
@@ -4297,10 +4326,6 @@ public static class TypedAstEvaluator
             environment.Define(YieldResumeContextSymbol, _resumeContext);
             environment.Define(GeneratorInstanceSymbol, this);
 
-            // Define `arguments` inside generator functions so generator bodies
-            // can observe the values they were invoked with.
-            environment.Define(JsSymbols.Arguments, CreateArgumentsArray(_arguments));
-
             if (_function.Name is { } functionName)
             {
                 environment.Define(functionName, _callable);
@@ -4321,6 +4346,11 @@ public static class TypedAstEvaluator
             {
                 bindingContext.ClearReturn();
             }
+
+            // Define `arguments` inside generator functions so generator bodies
+            // can observe the values they were invoked with (including mappings).
+            var argumentsObject = CreateArgumentsObject(_function, _arguments, environment, _realmState, _callable);
+            environment.Define(JsSymbols.Arguments, argumentsObject, isLexical: false);
 
             return environment;
         }
@@ -5822,8 +5852,6 @@ public static class TypedAstEvaluator
             // arguments they were called with. Arrow functions are also
             // represented as FunctionExpression for now, so this behaves like a
             // per-call arguments array rather than a lexical binding.
-            environment.Define(JsSymbols.Arguments, CreateArgumentsArray(arguments));
-
             // Named function expressions should see their name inside the body.
             if (_function.Name is { } functionName)
             {
@@ -5837,6 +5865,9 @@ public static class TypedAstEvaluator
             {
                 return JsSymbols.Undefined;
             }
+
+            var argumentsObject = CreateArgumentsObject(_function, arguments, environment, _realmState, this);
+            environment.Define(JsSymbols.Arguments, argumentsObject, isLexical: false);
 
             var result = EvaluateBlock(_function.Body, environment, context);
 

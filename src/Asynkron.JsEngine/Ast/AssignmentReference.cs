@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 using JsSymbols = Asynkron.JsEngine.Ast.Symbols;
 
 namespace Asynkron.JsEngine.Ast;
@@ -12,18 +13,32 @@ internal static class AssignmentReferenceResolver
         ExpressionNode expression,
         JsEnvironment environment,
         EvaluationContext context,
-        Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression)
+            Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression)
     {
         return expression switch
         {
-            IdentifierExpression identifier => new AssignmentReference(
-                () => environment.Get(identifier.Name),
-                value => environment.Assign(identifier.Name, value)),
+            IdentifierExpression identifier => ResolveIdentifier(identifier, environment, context),
             MemberExpression member => ResolveMember(member, environment, context, evaluateExpression),
             UnaryExpression { Operator: "++" or "--" } unary =>
                 Resolve(unary.Operand, environment, context, evaluateExpression),
             _ => throw new NotSupportedException("Unsupported assignment target.")
         };
+    }
+
+    private static AssignmentReference ResolveIdentifier(IdentifierExpression identifier, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        if (environment.IsStrict &&
+            (string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal) ||
+             string.Equals(identifier.Name.Name, "arguments", StringComparison.Ordinal)))
+        {
+            throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
+                "Assignment to eval or arguments is not allowed in strict mode.", context, context.RealmState));
+        }
+
+        return new AssignmentReference(
+            () => environment.Get(identifier.Name),
+            value => environment.Assign(identifier.Name, value));
     }
 
     private static AssignmentReference ResolveMember(

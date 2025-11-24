@@ -13,6 +13,7 @@ public sealed class JsEnvironment
     private readonly bool _isFunctionScope;
 
     private readonly Dictionary<Symbol, Binding> _values = new();
+    private Dictionary<Symbol, List<Action<object?>>>? _bindingObservers;
 
     public JsEnvironment(
         JsEnvironment? enclosing = null,
@@ -80,10 +81,12 @@ public sealed class JsEnvironment
 
             binding.Value = value;
             binding.UpgradeLexical(isLexical, blocksFunctionScopeOverride);
+            NotifyBindingObservers(name, value);
             return;
         }
 
         _values[name] = new Binding(value, isConst, isGlobalConstant, isLexical, blocksFunctionScopeOverride);
+        NotifyBindingObservers(name, value);
     }
 
     public void DefineFunctionScoped(
@@ -256,6 +259,7 @@ public sealed class JsEnvironment
 
             binding.Value = value;
             globalObject?.SetProperty(name.Name, value);
+            NotifyBindingObservers(name, value);
             return;
         }
 
@@ -285,6 +289,31 @@ public sealed class JsEnvironment
         if (globalObject is not null)
         {
             globalObject.SetProperty(name.Name, value);
+        }
+    }
+
+    internal void AddBindingObserver(Symbol symbol, Action<object?> observer)
+    {
+        _bindingObservers ??= new Dictionary<Symbol, List<Action<object?>>>(ReferenceEqualityComparer<Symbol>.Instance);
+        if (!_bindingObservers.TryGetValue(symbol, out var list))
+        {
+            list = new List<Action<object?>>();
+            _bindingObservers[symbol] = list;
+        }
+
+        list.Add(observer);
+    }
+
+    private void NotifyBindingObservers(Symbol symbol, object? value)
+    {
+        if (_bindingObservers is null || !_bindingObservers.TryGetValue(symbol, out var observers))
+        {
+            return;
+        }
+
+        foreach (var observer in observers)
+        {
+            observer(value);
         }
     }
 

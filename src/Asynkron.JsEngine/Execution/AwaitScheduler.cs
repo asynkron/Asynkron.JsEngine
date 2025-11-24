@@ -21,8 +21,37 @@ internal static class AwaitScheduler
     {
         resolvedValue = candidate;
 
+        if (candidate is JsPromise jsPromise &&
+            jsPromise.TryGetSettled(out var settledValue, out var isRejected))
+        {
+            if (isRejected)
+            {
+                context.SetThrow(settledValue);
+                resolvedValue = JsSymbols.Undefined;
+                return false;
+            }
+
+            resolvedValue = settledValue;
+            return true;
+        }
+
         while (resolvedValue is JsObject promiseObj && IsPromiseLike(promiseObj))
         {
+            if (promiseObj.TryGetProperty("__promise__", out var internalPromise) &&
+                internalPromise is JsPromise promise &&
+                promise.TryGetSettled(out var settled, out var rejected))
+            {
+                if (rejected)
+                {
+                    context.SetThrow(settled);
+                    resolvedValue = JsSymbols.Undefined;
+                    return false;
+                }
+
+                resolvedValue = settled;
+                continue;
+            }
+
             if (!promiseObj.TryGetProperty("then", out var thenValue) || thenValue is not IJsCallable thenCallable)
             {
                 break;

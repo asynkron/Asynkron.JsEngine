@@ -1,11 +1,17 @@
+using System.Linq;
+using System.Threading.Tasks;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 ///     Represents a JavaScript Promise object that can be resolved or rejected.
 /// </summary>
-public sealed class JsPromise(JsEngine engine)
+public sealed class JsPromise
 {
+    private const string InternalPromiseKey = "__promise__";
     private readonly List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = [];
+    private bool _handlersScheduled;
+    private readonly JsEngine _engine;
 
     private PromiseState _state = PromiseState.Pending;
     private object? _value;
@@ -13,7 +19,17 @@ public sealed class JsPromise(JsEngine engine)
     /// <summary>
     ///     Gets the underlying JsObject for property access.
     /// </summary>
-    public JsObject JsObject { get; } = new();
+    public JsObject JsObject { get; }
+
+    public JsPromise(JsEngine engine)
+    {
+        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        JsObject = new JsObject();
+        JsObject.DefineProperty(InternalPromiseKey, new PropertyDescriptor
+        {
+            Value = this, Writable = false, Enumerable = false, Configurable = false
+        });
+    }
 
     /// <summary>
     ///     Resolves the promise with the given value.
@@ -27,7 +43,7 @@ public sealed class JsPromise(JsEngine engine)
 
         _state = PromiseState.Fulfilled;
         _value = value;
-        ProcessHandlers();
+        ScheduleProcessing();
     }
 
     /// <summary>
@@ -42,7 +58,7 @@ public sealed class JsPromise(JsEngine engine)
 
         _state = PromiseState.Rejected;
         _value = reason;
-        ProcessHandlers();
+        ScheduleProcessing();
     }
 
     /// <summary>
@@ -50,18 +66,55 @@ public sealed class JsPromise(JsEngine engine)
     /// </summary>
     public JsPromise Then(IJsCallable? onFulfilled, IJsCallable? onRejected = null)
     {
-        var nextPromise = new JsPromise(engine);
+        var nextPromise = new JsPromise(_engine);
         _handlers.Add((onFulfilled, onRejected, nextPromise));
 
         if (_state != PromiseState.Pending)
         {
-            ProcessHandlers();
+            ScheduleProcessing();
         }
 
         return nextPromise;
     }
 
-    private void ProcessHandlers()
+    internal bool TryGetSettled(out object? value, out bool isRejected)
+    {
+        if (_state == PromiseState.Pending)
+        {
+            value = null;
+            isRejected = false;
+            return false;
+        }
+
+        value = _value;
+        isRejected = _state == PromiseState.Rejected;
+        return true;
+    }
+
+    private void ScheduleProcessing()
+    {
+        if (_handlersScheduled)
+        {
+            return;
+        }
+
+        _handlersScheduled = true;
+        _engine.ScheduleTask(() =>
+        {
+            try
+            {
+                ProcessHandlersCore();
+            }
+            finally
+            {
+                _handlersScheduled = false;
+            }
+
+            return Task.CompletedTask;
+        });
+    }
+
+    private void ProcessHandlersCore()
     {
         if (_state == PromiseState.Pending)
         {
@@ -147,6 +200,11 @@ public sealed class JsPromise(JsEngine engine)
             {
                 nextPromise.Reject(ex.Message);
             }
+        }
+
+        if (_handlers.Count > 0)
+        {
+            ScheduleProcessing();
         }
     }
 

@@ -34,6 +34,7 @@
     "language/expressions/instanceof/prototype-getter-with-primitive.js",
     "language/statements/block/tco-stmt-list.js",
     "language/statements/block/tco-stmt.js",
-    "built-ins/AsyncFromSyncIteratorPrototype/next/for-await-next-rejected-promise-close.js"
+    "built-ins/AsyncFromSyncIteratorPrototype/next/for-await-next-rejected-promise-close.js",
+    "built-ins/AsyncFromSyncIteratorPrototype/next/return-promise.js"
   ]
 }

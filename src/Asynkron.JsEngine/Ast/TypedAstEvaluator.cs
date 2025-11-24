@@ -1973,7 +1973,7 @@ public static class TypedAstEvaluator
             ">>" => RightShift(left, right, context),
             ">>>" => UnsignedRightShift(left, right, context),
             "in" => InOperator(left, right, context),
-            "instanceof" => InstanceofOperator(left, right),
+            "instanceof" => InstanceofOperator(left, right, context),
             _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
         };
     }
@@ -1986,8 +1986,14 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
+        if (++context.CallDepth > context.MaxCallDepth)
+        {
+            throw new InvalidOperationException($"Exceeded maximum call depth of {context.MaxCallDepth}.");
+        }
+
         if (expression.IsOptional && IsNullish(callee))
         {
+            context.CallDepth--;
             return JsSymbols.Undefined;
         }
 
@@ -2092,7 +2098,15 @@ public static class TypedAstEvaluator
 
         try
         {
-            var result = callable.Invoke(frozenArguments, thisValue);
+            object? result;
+            if (callable is TypedFunction typedFunction)
+            {
+                result = typedFunction.InvokeWithContext(frozenArguments, thisValue, context);
+            }
+            else
+            {
+                result = callable.Invoke(frozenArguments, thisValue);
+            }
             if (expression.Callee is SuperExpression)
             {
                 context.MarkThisInitialized();
@@ -2107,6 +2121,7 @@ public static class TypedAstEvaluator
         }
         finally
         {
+            context.CallDepth--;
             if (debugFunction is not null)
             {
                 debugFunction.CurrentJsEnvironment = null;
@@ -2158,6 +2173,11 @@ public static class TypedAstEvaluator
         }
 
         var frozenArguments = FreezeArguments(argsBuilder);
+        if (targetFunction is TypedFunction typedFunction)
+        {
+            return typedFunction.InvokeWithContext(frozenArguments, thisArg, context);
+        }
+
         return targetFunction.Invoke(frozenArguments, thisArg);
     }
 
@@ -2193,6 +2213,11 @@ public static class TypedAstEvaluator
         }
 
         var frozenArguments = FreezeArguments(argsBuilder);
+        if (targetFunction is TypedFunction typedFunction)
+        {
+            return typedFunction.InvokeWithContext(frozenArguments, thisArg, context);
+        }
+
         return targetFunction.Invoke(frozenArguments, thisArg);
     }
 
@@ -2375,7 +2400,14 @@ public static class TypedAstEvaluator
         object? result;
         try
         {
-            result = callable.Invoke(args.MoveToImmutable(), instance);
+            if (callable is TypedFunction typedFunction)
+            {
+                result = typedFunction.InvokeWithContext(args.MoveToImmutable(), instance, context);
+            }
+            else
+            {
+                result = callable.Invoke(args.MoveToImmutable(), instance);
+            }
         }
         catch (ThrowSignal signal)
         {
@@ -3400,14 +3432,74 @@ public static class TypedAstEvaluator
         return TryGetPropertyValue(target, propertyName, out _, context);
     }
 
-    private static bool InstanceofOperator(object? left, object? right)
+    private static bool InstanceofOperator(object? left, object? right, EvaluationContext context)
     {
-        if (!TryGetPropertyValue(right, "prototype", out var prototype) || prototype is not JsObject prototypeObject)
+        if (right is not IJsPropertyAccessor)
         {
-            throw new InvalidOperationException("Right-hand side of 'instanceof' is not a constructor.");
+            context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not an object",
+                context));
+            return false;
         }
 
-        var current = left switch
+        var hasInstanceSymbol = TypedAstSymbol.For("Symbol.hasInstance");
+        if (TryGetPropertyValue(right, hasInstanceSymbol, out var hasInstance, context))
+        {
+            if (!IsNullish(hasInstance))
+            {
+                if (hasInstance is not IJsCallable callable)
+                {
+                    context.SetThrow(StandardLibrary.CreateTypeError("@@hasInstance is not callable", context));
+                    return false;
+                }
+
+                try
+                {
+                    var result = callable.Invoke(new object?[] { left }, right);
+                    return JsOps.ToBoolean(result);
+                }
+                catch (ThrowSignal signal)
+                {
+                    context.SetThrow(signal.ThrownValue);
+                    return false;
+                }
+            }
+        }
+        else if (context.ShouldStopEvaluation)
+        {
+            return false;
+        }
+
+        if (right is not IJsCallable)
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
+                context));
+            return false;
+        }
+
+        return OrdinaryHasInstance(left, right, context);
+    }
+
+    private static bool OrdinaryHasInstance(object? candidate, object? constructor, EvaluationContext context)
+    {
+        if (constructor is not IJsCallable)
+        {
+            return false;
+        }
+
+        if (candidate is not JsObject && candidate is not IJsObjectLike)
+        {
+            return false;
+        }
+
+        if (!TryGetPropertyValue(constructor, "prototype", out var prototype, context) ||
+            prototype is not JsObject prototypeObject)
+        {
+            context.SetThrow(
+                StandardLibrary.CreateTypeError("Function has non-object prototype in instanceof check", context));
+            return false;
+        }
+
+        var current = candidate switch
         {
             JsObject obj => obj.Prototype,
             IJsObjectLike objectLike => objectLike.Prototype,
@@ -3422,19 +3514,6 @@ public static class TypedAstEvaluator
             }
 
             current = current.Prototype;
-        }
-
-        // Fallback for branded error objects where the prototype chain was
-        // constructed correctly but does not match by reference (e.g. across
-        // realms or when a test mutates globals). If the thrown object carries
-        // a matching name tag, treat it as an instance of the constructor.
-        if (TryGetPropertyValue(right, "name", out var ctorName) &&
-            ctorName is string nameString &&
-            TryGetPropertyValue(left, "name", out var valueName) &&
-            valueName is string valueNameString &&
-            string.Equals(nameString, valueNameString, StringComparison.Ordinal))
-        {
-            return true;
         }
 
         return false;
@@ -5689,7 +5768,18 @@ public static class TypedAstEvaluator
 
         public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
         {
+            return InvokeWithContext(arguments, thisValue, callingContext: null);
+        }
+
+        public object? InvokeWithContext(IReadOnlyList<object?> arguments, object? thisValue,
+            EvaluationContext? callingContext)
+        {
             var context = new EvaluationContext(_realmState);
+            if (callingContext is not null)
+            {
+                context.CallDepth = callingContext.CallDepth;
+                context.MaxCallDepth = callingContext.MaxCallDepth;
+            }
             var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
             var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
 

@@ -14,6 +14,7 @@ public static partial class StandardLibrary
         symbolConstructor.SetHostedProperty("keyFor", SymbolKeyFor);
 
         // Well-known symbols
+        symbolConstructor.SetProperty("hasInstance", TypedAstSymbol.For("Symbol.hasInstance"));
         symbolConstructor.SetProperty("iterator", TypedAstSymbol.For("Symbol.iterator"));
         symbolConstructor.SetProperty("asyncIterator", TypedAstSymbol.For("Symbol.asyncIterator"));
         symbolConstructor.SetProperty("toPrimitive", TypedAstSymbol.For("Symbol.toPrimitive"));

@@ -63,38 +63,38 @@ public static partial class StandardLibrary
         {
             functionPrototype.SetPrototype(realm.ObjectPrototype);
         }
+        functionPrototype.SetProperty("constructor", functionConstructor);
 
         var hasInstanceKey = $"@@symbol:{TypedAstSymbol.For("Symbol.hasInstance").GetHashCode()}";
-        functionPrototype.SetProperty(hasInstanceKey, new HostFunction((thisValue, args) =>
+        var hasInstance = new HostFunction((thisValue, args) =>
         {
-            if (thisValue is not IJsCallable)
+            if (thisValue is not IJsPropertyAccessor)
             {
-                throw new InvalidOperationException("Function.prototype[@@hasInstance] called on non-callable value.");
+                throw ThrowTypeError("Function.prototype[@@hasInstance] called on non-object", null, realm);
             }
 
             var candidate = args.Count > 0 ? args[0] : Symbols.Undefined;
-            if (candidate is not JsObject obj)
+            if (candidate is not JsObject && candidate is not IJsObjectLike)
             {
                 return false;
             }
 
-            JsObject? targetPrototype = null;
-            if (thisValue is IJsPropertyAccessor accessor &&
-                accessor.TryGetProperty("prototype", out var protoVal) &&
-                protoVal is JsObject protoObj)
+            if (!JsOps.TryGetPropertyValue(thisValue, "prototype", out var protoVal, null) ||
+                protoVal is not JsObject prototypeObject)
             {
-                targetPrototype = protoObj;
+                throw ThrowTypeError("Function has non-object prototype in instanceof check", null, realm);
             }
 
-            if (targetPrototype is null)
+            var cursor = candidate switch
             {
-                return false;
-            }
+                JsObject obj => obj.Prototype,
+                IJsObjectLike objectLike => objectLike.Prototype,
+                _ => null
+            };
 
-            var cursor = obj;
             while (cursor is not null)
             {
-                if (ReferenceEquals(cursor, targetPrototype))
+                if (ReferenceEquals(cursor, prototypeObject))
                 {
                     return true;
                 }
@@ -103,7 +103,11 @@ public static partial class StandardLibrary
             }
 
             return false;
-        }));
+        })
+        {
+            RealmState = realm
+        };
+        functionPrototype.SetProperty(hasInstanceKey, hasInstance);
         realm.FunctionPrototype ??= functionPrototype;
         functionConstructor.SetProperty("prototype", functionPrototype);
         functionConstructor.Properties.SetPrototype(functionPrototype);

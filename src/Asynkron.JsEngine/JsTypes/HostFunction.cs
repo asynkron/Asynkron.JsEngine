@@ -15,8 +15,7 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
         ArgumentNullException.ThrowIfNull(handler);
 
         _handler = (_, args) => handler(args);
-        Properties.SetProperty("prototype", new JsObject());
-        EnsureFunctionPrototype();
+        InitializePrototype();
     }
 
     public HostFunction(Func<IReadOnlyList<object?>, object?> handler, RealmState? realmState)
@@ -28,8 +27,7 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
     public HostFunction(Func<object?, IReadOnlyList<object?>, object?> handler)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
-        Properties.SetProperty("prototype", new JsObject());
-        EnsureFunctionPrototype();
+        InitializePrototype();
     }
 
     public HostFunction(Func<object?, IReadOnlyList<object?>, object?> handler, RealmState? realmState)
@@ -49,8 +47,7 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
 
         RealmState = realmState;
         _handler = (thisValue, args) => handler(thisValue, args, realmState);
-        Properties.SetProperty("prototype", new JsObject());
-        EnsureFunctionPrototype();
+        InitializePrototype();
     }
 
     /// <summary>
@@ -217,5 +214,13 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
         {
             Properties.SetPrototype(functionPrototype);
         }
+    }
+
+    private void InitializePrototype()
+    {
+        var prototype = new JsObject();
+        prototype.SetProperty("constructor", this);
+        Properties.SetProperty("prototype", prototype);
+        EnsureFunctionPrototype();
     }
 }

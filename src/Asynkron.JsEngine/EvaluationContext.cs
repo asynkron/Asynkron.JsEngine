@@ -40,6 +40,16 @@ public sealed class EvaluationContext(
     public ISignal? CurrentSignal { get; private set; }
 
     /// <summary>
+    ///     Tracks dynamic call depth to guard against uncontrolled recursion.
+    /// </summary>
+    public int CallDepth { get; set; }
+
+    /// <summary>
+    ///     Maximum allowed dynamic call depth before we bail out.
+    /// </summary>
+    public int MaxCallDepth { get; set; } = 1000;
+
+    /// <summary>
     ///     Indicates whether the current execution context has an initialized
     ///     <c>this</c> binding (used for derived class constructor checks).
     /// </summary>

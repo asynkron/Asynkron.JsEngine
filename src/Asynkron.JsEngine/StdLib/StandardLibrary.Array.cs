@@ -1555,6 +1555,8 @@ public static partial class StandardLibrary
             arrayPrototype = arrayProtoObj;
             realm.ArrayPrototype ??= arrayProtoObj;
             AddArrayMethods(arrayProtoObj, realm);
+            arrayProtoObj.DefineProperty("constructor",
+                new PropertyDescriptor { Value = arrayConstructor, Writable = true, Enumerable = false, Configurable = true });
             arrayProtoObj.DefineProperty("length",
                 new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
             var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");

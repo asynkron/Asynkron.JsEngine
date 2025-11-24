@@ -362,11 +362,6 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, b
                     }
 
                     restTarget = ParseBindingTarget("Expected identifier after '...'.");
-                    if (restTarget is not IdentifierBinding)
-                    {
-                        throw new ParseException("Rest element must be an identifier.", Peek(), _source);
-                    }
-
                     break;
                 }
 
@@ -2314,11 +2309,6 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, b
 
                 if (Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace))
                 {
-                    if (isRest)
-                    {
-                        throw new ParseException("Rest parameters must be identifiers.", Peek(), _source);
-                    }
-
                     var patternStart = Peek();
                     pattern = ParseBindingTarget("Expected parameter pattern.");
                     source = pattern.Source ?? CreateSourceReference(patternStart);
@@ -2461,10 +2451,6 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, b
 
                     var restBinding = ConvertExpressionToBindingTarget(element.Expression)
                                       ?? throw new NotSupportedException("Invalid rest binding target.");
-                    if (restBinding is not IdentifierBinding)
-                    {
-                        throw new NotSupportedException("Rest binding must be an identifier.");
-                    }
 
                     restTarget = restBinding;
                     continue;
@@ -2799,10 +2785,10 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, b
                     TokenType.Switch or TokenType.Case or TokenType.Default or TokenType.Break or
                     TokenType.Continue or TokenType.Return or TokenType.Try or TokenType.Catch or
                     TokenType.Finally or TokenType.Throw or TokenType.This or TokenType.Super or
-                    TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
-                    TokenType.Undefined or TokenType.Typeof or TokenType.Void or TokenType.Delete or
-                    TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or
-                    TokenType.Await => true,
+                TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
+                    TokenType.Undefined or TokenType.Typeof or TokenType.Instanceof or TokenType.Void or TokenType.Delete or
+                TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or
+                    TokenType.Await or TokenType.Static or TokenType.Import or TokenType.Export => true,
                 _ => false
             };
         }
@@ -2948,8 +2934,18 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, b
             }
 
             var token = Peek();
-            return token.Type is TokenType.Async or TokenType.Await or TokenType.Yield ||
-                   IsContextualIdentifierToken(token);
+            if (token.Type is TokenType.Async or TokenType.Await or TokenType.Yield ||
+                IsContextualIdentifierToken(token))
+            {
+                return true;
+            }
+
+            if (!InStrictContext && token.Type is TokenType.Static or TokenType.Let)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private static bool IsContextualIdentifierToken(Token token)

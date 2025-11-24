@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using System.IO;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 

@@ -31,6 +31,7 @@ public static class TypedAstEvaluator
         $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
 
     private static readonly object GeneratorBrandMarker = new();
+    private static readonly object EmptyCompletion = new();
 
     public static object? EvaluateProgram(
         ProgramNode program,
@@ -54,10 +55,17 @@ public static class TypedAstEvaluator
         HoistVarDeclarations(programBlock, executionEnvironment, context, lexicalNames: blockedNames);
 
         object? result = JsSymbols.Undefined;
+        var hasResult = false;
         foreach (var statement in program.Body)
         {
             context.ThrowIfCancellationRequested();
-            result = EvaluateStatement(statement, executionEnvironment, context);
+            var completion = EvaluateStatement(statement, executionEnvironment, context);
+            if (!ReferenceEquals(completion, EmptyCompletion))
+            {
+                result = completion;
+                hasResult = true;
+            }
+
             if (context.ShouldStopEvaluation)
             {
                 break;
@@ -69,7 +77,7 @@ public static class TypedAstEvaluator
             throw new ThrowSignal(context.FlowValue);
         }
 
-        return result;
+        return hasResult ? result : JsSymbols.Undefined;
     }
 
     private static object? EvaluateStatement(StatementNode statement, JsEnvironment environment,
@@ -100,7 +108,7 @@ public static class TypedAstEvaluator
             TryStatement tryStatement => EvaluateTry(tryStatement, environment, context),
             SwitchStatement switchStatement => EvaluateSwitch(switchStatement, environment, context, activeLabel),
             ClassDeclaration classDeclaration => EvaluateClass(classDeclaration, environment, context),
-            EmptyStatement => JsSymbols.Undefined,
+            EmptyStatement => EmptyCompletion,
             _ => throw new NotSupportedException(
                 $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
         };
@@ -110,18 +118,25 @@ public static class TypedAstEvaluator
     {
         var scope = new JsEnvironment(environment, false, block.IsStrict);
         object? result = JsSymbols.Undefined;
+        var hasResult = false;
 
         foreach (var statement in block.Statements)
         {
             context.ThrowIfCancellationRequested();
-            result = EvaluateStatement(statement, scope, context);
+            var completion = EvaluateStatement(statement, scope, context);
+            if (!ReferenceEquals(completion, EmptyCompletion))
+            {
+                result = completion;
+                hasResult = true;
+            }
+
             if (context.ShouldStopEvaluation)
             {
                 break;
             }
         }
 
-        return result;
+        return hasResult ? result : EmptyCompletion;
     }
 
     private static object? EvaluateReturn(ReturnStatement statement, JsEnvironment environment,
@@ -779,11 +794,11 @@ public static class TypedAstEvaluator
         var constructorValue = CreateClassValue(declaration.Definition, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return constructorValue;
+            return EmptyCompletion;
         }
 
         environment.Define(declaration.Name, constructorValue, isLexical: true, blocksFunctionScopeOverride: true);
-        return constructorValue;
+        return EmptyCompletion;
     }
 
     private static object? EvaluateLoopPlan(LoopPlan plan, JsEnvironment environment, EvaluationContext context,
@@ -1137,7 +1152,7 @@ public static class TypedAstEvaluator
             }
         }
 
-        return JsSymbols.Undefined;
+        return EmptyCompletion;
     }
 
     private static void EvaluateVariableDeclarator(VariableKind kind, VariableDeclarator declarator,
@@ -1182,7 +1197,7 @@ public static class TypedAstEvaluator
                 configurable);
         }
 
-        return function;
+        return EmptyCompletion;
     }
 
     private static IJsCallable CreateFunctionValue(FunctionExpression functionExpression, JsEnvironment environment,
@@ -1211,7 +1226,7 @@ public static class TypedAstEvaluator
 
             if (context.TryClearBreak(statement.Label))
             {
-                return JsSymbols.Undefined;
+                return EmptyCompletion;
             }
 
             return result;
@@ -2484,7 +2499,7 @@ public static class TypedAstEvaluator
                         return JsSymbols.Undefined;
                     }
 
-                    obj.SetGetter(name, getter);
+                    DefineAccessorProperty(obj, name, getter, null);
                     break;
                 }
                 case ObjectMemberKind.Setter:
@@ -2497,7 +2512,7 @@ public static class TypedAstEvaluator
                         return JsSymbols.Undefined;
                     }
 
-                    obj.SetSetter(name, setter);
+                    DefineAccessorProperty(obj, name, null, setter);
                     break;
                 }
                 case ObjectMemberKind.Field:
@@ -2551,6 +2566,16 @@ public static class TypedAstEvaluator
         }
 
         return obj;
+    }
+
+    private static void DefineAccessorProperty(JsObject obj, string name, IJsCallable? getter, IJsCallable? setter)
+    {
+        var descriptor = obj.GetOwnPropertyDescriptor(name) ??
+                         new PropertyDescriptor { Enumerable = true, Configurable = true };
+
+        descriptor.Get = getter ?? descriptor.Get;
+        descriptor.Set = setter ?? descriptor.Set;
+        obj.DefineProperty(name, descriptor);
     }
 
     private static string ResolveObjectMemberName(ObjectMember member, JsEnvironment environment,
@@ -3676,23 +3701,31 @@ public static class TypedAstEvaluator
         {
             if (parameter.IsRest)
             {
-                if (parameter.Pattern is not null)
-                {
-                    throw new NotSupportedException("Rest parameters cannot use destructuring patterns.");
-                }
-
-                var restArray = new JsArray();
+                var restArray = new JsArray(context.RealmState);
                 for (; argumentIndex < arguments.Count; argumentIndex++)
                 {
                     restArray.Push(arguments[argumentIndex]);
                 }
 
-                if (parameter.Name is null)
+                if (parameter.Pattern is not null)
                 {
-                    throw new InvalidOperationException("Rest parameter must have an identifier.");
+                    ApplyBindingTarget(parameter.Pattern, restArray, environment, context,
+                        BindingMode.DefineParameter);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    if (parameter.Name is null)
+                    {
+                        throw new InvalidOperationException("Rest parameter must have an identifier.");
+                    }
+
+                    environment.Define(parameter.Name, restArray, isLexical: false);
                 }
 
-                environment.Define(parameter.Name, restArray, isLexical: false);
                 continue;
             }
 
@@ -5596,7 +5629,7 @@ public static class TypedAstEvaluator
             _function = function;
             _closure = closure;
             _realmState = realmState;
-            var paramCount = function.Parameters.Length;
+            var paramCount = GetExpectedParameterCount(function.Parameters);
             if (_realmState.FunctionPrototype is not null)
             {
                 _properties.SetPrototype(_realmState.FunctionPrototype);
@@ -5861,6 +5894,22 @@ public static class TypedAstEvaluator
 
                 instance.SetProperty(field.Name, value);
             }
+        }
+
+        private static int GetExpectedParameterCount(ImmutableArray<FunctionParameter> parameters)
+        {
+            var count = 0;
+            foreach (var parameter in parameters)
+            {
+                if (parameter.IsRest || parameter.DefaultValue is not null)
+                {
+                    break;
+                }
+
+                count++;
+            }
+
+            return count;
         }
     }
 }

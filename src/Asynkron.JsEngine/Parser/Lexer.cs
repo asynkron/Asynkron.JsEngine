@@ -354,9 +354,9 @@ public sealed class Lexer(string source)
                 {
                     ReadNumber();
                 }
-                else if (IsAlpha(c))
+                else if (IsIdentifierStart(c) || c == '\\')
                 {
-                    ReadIdentifier();
+                    ReadIdentifier(c);
                 }
                 else
                 {
@@ -404,22 +404,95 @@ public sealed class Lexer(string source)
         throw new ParseException("Unterminated multi-line comment.");
     }
 
-    private void ReadIdentifier()
+    private void ReadIdentifier(char firstChar)
     {
-        while (IsAlphaNumeric(Peek()))
+        var builder = new StringBuilder();
+        if (firstChar == '\\')
         {
-            Advance();
-        }
-
-        var text = _source[_start.._current];
-        if (Keywords.TryGetValue(text, out var keyword))
-        {
-            AddToken(keyword);
+            builder.Append(ReadIdentifierEscape(backslashConsumed: true));
         }
         else
         {
-            AddToken(TokenType.Identifier);
+            builder.Append(firstChar);
         }
+
+        while (true)
+        {
+            if (Peek() == '\\')
+            {
+                builder.Append(ReadIdentifierEscape());
+                continue;
+            }
+
+            var current = Peek();
+            if (!IsIdentifierPart(current))
+            {
+                break;
+            }
+
+            builder.Append(Advance());
+        }
+
+        var text = builder.ToString();
+        if (Keywords.TryGetValue(text, out var keyword))
+        {
+            _tokens.Add(new Token(keyword, text, null, _startLine, _startColumn, _start, _current));
+        }
+        else
+        {
+            _tokens.Add(new Token(TokenType.Identifier, text, null, _startLine, _startColumn, _start, _current));
+        }
+    }
+
+    private string ReadIdentifierEscape(bool backslashConsumed = false)
+    {
+        if (!backslashConsumed)
+        {
+            Advance(); // consume '\'
+        }
+
+        if (!Match('u'))
+        {
+            throw new ParseException("Invalid identifier escape sequence.");
+        }
+
+        if (Match('{'))
+        {
+            var start = _current;
+            while (!IsAtEnd && Peek() != '}')
+            {
+                Advance();
+            }
+
+            if (IsAtEnd)
+            {
+                throw new ParseException("Unterminated identifier escape sequence.");
+            }
+
+            var hexDigits = _source[start.._current];
+            if (!int.TryParse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var codePoint))
+            {
+                throw new ParseException("Invalid identifier escape sequence.");
+            }
+
+            Advance(); // consume }
+            return char.ConvertFromUtf32(codePoint);
+        }
+
+        if (_current + 4 > _source.Length)
+        {
+            throw new ParseException("Invalid identifier escape sequence.");
+        }
+
+        var hex = _source.Substring(_current, 4);
+        if (!int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value))
+        {
+            throw new ParseException("Invalid identifier escape sequence.");
+        }
+
+        _current += 4;
+        _column += 4;
+        return char.ConvertFromUtf32(value);
     }
 
     private void ReadPrivateIdentifier()
@@ -1009,14 +1082,40 @@ public sealed class Lexer(string source)
         return builder.ToString();
     }
 
+    private static bool IsIdentifierStart(char c)
+    {
+        if (c == '$' || c == '_' || char.IsLetter(c))
+        {
+            return true;
+        }
+
+        var category = char.GetUnicodeCategory(c);
+        return category is UnicodeCategory.LetterNumber or UnicodeCategory.OtherLetter
+            or UnicodeCategory.TitlecaseLetter;
+    }
+
+    private static bool IsIdentifierPart(char c)
+    {
+        if (IsIdentifierStart(c) || IsDigit(c))
+        {
+            return true;
+        }
+
+        var category = char.GetUnicodeCategory(c);
+        return category is UnicodeCategory.NonSpacingMark
+            or UnicodeCategory.SpacingCombiningMark
+            or UnicodeCategory.ConnectorPunctuation
+            or UnicodeCategory.Format;
+    }
+
     private static bool IsAlpha(char c)
     {
-        return c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or '_' or '$';
+        return IsIdentifierStart(c);
     }
 
     private static bool IsAlphaNumeric(char c)
     {
-        return IsAlpha(c) || IsDigit(c);
+        return IsIdentifierPart(c);
     }
 
     private static bool IsHexDigit(char c)
@@ -1060,6 +1159,7 @@ public sealed class Lexer(string source)
             TokenType.LeftParen or
             TokenType.LeftBracket or
             TokenType.LeftBrace or
+            TokenType.RightBrace or
             TokenType.Comma or
             TokenType.Colon or
             TokenType.Semicolon or
@@ -1194,21 +1294,19 @@ public sealed class Lexer(string source)
                         i += 2;
                         break;
                     case '0':
-                        // \0 followed by an octal digit is a legacy octal escape
-                        if (i + 2 < rawString.Length && IsOctalDigit(rawString[i + 2]))
+                    case >= '1' and <= '7':
+                    {
+                        var firstDigit = rawString[i + 1];
+                        var (octalValue, length) = DecodeLegacyOctal(rawString, i + 1);
+                        result.Append((char)octalValue);
+                        if (!(length == 1 && firstDigit == '0'))
                         {
-                            var (octalValue, length) = DecodeOctal(rawString, i + 1);
-                            result.Append((char)octalValue);
                             hasLegacyOctal = true;
-                            i += 1 + length;
-                        }
-                        else
-                        {
-                            result.Append('\0');
-                            i += 2;
                         }
 
+                        i += 1 + length;
                         break;
+                    }
                     case '\\':
                         result.Append('\\');
                         i += 2;
@@ -1221,14 +1319,6 @@ public sealed class Lexer(string source)
                         result.Append('"');
                         i += 2;
                         break;
-                    case >= '1' and <= '7':
-                    {
-                        var (octalValue, length) = DecodeOctal(rawString, i + 1);
-                        result.Append((char)octalValue);
-                        hasLegacyOctal = true;
-                        i += 1 + length;
-                        break;
-                    }
                     case 'x':
                         // Hexadecimal escape sequence \xHH
                         if (i + 3 < rawString.Length)
@@ -1323,6 +1413,11 @@ public sealed class Lexer(string source)
                                 i++;
                             }
                         }
+                        else if (nextChar == '\u2028' || nextChar == '\u2029')
+                        {
+                            // Line continuation with Unicode LS or PS
+                            i += 2;
+                        }
                         else
                         {
                             // For any other character after \, just include the character itself
@@ -1342,12 +1437,20 @@ public sealed class Lexer(string source)
 
         return new DecodedString(result.ToString(), hasLegacyOctal);
 
-        static (int Value, int Length) DecodeOctal(string raw, int start)
+        static (int Value, int Length) DecodeLegacyOctal(string raw, int start)
         {
-            var length = 0;
-            var value = 0;
-            var index = start;
-            while (index < raw.Length && length < 3 && IsOctalDigit(raw[index]))
+            var first = raw[start];
+            if (!IsOctalDigit(first))
+            {
+                return (first, 1);
+            }
+
+            var length = 1;
+            var maxLength = first is >= '0' and <= '3' ? 3 : 2;
+
+            var value = first - '0';
+            var index = start + 1;
+            while (index < raw.Length && length < maxLength && IsOctalDigit(raw[index]))
             {
                 value = value * 8 + (raw[index] - '0');
                 length++;

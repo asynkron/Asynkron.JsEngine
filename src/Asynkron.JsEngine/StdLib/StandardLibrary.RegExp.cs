@@ -2,7 +2,6 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
-using System.Text.RegularExpressions;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -100,6 +99,9 @@ public static partial class StandardLibrary
 
         // exec(string) - returns array with match details or null
         regex.JsObject.SetHostedProperty("exec", RegExpExec);
+
+        // toString() - returns `/pattern/flags`
+        regex.JsObject.SetHostedProperty("toString", RegExpToString);
     }
 
     private static object CreateSyntaxError(string message, RealmState? realm)
@@ -168,5 +170,16 @@ public static partial class StandardLibrary
         }
 
         return null;
+    }
+
+    private static object RegExpToString(object? thisValue, IReadOnlyList<object?> args)
+    {
+        var resolved = ResolveRegExpInstance(thisValue);
+        if (resolved is null)
+        {
+            return "/undefined/";
+        }
+
+        return $"/{resolved.Pattern}/{resolved.Flags}";
     }
 }

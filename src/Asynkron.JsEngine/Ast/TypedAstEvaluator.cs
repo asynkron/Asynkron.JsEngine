@@ -38,13 +38,20 @@ public static class TypedAstEvaluator
         JsEnvironment environment,
         RealmState realmState,
         CancellationToken cancellationToken = default,
-        ExecutionKind executionKind = ExecutionKind.Script)
+        ExecutionKind executionKind = ExecutionKind.Script,
+        bool createStrictEnvironment = true)
     {
         var context = new EvaluationContext(realmState, cancellationToken, executionKind)
         {
             SourceReference = program.Source
         };
-        var executionEnvironment = program.IsStrict ? new JsEnvironment(environment, true, true) : environment;
+        var executionEnvironment = program.IsStrict && createStrictEnvironment
+            ? new JsEnvironment(environment, true, true)
+            : environment;
+        if (program.IsStrict && !executionEnvironment.IsStrict)
+        {
+            executionEnvironment = new JsEnvironment(executionEnvironment, true, true);
+        }
 
         // Hoist var and function declarations in the program body so that
         // function declarations like `function formatArgs(...) {}` are

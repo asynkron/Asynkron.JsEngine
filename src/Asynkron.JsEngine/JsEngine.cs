@@ -32,7 +32,7 @@ public sealed class JsEngine : IAsyncDisposable
     private Channel<Func<Task>>? _eventQueue;
 
     // Module loader function: allows custom module loading logic
-    private Func<string, string>? _moduleLoader;
+    private Func<string, string?, string>? _moduleLoader;
     private int _nextTimerId = 1;
     private int _pendingTaskCount; // Track pending tasks in the event queue
     private int? _eventLoopThreadId;
@@ -321,9 +321,9 @@ public sealed class JsEngine : IAsyncDisposable
     ///     typed AST. This is primarily used by the evaluator so we avoid rebuilding the typed
     ///     tree multiple times.
     /// </summary>
-    internal ParsedProgram ParseForExecution(string source, bool forceStrict = false)
+    internal ParsedProgram ParseForExecution(string source, bool forceStrict = false, bool allowTopLevelAwait = false)
     {
-        var typedProgram = ParseTypedProgram(source, forceStrict);
+        var typedProgram = ParseTypedProgram(source, forceStrict, allowTopLevelAwait);
         if (forceStrict && !typedProgram.IsStrict)
         {
             typedProgram = new ProgramNode(typedProgram.Source, typedProgram.Body, true);
@@ -372,11 +372,14 @@ public sealed class JsEngine : IAsyncDisposable
         return (original, constantFolded, cpsTransformed);
     }
 
-    private static ProgramNode ParseTypedProgram(string source, bool forceStrict = false)
+    private static ProgramNode ParseTypedProgram(
+        string source,
+        bool forceStrict = false,
+        bool allowTopLevelAwait = false)
     {
         var lexer = new Lexer(source);
         var tokens = lexer.Tokenize();
-        var typedParser = new TypedAstParser(tokens, source, forceStrict);
+        var typedParser = new TypedAstParser(tokens, source, forceStrict, allowTopLevelAwait);
         return typedParser.ParseProgram();
     }
 
@@ -497,17 +500,34 @@ public sealed class JsEngine : IAsyncDisposable
         return Evaluate(program, cancellationToken);
     }
 
+    public Task<object?> Evaluate(string source, string? sourcePath, CancellationToken cancellationToken = default)
+    {
+        var program = ParseForExecution(source);
+        return Evaluate(program, cancellationToken, sourcePath);
+    }
+
+    public Task<object?> EvaluateModule(string source, string? sourcePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var program = ParseForExecution(source, forceStrict: true, allowTopLevelAwait: true);
+        return Evaluate(program, cancellationToken, sourcePath, forceModule: true);
+    }
+
     /// <summary>
     ///     Evaluates an S-expression program by scheduling it on the event queue.
     ///     This ensures all code executes through the event loop, maintaining proper
     ///     single-threaded execution semantics.
     /// </summary>
-    private async Task<object?> Evaluate(ParsedProgram program, CancellationToken cancellationToken = default)
+    private async Task<object?> Evaluate(
+        ParsedProgram program,
+        CancellationToken cancellationToken = default,
+        string? sourcePath = null,
+        bool forceModule = false)
     {
         if (_eventQueue is not null && _eventLoopThreadId == Environment.CurrentManagedThreadId)
         {
             // Already running on the event loop thread; execute synchronously to avoid deadlocks
-            return EvaluateInline(program, cancellationToken);
+            return EvaluateInline(program, cancellationToken, sourcePath, forceModule);
         }
 
         StartEventLoop();
@@ -527,12 +547,13 @@ public sealed class JsEngine : IAsyncDisposable
             try
             {
                 object? result;
-                // Check if the program contains any import/export statements
-                if (HasModuleStatements(program.Typed))
+                var isModule = forceModule || HasModuleStatements(program.Typed);
+                if (isModule)
                 {
                     // Treat as a module
                     var exports = new JsObject();
-                    result = EvaluateModule(program, _global, exports);
+                    var moduleEnv = new JsEnvironment(_global, isStrict: true);
+                    result = EvaluateModule(program, moduleEnv, exports, sourcePath);
                 }
                 else
                 {
@@ -597,11 +618,23 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private object? EvaluateInline(ParsedProgram program, CancellationToken cancellationToken)
+    private object? EvaluateInline(
+        ParsedProgram program,
+        CancellationToken cancellationToken,
+        string? sourcePath = null,
+        bool forceModule = false)
     {
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
         try
         {
+            var isModule = forceModule || HasModuleStatements(program.Typed);
+            if (isModule)
+            {
+                var exports = new JsObject();
+                var moduleEnv = new JsEnvironment(_global, isStrict: true);
+                return EvaluateModule(program, moduleEnv, exports, sourcePath);
+            }
+
             return ExecuteProgram(program, _global, combinedToken);
         }
         finally
@@ -976,6 +1009,11 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public void SetModuleLoader(Func<string, string> loader)
     {
+        _moduleLoader = (path, _) => loader(path);
+    }
+
+    public void SetModuleLoader(Func<string, string?, string> loader)
+    {
         _moduleLoader = loader;
     }
 
@@ -983,10 +1021,12 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Loads and evaluates a module, returning its exports object.
     ///     If the module has already been loaded, returns the cached exports.
     /// </summary>
-    private JsObject LoadModule(string modulePath)
+    private JsObject LoadModule(string modulePath, string? referrerPath = null)
     {
+        var resolvedPath = NormalizeModulePath(modulePath, referrerPath);
+
         // Check if module is already loaded
-        if (_moduleRegistry.TryGetValue(modulePath, out var cachedExports))
+        if (_moduleRegistry.TryGetValue(resolvedPath, out var cachedExports))
         {
             return cachedExports;
         }
@@ -995,58 +1035,121 @@ public sealed class JsEngine : IAsyncDisposable
         string source;
         if (_moduleLoader != null)
         {
-            source = _moduleLoader(modulePath);
+            source = _moduleLoader(resolvedPath, referrerPath);
         }
         else
             // Default: load from file system
         {
-            source = File.ReadAllText(modulePath);
+            source = File.ReadAllText(resolvedPath);
         }
 
         // Parse the module
-        var program = ParseForExecution(source);
+        var program = ParseForExecution(source, forceStrict: true, allowTopLevelAwait: true);
 
         // Create a module exports object
         var exports = new JsObject();
+        _moduleRegistry[resolvedPath] = exports;
 
         // Create a module environment (inherits from global)
-        var moduleEnv = new JsEnvironment(_global);
+        var moduleEnv = new JsEnvironment(_global, isStrict: true);
 
         // Evaluate the module with export tracking
-        EvaluateModule(program, moduleEnv, exports);
-
-        // Cache the exports
-        _moduleRegistry[modulePath] = exports;
+        EvaluateModule(program, moduleEnv, exports, resolvedPath);
 
         return exports;
+    }
+
+    private static string NormalizeModulePath(string modulePath, string? referrerPath)
+    {
+        var specifier = (modulePath ?? string.Empty).Replace('\\', '/');
+        var referrer = referrerPath?.Replace('\\', '/');
+
+        if (string.IsNullOrWhiteSpace(specifier))
+        {
+            throw new Exception("Module path cannot be empty.");
+        }
+
+        if (specifier.StartsWith("./", StringComparison.Ordinal) ||
+            specifier.StartsWith("../", StringComparison.Ordinal))
+        {
+            var baseDir = string.Empty;
+            if (!string.IsNullOrEmpty(referrer))
+            {
+                var lastSlash = referrer.LastIndexOf('/');
+                baseDir = lastSlash >= 0 ? referrer[..lastSlash] : string.Empty;
+            }
+
+            return NormalizeRelativeModulePath(baseDir, specifier);
+        }
+
+        return specifier;
+    }
+
+    private static string NormalizeRelativeModulePath(string baseDir, string specifier)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(baseDir))
+        {
+            parts.AddRange(baseDir.Split('/', StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        foreach (var segment in specifier.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (segment == ".")
+            {
+                continue;
+            }
+
+            if (segment == "..")
+            {
+                if (parts.Count > 0)
+                {
+                    parts.RemoveAt(parts.Count - 1);
+                }
+
+                continue;
+            }
+
+            parts.Add(segment);
+        }
+
+        return string.Join('/', parts);
     }
 
     /// <summary>
     ///     Evaluates a module program and populates the exports object.
     ///     Returns the last evaluated value.
     /// </summary>
-    private object? EvaluateModule(ParsedProgram program, JsEnvironment moduleEnv, JsObject exports)
+    private object? EvaluateModule(
+        ParsedProgram program,
+        JsEnvironment moduleEnv,
+        JsObject exports,
+        string? modulePath = null)
     {
+        var typedProgram = program.Typed.IsStrict
+            ? program.Typed
+            : new ProgramNode(program.Typed.Source, program.Typed.Body, true);
         object? lastValue = null;
-        foreach (var statement in program.Typed.Body)
+        foreach (var statement in typedProgram.Body)
         {
             switch (statement)
             {
                 case ImportStatement importStatement:
-                    EvaluateImport(importStatement, moduleEnv);
+                    EvaluateImport(importStatement, moduleEnv, modulePath);
                     break;
                 case ExportDefaultStatement exportDefault:
-                    var defaultValue = EvaluateExportDefault(exportDefault, moduleEnv, program.Typed.IsStrict);
+                    var defaultValue = EvaluateExportDefault(exportDefault, moduleEnv, typedProgram.IsStrict);
                     exports["default"] = defaultValue;
                     break;
                 case ExportNamedStatement exportNamed:
-                    EvaluateExportNamed(exportNamed, moduleEnv, exports);
+                    EvaluateExportNamed(exportNamed, moduleEnv, exports, modulePath);
                     break;
                 case ExportDeclarationStatement exportDeclaration:
-                    EvaluateExportDeclaration(exportDeclaration, moduleEnv, exports, program.Typed.IsStrict);
+                    EvaluateExportDeclaration(exportDeclaration, moduleEnv, exports, typedProgram.IsStrict);
                     break;
                 default:
-                    lastValue = ExecuteTypedStatement(statement, moduleEnv, program.Typed.IsStrict);
+                    lastValue = ExecuteTypedStatement(statement, moduleEnv, typedProgram.IsStrict,
+                        createStrictEnvironment: false);
                     break;
             }
         }
@@ -1057,9 +1160,9 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Processes an import statement and brings imported values into the module environment.
     /// </summary>
-    private void EvaluateImport(ImportStatement importStatement, JsEnvironment moduleEnv)
+    private void EvaluateImport(ImportStatement importStatement, JsEnvironment moduleEnv, string? referrerPath)
     {
-        var exports = LoadModule(importStatement.ModulePath);
+        var exports = LoadModule(importStatement.ModulePath, referrerPath);
 
         if (importStatement.DefaultBinding is null && importStatement.NamespaceBinding is null &&
             importStatement.NamedImports.IsEmpty)
@@ -1100,7 +1203,7 @@ public sealed class JsEngine : IAsyncDisposable
     private object? EvaluateExportDefaultDeclaration(ExportDefaultDeclaration declaration, JsEnvironment moduleEnv,
         bool isStrict)
     {
-        ExecuteTypedStatement(declaration.Declaration, moduleEnv, isStrict);
+        ExecuteTypedStatement(declaration.Declaration, moduleEnv, isStrict, createStrictEnvironment: false);
         return declaration.Declaration switch
         {
             FunctionDeclaration functionDeclaration => moduleEnv.Get(functionDeclaration.Name),
@@ -1109,11 +1212,15 @@ public sealed class JsEngine : IAsyncDisposable
         };
     }
 
-    private void EvaluateExportNamed(ExportNamedStatement statement, JsEnvironment moduleEnv, JsObject exports)
+    private void EvaluateExportNamed(
+        ExportNamedStatement statement,
+        JsEnvironment moduleEnv,
+        JsObject exports,
+        string? modulePath)
     {
         if (statement.FromModule is { } fromModule)
         {
-            var sourceExports = LoadModule(fromModule);
+            var sourceExports = LoadModule(fromModule, modulePath);
             foreach (var specifier in statement.Specifiers)
             {
                 if (sourceExports.TryGetValue(specifier.Local.Name, out var value))
@@ -1135,7 +1242,7 @@ public sealed class JsEngine : IAsyncDisposable
     private void EvaluateExportDeclaration(ExportDeclarationStatement statement, JsEnvironment moduleEnv,
         JsObject exports, bool isStrict)
     {
-        ExecuteTypedStatement(statement.Declaration, moduleEnv, isStrict);
+        ExecuteTypedStatement(statement.Declaration, moduleEnv, isStrict, createStrictEnvironment: false);
         foreach (var symbol in GetDeclaredSymbols(statement.Declaration))
         {
             var value = moduleEnv.Get(symbol);
@@ -1172,9 +1279,14 @@ public sealed class JsEngine : IAsyncDisposable
         return ExecuteTypedStatement(statement, environment, isStrict);
     }
 
-    private object? ExecuteTypedStatement(StatementNode statement, JsEnvironment environment, bool isStrict)
+    private object? ExecuteTypedStatement(
+        StatementNode statement,
+        JsEnvironment environment,
+        bool isStrict,
+        bool createStrictEnvironment = true)
     {
         var program = new ProgramNode(statement.Source, [statement], isStrict);
-        return TypedAstEvaluator.EvaluateProgram(program, environment, RealmState);
+        return TypedAstEvaluator.EvaluateProgram(program, environment, RealmState,
+            executionKind: ExecutionKind.Script, createStrictEnvironment: createStrictEnvironment);
     }
 }

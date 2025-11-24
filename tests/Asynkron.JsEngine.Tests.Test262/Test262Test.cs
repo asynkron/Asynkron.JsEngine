@@ -1,3 +1,5 @@
+using System.IO;
+using System.Net;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -93,6 +95,44 @@ public abstract partial class Test262Test
         };
 
         engine.SetGlobalValue("$262", obj262);
+
+        var moduleSourceCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        engine.SetModuleLoader((specifier, referrer) =>
+        {
+            var normalized = specifier.Replace('\\', '/');
+            if (moduleSourceCache.TryGetValue(normalized, out var cached))
+            {
+                return cached;
+            }
+
+            if (State.Sources.TryGetValue(Path.GetFileName(normalized), out var harnessSource))
+            {
+                moduleSourceCache[normalized] = harnessSource;
+                return harnessSource;
+            }
+
+            try
+            {
+                var moduleFile = State.Test262Stream.GetTestFile(normalized);
+                moduleSourceCache[normalized] = moduleFile.Program;
+                return moduleFile.Program;
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    var url = $"https://raw.githubusercontent.com/tc39/test262/{State.GitHubSha}/test/{normalized}";
+                    using var client = new WebClient();
+                    var source = client.DownloadString(url);
+                    moduleSourceCache[normalized] = source;
+                    return source;
+                }
+                catch (Exception downloadEx)
+                {
+                    throw new FileNotFoundException($"Module not found: {normalized}", ex.GetBaseException() ?? ex);
+                }
+            }
+        });
 
         // Load includes
         var includes = file.Includes.ToArray();
@@ -230,10 +270,7 @@ public abstract partial class Test262Test
     {
         if (file.Type == ProgramType.Module)
         {
-            // Module support - basic implementation
-            // For now, we'll treat modules as regular scripts
-            // TODO: Implement proper module support if needed
-            await ExecuteSource(engine, file.Program);
+            await engine.EvaluateModule(file.Program, file.FileName);
         }
         else
         {

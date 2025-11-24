@@ -7,15 +7,20 @@ namespace Asynkron.JsEngine.Parser;
 /// <summary>
 ///     Parser that builds the typed AST directly from the token stream.
 /// </summary>
-public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, bool forceStrict = false)
+public sealed class TypedAstParser(
+    IReadOnlyList<Token> tokens,
+    string source,
+    bool forceStrict = false,
+    bool allowTopLevelAwait = false)
 {
     private readonly string _source = source ?? string.Empty;
     private readonly bool _forceStrict = forceStrict;
+    private readonly bool _allowTopLevelAwait = allowTopLevelAwait;
     private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
     public ProgramNode ParseProgram()
     {
-        var direct = new DirectParser(_tokens, _source, _forceStrict);
+        var direct = new DirectParser(_tokens, _source, _forceStrict, _allowTopLevelAwait);
         return direct.ParseProgram();
     }
 
@@ -23,12 +28,17 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, b
     ///     Direct typed parser. This currently supports only a subset of the full
     ///     JavaScript grammar required by the test suite.
     /// </summary>
-    private sealed class DirectParser(IReadOnlyList<Token> tokens, string source, bool forceStrict)
+    private sealed class DirectParser(
+        IReadOnlyList<Token> tokens,
+        string source,
+        bool forceStrict,
+        bool allowTopLevelAwait)
     {
         private readonly bool _forceStrict = forceStrict;
         private readonly Stack<FunctionContext> _functionContexts = new();
         private readonly string _source = source ?? string.Empty;
         private readonly Stack<bool> _strictContexts = new();
+        private readonly bool _allowTopLevelAwait = allowTopLevelAwait;
         private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
         // Controls whether the `in` token is treated as a relational operator inside
@@ -39,6 +49,8 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, b
 
         private bool InGeneratorContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsGenerator;
         private bool InAsyncContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsAsync;
+        private bool IsAwaitAllowed =>
+            InAsyncContext || (_allowTopLevelAwait && _functionContexts.Count == 0);
         private bool InStrictContext => _strictContexts.Count > 0 && _strictContexts.Peek();
 
         public ProgramNode ParseProgram()
@@ -1042,7 +1054,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, b
             var isAwait = false;
             if (Match(TokenType.Await))
             {
-                if (!InAsyncContext)
+                if (!IsAwaitAllowed)
                 {
                     throw new ParseException("'for await...of' is only allowed inside async functions.", Previous(),
                         _source);
@@ -1581,7 +1593,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, b
             {
                 // Outside of an async context, 'await' should behave like an identifier
                 // (script semantics). Only async functions may use await-expressions.
-                if (!InAsyncContext || IsYieldOrAwaitUsedAsIdentifier())
+                if (!IsAwaitAllowed || IsYieldOrAwaitUsedAsIdentifier())
                 {
                     return ParsePostfix();
                 }
@@ -3047,7 +3059,7 @@ public sealed class TypedAstParser(IReadOnlyList<Token> tokens, string source, b
                 return false;
             }
 
-            if (currentToken.Type == TokenType.Await && InAsyncContext)
+            if (currentToken.Type == TokenType.Await && IsAwaitAllowed)
             {
                 return false;
             }

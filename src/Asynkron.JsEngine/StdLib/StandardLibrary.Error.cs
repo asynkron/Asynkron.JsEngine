@@ -55,6 +55,12 @@ public static partial class StandardLibrary
             realm.SyntaxErrorPrototype = prototype;
         }
 
+        if (string.Equals(errorType, "ReferenceError", StringComparison.Ordinal))
+        {
+            realm.ReferenceErrorConstructor = errorConstructor;
+            realm.ReferenceErrorPrototype = prototype;
+        }
+
         // Function.name
         errorConstructor.SetProperty("name", errorType);
 

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.StdLib;
@@ -8,20 +9,24 @@ namespace Asynkron.JsEngine.JsTypes;
 internal sealed class ModuleNamespace : IJsObjectLike
 {
     private readonly RealmState _realmState;
+    private readonly object _uninitializedMarker;
     private readonly ImmutableArray<string> _exportNames;
     private readonly Func<string, object?> _bindingLookup;
     private readonly string _toStringTagKey =
         $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+    private readonly TypedAstSymbol _toStringTagSymbol = TypedAstSymbol.For("Symbol.toStringTag");
 
     internal ModuleNamespace(
         IEnumerable<string> exportNames,
         Func<string, object?> bindingLookup,
-        RealmState realmState)
+        RealmState realmState,
+        object uninitializedMarker)
     {
         _realmState = realmState ?? throw new ArgumentNullException(nameof(realmState));
         _bindingLookup = bindingLookup ?? throw new ArgumentNullException(nameof(bindingLookup));
         _exportNames = exportNames?.OrderBy(n => n, StringComparer.Ordinal).ToImmutableArray()
                        ?? throw new ArgumentNullException(nameof(exportNames));
+        _uninitializedMarker = uninitializedMarker ?? throw new ArgumentNullException(nameof(uninitializedMarker));
     }
 
     public JsObject? Prototype => null;
@@ -50,7 +55,9 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
         if (_exportNames.Contains(name, StringComparer.Ordinal))
         {
-            value = _bindingLookup(name);
+            var lookedUp = _bindingLookup(name);
+            EnsureInitialized(name, lookedUp);
+            value = lookedUp;
             return true;
         }
 
@@ -78,10 +85,12 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
         if (_exportNames.Contains(name, StringComparer.Ordinal))
         {
+            var lookedUp = _bindingLookup(name);
+            EnsureInitialized(name, lookedUp);
             return new PropertyDescriptor
             {
-                Value = _bindingLookup(name),
-                Writable = false,
+                Value = lookedUp,
+                Writable = true,
                 Enumerable = true,
                 Configurable = false
             };
@@ -95,6 +104,8 @@ internal sealed class ModuleNamespace : IJsObjectLike
         return _exportNames;
     }
 
+    internal ImmutableArray<string> ExportNames => _exportNames;
+
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
         return _exportNames;
@@ -102,7 +113,53 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
-        throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
+        if (string.Equals(name, _toStringTagKey, StringComparison.Ordinal))
+        {
+            if (descriptor.IsAccessorDescriptor)
+            {
+                throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
+            }
+
+            var tagValue = descriptor.HasValue ? descriptor.Value : "Module";
+            var tagWritable = descriptor.HasWritable ? descriptor.Writable : false;
+            var tagEnumerable = descriptor.HasEnumerable ? descriptor.Enumerable : false;
+            var tagConfigurable = descriptor.HasConfigurable ? descriptor.Configurable : false;
+
+            if (!Equals(tagValue, "Module") || tagWritable || tagEnumerable || tagConfigurable)
+            {
+                throw StandardLibrary.ThrowTypeError("Invalid @@toStringTag for module namespace", realm: _realmState);
+            }
+
+            return;
+        }
+
+        if (!_exportNames.Contains(name, StringComparer.Ordinal))
+        {
+            throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
+        }
+
+        if (descriptor.IsAccessorDescriptor)
+        {
+            throw StandardLibrary.ThrowTypeError("Module namespace exports are immutable", realm: _realmState);
+        }
+
+        var value = _bindingLookup(name);
+        EnsureInitialized(name, value);
+
+        const bool currentWritable = true;
+        const bool currentEnumerable = true;
+        const bool currentConfigurable = false;
+
+        var writable = descriptor.HasWritable ? descriptor.Writable : currentWritable;
+        var enumerable = descriptor.HasEnumerable ? descriptor.Enumerable : currentEnumerable;
+        var configurable = descriptor.HasConfigurable ? descriptor.Configurable : currentConfigurable;
+        var valueChange = descriptor.HasValue && !JsOps.StrictEquals(descriptor.Value, value);
+
+        if (writable != currentWritable || enumerable != currentEnumerable || configurable != currentConfigurable ||
+            valueChange)
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot redefine module namespace export", realm: _realmState);
+        }
     }
 
     public void SetPrototype(object? candidate)
@@ -120,14 +177,34 @@ internal sealed class ModuleNamespace : IJsObjectLike
         // Module namespace objects are always non-extensible; nothing to do.
     }
 
+    internal bool HasExport(string name)
+    {
+        return _exportNames.Contains(name, StringComparer.Ordinal) ||
+               string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
+    }
+
     internal bool Delete(string name)
     {
-        if (_exportNames.Contains(name, StringComparer.Ordinal) ||
-            string.Equals(name, _toStringTagKey, StringComparison.Ordinal))
+        return !_exportNames.Contains(name, StringComparer.Ordinal) &&
+               !string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
+    }
+
+    internal IEnumerable<object?> OwnKeys()
+    {
+        foreach (var name in _exportNames)
         {
-            return false;
+            yield return name;
         }
 
-        return true;
+        yield return _toStringTagSymbol;
+    }
+
+    private void EnsureInitialized(string name, object? value)
+    {
+        if (ReferenceEquals(value, _uninitializedMarker))
+        {
+            throw StandardLibrary.ThrowReferenceError($"Cannot access '{name}' before initialization",
+                realm: _realmState);
+        }
     }
 }

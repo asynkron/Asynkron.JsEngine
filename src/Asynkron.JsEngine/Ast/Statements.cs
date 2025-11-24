@@ -295,6 +295,17 @@ public sealed record ExportNamedStatement(
     string? FromModule) : ModuleStatement(Source);
 
 /// <summary>
+///     Represents <c>export * from "module"</c> declarations.
+/// </summary>
+public sealed record ExportAllStatement(SourceReference? Source, string ModulePath) : ModuleStatement(Source);
+
+/// <summary>
+///     Represents <c>export * as ns from "module"</c> declarations.
+/// </summary>
+public sealed record ExportNamespaceAsStatement(SourceReference? Source, Symbol Exported, string ModulePath)
+    : ModuleStatement(Source);
+
+/// <summary>
 ///     Represents a single <c>export { local as exported }</c> specifier.
 /// </summary>
 public sealed record ExportSpecifier(SourceReference? Source, Symbol Local, Symbol Exported) : AstNode(Source);

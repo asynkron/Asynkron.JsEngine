@@ -56,6 +56,18 @@ public static partial class StandardLibrary
         return new InvalidOperationException(message);
     }
 
+    internal static object CreateReferenceError(string message, EvaluationContext? context = null,
+        RealmState? realm = null)
+    {
+        realm ??= context?.RealmState;
+        if (realm?.ReferenceErrorConstructor is IJsCallable callable)
+        {
+            return callable.Invoke([message], null) ?? new InvalidOperationException(message);
+        }
+
+        return new InvalidOperationException(message);
+    }
+
     internal static ThrowSignal ThrowTypeError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
@@ -66,6 +78,12 @@ public static partial class StandardLibrary
         RealmState? realm = null)
     {
         return new ThrowSignal(CreateRangeError(message, context, realm));
+    }
+
+    internal static ThrowSignal ThrowReferenceError(string message, EvaluationContext? context = null,
+        RealmState? realm = null)
+    {
+        return new ThrowSignal(CreateReferenceError(message, context, realm));
     }
 
     internal static ThrowSignal ThrowSyntaxError(string message, EvaluationContext? context = null,

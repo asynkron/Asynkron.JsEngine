@@ -97,4 +97,14 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     {
         // Symbols are immutable; ignore assignments.
     }
+
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+    {
+        return TryGetProperty(name, out var value)
+            ? new PropertyDescriptor
+            {
+                Value = value, Writable = true, Enumerable = false, Configurable = true
+            }
+            : null;
+    }
 }

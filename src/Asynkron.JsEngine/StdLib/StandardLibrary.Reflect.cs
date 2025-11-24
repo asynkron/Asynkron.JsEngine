@@ -1,6 +1,7 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -113,12 +114,7 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.defineProperty: target must be an object.");
         }
 
-        if (target is ModuleNamespace)
-        {
-            return args[1] is null;
-        }
-
-        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
         if (args[2] is not JsObject descriptorObj)
         {
             throw new Exception("Reflect.defineProperty: descriptor must be an object.");
@@ -183,7 +179,22 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.deleteProperty: target must be an object.");
         }
 
-        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
+        if (target is ModuleNamespace moduleNamespace)
+        {
+            return moduleNamespace.Delete(propertyKey);
+        }
+
+        if (target is JsArray jsArray)
+        {
+            if (JsOps.TryResolveArrayIndex(propertyKey, out var index))
+            {
+                return jsArray.DeleteElement((int)index);
+            }
+
+            return jsArray.DeleteProperty(propertyKey);
+        }
+
         return target is JsObject jsObj && jsObj.Remove(propertyKey);
     }
 
@@ -199,7 +210,7 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.get: target must be an object.");
         }
 
-        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
         return target.TryGetProperty(propertyKey, out var value) ? value : null;
     }
 
@@ -215,7 +226,7 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.getOwnPropertyDescriptor: target must be an object.");
         }
 
-        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
         var descriptor = target.GetOwnPropertyDescriptor(propertyKey);
         if (descriptor is null)
         {
@@ -275,7 +286,12 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.has: target must be an object.");
         }
 
-        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
+        if (target is ModuleNamespace moduleNamespace)
+        {
+            return moduleNamespace.HasExport(propertyKey);
+        }
+
         return target.TryGetProperty(propertyKey, out _);
     }
 
@@ -306,11 +322,16 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.ownKeys: target must be an object.");
         }
 
+        if (target is ModuleNamespace moduleNamespace)
+        {
+            return new JsArray(moduleNamespace.OwnKeys(), realm);
+        }
+
         var keys = target.Keys
             .Where(k => !k.StartsWith("__getter__", StringComparison.Ordinal) &&
                         !k.StartsWith("__setter__", StringComparison.Ordinal))
             .ToArray();
-        return new JsArray(keys);
+        return new JsArray(keys, realm);
     }
 
     private static object? ReflectPreventExtensions(object? _, IReadOnlyList<object?> args, RealmState? realm)
@@ -341,12 +362,21 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.set: target must be an object.");
         }
 
-        var propertyKey = args[1]?.ToString() ?? string.Empty;
+        var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
         var value = args.Count > 2 ? args[2] : Symbols.Undefined;
-        if (target is ModuleNamespace)
+        if (target is ModuleNamespace moduleNamespace)
         {
-            return false;
+            try
+            {
+                moduleNamespace.SetProperty(propertyKey, value);
+                return true;
+            }
+            catch (ThrowSignal)
+            {
+                return false;
+            }
         }
+
         if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
         {
             return jsArray.SetLength(value, null, false);
@@ -375,14 +405,16 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.setPrototypeOf: target must be an object.");
         }
 
-        if (target is ModuleNamespace)
+        var proto = args[1];
+        try
+        {
+            target.SetPrototype(proto);
+            return true;
+        }
+        catch (ThrowSignal)
         {
             return false;
         }
-
-        var proto = args[1];
-        target.SetPrototype(proto);
-        return true;
     }
 
     private static JsObject? ResolveConstructPrototype(IJsCallable newTarget, IJsCallable target,

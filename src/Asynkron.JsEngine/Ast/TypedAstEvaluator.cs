@@ -3373,6 +3373,11 @@ public static class TypedAstEvaluator
             return false;
         }
 
+        if (target is ModuleNamespace moduleNamespace)
+        {
+            return moduleNamespace.HasExport(propertyName);
+        }
+
         return TryGetPropertyValue(target, propertyName, out _, context);
     }
 

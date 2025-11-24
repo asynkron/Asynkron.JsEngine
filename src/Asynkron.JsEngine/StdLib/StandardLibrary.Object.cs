@@ -341,9 +341,32 @@ public static partial class StandardLibrary
             return !target.IsSealed;
         }
 
-        object? ObjectGetOwnPropertySymbols(IReadOnlyList<object?> _)
+        object? ObjectGetOwnPropertySymbols(IReadOnlyList<object?> args)
         {
-            return new JsArray();
+            if (args.Count == 0)
+            {
+                return new JsArray();
+            }
+
+            if (!TryGetObject(args[0]!, realm, out var obj))
+            {
+                return new JsArray();
+            }
+
+            var symbols = new JsArray(realmState: realm);
+            if (obj is ModuleNamespace moduleNamespace)
+            {
+                foreach (var key in moduleNamespace.OwnKeys())
+                {
+                    if (key is TypedAstSymbol symbol)
+                    {
+                        symbols.Push(symbol);
+                    }
+                }
+            }
+
+            AddArrayMethods(symbols, realm);
+            return symbols;
         }
 
         object? ObjectKeys(IReadOnlyList<object?> args)
@@ -364,10 +387,14 @@ public static partial class StandardLibrary
                 return new JsArray();
             }
 
-            var keys = new JsArray();
+            var keys = new JsArray(realmState: realm);
             foreach (var key in obj.GetEnumerablePropertyNames())
             {
-                keys.Push(key);
+                var desc = obj.GetOwnPropertyDescriptor(key);
+                if (desc is { Enumerable: true })
+                {
+                    keys.Push(key);
+                }
             }
 
             AddArrayMethods(keys, realm);
@@ -392,7 +419,7 @@ public static partial class StandardLibrary
                 return new JsArray();
             }
 
-            var values = new JsArray();
+            var values = new JsArray(realmState: realm);
             foreach (var key in obj.GetEnumerablePropertyNames())
             {
                 if (obj.TryGetProperty(key, out var value))
@@ -423,7 +450,7 @@ public static partial class StandardLibrary
                 return new JsArray();
             }
 
-            var entries = new JsArray();
+            var entries = new JsArray(realmState: realm);
             foreach (var key in obj.GetEnumerablePropertyNames())
             {
                 if (!obj.TryGetProperty(key, out var value))
@@ -431,7 +458,7 @@ public static partial class StandardLibrary
                     continue;
                 }
 
-                var entry = new JsArray([key, value]);
+                var entry = new JsArray(new object?[] { key, value }, realm);
                 AddArrayMethods(entry, realm);
                 entries.Push(entry);
             }
@@ -502,9 +529,19 @@ public static partial class StandardLibrary
 
         object? ObjectFreeze(IReadOnlyList<object?> args)
         {
-            if (args.Count == 0 || args[0] is not JsObject obj)
+            if (args.Count == 0)
             {
                 return args.Count > 0 ? args[0] : null;
+            }
+
+            if (args[0] is ModuleNamespace)
+            {
+                throw ThrowTypeError("Cannot freeze module namespace", realm: realm);
+            }
+
+            if (args[0] is not JsObject obj)
+            {
+                return args[0];
             }
 
             obj.Freeze();
@@ -524,7 +561,17 @@ public static partial class StandardLibrary
 
         object? ObjectIsFrozen(IReadOnlyList<object?> args)
         {
-            if (args.Count == 0 || args[0] is not JsObject obj)
+            if (args.Count == 0)
+            {
+                return true;
+            }
+
+            if (args[0] is ModuleNamespace)
+            {
+                return false;
+            }
+
+            if (args[0] is not JsObject obj)
             {
                 return true;
             }
@@ -634,7 +681,7 @@ public static partial class StandardLibrary
                 return new JsArray();
             }
 
-            var names = new JsArray(obj.GetOwnPropertyNames());
+            var names = new JsArray(obj.GetOwnPropertyNames(), realm);
 
             AddArrayMethods(names, realm);
             return names;

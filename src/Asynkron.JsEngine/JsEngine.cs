@@ -27,7 +27,7 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly Dictionary<string, JsObject> _moduleRegistry = new();
     private readonly Dictionary<JsObject, ModuleNamespace> _moduleNamespaces =
         new(ReferenceEqualityComparer<JsObject>.Instance);
-    private static readonly object UninitializedExport = new();
+    internal static readonly object UninitializedExportMarker = new();
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
@@ -554,9 +554,24 @@ public sealed class JsEngine : IAsyncDisposable
                 if (isModule)
                 {
                     // Treat as a module
-                    var exports = new JsObject();
-                    var moduleEnv = new JsEnvironment(_global, isStrict: true);
-                    result = EvaluateModule(program, moduleEnv, exports, sourcePath);
+                    string? moduleKey = null;
+                    JsObject exports;
+                    if (!string.IsNullOrEmpty(sourcePath))
+                    {
+                        moduleKey = NormalizeModulePath(sourcePath!, null);
+                        if (!_moduleRegistry.TryGetValue(moduleKey, out exports))
+                        {
+                            exports = new JsObject();
+                            _moduleRegistry[moduleKey] = exports;
+                        }
+                    }
+                    else
+                    {
+                        exports = new JsObject();
+                    }
+
+                    var moduleEnv = new JsEnvironment(_global, isFunctionScope: true, isStrict: true);
+                    result = EvaluateModule(program, moduleEnv, exports, moduleKey ?? sourcePath);
                 }
                 else
                 {
@@ -633,9 +648,24 @@ public sealed class JsEngine : IAsyncDisposable
             var isModule = forceModule || HasModuleStatements(program.Typed);
             if (isModule)
             {
-                var exports = new JsObject();
-                var moduleEnv = new JsEnvironment(_global, isStrict: true);
-                return EvaluateModule(program, moduleEnv, exports, sourcePath);
+                string? moduleKey = null;
+                JsObject exports;
+                if (!string.IsNullOrEmpty(sourcePath))
+                {
+                    moduleKey = NormalizeModulePath(sourcePath!, null);
+                    if (!_moduleRegistry.TryGetValue(moduleKey, out exports))
+                    {
+                        exports = new JsObject();
+                        _moduleRegistry[moduleKey] = exports;
+                    }
+                }
+                else
+                {
+                    exports = new JsObject();
+                }
+
+                var moduleEnv = new JsEnvironment(_global, isFunctionScope: true, isStrict: true);
+                return EvaluateModule(program, moduleEnv, exports, moduleKey ?? sourcePath);
             }
 
             return ExecuteProgram(program, _global, combinedToken);
@@ -992,7 +1022,8 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 // Load the module synchronously (it's cached if already loaded)
                 var exports = LoadModule(modulePath);
-                promise.Resolve(exports);
+                var namespaceObject = GetModuleNamespace(exports);
+                promise.Resolve(namespaceObject);
             }
             catch (Exception ex)
             {
@@ -1054,7 +1085,7 @@ public sealed class JsEngine : IAsyncDisposable
         _moduleRegistry[resolvedPath] = exports;
 
         // Create a module environment (inherits from global)
-        var moduleEnv = new JsEnvironment(_global, isStrict: true);
+        var moduleEnv = new JsEnvironment(_global, isFunctionScope: true, isStrict: true);
 
         // Evaluate the module with export tracking
         EvaluateModule(program, moduleEnv, exports, resolvedPath);
@@ -1139,42 +1170,88 @@ public sealed class JsEngine : IAsyncDisposable
                 return Symbols.Undefined;
             }
 
-            if (ReferenceEquals(value, UninitializedExport))
+            if (value is LiveExportBinding liveBinding)
             {
-                throw new ThrowSignal($"ReferenceError: {name} is not initialized");
+                value = liveBinding.GetValue();
+            }
+
+            if (ReferenceEquals(value, UninitializedExportMarker))
+            {
+                throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name} is not initialized",
+                    realm: RealmState);
             }
 
             return value;
         }
 
-        var ns = new ModuleNamespace(exportNames, Lookup, RealmState);
+        var ns = new ModuleNamespace(exportNames, Lookup, RealmState, UninitializedExportMarker);
         _moduleNamespaces[exports] = ns;
         return ns;
     }
 
-    private static void PredeclareExportNames(ProgramNode program, JsEnvironment moduleEnv, JsObject exports)
+    private void PredeclareExportNames(ProgramNode program, JsEnvironment moduleEnv, JsObject exports,
+        string? modulePath)
     {
         foreach (var statement in program.Body)
         {
             switch (statement)
             {
                 case ExportDefaultStatement:
-                    exports["default"] = UninitializedExport;
+                    exports["default"] = UninitializedExportMarker;
                     break;
                 case ExportDeclarationStatement exportDeclaration:
+                    if (exportDeclaration.Declaration is VariableDeclaration variableDeclaration)
+                    {
+                        foreach (var declarator in variableDeclaration.Declarators)
+                        {
+                            if (declarator.Target is not IdentifierBinding identifier)
+                            {
+                                continue;
+                            }
+
+                            var symbol = identifier.Name;
+                            var initialValue = variableDeclaration.Kind == VariableKind.Var
+                                ? (object?)Symbols.Undefined
+                                : UninitializedExportMarker;
+
+                            exports[symbol.Name] = initialValue;
+                            moduleEnv.Define(symbol, initialValue, isLexical: variableDeclaration.Kind != VariableKind.Var,
+                                blocksFunctionScopeOverride: false);
+                        }
+
+                        break;
+                    }
+
                     foreach (var symbol in GetDeclaredSymbols(exportDeclaration.Declaration))
                     {
-                        exports[symbol.Name] = UninitializedExport;
-                        moduleEnv.Define(symbol, UninitializedExport, isLexical: true, blocksFunctionScopeOverride: true);
+                        exports[symbol.Name] = UninitializedExportMarker;
+                        moduleEnv.Define(symbol, UninitializedExportMarker, isLexical: true,
+                            blocksFunctionScopeOverride: false);
                     }
 
                     break;
-                case ExportNamedStatement exportNamed when exportNamed.FromModule is null:
+                case ExportNamedStatement exportNamed:
                     foreach (var specifier in exportNamed.Specifiers)
                     {
-                        exports[specifier.Exported.Name] = UninitializedExport;
+                        exports[specifier.Exported.Name] = UninitializedExportMarker;
                     }
 
+                    break;
+                case ExportAllStatement exportAll:
+                    var sourceExports = LoadModule(exportAll.ModulePath, modulePath);
+                    foreach (var entry in sourceExports.Keys)
+                    {
+                        if (string.Equals(entry, "default", StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        exports[entry] = UninitializedExportMarker;
+                    }
+
+                    break;
+                case ExportNamespaceAsStatement exportNamespace:
+                    exports[exportNamespace.Exported.Name] = UninitializedExportMarker;
                     break;
             }
         }
@@ -1193,7 +1270,7 @@ public sealed class JsEngine : IAsyncDisposable
         var typedProgram = program.Typed.IsStrict
             ? program.Typed
             : new ProgramNode(program.Typed.Source, program.Typed.Body, true);
-        PredeclareExportNames(typedProgram, moduleEnv, exports);
+        PredeclareExportNames(typedProgram, moduleEnv, exports, modulePath);
         object? lastValue = null;
         foreach (var statement in typedProgram.Body)
         {
@@ -1211,6 +1288,13 @@ public sealed class JsEngine : IAsyncDisposable
                     break;
                 case ExportDeclarationStatement exportDeclaration:
                     EvaluateExportDeclaration(exportDeclaration, moduleEnv, exports, typedProgram.IsStrict);
+                    break;
+                case ExportAllStatement exportAll:
+                    EvaluateExportAll(exportAll, exports, modulePath);
+                    break;
+                case ExportNamespaceAsStatement exportNamespace:
+                    var namespaceExports = LoadModule(exportNamespace.ModulePath, modulePath);
+                    exports[exportNamespace.Exported.Name] = GetModuleNamespace(namespaceExports);
                     break;
                 default:
                     lastValue = ExecuteTypedStatement(statement, moduleEnv, typedProgram.IsStrict,
@@ -1238,7 +1322,7 @@ public sealed class JsEngine : IAsyncDisposable
         if (importStatement.DefaultBinding is { } defaultBinding &&
             exports.TryGetValue("default", out var defaultValue))
         {
-            moduleEnv.Define(defaultBinding, defaultValue);
+            moduleEnv.Define(defaultBinding, ResolveExportValue(defaultValue));
         }
 
         if (importStatement.NamespaceBinding is { } namespaceBinding)
@@ -1251,9 +1335,14 @@ public sealed class JsEngine : IAsyncDisposable
         {
             if (exports.TryGetValue(binding.Imported.Name, out var value))
             {
-                moduleEnv.Define(binding.Local, value);
+                moduleEnv.Define(binding.Local, ResolveExportValue(value));
             }
         }
+    }
+
+    private static object? ResolveExportValue(object? value)
+    {
+        return value is LiveExportBinding live ? live.GetValue() : value;
     }
 
     private object? EvaluateExportDefault(ExportDefaultStatement statement, JsEnvironment moduleEnv, bool isStrict)
@@ -1301,7 +1390,7 @@ public sealed class JsEngine : IAsyncDisposable
         foreach (var specifier in statement.Specifiers)
         {
             var value = moduleEnv.Get(specifier.Local);
-            exports[specifier.Exported.Name] = value;
+            exports[specifier.Exported.Name] = new LiveExportBinding(() => moduleEnv.Get(specifier.Local));
         }
     }
 
@@ -1312,7 +1401,33 @@ public sealed class JsEngine : IAsyncDisposable
         foreach (var symbol in GetDeclaredSymbols(statement.Declaration))
         {
             var value = moduleEnv.Get(symbol);
-            exports[symbol.Name] = value;
+            exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.Get(symbol));
+        }
+    }
+
+    private void EvaluateExportAll(ExportAllStatement statement, JsObject exports, string? modulePath)
+    {
+        var sourceExports = LoadModule(statement.ModulePath, modulePath);
+        foreach (var entry in sourceExports.Keys)
+        {
+            if (entry.StartsWith("__getter__", StringComparison.Ordinal) ||
+                entry.StartsWith("__setter__", StringComparison.Ordinal) ||
+                entry.StartsWith("@@symbol:", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (string.Equals(entry, "default", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!sourceExports.TryGetValue(entry, out var value))
+            {
+                continue;
+            }
+
+            exports[entry] = value;
         }
     }
 

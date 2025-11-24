@@ -869,6 +869,26 @@ public sealed class TypedAstParser(
         {
             var keyword = Previous();
 
+            if (Match(TokenType.Star))
+            {
+                if (MatchContextualKeyword("as"))
+                {
+                    var namespaceToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
+                    ConsumeContextualKeyword("from", "Expected 'from' after exported namespace.");
+                    var namespaceModuleToken = Consume(TokenType.String, "Expected module path.");
+                    var namespaceModulePath = GetStringLiteralValue(namespaceModuleToken);
+                    Consume(TokenType.Semicolon, "Expected ';' after export statement.");
+                    return new ExportNamespaceAsStatement(CreateSourceReference(keyword),
+                        Symbol.Intern(namespaceToken.Lexeme), namespaceModulePath);
+                }
+
+                ConsumeContextualKeyword("from", "Expected 'from' after export *.");
+                var moduleToken = Consume(TokenType.String, "Expected module path.");
+                var modulePath = GetStringLiteralValue(moduleToken);
+                Consume(TokenType.Semicolon, "Expected ';' after export statement.");
+                return new ExportAllStatement(CreateSourceReference(keyword), modulePath);
+            }
+
             if (Match(TokenType.Default))
             {
                 if (Check(TokenType.Async) && CheckAhead(TokenType.Function))
@@ -982,7 +1002,16 @@ public sealed class TypedAstParser(
 
                 if (MatchContextualKeyword("as"))
                 {
-                    var exportedToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
+                    Token exportedToken;
+                    if (Check(TokenType.Default))
+                    {
+                        exportedToken = Advance();
+                    }
+                    else
+                    {
+                        exportedToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
+                    }
+
                     exported = Symbol.Intern(exportedToken.Lexeme);
                 }
                 else

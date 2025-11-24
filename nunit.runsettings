@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<RunSettings>
-  <NUnit>
-    <!-- Limit parallelism to keep realm isolation predictable while debugging -->
-    <NumberOfTestWorkers>5</NumberOfTestWorkers>
-  </NUnit>
-</RunSettings>

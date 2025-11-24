@@ -61,17 +61,12 @@ public static class TypedAstEvaluator
         context.BlockedFunctionVarNames = blockedNames;
         HoistVarDeclarations(programBlock, executionEnvironment, context, lexicalNames: blockedNames);
 
-        object? result = JsSymbols.Undefined;
-        var hasResult = false;
+        object? result = EmptyCompletion;
         foreach (var statement in program.Body)
         {
             context.ThrowIfCancellationRequested();
             var completion = EvaluateStatement(statement, executionEnvironment, context);
-            if (!ReferenceEquals(completion, EmptyCompletion))
-            {
-                result = completion;
-                hasResult = true;
-            }
+            result = completion;
 
             if (context.ShouldStopEvaluation)
             {
@@ -84,7 +79,7 @@ public static class TypedAstEvaluator
             throw new ThrowSignal(context.FlowValue);
         }
 
-        return hasResult ? result : JsSymbols.Undefined;
+        return ReferenceEquals(result, EmptyCompletion) ? JsSymbols.Undefined : result;
     }
 
     private static object? EvaluateStatement(StatementNode statement, JsEnvironment environment,
@@ -124,18 +119,13 @@ public static class TypedAstEvaluator
     private static object? EvaluateBlock(BlockStatement block, JsEnvironment environment, EvaluationContext context)
     {
         var scope = new JsEnvironment(environment, false, block.IsStrict);
-        object? result = JsSymbols.Undefined;
-        var hasResult = false;
+        object? result = EmptyCompletion;
 
         foreach (var statement in block.Statements)
         {
             context.ThrowIfCancellationRequested();
             var completion = EvaluateStatement(statement, scope, context);
-            if (!ReferenceEquals(completion, EmptyCompletion))
-            {
-                result = completion;
-                hasResult = true;
-            }
+            result = completion;
 
             if (context.ShouldStopEvaluation)
             {
@@ -143,7 +133,7 @@ public static class TypedAstEvaluator
             }
         }
 
-        return hasResult ? result : EmptyCompletion;
+        return result;
     }
 
     private static object? EvaluateReturn(ReturnStatement statement, JsEnvironment environment,
@@ -846,6 +836,11 @@ public static class TypedAstEvaluator
             if (context.TryClearContinue(loopLabel))
             {
                 if (!ExecutePostIteration(plan, environment, context, ref lastValue))
+                {
+                    break;
+                }
+
+                if (plan.ConditionAfterBody && !ExecuteCondition(plan, environment, context))
                 {
                     break;
                 }

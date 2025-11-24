@@ -59,7 +59,17 @@ internal static class JsOps
                 case IIsHtmlDda:
                     return double.NaN;
                 case Symbol:
-                    throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number", context));
+                case TypedAstSymbol:
+                    {
+                        var error = CreateTypeError("Cannot convert a Symbol value to a number", context);
+                        if (context is null)
+                        {
+                            throw new ThrowSignal(error);
+                        }
+
+                        context.SetThrow(error);
+                        return double.NaN;
+                    }
                 case JsBigInt bigInt:
                     return (double)bigInt.Value;
                 case double d:
@@ -130,7 +140,17 @@ internal static class JsOps
                 case IIsHtmlDda:
                     return double.NaN;
                 case Symbol:
-                    throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number", context));
+                case TypedAstSymbol:
+                    {
+                        var error = CreateTypeError("Cannot convert a Symbol value to a number", context);
+                        if (context is null)
+                        {
+                            throw new ThrowSignal(error);
+                        }
+
+                        context.SetThrow(error);
+                        return double.NaN;
+                    }
                 case JsBigInt bigInt:
                     return bigInt;
                 case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
@@ -181,7 +201,8 @@ internal static class JsOps
             try
             {
                 var result = toPrimFn.Invoke(["number"], accessor);
-                if (result is not IJsPropertyAccessor && result is not JsObject)
+                if ((result is not IJsPropertyAccessor || result is TypedAstSymbol or Symbol) &&
+                    result is not JsObject)
                 {
                     primitive = result;
                     return true;
@@ -195,7 +216,7 @@ internal static class JsOps
         }
 
         if (TryInvokePropertyMethod(accessor, "valueOf", out var valueOfResult, context) &&
-            valueOfResult is not IJsPropertyAccessor &&
+            (valueOfResult is not IJsPropertyAccessor || valueOfResult is TypedAstSymbol or Symbol) &&
             valueOfResult is not JsObject)
         {
             primitive = valueOfResult;
@@ -208,7 +229,7 @@ internal static class JsOps
         }
 
         if (!TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context) ||
-            toStringResult is IJsPropertyAccessor ||
+            (toStringResult is IJsPropertyAccessor && toStringResult is not TypedAstSymbol and not Symbol) ||
             toStringResult is JsObject)
         {
             return false;
@@ -654,14 +675,14 @@ internal static class JsOps
         try
         {
             result = callable.Invoke([], accessor);
-            return true;
+            return context?.IsThrow != true;
         }
         catch (ThrowSignal signal)
         {
             if (context is not null)
             {
                 context.SetThrow(signal.ThrownValue);
-                return true;
+                return false;
             }
 
             throw;

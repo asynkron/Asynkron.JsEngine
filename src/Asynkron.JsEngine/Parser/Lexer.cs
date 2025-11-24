@@ -354,6 +354,11 @@ public sealed class Lexer(string source)
                 ReadPrivateIdentifier();
                 break;
             default:
+                if (IsOtherWhitespace(c))
+                {
+                    break;
+                }
+
                 if (IsDigit(c))
                 {
                     ReadNumber();
@@ -369,6 +374,13 @@ public sealed class Lexer(string source)
 
                 break;
         }
+    }
+
+    private static bool IsOtherWhitespace(char c)
+    {
+        return c == '\u1680' || c == '\u2000' || c == '\u2001' || c == '\u2002' || c == '\u2003' ||
+               c == '\u2004' || c == '\u2005' || c == '\u2006' || c == '\u2007' || c == '\u2008' ||
+               c == '\u2009' || c == '\u200A' || c == '\u202F' || c == '\u205F' || c == '\u3000';
     }
 
     private void SkipSingleLineComment()
@@ -537,7 +549,7 @@ public sealed class Lexer(string source)
                     if (isEndOrNonAlphaNum)
                     {
                         Advance(); // consume 'n'
-                        var bigIntValue = BigInteger.Parse(hexDigits, NumberStyles.HexNumber,
+                        var bigIntValue = BigInteger.Parse("0" + hexDigits, NumberStyles.HexNumber,
                             CultureInfo.InvariantCulture);
                         var value = new JsBigInt(bigIntValue);
                         AddToken(TokenType.BigInt, value);

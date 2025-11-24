@@ -2876,12 +2876,19 @@ public static class TypedAstEvaluator
 
     private static object BitwiseNot(object? operand, EvaluationContext context)
     {
-        if (operand is JsBigInt bigInt)
+        var numeric = JsOps.ToNumeric(operand, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? JsSymbols.Undefined;
+        }
+
+        if (numeric is JsBigInt bigInt)
         {
             return ~bigInt;
         }
 
-        return (double)~ToInt32(operand, context);
+        var int32 = JsNumericConversions.ToInt32(JsOps.ToNumber(numeric, context));
+        return (double)~int32;
     }
 
     private static object LeftShift(object? left, object? right, EvaluationContext context)

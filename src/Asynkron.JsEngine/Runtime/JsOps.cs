@@ -289,6 +289,11 @@ internal static class JsOps
             }
         }
 
+        if (accessor is HostFunction)
+        {
+            return "function() { [native code] }";
+        }
+
         throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
     }
 

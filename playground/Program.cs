@@ -9,7 +9,6 @@ internal class Program
     {
         await using var engine = new JsEngine();
 
-        // Quick math sanity check
         var logCheck = await engine.Evaluate("""
             var log2 = Math.log(2);
             var x = Math.log(4294967296) / log2;

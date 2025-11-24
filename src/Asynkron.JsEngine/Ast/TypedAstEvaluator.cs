@@ -2443,7 +2443,7 @@ public static class TypedAstEvaluator
     private static object? EvaluateArray(ArrayExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
-        var array = new JsArray();
+        var array = new JsArray(context.RealmState);
         foreach (var element in expression.Elements)
         {
             if (element.IsSpread)
@@ -3623,7 +3623,7 @@ public static class TypedAstEvaluator
 
         if (binding.RestElement is not null)
         {
-            var restArray = new JsArray();
+            var restArray = new JsArray(context.RealmState);
             for (; index < array.Items.Count; index++)
             {
                 restArray.Push(array.Items[index]);

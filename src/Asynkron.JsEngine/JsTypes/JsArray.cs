@@ -591,6 +591,12 @@ public sealed class JsArray : IJsObjectLike
 
     private void SetupIterator()
     {
+        if (_arrayPrototype is not null)
+        {
+            // Delegate to Array.prototype's @@iterator so all arrays share the same iterator function.
+            return;
+        }
+
         // Set up Symbol.iterator
         var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";

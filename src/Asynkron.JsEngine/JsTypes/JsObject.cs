@@ -1,5 +1,7 @@
-using System.Runtime.CompilerServices;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using Asynkron.JsEngine;
+using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -102,11 +104,120 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
-        // Check if property exists and is not configurable
-        if (_descriptors.TryGetValue(name, out var existingDesc) &&
+        var existingDesc = _descriptors.TryGetValue(name, out var found) ? found : null;
+        if (existingDesc is null && TryGetValue(name, out var existingValue))
+        {
+            existingDesc = new PropertyDescriptor
+            {
+                Value = existingValue,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            };
+            existingDesc.HasValue = true;
+            existingDesc.HasWritable = true;
+            existingDesc.HasEnumerable = true;
+            existingDesc.HasConfigurable = true;
+        }
+
+        if (existingDesc is not null &&
             !existingDesc.Configurable)
         {
-            return; // Silently ignore in non-strict mode
+            var typeChange =
+                existingDesc.IsAccessorDescriptor != descriptor.IsAccessorDescriptor &&
+                (descriptor.HasValue || descriptor.HasWritable || descriptor.Get != null || descriptor.Set != null);
+
+            if (typeChange)
+            {
+                return;
+            }
+
+            if (descriptor.HasConfigurable && descriptor.Configurable != existingDesc.Configurable)
+            {
+                return;
+            }
+
+            if (descriptor.HasEnumerable && descriptor.Enumerable != existingDesc.Enumerable)
+            {
+                return;
+            }
+
+            if (existingDesc.IsAccessorDescriptor)
+            {
+                if (descriptor.Get is not null && !ReferenceEquals(descriptor.Get, existingDesc.Get))
+                {
+                    return;
+                }
+
+                if (descriptor.Set is not null && !ReferenceEquals(descriptor.Set, existingDesc.Set))
+                {
+                    return;
+                }
+            }
+            else if (!existingDesc.Writable)
+            {
+                if (descriptor.HasWritable && descriptor.Writable)
+                {
+                    return;
+                }
+
+                if (descriptor.HasValue && !Equals(descriptor.Value, existingDesc.Value))
+                {
+                    return;
+                }
+            }
+        }
+
+        // Merge with existing descriptor when configurable so unspecified attributes are preserved.
+        if (existingDesc is not null)
+        {
+            if (descriptor.IsAccessorDescriptor && existingDesc.IsAccessorDescriptor)
+            {
+                descriptor.Get ??= existingDesc.Get;
+                descriptor.Set ??= existingDesc.Set;
+            }
+
+            if (!descriptor.HasEnumerable && existingDesc.HasEnumerable)
+            {
+                descriptor.Enumerable = existingDesc.Enumerable;
+            }
+
+            if (!descriptor.HasConfigurable && existingDesc.HasConfigurable)
+            {
+                descriptor.Configurable = existingDesc.Configurable;
+            }
+
+            if (descriptor.IsDataDescriptor && existingDesc.IsDataDescriptor)
+            {
+                if (!descriptor.HasWritable && existingDesc.HasWritable)
+                {
+                    descriptor.Writable = existingDesc.Writable;
+                }
+
+                if (!descriptor.HasValue && existingDesc.HasValue)
+                {
+                    descriptor.Value = existingDesc.Value;
+                }
+            }
+        }
+        else
+        {
+            var configurableExplicitFalse = descriptor.HasConfigurable && descriptor.Configurable == false;
+
+            if (!descriptor.HasEnumerable)
+            {
+                descriptor.Enumerable = false;
+            }
+
+            if (!descriptor.HasConfigurable)
+            {
+                descriptor.Configurable = false;
+            }
+
+            if (!descriptor.IsAccessorDescriptor && !descriptor.HasWritable)
+            {
+                descriptor.Writable = configurableExplicitFalse ? false : true;
+            }
         }
 
         // Sealed/frozen objects cannot have new properties added
@@ -164,21 +275,21 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public void SetProperty(string name, object? value)
     {
-        // First check if this object or its prototype chain has a setter
-        var setter = GetSetter(name);
-        if (setter != null)
+        if (string.Equals(name, PrototypeKey, StringComparison.Ordinal))
         {
-            setter.Invoke([value], this);
+            SetPrototype(value);
             return;
         }
 
-        // Check if property has a descriptor that makes it non-writable
         if (_descriptors.TryGetValue(name, out var descriptor))
         {
-            if (descriptor is { IsAccessorDescriptor: true, Set: not null })
+            if (descriptor.IsAccessorDescriptor)
             {
-                // This should have been caught by GetSetter above
-                descriptor.Set.Invoke([value], this);
+                if (descriptor.Set != null)
+                {
+                    descriptor.Set.Invoke([value], this);
+                }
+
                 return;
             }
 
@@ -186,6 +297,23 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             {
                 return; // Silently ignore in non-strict mode
             }
+
+            this[name] = value;
+            return;
+        }
+
+        if (TryGetValue(name, out _))
+        {
+            this[name] = value;
+            return;
+        }
+
+        // First check if this object or its prototype chain has a setter
+        var setter = GetSetter(name);
+        if (setter != null)
+        {
+            setter.Invoke([value], this);
+            return;
         }
 
         // Frozen objects cannot have properties modified
@@ -198,11 +326,6 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         if (IsSealed && !ContainsKey(name))
         {
             return; // Silently ignore in non-strict mode
-        }
-
-        if (string.Equals(name, PrototypeKey, StringComparison.Ordinal))
-        {
-            SetPrototype(value);
         }
 
         this[name] = value;
@@ -236,16 +359,12 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public bool TryGetProperty(string name, out object? value)
     {
-        // Check for getter in this object or prototype chain
-        var getter = GetGetter(name);
-        if (getter != null)
-        {
-            // Important: call with 'this' as context, which is the original object that property access was done on
-            value = getter.Invoke([], this);
-            return true;
-        }
+        return TryGetProperty(name, this, new HashSet<JsObject>(ReferenceEqualityComparer<JsObject>.Instance), out value);
+    }
 
-        return TryGetProperty(name, new HashSet<JsObject>(ReferenceEqualityComparer<JsObject>.Instance), out value);
+    internal bool TryGetProperty(string name, object? receiver, out object? value)
+    {
+        return TryGetProperty(name, receiver, new HashSet<JsObject>(ReferenceEqualityComparer<JsObject>.Instance), out value);
     }
 
     public IEnumerable<string> GetOwnPropertyNames()
@@ -378,27 +497,54 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
     }
 
-    private bool TryGetProperty(string name, HashSet<JsObject> visited, out object? value)
+    private bool TryGetProperty(string name, object? receiver, HashSet<JsObject> visited, out object? value)
     {
-        // Check for regular properties (not getters)
+        if (TryGetOwnProperty(name, receiver ?? this, out value))
+        {
+            return true;
+        }
+
+        if (Prototype is null || !visited.Add(this))
+        {
+            value = null;
+            return false;
+        }
+
+        return Prototype.TryGetProperty(name, receiver ?? this, visited, out value);
+    }
+
+    private bool TryGetOwnProperty(string name, object? receiver, out object? value)
+    {
+        if (_descriptors.TryGetValue(name, out var descriptor))
+        {
+            if (descriptor.IsAccessorDescriptor)
+            {
+                if (descriptor.Get != null)
+                {
+                    value = descriptor.Get.Invoke([], receiver);
+                    return true;
+                }
+
+                value = Symbols.Undefined;
+                return true;
+            }
+
+            if (TryGetValue(name, out value))
+            {
+                return true;
+            }
+
+            value = descriptor.HasValue ? descriptor.Value : Symbols.Undefined;
+            return true;
+        }
+
         if (TryGetValue(name, out value))
         {
             return true;
         }
 
-        if (Prototype is null)
-        {
-            value = null;
-            return false;
-        }
-
-        if (!visited.Add(this))
-        {
-            value = null;
-            return false;
-        }
-
-        return Prototype.TryGetProperty(name, visited, out value);
+        value = null;
+        return false;
     }
 
     public IEnumerable<string> GetEnumerablePropertyNames()

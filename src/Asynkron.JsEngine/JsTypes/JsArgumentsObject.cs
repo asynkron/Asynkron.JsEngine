@@ -36,11 +36,22 @@ internal sealed class JsArgumentsObject : IJsObjectLike
         _values = values.ToArray();
         _indexNames = new string[_values.Length];
 
+        if (realm.ObjectPrototype is not null)
+        {
+            _backing.SetPrototype(realm.ObjectPrototype);
+        }
+
         for (var i = 0; i < _values.Length; i++)
         {
             var name = i.ToString(CultureInfo.InvariantCulture);
             _indexNames[i] = name;
-            _backing.SetProperty(name, _values[i]);
+            _backing.DefineProperty(name, new PropertyDescriptor
+            {
+                Value = _values[i],
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            });
         }
 
         _backing.DefineProperty("length",
@@ -54,7 +65,14 @@ internal sealed class JsArgumentsObject : IJsObjectLike
 
         if (callee is not null)
         {
-            if (isStrict)
+            if (mappedEnabled)
+            {
+                _calleeDescriptor = new PropertyDescriptor
+                {
+                    Value = callee, Writable = true, Enumerable = false, Configurable = true
+                };
+            }
+            else
             {
                 var thrower = new HostFunction((_, _) =>
                     throw new ThrowSignal(StandardLibrary.CreateTypeError(
@@ -69,13 +87,6 @@ internal sealed class JsArgumentsObject : IJsObjectLike
                     Set = thrower,
                     Enumerable = false,
                     Configurable = false
-                };
-            }
-            else
-            {
-                _calleeDescriptor = new PropertyDescriptor
-                {
-                    Value = callee, Writable = true, Enumerable = false, Configurable = true
                 };
             }
 
@@ -169,14 +180,15 @@ internal sealed class JsArgumentsObject : IJsObjectLike
             return true;
         }
 
-        return _backing.TryGetProperty(name, out value);
+        return _backing.TryGetProperty(name, this, out value);
     }
 
     public void SetProperty(string name, object? value)
     {
         var descriptor = _backing.GetOwnPropertyDescriptor(name);
-        var isWritable = descriptor?.IsAccessorDescriptor != true &&
-                         (!descriptor?.HasWritable ?? true || descriptor.Writable);
+        var hasWritable = descriptor?.HasWritable ?? false;
+        var isAccessor = descriptor?.IsAccessorDescriptor == true;
+        var isWritable = !isAccessor && (!hasWritable || descriptor?.Writable != false);
 
         if (TryResolveIndex(name, out var index) &&
             _mappedEnabled &&
@@ -193,6 +205,29 @@ internal sealed class JsArgumentsObject : IJsObjectLike
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
+        if (string.Equals(name, "callee", StringComparison.Ordinal) && _calleeDescriptor is not null)
+        {
+            var backingDescriptor = _backing.GetOwnPropertyDescriptor(name);
+            if (backingDescriptor is null)
+            {
+                return null;
+            }
+
+            if (_mappedEnabled)
+            {
+                _backing.TryGetProperty("callee", this, out var calleeValue);
+                return new PropertyDescriptor
+                {
+                    Value = calleeValue ?? _calleeDescriptor.Value,
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
+                };
+            }
+
+            return CloneDescriptor(backingDescriptor);
+        }
+
         var descriptor = _backing.GetOwnPropertyDescriptor(name);
         if (descriptor is null)
         {
@@ -252,7 +287,18 @@ internal sealed class JsArgumentsObject : IJsObjectLike
         }
 
         _values[index] = value;
-        WithSuppressedObserver(() => _backing.SetProperty(_indexNames[index], value));
+        WithSuppressedObserver(() =>
+        {
+            var existing = _backing.GetOwnPropertyDescriptor(_indexNames[index]);
+            _backing.DefineProperty(_indexNames[index],
+                new PropertyDescriptor
+                {
+                    Value = value,
+                    Writable = existing?.Writable ?? true,
+                    Enumerable = existing?.Enumerable ?? true,
+                    Configurable = existing?.Configurable ?? true
+                });
+        });
     }
 
     private void WithSuppressedObserver(Action action)
@@ -295,9 +341,20 @@ internal sealed class JsArgumentsObject : IJsObjectLike
         {
             normalized.Value = descriptor.Value;
         }
-        else if (existing is not null && existing.HasValue)
+        else if (existing is not null)
         {
-            normalized.Value = existing.Value;
+            if (_backing.TryGetProperty(name, out var existingValue))
+            {
+                normalized.Value = existingValue;
+            }
+            else if (existing.HasValue)
+            {
+                normalized.Value = existing.Value;
+            }
+            else
+            {
+                normalized.Value = Symbols.Undefined;
+            }
         }
         else
         {
@@ -322,11 +379,15 @@ internal sealed class JsArgumentsObject : IJsObjectLike
         var clone = new PropertyDescriptor
         {
             Enumerable = source.Enumerable,
-            Writable = source.Writable,
             Configurable = source.Configurable,
             Get = source.Get,
             Set = source.Set
         };
+
+        if (source.HasWritable)
+        {
+            clone.Writable = source.Writable;
+        }
 
         if (source.HasValue)
         {

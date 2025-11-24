@@ -64,6 +64,8 @@ public static partial class StandardLibrary
             functionPrototype.SetPrototype(realm.ObjectPrototype);
         }
         functionPrototype.SetProperty("constructor", functionConstructor);
+        functionPrototype.SetHostedProperty("toString", FunctionPrototypeToString);
+        functionPrototype.SetHostedProperty("valueOf", (thisValue, _) => thisValue);
 
         var hasInstanceKey = $"@@symbol:{TypedAstSymbol.For("Symbol.hasInstance").GetHashCode()}";
         var hasInstance = new HostFunction((thisValue, args) =>
@@ -113,5 +115,15 @@ public static partial class StandardLibrary
         functionConstructor.Properties.SetPrototype(functionPrototype);
 
         return functionConstructor;
+
+        object? FunctionPrototypeToString(object? thisValue, IReadOnlyList<object?> _)
+        {
+            // Provide a minimal native-code style representation for host and user functions.
+            return thisValue switch
+            {
+                IJsCallable => "function() { [native code] }",
+                _ => "function undefined() { [native code] }"
+            };
+        }
     }
 }

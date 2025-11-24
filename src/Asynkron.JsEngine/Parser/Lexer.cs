@@ -329,6 +329,10 @@ public sealed class Lexer(string source)
                 break;
             case ' ': // ignore insignificant whitespace
             case '\t':
+            case '\v':
+            case '\f':
+            case '\u00A0': // no-break space
+            case '\uFEFF': // BOM
                 break;
             case '\r':
                 HandleLineTerminator('\r');

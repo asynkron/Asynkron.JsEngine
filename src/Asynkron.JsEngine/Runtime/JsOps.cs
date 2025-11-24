@@ -42,6 +42,11 @@ internal static class JsOps
         return ToNumberWithContext(value, context);
     }
 
+    public static object ToNumeric(object? value, EvaluationContext? context = null)
+    {
+        return ToNumericInternal(value, context);
+    }
+
     public static double ToNumberWithContext(object? value, EvaluationContext? context = null)
     {
         while (true)
@@ -81,6 +86,57 @@ internal static class JsOps
                     return sb;
                 case bool flag:
                     return flag ? 1 : 0;
+                case string str:
+                    return NumericStringParser.ParseJsNumber(str);
+            }
+
+            switch (value)
+            {
+                case JsObject jsObj when jsObj.TryGetValue("__value__", out var inner):
+                    value = inner;
+                    continue;
+                case IJsPropertyAccessor accessor
+                    when TryConvertToNumericPrimitive(accessor, out var primitive, context):
+                    value = primitive;
+                    continue;
+                case IJsPropertyAccessor accessor when (context?.IsThrow == true):
+                    return double.NaN;
+                case IJsPropertyAccessor accessor:
+                {
+                    var typeError = CreateTypeError("Cannot convert object to number", context);
+                    if (context is null)
+                    {
+                        throw new ThrowSignal(typeError);
+                    }
+
+                    context.SetThrow(typeError);
+                    return double.NaN;
+                }
+                default:
+                    throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
+            }
+        }
+    }
+
+    private static object ToNumericInternal(object? value, EvaluationContext? context = null)
+    {
+        while (true)
+        {
+            switch (value)
+            {
+                case null:
+                    return 0d;
+                case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
+                case IIsHtmlDda:
+                    return double.NaN;
+                case Symbol:
+                    throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number", context));
+                case JsBigInt bigInt:
+                    return bigInt;
+                case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
+                    return ToNumber(value, context);
+                case bool flag:
+                    return flag ? 1d : 0d;
                 case string str:
                     return NumericStringParser.ParseJsNumber(str);
             }

@@ -2949,19 +2949,31 @@ public static class TypedAstEvaluator
         Func<int, int, int> int32Op,
         EvaluationContext context)
     {
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        var leftNumeric = JsOps.ToNumeric(left, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? JsSymbols.Undefined;
+        }
+
+        var rightNumeric = JsOps.ToNumeric(right, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? JsSymbols.Undefined;
+        }
+
+        if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
         {
             return bigIntOp(leftBigInt, rightBigInt);
         }
 
-        if (left is JsBigInt || right is JsBigInt)
+        if (leftNumeric is JsBigInt || rightNumeric is JsBigInt)
         {
             throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
                 context);
         }
 
-        var leftInt = ToInt32(left, context);
-        var rightInt = ToInt32(right, context);
+        var leftInt = JsNumericConversions.ToInt32(JsOps.ToNumber(leftNumeric, context));
+        var rightInt = JsNumericConversions.ToInt32(JsOps.ToNumber(rightNumeric, context));
         return (double)int32Op(leftInt, rightInt);
     }
 

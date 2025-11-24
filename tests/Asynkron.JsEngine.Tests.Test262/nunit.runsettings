@@ -2,6 +2,6 @@
 <RunSettings>
   <NUnit>
     <!-- Limit parallelism to keep realm isolation predictable while debugging -->
-    <NumberOfTestWorkers>5</NumberOfTestWorkers>
+    <NumberOfTestWorkers>20</NumberOfTestWorkers>
   </NUnit>
 </RunSettings>

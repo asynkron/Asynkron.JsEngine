@@ -405,9 +405,9 @@ public class JsRegExp
                     continue;
                 }
 
-                var codeUnitLiteral = (int)next;
-                AppendCodePoint(builder, codeUnitLiteral, hasUnicodeFlag, ignoreCase, true);
-                i++; // skip escaped character
+                builder.Append('\\');
+                builder.Append(next);
+                i++; // skip escaped character while preserving escape
                 continue;
             }
 

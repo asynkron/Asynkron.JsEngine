@@ -1,3 +1,5 @@
+using Asynkron.JsEngine;
+
 namespace Asynkron.JsEngine.Tests;
 
 public class TestTypeofUndeclared
@@ -14,8 +16,11 @@ public class TestTypeofUndeclared
     public async Task AccessUndeclaredVariable_ShouldThrow()
     {
         await using var engine = new JsEngine();
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => {
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+        {
             await engine.Evaluate("undeclaredVar;");
         });
+
+        Assert.Contains("ReferenceError", ex.Message);
     }
 }

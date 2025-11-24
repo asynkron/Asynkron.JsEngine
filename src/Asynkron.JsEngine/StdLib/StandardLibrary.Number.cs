@@ -435,6 +435,11 @@ public static partial class StandardLibrary
                 numberProtoObj.SetPrototype(realm.ObjectPrototype);
             }
 
+            // Number.prototype has an internal [[NumberData]] slot whose initial
+            // value is +0. Store it on the prototype so ToNumber can unwrap it
+            // without recursing through toString, and expose a proper valueOf.
+            numberProtoObj.SetProperty("__value__", 0d);
+            numberProtoObj.SetHostedProperty("valueOf", NumberPrototypeValueOf);
             numberProtoObj.SetHostedProperty("toString", NumberPrototypeToString);
         }
 
@@ -520,6 +525,22 @@ public static partial class StandardLibrary
             }
 
             return num.ToString(CultureInfo.InvariantCulture);
+        }
+
+        object? NumberPrototypeValueOf(object? thisValue, IReadOnlyList<object?> _)
+        {
+            if (thisValue is JsObject obj && obj.TryGetValue("__value__", out var inner))
+            {
+                return JsOps.ToNumber(inner);
+            }
+
+            if (thisValue is double or float or decimal or int or uint or long or ulong or short or ushort or byte
+                or sbyte or JsBigInt)
+            {
+                return JsOps.ToNumber(thisValue);
+            }
+
+            throw ThrowTypeError("Number.prototype.valueOf called on non-number object");
         }
 
         object? NumberIsInteger(IReadOnlyList<object?> args)

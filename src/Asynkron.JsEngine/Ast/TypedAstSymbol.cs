@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -7,10 +8,22 @@ namespace Asynkron.JsEngine.Ast;
 ///     Symbols are unique and immutable primitive values that can be used as object property keys.
 ///     This is distinct from the internal Symbol class used for S-expression atoms.
 /// </summary>
-public sealed class TypedAstSymbol
+public sealed class TypedAstSymbol : IJsPropertyAccessor
 {
     private static readonly ConcurrentDictionary<string, TypedAstSymbol> _globalRegistry = new(StringComparer.Ordinal);
     private static int _nextId;
+    private static readonly HostFunction SymbolToStringFunction = new((thisValue, _) =>
+    {
+        if (thisValue is TypedAstSymbol typed)
+        {
+            return typed.ToString();
+        }
+
+        return "Symbol()";
+    })
+    {
+        IsConstructor = false
+    };
 
     private readonly int _id;
     private readonly string? _key; // null for non-global symbols, non-null for global symbols
@@ -66,5 +79,22 @@ public sealed class TypedAstSymbol
     public override int GetHashCode()
     {
         return _id;
+    }
+
+    public bool TryGetProperty(string name, out object? value)
+    {
+        if (string.Equals(name, "toString", StringComparison.Ordinal))
+        {
+            value = SymbolToStringFunction;
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    public void SetProperty(string name, object? value)
+    {
+        // Symbols are immutable; ignore assignments.
     }
 }

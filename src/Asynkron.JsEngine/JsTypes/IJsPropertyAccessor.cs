@@ -31,14 +31,16 @@ public interface IJsPropertyAccessor
         return null;
     }
 
-    /// <summary>
-    ///     Optional hook to enumerate own property names for accessor types that
-    ///     wrap a JsObject (e.g., HostFunction).
-    /// </summary>
     IEnumerable<string> GetOwnPropertyNames()
     {
         return [];
     }
+
+    IEnumerable<string> GetEnumerablePropertyNames()
+    {
+        return [];
+    }
+
 }
 
 /// <summary>

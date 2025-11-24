@@ -2314,7 +2314,13 @@ public static class TypedAstEvaluator
                 return false;
             }
 
-            return DeletePropertyValue(target, propertyValue, context);
+            var deleted = DeletePropertyValue(target, propertyValue, context);
+            if (!deleted && environment.IsStrict)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot delete property", context, context.RealmState);
+            }
+
+            return deleted;
         }
 
         // Deleting identifiers is a no-op in strict mode; return false to indicate failure.

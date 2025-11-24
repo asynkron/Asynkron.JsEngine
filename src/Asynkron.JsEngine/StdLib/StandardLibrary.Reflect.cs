@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
@@ -110,6 +111,11 @@ public static partial class StandardLibrary
         if (args.Count < 3 || !TryGetObject(args[0]!, realm, out var target))
         {
             throw new Exception("Reflect.defineProperty: target must be an object.");
+        }
+
+        if (target is ModuleNamespace)
+        {
+            return args[1] is null;
         }
 
         var propertyKey = args[1]?.ToString() ?? string.Empty;
@@ -249,6 +255,11 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.getPrototypeOf: target must be an object.");
         }
 
+        if (target is ModuleNamespace)
+        {
+            return null;
+        }
+
         return target.Prototype;
     }
 
@@ -325,13 +336,17 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.set.");
         }
 
-        if (args.Count < 3 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
         {
             throw new Exception("Reflect.set: target must be an object.");
         }
 
         var propertyKey = args[1]?.ToString() ?? string.Empty;
-        var value = args[2];
+        var value = args.Count > 2 ? args[2] : Symbols.Undefined;
+        if (target is ModuleNamespace)
+        {
+            return false;
+        }
         if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
         {
             return jsArray.SetLength(value, null, false);
@@ -358,6 +373,11 @@ public static partial class StandardLibrary
         if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
         {
             throw new Exception("Reflect.setPrototypeOf: target must be an object.");
+        }
+
+        if (target is ModuleNamespace)
+        {
+            return false;
         }
 
         var proto = args[1];

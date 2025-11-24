@@ -302,6 +302,10 @@ public static partial class StandardLibrary
 
             switch (target)
             {
+                case ModuleNamespace when proto is null:
+                    return target;
+                case ModuleNamespace:
+                    throw ThrowTypeError("Cannot set prototype on module namespace", realm: realm);
                 case JsObject obj:
                     obj.SetPrototype(proto);
                     break;
@@ -344,7 +348,18 @@ public static partial class StandardLibrary
 
         object? ObjectKeys(IReadOnlyList<object?> args)
         {
-            if (args.Count == 0 || args[0] is not JsObject obj)
+            if (args.Count == 0)
+            {
+                return new JsArray();
+            }
+
+            var obj = args[0] as IJsPropertyAccessor;
+            if (obj is null && TryGetObject(args[0]!, realm, out var coerced))
+            {
+                obj = coerced;
+            }
+
+            if (obj is null)
             {
                 return new JsArray();
             }
@@ -361,7 +376,18 @@ public static partial class StandardLibrary
 
         object? ObjectValues(IReadOnlyList<object?> args)
         {
-            if (args.Count == 0 || args[0] is not JsObject obj)
+            if (args.Count == 0)
+            {
+                return new JsArray();
+            }
+
+            var obj = args[0] as IJsPropertyAccessor;
+            if (obj is null && TryGetObject(args[0]!, realm, out var coerced))
+            {
+                obj = coerced;
+            }
+
+            if (obj is null)
             {
                 return new JsArray();
             }
@@ -369,7 +395,7 @@ public static partial class StandardLibrary
             var values = new JsArray();
             foreach (var key in obj.GetEnumerablePropertyNames())
             {
-                if (obj.TryGetValue(key, out var value))
+                if (obj.TryGetProperty(key, out var value))
                 {
                     values.Push(value);
                 }
@@ -381,7 +407,18 @@ public static partial class StandardLibrary
 
         object? ObjectEntries(IReadOnlyList<object?> args)
         {
-            if (args.Count == 0 || args[0] is not JsObject obj)
+            if (args.Count == 0)
+            {
+                return new JsArray();
+            }
+
+            var obj = args[0] as IJsPropertyAccessor;
+            if (obj is null && TryGetObject(args[0]!, realm, out var coerced))
+            {
+                obj = coerced;
+            }
+
+            if (obj is null)
             {
                 return new JsArray();
             }
@@ -389,7 +426,7 @@ public static partial class StandardLibrary
             var entries = new JsArray();
             foreach (var key in obj.GetEnumerablePropertyNames())
             {
-                if (!obj.TryGetValue(key, out var value))
+                if (!obj.TryGetProperty(key, out var value))
                 {
                     continue;
                 }
@@ -581,7 +618,18 @@ public static partial class StandardLibrary
 
         object? ObjectGetOwnPropertyNames(IReadOnlyList<object?> args)
         {
-            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var obj))
+            if (args.Count == 0)
+            {
+                return new JsArray();
+            }
+
+            var obj = args[0] as IJsPropertyAccessor;
+            if (obj is null && TryGetObject(args[0]!, realm, out var coerced))
+            {
+                obj = coerced;
+            }
+
+            if (obj is null)
             {
                 return new JsArray();
             }
@@ -594,7 +642,18 @@ public static partial class StandardLibrary
 
         object? ObjectGetOwnPropertyDescriptor(IReadOnlyList<object?> args)
         {
-            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var obj))
+            if (args.Count < 2)
+            {
+                return Symbols.Undefined;
+            }
+
+            var obj = args[0] as IJsPropertyAccessor;
+            if (obj is null && TryGetObject(args[0]!, realm, out var coerced))
+            {
+                obj = coerced;
+            }
+
+            if (obj is null)
             {
                 return Symbols.Undefined;
             }
@@ -637,6 +696,11 @@ public static partial class StandardLibrary
             if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var obj))
             {
                 throw ThrowTypeError("Object.getPrototypeOf called on null or undefined", realm: realm);
+            }
+
+            if (obj is ModuleNamespace)
+            {
+                return null;
             }
 
             var proto = obj.Prototype ?? (object?)Symbols.Undefined;

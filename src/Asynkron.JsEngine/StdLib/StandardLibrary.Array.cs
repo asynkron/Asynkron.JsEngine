@@ -1639,7 +1639,7 @@ public static partial class StandardLibrary
 
         switch (receiver)
         {
-            case IJsPropertyAccessor accessor:
+            case IJsPropertyAccessor accessor when accessor is not TypedAstSymbol:
             {
                 if (accessor is not JsObject jsObj || !jsObj.TryGetProperty("__value__", out var inner) ||
                     inner is not string sInner)

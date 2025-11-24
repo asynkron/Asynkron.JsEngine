@@ -971,6 +971,12 @@ internal static class JsOps
             return propertyName is null || hostFunc.DeleteProperty(propertyName);
         }
 
+        if (target is ModuleNamespace moduleNamespace)
+        {
+            var propertyName = ToPropertyName(propertyKey, context);
+            return propertyName is null || moduleNamespace.Delete(propertyName);
+        }
+
         if (target is TypedArrayBase typedArray)
         {
             if (TryResolveArrayIndex(propertyKey, out _, context))

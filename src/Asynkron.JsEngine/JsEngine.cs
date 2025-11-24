@@ -25,6 +25,9 @@ public sealed class JsEngine : IAsyncDisposable
 
     // Module registry: maps module paths to their exported values
     private readonly Dictionary<string, JsObject> _moduleRegistry = new();
+    private readonly Dictionary<JsObject, ModuleNamespace> _moduleNamespaces =
+        new(ReferenceEqualityComparer<JsObject>.Instance);
+    private static readonly object UninitializedExport = new();
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
@@ -1116,6 +1119,67 @@ public sealed class JsEngine : IAsyncDisposable
         return string.Join('/', parts);
     }
 
+    private ModuleNamespace GetModuleNamespace(JsObject exports)
+    {
+        if (_moduleNamespaces.TryGetValue(exports, out var cached))
+        {
+            return cached;
+        }
+
+        var exportNames = exports.Keys
+            .Where(k => !k.StartsWith("__getter__", StringComparison.Ordinal) &&
+                        !k.StartsWith("__setter__", StringComparison.Ordinal) &&
+                        !k.StartsWith("@@symbol:", StringComparison.Ordinal))
+            .ToArray();
+
+        object? Lookup(string name)
+        {
+            if (!exports.TryGetValue(name, out var value))
+            {
+                return Symbols.Undefined;
+            }
+
+            if (ReferenceEquals(value, UninitializedExport))
+            {
+                throw new ThrowSignal($"ReferenceError: {name} is not initialized");
+            }
+
+            return value;
+        }
+
+        var ns = new ModuleNamespace(exportNames, Lookup, RealmState);
+        _moduleNamespaces[exports] = ns;
+        return ns;
+    }
+
+    private static void PredeclareExportNames(ProgramNode program, JsEnvironment moduleEnv, JsObject exports)
+    {
+        foreach (var statement in program.Body)
+        {
+            switch (statement)
+            {
+                case ExportDefaultStatement:
+                    exports["default"] = UninitializedExport;
+                    break;
+                case ExportDeclarationStatement exportDeclaration:
+                    foreach (var symbol in GetDeclaredSymbols(exportDeclaration.Declaration))
+                    {
+                        exports[symbol.Name] = UninitializedExport;
+                        moduleEnv.Define(symbol, UninitializedExport, isLexical: true, blocksFunctionScopeOverride: true);
+                    }
+
+                    break;
+                case ExportNamedStatement exportNamed when exportNamed.FromModule is null:
+                    foreach (var specifier in exportNamed.Specifiers)
+                    {
+                        exports[specifier.Exported.Name] = UninitializedExport;
+                    }
+
+                    break;
+            }
+        }
+    }
+
     /// <summary>
     ///     Evaluates a module program and populates the exports object.
     ///     Returns the last evaluated value.
@@ -1129,6 +1193,7 @@ public sealed class JsEngine : IAsyncDisposable
         var typedProgram = program.Typed.IsStrict
             ? program.Typed
             : new ProgramNode(program.Typed.Source, program.Typed.Body, true);
+        PredeclareExportNames(typedProgram, moduleEnv, exports);
         object? lastValue = null;
         foreach (var statement in typedProgram.Body)
         {
@@ -1178,7 +1243,8 @@ public sealed class JsEngine : IAsyncDisposable
 
         if (importStatement.NamespaceBinding is { } namespaceBinding)
         {
-            moduleEnv.Define(namespaceBinding, exports);
+            var namespaceObject = GetModuleNamespace(exports);
+            moduleEnv.Define(namespaceBinding, namespaceObject);
         }
 
         foreach (var binding in importStatement.NamedImports)

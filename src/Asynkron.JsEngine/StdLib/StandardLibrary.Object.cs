@@ -714,6 +714,10 @@ public static partial class StandardLibrary
             }
 
             var resultDesc = new JsObject();
+            if (realm.ObjectPrototype is not null)
+            {
+                resultDesc.SetPrototype(realm.ObjectPrototype);
+            }
             if (desc.IsAccessorDescriptor)
             {
                 if (desc.Get != null)

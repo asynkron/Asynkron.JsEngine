@@ -1,5 +1,7 @@
 namespace Asynkron.JsEngine.Tests;
 
+using Asynkron.JsEngine.Ast;
+
 public class DestructuringTests
 {
     // Basic Array Destructuring Tests
@@ -24,7 +26,7 @@ public class DestructuringTests
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate("let [a, b, c] = [1, 2]; c;");
-        Assert.Null(result);
+        Assert.Same(Symbols.Undefined, result);
     }
 
     [Fact(Timeout = 2000)]
@@ -228,7 +230,7 @@ public class DestructuringTests
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate("let [a, b] = []; a;");
-        Assert.Null(result);
+        Assert.Same(Symbols.Undefined, result);
     }
 
     [Fact(Timeout = 2000)]

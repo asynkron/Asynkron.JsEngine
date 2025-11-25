@@ -2965,7 +2965,7 @@ public sealed class TypedAstParser(
                 TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
                     TokenType.Undefined or TokenType.Typeof or TokenType.Instanceof or TokenType.Void or TokenType.Delete or
                 TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or
-                    TokenType.Await or TokenType.Static or TokenType.Import or TokenType.Export => true,
+                    TokenType.Await or TokenType.Static or TokenType.Import or TokenType.Export or TokenType.With => true,
                 _ => false
             };
         }

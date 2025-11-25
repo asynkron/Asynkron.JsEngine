@@ -16,11 +16,11 @@ public class SourceReferenceInExceptionsTests
         ";
 
         await using var engine = new JsEngine();
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate(source));
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate(source));
 
         // Should include source reference
-        Assert.Contains("Cannot destructure non-array value", ex.Message);
-        // Message should be longer than just the basic error (indicating source info is present)
+        Assert.Contains("Cannot destructure non-iterable value", ex.Message);
+        // Message should include source info to aid debugging
         Assert.True(ex.Message.Length > 50, "Expected source reference information to be included in message");
     }
 

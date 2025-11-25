@@ -3700,7 +3700,8 @@ public static class TypedAstEvaluator
     {
         if (!TryGetIteratorForDestructuring(value, context, out var iterator, out var enumerator))
         {
-            throw StandardLibrary.ThrowTypeError("Cannot destructure non-iterable value.", context);
+            throw StandardLibrary.ThrowTypeError(
+                $"Cannot destructure non-iterable value.{GetSourceInfo(context)}", context);
         }
 
         if (iterator is not null && binding.Elements.Length == 0 && binding.RestElement is null)
@@ -3727,6 +3728,11 @@ public static class TypedAstEvaluator
                 }
 
                 var elementValue = done ? JsSymbols.Undefined : nextValue;
+
+                if (element.Target is null)
+                {
+                    continue;
+                }
 
                 if (element.DefaultValue is not null &&
                     ReferenceEquals(elementValue, JsSymbols.Undefined))

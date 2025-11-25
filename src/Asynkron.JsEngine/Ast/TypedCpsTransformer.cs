@@ -474,7 +474,7 @@ public sealed class TypedCpsTransformer
         }
 
         var transformedBody = RewriteAsyncBody(function.Body);
-        return function with { Body = transformedBody };
+        return function with { Body = transformedBody, IsAsync = false };
     }
 
     private ExpressionNode TransformExpression(ExpressionNode expression)

@@ -606,6 +606,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
     }
 
+    // Mirrors [[OwnPropertyKeys]] ordering for enumerable keys (ECMA-262 §7.3.23).
     public IEnumerable<string> GetOwnEnumerablePropertyKeysInOrder(bool includeSymbols = true)
     {
         return EnumerateOwnKeysInOrder(includeSymbols, includeNonEnumerable: false);

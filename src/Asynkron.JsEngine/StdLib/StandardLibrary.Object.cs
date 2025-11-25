@@ -592,6 +592,7 @@ public static partial class StandardLibrary
             return obj.IsSealed;
         }
 
+        // ECMA-262 §7.2.9 (SameValue) exposed as Object.is.
         object? ObjectIs(IReadOnlyList<object?> args)
         {
             var left = args.Count > 0 ? args[0] : Symbols.Undefined;

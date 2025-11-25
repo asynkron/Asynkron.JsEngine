@@ -423,6 +423,7 @@ public static class TypedAstEvaluator
         return lastValue;
     }
 
+    // Per ECMA-262 §7.4.1/§7.4.2 (GetIterator / GetAsyncIterator) via @@iterator/@@asyncIterator.
     private static bool TryGetIteratorFromProtocols(object? iterable, out JsObject? iterator)
     {
         iterator = null;
@@ -2390,6 +2391,7 @@ public static class TypedAstEvaluator
         return (directCallee, null, false);
     }
 
+    // SpreadElement runtime semantics (ECMA-262 §12.2.5.2) use GetIterator on the operand.
     private static IEnumerable<object?> EnumerateSpread(object? value, EvaluationContext context)
     {
         if (!TryGetIteratorForDestructuring(value, context, out var iterator, out var enumerator))
@@ -2708,6 +2710,8 @@ public static class TypedAstEvaluator
                         break;
                     }
 
+                    // Object spread uses CopyDataProperties (ECMA-262 PropertyDefinitionEvaluation),
+                    // which skips null/undefined and copies enumerable own keys in [[OwnPropertyKeys]] order.
                     if (spreadValue is IDictionary<string, object?> dictionary && spreadValue is not JsObject)
                     {
                         foreach (var kvp in dictionary)
@@ -3977,6 +3981,7 @@ public static class TypedAstEvaluator
         }
     }
 
+    // Array/object destructuring uses iterator protocol (ECMA-262 §14.1.5).
     private static bool TryGetIteratorForDestructuring(object? value, EvaluationContext context,
         out JsObject? iterator, out IEnumerator<object?>? enumerator)
     {
@@ -6444,14 +6449,30 @@ public static class TypedAstEvaluator
                     throw new ThrowSignal(thrown);
                 }
 
-                if (!context.IsReturn)
+                if (!_isAsyncFunction)
                 {
-                    return _isAsyncFunction ? result : JsSymbols.Undefined;
+                    if (!context.IsReturn)
+                    {
+                        return JsSymbols.Undefined;
+                    }
+
+                    var value = context.FlowValue;
+                    context.ClearReturn();
+                    return value;
                 }
 
-                var value = context.FlowValue;
-                context.ClearReturn();
-                return value;
+                object? completionValue;
+                if (context.IsReturn)
+                {
+                    completionValue = context.FlowValue;
+                    context.ClearReturn();
+                }
+                else
+                {
+                    completionValue = JsSymbols.Undefined;
+                }
+
+                return CreateResolvedPromise(completionValue, environment);
             }
             catch (ThrowSignal signal) when (_isAsyncFunction)
             {
@@ -6705,7 +6726,6 @@ public static class TypedAstEvaluator
             }
 
             return count;
-            }
         }
 
         private static object? CreateRejectedPromise(object? reason, JsEnvironment environment)
@@ -6727,4 +6747,25 @@ public static class TypedAstEvaluator
 
             return reason;
         }
+
+        private static object? CreateResolvedPromise(object? value, JsEnvironment environment)
+        {
+            if (environment.TryGet(Symbol.Intern("Promise"), out var promiseCtor) &&
+                promiseCtor is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("resolve", out var resolveValue) &&
+                resolveValue is IJsCallable resolveCallable)
+            {
+                try
+                {
+                    return resolveCallable.Invoke([value], promiseCtor);
+                }
+                catch (ThrowSignal signal)
+                {
+                    return signal.ThrownValue;
+                }
+            }
+
+            return value;
+        }
     }
+}

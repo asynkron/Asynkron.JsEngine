@@ -1,3 +1,4 @@
+using System;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -83,6 +84,8 @@ public static partial class StandardLibrary
         objectConstructor.SetHostedProperty("isFrozen", ObjectIsFrozen);
 
         objectConstructor.SetHostedProperty("isSealed", ObjectIsSealed);
+
+        objectConstructor.SetHostedProperty("is", ObjectIs);
 
         objectConstructor.SetHostedProperty("create", ObjectCreate);
 
@@ -587,6 +590,49 @@ public static partial class StandardLibrary
             }
 
             return obj.IsSealed;
+        }
+
+        object? ObjectIs(IReadOnlyList<object?> args)
+        {
+            var left = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var right = args.Count > 1 ? args[1] : Symbols.Undefined;
+
+            if (left is double ld && right is double rd)
+            {
+                if (double.IsNaN(ld) && double.IsNaN(rd))
+                {
+                    return true;
+                }
+
+                if (ld == 0.0 && rd == 0.0)
+                {
+                    return BitConverter.DoubleToInt64Bits(ld) == BitConverter.DoubleToInt64Bits(rd);
+                }
+
+                return ld.Equals(rd);
+            }
+
+            if (left is float lf && right is float rf)
+            {
+                if (float.IsNaN(lf) && float.IsNaN(rf))
+                {
+                    return true;
+                }
+
+                if (lf == 0f && rf == 0f)
+                {
+                    return BitConverter.SingleToInt32Bits(lf) == BitConverter.SingleToInt32Bits(rf);
+                }
+
+                return lf.Equals(rf);
+            }
+
+            if (left is JsBigInt lbi && right is JsBigInt rbi)
+            {
+                return lbi == rbi;
+            }
+
+            return JsOps.StrictEquals(left, right);
         }
 
         object? ObjectCreate(IReadOnlyList<object?> args)

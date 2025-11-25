@@ -451,15 +451,30 @@ public static class TypedAstEvaluator
     private static bool TryInvokeSymbolMethod(JsObject target, string symbolName, out object? result)
     {
         var symbol = TypedAstSymbol.For(symbolName);
-        var propertyName = $"@@symbol:{symbol.GetHashCode()}";
-        if (target.TryGetProperty(propertyName, out var candidate) && candidate is IJsCallable callable)
+        var hashedName = $"@@symbol:{symbol.GetHashCode()}";
+
+        if (TryGetCallable(hashedName, out var callable) ||
+            TryGetCallable(symbolName, out callable) ||
+            TryGetCallable(symbol.ToString(), out callable))
         {
-            result = callable.Invoke([], target);
+            result = callable!.Invoke([], target);
             return true;
         }
 
         result = null;
         return false;
+
+        bool TryGetCallable(string propertyName, out IJsCallable? callable)
+        {
+            if (target.TryGetProperty(propertyName, out var candidate) && candidate is IJsCallable found)
+            {
+                callable = found;
+                return true;
+            }
+
+            callable = null;
+            return false;
+        }
     }
 
     private static object? InvokeIteratorNext(JsObject iterator, object? sendValue = null, bool hasSendValue = false)
@@ -2150,7 +2165,7 @@ public static class TypedAstEvaluator
                     return JsSymbols.Undefined;
                 }
 
-                foreach (var item in EnumerateSpread(spreadValue))
+                foreach (var item in EnumerateSpread(spreadValue, context))
                 {
                     arguments.Add(item);
                 }
@@ -2245,7 +2260,7 @@ public static class TypedAstEvaluator
                 return JsSymbols.Undefined;
             }
 
-            foreach (var item in EnumerateSpread(argsArray))
+            foreach (var item in EnumerateSpread(argsArray, context))
             {
                 argsBuilder.Add(item);
             }
@@ -2375,35 +2390,46 @@ public static class TypedAstEvaluator
         return (directCallee, null, false);
     }
 
-    private static IEnumerable<object?> EnumerateSpread(object? value)
+    private static IEnumerable<object?> EnumerateSpread(object? value, EvaluationContext context)
     {
-        switch (value)
+        if (!TryGetIteratorForDestructuring(value, context, out var iterator, out var enumerator))
         {
-            case null:
-                yield break;
-            case JsArray array:
-                foreach (var item in array.Items)
+            throw StandardLibrary.ThrowTypeError("Value is not iterable.", context, context.RealmState);
+        }
+
+        var iteratorRecord = new ArrayPatternIterator(iterator, enumerator);
+
+        try
+        {
+            while (true)
+            {
+                var (item, done) = iteratorRecord.Next(context);
+                if (context.ShouldStopEvaluation)
                 {
-                    yield return item;
+                    if (iterator is not null)
+                    {
+                        IteratorClose(iterator, context);
+                    }
+
+                    yield break;
                 }
 
-                yield break;
-            case string s:
-                foreach (var ch in s)
+                if (done)
                 {
-                    yield return ch.ToString();
+                    yield break;
                 }
 
-                yield break;
-            case IEnumerable enumerable:
-                foreach (var item in enumerable)
-                {
-                    yield return item;
-                }
+                yield return item;
+            }
+        }
+        finally
+        {
+            if (iterator is not null && context.IsThrow)
+            {
+                IteratorClose(iterator, context);
+            }
 
-                yield break;
-            default:
-                throw new InvalidOperationException("Value is not iterable.");
+            enumerator?.Dispose();
         }
     }
 
@@ -2544,7 +2570,7 @@ public static class TypedAstEvaluator
                     return JsSymbols.Undefined;
                 }
 
-                foreach (var item in EnumerateSpread(spreadValue))
+                foreach (var item in EnumerateSpread(spreadValue, context))
                 {
                     array.Push(item);
                 }
@@ -2677,20 +2703,12 @@ public static class TypedAstEvaluator
                         return JsSymbols.Undefined;
                     }
 
-                    if (spreadValue is JsObject spreadObject)
+                    if (IsNullish(spreadValue) || spreadValue is IIsHtmlDda)
                     {
-                        foreach (var key in spreadObject.GetOwnPropertyNames())
-                        {
-                            var spreadPropertyValue = spreadObject.TryGetProperty(key, out var val)
-                                ? val
-                                : JsSymbols.Undefined;
-                            obj.SetProperty(key, spreadPropertyValue);
-                        }
-
                         break;
                     }
 
-                    if (spreadValue is IDictionary<string, object?> dictionary)
+                    if (spreadValue is IDictionary<string, object?> dictionary && spreadValue is not JsObject)
                     {
                         foreach (var kvp in dictionary)
                         {
@@ -2700,7 +2718,19 @@ public static class TypedAstEvaluator
                         break;
                     }
 
-                    throw new InvalidOperationException("Cannot spread value that is not an object.");
+                    IJsPropertyAccessor accessor = spreadValue is IJsPropertyAccessor propertyAccessor
+                        ? propertyAccessor
+                        : ToObjectForDestructuring(spreadValue, context);
+
+                    foreach (var key in GetEnumerableOwnPropertyKeysInOrder(accessor))
+                    {
+                        var spreadPropertyValue = accessor.TryGetProperty(key, out var val)
+                            ? val
+                            : JsSymbols.Undefined;
+                        obj.SetProperty(key, spreadPropertyValue);
+                    }
+
+                    break;
                 }
             }
         }
@@ -3957,6 +3987,11 @@ public static class TypedAstEvaluator
         {
             iterator = iteratorCandidate;
             return true;
+        }
+
+        if (value is JsObject)
+        {
+            return false;
         }
 
         switch (value)

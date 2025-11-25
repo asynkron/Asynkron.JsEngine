@@ -305,12 +305,30 @@ internal sealed class SyncGeneratorIrBuilder
                 case ContinueStatement continueStatement:
                     return TryBuildContinue(continueStatement, out entryIndex);
 
+                case ThrowStatement throwStatement:
+                    if (throwStatement.Expression is not null &&
+                        AstShapeAnalyzer.ContainsYield(throwStatement.Expression))
+                    {
+                        entryIndex = -1;
+                        _failureReason ??= "Throw expression contains unsupported yield shape.";
+                        return false;
+                    }
+
+                    entryIndex = Append(new StatementInstruction(nextIndex, throwStatement));
+                    return true;
+
                 case LabeledStatement labeled:
                     statement = labeled.Statement;
                     activeLabel = labeled.Label;
                     continue;
 
                 default:
+                    if (statement is ThrowStatement throwFallback)
+                    {
+                        entryIndex = Append(new StatementInstruction(nextIndex, throwFallback));
+                        return true;
+                    }
+
                     entryIndex = -1;
                     _failureReason ??= $"Unsupported statement '{statement.GetType().Name}'.";
                     return false;

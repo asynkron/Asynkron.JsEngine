@@ -65,6 +65,12 @@ public sealed record ObjectBinding(
     BindingTarget? RestElement) : BindingTarget(Source);
 
 /// <summary>
+///     Represents an assignment-style binding target (e.g. a member expression)
+///     used in destructuring assignment patterns.
+/// </summary>
+public sealed record AssignmentTargetBinding(SourceReference? Source, ExpressionNode Expression) : BindingTarget(Source);
+
+/// <summary>
 ///     Represents a single property inside an object destructuring binding.
 /// </summary>
 public sealed record ObjectBindingProperty(

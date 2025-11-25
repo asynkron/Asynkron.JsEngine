@@ -2657,12 +2657,12 @@ public sealed class TypedAstParser(
                     var restBinding = member.Value is null
                         ? null
                         : ConvertExpressionToBindingTarget(member.Value);
-                    if (restBinding is not IdentifierBinding identifierBinding)
+                    if (restBinding is null)
                     {
-                        throw new NotSupportedException("Rest property must be an identifier.");
+                        throw new NotSupportedException("Invalid rest binding target.");
                     }
 
-                    restTarget = identifierBinding;
+                    restTarget = restBinding;
                     continue;
                 }
 
@@ -2686,6 +2686,8 @@ public sealed class TypedAstParser(
             {
                 case IdentifierExpression identifier:
                     return new IdentifierBinding(expression.Source, identifier.Name);
+                case MemberExpression:
+                    return new AssignmentTargetBinding(expression.Source, expression);
                 case ArrayExpression array:
                     return ConvertArrayExpressionToBinding(array);
                 case ObjectExpression obj:

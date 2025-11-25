@@ -438,6 +438,8 @@ internal static class TypedAstSupportAnalyzer
                     }
 
                     return true;
+                case AssignmentTargetBinding assignmentTargetBinding:
+                    return VisitExpression(assignmentTargetBinding.Expression);
                 default:
                     return Fail("Binding target type is not supported by the typed evaluator.");
             }

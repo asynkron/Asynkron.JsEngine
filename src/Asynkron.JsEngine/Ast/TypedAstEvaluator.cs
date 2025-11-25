@@ -505,6 +505,16 @@ public static class TypedAstEvaluator
         return true;
     }
 
+    private static void IteratorClose(JsObject iterator, EvaluationContext context)
+    {
+        if (TryInvokeIteratorMethod(iterator, "return", JsSymbols.Undefined, context, out var closeResult) &&
+            closeResult is JsObject promiseCandidate &&
+            IsPromiseLike(promiseCandidate))
+        {
+            AwaitScheduler.TryAwaitPromiseSync(promiseCandidate, context, out _);
+        }
+    }
+
     private static object? ExecuteIteratorDriver(IteratorDriverPlan plan,
         JsObject iterator,
         IEnumerator<object?>? enumerator,
@@ -3635,6 +3645,21 @@ public static class TypedAstEvaluator
             case ObjectBinding objectBinding:
                 BindObjectPattern(objectBinding, value, environment, context, mode);
                 break;
+            case AssignmentTargetBinding assignmentTarget:
+            {
+                var reference = AssignmentReferenceResolver.Resolve(
+                    assignmentTarget.Expression,
+                    environment,
+                    context,
+                    EvaluateExpression);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+
+                reference.SetValue(value);
+                break;
+            }
             default:
                 throw new NotSupportedException($"Binding target '{target.GetType().Name}' is not supported.");
         }
@@ -3673,44 +3698,113 @@ public static class TypedAstEvaluator
     private static void BindArrayPattern(ArrayBinding binding, object? value, JsEnvironment environment,
         EvaluationContext context, BindingMode mode)
     {
-        if (value is not JsArray array)
+        if (!TryGetIteratorForDestructuring(value, context, out var iterator, out var enumerator))
         {
-            throw new InvalidOperationException(
-                $"Cannot destructure non-array value.{GetSourceInfo(context)}");
+            throw StandardLibrary.ThrowTypeError("Cannot destructure non-iterable value.", context);
         }
 
-        var index = 0;
-        foreach (var element in binding.Elements)
+        if (iterator is not null && binding.Elements.Length == 0 && binding.RestElement is null)
         {
-            if (element.Target is null)
-            {
-                index++;
-                continue;
-            }
+            IteratorClose(iterator, context);
+            return;
+        }
 
-            var elementValue = index < array.Items.Count ? array.Items[index] : null;
-            if (IsNullOrUndefined(elementValue) && element.DefaultValue is not null)
+        var iteratorRecord = new ArrayPatternIterator(iterator, enumerator);
+
+        try
+        {
+            foreach (var element in binding.Elements)
             {
-                elementValue = EvaluateExpression(element.DefaultValue, environment, context);
+                var (nextValue, done) = iteratorRecord.Next(context);
                 if (context.ShouldStopEvaluation)
                 {
+                    if (iterator is not null)
+                    {
+                        IteratorClose(iterator, context);
+                    }
+
+                    return;
+                }
+
+                var elementValue = done ? JsSymbols.Undefined : nextValue;
+
+                if (element.DefaultValue is not null &&
+                    ReferenceEquals(elementValue, JsSymbols.Undefined))
+                {
+                    elementValue = EvaluateExpression(element.DefaultValue, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (iterator is not null)
+                        {
+                            IteratorClose(iterator, context);
+                        }
+
+                        return;
+                    }
+                }
+
+                ApplyBindingTarget(element.Target, elementValue, environment, context, mode);
+
+                if (context.ShouldStopEvaluation)
+                {
+                    if (iterator is not null)
+                    {
+                        IteratorClose(iterator, context);
+                    }
+
                     return;
                 }
             }
 
-            ApplyBindingTarget(element.Target, elementValue, environment, context, mode);
-            index++;
-        }
-
-        if (binding.RestElement is not null)
-        {
-            var restArray = new JsArray(context.RealmState);
-            for (; index < array.Items.Count; index++)
+            if (binding.RestElement is not null)
             {
-                restArray.Push(array.Items[index]);
+                var restArray = new JsArray(context.RealmState);
+                while (true)
+                {
+                    var (restValue, done) = iteratorRecord.Next(context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (iterator is not null)
+                        {
+                            IteratorClose(iterator, context);
+                        }
+
+                        return;
+                    }
+
+                    if (done)
+                    {
+                        break;
+                    }
+
+                    restArray.Push(restValue);
+                }
+
+                ApplyBindingTarget(binding.RestElement, restArray, environment, context, mode);
+            }
+        }
+        catch (ThrowSignal)
+        {
+            if (iterator is not null)
+            {
+                IteratorClose(iterator, context);
             }
 
-            ApplyBindingTarget(binding.RestElement, restArray, environment, context, mode);
+            throw;
+        }
+        catch
+        {
+            if (iterator is not null)
+            {
+                IteratorClose(iterator, context);
+            }
+
+            throw;
+        }
+
+        if (iterator is not null && context.IsThrow)
+        {
+            IteratorClose(iterator, context);
         }
     }
 
@@ -3741,6 +3835,10 @@ public static class TypedAstEvaluator
         if (binding.RestElement is not null)
         {
             var restObject = new JsObject();
+            if (context.RealmState?.ObjectPrototype is not null)
+            {
+                restObject.SetPrototype(context.RealmState.ObjectPrototype);
+            }
             foreach (var key in obj.GetEnumerablePropertyNames())
             {
                 if (!usedKeys.Contains(key))
@@ -3753,6 +3851,110 @@ public static class TypedAstEvaluator
             }
 
             ApplyBindingTarget(binding.RestElement, restObject, environment, context, mode);
+        }
+    }
+
+    private static bool TryGetIteratorForDestructuring(object? value, EvaluationContext context,
+        out JsObject? iterator, out IEnumerator<object?>? enumerator)
+    {
+        iterator = null;
+        enumerator = null;
+
+        if (TryGetIteratorFromProtocols(value, out var iteratorCandidate) && iteratorCandidate is not null)
+        {
+            iterator = iteratorCandidate;
+            return true;
+        }
+
+        switch (value)
+        {
+            case JsArray array:
+                enumerator = EnumerateArrayElements(array);
+                return true;
+            case string s:
+                enumerator = EnumerateStringCharacters(s);
+                return true;
+            case IEnumerable<object?> enumerable:
+                enumerator = enumerable.GetEnumerator();
+                return true;
+        }
+
+        return false;
+    }
+
+    private static IEnumerator<object?> EnumerateArrayElements(JsArray array)
+    {
+        IEnumerable<object?> Enumerate()
+        {
+            var length = array.Length;
+            var truncated = Math.Truncate(length);
+            var clamped = truncated > int.MaxValue ? int.MaxValue : truncated;
+            var count = clamped < 0 ? 0 : (int)clamped;
+            for (var i = 0; i < count; i++)
+            {
+                yield return array.GetElement(i);
+            }
+        }
+
+        return Enumerate().GetEnumerator();
+    }
+
+    private static IEnumerator<object?> EnumerateStringCharacters(string value)
+    {
+        IEnumerable<object?> Enumerate()
+        {
+            foreach (var ch in value)
+            {
+                yield return ch.ToString();
+            }
+        }
+
+        return Enumerate().GetEnumerator();
+    }
+
+    private readonly struct ArrayPatternIterator
+    {
+        private readonly JsObject? _iterator;
+        private readonly IEnumerator<object?>? _enumerator;
+
+        public ArrayPatternIterator(JsObject? iterator, IEnumerator<object?>? enumerator)
+        {
+            _iterator = iterator;
+            _enumerator = enumerator;
+        }
+
+        public (object? Value, bool Done) Next(EvaluationContext context)
+        {
+            if (_iterator is not null)
+            {
+                var candidate = InvokeIteratorNext(_iterator);
+                if (candidate is not JsObject result)
+                {
+                    throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
+                }
+
+                var done = result.TryGetProperty("done", out var doneValue) &&
+                           doneValue is bool doneBool &&
+                           doneBool;
+
+                var value = result.TryGetProperty("value", out var yielded)
+                    ? yielded
+                    : JsSymbols.Undefined;
+
+                return (done ? JsSymbols.Undefined : value, done);
+            }
+
+            if (_enumerator is null)
+            {
+                return (JsSymbols.Undefined, true);
+            }
+
+            if (!_enumerator.MoveNext())
+            {
+                return (JsSymbols.Undefined, true);
+            }
+
+            return (_enumerator.Current, false);
         }
     }
 
@@ -3771,6 +3973,17 @@ public static class TypedAstEvaluator
                 return StandardLibrary.CreateStringWrapper(s, context, realm);
             case JsBigInt bi:
                 return StandardLibrary.CreateBigIntWrapper(bi, context, realm);
+            case TypedAstSymbol symbolValue:
+            {
+                var obj = new JsObject();
+                if (realm?.ObjectPrototype is not null)
+                {
+                    obj.SetPrototype(realm.ObjectPrototype);
+                }
+
+                obj.SetProperty("__value__", symbolValue);
+                return obj;
+            }
             case double:
             case float:
             case decimal:

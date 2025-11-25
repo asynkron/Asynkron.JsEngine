@@ -440,7 +440,28 @@ public sealed class TypedAstParser(
                     break;
                 }
 
-                var (name, canUseShorthand, nameToken) = ParseBindingPropertyName();
+                string name;
+                bool canUseShorthand;
+                Token nameToken;
+                ExpressionNode? nameExpression = null;
+
+                if (Match(TokenType.LeftBracket))
+                {
+                    var start = Previous();
+                    nameExpression = ParseAssignment();
+                    Consume(TokenType.RightBracket, "Expected ']' after computed property name.");
+                    name = string.Empty;
+                    canUseShorthand = false;
+                    nameToken = start;
+                }
+                else
+                {
+                    var parsedName = ParseBindingPropertyName();
+                    name = parsedName.Name;
+                    canUseShorthand = parsedName.CanUseShorthand;
+                    nameToken = parsedName.Token;
+                }
+
                 var source = CreateSourceReference(nameToken);
                 BindingTarget target;
 
@@ -466,7 +487,7 @@ public sealed class TypedAstParser(
                     defaultValue = ParseAssignment();
                 }
 
-                properties.Add(new ObjectBindingProperty(source, name, target, defaultValue));
+                properties.Add(new ObjectBindingProperty(source, name, target, defaultValue, nameExpression));
                 if (!Match(TokenType.Comma))
                 {
                     break;
@@ -2631,9 +2652,17 @@ public sealed class TypedAstParser(
                     continue;
                 }
 
-                var target = ConvertExpressionToBindingTarget(element.Expression)
+                ExpressionNode? defaultValue = null;
+                var targetExpression = element.Expression;
+                if (element.Expression is AssignmentExpression assignmentExpression)
+                {
+                    targetExpression = new IdentifierExpression(assignmentExpression.Source, assignmentExpression.Target);
+                    defaultValue = assignmentExpression.Value;
+                }
+
+                var target = ConvertExpressionToBindingTarget(targetExpression)
                              ?? throw new NotSupportedException("Invalid destructuring target.");
-                elements.Add(new ArrayBindingElement(element.Source ?? target.Source, target, null));
+                elements.Add(new ArrayBindingElement(element.Source ?? target.Source, target, defaultValue));
             }
 
             return new ArrayBinding(array.Source, elements.ToImmutable(), restTarget);
@@ -2666,15 +2695,45 @@ public sealed class TypedAstParser(
                     continue;
                 }
 
-                if (member.Kind != ObjectMemberKind.Property || member.IsComputed || member.Key is not string name ||
-                    member.Value is null)
+                if (member.Kind != ObjectMemberKind.Property || member.Value is null)
                 {
                     throw new NotSupportedException("Invalid object destructuring pattern.");
                 }
 
-                var target = ConvertExpressionToBindingTarget(member.Value)
+                string name = string.Empty;
+                ExpressionNode? nameExpression = null;
+                if (member.IsComputed)
+                {
+                    if (member.Key is ExpressionNode expressionKey)
+                    {
+                        nameExpression = expressionKey;
+                    }
+                    else
+                    {
+                        throw new NotSupportedException("Invalid object destructuring pattern.");
+                    }
+                }
+                else if (member.Key is string stringName)
+                {
+                    name = stringName;
+                }
+                else
+                {
+                    throw new NotSupportedException("Invalid object destructuring pattern.");
+                }
+
+                ExpressionNode? defaultValue = null;
+                var valueExpression = member.Value;
+                if (member.Value is AssignmentExpression assignmentExpression)
+                {
+                    valueExpression = new IdentifierExpression(assignmentExpression.Source, assignmentExpression.Target);
+                    defaultValue = assignmentExpression.Value;
+                }
+
+                var target = ConvertExpressionToBindingTarget(valueExpression)
                              ?? throw new NotSupportedException("Invalid object destructuring target.");
-                properties.Add(new ObjectBindingProperty(member.Source ?? obj.Source, name, target, null));
+                properties.Add(new ObjectBindingProperty(member.Source ?? obj.Source, name, target, defaultValue,
+                    nameExpression));
             }
 
             return new ObjectBinding(obj.Source, properties.ToImmutable(), restTarget);

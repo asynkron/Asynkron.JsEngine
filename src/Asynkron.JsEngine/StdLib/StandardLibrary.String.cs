@@ -17,7 +17,19 @@ public static partial class StandardLibrary
     {
         var stringObj = new JsObject();
         stringObj["__value__"] = str;
-        stringObj["length"] = (double)str.Length;
+
+        // Define non-enumerable length like native String objects.
+        stringObj.DefineProperty("length",
+            new PropertyDescriptor
+            {
+                Value = (double)str.Length, Writable = false, Enumerable = false, Configurable = false,
+                HasValue = true, HasWritable = true, HasEnumerable = true, HasConfigurable = true
+            });
+
+        // Expose indexed characters as enumerable, non-writable virtual properties to
+        // avoid allocating per-character descriptors for large strings.
+        stringObj.SetVirtualPropertyProvider(new StringVirtualPropertyProvider(str));
+
         var prototype = context?.RealmState?.StringPrototype ?? realm?.StringPrototype;
         if (prototype is not null)
         {
@@ -26,6 +38,48 @@ public static partial class StandardLibrary
 
         AddStringMethods(stringObj, str, realm ?? context?.RealmState);
         return stringObj;
+    }
+
+    private sealed class StringVirtualPropertyProvider(string value) : IVirtualPropertyProvider
+    {
+        public bool TryGetOwnProperty(string name, out object? valueOut, out PropertyDescriptor? descriptor)
+        {
+            valueOut = null;
+            descriptor = null;
+
+            if (!IsArrayIndex(name, out var index) || index < 0 || index >= value.Length)
+            {
+                return false;
+            }
+
+            var ch = value[index].ToString();
+            valueOut = ch;
+            descriptor = new PropertyDescriptor
+            {
+                Value = ch,
+                Writable = false,
+                Enumerable = true,
+                Configurable = false,
+                HasValue = true,
+                HasWritable = true,
+                HasEnumerable = true,
+                HasConfigurable = true
+            };
+            return true;
+        }
+
+        public IEnumerable<string> GetEnumerableKeys()
+        {
+            for (var i = 0; i < value.Length; i++)
+            {
+                yield return i.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
+        private static bool IsArrayIndex(string key, out int index)
+        {
+            return int.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out index) && index >= 0;
+        }
     }
 
     /// <summary>

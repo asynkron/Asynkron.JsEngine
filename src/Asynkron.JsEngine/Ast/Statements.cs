@@ -77,7 +77,8 @@ public sealed record ObjectBindingProperty(
     SourceReference? Source,
     string Name,
     BindingTarget Target,
-    ExpressionNode? DefaultValue) : AstNode(Source);
+    ExpressionNode? DefaultValue,
+    ExpressionNode? NameExpression = null) : AstNode(Source);
 
 /// <summary>
 ///     Represents an expression statement.

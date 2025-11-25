@@ -209,6 +209,21 @@ public sealed class JsEnvironment
         throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
     }
 
+    internal bool IsConstBinding(Symbol name)
+    {
+        if (_values.TryGetValue(name, out var binding))
+        {
+            return binding.IsConst || binding.IsGlobalConstant;
+        }
+
+        if (_withObject is not null && TryGetFromWith(_withObject, name, out _))
+        {
+            return false;
+        }
+
+        return _enclosing?.IsConstBinding(name) ?? false;
+    }
+
     public bool TryGet(Symbol name, out object? value)
     {
         if (_values.TryGetValue(name, out var binding))
@@ -268,14 +283,14 @@ public sealed class JsEnvironment
         {
             if (binding.IsConst)
             {
-                throw new InvalidOperationException($"Cannot reassign constant '{name.Name}'.");
+                throw new ThrowSignal(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'."));
             }
 
             if (binding.IsGlobalConstant)
             {
                 if (isStrictContext)
                 {
-                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not writable");
+                    throw new ThrowSignal(StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable"));
                 }
 
                 return;

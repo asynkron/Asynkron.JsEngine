@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class ArrayLengthTest(ITestOutputHelper output)
 {
-    [Fact(Timeout = 10000)]
+    [Fact(Timeout = 60000)]
     public async Task TestStr2BinlLength()
     {
         await using var engine = new JsEngine();

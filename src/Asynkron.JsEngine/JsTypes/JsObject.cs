@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
@@ -72,6 +73,9 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
     private const string SetterPrefix = "__setter__";
     private const string DescriptorPrefix = "__descriptor__";
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
+    private readonly List<string> _propertyInsertionOrder = new();
+    private readonly HashSet<string> _propertyInsertionSet = new(StringComparer.Ordinal);
+    private IVirtualPropertyProvider? _virtualPropertyProvider;
 
     public bool IsFrozen { get; private set; }
 
@@ -114,6 +118,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor)
     {
+        var propertyExists = _descriptors.ContainsKey(name) || ContainsKey(name);
         var existingDesc = _descriptors.TryGetValue(name, out var found) ? found : null;
         if (existingDesc is null && TryGetValue(name, out var existingValue))
         {
@@ -231,15 +236,20 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
 
         // Sealed/frozen objects cannot have new properties added
-        if ((IsSealed || IsFrozen) && !ContainsKey(name))
+        if ((IsSealed || IsFrozen) && !propertyExists)
         {
             return false;
         }
 
         // Frozen objects cannot have properties modified
-        if (IsFrozen && ContainsKey(name))
+        if (IsFrozen && propertyExists)
         {
             return false;
+        }
+
+        if (!propertyExists)
+        {
+            TrackPropertyInsertion(name);
         }
 
         _descriptors[name] = descriptor;
@@ -273,6 +283,14 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             return descriptor;
         }
 
+        if (_virtualPropertyProvider is not null &&
+            !_descriptors.ContainsKey(name) &&
+            !ContainsKey(name) &&
+            _virtualPropertyProvider.TryGetOwnProperty(name, out _, out var virtualDescriptor))
+        {
+            return virtualDescriptor;
+        }
+
         // If no explicit descriptor but property exists, return default descriptor
         if (ContainsKey(name))
         {
@@ -293,6 +311,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             return;
         }
 
+        var propertyExists = _descriptors.ContainsKey(name) || ContainsKey(name);
         if (_descriptors.TryGetValue(name, out var descriptor))
         {
             if (descriptor.IsAccessorDescriptor)
@@ -341,6 +360,10 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
 
         this[name] = value;
+        if (!propertyExists)
+        {
+            TrackPropertyInsertion(name);
+        }
     }
 
     public void Seal()
@@ -381,17 +404,8 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public IEnumerable<string> GetOwnPropertyNames()
     {
-        foreach (var key in Keys)
+        foreach (var key in EnumerateOwnKeysInOrder(includeSymbols: false, includeNonEnumerable: true))
         {
-            // Skip internal keys (proto, getters, setters, and Symbol-keyed properties)
-            if (key == PrototypeKey ||
-                key.StartsWith(GetterPrefix) ||
-                key.StartsWith(SetterPrefix) ||
-                key.StartsWith("@@symbol:")) // Symbol-keyed properties are not enumerable
-            {
-                continue;
-            }
-
             yield return key;
         }
     }
@@ -469,11 +483,13 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             Remove(GetterPrefix + name);
             Remove(SetterPrefix + name);
             Remove(name);
+            RemoveFromInsertionOrder(name);
             return true;
         }
 
         if (Remove(name))
         {
+            RemoveFromInsertionOrder(name);
             return true;
         }
 
@@ -532,6 +548,24 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     private bool TryGetOwnProperty(string name, object? receiver, out object? value)
     {
+        if (_virtualPropertyProvider is not null &&
+            !_descriptors.ContainsKey(name) &&
+            !ContainsKey(name) &&
+            _virtualPropertyProvider.TryGetOwnProperty(name, out value, out var virtualDescriptor))
+        {
+            if (virtualDescriptor is not null && virtualDescriptor.IsAccessorDescriptor)
+            {
+                if (virtualDescriptor.Get != null)
+                {
+                    value = virtualDescriptor.Get.Invoke([], receiver ?? this);
+                }
+
+                return true;
+            }
+
+            return true;
+        }
+
         if (_descriptors.TryGetValue(name, out var descriptor))
         {
             if (descriptor.IsAccessorDescriptor)
@@ -566,29 +600,155 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
-        foreach (var key in Keys)
+        foreach (var key in EnumerateOwnKeysInOrder(includeSymbols: false, includeNonEnumerable: false))
         {
-            // Skip internal keys (proto, getters, setters, and Symbol-keyed properties)
-            if (key == PrototypeKey ||
-                key.StartsWith(GetterPrefix) ||
-                key.StartsWith(SetterPrefix) ||
-                key.StartsWith("@@symbol:"))
+            yield return key;
+        }
+    }
+
+    public IEnumerable<string> GetOwnEnumerablePropertyKeysInOrder(bool includeSymbols = true)
+    {
+        return EnumerateOwnKeysInOrder(includeSymbols, includeNonEnumerable: false);
+    }
+
+    public void SetVirtualPropertyProvider(IVirtualPropertyProvider provider)
+    {
+        _virtualPropertyProvider = provider;
+    }
+
+    private void TrackPropertyInsertion(string name)
+    {
+        if (IsInternalKey(name))
+        {
+            return;
+        }
+
+        if (_propertyInsertionSet.Add(name))
+        {
+            _propertyInsertionOrder.Add(name);
+        }
+    }
+
+    private void RemoveFromInsertionOrder(string name)
+    {
+        if (!_propertyInsertionSet.Remove(name))
+        {
+            return;
+        }
+
+        var index = _propertyInsertionOrder.IndexOf(name);
+        if (index >= 0)
+        {
+            _propertyInsertionOrder.RemoveAt(index);
+        }
+    }
+
+    private IEnumerable<string> EnumerateOwnKeysInOrder(bool includeSymbols, bool includeNonEnumerable)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        if (_virtualPropertyProvider is not null)
+        {
+            foreach (var key in _virtualPropertyProvider.GetEnumerableKeys())
+            {
+                if (!includeSymbols && IsSymbolKey(key))
+                {
+                    continue;
+                }
+
+                if (seen.Add(key))
+                {
+                    yield return key;
+                }
+            }
+        }
+
+        var numericKeys = new List<uint>();
+        var stringKeys = new List<string>();
+        var symbolKeys = new List<string>();
+
+        foreach (var key in _propertyInsertionOrder)
+        {
+            if (IsInternalKey(key))
             {
                 continue;
             }
 
-            // Check if property is enumerable
-            if (_descriptors.TryGetValue(key, out var descriptor))
+            var descriptor = GetOwnPropertyDescriptor(key);
+            if (descriptor is null)
             {
-                if (!descriptor.Enumerable)
-                {
-                    continue;
-                }
+                continue;
             }
 
+            if (!includeNonEnumerable && descriptor.HasEnumerable && !descriptor.Enumerable)
+            {
+                continue;
+            }
+
+            if (IsArrayIndexString(key, out var index))
+            {
+                numericKeys.Add(index);
+                continue;
+            }
+
+            if (IsSymbolKey(key))
+            {
+                if (includeSymbols)
+                {
+                    symbolKeys.Add(key);
+                }
+
+                continue;
+            }
+
+            stringKeys.Add(key);
+        }
+
+        numericKeys.Sort();
+        foreach (var index in numericKeys)
+        {
+            yield return index.ToString(CultureInfo.InvariantCulture);
+        }
+
+        foreach (var key in stringKeys)
+        {
             yield return key;
         }
+
+        foreach (var key in symbolKeys)
+        {
+            if (seen.Add(key))
+            {
+                yield return key;
+            }
+        }
     }
+
+    private static bool IsInternalKey(string name)
+    {
+        return name == PrototypeKey ||
+               name.StartsWith(GetterPrefix, StringComparison.Ordinal) ||
+               name.StartsWith(SetterPrefix, StringComparison.Ordinal);
+    }
+
+    private static bool IsSymbolKey(string key)
+    {
+        return key.StartsWith("@@symbol:", StringComparison.Ordinal);
+    }
+
+    private static bool IsArrayIndexString(string key, out uint index)
+    {
+        var isIndex = uint.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out index) &&
+                      index != uint.MaxValue &&
+                      string.Equals(index.ToString(CultureInfo.InvariantCulture), key, StringComparison.Ordinal);
+        return isIndex;
+    }
+}
+
+public interface IVirtualPropertyProvider
+{
+    bool TryGetOwnProperty(string name, out object? value, out PropertyDescriptor? descriptor);
+    IEnumerable<string> GetEnumerableKeys();
 }
 
 public sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>

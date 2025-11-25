@@ -307,12 +307,15 @@ public sealed class TypedConstantExpressionTransformer
     {
         var target = TransformBindingTarget(property.Target);
         var defaultValue = TransformOptionalExpression(property.DefaultValue);
-        if (ReferenceEquals(target, property.Target) && ReferenceEquals(defaultValue, property.DefaultValue))
+        var nameExpression = TransformOptionalExpression(property.NameExpression);
+        if (ReferenceEquals(target, property.Target) &&
+            ReferenceEquals(defaultValue, property.DefaultValue) &&
+            ReferenceEquals(nameExpression, property.NameExpression))
         {
             return property;
         }
 
-        return property with { Target = target, DefaultValue = defaultValue };
+        return property with { Target = target, DefaultValue = defaultValue, NameExpression = nameExpression };
     }
 
     private FunctionExpression TransformFunctionExpression(FunctionExpression expression)

@@ -1147,11 +1147,40 @@ public static class TypedAstEvaluator
             {
                 if (member.IsStatic)
                 {
-                    constructorAccessor.SetProperty(member.Name, value);
+                    if (constructorAccessor is IJsObjectLike ctorObject)
+                    {
+                        ctorObject.DefineProperty(member.Name,
+                            new PropertyDescriptor
+                            {
+                                Value = value,
+                                Writable = true,
+                                Enumerable = false,
+                                Configurable = true,
+                                HasValue = true,
+                                HasWritable = true,
+                                HasEnumerable = true,
+                                HasConfigurable = true
+                            });
+                    }
+                    else
+                    {
+                        constructorAccessor.SetProperty(member.Name, value);
+                    }
                 }
                 else
                 {
-                    prototype.SetProperty(member.Name, value);
+                    prototype.DefineProperty(member.Name,
+                        new PropertyDescriptor
+                        {
+                            Value = value,
+                            Writable = true,
+                            Enumerable = false,
+                            Configurable = true,
+                            HasValue = true,
+                            HasWritable = true,
+                            HasEnumerable = true,
+                            HasConfigurable = true
+                        });
                 }
 
                 continue;
@@ -3683,6 +3712,17 @@ public static class TypedAstEvaluator
         BindingMode mode,
         bool hasInitializer)
     {
+        if (value is TypedFunction typedFunction)
+        {
+            typedFunction.EnsureHasName(identifier.Name.Name);
+        }
+
+        if (mode == BindingMode.Assign && environment.IsConstBinding(identifier.Name))
+        {
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                $"Cannot reassign constant '{identifier.Name.Name}'.", context, context.RealmState));
+        }
+
         switch (mode)
         {
             case BindingMode.Assign:
@@ -3835,8 +3875,24 @@ public static class TypedAstEvaluator
 
         foreach (var property in binding.Properties)
         {
-            usedKeys.Add(property.Name);
-            var propertyValue = obj.TryGetProperty(property.Name, out var val) ? val : null;
+            var propertyName = property.Name;
+            if (property.NameExpression is not null)
+            {
+                var propertyKeyValue = EvaluateExpression(property.NameExpression, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+
+                propertyName = JsOps.GetRequiredPropertyName(propertyKeyValue, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+            }
+
+            usedKeys.Add(propertyName);
+            var propertyValue = obj.TryGetProperty(propertyName, out var val) ? val : null;
 
             if (IsNullOrUndefined(propertyValue) && property.DefaultValue is not null)
             {
@@ -3857,18 +3913,36 @@ public static class TypedAstEvaluator
             {
                 restObject.SetPrototype(context.RealmState.ObjectPrototype);
             }
-            foreach (var key in obj.GetEnumerablePropertyNames())
+            foreach (var key in GetEnumerableOwnPropertyKeysInOrder(obj))
             {
                 if (!usedKeys.Contains(key))
                 {
                     if (obj.TryGetProperty(key, out var restValue))
                     {
-                        restObject[key] = restValue;
+                        restObject.SetProperty(key, restValue);
                     }
                 }
             }
 
             ApplyBindingTarget(binding.RestElement, restObject, environment, context, mode);
+        }
+    }
+
+    private static IEnumerable<string> GetEnumerableOwnPropertyKeysInOrder(IJsPropertyAccessor accessor)
+    {
+        if (accessor is JsObject jsObject)
+        {
+            foreach (var key in jsObject.GetOwnEnumerablePropertyKeysInOrder())
+            {
+                yield return key;
+            }
+
+            yield break;
+        }
+
+        foreach (var key in accessor.GetEnumerablePropertyNames())
+        {
+            yield return key;
         }
     }
 
@@ -6500,6 +6574,51 @@ public static class TypedAstEvaluator
         public void SetInstanceFields(ImmutableArray<ClassField> fields)
         {
             _instanceFields = fields;
+        }
+
+        public void EnsureHasName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return;
+            }
+
+            if (_function.Name is not null)
+            {
+                return;
+            }
+
+            var descriptor = _properties.GetOwnPropertyDescriptor("name");
+            if (descriptor is { Configurable: false })
+            {
+                return;
+            }
+
+            if (descriptor is not null)
+            {
+                if (descriptor.IsAccessorDescriptor || descriptor.Value is IJsCallable)
+                {
+                    return;
+                }
+
+                if (descriptor.Value is string { Length: > 0 })
+                {
+                    return;
+                }
+            }
+
+            _properties.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = name,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = true,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
         }
 
         public void InitializeInstance(JsObject instance, JsEnvironment environment, EvaluationContext context)

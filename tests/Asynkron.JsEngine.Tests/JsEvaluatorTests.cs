@@ -172,7 +172,7 @@ public class JsEvaluatorTests
     {
         await using var engine = new JsEngine();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsAnyAsync<Exception>(async () =>
             await engine.Evaluate("const fixed = 1; fixed = 2;"));
     }
 

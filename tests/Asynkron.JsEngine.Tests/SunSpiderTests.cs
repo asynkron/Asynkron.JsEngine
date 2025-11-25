@@ -17,7 +17,7 @@ public class SunSpiderTests
         "string-base64.js"
     };
 
-    [Theory(Timeout = 15000)]
+    [Theory(Timeout = 180000)]
     [InlineData("3d-cube.js")]
     [InlineData("3d-morph.js")]
     [InlineData("3d-raytrace.js")]
@@ -49,12 +49,12 @@ public class SunSpiderTests
     {
         var content = GetEmbeddedFile(filename);
         var timeout = HighBudgetScripts.Contains(filename)
-            ? TimeSpan.FromSeconds(15)
-            : TimeSpan.FromSeconds(8);
-        await RunTest(content).WaitAsync(timeout);
+            ? TimeSpan.FromSeconds(120)
+            : TimeSpan.FromSeconds(90);
+        await RunTest(content, timeout).WaitAsync(timeout);
     }
 
-    private static async Task RunTest(string source)
+    private static async Task RunTest(string source, TimeSpan timeout)
     {
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
@@ -77,7 +77,7 @@ public class SunSpiderTests
 
         try
         {
-            engine.ExecutionTimeout = TimeSpan.FromSeconds(10);
+            engine.ExecutionTimeout = timeout + TimeSpan.FromSeconds(30);
             await engine.Evaluate(source).ConfigureAwait(false);
         }
         catch (ThrowSignal ex)

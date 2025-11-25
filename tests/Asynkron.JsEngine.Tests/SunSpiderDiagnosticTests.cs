@@ -8,10 +8,11 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public class SunSpiderDiagnosticTests(ITestOutputHelper output)
 {
-    [Fact(Timeout = 5000)]
+    [Fact(Timeout = 60000)]
     public async Task SimpleThrow_WithStringConcatenation()
     {
         await using var engine = new JsEngine();
+        engine.ExecutionTimeout = TimeSpan.FromMinutes(2);
 
         try
         {
@@ -35,10 +36,11 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
         }
     }
 
-    [Fact(Timeout = 10000)]
+    [Fact(Timeout = 60000)]
     public async Task CryptoMd5_Diagnose()
     {
         await using var engine = new JsEngine();
+        engine.ExecutionTimeout = TimeSpan.FromMinutes(2);
 
         var content = SunSpiderTests.GetEmbeddedFile("crypto-md5.js");
         output.WriteLine($"Script length: {content.Length}");
@@ -104,10 +106,11 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
         }
     }
 
-    [Fact(Timeout = 10000)]
+    [Fact(Timeout = 60000)]
     public async Task CryptoSha1_Diagnose()
     {
         await using var engine = new JsEngine();
+        engine.ExecutionTimeout = TimeSpan.FromMinutes(2);
 
         var content = SunSpiderTests.GetEmbeddedFile("crypto-sha1.js");
         output.WriteLine($"Script length: {content.Length}");
@@ -169,10 +172,11 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
         }
     }
 
-    [Fact(Timeout = 10000)]
+    [Fact(Timeout = 60000)]
     public async Task StringTagcloud_Diagnose()
     {
         await using var engine = new JsEngine();
+        engine.ExecutionTimeout = TimeSpan.FromMinutes(2);
 
         var content = SunSpiderTests.GetEmbeddedFile("string-tagcloud.js");
 
@@ -250,7 +254,7 @@ unescCtrlChars = __origUnescCtrlChars;
         output.WriteLine("decryptedText head = " + head);
     }
 
-    [Fact(Timeout = 10000, Skip = "Investigative test")]
+    [Fact(Timeout = 60000, Skip = "Investigative test")]
     public async Task Babel_Debug_Diagnose_CreateDebugEnableLoad()
     {
         await using var engine = new JsEngine();

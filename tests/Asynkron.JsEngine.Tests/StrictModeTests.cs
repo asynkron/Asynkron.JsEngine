@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -125,7 +126,7 @@ public class StrictModeTests
     {
         await using var engine = new JsEngine();
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("""
+        var ex = await Assert.ThrowsAnyAsync<Exception>(async () => await engine.Evaluate("""
 
                             "use strict";
                             const x = 10;
@@ -133,7 +134,16 @@ public class StrictModeTests
 
             """));
 
-        Assert.Contains("constant", ex.Message);
+        var message = ex switch
+        {
+            ThrowSignal signal when signal.ThrownValue is Exception inner => inner.Message,
+            ThrowSignal signal when signal.ThrownValue is IJsPropertyAccessor accessor &&
+                                     accessor.TryGetProperty("message", out var msg) &&
+                                     msg is string s1 => s1,
+            _ => ex.Message
+        };
+
+        Assert.Contains("constant", message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact(Timeout = 2000)]

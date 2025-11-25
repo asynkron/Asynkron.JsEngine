@@ -128,9 +128,24 @@ internal static class JsOps
 
             switch (value)
             {
-                case JsObject jsObj when jsObj.TryGetValue("__value__", out var inner):
-                    value = inner;
-                    continue;
+                case JsObject jsObj:
+                {
+                    if (jsObj.TryGetValue("__value__", out var inner))
+                    {
+                        value = inner;
+                        continue;
+                    }
+
+                    // Symbol wrappers should behave like their unboxed symbol value for ToNumeric
+                    // so mixed BigInt/Symbol cases throw correctly.
+                    if (jsObj.TryGetProperty("SymbolData", out var symbolData) && symbolData is TypedAstSymbol sym)
+                    {
+                        value = sym;
+                        continue;
+                    }
+
+                    break;
+                }
                 case IJsPropertyAccessor accessor
                     when TryConvertToNumericPrimitive(accessor, out var primitive, context):
                     value = primitive;
@@ -206,11 +221,6 @@ internal static class JsOps
 
     public static object? ToPrimitive(object? value, string hint, EvaluationContext? context = null)
     {
-        if (value is TypedAstSymbol)
-        {
-            return value;
-        }
-
         if (value is not IJsPropertyAccessor accessor)
         {
             return value;

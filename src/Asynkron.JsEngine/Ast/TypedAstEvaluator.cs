@@ -189,16 +189,16 @@ public static class TypedAstEvaluator
     private static object? EvaluateWith(WithStatement statement, JsEnvironment environment, EvaluationContext context)
     {
         var objValue = EvaluateExpression(statement.Object, environment, context);
-        if (context.ShouldStopEvaluation)
-        {
-            return objValue;
-        }
+                if (context.ShouldStopEvaluation)
+                {
+                    return objValue;
+                }
 
-        var withObject = ToObjectForDestructuring(objValue, context);
-        if (context.IsThrow)
-        {
-            return context.FlowValue ?? JsSymbols.Undefined;
-        }
+                var withObject = ToObjectForDestructuring(objValue, context);
+                if (context.IsThrow)
+                {
+                    return context.FlowValue ?? JsSymbols.Undefined;
+                }
 
         var withEnv = new JsEnvironment(environment, false, environment.IsStrict, statement.Source, "with",
             withObject);
@@ -4060,8 +4060,17 @@ public static class TypedAstEvaluator
             return true;
         }
 
-        if (value is JsObject)
+        if (value is JsObject jsObject)
         {
+            // Fallback: treat objects with a callable `next` as iterators even if
+            // @@iterator is missing so generator objects still participate in
+            // destructuring when their symbol lookup fails.
+            if (jsObject.TryGetProperty("next", out var nextVal) && nextVal is IJsCallable)
+            {
+                iterator = jsObject;
+                return true;
+            }
+
             return false;
         }
 

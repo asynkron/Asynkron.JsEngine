@@ -3708,11 +3708,14 @@ public static class TypedAstEvaluator
         if (binding.RestElement is not null)
         {
             var restObject = new JsObject();
-            foreach (var kvp in obj)
+            foreach (var key in obj.GetEnumerablePropertyNames())
             {
-                if (!usedKeys.Contains(kvp.Key))
+                if (!usedKeys.Contains(key))
                 {
-                    restObject[kvp.Key] = kvp.Value;
+                    if (obj.TryGetProperty(key, out var restValue))
+                    {
+                        restObject[key] = restValue;
+                    }
                 }
             }
 
@@ -3975,7 +3978,7 @@ public static class TypedAstEvaluator
             var value = argumentIndex < arguments.Count ? arguments[argumentIndex] : JsSymbols.Undefined;
             argumentIndex++;
 
-            if (IsNullOrUndefined(value) && parameter.DefaultValue is not null)
+            if (ReferenceEquals(value, JsSymbols.Undefined) && parameter.DefaultValue is not null)
             {
                 value = EvaluateExpression(parameter.DefaultValue, environment, context);
                 if (context.ShouldStopEvaluation)
@@ -5997,6 +6000,19 @@ public static class TypedAstEvaluator
             BindFunctionParameters(_function, arguments, environment, context);
             if (context.ShouldStopEvaluation)
             {
+                if (context.IsThrow)
+                {
+                    var thrownDuringBinding = context.FlowValue;
+                    context.Clear();
+                    if (callingContext is not null)
+                    {
+                        callingContext.SetThrow(thrownDuringBinding);
+                        return JsSymbols.Undefined;
+                    }
+
+                    throw new ThrowSignal(thrownDuringBinding);
+                }
+
                 return JsSymbols.Undefined;
             }
 
@@ -6012,6 +6028,12 @@ public static class TypedAstEvaluator
             {
                 var thrown = context.FlowValue;
                 context.Clear();
+                if (callingContext is not null)
+                {
+                    callingContext.SetThrow(thrown);
+                    return JsSymbols.Undefined;
+                }
+
                 throw new ThrowSignal(thrown);
             }
 

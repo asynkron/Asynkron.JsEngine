@@ -66,6 +66,21 @@ public static partial class StandardLibrary
         functionPrototype.SetProperty("constructor", functionConstructor);
         functionPrototype.SetHostedProperty("toString", FunctionPrototypeToString);
         functionPrototype.SetHostedProperty("valueOf", (thisValue, _) => thisValue);
+        var thrower = new HostFunction((_, _) => throw ThrowTypeError(
+            "Access to caller or arguments is not allowed", realm: realm))
+        {
+            IsConstructor = false,
+            RealmState = realm
+        };
+        var poisonDescriptor = new PropertyDescriptor
+        {
+            Get = thrower,
+            Set = thrower,
+            Enumerable = false,
+            Configurable = false
+        };
+        functionPrototype.DefineProperty("caller", poisonDescriptor);
+        functionPrototype.DefineProperty("arguments", poisonDescriptor);
 
         var hasInstanceKey = $"@@symbol:{TypedAstSymbol.For("Symbol.hasInstance").GetHashCode()}";
         var hasInstance = new HostFunction((thisValue, args) =>

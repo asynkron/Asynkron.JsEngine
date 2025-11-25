@@ -3467,40 +3467,49 @@ public static class TypedAstEvaluator
 
     private static void WalkBindingTargets(BindingTarget target, Action<IdentifierBinding> onIdentifier)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding id:
-                onIdentifier(id);
-                return;
-            case ArrayBinding array:
-                foreach (var element in array.Elements)
-                {
-                    if (element.Target is not null)
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    onIdentifier(id);
+                    return;
+                case ArrayBinding array:
+                    foreach (var element in array.Elements)
                     {
+                        if (element.Target is null)
+                        {
+                            continue;
+                        }
+
                         WalkBindingTargets(element.Target, onIdentifier);
                     }
-                }
 
-                if (array.RestElement is not null)
-                {
-                    WalkBindingTargets(array.RestElement, onIdentifier);
-                }
+                    if (array.RestElement is null)
+                    {
+                        return;
+                    }
 
-                return;
-            case ObjectBinding obj:
-                foreach (var property in obj.Properties)
-                {
-                    WalkBindingTargets(property.Target, onIdentifier);
-                }
+                    target = array.RestElement;
+                    continue;
 
-                if (obj.RestElement is not null)
-                {
-                    WalkBindingTargets(obj.RestElement, onIdentifier);
-                }
+                case ObjectBinding obj:
+                    foreach (var property in obj.Properties)
+                    {
+                        WalkBindingTargets(property.Target, onIdentifier);
+                    }
 
-                return;
-            default:
-                return;
+                    if (obj.RestElement is null)
+                    {
+                        return;
+                    }
+
+                    target = obj.RestElement;
+                    continue;
+
+                default:
+                    return;
+            }
         }
     }
 
@@ -3557,14 +3566,15 @@ public static class TypedAstEvaluator
             return false;
         }
 
-        if (right is not IJsCallable)
+        if (right is IJsCallable)
         {
-            context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
-                context));
-            return false;
+            return OrdinaryHasInstance(left, right, context);
         }
 
-        return OrdinaryHasInstance(left, right, context);
+        context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
+            context));
+        return false;
+
     }
 
     private static bool OrdinaryHasInstance(object? candidate, object? constructor, EvaluationContext context)
@@ -3751,15 +3761,17 @@ public static class TypedAstEvaluator
 
                 ApplyBindingTarget(element.Target, elementValue, environment, context, mode);
 
-                if (context.ShouldStopEvaluation)
+                if (!context.ShouldStopEvaluation)
                 {
-                    if (iterator is not null)
-                    {
-                        IteratorClose(iterator, context);
-                    }
-
-                    return;
+                    continue;
                 }
+
+                if (iterator is not null)
+                {
+                    IteratorClose(iterator, context);
+                }
+
+                return;
             }
 
             if (binding.RestElement is not null)
@@ -3918,22 +3930,13 @@ public static class TypedAstEvaluator
         return Enumerate().GetEnumerator();
     }
 
-    private readonly struct ArrayPatternIterator
+    private readonly struct ArrayPatternIterator(JsObject? iterator, IEnumerator<object?>? enumerator)
     {
-        private readonly JsObject? _iterator;
-        private readonly IEnumerator<object?>? _enumerator;
-
-        public ArrayPatternIterator(JsObject? iterator, IEnumerator<object?>? enumerator)
-        {
-            _iterator = iterator;
-            _enumerator = enumerator;
-        }
-
         public (object? Value, bool Done) Next(EvaluationContext context)
         {
-            if (_iterator is not null)
+            if (iterator is not null)
             {
-                var candidate = InvokeIteratorNext(_iterator);
+                var candidate = InvokeIteratorNext(iterator);
                 if (candidate is not JsObject result)
                 {
                     throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
@@ -3950,17 +3953,12 @@ public static class TypedAstEvaluator
                 return (done ? JsSymbols.Undefined : value, done);
             }
 
-            if (_enumerator is null)
+            if (enumerator?.MoveNext() != true)
             {
                 return (JsSymbols.Undefined, true);
             }
 
-            if (!_enumerator.MoveNext())
-            {
-                return (JsSymbols.Undefined, true);
-            }
-
-            return (_enumerator.Current, false);
+            return (enumerator.Current, false);
         }
     }
 
@@ -4002,7 +4000,7 @@ public static class TypedAstEvaluator
             case byte:
             case sbyte:
             {
-                var num = Convert.ToDouble(value);
+                var num = Convert.ToDouble(value, CultureInfo.InvariantCulture);
                 return StandardLibrary.CreateNumberWrapper(num, context, realm);
             }
             case bool b:

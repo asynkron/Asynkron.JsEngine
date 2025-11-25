@@ -224,6 +224,15 @@ public static partial class StandardLibrary
         {
             numberFormatPrototype.SetPrototype(realm.ObjectPrototype);
         }
+        var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        numberFormatPrototype.DefineProperty(toStringTagKey,
+            new PropertyDescriptor
+            {
+                Value = "Intl.NumberFormat",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
 
         var numberFormatCtor = new HostFunction((thisValue, _) =>
         {

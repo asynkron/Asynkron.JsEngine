@@ -137,6 +137,16 @@ public static partial class StandardLibrary
 
         object? ObjectPrototypeToString(object? thisValue, IReadOnlyList<object?> _)
         {
+            if (thisValue is JsObject obj)
+            {
+                var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+                if (obj.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbols.Undefined))
+                {
+                    var tagString = JsOps.ToJsString(tagValue);
+                    return $"[object {tagString}]";
+                }
+            }
+
             var tag = thisValue switch
             {
                 null => "Null",

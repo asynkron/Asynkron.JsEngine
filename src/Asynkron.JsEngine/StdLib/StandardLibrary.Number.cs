@@ -19,7 +19,7 @@ public static partial class StandardLibrary
             numberObj.SetPrototype(prototype);
         }
 
-        AddNumberMethods(numberObj, num);
+        AddNumberMethods(numberObj, num, context?.RealmState ?? realm);
         return numberObj;
     }
 
@@ -40,7 +40,7 @@ public static partial class StandardLibrary
     /// <summary>
     ///     Adds number methods to a number wrapper object.
     /// </summary>
-    private static void AddNumberMethods(JsObject numberObj, double num)
+    private static void AddNumberMethods(JsObject numberObj, double num, RealmState? realm = null)
     {
         numberObj.SetHostedProperty("toString", ToString);
         numberObj.SetHostedProperty("toFixed", ToFixed);
@@ -51,71 +51,20 @@ public static partial class StandardLibrary
 
         object? ToString(IReadOnlyList<object?> args)
         {
-            var radix = args.Count > 0 && args[0] is double d ? (int)d : 10;
+            var radixArg = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var radixNumber = ReferenceEquals(radixArg, Symbols.Undefined) ? 10d : JsOps.ToNumber(radixArg);
+            if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
+            {
+                throw ThrowRangeError("radix must be an integer at least 2 and no greater than 36", realm: realm);
+            }
 
+            var radix = (int)radixNumber;
             if (radix is < 2 or > 36)
             {
-                throw new ArgumentException("radix must be an integer at least 2 and no greater than 36");
+                throw ThrowRangeError("radix must be an integer at least 2 and no greater than 36", realm: realm);
             }
 
-            if (double.IsNaN(num))
-            {
-                return "NaN";
-            }
-
-            if (double.IsPositiveInfinity(num))
-            {
-                return "Infinity";
-            }
-
-            if (double.IsNegativeInfinity(num))
-            {
-                return "-Infinity";
-            }
-
-            if (radix == 10)
-            {
-                if (Math.Abs(num % 1) < double.Epsilon)
-                {
-                    return ((long)num).ToString(CultureInfo.InvariantCulture);
-                }
-
-                return num.ToString(CultureInfo.InvariantCulture);
-            }
-
-            var intValue = (long)num;
-            if (radix == 2)
-            {
-                return Convert.ToString(intValue, 2);
-            }
-
-            if (radix == 8)
-            {
-                return Convert.ToString(intValue, 8);
-            }
-
-            if (radix == 16)
-            {
-                return Convert.ToString(intValue, 16);
-            }
-
-            if (intValue == 0)
-            {
-                return "0";
-            }
-
-            var isNegative = intValue < 0;
-            intValue = Math.Abs(intValue);
-
-            const string digits = "0123456789abcdefghijklmnopqrstuvwxyz";
-            var result = "";
-            while (intValue > 0)
-            {
-                result = digits[(int)(intValue % radix)] + result;
-                intValue /= radix;
-            }
-
-            return isNegative ? "-" + result : result;
+            return NumberToString(num, radix);
         }
 
         object? ToFixed(IReadOnlyList<object?> args)
@@ -123,7 +72,7 @@ public static partial class StandardLibrary
             var fractionDigits = args.Count > 0 && args[0] is double d ? (int)d : 0;
             if (fractionDigits is < 0 or > 100)
             {
-                throw new ArgumentException("toFixed() digits argument must be between 0 and 100");
+                throw ThrowRangeError("toFixed() digits argument must be between 0 and 100", realm: realm);
             }
 
             if (double.IsNaN(num))
@@ -159,7 +108,7 @@ public static partial class StandardLibrary
             var fractionDigits = (int)d;
             if (fractionDigits is < 0 or > 100)
             {
-                throw new ArgumentException("toExponential() digits argument must be between 0 and 100");
+                throw ThrowRangeError("toExponential() digits argument must be between 0 and 100", realm: realm);
             }
 
             return num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
@@ -190,7 +139,7 @@ public static partial class StandardLibrary
             var precision = (int)d;
             if (precision is < 1 or > 100)
             {
-                throw new ArgumentException("toPrecision() precision argument must be between 1 and 100");
+                throw ThrowRangeError("toPrecision() precision argument must be between 1 and 100", realm: realm);
             }
 
             return num.ToString("G" + precision, CultureInfo.InvariantCulture);
@@ -200,6 +149,61 @@ public static partial class StandardLibrary
         {
             return num;
         }
+    }
+
+    private static string NumberToString(double num, int radix)
+    {
+        if (double.IsNaN(num))
+        {
+            return "NaN";
+        }
+
+        if (double.IsPositiveInfinity(num))
+        {
+            return "Infinity";
+        }
+
+        if (double.IsNegativeInfinity(num))
+        {
+            return "-Infinity";
+        }
+
+        if (radix == 10)
+        {
+            if (num == 0)
+            {
+                return "0";
+            }
+
+            if (Math.Abs(num % 1) < double.Epsilon)
+            {
+                return ((long)num).ToString(CultureInfo.InvariantCulture);
+            }
+
+            return num.ToString(CultureInfo.InvariantCulture);
+        }
+
+        var intValue = (long)num;
+        var isNegative = intValue < 0;
+        if (isNegative)
+        {
+            intValue = -intValue;
+        }
+
+        if (intValue == 0)
+        {
+            return "0";
+        }
+
+        const string digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+        var result = "";
+        while (intValue > 0)
+        {
+            result = digits[(int)(intValue % radix)] + result;
+            intValue /= radix;
+        }
+
+        return isNegative ? "-" + result : result;
     }
 
     public static HostFunction CreateBigIntFunction(RealmState realm)
@@ -396,8 +400,11 @@ public static partial class StandardLibrary
             // value is +0. Store it on the prototype so ToNumber can unwrap it
             // without recursing through toString, and expose a proper valueOf.
             numberProtoObj.SetProperty("__value__", 0d);
-            numberProtoObj.SetHostedProperty("valueOf", NumberPrototypeValueOf);
-            numberProtoObj.SetHostedProperty("toString", NumberPrototypeToString);
+            DefineBuiltinFunction(numberProtoObj, "valueOf", new HostFunction(NumberPrototypeValueOf), 0,
+                isConstructor: false);
+
+            DefineBuiltinFunction(numberProtoObj, "toString", new HostFunction(NumberPrototypeToString), 1,
+                isConstructor: false);
         }
 
         numberConstructor.SetHostedProperty("isInteger", NumberIsInteger);
@@ -463,41 +470,53 @@ public static partial class StandardLibrary
             return obj;
         }
 
-        object? NumberPrototypeToString(object? thisValue, IReadOnlyList<object?> _)
+        object? NumberPrototypeToString(object? thisValue, IReadOnlyList<object?> args)
         {
-            var num = JsOps.ToNumber(thisValue);
-            if (double.IsNaN(num))
+            var num = RequireNumberReceiver(thisValue, "Number.prototype.toString");
+
+            var radixArg = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var radixNumber = ReferenceEquals(radixArg, Symbols.Undefined) ? 10d : JsOps.ToNumber(radixArg);
+            if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
             {
-                return "NaN";
+                throw ThrowRangeError("radix must be an integer at least 2 and no greater than 36", realm: realm);
             }
 
-            if (double.IsPositiveInfinity(num))
+            var radix = (int)radixNumber;
+            if (radix is < 2 or > 36)
             {
-                return "Infinity";
+                throw ThrowRangeError("radix must be an integer at least 2 and no greater than 36", realm: realm);
             }
 
-            if (double.IsNegativeInfinity(num))
-            {
-                return "-Infinity";
-            }
-
-            return num.ToString(CultureInfo.InvariantCulture);
+            return NumberToString(num, radix);
         }
 
         object? NumberPrototypeValueOf(object? thisValue, IReadOnlyList<object?> _)
         {
-            if (thisValue is JsObject obj && obj.TryGetValue("__value__", out var inner))
-            {
-                return JsOps.ToNumber(inner);
-            }
+            return RequireNumberReceiver(thisValue, "Number.prototype.valueOf");
+        }
 
-            if (thisValue is double or float or decimal or int or uint or long or ulong or short or ushort or byte
-                or sbyte or JsBigInt)
-            {
-                return JsOps.ToNumber(thisValue);
-            }
+        static bool IsNumeric(object? value)
+        {
+            return value is double or float or decimal or int or uint or long or ulong or short or ushort or byte
+                or sbyte;
+        }
 
-            throw ThrowTypeError("Number.prototype.valueOf called on non-number object");
+        double RequireNumberReceiver(object? receiver, string methodName)
+        {
+            switch (receiver)
+            {
+                case JsObject obj when obj.TryGetProperty("__value__", out var inner):
+                    if (IsNumeric(inner))
+                    {
+                        return JsOps.ToNumber(inner);
+                    }
+
+                    throw ThrowTypeError($"{methodName} called on non-number object", realm: realm);
+                case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
+                    return JsOps.ToNumber(receiver);
+                default:
+                    throw ThrowTypeError($"{methodName} called on non-number object", realm: realm);
+            }
         }
 
         object? NumberIsInteger(IReadOnlyList<object?> args)

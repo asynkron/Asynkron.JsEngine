@@ -32,6 +32,8 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private Task? _eventLoopTask;
+    internal int PromiseCallDepth { get; set; }
+    internal int MaxCallDepth { get; set; } = 1000;
     private Channel<Func<Task>>? _eventQueue;
 
     // Module loader function: allows custom module loading logic

@@ -128,6 +128,12 @@ public sealed class JsPromise
         {
             try
             {
+                if (++_engine.PromiseCallDepth > _engine.MaxCallDepth)
+                {
+                    throw new InvalidOperationException(
+                        $"Exceeded maximum call depth of {_engine.MaxCallDepth} while resolving promise callbacks.");
+                }
+
                 if (_state == PromiseState.Fulfilled)
                 {
                     if (onFulfilled != null)
@@ -199,6 +205,10 @@ public sealed class JsPromise
             catch (Exception ex)
             {
                 nextPromise.Reject(ex.Message);
+            }
+            finally
+            {
+                _engine.PromiseCallDepth = Math.Max(0, _engine.PromiseCallDepth - 1);
             }
         }
 

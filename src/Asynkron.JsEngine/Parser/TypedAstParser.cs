@@ -649,6 +649,14 @@ public sealed class TypedAstParser(
                 if (Check(TokenType.PrivateIdentifier))
                 {
                     var fieldToken = Advance();
+                    if (Check(TokenType.LeftParen))
+                    {
+                        var function = ParseClassMethod(null, fieldToken, false, false);
+                        members.Add(new ClassMember(CreateSourceReference(fieldToken), ClassMemberKind.Method,
+                            fieldToken.Lexeme, function, isStatic));
+                        continue;
+                    }
+
                     var fieldName = fieldToken.Lexeme;
                     ExpressionNode? initializer = null;
                     if (Match(TokenType.Equal))
@@ -701,6 +709,41 @@ public sealed class TypedAstParser(
                     continue;
                 }
 
+                if (IsAsyncToken())
+                {
+                    var checkpoint = _current;
+                    Advance(); // async
+                    var isAsyncGeneratorMethod = Match(TokenType.Star);
+
+                    if (IsPropertyNameToken(Peek()))
+                    {
+                        var asyncMethodNameToken = Advance();
+                        var asyncMethodName = asyncMethodNameToken.Lexeme;
+
+                        if (Check(TokenType.Equal))
+                        {
+                            _current = checkpoint;
+                        }
+                        else
+                        {
+                            if (string.Equals(asyncMethodName, "constructor", StringComparison.Ordinal))
+                            {
+                                throw new ParseException("Constructor cannot be async.", asyncMethodNameToken,
+                                    _source);
+                            }
+
+                            var function = ParseClassMethod(null, asyncMethodNameToken, isAsyncGeneratorMethod, true);
+                            members.Add(new ClassMember(CreateSourceReference(asyncMethodNameToken),
+                                ClassMemberKind.Method, asyncMethodName, function, isStatic));
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        _current = checkpoint;
+                    }
+                }
+
                 var isGeneratorMethod = Match(TokenType.Star);
 
                 if (IsPropertyNameToken(Peek()))
@@ -740,11 +783,11 @@ public sealed class TypedAstParser(
                             throw new ParseException("Constructor cannot be a generator.", methodNameToken, _source);
                         }
 
-                        constructor = ParseClassMethod(className, methodNameToken, false);
+                        constructor = ParseClassMethod(className, methodNameToken, false, false);
                     }
                     else
                     {
-                        var function = ParseClassMethod(null, methodNameToken, isGeneratorMethod);
+                        var function = ParseClassMethod(null, methodNameToken, isGeneratorMethod, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Method,
                             methodName, function, isStatic));
                     }
@@ -763,15 +806,16 @@ public sealed class TypedAstParser(
             return (constructor, members.ToImmutable(), fields.ToImmutable());
         }
 
-        private FunctionExpression ParseClassMethod(Symbol? functionName, Token methodNameToken, bool isGenerator)
+        private FunctionExpression ParseClassMethod(Symbol? functionName, Token methodNameToken, bool isGenerator,
+            bool isAsync)
         {
             Consume(TokenType.LeftParen, "Expected '(' after method name.");
             var parameters = ParseParameterList();
             Consume(TokenType.RightParen, "Expected ')' after method parameters.");
-            using var _ = EnterFunctionContext(false, isGenerator);
+            using var _ = EnterFunctionContext(isAsync, isGenerator);
             var body = ParseBlock();
             var source = body.Source ?? CreateSourceReference(methodNameToken);
-            return new FunctionExpression(source, functionName, parameters, body, false, isGenerator);
+            return new FunctionExpression(source, functionName, parameters, body, isAsync, isGenerator);
         }
 
         private static FunctionExpression CreateDefaultConstructor(Symbol? className)
@@ -2094,6 +2138,37 @@ public sealed class TypedAstParser(
                     continue;
                 }
 
+                if (IsAsyncToken())
+                {
+                    var checkpoint = _current;
+                    Advance(); // async
+                    var isAsyncGeneratorMethod = Match(TokenType.Star);
+                    if (Check(TokenType.Colon))
+                    {
+                        _current = checkpoint;
+                    }
+                    else
+                    {
+                        var (asyncKey, asyncIsComputed, asyncKeySource) = ParseObjectPropertyKey();
+                        if (Check(TokenType.LeftParen))
+                        {
+                            Advance(); // (
+                            var parameters = ParseParameterList();
+                            Consume(TokenType.RightParen, "Expected ')' after method parameters.");
+                            using var _ = EnterFunctionContext(true, isAsyncGeneratorMethod);
+                            var body = ParseBlock();
+                            var asyncMethod = new FunctionExpression(body.Source ?? asyncKeySource, null, parameters, body,
+                                true, isAsyncGeneratorMethod);
+                            members.Add(new ObjectMember(asyncMethod.Source ?? asyncKeySource, ObjectMemberKind.Method,
+                                asyncKey, null, asyncMethod, asyncIsComputed, false, null));
+                            continue;
+                        }
+
+                        // Not a method form; rewind and parse normally so `async` can be a property name.
+                        _current = checkpoint;
+                    }
+                }
+
                 if (Check(TokenType.Get) && !IsGetOrSetPropertyName())
                 {
                     Advance(); // get
@@ -2811,7 +2886,7 @@ public sealed class TypedAstParser(
                 source = fallbackSource;
             }
 
-            return new FunctionExpression(source, null, parameters, body, isAsync, false);
+            return new FunctionExpression(source, null, parameters, body, isAsync, false, true);
         }
 
         private ExpressionNode FinishArrowFunction(ExpressionNode parameterExpression, bool isAsync, Token arrowToken)
@@ -3029,7 +3104,10 @@ public sealed class TypedAstParser(
 
         private static bool IsPropertyNameToken(Token token)
         {
-            return token.Type == TokenType.Identifier || IsContextualIdentifierToken(token) || IsKeyword(token);
+            return token.Type == TokenType.Identifier ||
+                   token.Type == TokenType.PrivateIdentifier ||
+                   IsContextualIdentifierToken(token) ||
+                   IsKeyword(token);
         }
 
         private bool CheckContextualKeyword(string keyword)
@@ -3095,6 +3173,14 @@ public sealed class TypedAstParser(
             var previousToken = _tokens[_current - 1];
             var currentToken = _tokens[_current];
             return currentToken.Line > previousToken.Line;
+        }
+
+        private bool IsAsyncToken()
+        {
+            var token = Peek();
+            return token.Type == TokenType.Async ||
+                   (token.Type == TokenType.Identifier &&
+                    string.Equals(token.Lexeme, "async", StringComparison.Ordinal));
         }
 
         private bool IsYieldOrAwaitUsedAsIdentifier()

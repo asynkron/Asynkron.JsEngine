@@ -156,6 +156,11 @@ public static partial class StandardLibrary
             return jsArray.DefineLength(descriptor, null, false);
         }
 
+        if (target is JsObject jsObject)
+        {
+            return jsObject.TryDefineProperty(propertyKey, descriptor);
+        }
+
         try
         {
             target.DefineProperty(propertyKey, descriptor);

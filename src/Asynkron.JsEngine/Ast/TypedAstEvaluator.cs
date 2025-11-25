@@ -2394,6 +2394,14 @@ public static class TypedAstEvaluator
             throw new ThrowSignal(error);
         }
 
+        if (constructor is TypedFunction typed && typed.IsArrowFunction)
+        {
+            var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                ? typeErrorCtor.Invoke(["Target is not a constructor"], null)
+                : new InvalidOperationException("Target is not a constructor.");
+            throw new ThrowSignal(error);
+        }
+
         var instance = new JsObject();
         if (TryGetPropertyValue(constructor, "prototype", out var prototype) && prototype is JsObject proto)
         {
@@ -2542,15 +2550,18 @@ public static class TypedAstEvaluator
                 }
                 case ObjectMemberKind.Method:
                 {
-                    var method = new TypedFunction(member.Function!, environment, context.RealmState);
-                    method.SetHomeObject(obj);
+                    var callable = CreateFunctionValue(member.Function!, environment, context);
+                    if (callable is TypedFunction typed)
+                    {
+                        typed.SetHomeObject(obj);
+                    }
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return JsSymbols.Undefined;
                     }
 
-                    obj.SetProperty(name, method);
+                    obj.SetProperty(name, callable);
                     break;
                 }
                 case ObjectMemberKind.Getter:
@@ -3399,46 +3410,7 @@ public static class TypedAstEvaluator
 
     private static void CollectSymbolsFromBinding(BindingTarget target, HashSet<Symbol> names)
     {
-        while (true)
-        {
-            switch (target)
-            {
-                case IdentifierBinding id:
-                    names.Add(id.Name);
-                    return;
-                case ArrayBinding array:
-                    foreach (var element in array.Elements)
-                    {
-                        if (element.Target is not null)
-                        {
-                            CollectSymbolsFromBinding(element.Target, names);
-                        }
-                    }
-
-                    if (array.RestElement is not null)
-                    {
-                        target = array.RestElement;
-                        continue;
-                    }
-
-                    return;
-                case ObjectBinding obj:
-                    foreach (var property in obj.Properties)
-                    {
-                        CollectSymbolsFromBinding(property.Target, names);
-                    }
-
-                    if (obj.RestElement is not null)
-                    {
-                        target = obj.RestElement;
-                        continue;
-                    }
-
-                    return;
-                default:
-                    return;
-            }
-        }
+        WalkBindingTargets(target, id => names.Add(id.Name));
     }
 
     private static void HoistFromBindingTarget(
@@ -3446,45 +3418,46 @@ public static class TypedAstEvaluator
         JsEnvironment environment,
         EvaluationContext context)
     {
-        while (true)
+        WalkBindingTargets(target,
+            identifier => environment.DefineFunctionScoped(identifier.Name, JsSymbols.Undefined, false, context: context));
+    }
+
+    private static void WalkBindingTargets(BindingTarget target, Action<IdentifierBinding> onIdentifier)
+    {
+        switch (target)
         {
-            switch (target)
-            {
-                case IdentifierBinding identifier:
-                    environment.DefineFunctionScoped(identifier.Name, JsSymbols.Undefined, false, context: context);
-                    break;
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
+            case IdentifierBinding id:
+                onIdentifier(id);
+                return;
+            case ArrayBinding array:
+                foreach (var element in array.Elements)
+                {
+                    if (element.Target is not null)
                     {
-                        if (element.Target is not null)
-                        {
-                            HoistFromBindingTarget(element.Target, environment, context);
-                        }
+                        WalkBindingTargets(element.Target, onIdentifier);
                     }
+                }
 
-                    if (arrayBinding.RestElement is not null)
-                    {
-                        target = arrayBinding.RestElement;
-                        continue;
-                    }
+                if (array.RestElement is not null)
+                {
+                    WalkBindingTargets(array.RestElement, onIdentifier);
+                }
 
-                    break;
-                case ObjectBinding objectBinding:
-                    foreach (var property in objectBinding.Properties)
-                    {
-                        HoistFromBindingTarget(property.Target, environment, context);
-                    }
+                return;
+            case ObjectBinding obj:
+                foreach (var property in obj.Properties)
+                {
+                    WalkBindingTargets(property.Target, onIdentifier);
+                }
 
-                    if (objectBinding.RestElement is not null)
-                    {
-                        target = objectBinding.RestElement;
-                        continue;
-                    }
+                if (obj.RestElement is not null)
+                {
+                    WalkBindingTargets(obj.RestElement, onIdentifier);
+                }
 
-                    break;
-            }
-
-            break;
+                return;
+            default:
+                return;
         }
     }
 
@@ -3711,11 +3684,7 @@ public static class TypedAstEvaluator
     private static void BindObjectPattern(ObjectBinding binding, object? value, JsEnvironment environment,
         EvaluationContext context, BindingMode mode)
     {
-        if (value is not JsObject obj)
-        {
-            throw new InvalidOperationException(
-                $"Cannot destructure non-object value.{GetSourceInfo(context)}");
-        }
+        var obj = ToObjectForDestructuring(value, context);
 
         var usedKeys = new HashSet<string>(StringComparer.Ordinal);
 
@@ -3748,6 +3717,60 @@ public static class TypedAstEvaluator
             }
 
             ApplyBindingTarget(binding.RestElement, restObject, environment, context, mode);
+        }
+    }
+
+    private static JsObject ToObjectForDestructuring(object? value, EvaluationContext context)
+    {
+        var realm = context.RealmState;
+        switch (value)
+        {
+            case JsObject jsObj:
+                return jsObj;
+            case null:
+            case Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined):
+            case IIsHtmlDda:
+                throw StandardLibrary.ThrowTypeError("Cannot destructure undefined or null", context, realm);
+            case string s:
+                return StandardLibrary.CreateStringWrapper(s, context, realm);
+            case JsBigInt bi:
+                return StandardLibrary.CreateBigIntWrapper(bi, context, realm);
+            case double:
+            case float:
+            case decimal:
+            case int:
+            case uint:
+            case long:
+            case ulong:
+            case short:
+            case ushort:
+            case byte:
+            case sbyte:
+            {
+                var num = Convert.ToDouble(value);
+                return StandardLibrary.CreateNumberWrapper(num, context, realm);
+            }
+            case bool b:
+            {
+                var obj = new JsObject();
+                if (realm?.BooleanPrototype is not null)
+                {
+                    obj.SetPrototype(realm.BooleanPrototype);
+                }
+
+                obj.SetProperty("__value__", b);
+                return obj;
+            }
+            default:
+            {
+                var obj = new JsObject();
+                if (realm?.ObjectPrototype is not null)
+                {
+                    obj.SetPrototype(realm.ObjectPrototype);
+                }
+
+                return obj;
+            }
         }
     }
 
@@ -5843,12 +5866,16 @@ public static class TypedAstEvaluator
         private readonly FunctionExpression _function;
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
+        private readonly bool _isArrowFunction;
+        private readonly object? _lexicalThis;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
         private bool _isClassConstructor;
         private bool _isDerivedClassConstructor;
         private IJsEnvironmentAwareCallable? _superConstructor;
         private IJsPropertyAccessor? _superPrototype;
+
+        internal bool IsArrowFunction => _isArrowFunction;
 
         public TypedFunction(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
@@ -5861,6 +5888,15 @@ public static class TypedAstEvaluator
             _function = function;
             _closure = closure;
             _realmState = realmState;
+            _isArrowFunction = function.IsArrow;
+            if (_isArrowFunction && _closure.TryGet(JsSymbols.This, out var capturedThis))
+            {
+                _lexicalThis = capturedThis;
+            }
+            else if (_isArrowFunction)
+            {
+                _lexicalThis = JsSymbols.Undefined;
+            }
             var paramCount = GetExpectedParameterCount(function.Parameters);
             if (_realmState.FunctionPrototype is not null)
             {
@@ -5868,11 +5904,14 @@ public static class TypedAstEvaluator
             }
 
             // Functions expose a prototype object so instances created via `new` can inherit from it.
-            var functionPrototype = new JsObject();
-            functionPrototype.SetPrototype(_realmState.ObjectPrototype);
-            functionPrototype.DefineProperty("constructor",
-                new PropertyDescriptor { Value = this, Writable = true, Enumerable = false, Configurable = true });
-            _properties.SetProperty("prototype", functionPrototype);
+            if (!_isArrowFunction)
+            {
+                var functionPrototype = new JsObject();
+                functionPrototype.SetPrototype(_realmState.ObjectPrototype);
+                functionPrototype.DefineProperty("constructor",
+                    new PropertyDescriptor { Value = this, Writable = true, Enumerable = false, Configurable = true });
+                _properties.SetProperty("prototype", functionPrototype);
+            }
             _properties.DefineProperty("length",
                 new PropertyDescriptor
                 {
@@ -5900,38 +5939,47 @@ public static class TypedAstEvaluator
             var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
 
             // Bind `this`.
-            var boundThis = thisValue;
-            if (!_function.Body.IsStrict && (thisValue is null || ReferenceEquals(thisValue, JsSymbols.Undefined)))
+            object? boundThis = thisValue;
+            if (_isArrowFunction)
             {
-                boundThis = CallingJsEnvironment?.Get(JsSymbols.This) ?? JsSymbols.Undefined;
-            }
-
-            if (_isDerivedClassConstructor && _superConstructor is not null)
-            {
-                context.MarkThisUninitialized();
+                boundThis = _lexicalThis ?? JsSymbols.Undefined;
+                context.MarkThisInitialized();
+                environment.Define(JsSymbols.This, boundThis);
             }
             else
             {
-                context.MarkThisInitialized();
-            }
+                if (!_function.Body.IsStrict && (thisValue is null || ReferenceEquals(thisValue, JsSymbols.Undefined)))
+                {
+                    boundThis = CallingJsEnvironment?.Get(JsSymbols.This) ?? JsSymbols.Undefined;
+                }
 
-            environment.Define(JsSymbols.This, boundThis ?? new JsObject());
+                if (_isDerivedClassConstructor && _superConstructor is not null)
+                {
+                    context.MarkThisUninitialized();
+                }
+                else
+                {
+                    context.MarkThisInitialized();
+                }
 
-            var prototypeForSuper = _superPrototype;
-            if (prototypeForSuper is null && _homeObject is not null)
-            {
-                prototypeForSuper = _homeObject.Prototype;
-            }
+                environment.Define(JsSymbols.This, boundThis ?? new JsObject());
 
-            if (prototypeForSuper is null && thisValue is JsObject thisObj)
-            {
-                prototypeForSuper = thisObj.Prototype;
-            }
+                var prototypeForSuper = _superPrototype;
+                if (prototypeForSuper is null && _homeObject is not null)
+                {
+                    prototypeForSuper = _homeObject.Prototype;
+                }
 
-            if (_superConstructor is not null || prototypeForSuper is not null)
-            {
-                var binding = new SuperBinding(_superConstructor, prototypeForSuper, boundThis);
-                environment.Define(JsSymbols.Super, binding);
+                if (prototypeForSuper is null && thisValue is JsObject thisObj)
+                {
+                    prototypeForSuper = thisObj.Prototype;
+                }
+
+                if (_superConstructor is not null || prototypeForSuper is not null)
+                {
+                    var binding = new SuperBinding(_superConstructor, prototypeForSuper, boundThis);
+                    environment.Define(JsSymbols.Super, binding);
+                }
             }
 
             // Define `arguments` so non-arrow function bodies can observe the
@@ -5939,7 +5987,7 @@ public static class TypedAstEvaluator
             // represented as FunctionExpression for now, so this behaves like a
             // per-call arguments array rather than a lexical binding.
             // Named function expressions should see their name inside the body.
-            if (_function.Name is { } functionName)
+            if (!_isArrowFunction && _function.Name is { } functionName)
             {
                 environment.Define(functionName, this);
             }
@@ -5952,8 +6000,11 @@ public static class TypedAstEvaluator
                 return JsSymbols.Undefined;
             }
 
-            var argumentsObject = CreateArgumentsObject(_function, arguments, environment, _realmState, this);
-            environment.Define(JsSymbols.Arguments, argumentsObject, isLexical: false);
+            if (!_isArrowFunction)
+            {
+                var argumentsObject = CreateArgumentsObject(_function, arguments, environment, _realmState, this);
+                environment.Define(JsSymbols.Arguments, argumentsObject, isLexical: false);
+            }
 
             var result = EvaluateBlock(_function.Body, environment, context);
 

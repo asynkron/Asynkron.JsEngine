@@ -133,13 +133,18 @@ public class ObjectDescriptorTests
                                                            value: 42,
                                                            configurable: false
                                                        });
-                                                       Object.defineProperty(obj, 'prop', {
-                                                           value: 100
-                                                       });
-                                                       obj.prop;
+                                                       let threw = false;
+                                                       try {
+                                                           Object.defineProperty(obj, 'prop', {
+                                                               value: 100
+                                                           });
+                                                       } catch (e) {
+                                                           threw = e instanceof TypeError;
+                                                       }
+                                                       threw && obj.prop === 42;
 
                                            """);
-        Assert.Equal(42d, result);
+        Assert.Equal(true, result);
     }
 
     [Fact(Timeout = 2000)]
@@ -578,11 +583,16 @@ public class ObjectDescriptorTests
 
                                                        let obj = { x: 10 };
                                                        Object.freeze(obj);
-                                                       Object.defineProperty(obj, 'y', { value: 20 });
-                                                       Object.hasOwn(obj, 'y');
+                                                       let threw = false;
+                                                       try {
+                                                           Object.defineProperty(obj, 'y', { value: 20 });
+                                                       } catch (e) {
+                                                           threw = e instanceof TypeError;
+                                                       }
+                                                       threw && !Object.hasOwn(obj, 'y');
 
                                            """);
-        Assert.Equal(false, result);
+        Assert.Equal(true, result);
     }
 
     [Fact(Timeout = 2000)]
@@ -593,11 +603,16 @@ public class ObjectDescriptorTests
 
                                                        let obj = { x: 10 };
                                                        Object.freeze(obj);
-                                                       Object.defineProperty(obj, 'x', { value: 20 });
-                                                       obj.x;
+                                                       let threw = false;
+                                                       try {
+                                                           Object.defineProperty(obj, 'x', { value: 20 });
+                                                       } catch (e) {
+                                                           threw = e instanceof TypeError;
+                                                       }
+                                                       threw && obj.x === 10;
 
                                            """);
-        Assert.Equal(10d, result);
+        Assert.Equal(true, result);
     }
 
     [Fact(Timeout = 2000)]

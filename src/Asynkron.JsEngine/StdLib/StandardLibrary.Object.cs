@@ -826,6 +826,13 @@ public static partial class StandardLibrary
             {
                 jsArray.DefineLength(descriptor, null, true);
             }
+            else if (obj is JsObject jsObject)
+            {
+                if (!jsObject.TryDefineProperty(propName, descriptor))
+                {
+                    throw ThrowTypeError("Cannot redefine property", realm: realm);
+                }
+            }
             else
             {
                 obj.DefineProperty(propName, descriptor);

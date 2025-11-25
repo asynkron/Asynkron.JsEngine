@@ -8,6 +8,13 @@ namespace Asynkron.JsEngine.Runtime;
 
 internal static class JsOps
 {
+    private enum NumericKind
+    {
+        Number,
+        BigInt,
+        Error
+    }
+
     public static bool IsNullish(this object? value)
     {
         return value is null || (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined));
@@ -44,101 +51,39 @@ internal static class JsOps
 
     public static object ToNumeric(object? value, EvaluationContext? context = null)
     {
-        return ToNumericInternal(value, context);
+        var result = ToNumericCore(value, context);
+        return result.Kind switch
+        {
+            NumericKind.BigInt => result.Value!,
+            NumericKind.Number => result.Value!,
+            _ => double.NaN
+        };
     }
 
     public static double ToNumberWithContext(object? value, EvaluationContext? context = null)
     {
-        while (true)
+        var result = ToNumericCore(value, context);
+        return result.Kind switch
         {
-            switch (value)
-            {
-                case null:
-                    return 0;
-                case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
-                case IIsHtmlDda:
-                    return double.NaN;
-                case Symbol:
-                case TypedAstSymbol:
-                    {
-                        var error = CreateTypeError("Cannot convert a Symbol value to a number", context);
-                        if (context is null)
-                        {
-                            throw new ThrowSignal(error);
-                        }
-
-                        context.SetThrow(error);
-                        return double.NaN;
-                    }
-                case JsBigInt bigInt:
-                    return (double)bigInt.Value;
-                case double d:
-                    return d;
-                case float f:
-                    return f;
-                case decimal m:
-                    return (double)m;
-                case int i:
-                    return i;
-                case uint ui:
-                    return ui;
-                case long l:
-                    return l;
-                case ulong ul:
-                    return ul;
-                case short s:
-                    return s;
-                case ushort us:
-                    return us;
-                case byte b:
-                    return b;
-                case sbyte sb:
-                    return sb;
-                case bool flag:
-                    return flag ? 1 : 0;
-                case string str:
-                    return NumericStringParser.ParseJsNumber(str);
-            }
-
-            switch (value)
-            {
-                case JsObject jsObj when jsObj.TryGetValue("__value__", out var inner):
-                    value = inner;
-                    continue;
-                case IJsPropertyAccessor accessor
-                    when TryConvertToNumericPrimitive(accessor, out var primitive, context):
-                    value = primitive;
-                    continue;
-                case IJsPropertyAccessor accessor when (context?.IsThrow == true):
-                    return double.NaN;
-                case IJsPropertyAccessor accessor:
-                {
-                    var typeError = CreateTypeError("Cannot convert object to number", context);
-                    if (context is null)
-                    {
-                        throw new ThrowSignal(typeError);
-                    }
-
-                    context.SetThrow(typeError);
-                    return double.NaN;
-                }
-                default:
-                    throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
-            }
-        }
+            NumericKind.Number => (double)result.Value!,
+            NumericKind.BigInt => (double)((JsBigInt)result.Value!).Value,
+            _ => double.NaN
+        };
     }
 
-    private static object ToNumericInternal(object? value, EvaluationContext? context = null)
+    private static (NumericKind Kind, object? Value) ToNumericCore(
+        object? value,
+        EvaluationContext? context)
     {
         while (true)
         {
             switch (value)
             {
                 case null:
-                    return 0d;
+                    return (NumericKind.Number, 0d);
                 case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
                 case IIsHtmlDda:
-                    return double.NaN;
+                    return (NumericKind.Number, double.NaN);
                 case Symbol:
                 case TypedAstSymbol:
                     {
@@ -149,16 +94,36 @@ internal static class JsOps
                         }
 
                         context.SetThrow(error);
-                        return double.NaN;
+                        return (NumericKind.Error, null);
                     }
                 case JsBigInt bigInt:
-                    return bigInt;
-                case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
-                    return ToNumber(value, context);
+                    return (NumericKind.BigInt, bigInt);
+                case double d:
+                    return (NumericKind.Number, d);
+                case float f:
+                    return (NumericKind.Number, (double)f);
+                case decimal m:
+                    return (NumericKind.Number, (double)m);
+                case int i:
+                    return (NumericKind.Number, (double)i);
+                case uint ui:
+                    return (NumericKind.Number, (double)ui);
+                case long l:
+                    return (NumericKind.Number, (double)l);
+                case ulong ul:
+                    return (NumericKind.Number, (double)ul);
+                case short s:
+                    return (NumericKind.Number, (double)s);
+                case ushort us:
+                    return (NumericKind.Number, (double)us);
+                case byte b:
+                    return (NumericKind.Number, (double)b);
+                case sbyte sb:
+                    return (NumericKind.Number, (double)sb);
                 case bool flag:
-                    return flag ? 1d : 0d;
+                    return (NumericKind.Number, flag ? 1d : 0d);
                 case string str:
-                    return NumericStringParser.ParseJsNumber(str);
+                    return (NumericKind.Number, NumericStringParser.ParseJsNumber(str));
             }
 
             switch (value)
@@ -171,7 +136,7 @@ internal static class JsOps
                     value = primitive;
                     continue;
                 case IJsPropertyAccessor accessor when (context?.IsThrow == true):
-                    return double.NaN;
+                    return (NumericKind.Error, null);
                 case IJsPropertyAccessor accessor:
                 {
                     var typeError = CreateTypeError("Cannot convert object to number", context);
@@ -181,7 +146,7 @@ internal static class JsOps
                     }
 
                     context.SetThrow(typeError);
-                    return double.NaN;
+                    return (NumericKind.Error, null);
                 }
                 default:
                     throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");

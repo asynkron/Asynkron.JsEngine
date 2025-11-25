@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
@@ -18,6 +19,8 @@ internal sealed class JsArgumentsObject : IJsObjectLike
     private readonly bool _isStrict;
     private readonly PropertyDescriptor? _calleeDescriptor;
     private readonly string[] _indexNames;
+    private readonly RealmState _realm;
+    private readonly Dictionary<string, PropertyDescriptor> _ownDescriptors = new(StringComparer.Ordinal);
     private bool _suppressObserver;
 
     public JsArgumentsObject(
@@ -30,6 +33,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike
         bool isStrict)
     {
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+        _realm = realm ?? throw new ArgumentNullException(nameof(realm));
         _mappedParameters = mappedParameters;
         _mappedEnabled = mappedEnabled;
         _isStrict = isStrict;
@@ -45,13 +49,15 @@ internal sealed class JsArgumentsObject : IJsObjectLike
         {
             var name = i.ToString(CultureInfo.InvariantCulture);
             _indexNames[i] = name;
-            _backing.DefineProperty(name, new PropertyDescriptor
+            var descriptor = new PropertyDescriptor
             {
                 Value = _values[i],
                 Writable = true,
                 Enumerable = true,
                 Configurable = true
-            });
+            };
+            _backing.DefineProperty(name, descriptor);
+            TrackDescriptor(name, descriptor);
         }
 
         _backing.DefineProperty("length",
@@ -130,7 +136,13 @@ internal sealed class JsArgumentsObject : IJsObjectLike
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
-        var normalized = NormalizeDescriptor(name, descriptor);
+        var existingDescriptor = GetTrackedDescriptor(name);
+        var normalized = NormalizeDescriptor(name, descriptor, existingDescriptor);
+
+        if (existingDescriptor is not null && !IsDescriptorCompatible(existingDescriptor, descriptor))
+        {
+            throw CreateDefineTypeError();
+        }
 
         if (TryResolveIndex(name, out var index) &&
             _mappedEnabled &&
@@ -140,13 +152,18 @@ internal sealed class JsArgumentsObject : IJsObjectLike
             var shouldUnmap = descriptor.IsAccessorDescriptor ||
                               (descriptor.HasWritable && !descriptor.Writable);
 
+            var success = _backing.TryDefineProperty(name, normalized);
+            if (!success)
+            {
+                throw CreateDefineTypeError();
+            }
+            TrackDescriptor(name, normalized);
+
             if (descriptor.HasValue)
             {
                 _values[index] = descriptor.Value;
                 WithSuppressedObserver(() => _environment.Assign(mappedSymbol, descriptor.Value));
             }
-
-            _backing.DefineProperty(name, normalized);
 
             if (shouldUnmap)
             {
@@ -156,7 +173,12 @@ internal sealed class JsArgumentsObject : IJsObjectLike
             return;
         }
 
-        _backing.DefineProperty(name, normalized);
+        if (!_backing.TryDefineProperty(name, normalized))
+        {
+            throw CreateDefineTypeError();
+        }
+
+        TrackDescriptor(name, normalized);
     }
 
     public void SetPrototype(object? candidate)
@@ -276,6 +298,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike
             }
         }
 
+        if (deleted)
+        {
+            _ownDescriptors.Remove(name);
+        }
+
         return deleted;
     }
 
@@ -290,14 +317,15 @@ internal sealed class JsArgumentsObject : IJsObjectLike
         WithSuppressedObserver(() =>
         {
             var existing = _backing.GetOwnPropertyDescriptor(_indexNames[index]);
-            _backing.DefineProperty(_indexNames[index],
-                new PropertyDescriptor
-                {
-                    Value = value,
-                    Writable = existing?.Writable ?? true,
-                    Enumerable = existing?.Enumerable ?? true,
-                    Configurable = existing?.Configurable ?? true
-                });
+            var descriptor = new PropertyDescriptor
+            {
+                Value = value,
+                Writable = existing?.Writable ?? true,
+                Enumerable = existing?.Enumerable ?? true,
+                Configurable = existing?.Configurable ?? true
+            };
+            _backing.DefineProperty(_indexNames[index], descriptor);
+            TrackDescriptor(_indexNames[index], descriptor);
         });
     }
 
@@ -319,9 +347,92 @@ internal sealed class JsArgumentsObject : IJsObjectLike
         return int.TryParse(candidate, NumberStyles.Integer, CultureInfo.InvariantCulture, out index) && index >= 0;
     }
 
-    private PropertyDescriptor NormalizeDescriptor(string name, PropertyDescriptor descriptor)
+    private PropertyDescriptor? GetTrackedDescriptor(string name)
     {
+        if (_ownDescriptors.TryGetValue(name, out var tracked))
+        {
+            return CloneDescriptor(tracked);
+        }
+
         var existing = _backing.GetOwnPropertyDescriptor(name);
+        return existing is null ? null : CloneDescriptor(existing);
+    }
+
+    private ThrowSignal CreateDefineTypeError()
+    {
+        return new ThrowSignal(StandardLibrary.CreateTypeError("Cannot redefine property", null, _realm));
+    }
+
+    private static bool IsDescriptorCompatible(PropertyDescriptor current, PropertyDescriptor candidate)
+    {
+        if (current.Configurable)
+        {
+            return true;
+        }
+
+        if (candidate.HasConfigurable && candidate.Configurable != current.Configurable)
+        {
+            return false;
+        }
+
+        if (candidate.HasEnumerable && candidate.Enumerable != current.Enumerable)
+        {
+            return false;
+        }
+
+        var currentIsData = !current.IsAccessorDescriptor;
+        var candidateIsData = !candidate.IsAccessorDescriptor;
+
+        if (currentIsData != candidateIsData &&
+            (candidate.HasValue || candidate.HasWritable || candidate.Get is not null || candidate.Set is not null))
+        {
+            return false;
+        }
+
+        if (currentIsData && candidateIsData)
+        {
+            var currentWritable = current.HasWritable ? current.Writable : true;
+
+            if (!currentWritable)
+            {
+                if (candidate.HasWritable && candidate.Writable)
+                {
+                    return false;
+                }
+
+                if (candidate.HasValue && !JsOps.StrictEquals(candidate.Value, current.Value))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if (!currentIsData && !candidateIsData)
+        {
+            if (candidate.Get is not null && !ReferenceEquals(candidate.Get, current.Get))
+            {
+                return false;
+            }
+
+            if (candidate.Set is not null && !ReferenceEquals(candidate.Set, current.Set))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void TrackDescriptor(string name, PropertyDescriptor descriptor)
+    {
+        _ownDescriptors[name] = CloneDescriptor(descriptor);
+    }
+
+    private PropertyDescriptor NormalizeDescriptor(string name, PropertyDescriptor descriptor,
+        PropertyDescriptor? existing)
+    {
         var normalized = new PropertyDescriptor();
 
         if (descriptor.IsAccessorDescriptor)

@@ -102,7 +102,17 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
     }
 
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return DefinePropertyInternal(name, descriptor);
+    }
+
     public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        DefinePropertyInternal(name, descriptor);
+    }
+
+    private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor)
     {
         var existingDesc = _descriptors.TryGetValue(name, out var found) ? found : null;
         if (existingDesc is null && TryGetValue(name, out var existingValue))
@@ -129,41 +139,41 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
             if (typeChange)
             {
-                return;
+                return false;
             }
 
             if (descriptor.HasConfigurable && descriptor.Configurable != existingDesc.Configurable)
             {
-                return;
+                return false;
             }
 
             if (descriptor.HasEnumerable && descriptor.Enumerable != existingDesc.Enumerable)
             {
-                return;
+                return false;
             }
 
             if (existingDesc.IsAccessorDescriptor)
             {
                 if (descriptor.Get is not null && !ReferenceEquals(descriptor.Get, existingDesc.Get))
                 {
-                    return;
+                    return false;
                 }
 
                 if (descriptor.Set is not null && !ReferenceEquals(descriptor.Set, existingDesc.Set))
                 {
-                    return;
+                    return false;
                 }
             }
             else if (!existingDesc.Writable)
             {
                 if (descriptor.HasWritable && descriptor.Writable)
                 {
-                    return;
+                    return false;
                 }
 
                 if (descriptor.HasValue && !Equals(descriptor.Value, existingDesc.Value))
                 {
-                    return;
+                    return false;
                 }
             }
         }
@@ -223,13 +233,13 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         // Sealed/frozen objects cannot have new properties added
         if ((IsSealed || IsFrozen) && !ContainsKey(name))
         {
-            return;
+            return false;
         }
 
         // Frozen objects cannot have properties modified
         if (IsFrozen && ContainsKey(name))
         {
-            return;
+            return false;
         }
 
         _descriptors[name] = descriptor;
@@ -252,6 +262,8 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             // Store data value
             this[name] = descriptor.Value;
         }
+
+        return true;
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)

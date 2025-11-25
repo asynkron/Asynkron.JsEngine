@@ -46,7 +46,8 @@ public sealed record FunctionExpression(
     ImmutableArray<FunctionParameter> Parameters,
     BlockStatement Body,
     bool IsAsync,
-    bool IsGenerator)
+    bool IsGenerator,
+    bool IsArrow = false)
     : ExpressionNode(Source);
 
 /// <summary>

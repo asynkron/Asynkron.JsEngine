@@ -230,52 +230,9 @@ public static partial class StandardLibrary
                     Value = bigIntFunction, Writable = true, Enumerable = false, Configurable = true
                 });
 
-            var toStringFn = new HostFunction(BigIntPrototypeToString) { IsConstructor = false };
-            toStringFn.DefineProperty("length",
-                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
-            toStringFn.DefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = "toString", Writable = false, Enumerable = false, Configurable = true
-                });
-            proto.DefineProperty("toString",
-                new PropertyDescriptor
-                {
-                    Value = toStringFn, Writable = true, Enumerable = false, Configurable = true
-                });
-
-            var valueOfFn = new HostFunction(BigIntPrototypeValueOf) { IsConstructor = false };
-            valueOfFn.DefineProperty("length",
-                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
-            valueOfFn.DefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = "valueOf", Writable = false, Enumerable = false, Configurable = true
-                });
-            proto.DefineProperty("valueOf",
-                new PropertyDescriptor { Value = valueOfFn, Writable = true, Enumerable = false, Configurable = true });
-
-            var toLocaleStringFn = new HostFunction(BigIntPrototypeToLocaleString) { IsConstructor = false };
-            toLocaleStringFn.DefineProperty("length",
-                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
-            toLocaleStringFn.DefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = "toLocaleString", Writable = false, Enumerable = false, Configurable = true
-                });
-            proto.DefineProperty("toLocaleString",
-                new PropertyDescriptor
-                {
-                    Value = toLocaleStringFn, Writable = true, Enumerable = false, Configurable = true
-                });
-
-            // Spec: built-in functions that are not constructors must not have
-            // an own prototype property. Remove the default prototype from these
-            // BigInt prototype methods.
-            foreach (var fn in new[] { toStringFn, valueOfFn, toLocaleStringFn })
-            {
-                fn.PropertiesObject.DeleteOwnProperty("prototype");
-            }
+            DefineBuiltinFunction(proto, "toString", new HostFunction(BigIntPrototypeToString), 0);
+            DefineBuiltinFunction(proto, "valueOf", new HostFunction(BigIntPrototypeValueOf), 0);
+            DefineBuiltinFunction(proto, "toLocaleString", new HostFunction(BigIntPrototypeToLocaleString), 0);
         }
 
         bigIntFunction.SetHostedProperty("asIntN", BigIntAsIntN);

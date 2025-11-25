@@ -92,6 +92,32 @@ public static partial class StandardLibrary
         return new ThrowSignal(CreateSyntaxError(message, context, realm));
     }
 
+    internal static void DefineBuiltinFunction(
+        JsObject target,
+        string name,
+        HostFunction function,
+        int length,
+        bool isConstructor = false,
+        bool writable = true,
+        bool enumerable = false,
+        bool configurable = true,
+        bool stripPrototypeWhenNotConstructor = true)
+    {
+        function.IsConstructor = isConstructor;
+        function.DefineProperty("length",
+            new PropertyDescriptor { Value = (double)length, Writable = false, Enumerable = false, Configurable = true });
+        function.DefineProperty("name",
+            new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
+
+        if (!isConstructor && stripPrototypeWhenNotConstructor)
+        {
+            function.PropertiesObject.DeleteOwnProperty("prototype");
+        }
+
+        target.DefineProperty(name,
+            new PropertyDescriptor { Value = function, Writable = writable, Enumerable = enumerable, Configurable = configurable });
+    }
+
     private static JsBigInt ThisBigIntValue(object? receiver)
     {
         return receiver switch

@@ -47,6 +47,7 @@ public static partial class StandardLibrary
         numberObj.SetHostedProperty("toExponential", ToExponential);
         numberObj.SetHostedProperty("toPrecision", ToPrecision);
         numberObj.SetHostedProperty("valueOf", ValueOf);
+        numberObj.SetHostedProperty("toLocaleString", ToLocaleString);
         return;
 
         object? ToString(IReadOnlyList<object?> args)
@@ -148,6 +149,23 @@ public static partial class StandardLibrary
         object? ValueOf(IReadOnlyList<object?> _)
         {
             return num;
+        }
+
+        object? ToLocaleString(IReadOnlyList<object?> args)
+        {
+            if (args.Count > 1 && args[1] is JsObject options)
+            {
+                var style = options.TryGetProperty("style", out var styleVal) ? styleVal?.ToString() : null;
+                if (string.Equals(style, "unit", StringComparison.OrdinalIgnoreCase) &&
+                    options.TryGetProperty("unit", out var unitVal) &&
+                    unitVal is not null &&
+                    !ReferenceEquals(unitVal, Symbols.Undefined))
+                {
+                    return $"{num.ToString(CultureInfo.InvariantCulture)} {unitVal}";
+                }
+            }
+
+            return num.ToString(CultureInfo.InvariantCulture);
         }
     }
 

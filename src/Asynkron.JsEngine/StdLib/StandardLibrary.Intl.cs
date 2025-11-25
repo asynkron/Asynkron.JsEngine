@@ -217,6 +217,101 @@ public static partial class StandardLibrary
 
         intl.SetProperty("Collator", collatorCtor);
 
+        // Minimal Intl.NumberFormat stub to satisfy basic callable surface and
+        // TypeError-on-invalid-this behaviour used by Test262.
+        var numberFormatPrototype = new JsObject();
+        if (realm.ObjectPrototype is not null)
+        {
+            numberFormatPrototype.SetPrototype(realm.ObjectPrototype);
+        }
+
+        var numberFormatCtor = new HostFunction((thisValue, _) =>
+        {
+            var instance = thisValue as JsObject ?? new JsObject();
+            instance.SetPrototype(numberFormatPrototype);
+            instance.SetProperty("__numberFormat__", true);
+            return instance;
+        })
+        {
+            IsConstructor = true
+        };
+
+        numberFormatCtor.DefineProperty("prototype",
+            new PropertyDescriptor
+            {
+                Value = numberFormatPrototype, Writable = false, Enumerable = false, Configurable = false
+            });
+        numberFormatCtor.DefineProperty("length",
+            new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+        numberFormatPrototype.DefineProperty("constructor",
+            new PropertyDescriptor { Value = numberFormatCtor, Writable = true, Enumerable = false, Configurable = true });
+
+        JsObject ValidateNumberFormatReceiver(object? receiver)
+        {
+            if (receiver is JsObject obj && obj.TryGetProperty("__numberFormat__", out var marker) && marker is true)
+            {
+                return obj;
+            }
+
+            throw ThrowTypeError("Intl.NumberFormat method called on incompatible receiver", realm: realm);
+        }
+
+        var formatGetter = new HostFunction((thisValue, _) =>
+        {
+            ValidateNumberFormatReceiver(thisValue);
+            return new HostFunction((_, formatArgs) =>
+            {
+                var value = formatArgs.Count > 0 ? formatArgs[0] : Symbols.Undefined;
+                return JsOps.ToJsString(value);
+            })
+            {
+                IsConstructor = false
+            };
+        })
+        {
+            IsConstructor = false
+        };
+        formatGetter.DefineProperty("name",
+            new PropertyDescriptor { Value = "get format", Writable = false, Enumerable = false, Configurable = true });
+
+        numberFormatPrototype.DefineProperty("format",
+            new PropertyDescriptor
+            {
+                Get = formatGetter, Enumerable = false, Configurable = true
+            });
+
+        var formatToPartsFn = new HostFunction((thisValue, formatArgs) =>
+        {
+            ValidateNumberFormatReceiver(thisValue);
+            var value = formatArgs.Count > 0 ? formatArgs[0] : Symbols.Undefined;
+            var part = new JsObject();
+            part.SetProperty("type", "literal");
+            part.SetProperty("value", JsOps.ToJsString(value));
+            var parts = new JsArray();
+            parts.Push(part);
+            return parts;
+        }) { IsConstructor = false };
+        numberFormatPrototype.DefineProperty("formatToParts",
+            new PropertyDescriptor
+            {
+                Value = formatToPartsFn, Writable = true, Enumerable = false, Configurable = true
+            });
+
+        var resolvedOptionsFn = new HostFunction((thisValue, _) =>
+        {
+            ValidateNumberFormatReceiver(thisValue);
+            var obj = new JsObject();
+            obj.SetProperty("locale", "en");
+            return obj;
+        }) { IsConstructor = false };
+        numberFormatPrototype.DefineProperty("resolvedOptions",
+            new PropertyDescriptor
+            {
+                Value = resolvedOptionsFn, Writable = true, Enumerable = false, Configurable = true
+            });
+
+        intl.SetProperty("NumberFormat", numberFormatCtor);
+
         return intl;
 
         object? CollatorCtor(object? thisValue, IReadOnlyList<object?> _)

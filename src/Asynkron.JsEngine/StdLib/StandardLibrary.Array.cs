@@ -228,11 +228,12 @@ public static partial class StandardLibrary
             return null;
         }
 
+        var thisArg = args.Count > 1 ? args[1] : Symbols.Undefined;
         var result = new JsArray(realm);
         for (var i = 0; i < jsArray.Items.Count; i++)
         {
             var element = jsArray.Items[i];
-            var mapped = callback.Invoke([element, (double)i, jsArray], null);
+            var mapped = callback.Invoke([element, (double)i, jsArray], thisArg);
             result.Push(mapped);
         }
 

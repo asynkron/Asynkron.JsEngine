@@ -6356,6 +6356,14 @@ public static class TypedAstEvaluator
                     boundThis = CallingJsEnvironment?.Get(JsSymbols.This) ?? JsSymbols.Undefined;
                 }
 
+                if (!_function.Body.IsStrict &&
+                    boundThis is not JsObject &&
+                    !IsNullish(boundThis) &&
+                    boundThis is not IIsHtmlDda)
+                {
+                    boundThis = ToObjectForDestructuring(boundThis, context);
+                }
+
                 if (_isDerivedClassConstructor && _superConstructor is not null)
                 {
                     context.MarkThisUninitialized();

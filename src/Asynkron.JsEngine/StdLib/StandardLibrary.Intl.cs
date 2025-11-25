@@ -231,10 +231,15 @@ public static partial class StandardLibrary
             instance.SetPrototype(numberFormatPrototype);
             instance.SetProperty("__numberFormat__", true);
             return instance;
-        })
+        }, realm)
         {
             IsConstructor = true
         };
+
+        if (realm.FunctionPrototype is not null)
+        {
+            numberFormatCtor.SetPrototype(realm.FunctionPrototype);
+        }
 
         numberFormatCtor.DefineProperty("prototype",
             new PropertyDescriptor
@@ -243,6 +248,8 @@ public static partial class StandardLibrary
             });
         numberFormatCtor.DefineProperty("length",
             new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+        numberFormatCtor.DefineProperty("name",
+            new PropertyDescriptor { Value = "NumberFormat", Writable = false, Enumerable = false, Configurable = true });
         numberFormatPrototype.DefineProperty("constructor",
             new PropertyDescriptor { Value = numberFormatCtor, Writable = true, Enumerable = false, Configurable = true });
 
@@ -263,11 +270,11 @@ public static partial class StandardLibrary
             {
                 var value = formatArgs.Count > 0 ? formatArgs[0] : Symbols.Undefined;
                 return JsOps.ToJsString(value);
-            })
+            }, realm)
             {
                 IsConstructor = false
             };
-        })
+        }, realm)
         {
             IsConstructor = false
         };
@@ -290,7 +297,7 @@ public static partial class StandardLibrary
             var parts = new JsArray();
             parts.Push(part);
             return parts;
-        }) { IsConstructor = false };
+        }, realm) { IsConstructor = false };
         numberFormatPrototype.DefineProperty("formatToParts",
             new PropertyDescriptor
             {
@@ -303,12 +310,53 @@ public static partial class StandardLibrary
             var obj = new JsObject();
             obj.SetProperty("locale", "en");
             return obj;
-        }) { IsConstructor = false };
+        }, realm) { IsConstructor = false };
         numberFormatPrototype.DefineProperty("resolvedOptions",
             new PropertyDescriptor
             {
                 Value = resolvedOptionsFn, Writable = true, Enumerable = false, Configurable = true
             });
+
+        var numberFormatSupportedLocalesOf = new HostFunction((_, args) =>
+        {
+            var result = new JsArray();
+            if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbols.Undefined))
+            {
+                return result;
+            }
+
+            var locales = args[0];
+            if (locales is string single)
+            {
+                result.Push(single);
+                return result;
+            }
+
+            if (locales is JsArray array)
+            {
+                if (array.Items.Count > 0 && array.Items[0] is string firstLocale)
+                {
+                    result.Push(firstLocale);
+                }
+            }
+
+            return result;
+        }, realm)
+        {
+            IsConstructor = false
+        };
+        numberFormatSupportedLocalesOf.DefineProperty("length",
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+        numberFormatSupportedLocalesOf.DefineProperty("name",
+            new PropertyDescriptor { Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true });
+
+        numberFormatCtor.DefineProperty("supportedLocalesOf",
+            new PropertyDescriptor
+            {
+                Value = numberFormatSupportedLocalesOf, Writable = true, Enumerable = false, Configurable = true
+            });
+        numberFormatSupportedLocalesOf.SetPrototype(numberFormatCtor.Prototype);
+        numberFormatSupportedLocalesOf.Delete("prototype");
 
         intl.SetProperty("NumberFormat", numberFormatCtor);
 

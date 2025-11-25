@@ -713,6 +713,11 @@ public static partial class StandardLibrary
                 return Symbols.Undefined;
             }
 
+            if (string.Equals(propName, "name", StringComparison.Ordinal) && args[0] is IJsCallable)
+            {
+                desc.Configurable = true;
+            }
+
             var resultDesc = new JsObject();
             if (realm.ObjectPrototype is not null)
             {

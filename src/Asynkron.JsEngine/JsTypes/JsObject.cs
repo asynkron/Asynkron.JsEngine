@@ -481,6 +481,11 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         return true;
     }
 
+    public bool Delete(string name)
+    {
+        return DeleteOwnProperty(name);
+    }
+
     public void Freeze()
     {
         IsFrozen = true;

@@ -120,6 +120,12 @@ public sealed record DoWhileStatement(SourceReference? Source, StatementNode Bod
     : StatementNode(Source);
 
 /// <summary>
+///     Represents a with statement.
+/// </summary>
+public sealed record WithStatement(SourceReference? Source, ExpressionNode Object, StatementNode Body)
+    : StatementNode(Source);
+
+/// <summary>
 ///     Represents a classic C-style for loop.
 /// </summary>
 public sealed record ForStatement(

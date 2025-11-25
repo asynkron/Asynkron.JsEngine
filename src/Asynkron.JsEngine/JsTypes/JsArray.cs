@@ -364,6 +364,16 @@ public sealed class JsArray : IJsObjectLike
         return _properties.Remove(name);
     }
 
+    public bool Delete(string name)
+    {
+        if (TryParseArrayIndex(name, out var index))
+        {
+            return DeleteElement((int)index);
+        }
+
+        return DeleteProperty(name);
+    }
+
     public void Push(object? value)
     {
         _items.Add(value);

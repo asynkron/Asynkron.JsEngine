@@ -27,6 +27,7 @@ public sealed class Lexer(string source)
         ["try"] = TokenType.Try,
         ["catch"] = TokenType.Catch,
         ["finally"] = TokenType.Finally,
+        ["with"] = TokenType.With,
         ["throw"] = TokenType.Throw,
         ["if"] = TokenType.If,
         ["else"] = TokenType.Else,

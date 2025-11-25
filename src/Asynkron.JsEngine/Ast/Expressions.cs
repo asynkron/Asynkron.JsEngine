@@ -94,6 +94,11 @@ public sealed record MemberExpression(
     bool IsOptional) : ExpressionNode(Source);
 
 /// <summary>
+///     Represents the meta-property new.target.
+/// </summary>
+public sealed record NewTargetExpression(SourceReference? Source) : ExpressionNode(Source);
+
+/// <summary>
 ///     Represents an assignment to an identifier.
 /// </summary>
 public sealed record AssignmentExpression(SourceReference? Source, Symbol Target, ExpressionNode Value)

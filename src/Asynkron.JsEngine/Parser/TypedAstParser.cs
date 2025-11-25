@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
@@ -160,6 +161,11 @@ public sealed class TypedAstParser(
                 return ParseTryStatement();
             }
 
+            if (Match(TokenType.With))
+            {
+                return ParseWithStatement();
+            }
+
             if (Match(TokenType.LeftBrace))
             {
                 return ParseBlock(true);
@@ -186,6 +192,21 @@ public sealed class TypedAstParser(
             }
 
             return ParseExpressionStatement();
+        }
+
+        private StatementNode ParseWithStatement()
+        {
+            var withToken = Previous();
+            if (InStrictContext)
+            {
+                throw new ParseException("With statements are not allowed in strict mode.", withToken, _source);
+            }
+
+            Consume(TokenType.LeftParen, "Expected '(' after 'with'.");
+            var obj = ParseExpression();
+            Consume(TokenType.RightParen, "Expected ')' after with object.");
+            var body = ParseStatement();
+            return new WithStatement(CreateSourceReference(withToken), obj, body);
         }
 
         private StatementNode ParseFunctionDeclaration(bool isAsync, Token functionKeyword)
@@ -1877,6 +1898,18 @@ public sealed class TypedAstParser(
 
             if (Match(TokenType.New))
             {
+                var newToken = Previous();
+                if (Match(TokenType.Dot))
+                {
+                    var targetToken = Consume(TokenType.Identifier, "Expected 'target' after 'new.'.");
+                    if (!string.Equals(targetToken.Lexeme, "target", StringComparison.Ordinal))
+                    {
+                        throw new ParseException("Expected 'target' after 'new.'.", targetToken, _source);
+                    }
+
+                    return new NewTargetExpression(CreateSourceReference(newToken));
+                }
+
                 var newExpr = ParseNewExpression();
                 return ApplyCallSuffix(newExpr, allowCallSuffix);
             }
@@ -2468,7 +2501,16 @@ public sealed class TypedAstParser(
                 {
                     break;
                 }
-            } while (Match(TokenType.Comma));
+                if (!Match(TokenType.Comma))
+                {
+                    break;
+                }
+
+                if (Check(TokenType.RightParen))
+                {
+                    break;
+                }
+            } while (true);
 
             return builder.ToImmutable();
         }
@@ -3187,6 +3229,11 @@ public sealed class TypedAstParser(
         {
             var currentToken = Peek();
             if (currentToken.Type == TokenType.Yield && InGeneratorContext)
+            {
+                return false;
+            }
+
+            if (currentToken.Type == TokenType.Yield && InStrictContext)
             {
                 return false;
             }

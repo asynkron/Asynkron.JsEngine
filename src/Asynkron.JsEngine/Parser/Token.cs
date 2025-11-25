@@ -77,6 +77,7 @@ public enum TokenType
     Try,
     Catch,
     Finally,
+    With,
     Throw,
     If,
     Else,

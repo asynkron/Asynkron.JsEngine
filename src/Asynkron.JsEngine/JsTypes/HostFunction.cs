@@ -203,6 +203,11 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
         return Properties.DeleteOwnProperty(name);
     }
 
+    public bool Delete(string name)
+    {
+        return DeleteProperty(name);
+    }
+
     private void EnsureFunctionPrototype()
     {
         if (Properties.Prototype is not null)

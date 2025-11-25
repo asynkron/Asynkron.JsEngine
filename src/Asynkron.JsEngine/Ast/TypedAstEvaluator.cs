@@ -13,6 +13,11 @@ using JsSymbols = Asynkron.JsEngine.Ast.Symbols;
 
 namespace Asynkron.JsEngine.Ast;
 
+public interface ICallableMetadata
+{
+    bool IsArrowFunction { get; }
+}
+
 /// <summary>
 ///     Proof-of-concept evaluator that executes the new typed AST directly instead of walking cons cells.
 ///     The goal is to showcase the recommended shape: a dedicated evaluator with explicit pattern matching
@@ -131,6 +136,7 @@ public static class TypedAstEvaluator
             TryStatement tryStatement => EvaluateTry(tryStatement, environment, context),
             SwitchStatement switchStatement => EvaluateSwitch(switchStatement, environment, context, activeLabel),
             ClassDeclaration classDeclaration => EvaluateClass(classDeclaration, environment, context),
+            WithStatement withStatement => EvaluateWith(withStatement, environment, context),
             EmptyStatement => EmptyCompletion,
             _ => throw new NotSupportedException(
                 $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
@@ -178,6 +184,25 @@ public static class TypedAstEvaluator
         var value = EvaluateExpression(statement.Expression, environment, context);
         context.SetThrow(value);
         return value;
+    }
+
+    private static object? EvaluateWith(WithStatement statement, JsEnvironment environment, EvaluationContext context)
+    {
+        var objValue = EvaluateExpression(statement.Object, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return objValue;
+        }
+
+        var withObject = ToObjectForDestructuring(objValue, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? JsSymbols.Undefined;
+        }
+
+        var withEnv = new JsEnvironment(environment, false, environment.IsStrict, statement.Source, "with",
+            withObject);
+        return EvaluateStatement(statement.Body, withEnv, context);
     }
 
     private static object? EvaluateBreak(BreakStatement statement, EvaluationContext context)
@@ -1285,6 +1310,7 @@ public static class TypedAstEvaluator
             SequenceExpression sequence => EvaluateSequence(sequence, environment, context),
             MemberExpression member => EvaluateMember(member, environment, context),
             NewExpression newExpression => EvaluateNew(newExpression, environment, context),
+            NewTargetExpression => JsSymbols.Undefined,
             ArrayExpression array => EvaluateArray(array, environment, context),
             ObjectExpression obj => EvaluateObject(obj, environment, context),
             ClassExpression classExpression => EvaluateClassExpression(classExpression, environment, context),
@@ -3210,6 +3236,10 @@ public static class TypedAstEvaluator
                     statement = doWhileStatement.Body;
                     hoistFunctionValues = false;
                     continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    hoistFunctionValues = false;
+                    continue;
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar &&
                         pass == HoistPass.Vars)
@@ -3357,6 +3387,9 @@ public static class TypedAstEvaluator
                     continue;
                 case DoWhileStatement doWhileStatement:
                     statement = doWhileStatement.Body;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
                     continue;
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration
@@ -4251,6 +4284,7 @@ public static class TypedAstEvaluator
         public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
         {
             var instance = new TypedGeneratorInstance(_function, _closure, arguments, thisValue, this, _realmState);
+            instance.Initialize();
             return instance.CreateGeneratorObject();
         }
 
@@ -4283,6 +4317,7 @@ public static class TypedAstEvaluator
         public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
         {
             var instance = new AsyncGeneratorInstance(_function, _closure, arguments, thisValue, this, _realmState);
+            instance.Initialize();
             return instance.CreateAsyncIteratorObject();
         }
 
@@ -4348,6 +4383,11 @@ public static class TypedAstEvaluator
             iterator.SetProperty(IteratorSymbolPropertyName, new HostFunction((_, _) => iterator));
             iterator.SetProperty(GeneratorBrandPropertyName, GeneratorBrandMarker);
             return iterator;
+        }
+
+        public void Initialize()
+        {
+            EnsureExecutionEnvironment();
         }
 
         private object? Next(object? value)
@@ -5735,6 +5775,10 @@ public static class TypedAstEvaluator
         // we have a dedicated async-generator IR executor, this wiring
         // should be revisited so await/yield drive a single non-blocking
         // state machine.
+        public void Initialize()
+        {
+            _inner.Initialize();
+        }
 
         public JsObject CreateAsyncIteratorObject()
         {
@@ -5863,12 +5907,14 @@ public static class TypedAstEvaluator
         }
     }
 
-    private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike
+    private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
+        ICallableMetadata
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
+        private readonly bool _isAsyncFunction;
         private readonly bool _isArrowFunction;
         private readonly object? _lexicalThis;
         private IJsObjectLike? _homeObject;
@@ -5878,19 +5924,20 @@ public static class TypedAstEvaluator
         private IJsEnvironmentAwareCallable? _superConstructor;
         private IJsPropertyAccessor? _superPrototype;
 
-        internal bool IsArrowFunction => _isArrowFunction;
+        public bool IsArrowFunction => _isArrowFunction;
 
         public TypedFunction(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
-            if (function.IsAsync || function.IsGenerator)
+            if (function.IsGenerator)
             {
                 throw new NotSupportedException(
-                    "Async and generator functions are not supported by the typed evaluator yet.");
+                    "Generator functions should be created via the generator factory.");
             }
 
             _function = function;
             _closure = closure;
             _realmState = realmState;
+            _isAsyncFunction = function.IsAsync;
             _isArrowFunction = function.IsArrow;
             if (_isArrowFunction && _closure.TryGet(JsSymbols.This, out var capturedThis))
             {
@@ -5918,7 +5965,28 @@ public static class TypedAstEvaluator
             _properties.DefineProperty("length",
                 new PropertyDescriptor
                 {
-                    Value = (double)paramCount, Writable = false, Enumerable = false, Configurable = false
+                    Value = (double)paramCount,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = false,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+
+            var functionNameValue = _function.Name?.Name ?? string.Empty;
+            _properties.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = functionNameValue,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = true,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
                 });
         }
 
@@ -6004,10 +6072,15 @@ public static class TypedAstEvaluator
                 {
                     var thrownDuringBinding = context.FlowValue;
                     context.Clear();
+
+                    if (_isAsyncFunction)
+                    {
+                        return CreateRejectedPromise(thrownDuringBinding, environment);
+                    }
+
                     if (callingContext is not null)
                     {
                         callingContext.SetThrow(thrownDuringBinding);
-                        return JsSymbols.Undefined;
                     }
 
                     throw new ThrowSignal(thrownDuringBinding);
@@ -6022,29 +6095,41 @@ public static class TypedAstEvaluator
                 environment.Define(JsSymbols.Arguments, argumentsObject, isLexical: false);
             }
 
-            var result = EvaluateBlock(_function.Body, environment, context);
-
-            if (context.IsThrow)
+            try
             {
-                var thrown = context.FlowValue;
-                context.Clear();
-                if (callingContext is not null)
+                var result = EvaluateBlock(_function.Body, environment, context);
+
+                if (context.IsThrow)
                 {
-                    callingContext.SetThrow(thrown);
-                    return JsSymbols.Undefined;
+                    var thrown = context.FlowValue;
+                    context.Clear();
+
+                    if (_isAsyncFunction)
+                    {
+                        return CreateRejectedPromise(thrown, environment);
+                    }
+
+                    if (callingContext is not null)
+                    {
+                        callingContext.SetThrow(thrown);
+                    }
+
+                    throw new ThrowSignal(thrown);
                 }
 
-                throw new ThrowSignal(thrown);
-            }
+                if (!context.IsReturn)
+                {
+                    return _isAsyncFunction ? result : JsSymbols.Undefined;
+                }
 
-            if (!context.IsReturn)
+                var value = context.FlowValue;
+                context.ClearReturn();
+                return value;
+            }
+            catch (ThrowSignal signal) when (_isAsyncFunction)
             {
-                return JsSymbols.Undefined;
+                return CreateRejectedPromise(signal.ThrownValue, environment);
             }
-
-            var value = context.FlowValue;
-            context.ClearReturn();
-            return value;
         }
 
         public JsObject? Prototype => _properties.Prototype;
@@ -6137,9 +6222,22 @@ public static class TypedAstEvaluator
             _properties.SetProperty(name, value);
         }
 
+        public bool Delete(string name)
+        {
+            return _properties.DeleteOwnProperty(name);
+        }
+
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
         {
-            return _properties.GetOwnPropertyDescriptor(name);
+            var descriptor = _properties.GetOwnPropertyDescriptor(name);
+            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
+            {
+                descriptor.Writable = false;
+                descriptor.Enumerable = false;
+                descriptor.Configurable = true;
+            }
+
+            return descriptor;
         }
 
         IEnumerable<string> IJsPropertyAccessor.GetOwnPropertyNames()
@@ -6149,7 +6247,15 @@ public static class TypedAstEvaluator
 
         public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
         {
-            return _properties.GetOwnPropertyDescriptor(name);
+            var descriptor = _properties.GetOwnPropertyDescriptor(name);
+            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
+            {
+                descriptor.Writable = false;
+                descriptor.Enumerable = false;
+                descriptor.Configurable = true;
+            }
+
+            return descriptor;
         }
 
         public IEnumerable<string> GetOwnPropertyNames()
@@ -6227,6 +6333,26 @@ public static class TypedAstEvaluator
             }
 
             return count;
+            }
+        }
+
+        private static object? CreateRejectedPromise(object? reason, JsEnvironment environment)
+        {
+            if (environment.TryGet(Symbol.Intern("Promise"), out var promiseCtor) &&
+                promiseCtor is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("reject", out var rejectValue) &&
+                rejectValue is IJsCallable rejectCallable)
+            {
+                try
+                {
+                    return rejectCallable.Invoke([reason], promiseCtor);
+                }
+                catch (ThrowSignal signal)
+                {
+                    return signal.ThrownValue;
+                }
+            }
+
+            return reason;
         }
     }
-}

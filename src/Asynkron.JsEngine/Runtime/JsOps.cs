@@ -884,6 +884,11 @@ internal static class JsOps
             return host is { IsConstructor: true, DisallowConstruct: false };
         }
 
+        if (value is ICallableMetadata { IsArrowFunction: true })
+        {
+            return false;
+        }
+
         return value is IJsCallable;
     }
 
@@ -1047,9 +1052,9 @@ internal static class JsOps
             return true;
         }
 
-        if (target is JsObject jsObject)
+        if (target is IJsObjectLike objectLike)
         {
-            return jsObject.DeleteOwnProperty(resolvedName);
+            return objectLike.Delete(resolvedName);
         }
 
         // Deleting primitives or other non-object values is a no-op that succeeds

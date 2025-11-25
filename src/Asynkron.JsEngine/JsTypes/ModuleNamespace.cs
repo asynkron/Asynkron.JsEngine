@@ -183,7 +183,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
                string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
     }
 
-    internal bool Delete(string name)
+    public bool Delete(string name)
     {
         return !_exportNames.Contains(name, StringComparer.Ordinal) &&
                !string.Equals(name, _toStringTagKey, StringComparison.Ordinal);

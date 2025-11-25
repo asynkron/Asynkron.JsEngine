@@ -1,6 +1,7 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine;
@@ -12,6 +13,7 @@ public sealed class JsEnvironment
     private readonly string? _description;
     private readonly JsEnvironment? _enclosing;
     private readonly bool _isFunctionScope;
+    private readonly JsObject? _withObject;
 
     private readonly Dictionary<Symbol, Binding> _values = new();
     private Dictionary<Symbol, List<Action<object?>>>? _bindingObservers;
@@ -21,13 +23,15 @@ public sealed class JsEnvironment
         bool isFunctionScope = false,
         bool isStrict = false,
         SourceReference? creatingSource = null,
-        string? description = null)
+        string? description = null,
+        JsObject? withObject = null)
     {
         _enclosing = enclosing;
         _isFunctionScope = isFunctionScope;
         _creatingSource = creatingSource;
         _description = description;
         IsStrictLocal = isStrict;
+        _withObject = withObject;
 
         Depth = (_enclosing?.Depth ?? -1) + 1;
         if (Depth > MaxDepth)
@@ -222,6 +226,11 @@ public sealed class JsEnvironment
             return true;
         }
 
+        if (_withObject is not null && TryGetFromWith(_withObject, name, out value))
+        {
+            return true;
+        }
+
         if (_enclosing is not null)
         {
             return _enclosing.TryGet(name, out value);
@@ -278,6 +287,13 @@ public sealed class JsEnvironment
             return;
         }
 
+        if (_withObject is not null && !IsUnscopable(_withObject, name.Name) &&
+            _withObject.TryGetProperty(name.Name, out _))
+        {
+            _withObject.SetProperty(name.Name, value);
+            return;
+        }
+
         if (_enclosing is not null)
         {
             _enclosing.AssignInternal(name, value, isStrictContext);
@@ -305,6 +321,37 @@ public sealed class JsEnvironment
         {
             globalObject.SetProperty(name.Name, value);
         }
+    }
+
+    private static bool IsUnscopable(JsObject target, string name)
+    {
+        var unscopablesSymbol = TypedAstSymbol.For("Symbol.unscopables");
+        var key = $"@@symbol:{unscopablesSymbol.GetHashCode()}";
+        if (target.TryGetProperty(key, out var unscopables) && unscopables is IJsPropertyAccessor accessor &&
+            JsOps.TryGetPropertyValue(accessor, name, out var blocked) && JsOps.ToBoolean(blocked))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetFromWith(JsObject target, Symbol name, out object? value)
+    {
+        if (IsUnscopable(target, name.Name))
+        {
+            value = null;
+            return false;
+        }
+
+        if (target.TryGetProperty(name.Name, out var propertyValue))
+        {
+            value = propertyValue;
+            return true;
+        }
+
+        value = null;
+        return false;
     }
 
     internal void AddBindingObserver(Symbol symbol, Action<object?> observer)

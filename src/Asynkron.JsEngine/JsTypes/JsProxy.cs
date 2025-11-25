@@ -52,4 +52,9 @@ public sealed class JsProxy(object target, IJsObjectLike? handler) : IJsObjectLi
     {
         _backing.Seal();
     }
+
+    public bool Delete(string name)
+    {
+        return _backing.DeleteOwnProperty(name);
+    }
 }

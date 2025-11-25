@@ -9,7 +9,13 @@ public static partial class StandardLibrary
     /// </summary>
     public static IJsCallable CreatePromiseConstructor(JsEngine engine)
     {
-        var promiseConstructor = new HostFunction(PromiseConstructor);
+        JsObject? promisePrototype = null;
+        HostFunction promiseConstructor = null!;
+        promiseConstructor = new HostFunction(PromiseConstructor);
+        if (promiseConstructor.TryGetProperty("prototype", out var proto) && proto is JsObject protoObj)
+        {
+            promisePrototype = protoObj;
+        }
 
         promiseConstructor.SetHostedProperty("resolve", PromiseResolve);
 
@@ -18,6 +24,14 @@ public static partial class StandardLibrary
         promiseConstructor.SetHostedProperty("all", PromiseAll);
 
         promiseConstructor.SetHostedProperty("race", PromiseRace);
+
+        void AssignPromisePrototype(JsObject promiseObj)
+        {
+            if (promisePrototype is not null)
+            {
+                promiseObj.SetPrototype(promisePrototype);
+            }
+        }
 
         return promiseConstructor;
 
@@ -30,6 +44,7 @@ public static partial class StandardLibrary
 
             var promise = new JsPromise(engine);
             var promiseObj = promise.JsObject;
+            AssignPromisePrototype(promiseObj);
             AddPromiseInstanceMethods(promiseObj, promise, engine);
 
             var resolve = new HostFunction(Resolve);
@@ -64,6 +79,7 @@ public static partial class StandardLibrary
         {
             var value = args.Count > 0 ? args[0] : null;
             var promise = new JsPromise(engine);
+            AssignPromisePrototype(promise.JsObject);
             AddPromiseInstanceMethods(promise.JsObject, promise, engine);
 
             promise.Resolve(value);
@@ -74,6 +90,7 @@ public static partial class StandardLibrary
         {
             var reason = args.Count > 0 ? args[0] : null;
             var promise = new JsPromise(engine);
+            AssignPromisePrototype(promise.JsObject);
             AddPromiseInstanceMethods(promise.JsObject, promise, engine);
 
             promise.Reject(reason);
@@ -88,6 +105,7 @@ public static partial class StandardLibrary
             }
 
             var resultPromise = new JsPromise(engine);
+            AssignPromisePrototype(resultPromise.JsObject);
             AddPromiseInstanceMethods(resultPromise.JsObject, resultPromise, engine);
 
             var results = new object?[array.Items.Count];
@@ -181,6 +199,7 @@ public static partial class StandardLibrary
             }
 
             var resultPromise = new JsPromise(engine);
+            AssignPromisePrototype(resultPromise.JsObject);
             AddPromiseInstanceMethods(resultPromise.JsObject, resultPromise, engine);
 
             var settled = false;

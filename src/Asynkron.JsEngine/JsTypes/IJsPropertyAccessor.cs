@@ -56,4 +56,5 @@ public interface IJsObjectLike : IJsPropertyAccessor
     void DefineProperty(string name, PropertyDescriptor descriptor);
     void SetPrototype(object? candidate);
     void Seal();
+    bool Delete(string name);
 }

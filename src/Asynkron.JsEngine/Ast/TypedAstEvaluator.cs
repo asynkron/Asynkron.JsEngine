@@ -2919,7 +2919,16 @@ public static class TypedAstEvaluator
     private static object? Add(object? left, object? right, EvaluationContext context)
     {
         var leftPrimitive = JsOps.ToPrimitive(left, "default", context);
+        if (context.ShouldStopEvaluation)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
         var rightPrimitive = JsOps.ToPrimitive(right, "default", context);
+        if (context.ShouldStopEvaluation)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
 
         if (leftPrimitive is JsBigInt leftBigInt && rightPrimitive is JsBigInt rightBigInt)
         {
@@ -2937,7 +2946,19 @@ public static class TypedAstEvaluator
                 context);
         }
 
-        return JsOps.ToNumber(leftPrimitive, context) + JsOps.ToNumber(rightPrimitive, context);
+        var leftNumber = JsOps.ToNumber(leftPrimitive, context);
+        if (context.ShouldStopEvaluation)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        var rightNumber = JsOps.ToNumber(rightPrimitive, context);
+        if (context.ShouldStopEvaluation)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        return leftNumber + rightNumber;
     }
 
     private static object Subtract(object? left, object? right, EvaluationContext context)
@@ -3704,13 +3725,19 @@ public static class TypedAstEvaluator
         ApplyBindingTarget(target, value, environment, context, BindingMode.DefineVar);
     }
 
-    private static void ApplyBindingTarget(BindingTarget target, object? value, JsEnvironment environment,
-        EvaluationContext context, BindingMode mode, bool hasInitializer = true)
+    private static void ApplyBindingTarget(
+        BindingTarget target,
+        object? value,
+        JsEnvironment environment,
+        EvaluationContext context,
+        BindingMode mode,
+        bool hasInitializer = true,
+        bool allowNameInference = true)
     {
         switch (target)
         {
             case IdentifierBinding identifier:
-                ApplyIdentifierBinding(identifier, value, environment, context, mode, hasInitializer);
+                ApplyIdentifierBinding(identifier, value, environment, context, mode, hasInitializer, allowNameInference);
                 break;
             case ArrayBinding arrayBinding:
                 BindArrayPattern(arrayBinding, value, environment, context, mode);
@@ -3744,11 +3771,12 @@ public static class TypedAstEvaluator
         JsEnvironment environment,
         EvaluationContext context,
         BindingMode mode,
-        bool hasInitializer)
+        bool hasInitializer,
+        bool allowNameInference)
     {
-        if (value is TypedFunction typedFunction)
+        if (allowNameInference && value is IFunctionNameTarget nameTarget)
         {
-            typedFunction.EnsureHasName(identifier.Name.Name);
+            nameTarget.EnsureHasName(identifier.Name.Name);
         }
 
         if (mode == BindingMode.Assign && environment.IsConstBinding(identifier.Name))
@@ -3777,6 +3805,16 @@ public static class TypedAstEvaluator
             default:
                 throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
         }
+    }
+
+    private static bool IsAnonymousFunctionDefinition(ExpressionNode expression)
+    {
+        return expression switch
+        {
+            FunctionExpression func => func.Name is null,
+            ClassExpression classExpression => classExpression.Name is null,
+            _ => false
+        };
     }
 
     private static void BindArrayPattern(ArrayBinding binding, object? value, JsEnvironment environment,
@@ -3818,9 +3856,11 @@ public static class TypedAstEvaluator
                     continue;
                 }
 
+                var usedDefault = false;
                 if (element.DefaultValue is not null &&
                     ReferenceEquals(elementValue, JsSymbols.Undefined))
                 {
+                    usedDefault = true;
                     elementValue = EvaluateExpression(element.DefaultValue, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
@@ -3833,7 +3873,16 @@ public static class TypedAstEvaluator
                     }
                 }
 
-                ApplyBindingTarget(element.Target, elementValue, environment, context, mode);
+                if (usedDefault &&
+                    element.Target is IdentifierBinding identifierTarget &&
+                    element.DefaultValue is { } defaultExpression &&
+                    IsAnonymousFunctionDefinition(defaultExpression) &&
+                    elementValue is IFunctionNameTarget nameTarget)
+                {
+                    nameTarget.EnsureHasName(identifierTarget.Name.Name);
+                }
+
+                ApplyBindingTarget(element.Target, elementValue, environment, context, mode, allowNameInference: false);
 
                 if (!context.ShouldStopEvaluation)
                 {
@@ -3872,7 +3921,7 @@ public static class TypedAstEvaluator
                     restArray.Push(restValue);
                 }
 
-                ApplyBindingTarget(binding.RestElement, restArray, environment, context, mode);
+                ApplyBindingTarget(binding.RestElement, restArray, environment, context, mode, allowNameInference: false);
             }
         }
         catch (ThrowSignal)
@@ -3929,8 +3978,10 @@ public static class TypedAstEvaluator
             var hasProperty = obj.TryGetProperty(propertyName, out var val);
             var propertyValue = hasProperty ? val : JsSymbols.Undefined;
 
+            var usedDefault = false;
             if (ReferenceEquals(propertyValue, JsSymbols.Undefined) && property.DefaultValue is not null)
             {
+                usedDefault = true;
                 propertyValue = EvaluateExpression(property.DefaultValue, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
@@ -3938,7 +3989,16 @@ public static class TypedAstEvaluator
                 }
             }
 
-            ApplyBindingTarget(property.Target, propertyValue, environment, context, mode);
+            if (usedDefault &&
+                property.Target is IdentifierBinding identifierTarget &&
+                property.DefaultValue is { } defaultExpression &&
+                IsAnonymousFunctionDefinition(defaultExpression) &&
+                propertyValue is IFunctionNameTarget nameTarget)
+            {
+                nameTarget.EnsureHasName(identifierTarget.Name.Name);
+            }
+
+            ApplyBindingTarget(property.Target, propertyValue, environment, context, mode, allowNameInference: false);
         }
 
         if (binding.RestElement is not null)
@@ -3959,7 +4019,7 @@ public static class TypedAstEvaluator
                 }
             }
 
-            ApplyBindingTarget(binding.RestElement, restObject, environment, context, mode);
+            ApplyBindingTarget(binding.RestElement, restObject, environment, context, mode, allowNameInference: false);
         }
     }
 
@@ -3988,6 +4048,12 @@ public static class TypedAstEvaluator
         iterator = null;
         enumerator = null;
 
+        if (value is JsArray arrayValue)
+        {
+            enumerator = EnumerateArrayElements(arrayValue);
+            return true;
+        }
+
         if (TryGetIteratorFromProtocols(value, out var iteratorCandidate) && iteratorCandidate is not null)
         {
             iterator = iteratorCandidate;
@@ -4001,9 +4067,6 @@ public static class TypedAstEvaluator
 
         switch (value)
         {
-            case JsArray array:
-                enumerator = EnumerateArrayElements(array);
-                return true;
             case string s:
                 enumerator = EnumerateStringCharacters(s);
                 return true;
@@ -4084,6 +4147,24 @@ public static class TypedAstEvaluator
         {
             case JsObject jsObj:
                 return jsObj;
+            case JsArray jsArray:
+            {
+                var obj = new JsObject();
+                if (realm?.ArrayPrototype is not null)
+                {
+                    obj.SetPrototype(realm.ArrayPrototype);
+                }
+
+                var length = jsArray.Length;
+                var count = length > int.MaxValue ? int.MaxValue : (int)length;
+                for (var i = 0; i < count; i++)
+                {
+                    obj.SetProperty(i.ToString(CultureInfo.InvariantCulture), jsArray.GetElement(i));
+                }
+
+                obj.SetProperty("length", length);
+                return obj;
+            }
             case null:
             case Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined):
             case IIsHtmlDda:
@@ -4592,14 +4673,37 @@ public static class TypedAstEvaluator
             return iterator.TryGetProperty(GeneratorBrandPropertyName, out var brand) &&
                    ReferenceEquals(brand, GeneratorBrandMarker);
         }
+
     }
 
 
-    private sealed class TypedGeneratorFactory : IJsCallable
+    private static int GetExpectedParameterCount(ImmutableArray<FunctionParameter> parameters)
+    {
+        var count = 0;
+        foreach (var parameter in parameters)
+        {
+            if (parameter.IsRest || parameter.DefaultValue is not null)
+            {
+                break;
+            }
+
+            count++;
+        }
+
+        return count;
+    }
+
+    private interface IFunctionNameTarget
+    {
+        void EnsureHasName(string name);
+    }
+
+    private sealed class TypedGeneratorFactory : IJsCallable, IJsObjectLike, IFunctionNameTarget
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
         private readonly RealmState _realmState;
+        private readonly JsObject _properties = new();
 
         public TypedGeneratorFactory(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
@@ -4611,6 +4715,7 @@ public static class TypedAstEvaluator
             _function = function;
             _closure = closure;
             _realmState = realmState;
+            InitializeProperties();
         }
 
         public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
@@ -4626,13 +4731,242 @@ public static class TypedAstEvaluator
                 ? $"[GeneratorFunction: {name.Name}]"
                 : "[GeneratorFunction]";
         }
+
+        private void InitializeProperties()
+        {
+            if (_realmState.FunctionPrototype is JsObject functionPrototype)
+            {
+                _properties.SetPrototype(functionPrototype);
+            }
+
+            if (_realmState.ObjectPrototype is not null)
+            {
+                var generatorPrototype = new JsObject();
+                generatorPrototype.SetPrototype(_realmState.ObjectPrototype);
+                generatorPrototype.DefineProperty("constructor",
+                    new PropertyDescriptor
+                    {
+                        Value = this,
+                        Writable = true,
+                        Enumerable = false,
+                        Configurable = true,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = true,
+                        HasConfigurable = true
+                    });
+                _properties.SetProperty("prototype", generatorPrototype);
+            }
+
+            var paramCount = GetExpectedParameterCount(_function.Parameters);
+            _properties.DefineProperty("length",
+                new PropertyDescriptor
+                {
+                    Value = (double)paramCount,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = false,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+
+            var functionNameValue = _function.Name?.Name ?? string.Empty;
+            _properties.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = functionNameValue,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = true,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+        }
+
+        public JsObject? Prototype => _properties.Prototype;
+
+        public bool IsSealed => _properties.IsSealed;
+
+        public IEnumerable<string> Keys => _properties.Keys;
+
+        public void DefineProperty(string name, PropertyDescriptor descriptor)
+        {
+            _properties.DefineProperty(name, descriptor);
+        }
+
+        public void SetPrototype(object? candidate)
+        {
+            _properties.SetPrototype(candidate);
+        }
+
+        public void Seal()
+        {
+            _properties.Seal();
+        }
+
+        public bool Delete(string name)
+        {
+            return _properties.DeleteOwnProperty(name);
+        }
+
+        public bool TryGetProperty(string name, out object? value)
+        {
+            if (_properties.TryGetProperty(name, out value))
+            {
+                return true;
+            }
+
+            var callable = (IJsCallable)this;
+            switch (name)
+            {
+                case "call":
+                    value = new HostFunction((_, args) =>
+                    {
+                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
+                        return callable.Invoke(callArgs, thisArg);
+                    });
+                    return true;
+
+                case "apply":
+                    value = new HostFunction((_, args) =>
+                    {
+                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var argList = new List<object?>();
+                        if (args.Count > 1 && args[1] is JsArray jsArray)
+                        {
+                            foreach (var item in jsArray.Items)
+                            {
+                                argList.Add(item);
+                            }
+                        }
+
+                        return callable.Invoke(argList.ToArray(), thisArg);
+                    });
+                    return true;
+
+                case "bind":
+                    value = new HostFunction((_, args) =>
+                    {
+                        var boundThis = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
+
+                        return new HostFunction((_, innerArgs) =>
+                        {
+                            var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
+                            boundArgs.CopyTo(finalArgs, 0);
+                            for (var i = 0; i < innerArgs.Count; i++)
+                            {
+                                finalArgs[boundArgs.Length + i] = innerArgs[i];
+                            }
+
+                            return callable.Invoke(finalArgs, boundThis);
+                        });
+                    });
+                    return true;
+            }
+
+            value = null;
+            return false;
+        }
+
+        public void SetProperty(string name, object? value)
+        {
+            _properties.SetProperty(name, value);
+        }
+
+        PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
+        {
+            var descriptor = _properties.GetOwnPropertyDescriptor(name);
+            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
+            {
+                descriptor.Writable = false;
+                descriptor.Enumerable = false;
+                descriptor.Configurable = true;
+            }
+
+            return descriptor;
+        }
+
+        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+        {
+            var descriptor = _properties.GetOwnPropertyDescriptor(name);
+            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
+            {
+                descriptor.Writable = false;
+                descriptor.Enumerable = false;
+                descriptor.Configurable = true;
+            }
+
+            return descriptor;
+        }
+
+        public IEnumerable<string> GetOwnPropertyNames()
+        {
+            return _properties.GetOwnPropertyNames();
+        }
+
+        public IEnumerable<string> GetEnumerablePropertyNames()
+        {
+            return _properties.GetEnumerablePropertyNames();
+        }
+
+        public void EnsureHasName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return;
+            }
+
+            if (_function.Name is not null)
+            {
+                return;
+            }
+
+            var descriptor = _properties.GetOwnPropertyDescriptor("name");
+            if (descriptor is { Configurable: false })
+            {
+                return;
+            }
+
+            if (descriptor is not null)
+            {
+                if (descriptor.IsAccessorDescriptor || descriptor.Value is IJsCallable)
+                {
+                    return;
+                }
+
+                if (descriptor.Value is string { Length: > 0 })
+                {
+                    return;
+                }
+            }
+
+            _properties.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = name,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = true,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+        }
     }
 
-    private sealed class AsyncGeneratorFactory : IJsCallable
+    private sealed class AsyncGeneratorFactory : IJsCallable, IJsObjectLike, IFunctionNameTarget
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
         private readonly RealmState _realmState;
+        private readonly JsObject _properties = new();
 
         public AsyncGeneratorFactory(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
@@ -4644,6 +4978,7 @@ public static class TypedAstEvaluator
             _function = function;
             _closure = closure;
             _realmState = realmState;
+            InitializeProperties();
         }
 
         public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
@@ -4658,6 +4993,234 @@ public static class TypedAstEvaluator
             return _function.Name is { } name
                 ? $"[AsyncGeneratorFunction: {name.Name}]"
                 : "[AsyncGeneratorFunction]";
+        }
+
+        private void InitializeProperties()
+        {
+            if (_realmState.FunctionPrototype is JsObject functionPrototype)
+            {
+                _properties.SetPrototype(functionPrototype);
+            }
+
+            if (_realmState.ObjectPrototype is not null)
+            {
+                var generatorPrototype = new JsObject();
+                generatorPrototype.SetPrototype(_realmState.ObjectPrototype);
+                generatorPrototype.DefineProperty("constructor",
+                    new PropertyDescriptor
+                    {
+                        Value = this,
+                        Writable = true,
+                        Enumerable = false,
+                        Configurable = true,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = true,
+                        HasConfigurable = true
+                    });
+                _properties.SetProperty("prototype", generatorPrototype);
+            }
+
+            var paramCount = GetExpectedParameterCount(_function.Parameters);
+            _properties.DefineProperty("length",
+                new PropertyDescriptor
+                {
+                    Value = (double)paramCount,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = false,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+
+            var functionNameValue = _function.Name?.Name ?? string.Empty;
+            _properties.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = functionNameValue,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = true,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+        }
+
+        public JsObject? Prototype => _properties.Prototype;
+
+        public bool IsSealed => _properties.IsSealed;
+
+        public IEnumerable<string> Keys => _properties.Keys;
+
+        public void DefineProperty(string name, PropertyDescriptor descriptor)
+        {
+            _properties.DefineProperty(name, descriptor);
+        }
+
+        public void SetPrototype(object? candidate)
+        {
+            _properties.SetPrototype(candidate);
+        }
+
+        public void Seal()
+        {
+            _properties.Seal();
+        }
+
+        public bool Delete(string name)
+        {
+            return _properties.DeleteOwnProperty(name);
+        }
+
+        public bool TryGetProperty(string name, out object? value)
+        {
+            if (_properties.TryGetProperty(name, out value))
+            {
+                return true;
+            }
+
+            var callable = (IJsCallable)this;
+            switch (name)
+            {
+                case "call":
+                    value = new HostFunction((_, args) =>
+                    {
+                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
+                        return callable.Invoke(callArgs, thisArg);
+                    });
+                    return true;
+
+                case "apply":
+                    value = new HostFunction((_, args) =>
+                    {
+                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var argList = new List<object?>();
+                        if (args.Count > 1 && args[1] is JsArray jsArray)
+                        {
+                            foreach (var item in jsArray.Items)
+                            {
+                                argList.Add(item);
+                            }
+                        }
+
+                        return callable.Invoke(argList.ToArray(), thisArg);
+                    });
+                    return true;
+
+                case "bind":
+                    value = new HostFunction((_, args) =>
+                    {
+                        var boundThis = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
+
+                        return new HostFunction((_, innerArgs) =>
+                        {
+                            var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
+                            boundArgs.CopyTo(finalArgs, 0);
+                            for (var i = 0; i < innerArgs.Count; i++)
+                            {
+                                finalArgs[boundArgs.Length + i] = innerArgs[i];
+                            }
+
+                            return callable.Invoke(finalArgs, boundThis);
+                        });
+                    });
+                    return true;
+            }
+
+            value = null;
+            return false;
+        }
+
+        public void SetProperty(string name, object? value)
+        {
+            _properties.SetProperty(name, value);
+        }
+
+        PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
+        {
+            var descriptor = _properties.GetOwnPropertyDescriptor(name);
+            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
+            {
+                descriptor.Writable = false;
+                descriptor.Enumerable = false;
+                descriptor.Configurable = true;
+            }
+
+            return descriptor;
+        }
+
+        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+        {
+            var descriptor = _properties.GetOwnPropertyDescriptor(name);
+            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
+            {
+                descriptor.Writable = false;
+                descriptor.Enumerable = false;
+                descriptor.Configurable = true;
+            }
+
+            return descriptor;
+        }
+
+        public IEnumerable<string> GetOwnPropertyNames()
+        {
+            return _properties.GetOwnPropertyNames();
+        }
+
+        public IEnumerable<string> GetEnumerablePropertyNames()
+        {
+            return _properties.GetEnumerablePropertyNames();
+        }
+
+        public void EnsureHasName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return;
+            }
+
+            if (_function.Name is not null)
+            {
+                return;
+            }
+
+            var descriptor = _properties.GetOwnPropertyDescriptor("name");
+            if (descriptor is { Configurable: false })
+            {
+                return;
+            }
+
+            if (descriptor is not null)
+            {
+                if (descriptor.IsAccessorDescriptor || descriptor.Value is IJsCallable)
+                {
+                    return;
+                }
+
+                if (descriptor.Value is string { Length: > 0 })
+                {
+                    return;
+                }
+            }
+
+            _properties.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = name,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = true,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
         }
     }
 
@@ -6240,7 +6803,7 @@ public static class TypedAstEvaluator
     }
 
     private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
-        ICallableMetadata
+        ICallableMetadata, IFunctionNameTarget
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
@@ -6718,22 +7281,6 @@ public static class TypedAstEvaluator
 
                 instance.SetProperty(field.Name, value);
             }
-        }
-
-        private static int GetExpectedParameterCount(ImmutableArray<FunctionParameter> parameters)
-        {
-            var count = 0;
-            foreach (var parameter in parameters)
-            {
-                if (parameter.IsRest || parameter.DefaultValue is not null)
-                {
-                    break;
-                }
-
-                count++;
-            }
-
-            return count;
         }
 
         private static object? CreateRejectedPromise(object? reason, JsEnvironment environment)

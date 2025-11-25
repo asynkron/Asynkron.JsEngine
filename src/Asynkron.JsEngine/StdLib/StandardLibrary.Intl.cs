@@ -239,6 +239,7 @@ public static partial class StandardLibrary
             var instance = thisValue as JsObject ?? new JsObject();
             instance.SetPrototype(numberFormatPrototype);
             instance.SetProperty("__numberFormat__", true);
+            InitializeNumberFormatInternalSlots(instance, realm);
             return instance;
         }, realm)
         {
@@ -274,10 +275,11 @@ public static partial class StandardLibrary
 
         var formatGetter = new HostFunction((thisValue, _) =>
         {
-            ValidateNumberFormatReceiver(thisValue);
+            var nf = ValidateNumberFormatReceiver(thisValue);
             return new HostFunction((_, formatArgs) =>
             {
                 var value = formatArgs.Count > 0 ? formatArgs[0] : Symbols.Undefined;
+                // Minimal formatting: honour toStringTag presence on receiver for correctness of Object.prototype.toString.
                 return JsOps.ToJsString(value);
             }, realm)
             {
@@ -315,10 +317,8 @@ public static partial class StandardLibrary
 
         var resolvedOptionsFn = new HostFunction((thisValue, _) =>
         {
-            ValidateNumberFormatReceiver(thisValue);
-            var obj = new JsObject();
-            obj.SetProperty("locale", "en");
-            return obj;
+            var nf = ValidateNumberFormatReceiver(thisValue);
+            return CreateNumberFormatResolvedOptions(nf, realm);
         }, realm) { IsConstructor = false };
         numberFormatPrototype.DefineProperty("resolvedOptions",
             new PropertyDescriptor
@@ -370,6 +370,41 @@ public static partial class StandardLibrary
         intl.SetProperty("NumberFormat", numberFormatCtor);
 
         return intl;
+
+        static void InitializeNumberFormatInternalSlots(JsObject instance, RealmState realm)
+        {
+            instance.SetProperty("__locale__", "en");
+            instance.SetProperty("__roundingMode__", "halfExpand");
+            instance.SetProperty("__roundingIncrement__", 1d);
+            instance.SetProperty("__minimumIntegerDigits__", 1d);
+            instance.SetProperty("__minimumFractionDigits__", 0d);
+            instance.SetProperty("__maximumFractionDigits__", 3d);
+            instance.SetProperty("__minimumSignificantDigits__", Symbols.Undefined);
+            instance.SetProperty("__maximumSignificantDigits__", Symbols.Undefined);
+            instance.SetPrototype(realm.ObjectPrototype);
+        }
+
+        static JsObject CreateNumberFormatResolvedOptions(JsObject nf, RealmState realm)
+        {
+            var obj = new JsObject();
+            obj.SetProperty("locale", nf.TryGetProperty("__locale__", out var loc) ? loc ?? "en" : "en");
+            obj.SetProperty("roundingMode",
+                nf.TryGetProperty("__roundingMode__", out var rm) && rm is not null ? rm : "halfExpand");
+            obj.SetProperty("roundingIncrement",
+                nf.TryGetProperty("__roundingIncrement__", out var ri) && ri is not null ? ri : 1d);
+            obj.SetProperty("minimumIntegerDigits",
+                nf.TryGetProperty("__minimumIntegerDigits__", out var mid) && mid is not null ? mid : 1d);
+            obj.SetProperty("minimumFractionDigits",
+                nf.TryGetProperty("__minimumFractionDigits__", out var minfd) && minfd is not null ? minfd : 0d);
+            obj.SetProperty("maximumFractionDigits",
+                nf.TryGetProperty("__maximumFractionDigits__", out var maxfd) && maxfd is not null ? maxfd : 3d);
+            obj.SetProperty("minimumSignificantDigits",
+                nf.TryGetProperty("__minimumSignificantDigits__", out var minsig) ? minsig : Symbols.Undefined);
+            obj.SetProperty("maximumSignificantDigits",
+                nf.TryGetProperty("__maximumSignificantDigits__", out var maxsig) ? maxsig : Symbols.Undefined);
+            obj.SetPrototype(realm.ObjectPrototype);
+            return obj;
+        }
 
         object? CollatorCtor(object? thisValue, IReadOnlyList<object?> _)
         {

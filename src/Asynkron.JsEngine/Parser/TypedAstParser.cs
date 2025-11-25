@@ -3318,7 +3318,7 @@ public sealed class TypedAstParser(
                 TokenType.AmpAmpEqual or TokenType.PipePipeEqual or TokenType.AmpEqual or TokenType.PipeEqual or
                 TokenType.CaretEqual or TokenType.LessLessEqual or TokenType.GreaterGreaterEqual or
                 TokenType.GreaterGreaterGreaterEqual or TokenType.QuestionQuestion or
-                TokenType.QuestionQuestionEqual or TokenType.Question or TokenType.Dot or
+                TokenType.QuestionQuestionEqual or TokenType.Question or TokenType.Dot or TokenType.Arrow or
                 TokenType.QuestionDot or TokenType.LeftBracket or TokenType.PlusPlus or TokenType.MinusMinus;
         }
 

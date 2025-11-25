@@ -206,6 +206,11 @@ internal static class JsOps
 
     public static object? ToPrimitive(object? value, string hint, EvaluationContext? context = null)
     {
+        if (value is TypedAstSymbol)
+        {
+            return value;
+        }
+
         if (value is not IJsPropertyAccessor accessor)
         {
             return value;
@@ -213,22 +218,30 @@ internal static class JsOps
 
         var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
         var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
-        if (accessor.TryGetProperty(symbolPropertyName, out var toPrimitive) && toPrimitive is IJsCallable toPrimFn)
+        if (accessor.TryGetProperty(symbolPropertyName, out var toPrimitive))
         {
-            try
+            if (!IsNullish(toPrimitive) && toPrimitive is not IJsCallable)
             {
-                var result = toPrimFn.Invoke([hint], accessor);
-                if (result is IJsPropertyAccessor or JsObject)
-                {
-                    throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
-                }
-
-                return result;
+                throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
             }
-            catch (ThrowSignal signal) when (context is not null)
+
+            if (toPrimitive is IJsCallable toPrimFn)
             {
-                context.SetThrow(signal.ThrownValue);
-                return value;
+                try
+                {
+                    var result = toPrimFn.Invoke([hint], accessor);
+                    if (result is IJsPropertyAccessor or JsObject)
+                    {
+                        throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
+                    }
+
+                    return result;
+                }
+                catch (ThrowSignal signal) when (context is not null)
+                {
+                    context.SetThrow(signal.ThrownValue);
+                    return value;
+                }
             }
         }
 
@@ -238,6 +251,11 @@ internal static class JsOps
 
         foreach (var methodName in methods)
         {
+            if (context?.IsThrow == true)
+            {
+                return value;
+            }
+
             if (!TryInvokePropertyMethod(accessor, methodName, out var result, context))
             {
                 continue;
@@ -257,6 +275,11 @@ internal static class JsOps
         if (accessor is HostFunction)
         {
             return "function() { [native code] }";
+        }
+
+        if (context?.IsThrow == true)
+        {
+            return value;
         }
 
         throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);

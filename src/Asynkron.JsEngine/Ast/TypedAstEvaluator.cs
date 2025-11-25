@@ -3892,9 +3892,10 @@ public static class TypedAstEvaluator
             }
 
             usedKeys.Add(propertyName);
-            var propertyValue = obj.TryGetProperty(propertyName, out var val) ? val : null;
+            var hasProperty = obj.TryGetProperty(propertyName, out var val);
+            var propertyValue = hasProperty ? val : JsSymbols.Undefined;
 
-            if (IsNullOrUndefined(propertyValue) && property.DefaultValue is not null)
+            if (ReferenceEquals(propertyValue, JsSymbols.Undefined) && property.DefaultValue is not null)
             {
                 propertyValue = EvaluateExpression(property.DefaultValue, environment, context);
                 if (context.ShouldStopEvaluation)

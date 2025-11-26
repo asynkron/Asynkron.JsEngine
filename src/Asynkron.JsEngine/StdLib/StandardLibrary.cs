@@ -12,12 +12,21 @@ namespace Asynkron.JsEngine.StdLib;
 /// </summary>
 public static partial class StandardLibrary
 {
+    private static readonly BigInteger BigInt64Modulus = BigInteger.One << 64;
+    private static readonly BigInteger BigInt64SignThreshold = BigInt64Modulus >> 1;
+
     internal static object CreateTypeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
         realm ??= context?.RealmState;
         if (realm?.TypeErrorConstructor is IJsCallable callable)
         {
-            return callable.Invoke([message], null) ?? new InvalidOperationException(message);
+            var result = callable.Invoke([message], null);
+            if (result is null || ReferenceEquals(result, Symbols.Undefined))
+            {
+                return new InvalidOperationException(message);
+            }
+
+            return result;
         }
 
         return new InvalidOperationException(message);
@@ -140,15 +149,23 @@ public static partial class StandardLibrary
         return new InvalidOperationException(message);
     }
 
-    internal static JsBigInt ToBigInt(object? value)
+    internal static JsBigInt ToBigInt(object? value, EvaluationContext? context = null, RealmState? realmState = null)
     {
+        realmState ??= context?.RealmState;
+        var localContext = context ?? (realmState is not null ? new EvaluationContext(realmState) : null);
+
         while (true)
         {
+            if (ReferenceEquals(value, Symbols.Undefined))
+            {
+                throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState);
+            }
+
             if (value is JsObject jsObj && jsObj.TryGetValue("__value__", out var inner))
             {
                 if (ReferenceEquals(inner, value))
                 {
-                    throw ThrowTypeError("Cannot convert object to a BigInt");
+                    throw ThrowTypeError("Cannot convert object to a BigInt", localContext, realmState);
                 }
 
                 value = inner;
@@ -160,42 +177,67 @@ public static partial class StandardLibrary
                 case JsBigInt bigInt:
                     return bigInt;
                 case JsObject or IJsPropertyAccessor:
-                    value = JsOps.ToPrimitive(value, "number");
+                    value = JsOps.ToPrimitive(value, "number", localContext);
+                    if (localContext is not null && localContext.IsThrow)
+                    {
+                        throw new ThrowSignal(localContext.FlowValue);
+                    }
                     continue;
                 case null:
                 case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
-                    throw ThrowTypeError("Cannot convert undefined to a BigInt");
-                case bool b:
-                    return b ? JsBigInt.One : JsBigInt.Zero;
+                case IIsHtmlDda:
+                    throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState);
+                case bool flag:
+                    return flag ? JsBigInt.One : JsBigInt.Zero;
                 case string s:
-                    return new JsBigInt(ParseBigIntString(s));
-                case double d when double.IsNaN(d) || double.IsInfinity(d) || d % 1 != 0:
-                    throw ThrowRangeError("Cannot convert number to a BigInt");
-                case double d:
-                    return new JsBigInt(new BigInteger(d));
-                case float f when float.IsNaN(f) || float.IsInfinity(f) || f % 1 != 0:
-                    throw ThrowRangeError("Cannot convert number to a BigInt");
-                case float f:
-                    return new JsBigInt(new BigInteger(f));
-                case decimal m when decimal.Truncate(m) != m:
-                    throw ThrowRangeError("Cannot convert number to a BigInt");
-                case decimal m:
-                    return new JsBigInt(new BigInteger(m));
-                case int i:
-                    return new JsBigInt(i);
-                case uint ui:
-                    return new JsBigInt(new BigInteger(ui));
-                case long l:
-                    return new JsBigInt(new BigInteger(l));
-                case ulong ul:
-                    return new JsBigInt(new BigInteger(ul));
+                    return new JsBigInt(ParseBigIntString(s, localContext, realmState));
             }
 
-            throw ThrowTypeError($"Cannot convert {value?.GetType().Name ?? "null"} to a BigInt");
+            throw ThrowTypeError($"Cannot convert {value?.GetType().Name ?? "null"} to a BigInt", localContext, realmState);
         }
     }
 
-    private static BigInteger ParseBigIntString(string value)
+    internal static long ToBigInt64(object? value, RealmState? realmState = null)
+    {
+        var bigInt = ToBigInt(value, realmState: realmState);
+        return ToBigInt64(bigInt.Value);
+    }
+
+    internal static ulong ToBigUint64(object? value, RealmState? realmState = null)
+    {
+        var bigInt = ToBigInt(value, realmState: realmState);
+        return ToBigUint64(bigInt.Value);
+    }
+
+    internal static long ToBigInt64(BigInteger value)
+    {
+        var wrapped = value % BigInt64Modulus;
+        if (wrapped.Sign < 0)
+        {
+            wrapped += BigInt64Modulus;
+        }
+
+        if (wrapped >= BigInt64SignThreshold)
+        {
+            wrapped -= BigInt64Modulus;
+        }
+
+        return (long)wrapped;
+    }
+
+    internal static ulong ToBigUint64(BigInteger value)
+    {
+        var wrapped = value % BigInt64Modulus;
+        if (wrapped.Sign < 0)
+        {
+            wrapped += BigInt64Modulus;
+        }
+
+        return (ulong)wrapped;
+    }
+
+    private static BigInteger ParseBigIntString(string value, EvaluationContext? context = null,
+        RealmState? realmState = null)
     {
         var text = value?.Trim() ?? string.Empty;
         if (text.Length == 0)
@@ -205,7 +247,7 @@ public static partial class StandardLibrary
 
         if (text.EndsWith('n'))
         {
-            throw ThrowSyntaxError("Invalid BigInt literal");
+            throw ThrowSyntaxError("Invalid BigInt literal", context, realmState);
         }
 
         var sign = 1;
@@ -242,13 +284,13 @@ public static partial class StandardLibrary
         }
         else if (text.StartsWith("0") && text.Length > 1 && char.IsDigit(text[1]))
         {
-            throw ThrowSyntaxError("Invalid BigInt literal");
+            throw ThrowSyntaxError("Invalid BigInt literal", context, realmState);
         }
 
         // A sign is only permitted with decimal strings.
         if (sign < 0 && numberBase != 10)
         {
-            throw ThrowSyntaxError("Invalid BigInt literal");
+            throw ThrowSyntaxError("Invalid BigInt literal", context, realmState);
         }
 
         // For decimal strings, reject any non-digit content.
@@ -258,14 +300,14 @@ public static partial class StandardLibrary
             {
                 if (t is < '0' or > '9')
                 {
-                    throw ThrowSyntaxError("Invalid BigInt literal");
+                    throw ThrowSyntaxError("Invalid BigInt literal", context, realmState);
                 }
             }
         }
 
         if (text.Length == 0 || !TryParseBigIntWithBase(text, numberBase, sign, out var parsed))
         {
-            throw ThrowSyntaxError("Invalid BigInt literal");
+            throw ThrowSyntaxError("Invalid BigInt literal", context, realmState);
         }
 
         return parsed;

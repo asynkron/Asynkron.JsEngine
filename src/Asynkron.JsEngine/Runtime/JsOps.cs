@@ -221,6 +221,11 @@ internal static class JsOps
 
     public static object? ToPrimitive(object? value, string hint, EvaluationContext? context = null)
     {
+        if (value is TypedAstSymbol)
+        {
+            return value;
+        }
+
         if (value is not IJsPropertyAccessor accessor)
         {
             return value;
@@ -942,9 +947,15 @@ internal static class JsOps
 
         if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
         {
-            value = typedIndex >= 0 && typedIndex < typedArray.Length
-                ? typedArray.GetElement(typedIndex)
-                : Symbols.Undefined;
+            if (typedIndex >= 0 && typedIndex < typedArray.Length)
+            {
+                value = typedArray.GetValueForIndex(typedIndex);
+            }
+            else
+            {
+                value = Symbols.Undefined;
+            }
+
             return true;
         }
 
@@ -1020,17 +1031,7 @@ internal static class JsOps
                 return true;
             }
 
-            var numericValue = value switch
-            {
-                double d => d,
-                int i => i,
-                long l => l,
-                float f => f,
-                bool b => b ? 1.0 : 0.0,
-                _ => 0.0
-            };
-
-            typedArray.SetElement(typedIndex, numericValue);
+            typedArray.SetValue(typedIndex, value);
             return true;
         }
 

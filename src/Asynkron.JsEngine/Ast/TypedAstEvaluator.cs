@@ -514,7 +514,7 @@ public static class TypedAstEvaluator
 
         if (methodValue is not IJsCallable callable)
         {
-            throw StandardLibrary.ThrowTypeError($"Iterator method '{methodName}' is not callable.", context);
+            return false;
         }
 
         result = callable.Invoke([argument], iterator);
@@ -6217,6 +6217,15 @@ public static class TypedAstEvaluator
                 }
 
                 return CreateIteratorResult(JsSymbols.Undefined, false);
+            }
+            catch
+            {
+                _state = GeneratorState.Completed;
+                _done = true;
+                _programCounter = -1;
+                _tryStack.Clear();
+                _resumeContext.Clear();
+                throw;
             }
 
             _state = GeneratorState.Completed;

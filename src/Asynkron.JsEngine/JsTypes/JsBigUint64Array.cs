@@ -44,25 +44,20 @@ public sealed class JsBigUint64Array(JsArrayBuffer buffer, int byteOffset, int l
     public override void SetElement(int index, double value)
     {
         CheckBounds(index);
-        var coerced = double.IsNaN(value) || double.IsInfinity(value) || value < 0
-            ? 0UL
-            : (ulong)value;
-        var span = new Span<byte>(_buffer.Buffer, GetByteIndex(index), BYTES_PER_ELEMENT);
-        BinaryPrimitives.WriteUInt64LittleEndian(span, coerced);
+        SetValue(index, value);
     }
 
     public void SetElement(int index, JsBigInt value)
     {
         CheckBounds(index);
         var span = new Span<byte>(_buffer.Buffer, GetByteIndex(index), BYTES_PER_ELEMENT);
-        var masked = value.Value & ((BigInteger.One << 64) - 1);
-        var coerced = (ulong)masked;
+        var coerced = StandardLibrary.ToBigUint64(value.Value);
         BinaryPrimitives.WriteUInt64LittleEndian(span, coerced);
     }
 
     public override void SetValue(int index, object? value)
     {
-        SetElement(index, StandardLibrary.ToBigInt(value));
+        SetElement(index, StandardLibrary.ToBigInt(value, realmState: _buffer.RealmState));
     }
 
     public JsBigInt GetBigIntElement(int index)
@@ -71,6 +66,11 @@ public sealed class JsBigUint64Array(JsArrayBuffer buffer, int byteOffset, int l
         var span = new ReadOnlySpan<byte>(_buffer.Buffer, GetByteIndex(index), BYTES_PER_ELEMENT);
         var value = BinaryPrimitives.ReadUInt64LittleEndian(span);
         return new JsBigInt(new BigInteger(value));
+    }
+
+    internal override object? GetValueForIndex(int index)
+    {
+        return GetBigIntElement(index);
     }
 
     public override TypedArrayBase Subarray(int begin, int end)

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text.RegularExpressions;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -257,9 +258,17 @@ public static partial class StandardLibrary
             DefineBuiltinFunction(proto, "toLocaleString", new HostFunction(BigIntPrototypeToLocaleString), 0);
         }
 
-        bigIntFunction.SetHostedProperty("asIntN", BigIntAsIntN);
+        DefineBuiltinFunction(
+            bigIntFunction.PropertiesObject,
+            "asIntN",
+            new HostFunction(BigIntAsIntN, realm),
+            2);
 
-        bigIntFunction.SetHostedProperty("asUintN", BigIntAsUintN);
+        DefineBuiltinFunction(
+            bigIntFunction.PropertiesObject,
+            "asUintN",
+            new HostFunction(BigIntAsUintN, realm),
+            2);
 
         bigIntFunction.SetProperty("name", "BigInt");
         bigIntFunction.SetProperty("length", 1d);
@@ -270,10 +279,10 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                throw ThrowTypeError("Cannot convert undefined to a BigInt");
+                throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: realm);
             }
 
-            return ToBigInt(args[0]);
+            return ToBigInt(args[0], realmState: realm);
         }
 
         object? BigIntPrototypeToString(object? thisValue, IReadOnlyList<object?> args)
@@ -287,13 +296,13 @@ public static partial class StandardLibrary
                     : JsOps.ToNumber(radixArg);
             if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
             {
-                throw ThrowRangeError("Invalid radix");
+                throw ThrowRangeError("Invalid radix", realm: realm);
             }
 
             var intRadix = (int)radixNumber;
             if (intRadix is < 2 or > 36)
             {
-                throw ThrowRangeError("toString() radix argument must be between 2 and 36");
+                throw ThrowRangeError("toString() radix argument must be between 2 and 36", realm: realm);
             }
 
             return BigIntToString(value.Value, intRadix);
@@ -314,51 +323,85 @@ public static partial class StandardLibrary
         {
             if (args.Count < 2)
             {
-                throw ThrowTypeError("BigInt.asIntN requires bits and value");
+                throw ThrowTypeError("BigInt.asIntN requires bits and value", realm: realm);
             }
 
-            var bits = ToIndex(args[0]);
-            var value = ToBigInt(args[1]);
-            return new JsBigInt(AsIntN(bits, value.Value));
+            var bits = ToIndex(args[0], realm);
+            var value = args[1];
+            if (ReferenceEquals(value, Symbols.Undefined))
+            {
+                throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: realm);
+            }
+
+            var bigIntValue = ToBigInt(value, realmState: realm);
+            return new JsBigInt(AsIntN(bits, bigIntValue.Value));
         }
 
         object? BigIntAsUintN(IReadOnlyList<object?> args)
         {
             if (args.Count < 2)
             {
-                throw ThrowTypeError("BigInt.asUintN requires bits and value");
+                throw ThrowTypeError("BigInt.asUintN requires bits and value", realm: realm);
             }
 
-            var bits = ToIndex(args[0]);
-            var value = ToBigInt(args[1]);
-            return new JsBigInt(AsUintN(bits, value.Value));
+            var bits = ToIndex(args[0], realm);
+            var value = args[1];
+            if (ReferenceEquals(value, Symbols.Undefined))
+            {
+                throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: realm);
+            }
+
+            var bigIntValue = ToBigInt(value, realmState: realm);
+            return new JsBigInt(AsUintN(bits, bigIntValue.Value));
         }
     }
 
-    private static int ToIndex(object? value)
+    private static int ToIndex(object? value, RealmState? realm = null)
     {
-        if (value is JsBigInt bigInt)
-        {
-            if (bigInt.Value < 0 || bigInt.Value > int.MaxValue)
-            {
-                throw ThrowRangeError("Index must be a non-negative integer");
-            }
+        const double MaxLength = 9007199254740991d; // 2^53 - 1
+        var context = realm is not null ? new EvaluationContext(realm) : null;
 
-            return (int)bigInt.Value;
+        var numeric = JsOps.ToNumeric(value, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
         }
 
-        var number = JsOps.ToNumber(value);
-        if (double.IsNaN(number) || double.IsInfinity(number) || number < 0 || Math.Abs(number % 1) > double.Epsilon)
+        if (numeric is JsBigInt or Symbol or TypedAstSymbol)
         {
-            throw ThrowRangeError("Index must be a non-negative integer");
+            throw ThrowTypeError("Index must be a non-negative integer", context, realm);
         }
 
-        if (number > int.MaxValue)
+        var numberValue = numeric is double d ? d : JsOps.ToNumber(numeric, context);
+        if (context?.IsThrow == true)
         {
-            throw ThrowRangeError("Index is too large");
+            throw new ThrowSignal(context.FlowValue);
         }
 
-        return (int)number;
+        var integerIndex = double.IsNaN(numberValue) || Math.Abs(numberValue) < double.Epsilon
+            ? 0d
+            : double.IsInfinity(numberValue)
+                ? (numberValue > 0 ? double.PositiveInfinity : double.NegativeInfinity)
+                : Math.Truncate(numberValue);
+
+        if (double.IsPositiveInfinity(integerIndex) || integerIndex < 0)
+        {
+            throw ThrowRangeError("Index must be a non-negative integer", context, realm);
+        }
+
+        var index = integerIndex > MaxLength ? MaxLength : integerIndex;
+        var sameValueZero = integerIndex == index || (integerIndex == 0 && index == 0);
+        if (!sameValueZero)
+        {
+            throw ThrowRangeError("Index must be a non-negative integer", context, realm);
+        }
+
+        if (index > int.MaxValue)
+        {
+            throw ThrowRangeError("Index is too large", context, realm);
+        }
+
+        return (int)index;
     }
 
     private static BigInteger AsIntN(int bits, BigInteger value)

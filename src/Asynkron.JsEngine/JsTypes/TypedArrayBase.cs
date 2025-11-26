@@ -1,6 +1,7 @@
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -171,7 +172,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
                 throw CreateOutOfBoundsTypeError();
             }
 
-            value = GetElement(index);
+            value = GetValueForIndex(index);
             return true;
         }
 
@@ -203,23 +204,13 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
                 throw CreateOutOfBoundsTypeError();
             }
 
-            var numericValue = value switch
-            {
-                double d => d,
-                int i => i,
-                long l => l,
-                float f => f,
-                null => 0.0,
-                _ => 0.0
-            };
-
             if (index >= Length)
             {
                 throw new ArgumentOutOfRangeException(nameof(name),
                     $"Index {index} is outside the bounds of the typed array.");
             }
 
-            SetElement(index, numericValue);
+            SetValue(index, value);
             return;
         }
 
@@ -305,7 +296,25 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     /// </summary>
     public virtual void SetValue(int index, object? value)
     {
-        SetElement(index, JsOps.ToNumber(value));
+        var context = _buffer.RealmState is not null ? new EvaluationContext(_buffer.RealmState) : null;
+        if (value is JsBigInt)
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context,
+                _buffer.RealmState);
+        }
+
+        var numeric = JsOps.ToNumberWithContext(value, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        SetElement(index, numeric);
+    }
+
+    internal virtual object? GetValueForIndex(int index)
+    {
+        return GetElement(index);
     }
 
     /// <summary>
@@ -346,7 +355,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         var newArray = CreateNewSameType(newLength);
         for (var i = 0; i < newLength; i++)
         {
-            newArray.SetElement(i, GetElement(start + i));
+            newArray.SetValue(i, GetValueForIndex(start + i));
         }
 
         return newArray;
@@ -376,7 +385,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         for (var i = 0; i < source.Length; i++)
         {
-            SetElement(offset + i, source.GetElement(i));
+            SetValue(offset + i, source.GetValueForIndex(i));
         }
     }
 
@@ -395,16 +404,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         for (var i = 0; i < source.Items.Count; i++)
         {
             var value = source.Items[i];
-            var numValue = value switch
-            {
-                double d => d,
-                int iv => iv,
-                long lv => lv,
-                float fv => fv,
-                JsBigInt bi => (double)bi.Value,
-                _ => 0.0
-            };
-            SetElement(offset + i, numValue);
+            SetValue(offset + i, value);
         }
     }
 

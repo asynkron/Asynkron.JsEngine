@@ -8,6 +8,8 @@ namespace Asynkron.JsEngine;
 
 public sealed class JsEnvironment
 {
+    internal static readonly object Uninitialized = new();
+
     private const int MaxDepth = 1_000;
     private readonly SourceReference? _creatingSource;
     private readonly string? _description;
@@ -183,6 +185,11 @@ public sealed class JsEnvironment
     {
         if (_values.TryGetValue(name, out var binding))
         {
+            if (ReferenceEquals(binding.Value, Uninitialized))
+            {
+                throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+            }
+
             if (_enclosing is null &&
                 _values.TryGetValue(Symbols.This, out var thisBinding) &&
                 thisBinding.Value is JsObject globalObject &&
@@ -224,10 +231,30 @@ public sealed class JsEnvironment
         return _enclosing?.IsConstBinding(name) ?? false;
     }
 
+    internal bool HasBinding(Symbol name)
+    {
+        if (_values.ContainsKey(name))
+        {
+            return true;
+        }
+
+        if (_withObject is not null && TryGetFromWith(_withObject, name, out _))
+        {
+            return true;
+        }
+
+        return _enclosing?.HasBinding(name) ?? false;
+    }
+
     public bool TryGet(Symbol name, out object? value)
     {
         if (_values.TryGetValue(name, out var binding))
         {
+            if (ReferenceEquals(binding.Value, Uninitialized))
+            {
+                throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+            }
+
             if (_enclosing is null &&
                 _values.TryGetValue(Symbols.This, out var thisBinding) &&
                 thisBinding.Value is JsObject globalObject &&

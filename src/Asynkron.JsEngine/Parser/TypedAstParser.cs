@@ -857,7 +857,8 @@ public sealed class TypedAstParser(
             using var _ = EnterFunctionContext(isAsync, isGenerator);
             var body = ParseBlock();
             var source = body.Source ?? CreateSourceReference(methodNameToken);
-            return new FunctionExpression(source, functionName, parameters, body, isAsync, isGenerator);
+            return new FunctionExpression(source, functionName, parameters, body, isAsync, isGenerator,
+                WasAsync: isAsync);
         }
 
         private static FunctionExpression CreateDefaultConstructor(Symbol? className)
@@ -2212,7 +2213,7 @@ public sealed class TypedAstParser(
                             using var _ = EnterFunctionContext(true, isAsyncGeneratorMethod);
                             var body = ParseBlock();
                             var asyncMethod = new FunctionExpression(body.Source ?? asyncKeySource, null, parameters, body,
-                                true, isAsyncGeneratorMethod);
+                                true, isAsyncGeneratorMethod, WasAsync: true);
                             members.Add(new ObjectMember(asyncMethod.Source ?? asyncKeySource, ObjectMemberKind.Method,
                                 asyncKey, null, asyncMethod, asyncIsComputed, false, null));
                             continue;
@@ -2476,7 +2477,7 @@ public sealed class TypedAstParser(
             using var _ = EnterFunctionContext(isAsync, isGenerator);
             var body = ParseBlock();
             var source = body.Source ?? CreateSourceReference(startToken);
-            return new FunctionExpression(source, name, parameters, body, isAsync, isGenerator);
+            return new FunctionExpression(source, name, parameters, body, isAsync, isGenerator, WasAsync: isAsync);
         }
 
         private ImmutableArray<FunctionParameter> ParseParameterList()
@@ -2989,7 +2990,7 @@ public sealed class TypedAstParser(
                 source = fallbackSource;
             }
 
-            return new FunctionExpression(source, null, parameters, body, isAsync, false, true);
+            return new FunctionExpression(source, null, parameters, body, isAsync, false, true, WasAsync: isAsync);
         }
 
         private ExpressionNode FinishArrowFunction(ExpressionNode parameterExpression, bool isAsync, Token arrowToken)

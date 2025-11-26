@@ -47,7 +47,8 @@ public sealed record FunctionExpression(
     BlockStatement Body,
     bool IsAsync,
     bool IsGenerator,
-    bool IsArrow = false)
+    bool IsArrow = false,
+    bool WasAsync = false)
     : ExpressionNode(Source);
 
 /// <summary>

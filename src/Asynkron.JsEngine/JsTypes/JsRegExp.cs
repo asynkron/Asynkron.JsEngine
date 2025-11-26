@@ -1,12 +1,10 @@
 using System.Buffers;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
-using Asynkron.JsEngine.Parser;
-using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -42,14 +40,7 @@ public class JsRegExp
             options |= RegexOptions.Multiline;
         }
 
-        try
-        {
-            _regex = new Regex(_normalizedPattern, options);
-        }
-        catch (ArgumentException)
-        {
-            throw;
-        }
+        _regex = new Regex(_normalizedPattern, options);
 
         // Set standard properties
         JsObject["source"] = pattern;
@@ -1111,15 +1102,15 @@ public class JsRegExp
     {
         switch (codeUnit)
         {
-            case (int)'-':
+            case '-':
                 return "\\-";
-            case (int)']':
+            case ']':
                 return "\\]";
-            case (int)'\\':
-                return "\\\\";
+            case '\\':
+                return @"\\";
         }
 
-        if (codeUnit < 0x20 || codeUnit > 0x7E)
+        if (codeUnit is < 0x20 or > 0x7E)
         {
             return $"\\u{codeUnit:X4}";
         }
@@ -1133,7 +1124,7 @@ public class JsRegExp
         var builder = new StringBuilder();
         foreach (var ch in text)
         {
-            builder.Append($"\\u{(int)ch:X4}");
+            builder.Append(CultureInfo.InvariantCulture, $"\\u{(int)ch:X4}");
         }
 
         return builder.ToString();

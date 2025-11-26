@@ -427,19 +427,19 @@ public static class TypedAstEvaluator
     private static bool TryGetIteratorFromProtocols(object? iterable, out JsObject? iterator)
     {
         iterator = null;
-        if (iterable is not JsObject jsObject)
+        if (iterable is not IJsPropertyAccessor accessor)
         {
             return false;
         }
 
-        if (TryInvokeSymbolMethod(jsObject, "Symbol.asyncIterator", out var asyncIterator) &&
+        if (TryInvokeSymbolMethod(accessor, iterable, "Symbol.asyncIterator", out var asyncIterator) &&
             asyncIterator is JsObject asyncObj)
         {
             iterator = asyncObj;
             return true;
         }
 
-        if (TryInvokeSymbolMethod(jsObject, "Symbol.iterator", out var iteratorValue) &&
+        if (TryInvokeSymbolMethod(accessor, iterable, "Symbol.iterator", out var iteratorValue) &&
             iteratorValue is JsObject iteratorObj)
         {
             iterator = iteratorObj;
@@ -449,7 +449,8 @@ public static class TypedAstEvaluator
         return false;
     }
 
-    private static bool TryInvokeSymbolMethod(JsObject target, string symbolName, out object? result)
+    private static bool TryInvokeSymbolMethod(IJsPropertyAccessor target, object? thisArg, string symbolName,
+        out object? result)
     {
         var symbol = TypedAstSymbol.For(symbolName);
         var hashedName = $"@@symbol:{symbol.GetHashCode()}";
@@ -458,7 +459,7 @@ public static class TypedAstEvaluator
             TryGetCallable(symbolName, out callable) ||
             TryGetCallable(symbol.ToString(), out callable))
         {
-            result = callable!.Invoke([], target);
+            result = callable!.Invoke([], thisArg);
             return true;
         }
 
@@ -1284,25 +1285,25 @@ public static class TypedAstEvaluator
     private static object? EvaluateFunctionDeclaration(FunctionDeclaration declaration, JsEnvironment environment,
         EvaluationContext context)
     {
-        var function = CreateFunctionValue(declaration.Function, environment, context);
-        environment.Define(declaration.Name, function);
-        var skipVarBinding = !environment.IsStrict &&
-                             context.BlockedFunctionVarNames is { } blocked &&
-                             blocked.Contains(declaration.Name);
-        if (!environment.IsStrict && !skipVarBinding)
-        {
-            var configurable = context.ExecutionKind == ExecutionKind.Eval;
-            environment.DefineFunctionScoped(
-                declaration.Name,
-                function,
-                true,
-                true,
-                configurable,
-                context);
-        }
+            var function = CreateFunctionValue(declaration.Function, environment, context);
+            environment.Define(declaration.Name, function);
+            var skipVarBinding = !environment.IsStrict &&
+                                 context.BlockedFunctionVarNames is { } blocked &&
+                                 blocked.Contains(declaration.Name);
+            if (!environment.IsStrict && !skipVarBinding)
+            {
+                var configurable = context.ExecutionKind == ExecutionKind.Eval;
+                environment.DefineFunctionScoped(
+                    declaration.Name,
+                    function,
+                    true,
+                    true,
+                    configurable,
+                    context);
+            }
 
-        return EmptyCompletion;
-    }
+            return EmptyCompletion;
+        }
 
     private static IJsCallable CreateFunctionValue(FunctionExpression functionExpression, JsEnvironment environment,
         EvaluationContext context)
@@ -2181,6 +2182,8 @@ public static class TypedAstEvaluator
             }
         }
 
+        var isAsyncCallable = callable is TypedFunction tf && tf.IsAsyncLike;
+
         if (callable is IJsEnvironmentAwareCallable envAware)
         {
             envAware.CallingJsEnvironment = environment;
@@ -2196,28 +2199,42 @@ public static class TypedAstEvaluator
 
         var frozenArguments = FreezeArguments(arguments);
 
+        object? callResult = JsSymbols.Undefined;
         try
         {
-            object? result;
             if (callable is TypedFunction typedFunction)
             {
-                result = typedFunction.InvokeWithContext(frozenArguments, thisValue, context);
+                callResult = typedFunction.InvokeWithContext(frozenArguments, thisValue, context);
             }
             else
             {
-                result = callable.Invoke(frozenArguments, thisValue);
+                callResult = callable.Invoke(frozenArguments, thisValue);
             }
+
             if (expression.Callee is SuperExpression)
             {
                 context.MarkThisInitialized();
             }
-
-            return result;
         }
         catch (ThrowSignal signal)
         {
-            context.SetThrow(signal.ThrownValue);
-            return signal.ThrownValue;
+            if (isAsyncCallable)
+            {
+                context.Clear();
+                callResult = CreateRejectedPromise(signal.ThrownValue, environment);
+            }
+            else
+            {
+                context.SetThrow(signal.ThrownValue);
+                return signal.ThrownValue;
+            }
+        }
+        catch (Exception ex) when (isAsyncCallable)
+        {
+            // Any synchronous failure while invoking an async function should surface
+            // as a rejected promise rather than throwing out of the call.
+            context.Clear();
+            callResult = CreateRejectedPromise(ex, environment);
         }
         finally
         {
@@ -2228,6 +2245,25 @@ public static class TypedAstEvaluator
                 debugFunction.CurrentContext = null;
             }
         }
+
+        // If an async callable left a pending throw signal (e.g., default parameter TDZ),
+        // translate it into a rejected promise and clear the signal so it does not
+        // escape to the caller's context.
+        if (isAsyncCallable && context.IsThrow)
+        {
+            var reason = context.FlowValue;
+            context.Clear();
+            return CreateRejectedPromise(reason, environment);
+        }
+
+        if (isAsyncCallable)
+        {
+            // Async functions should never propagate a throw signal; ensure the
+            // calling context stays clear.
+            context.Clear();
+        }
+
+        return callResult;
     }
 
     private static ImmutableArray<object?> FreezeArguments(ImmutableArray<object?>.Builder builder)
@@ -2235,6 +2271,46 @@ public static class TypedAstEvaluator
         return builder.Count == builder.Capacity
             ? builder.MoveToImmutable()
             : builder.ToImmutable();
+    }
+
+    private static object? CreateRejectedPromise(object? reason, JsEnvironment environment)
+    {
+        if (environment.TryGet(Symbol.Intern("Promise"), out var promiseCtor) &&
+            promiseCtor is IJsPropertyAccessor accessor &&
+            accessor.TryGetProperty("reject", out var rejectValue) &&
+            rejectValue is IJsCallable rejectCallable)
+        {
+            try
+            {
+                return rejectCallable.Invoke([reason], promiseCtor);
+            }
+            catch (ThrowSignal signal)
+            {
+                return signal.ThrownValue;
+            }
+        }
+
+        return reason;
+    }
+
+    private static object? CreateResolvedPromise(object? value, JsEnvironment environment)
+    {
+        if (environment.TryGet(Symbol.Intern("Promise"), out var promiseCtor) &&
+            promiseCtor is IJsPropertyAccessor accessor &&
+            accessor.TryGetProperty("resolve", out var resolveValue) &&
+            resolveValue is IJsCallable resolveCallable)
+        {
+            try
+            {
+                return resolveCallable.Invoke([value], promiseCtor);
+            }
+            catch (ThrowSignal signal)
+            {
+                return signal.ThrownValue;
+            }
+        }
+
+        return value;
     }
 
     private static object? InvokeWithApply(IJsCallable targetFunction,
@@ -3813,7 +3889,19 @@ public static class TypedAstEvaluator
                 environment.DefineFunctionScoped(identifier.Name, value, hasInitializer, context: context);
                 break;
             case BindingMode.DefineParameter:
-                environment.Define(identifier.Name, value, isLexical: false);
+                // Parameters are created before defaults run (see the pre-pass in BindFunctionParameters),
+                // so by the time we bind the value the slot should already exist and still be
+                // uninitialized. Assign into it to preserve the TDZ throw on reads during
+                // initializer evaluation, and fall back to Define only if the slot was not
+                // created (defensive).
+                if (environment.HasBinding(identifier.Name))
+                {
+                    environment.Assign(identifier.Name, value);
+                }
+                else
+                {
+                    environment.Define(identifier.Name, value, isLexical: false);
+                }
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
@@ -3874,6 +3962,19 @@ public static class TypedAstEvaluator
                     ReferenceEquals(elementValue, JsSymbols.Undefined))
                 {
                     usedDefault = true;
+                    if (mode == BindingMode.DefineParameter && ContainsDirectEvalCall(element.DefaultValue))
+                    {
+                        var error = StandardLibrary.ThrowSyntaxError(
+                            "Direct eval in default parameter is not allowed in this form", context, context.RealmState);
+                        context.SetThrow(error.ThrownValue);
+                        if (iterator is not null)
+                        {
+                            IteratorClose(iterator, context);
+                        }
+
+                        return;
+                    }
+
                     elementValue = EvaluateExpression(element.DefaultValue, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
@@ -3995,6 +4096,14 @@ public static class TypedAstEvaluator
             if (ReferenceEquals(propertyValue, JsSymbols.Undefined) && property.DefaultValue is not null)
             {
                 usedDefault = true;
+                if (mode == BindingMode.DefineParameter && ContainsDirectEvalCall(property.DefaultValue))
+                {
+                    var error = StandardLibrary.ThrowSyntaxError(
+                        "Direct eval in default parameter is not allowed in this form", context, context.RealmState);
+                    context.SetThrow(error.ThrownValue);
+                    return;
+                }
+
                 propertyValue = EvaluateExpression(property.DefaultValue, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
@@ -4061,26 +4170,43 @@ public static class TypedAstEvaluator
         iterator = null;
         enumerator = null;
 
-        if (value is JsArray arrayValue)
+        IJsPropertyAccessor? iteratorTarget = value as IJsPropertyAccessor;
+        object? thisArg = value;
+        if (iteratorTarget is null && value is not null && !ReferenceEquals(value, JsSymbols.Undefined))
         {
-            enumerator = EnumerateArrayElements(arrayValue);
-            return true;
+            iteratorTarget = ToObjectForDestructuring(value, context);
+            thisArg = iteratorTarget;
         }
 
-        if (TryGetIteratorFromProtocols(value, out var iteratorCandidate) && iteratorCandidate is not null)
+        if (iteratorTarget is not null)
         {
-            iterator = iteratorCandidate;
-            return true;
-        }
+            if (TryGetIteratorFromProtocols(iteratorTarget, out var iteratorCandidate) &&
+                iteratorCandidate is not null)
+            {
+                iterator = iteratorCandidate;
+                return true;
+            }
 
-        if (value is JsObject jsObject)
-        {
             // Fallback: treat objects with a callable `next` as iterators even if
             // @@iterator is missing so generator objects still participate in
             // destructuring when their symbol lookup fails.
-            if (jsObject.TryGetProperty("next", out var nextVal) && nextVal is IJsCallable)
+            if (iteratorTarget.TryGetProperty("next", out var nextVal) && nextVal is IJsCallable)
             {
-                iterator = jsObject;
+                iterator = thisArg as JsObject;
+                if (iterator is null && thisArg is IJsObjectLike objectLike)
+                {
+                    var wrapper = new JsObject();
+                    foreach (var key in objectLike.Keys)
+                    {
+                        if (objectLike.TryGetProperty(key, out var val))
+                        {
+                            wrapper.SetProperty(key, val);
+                        }
+                    }
+
+                    iterator = wrapper;
+                }
+
                 return true;
             }
 
@@ -4409,6 +4535,17 @@ public static class TypedAstEvaluator
     private static void BindFunctionParameters(FunctionExpression function, IReadOnlyList<object?> arguments,
         JsEnvironment environment, EvaluationContext context)
     {
+        var parameterNames = new List<Symbol>();
+        foreach (var parameter in function.Parameters)
+        {
+            CollectParameterNames(parameter, parameterNames);
+        }
+
+        foreach (var name in parameterNames)
+        {
+            environment.Define(name, JsEnvironment.Uninitialized, isLexical: false, blocksFunctionScopeOverride: true);
+        }
+
         var argumentIndex = 0;
 
         foreach (var parameter in function.Parameters)
@@ -4448,6 +4585,22 @@ public static class TypedAstEvaluator
 
             if (ReferenceEquals(value, JsSymbols.Undefined) && parameter.DefaultValue is not null)
             {
+                if (ContainsDirectEvalCall(parameter.DefaultValue))
+                {
+                    var error = StandardLibrary.ThrowSyntaxError(
+                        "Direct eval in default parameter is not allowed in this form", context, context.RealmState);
+                    context.SetThrow(error.ThrownValue);
+                    return;
+                }
+
+                if (parameter.Name is not null && DefaultReferencesParameter(parameter.DefaultValue, parameter.Name))
+                {
+                    var error = StandardLibrary.ThrowReferenceError(
+                        $"{parameter.Name.Name} is not initialized", context, context.RealmState);
+                    context.SetThrow(error.ThrownValue);
+                    return;
+                }
+
                 value = EvaluateExpression(parameter.DefaultValue, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
@@ -4472,6 +4625,251 @@ public static class TypedAstEvaluator
             }
 
             environment.Define(parameter.Name, value, isLexical: false);
+        }
+
+        static bool DefaultReferencesParameter(ExpressionNode expression, Symbol parameterName)
+        {
+            switch (expression)
+            {
+                case IdentifierExpression ident:
+                    return ReferenceEquals(ident.Name, parameterName);
+                case AssignmentExpression assign:
+                    return ReferenceEquals(assign.Target, parameterName) ||
+                           DefaultReferencesParameter(assign.Value, parameterName);
+                case BinaryExpression binary:
+                    return DefaultReferencesParameter(binary.Left, parameterName) ||
+                           DefaultReferencesParameter(binary.Right, parameterName);
+                case ConditionalExpression cond:
+                    return DefaultReferencesParameter(cond.Test, parameterName) ||
+                           DefaultReferencesParameter(cond.Consequent, parameterName) ||
+                           DefaultReferencesParameter(cond.Alternate, parameterName);
+                case CallExpression call:
+                    if (DefaultReferencesParameter(call.Callee, parameterName))
+                    {
+                        return true;
+                    }
+
+                    return call.Arguments.Any(arg => DefaultReferencesParameter(arg.Expression, parameterName));
+                case MemberExpression member:
+                    return DefaultReferencesParameter(member.Target, parameterName) ||
+                           DefaultReferencesParameter(member.Property, parameterName);
+                case UnaryExpression unary:
+                    return DefaultReferencesParameter(unary.Operand, parameterName);
+                case SequenceExpression seq:
+                    return DefaultReferencesParameter(seq.Left, parameterName) ||
+                           DefaultReferencesParameter(seq.Right, parameterName);
+                case ArrayExpression arr:
+                    foreach (var element in arr.Elements)
+                    {
+                        if (element.Expression is not null &&
+                            DefaultReferencesParameter(element.Expression, parameterName))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case ObjectExpression obj:
+                    foreach (var member in obj.Members)
+                    {
+                        if (member.Value is not null &&
+                            DefaultReferencesParameter(member.Value, parameterName))
+                        {
+                            return true;
+                        }
+
+                        if (member.Function is not null &&
+                            DefaultReferencesParameter(member.Function, parameterName))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TemplateLiteralExpression template:
+                    foreach (var part in template.Parts)
+                    {
+                        if (part.Expression is not null &&
+                            DefaultReferencesParameter(part.Expression, parameterName))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TaggedTemplateExpression tagged:
+                    return DefaultReferencesParameter(tagged.Tag, parameterName) ||
+                           DefaultReferencesParameter(tagged.StringsArray, parameterName) ||
+                           DefaultReferencesParameter(tagged.RawStringsArray, parameterName) ||
+                           tagged.Expressions.Any(expr => DefaultReferencesParameter(expr, parameterName));
+                case YieldExpression yieldExpression when yieldExpression.Expression is not null:
+                    return DefaultReferencesParameter(yieldExpression.Expression, parameterName);
+                case AwaitExpression awaitExpression:
+                    return DefaultReferencesParameter(awaitExpression.Expression, parameterName);
+                case FunctionExpression:
+                    // Nested functions have their own scope; references to the parameter name
+                    // do not count towards self-referential defaults here.
+                    return false;
+                default:
+                    return false;
+            }
+        }
+
+        static void CollectParameterNames(FunctionParameter parameter, List<Symbol> names)
+        {
+            if (parameter.Name is not null)
+            {
+                names.Add(parameter.Name);
+            }
+
+            if (parameter.Pattern is not null)
+            {
+                CollectBindingNames(parameter.Pattern, names);
+            }
+        }
+
+        static void CollectBindingNames(BindingTarget target, List<Symbol> names)
+        {
+            while (true)
+            {
+                switch (target)
+                {
+                    case IdentifierBinding identifier:
+                        names.Add(identifier.Name);
+                        break;
+                    case ArrayBinding arrayBinding:
+                        foreach (var element in arrayBinding.Elements)
+                        {
+                            if (element.Target is not null)
+                            {
+                                CollectBindingNames(element.Target, names);
+                            }
+                        }
+
+                        if (arrayBinding.RestElement is not null)
+                        {
+                            target = arrayBinding.RestElement;
+                            continue;
+                        }
+
+                        break;
+                    case ObjectBinding objectBinding:
+                        foreach (var property in objectBinding.Properties)
+                        {
+                    CollectBindingNames(property.Target, names);
+                }
+
+                if (objectBinding.RestElement is not null)
+                {
+                            target = objectBinding.RestElement;
+                            continue;
+                        }
+
+                        break;
+                    case AssignmentTargetBinding:
+                        // Assignment targets do not declare new bindings in parameter lists.
+                        break;
+                    default:
+                        throw new NotSupportedException($"Unsupported binding target '{target.GetType().Name}'.");
+                }
+
+                break;
+            }
+        }
+    }
+
+    private static bool ContainsDirectEvalCall(ExpressionNode expression)
+    {
+        while (true)
+        {
+            switch (expression)
+            {
+                case CallExpression { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } }:
+                    return true;
+                case CallExpression call:
+                    if (ContainsDirectEvalCall(call.Callee))
+                    {
+                        return true;
+                    }
+
+                    foreach (var arg in call.Arguments)
+                    {
+                        if (ContainsDirectEvalCall(arg.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case BinaryExpression binary:
+                    return ContainsDirectEvalCall(binary.Left) || ContainsDirectEvalCall(binary.Right);
+                case ConditionalExpression cond:
+                    return ContainsDirectEvalCall(cond.Test) || ContainsDirectEvalCall(cond.Consequent) || ContainsDirectEvalCall(cond.Alternate);
+                case MemberExpression member:
+                    return ContainsDirectEvalCall(member.Target) || ContainsDirectEvalCall(member.Property);
+                case UnaryExpression unary:
+                    expression = unary.Operand;
+                    continue;
+                case SequenceExpression seq:
+                    return ContainsDirectEvalCall(seq.Left) || ContainsDirectEvalCall(seq.Right);
+                case ArrayExpression array:
+                    foreach (var element in array.Elements)
+                    {
+                        if (element.Expression is not null && ContainsDirectEvalCall(element.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case ObjectExpression obj:
+                    foreach (var member in obj.Members)
+                    {
+                        if (member.Value is not null && ContainsDirectEvalCall(member.Value))
+                        {
+                            return true;
+                        }
+
+                        if (member.Function is not null && ContainsDirectEvalCall(member.Function))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TemplateLiteralExpression template:
+                    foreach (var part in template.Parts)
+                    {
+                        if (part.Expression is not null && ContainsDirectEvalCall(part.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TaggedTemplateExpression tagged:
+                    if (ContainsDirectEvalCall(tagged.Tag) || ContainsDirectEvalCall(tagged.StringsArray) || ContainsDirectEvalCall(tagged.RawStringsArray))
+                    {
+                        return true;
+                    }
+
+                    foreach (var expr in tagged.Expressions)
+                    {
+                        if (ContainsDirectEvalCall(expr))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case FunctionExpression:
+                    // Direct eval inside nested functions does not affect the parameter scope we are validating here.
+                    return false;
+                default:
+                    return false;
+            }
+
+            break;
         }
     }
 
@@ -6841,6 +7239,7 @@ public static class TypedAstEvaluator
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
         private readonly bool _isAsyncFunction;
+        private readonly bool _wasAsyncFunction;
         private readonly bool _isArrowFunction;
         private readonly object? _lexicalThis;
         private IJsObjectLike? _homeObject;
@@ -6851,6 +7250,8 @@ public static class TypedAstEvaluator
         private IJsPropertyAccessor? _superPrototype;
 
         public bool IsArrowFunction => _isArrowFunction;
+        public bool IsAsyncFunction => _isAsyncFunction;
+        public bool IsAsyncLike => _isAsyncFunction || _wasAsyncFunction;
 
         public TypedFunction(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
@@ -6864,6 +7265,7 @@ public static class TypedAstEvaluator
             _closure = closure;
             _realmState = realmState;
             _isAsyncFunction = function.IsAsync;
+            _wasAsyncFunction = function.WasAsync;
             _isArrowFunction = function.IsArrow;
             if (_isArrowFunction && _closure.TryGet(JsSymbols.This, out var capturedThis))
             {
@@ -7007,8 +7409,14 @@ public static class TypedAstEvaluator
                     var thrownDuringBinding = context.FlowValue;
                     context.Clear();
 
-                    if (_isAsyncFunction)
+                    if (_isAsyncFunction || _wasAsyncFunction)
                     {
+                        // Async functions must reject instead of throwing synchronously.
+                        if (callingContext is not null)
+                        {
+                            callingContext.Clear();
+                        }
+
                         return CreateRejectedPromise(thrownDuringBinding, environment);
                     }
 
@@ -7038,7 +7446,7 @@ public static class TypedAstEvaluator
                     var thrown = context.FlowValue;
                     context.Clear();
 
-                    if (_isAsyncFunction)
+                    if (_isAsyncFunction || _wasAsyncFunction)
                     {
                         return CreateRejectedPromise(thrown, environment);
                     }
@@ -7076,7 +7484,7 @@ public static class TypedAstEvaluator
 
                 return CreateResolvedPromise(completionValue, environment);
             }
-            catch (ThrowSignal signal) when (_isAsyncFunction)
+            catch (ThrowSignal signal) when (_isAsyncFunction || _wasAsyncFunction)
             {
                 return CreateRejectedPromise(signal.ThrownValue, environment);
             }
@@ -7314,44 +7722,5 @@ public static class TypedAstEvaluator
             }
         }
 
-        private static object? CreateRejectedPromise(object? reason, JsEnvironment environment)
-        {
-            if (environment.TryGet(Symbol.Intern("Promise"), out var promiseCtor) &&
-                promiseCtor is IJsPropertyAccessor accessor &&
-                accessor.TryGetProperty("reject", out var rejectValue) &&
-                rejectValue is IJsCallable rejectCallable)
-            {
-                try
-                {
-                    return rejectCallable.Invoke([reason], promiseCtor);
-                }
-                catch (ThrowSignal signal)
-                {
-                    return signal.ThrownValue;
-                }
-            }
-
-            return reason;
-        }
-
-        private static object? CreateResolvedPromise(object? value, JsEnvironment environment)
-        {
-            if (environment.TryGet(Symbol.Intern("Promise"), out var promiseCtor) &&
-                promiseCtor is IJsPropertyAccessor accessor &&
-                accessor.TryGetProperty("resolve", out var resolveValue) &&
-                resolveValue is IJsCallable resolveCallable)
-            {
-                try
-                {
-                    return resolveCallable.Invoke([value], promiseCtor);
-                }
-                catch (ThrowSignal signal)
-                {
-                    return signal.ThrownValue;
-                }
-            }
-
-            return value;
-        }
     }
 }

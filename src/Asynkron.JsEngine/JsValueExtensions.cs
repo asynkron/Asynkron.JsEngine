@@ -80,7 +80,7 @@ internal static class JsValueExtensions
             };
         }
 
-        public string ToJsString()
+        public string ToJsString(EvaluationContext? context = null)
         {
             // Fast-path common primitives/wrappers before general object coercion.
             if (value is null)
@@ -103,6 +103,11 @@ internal static class JsValueExtensions
                 return symVal.Name;
             }
 
+            if (value is TypedAstSymbol typedSym)
+            {
+                return typedSym.ToString();
+            }
+
             if (value is bool b)
             {
                 return b ? "true" : "false";
@@ -120,8 +125,8 @@ internal static class JsValueExtensions
 
             if (value is IJsPropertyAccessor accessor)
             {
-                var primitive = JsOps.ToPrimitive(accessor, "string");
-                return primitive is IJsPropertyAccessor ? "[object Object]" : primitive.ToJsString();
+                var primitive = JsOps.ToPrimitive(accessor, "string", context);
+                return primitive is IJsPropertyAccessor ? "[object Object]" : primitive.ToJsString(context);
             }
 
             return value switch
@@ -144,14 +149,14 @@ internal static class JsValueExtensions
             };
         }
 
-        public string ToJsStringForArray()
+        public string ToJsStringForArray(EvaluationContext? context = null)
         {
             if (value is null || (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined)))
             {
                 return string.Empty;
             }
 
-            return ToJsString(value);
+            return value.ToJsString(context);
         }
     }
 }

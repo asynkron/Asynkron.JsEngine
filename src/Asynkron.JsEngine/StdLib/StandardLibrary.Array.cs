@@ -27,7 +27,8 @@ public static partial class StandardLibrary
         array.SetHostedProperty("pop", ArrayPop);
         array.SetHostedProperty("map", ArrayMap, realm);
         array.SetHostedProperty("filter", ArrayFilter, realm);
-        array.SetHostedProperty("reduce", ArrayReduce);
+        array.SetHostedProperty("reduce", ArrayReduce, realm);
+        array.SetHostedProperty("reduceRight", ArrayReduceRight, realm);
         array.SetHostedProperty("forEach", ArrayForEach);
         array.SetHostedProperty("find", ArrayFind);
         array.SetHostedProperty("findIndex", ArrayFindIndex);
@@ -263,38 +264,14 @@ public static partial class StandardLibrary
         return result;
     }
 
-    private static object? ArrayReduce(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayReduce(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
-        {
-            return null;
-        }
+        return ReduceLike(thisValue, args, realm, "Array.prototype.reduce", false);
+    }
 
-        if (jsArray.Items.Count == 0)
-        {
-            return args.Count > 1 ? args[1] : null;
-        }
-
-        var startIndex = 0;
-        object? accumulator;
-
-        if (args.Count > 1)
-        {
-            accumulator = args[1];
-        }
-        else
-        {
-            accumulator = jsArray.Items[0];
-            startIndex = 1;
-        }
-
-        for (var i = startIndex; i < jsArray.Items.Count; i++)
-        {
-            var element = jsArray.Items[i];
-            accumulator = callback.Invoke([accumulator, element, (double)i, jsArray], null);
-        }
-
-        return accumulator;
+    private static object? ArrayReduceRight(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        return ReduceLike(thisValue, args, realm, "Array.prototype.reduceRight", true);
     }
 
     private static object? ArrayForEach(object? thisValue, IReadOnlyList<object?> args)
@@ -1126,6 +1103,9 @@ public static partial class StandardLibrary
             case IJsObjectLike a:
                 accessor = a;
                 return true;
+            case TypedAstSymbol symbol:
+                accessor = CreateSymbolWrapper(symbol, realm: realm);
+                return true;
             case bool b:
                 accessor = CreateBooleanWrapper(b, realm: realm);
                 return true;
@@ -1619,6 +1599,100 @@ public static partial class StandardLibrary
         }
 
         return Math.Sign(number) * Math.Floor(Math.Abs(number));
+    }
+
+    internal static object? ReduceLike(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
+        string methodName, bool fromRight)
+    {
+        var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError($"{methodName} expects a callable callback", realm: realm);
+        }
+
+        if (accessor is TypedArrayBase typed)
+        {
+            if (typed.IsDetachedOrOutOfBounds())
+            {
+                throw typed.CreateOutOfBoundsTypeError();
+            }
+
+            var length = typed.Length;
+            var step = fromRight ? -1 : 1;
+            var index = fromRight ? length - 1 : 0;
+
+            var hasAccumulator = args.Count > 1;
+            object? accumulator = hasAccumulator ? args[1] : null;
+
+            if (!hasAccumulator)
+            {
+                if (length == 0)
+                {
+                    throw ThrowTypeError("Reduce of empty array with no initial value", realm: realm);
+                }
+
+                accumulator = typed.GetValueForIndex(index);
+                index += step;
+            }
+
+            while (index >= 0 && index < length)
+            {
+                if (typed.IsDetachedOrOutOfBounds())
+                {
+                    throw typed.CreateOutOfBoundsTypeError();
+                }
+
+                var current = typed.GetValueForIndex(index);
+                accumulator = callback.Invoke([accumulator, current, (double)index, typed], Symbols.Undefined);
+                index += step;
+            }
+
+            return accumulator;
+        }
+        var lengthValue = accessor.TryGetProperty("length", out var len) ? len : 0d;
+        var lengthGeneric = (int)ToLengthOrZero(lengthValue);
+        var stepGeneric = fromRight ? -1 : 1;
+        var indexGeneric = fromRight ? lengthGeneric - 1 : 0;
+
+        var hasAccumulatorGeneric = args.Count > 1;
+        object? accumulatorGeneric = hasAccumulatorGeneric ? args[1] : null;
+
+        if (!hasAccumulatorGeneric)
+        {
+            var found = false;
+            while (indexGeneric >= 0 && indexGeneric < lengthGeneric)
+            {
+                var key = indexGeneric.ToString(CultureInfo.InvariantCulture);
+                if (accessor.TryGetProperty(key, out var current))
+                {
+                    accumulatorGeneric = current;
+                    found = true;
+                    indexGeneric += stepGeneric;
+                    break;
+                }
+
+                indexGeneric += stepGeneric;
+            }
+
+            if (!found)
+            {
+                throw ThrowTypeError("Reduce of empty array with no initial value", realm: realm);
+            }
+        }
+
+        while (indexGeneric >= 0 && indexGeneric < lengthGeneric)
+        {
+            var key = indexGeneric.ToString(CultureInfo.InvariantCulture);
+            if (accessor.TryGetProperty(key, out var current))
+            {
+                accumulatorGeneric = callback.Invoke([accumulatorGeneric, current, (double)indexGeneric, accessor],
+                    Symbols.Undefined);
+            }
+
+            indexGeneric += stepGeneric;
+        }
+
+        return accumulatorGeneric;
     }
 
     private static bool SameValueZero(object? x, object? y)

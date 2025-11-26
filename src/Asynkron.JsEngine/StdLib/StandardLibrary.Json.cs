@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Linq;
 using System.Text.Json;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
@@ -12,23 +14,20 @@ public static partial class StandardLibrary
         var json = new JsObject();
 
         // JSON.parse()
-        json["parse"] = new HostFunction(args =>
+        json["parse"] = new HostFunction((_, args, realmState) =>
         {
-            if (args.Count == 0 || args[0] is not string jsonStr)
+            realmState ??= realm;
+            var context = realmState is not null ? new EvaluationContext(realmState) : null;
+
+            if (args.Count == 0)
             {
-                return null;
+                throw ThrowSyntaxError("Unexpected end of JSON input", context, realmState);
             }
 
-            try
-            {
-                return ParseJsonValue(JsonDocument.Parse(jsonStr).RootElement, realm);
-            }
-            catch
-            {
-                // In real JavaScript, this would throw a SyntaxError
-                return null;
-            }
-        });
+            var jsonStr = JsOps.ToJsString(args[0], context);
+            var reviver = args.Count > 1 ? args[1] : null;
+            return ParseJsonWithReviver(jsonStr, realmState!, context, reviver);
+        }, realm);
 
         // JSON.stringify()
         json["stringify"] = new HostFunction(args =>
@@ -46,6 +45,30 @@ public static partial class StandardLibrary
         });
 
         return json;
+    }
+
+    internal static object? ParseJsonWithReviver(string jsonStr, RealmState realm, EvaluationContext? context,
+        object? reviverCandidate)
+    {
+        object? parsed;
+        try
+        {
+            parsed = ParseJsonValue(JsonDocument.Parse(jsonStr).RootElement, realm);
+        }
+        catch
+        {
+            throw ThrowSyntaxError("Unexpected token in JSON", context, realm);
+        }
+
+        if (reviverCandidate is not IJsCallable reviver)
+        {
+            return parsed;
+        }
+
+        var holder = new JsObject();
+        holder.SetProperty("", parsed);
+
+        return ApplyJsonReviver(reviver, holder, "", context, realm);
     }
 
     private static object? ParseJsonValue(JsonElement element, RealmState realm)
@@ -87,6 +110,58 @@ public static partial class StandardLibrary
             default:
                 return null;
         }
+    }
+
+    private static object? ApplyJsonReviver(IJsCallable reviver, IJsObjectLike holder, string name,
+        EvaluationContext? context, RealmState realm)
+    {
+        if (!holder.TryGetProperty(name, out var value))
+        {
+            value = null;
+        }
+
+        switch (value)
+        {
+            case JsObject obj:
+            {
+                foreach (var key in obj.Keys.ToArray())
+                {
+                    var revived = ApplyJsonReviver(reviver, obj, key, context, realm);
+                    if (ReferenceEquals(revived, Symbols.Undefined))
+                    {
+                        obj.Delete(key);
+                    }
+                    else
+                    {
+                        obj.SetProperty(key, revived);
+                    }
+                }
+
+                break;
+            }
+            case JsArray arr:
+            {
+                var length = (int)arr.Length;
+                for (var i = 0; i < length; i++)
+                {
+                    var revived = ApplyJsonReviver(reviver, arr,
+                        i.ToString(CultureInfo.InvariantCulture), context, realm);
+                    if (ReferenceEquals(revived, Symbols.Undefined))
+                    {
+                        arr.DeleteElement(i);
+                    }
+                    else
+                    {
+                        arr.SetElement(i, revived);
+                    }
+                }
+
+                break;
+            }
+        }
+
+        var replacement = reviver.Invoke([name, value], holder);
+        return replacement;
     }
 
     private static string StringifyValue(object? value, int depth = 0)

@@ -79,6 +79,8 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public bool IsFrozen { get; private set; }
 
+    private IJsPropertyAccessor? _prototypeAccessor;
+
     public JsObject? Prototype { get; private set; }
 
     public bool IsSealed { get; private set; }
@@ -87,14 +89,8 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public void SetPrototype(object? candidate)
     {
-        if (candidate is JsObject prototype)
-        {
-            Prototype = prototype;
-        }
-        else
-        {
-            Prototype = null;
-        }
+        _prototypeAccessor = candidate as IJsPropertyAccessor;
+        Prototype = candidate as JsObject;
 
         if (candidate is not null)
         {
@@ -394,12 +390,12 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public bool TryGetProperty(string name, out object? value)
     {
-        return TryGetProperty(name, this, new HashSet<JsObject>(ReferenceEqualityComparer<JsObject>.Instance), out value);
+        return TryGetProperty(name, this, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), out value);
     }
 
     internal bool TryGetProperty(string name, object? receiver, out object? value)
     {
-        return TryGetProperty(name, receiver, new HashSet<JsObject>(ReferenceEqualityComparer<JsObject>.Instance), out value);
+        return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), out value);
     }
 
     public IEnumerable<string> GetOwnPropertyNames()
@@ -530,20 +526,32 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
     }
 
-    private bool TryGetProperty(string name, object? receiver, HashSet<JsObject> visited, out object? value)
+    private bool TryGetProperty(string name, object? receiver, HashSet<object> visited, out object? value)
     {
         if (TryGetOwnProperty(name, receiver ?? this, out value))
         {
             return true;
         }
 
-        if (Prototype is null || !visited.Add(this))
+        if (!visited.Add(this))
         {
             value = null;
             return false;
         }
 
-        return Prototype.TryGetProperty(name, receiver ?? this, visited, out value);
+        var prototype = _prototypeAccessor;
+        if (prototype is null)
+        {
+            value = null;
+            return false;
+        }
+
+        if (prototype is JsObject jsObjPrototype)
+        {
+            return jsObjPrototype.TryGetProperty(name, receiver ?? this, visited, out value);
+        }
+
+        return prototype.TryGetProperty(name, out value);
     }
 
     private bool TryGetOwnProperty(string name, object? receiver, out object? value)

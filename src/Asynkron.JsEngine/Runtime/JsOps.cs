@@ -75,8 +75,14 @@ internal static class JsOps
         object? value,
         EvaluationContext? context)
     {
+        var iterations = 0;
         while (true)
         {
+            if (++iterations > 20)
+            {
+                return (NumericKind.Number, double.NaN);
+            }
+
             switch (value)
             {
                 case null:
@@ -153,16 +159,7 @@ internal static class JsOps
                 case IJsPropertyAccessor accessor when (context?.IsThrow == true):
                     return (NumericKind.Error, null);
                 case IJsPropertyAccessor accessor:
-                {
-                    var typeError = CreateTypeError("Cannot convert object to number", context);
-                    if (context is null)
-                    {
-                        throw new ThrowSignal(typeError);
-                    }
-
-                    context.SetThrow(typeError);
-                    return (NumericKind.Error, null);
-                }
+                    return (NumericKind.Number, double.NaN);
                 default:
                     throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
             }
@@ -231,6 +228,12 @@ internal static class JsOps
             return value;
         }
 
+        if (hint == "default" && accessor is JsObject jsObj &&
+            jsObj.TryGetProperty("_internalDate", out _))
+        {
+            hint = "string";
+        }
+
         var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
         var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
         if (accessor.TryGetProperty(symbolPropertyName, out var toPrimitive))
@@ -245,9 +248,17 @@ internal static class JsOps
                 try
                 {
                     var result = toPrimFn.Invoke([hint], accessor);
-                    if (result is IJsPropertyAccessor or JsObject)
+                    if (result is JsObject ||
+                        result is IJsPropertyAccessor { } and not TypedAstSymbol)
                     {
-                        throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
+                        var signal = StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
+                        if (context is null)
+                        {
+                            throw signal;
+                        }
+
+                        context.SetThrow(signal.ThrownValue);
+                        return value;
                     }
 
                     return result;
@@ -281,7 +292,8 @@ internal static class JsOps
                 return value;
             }
 
-            if (result is not IJsPropertyAccessor && result is not JsObject)
+            if (result is not JsObject &&
+                (result is not IJsPropertyAccessor || result is TypedAstSymbol))
             {
                 return result;
             }
@@ -297,12 +309,19 @@ internal static class JsOps
             return value;
         }
 
-        throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
+        var finalSignal = StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
+        if (context is null)
+        {
+            throw finalSignal;
+        }
+
+        context.SetThrow(finalSignal.ThrownValue);
+        return value;
     }
 
-    public static string ToJsString(object? value)
+    public static string ToJsString(object? value, EvaluationContext? context = null)
     {
-        return value.ToJsString();
+        return value.ToJsString(context);
     }
 
     public static bool StrictEquals(object? left, object? right)

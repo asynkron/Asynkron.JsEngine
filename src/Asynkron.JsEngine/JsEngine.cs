@@ -60,7 +60,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Register standard library objects
         SetGlobal("console", StandardLibrary.CreateConsoleObject());
-        SetGlobal("Math", StandardLibrary.CreateMathObject());
+        SetGlobal("Math", StandardLibrary.CreateMathObject(RealmState));
         SetGlobal("Object", StandardLibrary.CreateObjectConstructor(RealmState));
         SetGlobal("Function", StandardLibrary.CreateFunctionConstructor(RealmState));
         SetGlobal("Number", StandardLibrary.CreateNumberConstructor(RealmState));
@@ -110,6 +110,10 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("parseFloat", StandardLibrary.CreateParseFloatFunction());
         SetGlobal("isNaN", StandardLibrary.CreateIsNaNFunction());
         SetGlobal("isFinite", StandardLibrary.CreateIsFiniteFunction());
+
+        // Shared TypedArray intrinsic (abstract)
+        var typedArrayCtor = StandardLibrary.EnsureTypedArrayIntrinsic(RealmState);
+        SetGlobal("TypedArray", typedArrayCtor);
 
         // Register Date constructor as a callable object with static methods
         var dateConstructor = StandardLibrary.CreateDateConstructor(RealmState);
@@ -200,6 +204,15 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("__getAsyncIterator", StandardLibrary.CreateGetAsyncIteratorHelper(this));
         SetGlobal("__iteratorNext", StandardLibrary.CreateIteratorNextHelper(this));
         SetGlobal("__awaitHelper", StandardLibrary.CreateAwaitHelper(this));
+        SetGlobal("$DETACHBUFFER", new HostFunction((_, args) =>
+        {
+            if (args.Count > 0 && args[0] is JsArrayBuffer buffer)
+            {
+                buffer.Detach();
+            }
+
+            return Symbols.Undefined;
+        }));
 
         // Register timer functions
         SetGlobalFunction("setTimeout", SetTimeout);

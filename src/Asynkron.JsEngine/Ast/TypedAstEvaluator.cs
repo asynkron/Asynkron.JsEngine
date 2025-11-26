@@ -2921,44 +2921,57 @@ public static class TypedAstEvaluator
         var leftPrimitive = JsOps.ToPrimitive(left, "default", context);
         if (context.ShouldStopEvaluation)
         {
-            throw new ThrowSignal(context.FlowValue);
+            return context.FlowValue;
         }
 
         var rightPrimitive = JsOps.ToPrimitive(right, "default", context);
         if (context.ShouldStopEvaluation)
         {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        if (leftPrimitive is JsBigInt leftBigInt && rightPrimitive is JsBigInt rightBigInt)
-        {
-            return leftBigInt + rightBigInt;
+            return context.FlowValue;
         }
 
         if (leftPrimitive is string || rightPrimitive is string)
         {
-            return JsOps.ToJsString(leftPrimitive) + JsOps.ToJsString(rightPrimitive);
+            bool IsRealSymbol(object? v) =>
+                v switch
+                {
+                    TypedAstSymbol => true,
+                    Symbol sym when !ReferenceEquals(sym, Symbols.Undefined) => true,
+                    _ => false
+                };
+
+            if (IsRealSymbol(leftPrimitive) || IsRealSymbol(rightPrimitive))
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context);
+            }
+
+            return JsOps.ToJsString(leftPrimitive, context) + JsOps.ToJsString(rightPrimitive, context);
         }
 
-        if (leftPrimitive is JsBigInt || rightPrimitive is JsBigInt)
+        var leftNumeric = JsOps.ToNumeric(leftPrimitive, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        var rightNumeric = JsOps.ToNumeric(rightPrimitive, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
+        {
+            return leftBigInt + rightBigInt;
+        }
+
+        if (leftNumeric is JsBigInt || rightNumeric is JsBigInt)
         {
             throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
                 context);
         }
 
-        var leftNumber = JsOps.ToNumber(leftPrimitive, context);
-        if (context.ShouldStopEvaluation)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        var rightNumber = JsOps.ToNumber(rightPrimitive, context);
-        if (context.ShouldStopEvaluation)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        return leftNumber + rightNumber;
+        return JsOps.ToNumber(leftNumeric, context) + JsOps.ToNumber(rightNumeric, context);
     }
 
     private static object Subtract(object? left, object? right, EvaluationContext context)

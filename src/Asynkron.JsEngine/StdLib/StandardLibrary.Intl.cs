@@ -1,3 +1,4 @@
+using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -279,8 +280,8 @@ public static partial class StandardLibrary
             return new HostFunction((_, formatArgs) =>
             {
                 var value = formatArgs.Count > 0 ? formatArgs[0] : Symbols.Undefined;
-                // Minimal formatting: honour toStringTag presence on receiver for correctness of Object.prototype.toString.
-                return JsOps.ToJsString(value);
+                var formatted = FormatNumberValue(value, realm);
+                return formatted;
             }, realm)
             {
                 IsConstructor = false
@@ -302,9 +303,10 @@ public static partial class StandardLibrary
         {
             ValidateNumberFormatReceiver(thisValue);
             var value = formatArgs.Count > 0 ? formatArgs[0] : Symbols.Undefined;
+            var formatted = FormatNumberValue(value, realm);
             var part = new JsObject();
             part.SetProperty("type", "literal");
-            part.SetProperty("value", JsOps.ToJsString(value));
+            part.SetProperty("value", formatted);
             var parts = new JsArray();
             parts.Push(part);
             return parts;
@@ -371,6 +373,37 @@ public static partial class StandardLibrary
 
         return intl;
 
+        static string FormatNumberValue(object? value, RealmState realm)
+        {
+            var context = new EvaluationContext(realm);
+            double number;
+            try
+            {
+                number = JsOps.ToNumber(value, context);
+            }
+            catch
+            {
+                throw ThrowTypeError("Intl.NumberFormat: value is not a number", context, realm);
+            }
+
+            if (context.IsThrow)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            if (double.IsNaN(number))
+            {
+                return "NaN";
+            }
+
+            if (number == 0d)
+            {
+                return "0";
+            }
+
+            return number.ToString(CultureInfo.InvariantCulture);
+        }
+
         static void InitializeNumberFormatInternalSlots(JsObject instance, RealmState realm)
         {
             instance.SetProperty("__locale__", "en");
@@ -381,7 +414,6 @@ public static partial class StandardLibrary
             instance.SetProperty("__maximumFractionDigits__", 3d);
             instance.SetProperty("__minimumSignificantDigits__", Symbols.Undefined);
             instance.SetProperty("__maximumSignificantDigits__", Symbols.Undefined);
-            instance.SetPrototype(realm.ObjectPrototype);
         }
 
         static JsObject CreateNumberFormatResolvedOptions(JsObject nf, RealmState realm)

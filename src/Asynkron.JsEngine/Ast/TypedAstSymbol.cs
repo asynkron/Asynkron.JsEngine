@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -89,8 +90,41 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
             return true;
         }
 
+        if (string.Equals(name, "valueOf", StringComparison.Ordinal))
+        {
+            value = new HostFunction((thisValue, _) => Unbox(thisValue)) { IsConstructor = false };
+            return true;
+        }
+
+        var toPrimitiveKey = $"@@symbol:{For("Symbol.toPrimitive").GetHashCode()}";
+        if (string.Equals(name, toPrimitiveKey, StringComparison.Ordinal))
+        {
+            value = new HostFunction((thisValue, _) => Unbox(thisValue)) { IsConstructor = false };
+            return true;
+        }
+
+        var toStringTagKey = $"@@symbol:{For("Symbol.toStringTag").GetHashCode()}";
+        if (string.Equals(name, toStringTagKey, StringComparison.Ordinal))
+        {
+            value = "Symbol";
+            return true;
+        }
+
         value = null;
         return false;
+
+        TypedAstSymbol Unbox(object? receiver)
+        {
+            switch (receiver)
+            {
+                case TypedAstSymbol sym:
+                    return sym;
+                case JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is TypedAstSymbol s:
+                    return s;
+                default:
+                    throw StandardLibrary.ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver");
+            }
+        }
     }
 
     public void SetProperty(string name, object? value)

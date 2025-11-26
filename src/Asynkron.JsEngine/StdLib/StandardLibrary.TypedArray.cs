@@ -7,11 +7,110 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
+    internal static HostFunction EnsureTypedArrayIntrinsic(RealmState realm)
+    {
+        if (realm.TypedArrayPrototype is null)
+        {
+            var proto = new JsObject();
+            if (realm.ObjectPrototype is not null)
+            {
+                proto.SetPrototype(realm.ObjectPrototype);
+            }
+
+            var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+            proto.DefineProperty(tagKey,
+                new PropertyDescriptor
+                {
+                    Value = "TypedArray", Writable = false, Enumerable = false, Configurable = true
+                });
+
+            proto.SetHostedProperty("reduce",
+                (thisValue, reduceArgs, realmState) =>
+                    ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduce", false), realm);
+            proto.SetHostedProperty("reduceRight",
+                (thisValue, reduceArgs, realmState) =>
+                    ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true), realm);
+
+            realm.TypedArrayPrototype = proto;
+        }
+
+        if (realm.TypedArrayConstructor is null)
+        {
+            var ctor = new HostFunction((_, _) => throw ThrowTypeError("TypedArray is not a constructor", realm: realm),
+                realm)
+            {
+                IsConstructor = true
+            };
+            ctor.DefineProperty("prototype",
+                new PropertyDescriptor
+                {
+                    Value = realm.TypedArrayPrototype!, Writable = false, Enumerable = false, Configurable = false
+                });
+            realm.TypedArrayPrototype!.DefineProperty("constructor",
+                new PropertyDescriptor { Value = ctor, Writable = true, Enumerable = false, Configurable = true });
+            realm.TypedArrayConstructor = ctor;
+        }
+
+        return realm.TypedArrayConstructor!;
+    }
+
     public static HostFunction CreateArrayBufferConstructor(RealmState realm)
     {
-        var constructor = new HostFunction(ArrayBufferCtor, realm);
+        var prototype = new JsObject();
+        if (realm.ObjectPrototype is not null)
+        {
+            prototype.SetPrototype(realm.ObjectPrototype);
+        }
+
+        var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        prototype.DefineProperty(tagKey,
+            new PropertyDescriptor
+            {
+                Value = "ArrayBuffer", Writable = false, Enumerable = false, Configurable = true
+            });
+
+        var constructor = new HostFunction(ArrayBufferCtor, realm) { IsConstructor = true };
+        constructor.DefineProperty("prototype",
+            new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
+        prototype.DefineProperty("constructor",
+            new PropertyDescriptor { Value = constructor, Writable = true, Enumerable = false, Configurable = true });
+        realm.ArrayBufferPrototype ??= prototype;
+        realm.ArrayBufferConstructor ??= constructor;
 
         constructor.SetHostedProperty("isView", ArrayBufferIsView);
+        prototype.SetHostedProperty("slice",
+            (thisValue, args) =>
+            {
+                if (thisValue is not JsArrayBuffer buffer)
+                {
+                    throw ThrowTypeError("ArrayBuffer.prototype.slice called on incompatible receiver", realm: realm);
+                }
+
+                var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
+                var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : buffer.ByteLength;
+                return buffer.Slice(begin, end);
+            });
+        prototype.SetHostedProperty("resize",
+            (thisValue, args) =>
+            {
+                if (thisValue is not JsArrayBuffer buffer)
+                {
+                    throw ThrowTypeError("ArrayBuffer.prototype.resize called on incompatible receiver", realm: realm);
+                }
+
+                if (!buffer.Resizable)
+                {
+                    throw new ThrowSignal(buffer.CreateTypeError("ArrayBuffer is not resizable"));
+                }
+
+                if (args.Count == 0 || args[0] is not double d)
+                {
+                    throw ThrowTypeError("resize requires a new length", realm: realm);
+                }
+
+                buffer.Resize((int)d);
+                return Symbols.Undefined;
+            });
 
         return constructor;
 
@@ -73,6 +172,8 @@ public static partial class StandardLibrary
         int bytesPerElement,
         RealmState realm) where T : TypedArrayBase
     {
+        var sharedTypedArrayCtor = EnsureTypedArrayIntrinsic(realm);
+        var sharedPrototype = realm.TypedArrayPrototype;
         var prototype = new JsObject();
 
         var constructor = new HostFunction(TypedArrayCtor);
@@ -98,7 +199,21 @@ public static partial class StandardLibrary
                 Configurable = true
             });
         prototype.SetHostedProperty("indexOf", TypedArrayIndexOf);
+        prototype.SetHostedProperty("reduce",
+            (thisValue, reduceArgs, realmState) =>
+                StandardLibrary.ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduce", false),
+            realm);
+        prototype.SetHostedProperty("reduceRight",
+            (thisValue, reduceArgs, realmState) =>
+                StandardLibrary.ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight",
+                    true),
+            realm);
+        if (sharedPrototype is not null)
+        {
+            prototype.SetPrototype(sharedPrototype);
+        }
         constructor.SetProperty("prototype", prototype);
+        constructor.Properties.SetPrototype(sharedTypedArrayCtor.PropertiesObject);
 
         return constructor;
 

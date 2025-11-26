@@ -69,6 +69,13 @@ internal sealed class JsArgumentsObject : IJsObjectLike
         _backing.DefineProperty("__arguments__",
             new PropertyDescriptor { Value = true, Writable = false, Enumerable = false, Configurable = false });
 
+        var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        _backing.DefineProperty(tagKey,
+            new PropertyDescriptor
+            {
+                Value = "Arguments", Writable = false, Enumerable = false, Configurable = true
+            });
+
         if (callee is not null)
         {
             if (mappedEnabled)

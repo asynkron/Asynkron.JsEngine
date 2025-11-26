@@ -1,4 +1,5 @@
 using System.Numerics;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -10,9 +11,20 @@ public static partial class StandardLibrary
     /// <summary>
     ///     Creates a Math object with common mathematical functions and constants.
     /// </summary>
-    public static JsObject CreateMathObject()
+    public static JsObject CreateMathObject(RealmState? realm = null)
     {
         var math = new JsObject();
+        if (realm?.ObjectPrototype is not null)
+        {
+            math.SetPrototype(realm.ObjectPrototype);
+        }
+
+        var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        math.DefineProperty(toStringTagKey,
+            new PropertyDescriptor
+            {
+                Value = "Math", Writable = false, Enumerable = false, Configurable = true
+            });
 
         // Constants
         math["E"] = Math.E;

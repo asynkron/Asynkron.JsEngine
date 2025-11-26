@@ -832,15 +832,8 @@ public static partial class StandardLibrary
         var stringConstructor = new HostFunction((thisValue, args) =>
         {
             var value = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var str = value switch
-            {
-                string s => s,
-                double d => d.ToString(CultureInfo.InvariantCulture),
-                bool b => b ? "true" : "false",
-                null => "null",
-                Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => "undefined",
-                _ => value?.ToString() ?? string.Empty
-            };
+            var context = realm is not null ? new EvaluationContext(realm) : null;
+            var str = JsOps.ToJsString(value, context);
 
             if (thisValue is not JsObject obj)
             {
@@ -870,6 +863,19 @@ public static partial class StandardLibrary
                 stringProtoObj.SetPrototype(realm.ObjectPrototype);
             }
 
+            DefineBuiltinFunction(stringProtoObj, "toString", new HostFunction(StringPrototypeToString), 0,
+                isConstructor: false);
+            DefineBuiltinFunction(stringProtoObj, "valueOf", new HostFunction(StringPrototypeValueOf), 0,
+                isConstructor: false);
+            DefineBuiltinFunction(stringProtoObj, "parseJSON",
+                new HostFunction((thisValue, args, realmState) =>
+                {
+                    realmState ??= realm;
+                    var context = realmState is not null ? new EvaluationContext(realmState) : null;
+                    var source = JsOps.ToJsString(thisValue, context);
+                    var reviver = args.Count > 0 ? args[0] : null;
+                    return ParseJsonWithReviver(source, realmState!, context, reviver);
+                }, realm), 1, isConstructor: false, writable: false, enumerable: false, configurable: true);
             stringProtoObj.SetHostedProperty("slice", StringPrototypeSlice);
 
             var supFn = new HostFunction(StringPrototypeSup) { IsConstructor = false };
@@ -895,6 +901,16 @@ public static partial class StandardLibrary
         stringConstructor.SetHostedProperty("escape", StringEscape);
 
         return stringConstructor;
+
+        object? StringPrototypeToString(object? thisValue, IReadOnlyList<object?> _)
+        {
+            return RequireStringReceiver(thisValue);
+        }
+
+        object? StringPrototypeValueOf(object? thisValue, IReadOnlyList<object?> _)
+        {
+            return RequireStringReceiver(thisValue);
+        }
 
         object? StringPrototypeSlice(object? thisValue, IReadOnlyList<object?> args)
         {
@@ -947,6 +963,18 @@ public static partial class StandardLibrary
 
             var s = JsValueToString(thisValue);
             return $"<sup>{s}</sup>";
+        }
+
+        string RequireStringReceiver(object? receiver)
+        {
+            return receiver switch
+            {
+                string s => s,
+                JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is string s => s,
+                IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner)
+                    && inner is string s => s,
+                _ => throw ThrowTypeError("String.prototype valueOf called on non-string object", realm: realm)
+            };
         }
 
         object? StringFromCodePoint(IReadOnlyList<object?> args)

@@ -55,12 +55,19 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
             target.Resize(newLength);
             return Symbols.Undefined;
         });
+
+        if (realmState?.ArrayBufferPrototype is not null)
+        {
+            _properties.SetPrototype(realmState.ArrayBufferPrototype);
+        }
     }
 
     /// <summary>
     ///     Gets the length of the buffer in bytes.
     /// </summary>
     public int ByteLength => Buffer.Length;
+
+    public bool IsDetached { get; private set; }
 
     internal RealmState? RealmState { get; }
 
@@ -167,7 +174,13 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
         Buffer = newBuffer;
     }
 
-    private JsObject CreateTypeError(string message)
+    internal void Detach()
+    {
+        Buffer = Array.Empty<byte>();
+        IsDetached = true;
+    }
+
+    internal JsObject CreateTypeError(string message)
     {
         if (RealmState?.TypeErrorConstructor is IJsCallable ctor)
         {
@@ -181,7 +194,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
         return new JsObject { ["name"] = "TypeError", ["message"] = message };
     }
 
-    private JsObject CreateRangeError(string message)
+    internal JsObject CreateRangeError(string message)
     {
         if (RealmState?.RangeErrorConstructor is IJsCallable ctor)
         {

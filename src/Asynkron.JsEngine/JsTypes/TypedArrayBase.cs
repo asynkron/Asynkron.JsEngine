@@ -455,12 +455,12 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         return typedArray.Slice(begin, end);
     }
 
-    private bool IsDetachedOrOutOfBounds()
+    internal bool IsDetachedOrOutOfBounds()
     {
-        return _buffer.ByteLength < _byteOffset + _length * _bytesPerElement;
+        return _buffer.IsDetached || _buffer.ByteLength < _byteOffset + _length * _bytesPerElement;
     }
 
-    private ThrowSignal CreateOutOfBoundsTypeError()
+    internal ThrowSignal CreateOutOfBoundsTypeError()
     {
         if (_buffer.RealmState?.TypeErrorConstructor is IJsCallable ctor)
         {

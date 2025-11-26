@@ -1,5 +1,7 @@
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -42,14 +44,61 @@ public static partial class StandardLibrary
         }
 
         object? SymbolKeyFor(IReadOnlyList<object?> args)
+    {
+        if (args.Count == 0 || args[0] is not TypedAstSymbol sym)
         {
-            if (args.Count == 0 || args[0] is not TypedAstSymbol sym)
-            {
-                return Symbols.Undefined;
-            }
+            return Symbols.Undefined;
+        }
 
-            var key = TypedAstSymbol.KeyFor(sym);
-            return key ?? (object)Symbols.Undefined;
+        var key = TypedAstSymbol.KeyFor(sym);
+        return key ?? (object)Symbols.Undefined;
+    }
+    }
+
+    public static JsObject CreateSymbolWrapper(TypedAstSymbol symbol, EvaluationContext? context = null,
+        RealmState? realm = null)
+    {
+        var wrapper = new JsObject { ["__value__"] = symbol };
+
+        var proto = context?.RealmState?.ObjectPrototype ?? realm?.ObjectPrototype;
+        if (proto is not null)
+        {
+            wrapper.SetPrototype(proto);
+        }
+
+        var valueOf = new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm))
+        {
+            IsConstructor = false
+        };
+
+        var toString = new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm).ToString())
+        {
+            IsConstructor = false
+        };
+
+        wrapper.SetHostedProperty("valueOf", valueOf);
+        wrapper.SetHostedProperty("toString", toString);
+
+        var toPrimitiveKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toPrimitive").GetHashCode()}";
+        wrapper.SetProperty(toPrimitiveKey,
+            new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm)) { IsConstructor = false });
+
+        var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        wrapper.SetProperty(toStringTagKey, "Symbol");
+
+        return wrapper;
+
+        static TypedAstSymbol UnboxSymbol(object? receiver, EvaluationContext? ctx, RealmState? realmState)
+        {
+            switch (receiver)
+            {
+                case TypedAstSymbol s:
+                    return s;
+                case JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is TypedAstSymbol sym:
+                    return sym;
+                default:
+                    throw ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver", ctx, realmState);
+            }
         }
     }
 }

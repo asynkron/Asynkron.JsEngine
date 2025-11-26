@@ -117,6 +117,7 @@ public static partial class StandardLibrary
                 JsBigInt bigInt => CreateBigIntWrapper(bigInt, realm: realm),
                 bool b => CreateBooleanWrapper(b, realm: realm),
                 string s => CreateStringWrapper(s, realm: realm),
+                TypedAstSymbol sym => CreateSymbolWrapper(sym, realm: realm),
                 double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
                     CreateNumberWrapper(JsOps.ToNumber(value), realm: realm),
                 _ => CreateBlank()
@@ -141,6 +142,15 @@ public static partial class StandardLibrary
             {
                 var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
                 if (obj.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbols.Undefined))
+                {
+                    var tagString = JsOps.ToJsString(tagValue);
+                    return $"[object {tagString}]";
+                }
+            }
+            else if (thisValue is IJsPropertyAccessor accessor)
+            {
+                var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+                if (accessor.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbols.Undefined))
                 {
                     var tagString = JsOps.ToJsString(tagValue);
                     return $"[object {tagString}]";

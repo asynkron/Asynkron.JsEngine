@@ -189,19 +189,9 @@ public static partial class StandardLibrary
             switch (thisValue)
             {
                 case JsObject obj:
-                    return obj.GetOwnPropertyDescriptor(propertyName) is not null;
+                return obj.GetOwnPropertyDescriptor(propertyName) is not null;
                 case JsArray array:
-                    if (string.Equals(propertyName, "length", StringComparison.Ordinal))
-                    {
-                        return true;
-                    }
-
-                    if (JsOps.TryResolveArrayIndex(propertyName, out var index))
-                    {
-                        return array.HasOwnIndex(index);
-                    }
-
-                    return false;
+                    return array.GetOwnPropertyDescriptor(propertyName) is not null;
                 case IJsObjectLike accessor:
                     return accessor.GetOwnPropertyDescriptor(propertyName) is not null;
                 default:

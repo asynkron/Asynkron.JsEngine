@@ -142,10 +142,19 @@ public sealed class JsArray : IJsObjectLike
             return;
         }
 
-        if (TryParseArrayIndex(name, out var index) && !descriptor.IsAccessorDescriptor)
+        if (TryParseArrayIndex(name, out var index))
         {
-            // Keep the indexed storage in sync with defined data properties.
-            SetElement(index, descriptor.Value);
+            if (!descriptor.IsAccessorDescriptor)
+            {
+                // Keep the indexed storage in sync with defined data properties.
+                SetElement(index, descriptor.Value);
+            }
+            else
+            {
+                // Accessor descriptors on indexed properties still advance the length
+                // so later iterations observe the new high-water mark.
+                BumpLength(index + 1);
+            }
         }
 
         _properties.DefineProperty(name, descriptor);
@@ -379,13 +388,20 @@ public sealed class JsArray : IJsObjectLike
             return false;
         }
 
-        return _properties.Remove(name);
+        return _properties.DeleteOwnProperty(name);
     }
 
     public bool Delete(string name)
     {
         if (TryParseArrayIndex(name, out var index))
         {
+            var descriptor = _properties.GetOwnPropertyDescriptor(name);
+            if (descriptor is not null && !descriptor.Configurable)
+            {
+                return false;
+            }
+
+            _properties.DeleteOwnProperty(name);
             return DeleteElement((int)index);
         }
 

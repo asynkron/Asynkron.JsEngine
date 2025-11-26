@@ -38,7 +38,26 @@ public static partial class StandardLibrary
         array.SetHostedProperty("toString", (thisValue, _) => ArrayToString(thisValue, array));
         array.SetHostedProperty("includes", ArrayIncludes, realm);
         array.SetHostedProperty("indexOf", ArrayIndexOf, realm);
-        array.SetHostedProperty("lastIndexOf", ArrayLastIndexOf, realm);
+        var lastIndexOf = new HostFunction((thisValue, args) => ArrayLastIndexOf(thisValue, args, realm), realm)
+        {
+            IsConstructor = false
+        };
+        lastIndexOf.DefineProperty("name",
+            new PropertyDescriptor { Value = "lastIndexOf", Writable = false, Enumerable = false, Configurable = true });
+        lastIndexOf.DefineProperty("length",
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+        var lastIndexDescriptor = new PropertyDescriptor
+        {
+            Value = lastIndexOf, Writable = true, Enumerable = false, Configurable = true
+        };
+        if (array is IJsObjectLike lastIndexTarget)
+        {
+            lastIndexTarget.DefineProperty("lastIndexOf", lastIndexDescriptor);
+        }
+        else
+        {
+            array.SetProperty("lastIndexOf", lastIndexOf);
+        }
         array.SetHostedProperty("toLocaleString", ArrayToLocaleString, realm);
         array.SetHostedProperty("slice", ArraySlice, realm);
         array.SetHostedProperty("shift", ArrayShift);
@@ -517,6 +536,11 @@ public static partial class StandardLibrary
     private static object? ArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
+        if (accessor is TypedArrayBase ta && ta.IsDetachedOrOutOfBounds())
+        {
+            return -1d;
+        }
+
         var evalContext = realm is not null ? new EvaluationContext(realm) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
@@ -551,6 +575,11 @@ public static partial class StandardLibrary
             }
 
             startIndex = candidate;
+        }
+
+        if (accessor is TypedArrayBase taAfterIndex && taAfterIndex.IsDetachedOrOutOfBounds())
+        {
+            return -1d;
         }
 
         for (var i = startIndex; i >= 0; i--)

@@ -171,7 +171,7 @@ public static partial class StandardLibrary
     private static HostFunction CreateTypedArrayConstructor<T>(
         Func<int, RealmState?, T> fromLength,
         Func<JsArray, RealmState?, T> fromArray,
-        Func<JsArrayBuffer, int, int, RealmState?, T> fromBuffer,
+        Func<JsArrayBuffer, int, int, bool, RealmState?, T> fromBuffer,
         int bytesPerElement,
         RealmState realm) where T : TypedArrayBase
     {
@@ -258,19 +258,11 @@ public static partial class StandardLibrary
             {
                 var byteOffset = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
 
-                int length;
-                if (args.Count > 2 && args[2] is double d2)
-                {
-                    length = (int)d2;
-                }
-                else
-                {
-                    // Calculate length from remaining buffer
-                    var remainingBytes = buffer.ByteLength - byteOffset;
-                    length = remainingBytes / bytesPerElement;
-                }
+                var lengthProvided = args.Count > 2 && args[2] is double;
+                var length = lengthProvided ? (int)(double)args[2]! : (buffer.ByteLength - byteOffset) / bytesPerElement;
+                var isLengthTracking = buffer.Resizable && !lengthProvided;
 
-                var ta = fromBuffer(buffer, byteOffset, length, realm);
+                var ta = fromBuffer(buffer, byteOffset, length, isLengthTracking, realm);
                 ta.SetPrototype(prototype);
                 return ta;
             }
@@ -475,7 +467,7 @@ public static partial class StandardLibrary
         return CreateTypedArrayConstructor(
             JsInt8Array.FromLength,
             JsInt8Array.FromArray,
-            (buffer, offset, length, _) => new JsInt8Array(buffer, offset, length),
+            (buffer, offset, length, isLengthTracking, _) => new JsInt8Array(buffer, offset, length, isLengthTracking),
             JsInt8Array.BYTES_PER_ELEMENT,
             realm);
     }
@@ -485,7 +477,8 @@ public static partial class StandardLibrary
         return CreateTypedArrayConstructor(
             JsUint8Array.FromLength,
             JsUint8Array.FromArray,
-            (buffer, offset, length, _) => new JsUint8Array(buffer, offset, length),
+            (buffer, offset, length, isLengthTracking, _) =>
+                new JsUint8Array(buffer, offset, length, isLengthTracking),
             JsUint8Array.BYTES_PER_ELEMENT,
             realm);
     }
@@ -495,7 +488,8 @@ public static partial class StandardLibrary
         return CreateTypedArrayConstructor(
             JsUint8ClampedArray.FromLength,
             JsUint8ClampedArray.FromArray,
-            (buffer, offset, length, _) => new JsUint8ClampedArray(buffer, offset, length),
+            (buffer, offset, length, isLengthTracking, _) =>
+                new JsUint8ClampedArray(buffer, offset, length, isLengthTracking),
             JsUint8ClampedArray.BYTES_PER_ELEMENT,
             realm);
     }
@@ -505,7 +499,8 @@ public static partial class StandardLibrary
         return CreateTypedArrayConstructor(
             JsInt16Array.FromLength,
             JsInt16Array.FromArray,
-            (buffer, offset, length, _) => new JsInt16Array(buffer, offset, length),
+            (buffer, offset, length, isLengthTracking, _) =>
+                new JsInt16Array(buffer, offset, length, isLengthTracking),
             JsInt16Array.BYTES_PER_ELEMENT,
             realm);
     }
@@ -515,7 +510,8 @@ public static partial class StandardLibrary
         return CreateTypedArrayConstructor(
             JsUint16Array.FromLength,
             JsUint16Array.FromArray,
-            (buffer, offset, length, _) => new JsUint16Array(buffer, offset, length),
+            (buffer, offset, length, isLengthTracking, _) =>
+                new JsUint16Array(buffer, offset, length, isLengthTracking),
             JsUint16Array.BYTES_PER_ELEMENT,
             realm);
     }
@@ -525,7 +521,8 @@ public static partial class StandardLibrary
         return CreateTypedArrayConstructor(
             JsInt32Array.FromLength,
             JsInt32Array.FromArray,
-            (buffer, offset, length, _) => new JsInt32Array(buffer, offset, length),
+            (buffer, offset, length, isLengthTracking, _) =>
+                new JsInt32Array(buffer, offset, length, isLengthTracking),
             JsInt32Array.BYTES_PER_ELEMENT,
             realm);
     }
@@ -535,7 +532,8 @@ public static partial class StandardLibrary
         return CreateTypedArrayConstructor(
             JsUint32Array.FromLength,
             JsUint32Array.FromArray,
-            (buffer, offset, length, _) => new JsUint32Array(buffer, offset, length),
+            (buffer, offset, length, isLengthTracking, _) =>
+                new JsUint32Array(buffer, offset, length, isLengthTracking),
             JsUint32Array.BYTES_PER_ELEMENT,
             realm);
     }
@@ -545,7 +543,8 @@ public static partial class StandardLibrary
         return CreateTypedArrayConstructor(
             JsFloat32Array.FromLength,
             JsFloat32Array.FromArray,
-            (buffer, offset, length, _) => new JsFloat32Array(buffer, offset, length),
+            (buffer, offset, length, isLengthTracking, _) =>
+                new JsFloat32Array(buffer, offset, length, isLengthTracking),
             JsFloat32Array.BYTES_PER_ELEMENT,
             realm);
     }
@@ -555,7 +554,8 @@ public static partial class StandardLibrary
         return CreateTypedArrayConstructor(
             JsFloat64Array.FromLength,
             JsFloat64Array.FromArray,
-            (buffer, offset, length, _) => new JsFloat64Array(buffer, offset, length),
+            (buffer, offset, length, isLengthTracking, _) =>
+                new JsFloat64Array(buffer, offset, length, isLengthTracking),
             JsFloat64Array.BYTES_PER_ELEMENT,
             realm);
     }
@@ -565,7 +565,8 @@ public static partial class StandardLibrary
         return CreateTypedArrayConstructor(
             JsBigInt64Array.FromLength,
             JsBigInt64Array.FromArray,
-            (buffer, offset, length, _) => new JsBigInt64Array(buffer, offset, length),
+            (buffer, offset, length, isLengthTracking, _) =>
+                new JsBigInt64Array(buffer, offset, length, isLengthTracking),
             JsBigInt64Array.BYTES_PER_ELEMENT,
             realm);
     }
@@ -575,7 +576,8 @@ public static partial class StandardLibrary
         return CreateTypedArrayConstructor(
             JsBigUint64Array.FromLength,
             JsBigUint64Array.FromArray,
-            (buffer, offset, length, _) => new JsBigUint64Array(buffer, offset, length),
+            (buffer, offset, length, isLengthTracking, _) =>
+                new JsBigUint64Array(buffer, offset, length, isLengthTracking),
             JsBigUint64Array.BYTES_PER_ELEMENT,
             realm);
     }

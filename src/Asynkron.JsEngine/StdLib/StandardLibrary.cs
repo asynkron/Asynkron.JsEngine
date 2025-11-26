@@ -183,6 +183,16 @@ public static partial class StandardLibrary
                         throw new ThrowSignal(localContext.FlowValue);
                     }
                     continue;
+                case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
+                    var numberValue = JsOps.ToNumber(value);
+                    if (double.IsNaN(numberValue) || double.IsInfinity(numberValue) ||
+                        Math.Floor(numberValue) != numberValue)
+                    {
+                        throw ThrowRangeError("Cannot convert a non-integer number to a BigInt", localContext,
+                            realmState);
+                    }
+
+                    return new JsBigInt(new BigInteger(numberValue));
                 case null:
                 case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
                 case IIsHtmlDda:

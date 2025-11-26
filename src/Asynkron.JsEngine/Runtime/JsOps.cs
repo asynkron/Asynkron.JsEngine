@@ -1094,13 +1094,8 @@ internal static class JsOps
     {
         if (target is JsArray jsArray)
         {
-            if (TryResolveArrayIndex(propertyKey, out var arrayIndex, context))
-            {
-                return jsArray.DeleteElement(arrayIndex);
-            }
-
             var propertyName = ToPropertyName(propertyKey, context);
-            return propertyName is null || jsArray.DeleteProperty(propertyName);
+            return propertyName is null || jsArray.Delete(propertyName);
         }
 
         if (target is HostFunction hostFunc)

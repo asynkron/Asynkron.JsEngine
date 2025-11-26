@@ -8,8 +8,8 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Minimal BigInt64Array implementation backed by a shared ArrayBuffer.
 /// </summary>
-public sealed class JsBigInt64Array(JsArrayBuffer buffer, int byteOffset, int length)
-    : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT)
+public sealed class JsBigInt64Array(JsArrayBuffer buffer, int byteOffset, int length, bool isLengthTracking = false)
+    : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT, isLengthTracking)
 {
     public const int BYTES_PER_ELEMENT = 8;
     public override bool IsBigIntArray => true;

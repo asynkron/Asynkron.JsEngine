@@ -17,14 +17,20 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     protected readonly int _bytesPerElement;
     private readonly HostFunction _indexOfFunction;
     private readonly HostFunction _includesFunction;
-    protected int _length;
+    protected readonly int _initialLength;
+    protected readonly bool _isLengthTracking;
 
     private readonly JsObject _properties = new();
     private readonly HostFunction _setFunction;
     private readonly HostFunction _sliceFunction;
     private readonly HostFunction _subarrayFunction;
 
-    protected TypedArrayBase(JsArrayBuffer buffer, int byteOffset, int length, int bytesPerElement)
+    protected TypedArrayBase(
+        JsArrayBuffer buffer,
+        int byteOffset,
+        int length,
+        int bytesPerElement,
+        bool isLengthTracking = false)
     {
         _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
 
@@ -44,8 +50,9 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         }
 
         _byteOffset = byteOffset;
-        _length = length;
+        _initialLength = length;
         _bytesPerElement = bytesPerElement;
+        _isLengthTracking = isLengthTracking;
 
         // Provide built-in instance methods that operate on whichever typed array
         // is used as the `this` value at invocation time. This mirrors the behaviour
@@ -114,7 +121,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     /// <summary>
     ///     Gets the number of elements in the typed array.
     /// </summary>
-    public virtual int Length => _length;
+    public virtual int Length => GetCurrentLength();
 
     /// <summary>
     ///     Gets the size in bytes of each element in the array.
@@ -127,6 +134,33 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     ///     True when this typed array stores BigInt elements.
     /// </summary>
     public virtual bool IsBigIntArray => false;
+
+    protected int GetCurrentLength()
+    {
+        if (_buffer.IsDetached)
+        {
+            return 0;
+        }
+
+        var availableBytes = _buffer.ByteLength - _byteOffset;
+        if (availableBytes <= 0)
+        {
+            return 0;
+        }
+
+        if (_isLengthTracking)
+        {
+            return availableBytes / _bytesPerElement;
+        }
+
+        var requiredBytes = _initialLength * _bytesPerElement;
+        if (availableBytes < requiredBytes)
+        {
+            return 0;
+        }
+
+        return _initialLength;
+    }
 
     public bool TryGetProperty(string name, out object? value)
     {
@@ -172,15 +206,16 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         if (TryParseIndex(name, out var index))
         {
-            if (index >= 0 && index < Length)
+            if (IsDetachedOrOutOfBounds())
+            {
+                value = null;
+                return false;
+            }
+
+            var length = Length;
+            if (index >= 0 && index < length)
             {
                 if (_buffer.IsDetached)
-                {
-                    value = null;
-                    return false;
-                }
-
-                if (IsDetachedOrOutOfBounds())
                 {
                     value = null;
                     return false;
@@ -224,8 +259,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
             if (index >= Length)
             {
-                throw new ArgumentOutOfRangeException(nameof(name),
-                    $"Index {index} is outside the bounds of the typed array.");
+                throw CreateOutOfBoundsTypeError();
             }
 
             SetValue(index, value);
@@ -463,14 +497,10 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     /// </summary>
     protected void CheckBounds(int index)
     {
-        if (IsDetachedOrOutOfBounds())
+        var length = Length;
+        if (index < 0 || index >= length)
         {
             throw CreateOutOfBoundsTypeError();
-        }
-
-        if (index < 0 || index >= _length)
-        {
-            throw new ArgumentOutOfRangeException(nameof(index), "Index is out of range");
         }
     }
 
@@ -519,9 +549,10 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        if (offset < 0 || offset + source.Length > _length)
+        var targetLength = Length;
+        if (offset < 0 || offset + source.Length > targetLength)
         {
-            throw new ArgumentOutOfRangeException(nameof(offset));
+            throw CreateOutOfBoundsTypeError();
         }
 
         for (var i = 0; i < source.Length; i++)
@@ -537,9 +568,10 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        if (offset < 0 || offset + source.Items.Count > _length)
+        var targetLength = Length;
+        if (offset < 0 || offset + source.Items.Count > targetLength)
         {
-            throw new ArgumentOutOfRangeException(nameof(offset));
+            throw CreateOutOfBoundsTypeError();
         }
 
         for (var i = 0; i < source.Items.Count; i++)
@@ -554,7 +586,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     /// </summary>
     protected (int start, int end) NormalizeSliceIndices(int begin, int end)
     {
-        var len = _length;
+        var len = Length;
         var relativeStart = begin < 0 ? Math.Max(len + begin, 0) : Math.Min(begin, len);
         var relativeEnd = end < 0 ? Math.Max(len + end, 0) : Math.Min(end, len);
         return (relativeStart, relativeEnd);
@@ -598,7 +630,17 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
     internal bool IsDetachedOrOutOfBounds()
     {
-        return _buffer.IsDetached || _buffer.ByteLength < _byteOffset + _length * _bytesPerElement;
+        if (_buffer.IsDetached)
+        {
+            return true;
+        }
+
+        if (_isLengthTracking)
+        {
+            return _byteOffset > _buffer.ByteLength;
+        }
+
+        return _buffer.ByteLength < _byteOffset + _initialLength * _bytesPerElement;
     }
 
     private static bool SameValueZero(object? left, object? right)

@@ -20,7 +20,7 @@ public sealed class ParseException : Exception
     {
         var snippet = ExtractSourceSnippet(source, token.StartPosition);
 
-        // Check if message already contains position info
+        // Check if the message already contains position info
         var posPattern = $"at line {token.Line} column {token.Column}";
         var posPattern2 = $"at line {token.Line}, column {token.Column}";
 

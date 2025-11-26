@@ -147,7 +147,6 @@ internal static class JsOps
                     if (jsObj.TryGetProperty("SymbolData", out var symbolData) && symbolData is TypedAstSymbol sym)
                     {
                         value = sym;
-                        continue;
                     }
 
                     break;

@@ -38,6 +38,7 @@ public static partial class StandardLibrary
         array.SetHostedProperty("toString", (thisValue, _) => ArrayToString(thisValue, array));
         array.SetHostedProperty("includes", ArrayIncludes, realm);
         array.SetHostedProperty("indexOf", ArrayIndexOf, realm);
+        array.SetHostedProperty("lastIndexOf", ArrayLastIndexOf, realm);
         array.SetHostedProperty("toLocaleString", ArrayToLocaleString, realm);
         array.SetHostedProperty("slice", ArraySlice, realm);
         array.SetHostedProperty("shift", ArrayShift);
@@ -443,11 +444,11 @@ public static partial class StandardLibrary
         if (accessor is JsArray jsArr && lenLong > 100000)
         {
             var indices = jsArr.GetOwnIndices()
-                .Where(idx => idx >= start && idx < lenLong)
+                .Where(idx => (long)idx >= start && (long)idx < lenLong)
                 .OrderBy(idx => idx);
             foreach (var idx in indices)
             {
-                var val = jsArr.GetElement((int)idx);
+                var val = jsArr.GetElement(idx);
                 if (SameValueZero(val, searchElement))
                 {
                     return true;
@@ -480,8 +481,9 @@ public static partial class StandardLibrary
         }
 
         var searchElement = args[0];
-        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
-        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
+        var evalContext = realm is not null ? new EvaluationContext(realm) : null;
+        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
         if (double.IsPositiveInfinity(fromIndex))
         {
@@ -500,28 +502,63 @@ public static partial class StandardLibrary
         var start = (long)Math.Min(fromIndex, length);
         var lenLong = (long)Math.Min(length, 9007199254740991d);
 
-        if (accessor is JsArray jsArr && lenLong > 100000)
+        for (var i = start; i < lenLong; i++)
         {
-            var indices = jsArr.GetOwnIndices()
-                .Where(idx => idx >= start && idx < lenLong)
-                .OrderBy(idx => idx);
-            foreach (var idx in indices)
+            var key = i.ToString(CultureInfo.InvariantCulture);
+            if (accessor.TryGetProperty(key, out var value) && AreStrictlyEqual(value, searchElement))
             {
-                if (AreStrictlyEqual(jsArr.GetElement((int)idx), searchElement))
-                {
-                    return (double)idx;
-                }
+                return (double)i;
             }
+        }
+
+        return -1d;
+    }
+
+    private static object? ArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
+        var evalContext = realm is not null ? new EvaluationContext(realm) : null;
+        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
+        if (length <= 0)
+        {
+            return -1d;
+        }
+
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : length - 1;
+        var lenLong = (long)Math.Min(length, 9007199254740991d);
+
+        long startIndex;
+        if (double.IsNegativeInfinity(fromIndex))
+        {
+            return -1d;
+        }
+
+        if (double.IsPositiveInfinity(fromIndex))
+        {
+            startIndex = lenLong - 1;
+        }
+        else if (fromIndex >= 0)
+        {
+            startIndex = (long)Math.Min(fromIndex, lenLong - 1);
         }
         else
         {
-            for (var i = start; i < lenLong; i++)
+            var candidate = lenLong + (long)Math.Ceiling(fromIndex);
+            if (candidate < 0)
             {
-                var key = i.ToString(CultureInfo.InvariantCulture);
-                if (accessor.TryGetProperty(key, out var value) && AreStrictlyEqual(value, searchElement))
-                {
-                    return (double)i;
-                }
+                return -1d;
+            }
+
+            startIndex = candidate;
+        }
+
+        for (var i = startIndex; i >= 0; i--)
+        {
+            var key = i.ToString(CultureInfo.InvariantCulture);
+            if (accessor.TryGetProperty(key, out var value) && AreStrictlyEqual(value, searchElement))
+            {
+                return (double)i;
             }
         }
 
@@ -1568,9 +1605,14 @@ public static partial class StandardLibrary
         }
     }
 
-    private static double ToLengthOrZero(object? value)
+    private static double ToLengthOrZero(object? value, EvaluationContext? context = null)
     {
-        var number = JsOps.ToNumber(value);
+        var number = JsOps.ToNumberWithContext(value, context);
+        if (context is not null && context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
         if (double.IsNaN(number) || number <= 0)
         {
             return 0;
@@ -1585,9 +1627,14 @@ public static partial class StandardLibrary
         return truncated > 9007199254740991d ? 9007199254740991d : truncated;
     }
 
-    private static double ToIntegerOrInfinity(object? value)
+    private static double ToIntegerOrInfinity(object? value, EvaluationContext? context = null)
     {
-        var number = JsOps.ToNumberWithContext(value);
+        var number = JsOps.ToNumberWithContext(value, context);
+        if (context is not null && context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
         if (double.IsNaN(number))
         {
             return 0;
@@ -1722,20 +1769,22 @@ public static partial class StandardLibrary
                     return accessor;
                 }
 
-                if (jsObj.TryGetProperty("length", out _))
+                if (!jsObj.TryGetProperty("length", out _))
                 {
-                    return jsObj;
+                    jsObj.DefineProperty("length",
+                        new PropertyDescriptor
+                        {
+                            Value = (double)sInner.Length, Writable = false, Enumerable = false, Configurable = false
+                        });
                 }
-
-                jsObj.DefineProperty("length",
-                    new PropertyDescriptor
-                    {
-                        Value = (double)sInner.Length, Writable = false, Enumerable = false, Configurable = false
-                    });
 
                 for (var i = 0; i < sInner.Length; i++)
                 {
-                    jsObj.SetProperty(i.ToString(CultureInfo.InvariantCulture), sInner[i].ToString());
+                    var key = i.ToString(CultureInfo.InvariantCulture);
+                    if (!jsObj.TryGetProperty(key, out _))
+                    {
+                        jsObj.SetProperty(key, sInner[i].ToString());
+                    }
                 }
 
                 return jsObj;

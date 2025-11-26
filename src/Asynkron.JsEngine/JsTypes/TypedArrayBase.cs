@@ -16,6 +16,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     protected readonly int _byteOffset;
     protected readonly int _bytesPerElement;
     private readonly HostFunction _indexOfFunction;
+    private readonly HostFunction _includesFunction;
     protected readonly int _length;
 
     private readonly JsObject _properties = new();
@@ -92,6 +93,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         });
 
         _indexOfFunction = new HostFunction((thisValue, args) => IndexOfInternal(ResolveThis(thisValue, this), args));
+        _includesFunction = new HostFunction((thisValue, args) => IncludesInternal(ResolveThis(thisValue, this), args));
     }
 
     /// <summary>
@@ -163,6 +165,9 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
             case "indexOf":
                 value = _indexOfFunction;
                 return true;
+            case "includes":
+                value = _includesFunction;
+                return true;
         }
 
         if (TryParseIndex(name, out var index) && index >= 0 && index < Length)
@@ -217,9 +222,14 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         _properties.SetProperty(name, value);
     }
 
-    private static double ToIntegerOrInfinity(object? value)
+    private static double ToIntegerOrInfinity(object? value, EvaluationContext? context)
     {
-        var number = JsOps.ToNumberWithContext(value);
+        var number = JsOps.ToNumberWithContext(value, context);
+        if (context is not null && context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
         if (double.IsNaN(number))
         {
             return 0;
@@ -235,19 +245,21 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
     internal static object IndexOfInternal(TypedArrayBase target, IReadOnlyList<object?> args)
     {
-        if (target.IsDetachedOrOutOfBounds())
+        var wasDetached = target._buffer.IsDetached;
+        if (wasDetached || target.IsDetachedOrOutOfBounds())
         {
             throw target.CreateOutOfBoundsTypeError();
         }
 
-        if (args.Count == 0)
+        var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
+        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var len = target.Length;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
+
+        if (!wasDetached && target._buffer.IsDetached)
         {
             return -1d;
         }
-
-        var searchElement = args[0];
-        var len = target.Length;
-        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0d;
 
         if (double.IsPositiveInfinity(fromIndex))
         {
@@ -265,6 +277,122 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         var start = (int)fromIndex;
         for (var i = start; i < len; i++)
+        {
+            object? element = target switch
+            {
+                JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
+                JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
+                _ => target.GetElement(i)
+            };
+
+            if (JsOps.StrictEquals(element, searchElement))
+            {
+                return (double)i;
+            }
+        }
+
+        return -1d;
+    }
+
+    internal static object IncludesInternal(TypedArrayBase target, IReadOnlyList<object?> args)
+    {
+        var wasDetached = target._buffer.IsDetached;
+        if (wasDetached || target.IsDetachedOrOutOfBounds())
+        {
+            throw target.CreateOutOfBoundsTypeError();
+        }
+
+        var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
+        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var len = target.Length;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
+
+        if (!wasDetached && target._buffer.IsDetached)
+        {
+            return false;
+        }
+
+        if (double.IsPositiveInfinity(fromIndex))
+        {
+            return false;
+        }
+
+        if (fromIndex < 0)
+        {
+            fromIndex = Math.Max(len + Math.Ceiling(fromIndex), 0);
+        }
+        else
+        {
+            fromIndex = Math.Min(fromIndex, len);
+        }
+
+        var start = (int)fromIndex;
+        for (var i = start; i < len; i++)
+        {
+            object? element = target switch
+            {
+                JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
+                JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
+                _ => target.GetElement(i)
+            };
+
+            if (SameValueZero(element, searchElement))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static object LastIndexOfInternal(TypedArrayBase target, IReadOnlyList<object?> args)
+    {
+        var wasDetached = target._buffer.IsDetached;
+        if (wasDetached || target.IsDetachedOrOutOfBounds())
+        {
+            throw target.CreateOutOfBoundsTypeError();
+        }
+
+        var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
+        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var len = target.Length;
+        if (len == 0)
+        {
+            return -1d;
+        }
+
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : len - 1;
+
+        if (!wasDetached && target._buffer.IsDetached)
+        {
+            return -1d;
+        }
+
+        double startIndexNumber;
+        if (double.IsPositiveInfinity(fromIndex))
+        {
+            startIndexNumber = len - 1;
+        }
+        else if (double.IsNegativeInfinity(fromIndex))
+        {
+            return -1d;
+        }
+        else if (fromIndex >= 0)
+        {
+            startIndexNumber = Math.Min(fromIndex, len - 1);
+        }
+        else
+        {
+            startIndexNumber = len + fromIndex;
+            if (startIndexNumber < 0)
+            {
+                return -1d;
+            }
+        }
+
+        var startIndex = (int)startIndexNumber;
+
+        for (var i = startIndex; i >= 0; i--)
         {
             object? element = target switch
             {
@@ -458,6 +586,16 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     internal bool IsDetachedOrOutOfBounds()
     {
         return _buffer.IsDetached || _buffer.ByteLength < _byteOffset + _length * _bytesPerElement;
+    }
+
+    private static bool SameValueZero(object? left, object? right)
+    {
+        if (left is double dl && double.IsNaN(dl) && right is double dr && double.IsNaN(dr))
+        {
+            return true;
+        }
+
+        return JsOps.StrictEquals(left, right);
     }
 
     internal ThrowSignal CreateOutOfBoundsTypeError()

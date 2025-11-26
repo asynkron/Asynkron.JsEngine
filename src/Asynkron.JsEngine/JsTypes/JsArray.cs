@@ -91,15 +91,23 @@ public sealed class JsArray : IJsObjectLike
 
         if (TryParseArrayIndex(name, out var index))
         {
+            // Accessor/data descriptors defined via Object.defineProperty on an
+            // index should override the internal dense/sparse storage.
+            if (_properties.GetOwnPropertyDescriptor(name) is not null &&
+                _properties.TryGetProperty(name, this, out value))
+            {
+                return true;
+            }
+
             if (TryGetOwnIndex(index, out value))
             {
                 return true;
             }
 
-            return _properties.TryGetProperty(name, out value);
+            return _properties.TryGetProperty(name, this, out value);
         }
 
-        return _properties.TryGetProperty(name, out value);
+        return _properties.TryGetProperty(name, this, out value);
     }
 
     public void SetProperty(string name, object? value)

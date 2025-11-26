@@ -134,31 +134,46 @@ internal static class JsOps
 
             switch (value)
             {
-                case JsObject jsObj:
+                case IJsPropertyAccessor accessor:
                 {
-                    if (jsObj.TryGetValue("__value__", out var inner))
+                    if (accessor is JsObject jsObj)
                     {
-                        value = inner;
+                        if (jsObj.TryGetValue("__value__", out var inner))
+                        {
+                            value = inner;
+                            continue;
+                        }
+
+                        // Symbol wrappers should behave like their unboxed symbol value for ToNumeric
+                        // so mixed BigInt/Symbol cases throw correctly.
+                        if (jsObj.TryGetProperty("SymbolData", out var symbolData) &&
+                            symbolData is TypedAstSymbol sym)
+                        {
+                            value = sym;
+                            continue;
+                        }
+                    }
+
+                    if (TryConvertToNumericPrimitive(accessor, out var primitive, context))
+                    {
+                        value = primitive;
                         continue;
                     }
 
-                    // Symbol wrappers should behave like their unboxed symbol value for ToNumeric
-                    // so mixed BigInt/Symbol cases throw correctly.
-                    if (jsObj.TryGetProperty("SymbolData", out var symbolData) && symbolData is TypedAstSymbol sym)
+                    if (context?.IsThrow == true)
                     {
-                        value = sym;
+                        return (NumericKind.Error, null);
                     }
 
-                    break;
-                }
-                case IJsPropertyAccessor accessor
-                    when TryConvertToNumericPrimitive(accessor, out var primitive, context):
-                    value = primitive;
-                    continue;
-                case IJsPropertyAccessor accessor when (context?.IsThrow == true):
+                    var error = CreateTypeError("Cannot convert object to primitive value", context);
+                    if (context is null)
+                    {
+                        throw new ThrowSignal(error);
+                    }
+
+                    context.SetThrow(error);
                     return (NumericKind.Error, null);
-                case IJsPropertyAccessor accessor:
-                    return (NumericKind.Number, double.NaN);
+                }
                 default:
                     throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
             }
@@ -169,6 +184,7 @@ internal static class JsOps
         EvaluationContext? context)
     {
         primitive = null;
+        var attempted = false;
 
         var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
         var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
@@ -191,12 +207,16 @@ internal static class JsOps
             }
         }
 
-        if (TryInvokePropertyMethod(accessor, "valueOf", out var valueOfResult, context) &&
-            (valueOfResult is not IJsPropertyAccessor || valueOfResult is TypedAstSymbol or Symbol) &&
-            valueOfResult is not JsObject)
+        if (TryInvokePropertyMethod(accessor, "valueOf", out var valueOfResult, context))
         {
-            primitive = valueOfResult;
-            return true;
+            attempted = true;
+
+            if ((valueOfResult is not IJsPropertyAccessor || valueOfResult is TypedAstSymbol or Symbol) &&
+                valueOfResult is not JsObject)
+            {
+                primitive = valueOfResult;
+                return true;
+            }
         }
 
         if (context?.IsThrow == true)
@@ -204,10 +224,24 @@ internal static class JsOps
             return false;
         }
 
-        if (!TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context) ||
+        var toStringAttempted = TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context);
+        attempted = attempted || toStringAttempted;
+        if (!toStringAttempted ||
             (toStringResult is IJsPropertyAccessor && toStringResult is not TypedAstSymbol and not Symbol) ||
             toStringResult is JsObject)
         {
+            // OrdinaryToPrimitive failure path should be an abrupt completion.
+            if (attempted)
+            {
+                var error = CreateTypeError("Cannot convert object to primitive value", context);
+                if (context is null)
+                {
+                    throw new ThrowSignal(error);
+                }
+
+                context.SetThrow(error);
+            }
+
             return false;
         }
 

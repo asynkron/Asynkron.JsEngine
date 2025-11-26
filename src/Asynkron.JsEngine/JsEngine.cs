@@ -206,7 +206,11 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("__awaitHelper", StandardLibrary.CreateAwaitHelper(this));
         SetGlobal("$DETACHBUFFER", new HostFunction((_, args) =>
         {
-            if (args.Count > 0 && args[0] is JsArrayBuffer buffer)
+            if (args.Count > 0 && args[0] is TypedArrayBase view)
+            {
+                view.Buffer.Detach();
+            }
+            else if (args.Count > 0 && args[0] is JsArrayBuffer buffer)
             {
                 buffer.Detach();
             }

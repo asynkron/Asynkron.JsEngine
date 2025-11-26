@@ -9,13 +9,26 @@ internal class Program
     {
         await using var engine = new JsEngine();
 
-        var logCheck = await engine.Evaluate("""
-            var log2 = Math.log(2);
-            var x = Math.log(4294967296) / log2;
-            [log2, x];
-        """) as JsArray;
+        var result = await engine.Evaluate("""
+            var arr = [0, , 2];
+            Object.defineProperty(Array.prototype, "2", {
+              get() {
+                Object.defineProperty(Array.prototype, "1", {
+                  get() { return 6.99; },
+                  configurable: true
+                });
+                return 0;
+              },
+              configurable: true
+            });
+            [Array.prototype.hasOwnProperty("1"), arr[1], arr.lastIndexOf(6.99)];
+        """);
 
-        Console.WriteLine($"log2 = {logCheck?.Get(0)}");
-        Console.WriteLine($"log2(2^32) = {logCheck?.Get(1)}");
+        if (result is JsArray array)
+        {
+            Console.WriteLine($"proto has 1 -> {array.Get(0)}");
+            Console.WriteLine($"arr[1] -> {array.Get(1)}");
+            Console.WriteLine($"lastIndexOf -> {array.Get(2)}");
+        }
     }
 }

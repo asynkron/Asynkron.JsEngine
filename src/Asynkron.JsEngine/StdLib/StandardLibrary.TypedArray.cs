@@ -30,6 +30,9 @@ public static partial class StandardLibrary
             proto.SetHostedProperty("reduceRight",
                 (thisValue, reduceArgs, realmState) =>
                     ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true), realm);
+            proto.SetHostedProperty("indexOf", TypedArrayIndexOf);
+            proto.SetHostedProperty("lastIndexOf", TypedArrayLastIndexOf);
+            proto.SetHostedProperty("includes", TypedArrayIncludes);
 
             realm.TypedArrayPrototype = proto;
         }
@@ -198,7 +201,6 @@ public static partial class StandardLibrary
                 Enumerable = false,
                 Configurable = true
             });
-        prototype.SetHostedProperty("indexOf", TypedArrayIndexOf);
         prototype.SetHostedProperty("reduce",
             (thisValue, reduceArgs, realmState) =>
                 StandardLibrary.ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduce", false),
@@ -208,12 +210,19 @@ public static partial class StandardLibrary
                 StandardLibrary.ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight",
                     true),
             realm);
-        if (sharedPrototype is not null)
-        {
-            prototype.SetPrototype(sharedPrototype);
-        }
-        constructor.SetProperty("prototype", prototype);
-        constructor.Properties.SetPrototype(sharedTypedArrayCtor.PropertiesObject);
+            if (sharedPrototype is not null)
+            {
+                prototype.SetPrototype(sharedPrototype);
+            }
+
+            // Ensure per-constructor prototypes do not own shared methods that should
+            // live on %TypedArray%.prototype.
+            prototype.DeleteOwnProperty("indexOf");
+            prototype.DeleteOwnProperty("lastIndexOf");
+            prototype.DeleteOwnProperty("includes");
+
+            constructor.SetProperty("prototype", prototype);
+            constructor.Properties.SetPrototype(sharedTypedArrayCtor.PropertiesObject);
 
         return constructor;
 
@@ -589,5 +598,25 @@ public static partial class StandardLibrary
         }
 
         return TypedArrayBase.IndexOfInternal(typed, args);
+    }
+
+    private static object? TypedArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not TypedArrayBase typed)
+        {
+            throw ThrowTypeError("TypedArray.prototype.lastIndexOf called on incompatible receiver");
+        }
+
+        return TypedArrayBase.LastIndexOfInternal(typed, args);
+    }
+
+    private static object? TypedArrayIncludes(object? thisValue, IReadOnlyList<object?> args)
+    {
+        if (thisValue is not TypedArrayBase typed)
+        {
+            throw ThrowTypeError("TypedArray.prototype.includes called on incompatible receiver");
+        }
+
+        return TypedArrayBase.IncludesInternal(typed, args);
     }
 }

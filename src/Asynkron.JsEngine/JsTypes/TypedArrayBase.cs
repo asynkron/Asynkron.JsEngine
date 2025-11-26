@@ -316,8 +316,8 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var len = target.Length;
-        if (len <= 0)
+        var initialLength = target.Length;
+        if (initialLength <= 0)
         {
             return -1d;
         }
@@ -325,6 +325,13 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
         if (target.IsDetachedOrOutOfBounds())
+        {
+            return -1d;
+        }
+
+        var currentLength = target.Length;
+        var len = Math.Min(initialLength, currentLength);
+        if (len <= 0)
         {
             return -1d;
         }
@@ -386,8 +393,8 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var len = target.Length;
-        if (len <= 0)
+        var initialLength = target.Length;
+        if (initialLength <= 0)
         {
             return false;
         }
@@ -395,6 +402,13 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
         if (target.IsDetachedOrOutOfBounds())
+        {
+            return false;
+        }
+
+        var currentLength = target.Length;
+        var len = Math.Min(initialLength, currentLength);
+        if (len <= 0)
         {
             return false;
         }
@@ -456,15 +470,22 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var len = target.Length;
-        if (len <= 0)
+        var initialLength = target.Length;
+        if (initialLength <= 0)
         {
             return -1d;
         }
 
-        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : len - 1;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : initialLength - 1;
 
         if (target.IsDetachedOrOutOfBounds())
+        {
+            return -1d;
+        }
+
+        var currentLength = target.Length;
+        var len = Math.Min(initialLength, currentLength);
+        if (len <= 0)
         {
             return -1d;
         }

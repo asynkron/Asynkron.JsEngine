@@ -2656,9 +2656,14 @@ public static class TypedAstEvaluator
                 continue;
             }
 
-            array.Push(element.Expression is null
-                ? JsSymbols.Undefined
-                : EvaluateExpression(element.Expression, environment, context));
+            if (element.Expression is null)
+            {
+                array.PushHole();
+            }
+            else
+            {
+                array.Push(EvaluateExpression(element.Expression, environment, context));
+            }
             if (context.ShouldStopEvaluation)
             {
                 return JsSymbols.Undefined;

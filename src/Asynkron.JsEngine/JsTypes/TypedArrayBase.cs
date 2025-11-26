@@ -17,7 +17,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     protected readonly int _bytesPerElement;
     private readonly HostFunction _indexOfFunction;
     private readonly HostFunction _includesFunction;
-    protected readonly int _length;
+    protected int _length;
 
     private readonly JsObject _properties = new();
     private readonly HostFunction _setFunction;
@@ -109,12 +109,12 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     /// <summary>
     ///     Gets the length in bytes of the typed array.
     /// </summary>
-    public int ByteLength => _length * _bytesPerElement;
+    public int ByteLength => Length * _bytesPerElement;
 
     /// <summary>
     ///     Gets the number of elements in the typed array.
     /// </summary>
-    public int Length => _length;
+    public virtual int Length => _length;
 
     /// <summary>
     ///     Gets the size in bytes of each element in the array.
@@ -170,15 +170,28 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
                 return true;
         }
 
-        if (TryParseIndex(name, out var index) && index >= 0 && index < Length)
+        if (TryParseIndex(name, out var index))
         {
-            if (IsDetachedOrOutOfBounds())
+            if (index >= 0 && index < Length)
             {
-                throw CreateOutOfBoundsTypeError();
+                if (_buffer.IsDetached)
+                {
+                    value = null;
+                    return false;
+                }
+
+                if (IsDetachedOrOutOfBounds())
+                {
+                    value = null;
+                    return false;
+                }
+
+                value = GetValueForIndex(index);
+                return true;
             }
 
-            value = GetValueForIndex(index);
-            return true;
+            value = null;
+            return false;
         }
 
         value = null;

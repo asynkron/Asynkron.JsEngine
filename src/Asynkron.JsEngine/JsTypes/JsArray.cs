@@ -64,6 +64,12 @@ public sealed class JsArray : IJsObjectLike
         _properties.SetPrototype(candidate);
     }
 
+    public void PushHole()
+    {
+        _items.Add(ArrayHole);
+        _length++;
+    }
+
     public JsObject? Prototype
     {
         get
@@ -104,6 +110,7 @@ public sealed class JsArray : IJsObjectLike
                 return true;
             }
 
+            // For holes, continue lookup on the prototype chain.
             return _properties.TryGetProperty(name, this, out value);
         }
 
@@ -287,6 +294,9 @@ public sealed class JsArray : IJsObjectLike
                 value = item;
                 return true;
             }
+
+            value = null;
+            return false;
         }
 
         if (_sparseItems is not null && _sparseItems.TryGetValue(index, out value))

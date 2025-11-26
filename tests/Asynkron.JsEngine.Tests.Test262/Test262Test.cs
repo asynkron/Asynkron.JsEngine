@@ -75,8 +75,26 @@ public abstract partial class Test262Test
             // detachArrayBuffer function - placeholder implementation
             ["detachArrayBuffer"] = new HostFunction(args =>
             {
-                // TODO: Implement proper ArrayBuffer detachment if needed
-                return null;
+                if (args.Count == 0)
+                {
+                    return Symbols.Undefined;
+                }
+
+                switch (args[0])
+                {
+                    case TypedArrayBase view:
+                        view.Buffer.Detach();
+                        break;
+                    case JsArrayBuffer buffer:
+                        buffer.Detach();
+                        break;
+                    case IJsPropertyAccessor accessor when accessor.TryGetProperty("buffer", out var inner) &&
+                                                          inner is JsArrayBuffer innerBuffer:
+                        innerBuffer.Detach();
+                        break;
+                }
+
+                return Symbols.Undefined;
             }),
 
             // Host hook for resizable ArrayBuffers

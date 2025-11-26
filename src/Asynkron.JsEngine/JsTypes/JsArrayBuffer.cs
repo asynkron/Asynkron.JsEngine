@@ -174,7 +174,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
         Buffer = newBuffer;
     }
 
-    internal void Detach()
+    public void Detach()
     {
         Buffer = Array.Empty<byte>();
         IsDetached = true;

@@ -536,18 +536,14 @@ public static partial class StandardLibrary
     private static object? ArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
-        var typed = accessor as TypedArrayBase;
-        if (typed is not null && typed.IsDetachedOrOutOfBounds())
+        if (accessor is TypedArrayBase typed)
         {
-            return -1d;
+            return TypedArrayBase.LastIndexOfInternal(typed, args);
         }
 
         var evalContext = realm is not null ? new EvaluationContext(realm) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var initialLength = typed is not null
-            ? (double)typed.Length
-            : accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
-        var length = initialLength;
+        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
         if (length <= 0)
         {
             return -1d;
@@ -556,29 +552,7 @@ public static partial class StandardLibrary
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : length - 1;
         var lenLong = (long)Math.Min(length, 9007199254740991d);
 
-        if (typed is not null)
-        {
-            if (typed.IsDetachedOrOutOfBounds())
-            {
-                return -1d;
-            }
-
-            var currentLength = (double)typed.Length;
-            if (typed.IsDetachedOrOutOfBounds())
-            {
-                return -1d;
-            }
-
-            length = Math.Min(initialLength, currentLength);
-            if (length <= 0)
-            {
-                return -1d;
-            }
-
-            lenLong = (long)Math.Min(length, 9007199254740991d);
-        }
-
-        long startIndex;
+        long startIndexGeneric;
         if (double.IsNegativeInfinity(fromIndex))
         {
             return -1d;
@@ -586,11 +560,11 @@ public static partial class StandardLibrary
 
         if (double.IsPositiveInfinity(fromIndex))
         {
-            startIndex = lenLong - 1;
+            startIndexGeneric = lenLong - 1;
         }
         else if (fromIndex >= 0)
         {
-            startIndex = (long)Math.Min(fromIndex, lenLong - 1);
+            startIndexGeneric = (long)Math.Min(fromIndex, lenLong - 1);
         }
         else
         {
@@ -600,15 +574,10 @@ public static partial class StandardLibrary
                 return -1d;
             }
 
-            startIndex = candidate;
+            startIndexGeneric = candidate;
         }
 
-        if (accessor is TypedArrayBase taAfterIndex && taAfterIndex.IsDetachedOrOutOfBounds())
-        {
-            return -1d;
-        }
-
-        for (var i = startIndex; i >= 0; i--)
+        for (var i = startIndexGeneric; i >= 0; i--)
         {
             var key = i.ToString(CultureInfo.InvariantCulture);
             if (accessor.TryGetProperty(key, out var value) && AreStrictlyEqual(value, searchElement))

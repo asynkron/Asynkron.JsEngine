@@ -316,43 +316,46 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var initialLength = target.Length;
-        if (initialLength <= 0)
+        var len = target.Length;
+        if (len <= 0)
         {
             return -1d;
         }
 
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
-        if (target._buffer.IsDetached || target.IsDetachedOrOutOfBounds())
+        if (target.IsDetachedOrOutOfBounds())
         {
             return -1d;
         }
 
-        var currentLength = target.Length;
-        var len = target._isLengthTracking ? currentLength : Math.Min(initialLength, currentLength);
-        if (len <= 0)
-        {
-            return -1d;
-        }
-
+        double startIndexNumber;
         if (double.IsPositiveInfinity(fromIndex))
         {
             return -1d;
         }
 
-        if (fromIndex < 0)
+        if (double.IsNegativeInfinity(fromIndex))
         {
-            fromIndex = Math.Max(len + Math.Ceiling(fromIndex), 0);
+            startIndexNumber = 0;
+        }
+        else if (fromIndex < 0)
+        {
+            startIndexNumber = Math.Max(len + Math.Ceiling(fromIndex), 0);
         }
         else
         {
-            fromIndex = Math.Min(fromIndex, len);
+            startIndexNumber = Math.Min(fromIndex, len);
         }
 
-        var start = (int)fromIndex;
+        var start = (int)startIndexNumber;
         for (var i = start; i < len; i++)
         {
+            if (target.IsDetachedOrOutOfBounds())
+            {
+                return -1d;
+            }
+
             if (i >= target.Length)
             {
                 continue;
@@ -383,22 +386,15 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var initialLength = target.Length;
-        if (initialLength <= 0)
+        var len = target.Length;
+        if (len <= 0)
         {
             return false;
         }
 
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
-        if (target._buffer.IsDetached || target.IsDetachedOrOutOfBounds())
-        {
-            return false;
-        }
-
-        var currentLength = target.Length;
-        var len = target._isLengthTracking ? currentLength : Math.Min(initialLength, currentLength);
-        if (len <= 0)
+        if (target.IsDetachedOrOutOfBounds())
         {
             return false;
         }
@@ -408,18 +404,28 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
             return false;
         }
 
-        if (fromIndex < 0)
+        double startIndexNumber;
+        if (double.IsNegativeInfinity(fromIndex))
         {
-            fromIndex = Math.Max(len + Math.Ceiling(fromIndex), 0);
+            startIndexNumber = 0;
+        }
+        else if (fromIndex < 0)
+        {
+            startIndexNumber = Math.Max(len + Math.Ceiling(fromIndex), 0);
         }
         else
         {
-            fromIndex = Math.Min(fromIndex, len);
+            startIndexNumber = Math.Min(fromIndex, len);
         }
 
-        var start = (int)fromIndex;
+        var start = (int)startIndexNumber;
         for (var i = start; i < len; i++)
         {
+            if (target.IsDetachedOrOutOfBounds())
+            {
+                return false;
+            }
+
             if (i >= target.Length)
             {
                 continue;
@@ -450,22 +456,15 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var initialLength = target.Length;
-        if (initialLength <= 0)
-        {
-            return -1d;
-        }
-
-        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : initialLength - 1;
-
-        if (target._buffer.IsDetached || target.IsDetachedOrOutOfBounds())
-        {
-            return -1d;
-        }
-
-        var currentLength = target.Length;
-        var len = target._isLengthTracking ? currentLength : Math.Min(initialLength, currentLength);
+        var len = target.Length;
         if (len <= 0)
+        {
+            return -1d;
+        }
+
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : len - 1;
+
+        if (target.IsDetachedOrOutOfBounds())
         {
             return -1d;
         }
@@ -496,6 +495,11 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         for (var i = startIndex; i >= 0; i--)
         {
+            if (target.IsDetachedOrOutOfBounds())
+            {
+                return -1d;
+            }
+
             var loopLength = target.Length;
             if (i >= loopLength)
             {

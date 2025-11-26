@@ -30,9 +30,9 @@ public static partial class StandardLibrary
             proto.SetHostedProperty("reduceRight",
                 (thisValue, reduceArgs, realmState) =>
                     ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true), realm);
-            proto.SetHostedProperty("indexOf", TypedArrayIndexOf);
-            proto.SetHostedProperty("lastIndexOf", TypedArrayLastIndexOf);
-            proto.SetHostedProperty("includes", TypedArrayIncludes);
+            proto.SetHostedProperty("indexOf", TypedArrayIndexOf, realm);
+            proto.SetHostedProperty("lastIndexOf", TypedArrayLastIndexOf, realm);
+            proto.SetHostedProperty("includes", TypedArrayIncludes, realm);
 
             realm.TypedArrayPrototype = proto;
         }
@@ -592,31 +592,31 @@ public static partial class StandardLibrary
         return args[0] is TypedArrayBase || args[0] is JsDataView;
     }
 
-    private static object? TypedArrayIndexOf(object? thisValue, IReadOnlyList<object?> args)
+    private static object? TypedArrayIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
-            throw ThrowTypeError("TypedArray.prototype.indexOf called on incompatible receiver");
+            throw ThrowTypeError("TypedArray.prototype.indexOf called on incompatible receiver", realm: realm);
         }
 
         return TypedArrayBase.IndexOfInternal(typed, args);
     }
 
-    private static object? TypedArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args)
+    private static object? TypedArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
-            throw ThrowTypeError("TypedArray.prototype.lastIndexOf called on incompatible receiver");
+            throw ThrowTypeError("TypedArray.prototype.lastIndexOf called on incompatible receiver", realm: realm);
         }
 
         return TypedArrayBase.LastIndexOfInternal(typed, args);
     }
 
-    private static object? TypedArrayIncludes(object? thisValue, IReadOnlyList<object?> args)
+    private static object? TypedArrayIncludes(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
-            throw ThrowTypeError("TypedArray.prototype.includes called on incompatible receiver");
+            throw ThrowTypeError("TypedArray.prototype.includes called on incompatible receiver", realm: realm);
         }
 
         return TypedArrayBase.IncludesInternal(typed, args);

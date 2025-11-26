@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Represents a JavaScript Set collection.
 ///     Sets store unique values of any type and remember the original insertion order.
 /// </summary>
-public sealed class JsSet : IJsPropertyAccessor
+public sealed class JsSet : IJsObjectLike
 {
     private readonly JsObject _properties = new();
 
@@ -31,6 +31,32 @@ public sealed class JsSet : IJsPropertyAccessor
     public void SetProperty(string name, object? value)
     {
         _properties.SetProperty(name, value);
+    }
+
+    public JsObject? Prototype => _properties.Prototype;
+
+    public bool IsSealed => _properties.IsSealed;
+
+    IEnumerable<string> IJsObjectLike.Keys => _properties.Keys;
+
+    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        _properties.DefineProperty(name, descriptor);
+    }
+
+    public void SetPrototype(object? candidate)
+    {
+        _properties.SetPrototype(candidate);
+    }
+
+    public void Seal()
+    {
+        _properties.Seal();
+    }
+
+    public bool Delete(string name)
+    {
+        return _properties.DeleteOwnProperty(name);
     }
 
     /// <summary>

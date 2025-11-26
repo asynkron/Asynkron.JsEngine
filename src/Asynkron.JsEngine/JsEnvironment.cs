@@ -551,7 +551,6 @@ public sealed class JsEnvironment
     {
         var frames = new List<CallStackFrame>();
         var current = this;
-        var depth = 0;
         var iterations = 0;
         const int maxIterations = 100; // Prevent infinite loops
 
@@ -568,10 +567,8 @@ public sealed class JsEnvironment
                     operationType,
                     description,
                     current._creatingSource,
-                    depth
+                    current.Depth
                 ));
-
-                depth++;
             }
 
             // Follow the enclosing chain (lexical scope chain)

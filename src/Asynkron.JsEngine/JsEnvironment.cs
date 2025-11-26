@@ -15,6 +15,9 @@ public sealed class JsEnvironment
     private readonly string? _description;
     private readonly JsEnvironment? _enclosing;
     private readonly bool _isFunctionScope;
+    private readonly bool _isParameterEnvironment;
+    private HashSet<Symbol>? _bodyLexicalNames;
+    private readonly bool _isBodyEnvironment;
     private readonly JsObject? _withObject;
 
     private readonly Dictionary<Symbol, Binding> _values = new();
@@ -26,7 +29,9 @@ public sealed class JsEnvironment
         bool isStrict = false,
         SourceReference? creatingSource = null,
         string? description = null,
-        JsObject? withObject = null)
+        JsObject? withObject = null,
+        bool isParameterEnvironment = false,
+        bool isBodyEnvironment = false)
     {
         _enclosing = enclosing;
         _isFunctionScope = isFunctionScope;
@@ -34,6 +39,8 @@ public sealed class JsEnvironment
         _description = description;
         IsStrictLocal = isStrict;
         _withObject = withObject;
+        _isParameterEnvironment = isParameterEnvironment;
+        _isBodyEnvironment = isBodyEnvironment;
 
         Depth = (_enclosing?.Depth ?? -1) + 1;
         if (Depth > MaxDepth)
@@ -201,6 +208,11 @@ public sealed class JsEnvironment
             return binding.Value;
         }
 
+        if (_withObject is not null && TryGetFromWith(_withObject, name, out var withValue))
+        {
+            return withValue;
+        }
+
         if (_enclosing is not null)
         {
             return _enclosing.Get(name);
@@ -245,6 +257,69 @@ public sealed class JsEnvironment
 
         return _enclosing?.HasBinding(name) ?? false;
     }
+
+    internal bool HasLexicalBinding(Symbol name)
+    {
+        if (_values.TryGetValue(name, out var binding) && binding.IsLexical)
+        {
+            return true;
+        }
+
+        return _enclosing?.HasLexicalBinding(name) ?? false;
+    }
+
+    internal bool HasBindingBeforeFunctionScope(Symbol name)
+    {
+        var current = this;
+        while (current is not null && !current._isFunctionScope)
+        {
+            if (current._withObject is null && current._values.ContainsKey(name))
+            {
+                return true;
+            }
+
+            if (current._isFunctionScope && !current._isParameterEnvironment)
+            {
+                break;
+            }
+
+            current = current._enclosing;
+        }
+
+        return false;
+    }
+
+    internal bool HasLexicalBindingBeforeFunctionScope(Symbol name)
+    {
+        var current = this;
+        while (current is not null && !current._isFunctionScope)
+        {
+            if (current._values.TryGetValue(name, out var binding) &&
+                binding.IsLexical)
+            {
+                return true;
+            }
+
+            current = current._enclosing;
+        }
+
+        return false;
+    }
+
+    internal bool IsParameterEnvironment => _isParameterEnvironment;
+    internal bool IsBodyEnvironment => _isBodyEnvironment;
+
+    internal void SetBodyLexicalNames(HashSet<Symbol> names)
+    {
+        _bodyLexicalNames = names;
+    }
+
+    internal bool HasBodyLexicalName(Symbol name)
+    {
+        return _bodyLexicalNames is not null && _bodyLexicalNames.Contains(name);
+    }
+
+    internal JsEnvironment? Enclosing => _enclosing;
 
     public bool TryGet(Symbol name, out object? value)
     {

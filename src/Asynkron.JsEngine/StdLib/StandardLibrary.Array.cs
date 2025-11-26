@@ -536,13 +536,14 @@ public static partial class StandardLibrary
     private static object? ArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
+        var evalContext = realm is not null ? new EvaluationContext(realm) : null;
+        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
         if (accessor is TypedArrayBase typed)
         {
+            // Align Array.prototype.lastIndexOf with TypedArray semantics.
             return TypedArrayBase.LastIndexOfInternal(typed, args);
         }
 
-        var evalContext = realm is not null ? new EvaluationContext(realm) : null;
-        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
         if (length <= 0)
         {

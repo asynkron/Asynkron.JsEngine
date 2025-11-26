@@ -21,6 +21,7 @@ public static partial class StandardLibrary
         symbolConstructor.SetProperty("asyncIterator", TypedAstSymbol.For("Symbol.asyncIterator"));
         symbolConstructor.SetProperty("toPrimitive", TypedAstSymbol.For("Symbol.toPrimitive"));
         symbolConstructor.SetProperty("toStringTag", TypedAstSymbol.For("Symbol.toStringTag"));
+        symbolConstructor.SetProperty("unscopables", TypedAstSymbol.For("Symbol.unscopables"));
 
         return symbolConstructor;
 

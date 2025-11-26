@@ -8,9 +8,9 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Abstract base class for all JavaScript typed arrays.
 ///     Provides shared logic for property access so the evaluator
-///     can treat typed arrays like regular <see cref="IJsPropertyAccessor" /> instances.
+///     can treat typed arrays like regular <see cref="IJsObjectLike" /> instances.
 /// </summary>
-public abstract class TypedArrayBase : IJsPropertyAccessor
+public abstract class TypedArrayBase : IJsObjectLike
 {
     protected readonly JsArrayBuffer _buffer;
     protected readonly int _byteOffset;
@@ -157,6 +157,10 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     public int BytesPerElement => _bytesPerElement;
 
     public JsObject? Prototype => _properties.Prototype;
+
+    public bool IsSealed => _properties.IsSealed;
+
+    public IEnumerable<string> Keys => _properties.Keys;
 
     /// <summary>
     ///     True when this typed array stores BigInt elements.
@@ -316,6 +320,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+        // Snapshot the length before coercion, as required by the spec.
         var initialLength = target.Length;
         if (initialLength <= 0)
         {
@@ -330,7 +335,8 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         }
 
         var currentLength = target.Length;
-        var len = Math.Min(initialLength, currentLength);
+        // Length-tracking views use the pre-coercion length; fixed views clamp to current.
+        var len = target._isLengthTracking ? initialLength : Math.Min(initialLength, currentLength);
         if (len <= 0)
         {
             return -1d;
@@ -407,7 +413,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         }
 
         var currentLength = target.Length;
-        var len = Math.Min(initialLength, currentLength);
+        var len = target._isLengthTracking ? initialLength : Math.Min(initialLength, currentLength);
         if (len <= 0)
         {
             return false;
@@ -484,7 +490,7 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         }
 
         var currentLength = target.Length;
-        var len = Math.Min(initialLength, currentLength);
+        var len = target._isLengthTracking ? initialLength : Math.Min(initialLength, currentLength);
         if (len <= 0)
         {
             return -1d;
@@ -549,6 +555,21 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     public void SetPrototype(object? candidate)
     {
         _properties.SetPrototype(candidate);
+    }
+
+    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        _properties.DefineProperty(name, descriptor);
+    }
+
+    public void Seal()
+    {
+        _properties.Seal();
+    }
+
+    public bool Delete(string name)
+    {
+        return _properties.DeleteOwnProperty(name);
     }
 
     /// <summary>

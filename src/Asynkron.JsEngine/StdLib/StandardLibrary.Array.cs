@@ -536,14 +536,18 @@ public static partial class StandardLibrary
     private static object? ArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
-        if (accessor is TypedArrayBase ta && ta.IsDetachedOrOutOfBounds())
+        var typed = accessor as TypedArrayBase;
+        if (typed is not null && typed.IsDetachedOrOutOfBounds())
         {
             return -1d;
         }
 
         var evalContext = realm is not null ? new EvaluationContext(realm) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
+        var initialLength = typed is not null
+            ? (double)typed.Length
+            : accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
+        var length = initialLength;
         if (length <= 0)
         {
             return -1d;
@@ -551,6 +555,28 @@ public static partial class StandardLibrary
 
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : length - 1;
         var lenLong = (long)Math.Min(length, 9007199254740991d);
+
+        if (typed is not null)
+        {
+            if (typed.IsDetachedOrOutOfBounds())
+            {
+                return -1d;
+            }
+
+            var currentLength = (double)typed.Length;
+            if (typed.IsDetachedOrOutOfBounds())
+            {
+                return -1d;
+            }
+
+            length = Math.Min(initialLength, currentLength);
+            if (length <= 0)
+            {
+                return -1d;
+            }
+
+            lenLong = (long)Math.Min(length, 9007199254740991d);
+        }
 
         long startIndex;
         if (double.IsNegativeInfinity(fromIndex))

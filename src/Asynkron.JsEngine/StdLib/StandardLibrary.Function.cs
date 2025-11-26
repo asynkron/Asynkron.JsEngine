@@ -1,26 +1,54 @@
+using System.Globalization;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static IJsCallable CreateFunctionConstructor(RealmState realm)
+    public static IJsCallable CreateFunctionConstructor(RealmState realm, JsEngine engine)
     {
-        // Minimal Function constructor: for now we ignore the body and
-        // arguments and just return a no-op function value.
         HostFunction functionConstructor = null!;
 
-        functionConstructor = new HostFunction((thisValue, _) =>
+        functionConstructor = new HostFunction((_, args) =>
         {
-            var realm = functionConstructor.Realm ?? thisValue as JsObject;
-            return new HostFunction((_, _) => Symbols.Undefined)
+            var evalContext = new EvaluationContext(realm);
+            var argCount = args.Count;
+            var bodyValue = argCount > 0 ? args[argCount - 1] : string.Empty;
+            var parameterCount = Math.Max(argCount - 1, 0);
+
+            var parameters = new string[parameterCount];
+            for (var i = 0; i < parameterCount; i++)
             {
-                Realm = realm, RealmState = functionConstructor.RealmState
-            };
-        });
-        functionConstructor.RealmState = realm;
+                parameters[i] = ToFunctionArgumentString(args[i], evalContext, realm);
+            }
+
+            var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
+            var functionSource = $"(function({string.Join(",", parameters)}){{{bodySource}}})";
+
+            ParsedProgram program;
+            try
+            {
+                program = engine.ParseForExecution(functionSource);
+            }
+            catch (ParseException parseException)
+            {
+                var message = parseException.Message ?? "SyntaxError";
+                throw new ThrowSignal(CreateSyntaxError(message, evalContext, realm));
+            }
+
+            return engine.ExecuteProgram(
+                program,
+                engine.GlobalEnvironment,
+                System.Threading.CancellationToken.None,
+                ExecutionKind.Script);
+        })
+        {
+            RealmState = realm
+        };
 
         // Function.call: when used as `fn.call(thisArg, ...args)` the
         // target function is `fn` (the `this` value). We implement this
@@ -139,6 +167,42 @@ public static partial class StandardLibrary
                 IJsCallable => "function() { [native code] }",
                 _ => "function undefined() { [native code] }"
             };
+        }
+
+        static string ToFunctionArgumentString(object? value, EvaluationContext evalContext, RealmState realmState)
+        {
+            var primitive = JsOps.ToPrimitive(value, "string", evalContext);
+            if (evalContext.IsThrow)
+            {
+                throw new ThrowSignal(evalContext.FlowValue);
+            }
+
+            switch (primitive)
+            {
+                case null:
+                    return "null";
+                case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
+                    return "undefined";
+                case Symbol:
+                case TypedAstSymbol:
+                    throw ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realmState);
+                case bool flag:
+                    return flag ? "true" : "false";
+                case string s:
+                    return s;
+                case JsBigInt bigInt:
+                    return bigInt.Value.ToString(CultureInfo.InvariantCulture);
+                case double d when double.IsNaN(d):
+                    return "NaN";
+                case double d when double.IsPositiveInfinity(d):
+                    return "Infinity";
+                case double d when double.IsNegativeInfinity(d):
+                    return "-Infinity";
+                case double d:
+                    return d.ToString(CultureInfo.InvariantCulture);
+            }
+
+            return Convert.ToString(primitive, CultureInfo.InvariantCulture) ?? string.Empty;
         }
     }
 }

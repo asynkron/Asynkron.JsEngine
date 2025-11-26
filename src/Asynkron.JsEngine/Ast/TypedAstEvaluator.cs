@@ -2201,11 +2201,11 @@ public static class TypedAstEvaluator
 
         object? callResult = JsSymbols.Undefined;
         try
-        {
-            if (callable is TypedFunction typedFunction)
             {
-                callResult = typedFunction.InvokeWithContext(frozenArguments, thisValue, context);
-            }
+                if (callable is TypedFunction typedFunction)
+                {
+                    callResult = typedFunction.InvokeWithContext(frozenArguments, thisValue, context);
+                }
             else
             {
                 callResult = callable.Invoke(frozenArguments, thisValue);
@@ -2213,6 +2213,20 @@ public static class TypedAstEvaluator
 
             if (expression.Callee is SuperExpression)
             {
+                var thisAfterSuper = callResult;
+                if (callResult is not IJsPropertyAccessor && callResult is not IJsCallable)
+                {
+                    thisAfterSuper = thisValue;
+                }
+
+                environment.Assign(JsSymbols.This, thisAfterSuper);
+
+                if (environment.TryGet(JsSymbols.Super, out var superBinding) && superBinding is SuperBinding binding)
+                {
+                    environment.Assign(JsSymbols.Super,
+                        new SuperBinding(binding.Constructor, binding.Prototype, thisAfterSuper));
+                }
+
                 context.MarkThisInitialized();
             }
         }
@@ -7468,6 +7482,11 @@ public static class TypedAstEvaluator
                 {
                     if (!context.IsReturn)
                     {
+                        if (_isClassConstructor && environment.TryGet(JsSymbols.This, out var currentThis))
+                        {
+                            return currentThis;
+                        }
+
                         return JsSymbols.Undefined;
                     }
 

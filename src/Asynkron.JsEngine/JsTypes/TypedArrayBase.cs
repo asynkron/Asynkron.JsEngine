@@ -116,12 +116,40 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
     /// <summary>
     ///     Gets the length in bytes of the typed array.
     /// </summary>
-    public int ByteLength => Length * _bytesPerElement;
+    public int ByteLength
+    {
+        get
+        {
+            if (_buffer.IsDetached || IsDetachedOrOutOfBounds())
+            {
+                return 0;
+            }
+
+            if (_isLengthTracking)
+            {
+                var availableBytes = Math.Max(_buffer.ByteLength - _byteOffset, 0);
+                return availableBytes - availableBytes % _bytesPerElement;
+            }
+
+            return _initialLength * _bytesPerElement;
+        }
+    }
 
     /// <summary>
     ///     Gets the number of elements in the typed array.
     /// </summary>
-    public virtual int Length => GetCurrentLength();
+    public virtual int Length
+    {
+        get
+        {
+            if (IsDetachedOrOutOfBounds())
+            {
+                return 0;
+            }
+
+            return GetCurrentLength();
+        }
+    }
 
     /// <summary>
     ///     Gets the size in bytes of each element in the array.
@@ -142,21 +170,10 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
             return 0;
         }
 
-        var availableBytes = _buffer.ByteLength - _byteOffset;
-        if (availableBytes <= 0)
-        {
-            return 0;
-        }
-
         if (_isLengthTracking)
         {
+            var availableBytes = Math.Max(_buffer.ByteLength - _byteOffset, 0);
             return availableBytes / _bytesPerElement;
-        }
-
-        var requiredBytes = _initialLength * _bytesPerElement;
-        if (availableBytes < requiredBytes)
-        {
-            return 0;
         }
 
         return _initialLength;
@@ -292,18 +309,29 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
     internal static object IndexOfInternal(TypedArrayBase target, IReadOnlyList<object?> args)
     {
-        var wasDetached = target._buffer.IsDetached;
-        if (wasDetached || target.IsDetachedOrOutOfBounds())
+        if (target.IsDetachedOrOutOfBounds())
         {
             throw target.CreateOutOfBoundsTypeError();
         }
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var len = target.Length;
+        var initialLength = target.Length;
+        if (initialLength <= 0)
+        {
+            return -1d;
+        }
+
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
-        if (!wasDetached && target._buffer.IsDetached)
+        if (target._buffer.IsDetached || target.IsDetachedOrOutOfBounds())
+        {
+            return -1d;
+        }
+
+        var currentLength = target.Length;
+        var len = target._isLengthTracking ? currentLength : Math.Min(initialLength, currentLength);
+        if (len <= 0)
         {
             return -1d;
         }
@@ -325,6 +353,11 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         var start = (int)fromIndex;
         for (var i = start; i < len; i++)
         {
+            if (i >= target.Length)
+            {
+                continue;
+            }
+
             object? element = target switch
             {
                 JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
@@ -343,18 +376,29 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
     internal static object IncludesInternal(TypedArrayBase target, IReadOnlyList<object?> args)
     {
-        var wasDetached = target._buffer.IsDetached;
-        if (wasDetached || target.IsDetachedOrOutOfBounds())
+        if (target.IsDetachedOrOutOfBounds())
         {
             throw target.CreateOutOfBoundsTypeError();
         }
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var len = target.Length;
+        var initialLength = target.Length;
+        if (initialLength <= 0)
+        {
+            return false;
+        }
+
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
-        if (!wasDetached && target._buffer.IsDetached)
+        if (target._buffer.IsDetached || target.IsDetachedOrOutOfBounds())
+        {
+            return false;
+        }
+
+        var currentLength = target.Length;
+        var len = target._isLengthTracking ? currentLength : Math.Min(initialLength, currentLength);
+        if (len <= 0)
         {
             return false;
         }
@@ -376,6 +420,11 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
         var start = (int)fromIndex;
         for (var i = start; i < len; i++)
         {
+            if (i >= target.Length)
+            {
+                continue;
+            }
+
             object? element = target switch
             {
                 JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
@@ -394,23 +443,29 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
     internal static object LastIndexOfInternal(TypedArrayBase target, IReadOnlyList<object?> args)
     {
-        var wasDetached = target._buffer.IsDetached;
-        if (wasDetached || target.IsDetachedOrOutOfBounds())
+        if (target.IsDetachedOrOutOfBounds())
         {
             throw target.CreateOutOfBoundsTypeError();
         }
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
         var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var len = target.Length;
-        if (len == 0)
+        var initialLength = target.Length;
+        if (initialLength <= 0)
         {
             return -1d;
         }
 
-        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : len - 1;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : initialLength - 1;
 
-        if (!wasDetached && target._buffer.IsDetached)
+        if (target._buffer.IsDetached || target.IsDetachedOrOutOfBounds())
+        {
+            return -1d;
+        }
+
+        var currentLength = target.Length;
+        var len = target._isLengthTracking ? currentLength : Math.Min(initialLength, currentLength);
+        if (len <= 0)
         {
             return -1d;
         }
@@ -441,6 +496,12 @@ public abstract class TypedArrayBase : IJsPropertyAccessor
 
         for (var i = startIndex; i >= 0; i--)
         {
+            var loopLength = target.Length;
+            if (i >= loopLength)
+            {
+                continue;
+            }
+
             object? element = target switch
             {
                 JsBigInt64Array bi64 => bi64.GetBigIntElement(i),

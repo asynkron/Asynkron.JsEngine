@@ -79,6 +79,14 @@ public abstract partial class Test262Test
                 return null;
             }),
 
+            // Host hook for resizable ArrayBuffers
+            ["createResizableArrayBuffer"] = new HostFunction(args =>
+            {
+                var length = args.Count > 0 && args[0] is double d ? (int)d : 0;
+                var max = args.Count > 1 && args[1] is double d2 ? (int)d2 : length;
+                return new JsArrayBuffer(length, max);
+            }),
+
             // gc function - triggers garbage collection
             ["gc"] = new HostFunction(args =>
             {

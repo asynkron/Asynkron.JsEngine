@@ -62,7 +62,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("console", StandardLibrary.CreateConsoleObject());
         SetGlobal("Math", StandardLibrary.CreateMathObject(RealmState));
         SetGlobal("Object", StandardLibrary.CreateObjectConstructor(RealmState));
-        SetGlobal("Function", StandardLibrary.CreateFunctionConstructor(RealmState));
+        SetGlobal("Function", StandardLibrary.CreateFunctionConstructor(RealmState, this));
         SetGlobal("Number", StandardLibrary.CreateNumberConstructor(RealmState));
         var bigIntFunction = StandardLibrary.CreateBigIntFunction(RealmState);
         SetGlobal("BigInt", bigIntFunction);
@@ -247,6 +247,8 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Exposes the global object for realm-like scenarios (e.g. Test262 realms).
     /// </summary>
     public JsObject GlobalObject { get; } = new();
+
+    internal JsEnvironment GlobalEnvironment => _global;
 
     internal RealmState RealmState { get; } = new();
 

@@ -667,7 +667,7 @@ public sealed class TypedAstParser(
             Consume(TokenType.LeftBrace, "Expected '{' after class name or extends clause.");
             var (constructor, members, fields) = ParseClassElements(className);
             Consume(TokenType.RightBrace, "Expected '}' after class body.");
-            var ctor = constructor ?? CreateDefaultConstructor(className);
+            var ctor = constructor ?? CreateDefaultConstructor(className, extendsExpression is not null);
             var source = CreateSourceReference(classToken);
             return new ClassDefinition(source, extendsExpression, ctor, members, fields);
         }
@@ -861,10 +861,24 @@ public sealed class TypedAstParser(
                 WasAsync: isAsync);
         }
 
-        private static FunctionExpression CreateDefaultConstructor(Symbol? className)
+        private static FunctionExpression CreateDefaultConstructor(Symbol? className, bool isDerived)
         {
-            var body = new BlockStatement(null, ImmutableArray<StatementNode>.Empty, false);
-            return new FunctionExpression(body.Source, className, ImmutableArray<FunctionParameter>.Empty, body, false,
+            if (!isDerived)
+            {
+                var emptyBody = new BlockStatement(null, ImmutableArray<StatementNode>.Empty, false);
+                return new FunctionExpression(emptyBody.Source, className, ImmutableArray<FunctionParameter>.Empty,
+                    emptyBody, false, false);
+            }
+
+            var argsSymbol = Symbol.Intern("args");
+            var restParameter =
+                new FunctionParameter(null, argsSymbol, true, null, null);
+            var callArguments =
+                ImmutableArray.Create(new CallArgument(null, new IdentifierExpression(null, argsSymbol), true));
+            var superCall = new CallExpression(null, new SuperExpression(null), callArguments, false);
+            var statements = ImmutableArray.Create<StatementNode>(new ExpressionStatement(null, superCall));
+            var body = new BlockStatement(null, statements, false);
+            return new FunctionExpression(body.Source, className, ImmutableArray.Create(restParameter), body, false,
                 false);
         }
 

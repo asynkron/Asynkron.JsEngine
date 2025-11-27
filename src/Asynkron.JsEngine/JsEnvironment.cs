@@ -190,32 +190,36 @@ public sealed class JsEnvironment
 
     public object? Get(Symbol name)
     {
-        if (_values.TryGetValue(name, out var binding))
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
         {
-            if (ReferenceEquals(binding.Value, Uninitialized))
+            if (current._values.TryGetValue(name, out var binding))
             {
-                throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                if (ReferenceEquals(binding.Value, Uninitialized))
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                }
+
+                if (current._enclosing is null &&
+                    current._values.TryGetValue(Symbols.This, out var thisBinding) &&
+                    thisBinding.Value is JsObject globalObject &&
+                    globalObject.TryGetProperty(name.Name, out var globalValue))
+                {
+                    return globalValue;
+                }
+
+                return binding.Value;
             }
 
-            if (_enclosing is null &&
-                _values.TryGetValue(Symbols.This, out var thisBinding) &&
-                thisBinding.Value is JsObject globalObject &&
-                globalObject.TryGetProperty(name.Name, out var globalValue))
+            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out var withValue))
             {
-                return globalValue;
+                return withValue;
             }
 
-            return binding.Value;
-        }
-
-        if (_withObject is not null && TryGetFromWith(_withObject, name, out var withValue))
-        {
-            return withValue;
-        }
-
-        if (_enclosing is not null)
-        {
-            return _enclosing.Get(name);
+            current = current._enclosing;
         }
 
         if (_values.TryGetValue(Symbols.This, out var rootThis) &&
@@ -323,34 +327,38 @@ public sealed class JsEnvironment
 
     public bool TryGet(Symbol name, out object? value)
     {
-        if (_values.TryGetValue(name, out var binding))
-        {
-            if (ReferenceEquals(binding.Value, Uninitialized))
-            {
-                throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
-            }
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
 
-            if (_enclosing is null &&
-                _values.TryGetValue(Symbols.This, out var thisBinding) &&
-                thisBinding.Value is JsObject globalObject &&
-                globalObject.TryGetProperty(name.Name, out var globalValue))
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (current._values.TryGetValue(name, out var binding))
             {
-                value = globalValue;
+                if (ReferenceEquals(binding.Value, Uninitialized))
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                }
+
+                if (current._enclosing is null &&
+                    current._values.TryGetValue(Symbols.This, out var thisBinding) &&
+                    thisBinding.Value is JsObject globalObject &&
+                    globalObject.TryGetProperty(name.Name, out var globalValue))
+                {
+                    value = globalValue;
+                    return true;
+                }
+
+                value = binding.Value;
                 return true;
             }
 
-            value = binding.Value;
-            return true;
-        }
+            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out value))
+            {
+                return true;
+            }
 
-        if (_withObject is not null && TryGetFromWith(_withObject, name, out value))
-        {
-            return true;
-        }
-
-        if (_enclosing is not null)
-        {
-            return _enclosing.TryGet(name, out value);
+            current = current._enclosing;
         }
 
         if (_values.TryGetValue(Symbols.This, out var rootThis) &&
@@ -361,6 +369,40 @@ public sealed class JsEnvironment
             return true;
         }
 
+        value = null;
+        return false;
+    }
+
+    internal bool TryFindBinding(Symbol name, out JsEnvironment environment, out object? value)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (current._values.TryGetValue(name, out var binding))
+            {
+                if (ReferenceEquals(binding.Value, Uninitialized))
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                }
+
+                environment = current;
+                value = binding.Value;
+                return true;
+            }
+
+            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out value))
+            {
+                environment = current;
+                return true;
+            }
+
+            current = current._enclosing;
+        }
+
+        environment = null!;
         value = null;
         return false;
     }

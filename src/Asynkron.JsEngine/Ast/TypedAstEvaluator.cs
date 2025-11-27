@@ -2224,13 +2224,27 @@ public static class TypedAstEvaluator
             newTargetForCall = inheritedNewTarget;
         }
 
+        SuperBinding? superBindingForCall = null;
+        if (expression.Callee is SuperExpression)
+        {
+            superBindingForCall = ExpectSuperBinding(environment, context);
+        }
+
+        JsEnvironment? thisInitializationEnvironment = null;
+        object? thisInitializationValue = null;
+        if (expression.Callee is SuperExpression &&
+            environment.TryFindBinding(JsSymbols.ThisInitialized, out var foundEnv, out var foundValue))
+        {
+            thisInitializationEnvironment = foundEnv;
+            thisInitializationValue = foundValue;
+        }
+
         try
         {
             if (expression.Callee is SuperExpression)
             {
-                var superEnvironment = environment.GetFunctionScope();
-                if (superEnvironment.TryGet(JsSymbols.ThisInitialized, out var superAlreadyInitialized) &&
-                    JsOps.ToBoolean(superAlreadyInitialized))
+                if ((superBindingForCall is not null && superBindingForCall.IsThisInitialized) ||
+                    (thisInitializationValue is not null && JsOps.ToBoolean(thisInitializationValue)))
                 {
                     throw StandardLibrary.ThrowReferenceError(
                         "Super constructor may only be called once.", context, context.RealmState);
@@ -2255,7 +2269,8 @@ public static class TypedAstEvaluator
                     thisAfterSuper = thisValue;
                 }
 
-                if (environment.TryGet(JsSymbols.ThisInitialized, out var alreadyInitialized) &&
+                if (thisInitializationEnvironment is not null &&
+                    thisInitializationEnvironment.TryGet(JsSymbols.ThisInitialized, out var alreadyInitialized) &&
                     JsOps.ToBoolean(alreadyInitialized))
                 {
                     throw StandardLibrary.ThrowReferenceError(
@@ -2266,12 +2281,14 @@ public static class TypedAstEvaluator
 
                 if (environment.TryGet(JsSymbols.Super, out var superBinding) && superBinding is SuperBinding binding)
                 {
+                    var constructorForSuper = superBindingForCall?.Constructor ?? binding.Constructor;
+                    var prototypeForSuper = superBindingForCall?.Prototype ?? binding.Prototype;
                     environment.Assign(JsSymbols.Super,
-                        new SuperBinding(binding.Constructor, binding.Prototype, thisAfterSuper));
+                        new SuperBinding(constructorForSuper, prototypeForSuper, thisAfterSuper, true));
                 }
 
                 context.MarkThisInitialized();
-                SetThisInitializationStatus(environment, context.IsThisInitialized);
+                SetThisInitializationStatus(thisInitializationEnvironment ?? environment, context.IsThisInitialized);
             }
         }
         catch (ThrowSignal signal)
@@ -3593,6 +3610,92 @@ public static class TypedAstEvaluator
         var names = new HashSet<Symbol>();
         CollectLexicalNamesFromStatement(block, names);
         return names;
+    }
+
+    private static bool HasHoistableDeclarations(BlockStatement block)
+    {
+        var stack = new Stack<StatementNode>();
+        stack.Push(block);
+
+        while (stack.Count > 0)
+        {
+            var statement = stack.Pop();
+            switch (statement)
+            {
+                case VariableDeclaration { Kind: VariableKind.Var }:
+                case FunctionDeclaration:
+                    return true;
+                case BlockStatement b:
+                    foreach (var inner in b.Statements)
+                    {
+                        stack.Push(inner);
+                    }
+
+                    break;
+                case IfStatement ifStatement:
+                    stack.Push(ifStatement.Then);
+                    if (ifStatement.Else is { } elseBranch)
+                    {
+                        stack.Push(elseBranch);
+                    }
+
+                    break;
+                case WhileStatement whileStatement:
+                    stack.Push(whileStatement.Body);
+                    break;
+                case DoWhileStatement doWhileStatement:
+                    stack.Push(doWhileStatement.Body);
+                    break;
+                case WithStatement withStatement:
+                    stack.Push(withStatement.Body);
+                    break;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var })
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Body is not null)
+                    {
+                        stack.Push(forStatement.Body);
+                    }
+
+                    break;
+                case ForEachStatement forEachStatement:
+                    if (forEachStatement.DeclarationKind == VariableKind.Var)
+                    {
+                        return true;
+                    }
+
+                    stack.Push(forEachStatement.Body);
+                    break;
+                case LabeledStatement labeled:
+                    stack.Push(labeled.Statement);
+                    break;
+                case TryStatement tryStatement:
+                    stack.Push(tryStatement.TryBlock);
+                    if (tryStatement.Catch is { } catchClause)
+                    {
+                        stack.Push(catchClause.Body);
+                    }
+
+                    if (tryStatement.Finally is { } finallyBlock)
+                    {
+                        stack.Push(finallyBlock);
+                    }
+
+                    break;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        stack.Push(switchCase.Body);
+                    }
+
+                    break;
+            }
+        }
+
+        return false;
     }
 
     private static void CollectLexicalNamesFromStatement(StatementNode statement, HashSet<Symbol> names)
@@ -5255,6 +5358,14 @@ public static class TypedAstEvaluator
         if (environment.HasBinding(JsSymbols.ThisInitialized))
         {
             environment.Assign(JsSymbols.ThisInitialized, initialized);
+            if (initialized &&
+                environment.TryGet(JsSymbols.Super, out var superBinding) &&
+                superBinding is SuperBinding binding &&
+                !binding.IsThisInitialized)
+            {
+                environment.Assign(JsSymbols.Super,
+                    new SuperBinding(binding.Constructor, binding.Prototype, binding.ThisValue, true));
+            }
             return;
         }
 
@@ -7385,6 +7496,8 @@ public static class TypedAstEvaluator
         private readonly bool _isAsyncFunction;
         private readonly bool _wasAsyncFunction;
         private readonly bool _isArrowFunction;
+        private readonly Symbol[] _bodyLexicalNames;
+        private readonly bool _hasHoistableDeclarations;
         private readonly object? _lexicalThis;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
@@ -7411,6 +7524,8 @@ public static class TypedAstEvaluator
             _isAsyncFunction = function.IsAsync;
             _wasAsyncFunction = function.WasAsync;
             _isArrowFunction = function.IsArrow;
+            _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
+            _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
             if (_isArrowFunction && _closure.TryGet(JsSymbols.This, out var capturedThis))
             {
                 _lexicalThis = capturedThis;
@@ -7483,19 +7598,35 @@ public static class TypedAstEvaluator
             }
             var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
             var hasParameterExpressions = HasParameterExpressions(_function);
-            var lexicalNames = CollectLexicalNames(_function.Body);
-            var functionEnvironment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source,
-                description);
-            functionEnvironment.SetBodyLexicalNames(lexicalNames);
-            var parameterEnvironment = hasParameterExpressions
-                ? new JsEnvironment(functionEnvironment, false, _function.Body.IsStrict, _function.Source, description,
-                    isParameterEnvironment: true)
-                : functionEnvironment;
-            if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
+            var lexicalNames = _bodyLexicalNames.Length == 0
+                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+                : new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+
+            // When parameter expressions are present, the parameter environment must sit
+            // *outside* the var environment so defaults cannot observe var bindings from
+            // the body (per FunctionDeclarationInstantiation step 27). Keep the var
+            // environment as the function scope so hoisted vars/arguments/this live
+            // there, with the parameter scope as its outer environment.
+            JsEnvironment parameterEnvironment;
+            JsEnvironment functionEnvironment;
+            if (hasParameterExpressions)
             {
+                parameterEnvironment = new JsEnvironment(_closure, false, _function.Body.IsStrict, _function.Source,
+                    description, isParameterEnvironment: true);
                 parameterEnvironment.SetBodyLexicalNames(lexicalNames);
+                functionEnvironment = new JsEnvironment(parameterEnvironment, true, _function.Body.IsStrict,
+                    _function.Source, description);
+                functionEnvironment.SetBodyLexicalNames(lexicalNames);
             }
-            var executionEnvironment = new JsEnvironment(parameterEnvironment, false, _function.Body.IsStrict,
+            else
+            {
+                functionEnvironment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source,
+                    description);
+                functionEnvironment.SetBodyLexicalNames(lexicalNames);
+                parameterEnvironment = functionEnvironment;
+            }
+
+            var executionEnvironment = new JsEnvironment(functionEnvironment, false, _function.Body.IsStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(lexicalNames);
 
@@ -7516,6 +7647,10 @@ public static class TypedAstEvaluator
                 if (_closure.TryGet(JsSymbols.ThisInitialized, out var closureThisInitialized))
                 {
                     SetThisInitializationStatus(functionEnvironment, JsOps.ToBoolean(closureThisInitialized));
+                }
+                else if (_closure.TryGet(JsSymbols.Super, out var closureSuper) && closureSuper is SuperBinding superBinding)
+                {
+                    SetThisInitializationStatus(functionEnvironment, superBinding.IsThisInitialized);
                 }
             }
             else
@@ -7558,7 +7693,8 @@ public static class TypedAstEvaluator
 
                 if (_superConstructor is not null || prototypeForSuper is not null)
                 {
-                    var binding = new SuperBinding(_superConstructor, prototypeForSuper, boundThis);
+                    var binding = new SuperBinding(_superConstructor, prototypeForSuper, boundThis,
+                        context.IsThisInitialized);
                     functionEnvironment.Define(JsSymbols.Super, binding);
                 }
             }
@@ -7603,7 +7739,10 @@ public static class TypedAstEvaluator
                 return JsSymbols.Undefined;
             }
 
-            HoistVarDeclarations(_function.Body, executionEnvironment, context);
+            if (_hasHoistableDeclarations)
+            {
+                HoistVarDeclarations(_function.Body, executionEnvironment, context);
+            }
 
             if (!_isArrowFunction)
             {

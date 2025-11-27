@@ -10,7 +10,8 @@ namespace Asynkron.JsEngine;
 public sealed class SuperBinding(
     IJsEnvironmentAwareCallable? constructor,
     IJsPropertyAccessor? prototype,
-    object? thisValue)
+    object? thisValue,
+    bool isThisInitialized = false)
     : IJsPropertyAccessor
 {
     public IJsEnvironmentAwareCallable? Constructor { get; } = constructor;
@@ -18,6 +19,7 @@ public sealed class SuperBinding(
     public IJsPropertyAccessor? Prototype { get; } = prototype;
 
     public object? ThisValue { get; } = thisValue;
+    public bool IsThisInitialized { get; } = isThisInitialized;
 
     public bool TryGetProperty(string name, out object? value)
     {

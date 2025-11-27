@@ -30,7 +30,19 @@ public sealed class RealmState
     public HostFunction? TypedArrayConstructor { get; set; }
     public JsObject? ArrayBufferPrototype { get; set; }
     public HostFunction? ArrayBufferConstructor { get; set; }
+    public HostFunction? RegExpConstructor { get; set; }
+    public RegExpStatics RegExpStatics { get; } = new();
 
     // Internal flags to avoid re-attaching built-in surfaces per instance
     public bool StringPrototypeMethodsInitialized { get; set; }
+}
+
+public sealed class RegExpStatics
+{
+    public string Input { get; set; } = string.Empty;
+    public string LastMatch { get; set; } = string.Empty;
+    public string LastParen { get; set; } = string.Empty;
+    public string LeftContext { get; set; } = string.Empty;
+    public string RightContext { get; set; } = string.Empty;
+    public string[] Captures { get; } = new string[9];
 }

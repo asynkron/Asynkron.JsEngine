@@ -262,6 +262,29 @@ public sealed class JsEnvironment
         return _enclosing?.HasBinding(name) ?? false;
     }
 
+    internal bool TryAssignBlockedBinding(Symbol name, object? value)
+    {
+        var current = this;
+        while (current is not null)
+        {
+            if (current._values.TryGetValue(name, out var binding) && binding.BlocksFunctionScopeOverride)
+            {
+                binding.Value = value;
+                current.NotifyBindingObservers(name, value);
+                return true;
+            }
+
+            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out _))
+            {
+                break;
+            }
+
+            current = current._enclosing;
+        }
+
+        return false;
+    }
+
     internal bool HasLexicalBinding(Symbol name)
     {
         if (_values.TryGetValue(name, out var binding) && binding.IsLexical)

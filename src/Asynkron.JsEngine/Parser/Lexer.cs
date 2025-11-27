@@ -148,6 +148,22 @@ public sealed class Lexer(string source)
 
                 break;
             case '-':
+                if (Peek() == '-' && PeekNext() == '>')
+                {
+                    var isLineStart = IsAtStartOfLineIgnoringWhitespace();
+                    Advance(); // second '-'
+                    Advance(); // '>'
+                    if (isLineStart)
+                    {
+                        SkipSingleLineComment();
+                        break;
+                    }
+
+                    AddToken(TokenType.MinusMinus);
+                    AddToken(TokenType.Greater);
+                    break;
+                }
+
                 if (Match('-'))
                 {
                     AddToken(TokenType.MinusMinus);
@@ -290,6 +306,15 @@ public sealed class Lexer(string source)
 
                 break;
             case '<':
+                if (Peek() == '!' && PeekNext() == '-' && PeekOffset(2) == '-')
+                {
+                    Advance();
+                    Advance();
+                    Advance();
+                    SkipSingleLineComment();
+                    break;
+                }
+
                 if (Match('<'))
                 {
                     AddToken(Match('=') ? TokenType.LessLessEqual : TokenType.LessLess);
@@ -1064,6 +1089,33 @@ public sealed class Lexer(string source)
     private char PeekNext()
     {
         return _current + 1 >= _source.Length ? '\0' : _source[_current + 1];
+    }
+
+    private char PeekOffset(int offset)
+    {
+        var index = _current + offset;
+        return index >= _source.Length ? '\0' : _source[index];
+    }
+
+    private bool IsAtStartOfLineIgnoringWhitespace()
+    {
+        for (var i = _start - 1; i >= 0; i--)
+        {
+            var ch = _source[i];
+            if (ch is ' ' or '\t')
+            {
+                continue;
+            }
+
+            if (IsLineTerminator(ch))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        return true;
     }
 
     private static bool IsDigit(char c)

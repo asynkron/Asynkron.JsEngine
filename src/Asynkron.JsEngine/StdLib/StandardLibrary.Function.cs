@@ -20,14 +20,33 @@ public static partial class StandardLibrary
             var bodyValue = argCount > 0 ? args[argCount - 1] : string.Empty;
             var parameterCount = Math.Max(argCount - 1, 0);
 
+            if (argCount > 0 && args[0] is string debugParam && debugParam.Contains("-->"))
+            {
+                Console.WriteLine($"DEBUG Function args={argCount} first='{debugParam}' second='{(argCount > 1 ? args[1] : null)}'");
+            }
+
+            if (argCount > 1)
+            {
+                var firstParamText = ToFunctionArgumentString(args[0], evalContext, realm);
+                Console.WriteLine($"DEBUG firstParamText='{firstParamText}', shouldThrow={ContainsHtmlCloseCommentWithoutLineTerminator(firstParamText)}");
+                if (ContainsHtmlCloseCommentWithoutLineTerminator(firstParamText))
+                {
+                    throw ThrowSyntaxError("Invalid function parameter list", evalContext, realm);
+                }
+            }
+
             var parameters = new string[parameterCount];
             for (var i = 0; i < parameterCount; i++)
             {
-                parameters[i] = ToFunctionArgumentString(args[i], evalContext, realm);
+                var paramText = ToFunctionArgumentString(args[i], evalContext, realm);
+                parameters[i] = paramText;
             }
 
             var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
-            var functionSource = $"(function({string.Join(",", parameters)}){{{bodySource}}})";
+            var paramList = string.Join(",", parameters);
+            // ECMAScript builds the source with line feeds around the parameter list and body,
+            // so HTML-like comments (<!--/-->) are recognized using the Script goal rules.
+            var functionSource = $"(function anonymous({paramList}\n) {{\n{bodySource}\n}})";
 
             ParsedProgram program;
             try
@@ -203,6 +222,25 @@ public static partial class StandardLibrary
             }
 
             return Convert.ToString(primitive, CultureInfo.InvariantCulture) ?? string.Empty;
+        }
+
+        static bool ContainsHtmlCloseCommentWithoutLineTerminator(string text)
+        {
+            if (!text.Contains("-->"))
+            {
+                return false;
+            }
+
+            // If any line terminator appears before the close comment, it's allowed.
+            foreach (var ch in text)
+            {
+                if (ch is '\r' or '\n' or '\u2028' or '\u2029')
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 }

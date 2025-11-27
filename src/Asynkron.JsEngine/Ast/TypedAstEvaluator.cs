@@ -152,8 +152,21 @@ public static class TypedAstEvaluator
         var scope = new JsEnvironment(environment, false, block.IsStrict);
         object? result = EmptyCompletion;
 
+        HashSet<Symbol>? hoistedFunctions = null;
+        if (!scope.IsStrict && !block.IsStrict)
+        {
+            hoistedFunctions = InstantiateAnnexBBlockFunctions(block, scope, context);
+        }
+
         foreach (var statement in block.Statements)
         {
+            if (hoistedFunctions is not null &&
+                statement is FunctionDeclaration funcDecl &&
+                hoistedFunctions.Contains(funcDecl.Name))
+            {
+                continue;
+            }
+
             context.ThrowIfCancellationRequested();
             var completion = EvaluateStatement(statement, scope, context);
             if (!ReferenceEquals(completion, EmptyCompletion))
@@ -168,6 +181,40 @@ public static class TypedAstEvaluator
         }
 
         return result;
+    }
+
+    private static HashSet<Symbol> InstantiateAnnexBBlockFunctions(
+        BlockStatement block,
+        JsEnvironment blockEnvironment,
+        EvaluationContext context)
+    {
+        var hoisted = new HashSet<Symbol>();
+        var functionScope = blockEnvironment.GetFunctionScope();
+
+        foreach (var statement in block.Statements)
+        {
+            if (statement is not FunctionDeclaration functionDeclaration)
+            {
+                continue;
+            }
+
+            var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context);
+
+            blockEnvironment.Define(functionDeclaration.Name, functionValue, isLexical: true,
+                blocksFunctionScopeOverride: true);
+
+            functionScope.DefineFunctionScoped(
+                functionDeclaration.Name,
+                functionValue,
+                hasInitializer: true,
+                isFunctionDeclaration: true,
+                globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
+                context);
+
+            hoisted.Add(functionDeclaration.Name);
+        }
+
+        return hoisted;
     }
 
     private static object? EvaluateReturn(ReturnStatement statement, JsEnvironment environment,
@@ -3564,7 +3611,7 @@ public static class TypedAstEvaluator
                 case VariableDeclaration { Kind: VariableKind.Var } varDeclaration when pass == HoistPass.Vars:
                     foreach (var declarator in varDeclaration.Declarators)
                     {
-                        HoistFromBindingTarget(declarator.Target, environment, context);
+                        HoistFromBindingTarget(declarator.Target, environment, context, lexicalNames);
                     }
 
                     break;
@@ -3613,7 +3660,7 @@ public static class TypedAstEvaluator
                 case ForEachStatement forEachStatement:
                     if (pass == HoistPass.Vars && forEachStatement.DeclarationKind == VariableKind.Var)
                     {
-                        HoistFromBindingTarget(forEachStatement.Target, environment, context);
+                        HoistFromBindingTarget(forEachStatement.Target, environment, context, lexicalNames);
                     }
 
                     statement = forEachStatement.Body;
@@ -3895,10 +3942,19 @@ public static class TypedAstEvaluator
     private static void HoistFromBindingTarget(
         BindingTarget target,
         JsEnvironment environment,
-        EvaluationContext context)
+        EvaluationContext context,
+        HashSet<Symbol>? lexicalNames = null)
     {
         WalkBindingTargets(target,
-            identifier => environment.DefineFunctionScoped(identifier.Name, JsSymbols.Undefined, false, context: context));
+            identifier =>
+            {
+                if (!environment.IsStrict && lexicalNames is not null && lexicalNames.Contains(identifier.Name))
+                {
+                    return;
+                }
+
+                environment.DefineFunctionScoped(identifier.Name, JsSymbols.Undefined, false, context: context);
+            });
     }
 
     private static void WalkBindingTargets(BindingTarget target, Action<IdentifierBinding> onIdentifier)
@@ -4149,7 +4205,10 @@ public static class TypedAstEvaluator
                 environment.Define(identifier.Name, value, true, blocksFunctionScopeOverride: true);
                 break;
             case BindingMode.DefineVar:
-                environment.DefineFunctionScoped(identifier.Name, value, hasInitializer, context: context);
+                if (!environment.TryAssignBlockedBinding(identifier.Name, value))
+                {
+                    environment.DefineFunctionScoped(identifier.Name, value, hasInitializer, context: context);
+                }
                 break;
             case BindingMode.DefineParameter:
                 // Parameters are created before defaults run (see the pre-pass in BindFunctionParameters),

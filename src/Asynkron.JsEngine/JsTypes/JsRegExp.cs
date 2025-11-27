@@ -100,6 +100,11 @@ public class JsRegExp
             JsObject["lastIndex"] = 0d;
         }
 
+        if (match.Success)
+        {
+            StandardLibrary.UpdateRegExpStatics(_realmState, input, match);
+        }
+
         return match.Success;
     }
 
@@ -160,6 +165,7 @@ public class JsRegExp
         result.SetProperty("input", input);
 
         StandardLibrary.AddArrayMethods(result, _realmState);
+        StandardLibrary.UpdateRegExpStatics(_realmState, input, match);
         return result;
     }
 
@@ -217,6 +223,12 @@ public class JsRegExp
 
     private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool ignoreCase)
     {
+        if (!hasUnicodeFlag)
+        {
+            ValidateLegacyPattern(pattern);
+            return pattern ?? string.Empty;
+        }
+
         if (string.IsNullOrEmpty(pattern))
         {
             return pattern ?? string.Empty;
@@ -227,6 +239,7 @@ public class JsRegExp
         var builder = new StringBuilder();
         var inCharClass = false;
         var escaped = false;
+        var captureCount = 0;
 
         for (var i = 0; i < pattern.Length; i++)
         {
@@ -383,6 +396,30 @@ public class JsRegExp
                     continue;
                 }
 
+                if (!inCharClass && i + 1 < pattern.Length && char.IsDigit(pattern[i + 1]))
+                {
+                    var start = i + 1;
+                    var end = start;
+                    while (end < pattern.Length && char.IsDigit(pattern[end]))
+                    {
+                        end++;
+                    }
+
+                    var numText = pattern[start..end];
+                    if (int.TryParse(numText, NumberStyles.None, CultureInfo.InvariantCulture, out var backref))
+                    {
+                        if (backref == 0 || backref > captureCount)
+                        {
+                            throw new ParseException("Invalid regular expression: invalid backreference.");
+                        }
+                    }
+
+                    builder.Append('\\');
+                    builder.Append(numText);
+                    i = end - 1;
+                    continue;
+                }
+
                 if (i + 1 >= pattern.Length || IsLineTerminator(pattern[i + 1]))
                 {
                     throw new ParseException("Invalid regular expression: incomplete escape.");
@@ -454,10 +491,173 @@ public class JsRegExp
                 continue;
             }
 
+            if (!inCharClass && c == '(')
+            {
+                // Increment capture count for plain capturing groups
+                if (!(i + 1 < pattern.Length && pattern[i + 1] == '?'))
+                {
+                    captureCount++;
+                }
+            }
+
+            if (!inCharClass && c == '{')
+            {
+                if (i + 1 >= pattern.Length || !char.IsDigit(pattern[i + 1]))
+                {
+                    throw new ParseException("Invalid regular expression: incomplete quantifier.");
+                }
+            }
+
             AppendCodePoint(builder, c, hasUnicodeFlag, ignoreCase, false);
         }
 
         return builder.ToString();
+    }
+
+    private static void ValidateLegacyPattern(string pattern)
+    {
+        if (string.IsNullOrEmpty(pattern))
+        {
+            return;
+        }
+
+        var captureCount = 0;
+        var inCharClass = false;
+        var escaped = false;
+
+        // First pass: count capturing groups and catch trailing escape
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            var c = pattern[i];
+            if (escaped)
+            {
+                escaped = false;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+
+            if (c == '[')
+            {
+                inCharClass = true;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                continue;
+            }
+
+            if (!inCharClass && c == '(' && !(i + 1 < pattern.Length && pattern[i + 1] == '?'))
+            {
+                captureCount++;
+            }
+        }
+
+        if (escaped)
+        {
+            throw new ParseException("Invalid regular expression: incomplete escape.");
+        }
+
+        // Second pass: validate escapes/backreferences/quantifiers
+        inCharClass = false;
+        escaped = false;
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            var c = pattern[i];
+            if (escaped)
+            {
+                escaped = false;
+                switch (c)
+                {
+                    case 'x':
+                        if (i + 2 >= pattern.Length || !IsHexDigit(pattern[i + 1]) || !IsHexDigit(pattern[i + 2]))
+                        {
+                            throw new ParseException("Invalid regular expression: incomplete hex escape.");
+                        }
+
+                        i += 2;
+                        break;
+                    case 'u':
+                        if (i + 4 >= pattern.Length ||
+                            !IsHexDigit(pattern[i + 1]) ||
+                            !IsHexDigit(pattern[i + 2]) ||
+                            !IsHexDigit(pattern[i + 3]) ||
+                            !IsHexDigit(pattern[i + 4]))
+                        {
+                            throw new ParseException("Invalid regular expression: incomplete unicode escape.");
+                        }
+
+                        i += 4;
+                        break;
+                    case 'c':
+                        if (i + 1 >= pattern.Length || !IsAsciiLetter(pattern[i + 1]))
+                        {
+                            throw new ParseException("Invalid regular expression: invalid control escape.");
+                        }
+
+                        i += 1;
+                        break;
+                    default:
+                        if (!inCharClass && char.IsDigit(c))
+                        {
+                            var start = i;
+                            var end = i;
+                            while (end < pattern.Length && char.IsDigit(pattern[end]))
+                            {
+                                end++;
+                            }
+
+                            var numText = pattern[start..end];
+                            if (numText.Length > 0 && numText[0] != '0' &&
+                                int.TryParse(numText, NumberStyles.None, CultureInfo.InvariantCulture, out var backref))
+                            {
+                                if (backref == 0 || backref > captureCount)
+                                {
+                                    throw new ParseException("Invalid regular expression: invalid backreference.");
+                                }
+                            }
+
+                            i = end - 1;
+                        }
+
+                        break;
+                }
+
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+
+            if (c == '[')
+            {
+                inCharClass = true;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                continue;
+            }
+
+            if (!inCharClass && c == '{')
+            {
+                if (i + 1 >= pattern.Length || !char.IsDigit(pattern[i + 1]))
+                {
+                    throw new ParseException("Invalid regular expression: incomplete quantifier.");
+                }
+            }
+        }
     }
 
     private static HashSet<string> CollectGroupNames(string pattern)
@@ -713,6 +913,11 @@ public class JsRegExp
     private static bool IsHexDigit(char c)
     {
         return c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F';
+    }
+
+    private static bool IsAsciiLetter(char c)
+    {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
     }
 
     private static bool IsLineTerminator(char c)

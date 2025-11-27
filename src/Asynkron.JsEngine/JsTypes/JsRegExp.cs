@@ -30,6 +30,10 @@ public class JsRegExp
 
         // Convert JavaScript regex flags to .NET RegexOptions
         var options = RegexOptions.CultureInvariant;
+        if (!hasUnicodeFlag)
+        {
+            options |= RegexOptions.ECMAScript;
+        }
         if (IgnoreCase)
         {
             options |= RegexOptions.IgnoreCase;
@@ -42,11 +46,14 @@ public class JsRegExp
 
         _regex = new Regex(_normalizedPattern, options);
 
-        JsObject.DefineProperty("lastIndex",
-            new PropertyDescriptor
-            {
-                Value = 0d, Writable = true, Enumerable = false, Configurable = false
-            });
+        if (existingObject is null)
+        {
+            JsObject.DefineProperty("lastIndex",
+                new PropertyDescriptor
+                {
+                    Value = 0d, Writable = true, Enumerable = false, Configurable = false
+                });
+        }
     }
 
     public string Pattern { get; }
@@ -228,8 +235,7 @@ public class JsRegExp
     {
         if (!hasUnicodeFlag)
         {
-            ValidateLegacyPattern(pattern);
-            return pattern ?? string.Empty;
+            return NormalizeLegacyPattern(pattern, ignoreCase);
         }
 
         if (string.IsNullOrEmpty(pattern))
@@ -563,6 +569,164 @@ public class JsRegExp
         }
     }
 
+    private static string NormalizeLegacyPattern(string pattern, bool ignoreCase)
+    {
+        if (string.IsNullOrEmpty(pattern))
+        {
+            return pattern ?? string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        var inCharClass = false;
+        var escaped = false;
+        var captureCount = 0;
+
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            var c = pattern[i];
+            if (escaped)
+            {
+                escaped = false;
+
+                if (IsLineTerminator(c))
+                {
+                    throw new ParseException("Invalid regular expression: incomplete escape.");
+                }
+
+                switch (c)
+                {
+                    case 'x':
+                        if (i + 2 < pattern.Length &&
+                            IsHexDigit(pattern[i + 1]) &&
+                            IsHexDigit(pattern[i + 2]))
+                        {
+                            var hexDigits = pattern.Substring(i + 1, 2);
+                            var codeUnit = int.Parse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                            AppendCodePoint(builder, codeUnit, false, ignoreCase, true);
+                            i += 2;
+                            continue;
+                        }
+
+                        AppendCodePoint(builder, 'x', false, ignoreCase, true);
+                        continue;
+
+                    case 'u':
+                        if (i + 4 < pattern.Length &&
+                            IsHexDigit(pattern[i + 1]) &&
+                            IsHexDigit(pattern[i + 2]) &&
+                            IsHexDigit(pattern[i + 3]) &&
+                            IsHexDigit(pattern[i + 4]))
+                        {
+                            var hexDigits = pattern.Substring(i + 1, 4);
+                            var codeUnit = int.Parse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                            AppendCodePoint(builder, codeUnit, false, ignoreCase, true);
+                            i += 4;
+                            continue;
+                        }
+
+                        AppendCodePoint(builder, 'u', false, ignoreCase, true);
+                        continue;
+
+                    case 'c':
+                        if (i + 1 < pattern.Length && IsControlLetter(pattern[i + 1]))
+                        {
+                            builder.Append('\\');
+                            builder.Append('c');
+                            builder.Append(pattern[i + 1]);
+                            i++;
+                            continue;
+                        }
+
+                        AppendCodePoint(builder, 'c', false, ignoreCase, true);
+                        continue;
+
+                    case var digit when char.IsDigit(digit):
+                        var start = i;
+                        var end = start;
+                        while (end < pattern.Length && char.IsDigit(pattern[end]))
+                        {
+                            end++;
+                        }
+
+                        var numText = pattern[start..end];
+                        if (numText == "0" && (end == pattern.Length || !char.IsDigit(pattern[end])))
+                        {
+                            AppendCodePoint(builder, 0, false, ignoreCase, true);
+                            i = end - 1;
+                            continue;
+                        }
+
+                        if (int.TryParse(numText, NumberStyles.None, CultureInfo.InvariantCulture, out var value) &&
+                            value > 0 && value <= captureCount)
+                        {
+                            builder.Append('\\');
+                            builder.Append(numText);
+                            i = end - 1;
+                            continue;
+                        }
+
+                        foreach (var ch in numText)
+                        {
+                            AppendCodePoint(builder, ch, false, ignoreCase, true);
+                        }
+
+                        i = end - 1;
+                        continue;
+
+                    default:
+                        if (IsSyntaxCharacter(c) || IsLegacyEscape(c))
+                        {
+                            builder.Append('\\');
+                            builder.Append(c);
+                        }
+                        else
+                        {
+                            AppendCodePoint(builder, c, false, ignoreCase, true);
+                        }
+
+                        continue;
+                }
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+
+            if (!inCharClass && c == '(')
+            {
+                if (!(i + 1 < pattern.Length && pattern[i + 1] == '?'))
+                {
+                    captureCount++;
+                }
+            }
+
+            if (c == '[')
+            {
+                inCharClass = true;
+                builder.Append(c);
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                builder.Append(c);
+                continue;
+            }
+
+            AppendCodePoint(builder, c, false, ignoreCase, false);
+        }
+
+        if (escaped)
+        {
+            throw new ParseException("Invalid regular expression: incomplete escape.");
+        }
+
+        return builder.ToString();
+    }
+
     private static HashSet<string> CollectGroupNames(string pattern)
     {
         var names = new HashSet<string>();
@@ -828,6 +992,27 @@ public class JsRegExp
         return c is '\n' or '\r' or '\u2028' or '\u2029';
     }
 
+    private static bool IsControlLetter(char c)
+    {
+        return c is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
+    }
+
+    private static bool IsSyntaxCharacter(char c)
+    {
+        return c is '^' or '$' or '\\' or '.' or '*' or '+' or '?' or '(' or ')' or '[' or ']' or '{' or '}' or '|' or '/';
+    }
+
+    private static bool IsLegacyEscape(char c)
+    {
+        return c is 'b' or 'B' or 'f' or 'n' or 'r' or 't' or 'v' or 's' or 'S' or 'w' or 'W' or 'd' or 'D';
+    }
+
+    private static bool RequiresRegexEscape(char c)
+    {
+        return c is '.' or '$' or '^' or '{' or '[' or '(' or '|' or ')' or '*' or '+' or '?' or '\\' or '/' or ']'
+            or '}';
+    }
+
     private static string EscapeLiteralRune(Rune rune)
     {
         if (rune.Value == 0)
@@ -868,7 +1053,19 @@ public class JsRegExp
             }
 
             var text = char.ConvertFromUtf32(codePoint);
-            builder.Append(asLiteral ? Regex.Escape(text) : text);
+            if (!asLiteral)
+            {
+                builder.Append(text);
+                return;
+            }
+
+            if (text.Length == 1 && !RequiresRegexEscape(text[0]))
+            {
+                builder.Append(text);
+                return;
+            }
+
+            builder.Append(Regex.Escape(text));
             return;
         }
 

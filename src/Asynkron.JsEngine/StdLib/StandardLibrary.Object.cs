@@ -276,6 +276,62 @@ public static partial class StandardLibrary
                 return args[0];
             }
 
+            PropertyDescriptor BuildDescriptor(JsObject descObj)
+            {
+                var descriptor = new PropertyDescriptor
+                {
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = false,
+                    HasWritable = false,
+                    HasEnumerable = false,
+                    HasConfigurable = false,
+                    HasValue = false
+                };
+
+                if (descObj.TryGetProperty("enumerable", out var enumerableVal))
+                {
+                    descriptor.Enumerable = JsOps.ToBoolean(enumerableVal);
+                }
+
+                if (descObj.TryGetProperty("configurable", out var configurableVal))
+                {
+                    descriptor.Configurable = JsOps.ToBoolean(configurableVal);
+                }
+
+                if (descObj.TryGetProperty("writable", out var writableVal))
+                {
+                    descriptor.Writable = JsOps.ToBoolean(writableVal);
+                }
+
+                if (descObj.TryGetProperty("value", out var valueVal))
+                {
+                    descriptor.Value = valueVal;
+                }
+
+                if (descObj.TryGetProperty("get", out var getterVal))
+                {
+                    if (!ReferenceEquals(getterVal, Symbols.Undefined) && getterVal is not IJsCallable)
+                    {
+                        throw ThrowTypeError("Getter must be a function", realm: realm);
+                    }
+
+                    descriptor.Get = getterVal as IJsCallable;
+                }
+
+                if (descObj.TryGetProperty("set", out var setterVal))
+                {
+                    if (!ReferenceEquals(setterVal, Symbols.Undefined) && setterVal is not IJsCallable)
+                    {
+                        throw ThrowTypeError("Setter must be a function", realm: realm);
+                    }
+
+                    descriptor.Set = setterVal as IJsCallable;
+                }
+
+                return descriptor;
+            }
+
             foreach (var key in props.GetOwnPropertyNames())
             {
                 if (!props.TryGetProperty(key, out var descriptorValue) || descriptorValue is not JsObject descObj)
@@ -283,20 +339,21 @@ public static partial class StandardLibrary
                     continue;
                 }
 
-                if (descObj.TryGetProperty("get", out var getterVal) && getterVal is IJsCallable getterFn)
+                var descriptor = BuildDescriptor(descObj);
+
+                if (accessor is IJsObjectLike objectLike)
                 {
-                    var builder = getterFn.Invoke([], target);
-                    accessor.SetProperty(key, builder);
+                    objectLike.DefineProperty(key, descriptor);
+                }
+                else if (descriptor.IsAccessorDescriptor)
+                {
+                    // Best-effort for accessors on non-object targets: no-op.
                     continue;
                 }
-
-                if (descObj.TryGetProperty("value", out var value))
+                else
                 {
-                    accessor.SetProperty(key, value);
-                    continue;
+                    accessor.SetProperty(key, descriptor.HasValue ? descriptor.Value : Symbols.Undefined);
                 }
-
-                accessor.SetProperty(key, Symbols.Undefined);
             }
 
             return args[0];

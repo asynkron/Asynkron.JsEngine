@@ -14,23 +14,30 @@ public static partial class StandardLibrary
         var prototype = new JsObject();
         realm.RegExpPrototype = prototype;
 
-        var constructor = new HostFunction(args =>
+        HostFunction constructor = null!;
+        constructor = new HostFunction((thisValue, args) =>
         {
+            JsObject? target = null;
+            if (thisValue is JsObject candidate && IsRegExpLikeInstance(candidate, realm))
+            {
+                target = candidate;
+            }
+
             if (args.Count == 0)
             {
-                return CreateRegExpLiteral("(?:)", "", realm);
+                return CreateRegExpLiteral("(?:)", "", realm, target);
             }
 
             if (args is [JsObject { } existingObj] &&
                 existingObj.TryGetProperty("__regex__", out var internalRegex) &&
                 internalRegex is JsRegExp existing)
             {
-                return CreateRegExpLiteral(existing.Pattern, existing.Flags, realm);
+                return CreateRegExpLiteral(existing.Pattern, existing.Flags, realm, target);
             }
 
             var pattern = args[0]?.ToString() ?? "";
             var flags = args.Count > 1 ? args[1]?.ToString() ?? "" : "";
-            return CreateRegExpLiteral(pattern, flags, realm);
+            return CreateRegExpLiteral(pattern, flags, realm, target);
         })
         {
             IsConstructor = true,
@@ -125,18 +132,29 @@ public static partial class StandardLibrary
         return constructor;
     }
 
-    internal static JsObject CreateRegExpLiteral(string pattern, string flags, RealmState? realm = null)
+    internal static JsObject CreateRegExpLiteral(string pattern, string flags, RealmState? realm = null,
+        JsObject? existingInstance = null)
     {
         try
         {
             ValidateGroupNames(pattern);
-            var regex = new JsRegExp(pattern, flags, realm);
-            regex.JsObject["__regex__"] = regex;
-            if (realm?.RegExpPrototype is not null)
+            var regex = new JsRegExp(pattern, flags, realm, existingInstance);
+            var target = regex.JsObject;
+            target["__regex__"] = regex;
+
+            if (existingInstance is null && realm?.RegExpPrototype is not null)
             {
-                regex.JsObject.SetPrototype(realm.RegExpPrototype);
+                target.SetPrototype(realm.RegExpPrototype);
             }
-            return regex.JsObject;
+
+            var lastIndexDescriptor = target.GetOwnPropertyDescriptor("lastIndex");
+            if (lastIndexDescriptor is null && target is not null)
+            {
+                target.DefineProperty("lastIndex",
+                    new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
+            }
+
+            return target;
         }
         catch (ParseException ex)
         {
@@ -152,29 +170,81 @@ public static partial class StandardLibrary
 
     private static void ValidateGroupNames(string pattern)
     {
-        var seenNames = new HashSet<string>(StringComparer.Ordinal);
-        var index = 0;
-        while (true)
+        if (string.IsNullOrEmpty(pattern))
         {
-            var start = pattern.IndexOf("(?<", index, StringComparison.Ordinal);
-            if (start == -1)
+            return;
+        }
+
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        var depth = 0;
+        var inCharClass = false;
+        var escaped = false;
+
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            var c = pattern[i];
+            if (escaped)
             {
-                break;
+                escaped = false;
+                continue;
             }
 
-            var end = pattern.IndexOf('>', start + 3);
-            if (end == -1)
+            if (c == '\\')
             {
-                break;
+                escaped = true;
+                continue;
             }
 
-            var name = pattern.Substring(start + 3, end - (start + 3));
-            var normalized = JsRegExp.NormalizeGroupNameToken(name);
-            if (!seenNames.Add(normalized))
+            if (inCharClass)
             {
-                throw new ParseException("Invalid regular expression: duplicate group name.");
+                if (c == ']')
+                {
+                    inCharClass = false;
+                }
+
+                continue;
             }
-            index = end + 1;
+
+            if (c == '[')
+            {
+                inCharClass = true;
+                continue;
+            }
+
+            if (c == '|' && depth == 0)
+            {
+                seenNames.Clear();
+                continue;
+            }
+
+            if (c == '(')
+            {
+                depth++;
+                if (i + 2 < pattern.Length && pattern[i + 1] == '?' && pattern[i + 2] == '<')
+                {
+                    var end = pattern.IndexOf('>', i + 3);
+                    if (end == -1)
+                    {
+                        break;
+                    }
+
+                    var name = pattern.Substring(i + 3, end - (i + 3));
+                    var normalized = JsRegExp.NormalizeGroupNameToken(name);
+                    if (!seenNames.Add(normalized))
+                    {
+                        throw new ParseException("Invalid regular expression: duplicate group name.");
+                    }
+
+                    i = end;
+                }
+
+                continue;
+            }
+
+            if (c == ')' && depth > 0)
+            {
+                depth--;
+            }
         }
     }
 
@@ -197,7 +267,7 @@ public static partial class StandardLibrary
         {
             if (thisValue is not JsObject target ||
                 !ReferenceEquals(target.Prototype, realm.RegExpPrototype) ||
-                target.TryGetProperty("__regex__", out var existingInner) != true ||
+                target.TryGetValue("__regex__", out var existingInner) != true ||
                 existingInner is not JsRegExp existingRegExp ||
                 !ReferenceEquals(existingRegExp.RealmState, realm) ||
                 !ReferenceEquals(existingRegExp.JsObject, target))
@@ -215,9 +285,21 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: realm);
             }
 
-            if (patternArg is JsObject { } other &&
-                other.TryGetProperty("__regex__", out var inner) &&
-                inner is JsRegExp otherRegExp)
+            JsRegExp? providedRegExp = null;
+            if (patternArg is JsObject patternObj &&
+                patternObj.TryGetValue("__regex__", out var innerVal) &&
+                innerVal is JsRegExp regExpFromSlot &&
+                ReferenceEquals(regExpFromSlot.JsObject, patternObj))
+            {
+                providedRegExp = regExpFromSlot;
+            }
+            else
+            {
+                providedRegExp = ResolveRegExpInstance(patternArg);
+            }
+
+            // Debug instrumentation to understand compile coercions.
+            if (providedRegExp is JsRegExp otherRegExp)
             {
                 if (!ReferenceEquals(flagsArg, Symbols.Undefined))
                 {
@@ -521,5 +603,21 @@ public static partial class StandardLibrary
 
         var int64 = (long)number;
         return (uint)(int64 & 0xFFFFFFFF);
+    }
+
+    private static bool IsRegExpLikeInstance(JsObject obj, RealmState realm)
+    {
+        var current = obj.Prototype;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, realm.RegExpPrototype))
+            {
+                return true;
+            }
+
+            current = current.Prototype;
+        }
+
+        return false;
     }
 }

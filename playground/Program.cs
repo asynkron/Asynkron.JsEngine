@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Asynkron.JsEngine;
-using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine;
 
 internal class Program
 {

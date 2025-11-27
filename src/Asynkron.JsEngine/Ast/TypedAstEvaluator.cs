@@ -92,7 +92,10 @@ public static class TypedAstEvaluator
         {
             context.ThrowIfCancellationRequested();
             var completion = EvaluateStatement(statement, executionEnvironment, context);
-            result = completion;
+            if (!ReferenceEquals(completion, EmptyCompletion))
+            {
+                result = completion;
+            }
 
             if (context.ShouldStopEvaluation)
             {
@@ -152,7 +155,10 @@ public static class TypedAstEvaluator
         {
             context.ThrowIfCancellationRequested();
             var completion = EvaluateStatement(statement, scope, context);
-            result = completion;
+            if (!ReferenceEquals(completion, EmptyCompletion))
+            {
+                result = completion;
+            }
 
             if (context.ShouldStopEvaluation)
             {
@@ -1300,25 +1306,31 @@ public static class TypedAstEvaluator
     private static object? EvaluateFunctionDeclaration(FunctionDeclaration declaration, JsEnvironment environment,
         EvaluationContext context)
     {
-            var function = CreateFunctionValue(declaration.Function, environment, context);
+        var function = CreateFunctionValue(declaration.Function, environment, context);
+        var isFunctionScope = ReferenceEquals(environment.GetFunctionScope(), environment);
+        // In sloppy script/eval code, top-level function declarations are var-scoped only.
+        var shouldCreateLexicalBinding = environment.IsStrict || !isFunctionScope;
+        if (shouldCreateLexicalBinding)
+        {
             environment.Define(declaration.Name, function);
-            var skipVarBinding = !environment.IsStrict &&
-                                 context.BlockedFunctionVarNames is { } blocked &&
-                                 blocked.Contains(declaration.Name);
-            if (!environment.IsStrict && !skipVarBinding)
-            {
-                var configurable = context.ExecutionKind == ExecutionKind.Eval;
-                environment.DefineFunctionScoped(
-                    declaration.Name,
-                    function,
-                    true,
-                    true,
-                    configurable,
-                    context);
-            }
-
-            return EmptyCompletion;
         }
+        var skipVarBinding = !environment.IsStrict &&
+                             context.BlockedFunctionVarNames is { } blocked &&
+                             blocked.Contains(declaration.Name);
+        if (!environment.IsStrict && !skipVarBinding)
+        {
+            var configurable = context.ExecutionKind == ExecutionKind.Eval;
+            environment.DefineFunctionScoped(
+                declaration.Name,
+                function,
+                true,
+                true,
+                configurable,
+                context);
+        }
+
+        return EmptyCompletion;
+    }
 
     private static IJsCallable CreateFunctionValue(FunctionExpression functionExpression, JsEnvironment environment,
         EvaluationContext context)

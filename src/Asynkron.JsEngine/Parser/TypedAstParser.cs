@@ -94,7 +94,7 @@ public sealed class TypedAstParser(
                 return ParseExportStatement();
             }
 
-            if (Check(TokenType.Async) && CheckAhead(TokenType.Function))
+            if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
             {
                 var asyncToken = Advance();
                 var functionToken = Advance();
@@ -992,12 +992,12 @@ public sealed class TypedAstParser(
 
             if (Match(TokenType.Default))
             {
-                if (Check(TokenType.Async) && CheckAhead(TokenType.Function))
-                {
-                    Advance(); // async
-                    var functionToken = Advance(); // function
-                    return ParseExportDefaultFunction(CreateSourceReference(keyword), functionToken, true);
-                }
+            if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
+            {
+                Advance(); // async
+                var functionToken = Advance(); // function
+                return ParseExportDefaultFunction(CreateSourceReference(keyword), functionToken, true);
+            }
 
                 if (Match(TokenType.Class))
                 {
@@ -1068,7 +1068,7 @@ public sealed class TypedAstParser(
                 return new ExportDeclarationStatement(CreateSourceReference(keyword), declaration);
             }
 
-            if (Check(TokenType.Async) && CheckAhead(TokenType.Function))
+            if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
             {
                 var asyncToken = Advance();
                 var functionToken = Advance();
@@ -1900,7 +1900,7 @@ public sealed class TypedAstParser(
             if (Match(TokenType.Async))
             {
                 var asyncToken = Previous();
-                if (Check(TokenType.Function))
+                if (Check(TokenType.Function) && Peek().Line == asyncToken.Line)
                 {
                     Advance(); // function
                     var asyncFunction = ParseFunctionExpression(isAsync: true);
@@ -3082,6 +3082,18 @@ public sealed class TypedAstParser(
             }
 
             return _tokens[_current + 1].Type == type;
+        }
+
+        private bool CheckAheadOnSameLine(TokenType type)
+        {
+            if (_current + 1 >= _tokens.Count)
+            {
+                return false;
+            }
+
+            var next = _tokens[_current + 1];
+            var current = _tokens[_current];
+            return next.Type == type && next.Line == current.Line;
         }
 
         private Token Advance()

@@ -183,10 +183,10 @@ public abstract class TypedArrayBase : IJsObjectLike
         return _initialLength;
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, object? receiver, out object? value)
     {
         // Allow dynamically assigned properties and prototype chain lookups first.
-        if (_properties.TryGetProperty(name, out value))
+        if (_properties.TryGetProperty(name, receiver ?? this, out value))
         {
             return true;
         }
@@ -254,7 +254,17 @@ public abstract class TypedArrayBase : IJsObjectLike
         return false;
     }
 
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return TryGetProperty(name, this, out value);
+    }
+
     public void SetProperty(string name, object? value)
+    {
+        SetProperty(name, value, this);
+    }
+
+    public void SetProperty(string name, object? value, object? receiver)
     {
         switch (name)
         {
@@ -287,7 +297,7 @@ public abstract class TypedArrayBase : IJsObjectLike
             return;
         }
 
-        _properties.SetProperty(name, value);
+        _properties.SetProperty(name, value, receiver ?? this);
     }
 
     private static double ToIntegerOrInfinity(object? value, EvaluationContext? context)

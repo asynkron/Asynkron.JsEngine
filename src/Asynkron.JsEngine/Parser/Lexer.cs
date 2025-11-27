@@ -11,7 +11,7 @@ internal sealed record TemplateStringPart(string RawText, DecodedString Cooked);
 
 internal sealed record RegexLiteralValue(string Pattern, string Flags);
 
-public sealed class Lexer(string source)
+public sealed class Lexer(string source, bool allowHtmlComments = true)
 {
     private static readonly Dictionary<string, TokenType> Keywords = new(StringComparer.Ordinal)
     {
@@ -61,6 +61,7 @@ public sealed class Lexer(string source)
     };
 
     private readonly string _source = source ?? string.Empty;
+    private readonly bool _allowHtmlComments = allowHtmlComments;
     private readonly List<Token> _tokens = [];
     private int _column = 1;
     private int _current;
@@ -148,7 +149,7 @@ public sealed class Lexer(string source)
 
                 break;
             case '-':
-                if (Peek() == '-' && PeekNext() == '>')
+                if (_allowHtmlComments && Peek() == '-' && PeekNext() == '>')
                 {
                     var isLineStart = IsAtStartOfLineIgnoringWhitespace();
                     Advance(); // second '-'
@@ -306,7 +307,7 @@ public sealed class Lexer(string source)
 
                 break;
             case '<':
-                if (Peek() == '!' && PeekNext() == '-' && PeekOffset(2) == '-')
+                if (_allowHtmlComments && Peek() == '!' && PeekNext() == '-' && PeekOffset(2) == '-')
                 {
                     Advance();
                     Advance();

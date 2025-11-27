@@ -18,14 +18,24 @@ public sealed class JsProxy(object target, IJsObjectLike? handler) : IJsObjectLi
 
     public IEnumerable<string> Keys => _backing.Keys;
 
+    public bool TryGetProperty(string name, object? receiver, out object? value)
+    {
+        return _backing.TryGetProperty(name, receiver ?? this, out value);
+    }
+
     public bool TryGetProperty(string name, out object? value)
     {
-        return _backing.TryGetProperty(name, out value);
+        return TryGetProperty(name, this, out value);
+    }
+
+    public void SetProperty(string name, object? value, object? receiver)
+    {
+        _backing.SetProperty(name, value, receiver ?? this);
     }
 
     public void SetProperty(string name, object? value)
     {
-        _backing.SetProperty(name, value);
+        SetProperty(name, value, this);
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)

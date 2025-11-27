@@ -104,14 +104,24 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyA
         return result;
     }
 
+    public bool TryGetProperty(string name, object? receiver, out object? value)
+    {
+        return _properties.TryGetProperty(name, receiver ?? this, out value);
+    }
+
     public bool TryGetProperty(string name, out object? value)
     {
-        return _properties.TryGetProperty(name, out value);
+        return TryGetProperty(name, this, out value);
+    }
+
+    public void SetProperty(string name, object? value, object? receiver)
+    {
+        _properties.SetProperty(name, value, receiver ?? this);
     }
 
     public void SetProperty(string name, object? value)
     {
-        _properties.SetProperty(name, value);
+        SetProperty(name, value, this);
     }
 
     private static void CollectVarDeclaredNames(ImmutableArray<StatementNode> statements, HashSet<Symbol> names)

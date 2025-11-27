@@ -119,6 +119,11 @@ public sealed class JsArray : IJsObjectLike
 
     public void SetProperty(string name, object? value)
     {
+        SetProperty(name, value, this);
+    }
+
+    public void SetProperty(string name, object? value, object? receiver)
+    {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
             SetLength(value, null);
@@ -131,7 +136,7 @@ public sealed class JsArray : IJsObjectLike
             return;
         }
 
-        _properties.SetProperty(name, value);
+        _properties.SetProperty(name, value, receiver ?? this);
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)

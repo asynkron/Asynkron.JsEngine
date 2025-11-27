@@ -198,7 +198,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike
         _backing.Seal();
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, object? receiver, out object? value)
     {
         if (TryResolveIndex(name, out var index) &&
             _mappedEnabled &&
@@ -209,10 +209,20 @@ internal sealed class JsArgumentsObject : IJsObjectLike
             return true;
         }
 
-        return _backing.TryGetProperty(name, this, out value);
+        return _backing.TryGetProperty(name, receiver ?? this, out value);
+    }
+
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return TryGetProperty(name, this, out value);
     }
 
     public void SetProperty(string name, object? value)
+    {
+        SetProperty(name, value, this);
+    }
+
+    public void SetProperty(string name, object? value, object? receiver)
     {
         var descriptor = _backing.GetOwnPropertyDescriptor(name);
         var hasWritable = descriptor?.HasWritable ?? false;
@@ -229,7 +239,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike
             WithSuppressedObserver(() => _environment.Assign(mappedSymbol, value));
         }
 
-        _backing.SetProperty(name, value);
+        _backing.SetProperty(name, value, receiver ?? this);
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)

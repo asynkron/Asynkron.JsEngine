@@ -259,32 +259,58 @@ public static partial class StandardLibrary
 
     private static void DefineLegacyRegExpAccessors(HostFunction constructor, JsObject prototype, RealmState realm)
     {
-        static PropertyDescriptor MakeAccessor(Func<RegExpStatics, object?> getter,
-            Action<RegExpStatics, object?> setter, RealmState realm)
+        RegExpStatics EnsureRegExpReceiver(object? thisValue)
+        {
+            if (!ReferenceEquals(thisValue, realm.RegExpConstructor))
+            {
+                throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
+            }
+
+            return realm.RegExpStatics;
+        }
+
+        PropertyDescriptor MakeAccessor(Func<RegExpStatics, object?> getter)
         {
             return new PropertyDescriptor
             {
-                Get = new HostFunction((_, _) => getter(realm.RegExpStatics)) { IsConstructor = false },
-                Set = new HostFunction((_, args) =>
+                Get = new HostFunction((thisValue, _) =>
                 {
-                    var value = args.Count > 0 ? args[0] : Symbols.Undefined;
-                    setter(realm.RegExpStatics, value);
-                    return null;
+                    var statics = EnsureRegExpReceiver(thisValue);
+                    return getter(statics);
                 })
                 { IsConstructor = false },
+                Set = null,
                 Enumerable = false,
                 Configurable = true
             };
         }
 
         object? GetCapture(RegExpStatics s, int index) => index < s.Captures.Length ? s.Captures[index] : string.Empty;
-        void SetInput(RegExpStatics s, object? v) => s.Input = v?.ToString() ?? string.Empty;
 
-        var inputDescriptor = MakeAccessor(s => s.Input, SetInput, realm);
-        var lastMatchDescriptor = MakeAccessor(s => s.LastMatch, (_, __) => { }, realm);
-        var lastParenDescriptor = MakeAccessor(s => s.LastParen, (_, __) => { }, realm);
-        var leftDescriptor = MakeAccessor(s => s.LeftContext, (_, __) => { }, realm);
-        var rightDescriptor = MakeAccessor(s => s.RightContext, (_, __) => { }, realm);
+        var inputDescriptor = new PropertyDescriptor
+        {
+            Get = new HostFunction((thisValue, _) =>
+            {
+                var statics = EnsureRegExpReceiver(thisValue);
+                return statics.Input;
+            })
+            { IsConstructor = false },
+            Set = new HostFunction((thisValue, args) =>
+            {
+                var statics = EnsureRegExpReceiver(thisValue);
+                var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+                statics.Input = value?.ToString() ?? string.Empty;
+                return null;
+            })
+            { IsConstructor = false },
+            Enumerable = false,
+            Configurable = true
+        };
+
+        var lastMatchDescriptor = MakeAccessor(s => s.LastMatch);
+        var lastParenDescriptor = MakeAccessor(s => s.LastParen);
+        var leftDescriptor = MakeAccessor(s => s.LeftContext);
+        var rightDescriptor = MakeAccessor(s => s.RightContext);
 
         constructor.DefineProperty("input", inputDescriptor);
         constructor.DefineProperty("$_", inputDescriptor);
@@ -300,34 +326,28 @@ public static partial class StandardLibrary
         for (var i = 1; i <= 9; i++)
         {
             var idx = i;
-            var captureDescriptor = MakeAccessor(s => GetCapture(s, idx - 1), (_, __) => { }, realm);
+            var captureDescriptor = MakeAccessor(s => GetCapture(s, idx - 1));
             constructor.DefineProperty($"${idx}", captureDescriptor);
         }
 
-        // Mirror accessors on the prototype as well.
-        prototype.DefineProperty("input", inputDescriptor);
-        prototype.DefineProperty("$_", inputDescriptor);
-        prototype.DefineProperty("lastMatch", lastMatchDescriptor);
-        prototype.DefineProperty("$&", lastMatchDescriptor);
-        prototype.DefineProperty("lastParen", lastParenDescriptor);
-        prototype.DefineProperty("$+", lastParenDescriptor);
-        prototype.DefineProperty("leftContext", leftDescriptor);
-        prototype.DefineProperty("$`", leftDescriptor);
-        prototype.DefineProperty("rightContext", rightDescriptor);
-        prototype.DefineProperty("$'", rightDescriptor);
-        for (var i = 1; i <= 9; i++)
-        {
-            var captureDescriptor = MakeAccessor(s => GetCapture(s, i - 1), (_, __) => { }, realm);
-            prototype.DefineProperty($"${i}", captureDescriptor);
-        }
-
         // RegExp.multiline legacy accessor aliases RegExp.prototype.flags? Treat as global statics flag.
-        var multilineDescriptor = MakeAccessor(
-            s => false, // legacy flag not tracked; return false
-            (_, __) => { },
-            realm);
+        var multilineDescriptor = new PropertyDescriptor
+        {
+            Get = new HostFunction((thisValue, _) =>
+            {
+                if (!ReferenceEquals(thisValue, realm.RegExpConstructor))
+                {
+                    throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
+                }
+
+                return false;
+            })
+            { IsConstructor = false },
+            Set = null,
+            Enumerable = false,
+            Configurable = true
+        };
         constructor.DefineProperty("multiline", multilineDescriptor);
-        prototype.DefineProperty("multiline", multilineDescriptor);
     }
 
     private static void DefineRegExpAccessors(JsObject prototype, RealmState realm)

@@ -92,10 +92,10 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
     /// </summary>
     public JsEnvironment? CallingJsEnvironment { get; set; }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, object? receiver, out object? value)
     {
         EnsureFunctionPrototype();
-        if (Properties.TryGetProperty(name, out value))
+        if (Properties.TryGetProperty(name, receiver ?? this, out value))
         {
             return true;
         }
@@ -155,9 +155,19 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
         return false;
     }
 
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return TryGetProperty(name, this, out value);
+    }
+
+    public void SetProperty(string name, object? value, object? receiver)
+    {
+        Properties.SetProperty(name, value, receiver ?? this);
+    }
+
     public void SetProperty(string name, object? value)
     {
-        Properties.SetProperty(name, value);
+        SetProperty(name, value, this);
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)

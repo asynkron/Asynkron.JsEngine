@@ -18,7 +18,7 @@ public sealed class JsMap : IJsObjectLike
     /// </summary>
     public int Size => _entries.Count;
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, object? receiver, out object? value)
     {
         // Handle special 'size' property
         if (string.Equals(name, "size", StringComparison.Ordinal))
@@ -27,12 +27,22 @@ public sealed class JsMap : IJsObjectLike
             return true;
         }
 
-        return _properties.TryGetProperty(name, out value);
+        return _properties.TryGetProperty(name, receiver ?? this, out value);
+    }
+
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return TryGetProperty(name, this, out value);
+    }
+
+    public void SetProperty(string name, object? value, object? receiver)
+    {
+        _properties.SetProperty(name, value, receiver ?? this);
     }
 
     public void SetProperty(string name, object? value)
     {
-        _properties.SetProperty(name, value);
+        SetProperty(name, value, this);
     }
 
     public JsObject? Prototype => _properties.Prototype;

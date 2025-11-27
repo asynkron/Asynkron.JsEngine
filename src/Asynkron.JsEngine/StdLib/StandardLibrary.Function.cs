@@ -20,21 +20,6 @@ public static partial class StandardLibrary
             var bodyValue = argCount > 0 ? args[argCount - 1] : string.Empty;
             var parameterCount = Math.Max(argCount - 1, 0);
 
-            if (argCount > 0 && args[0] is string debugParam && debugParam.Contains("-->"))
-            {
-                Console.WriteLine($"DEBUG Function args={argCount} first='{debugParam}' second='{(argCount > 1 ? args[1] : null)}'");
-            }
-
-            if (argCount > 1)
-            {
-                var firstParamText = ToFunctionArgumentString(args[0], evalContext, realm);
-                Console.WriteLine($"DEBUG firstParamText='{firstParamText}', shouldThrow={ContainsHtmlCloseCommentWithoutLineTerminator(firstParamText)}");
-                if (ContainsHtmlCloseCommentWithoutLineTerminator(firstParamText))
-                {
-                    throw ThrowSyntaxError("Invalid function parameter list", evalContext, realm);
-                }
-            }
-
             var parameters = new string[parameterCount];
             for (var i = 0; i < parameterCount; i++)
             {
@@ -44,6 +29,11 @@ public static partial class StandardLibrary
 
             var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
             var paramList = string.Join(",", parameters);
+            var hasDanglingClose = ContainsHtmlCloseCommentWithoutLineTerminator(paramList);
+            if (hasDanglingClose)
+            {
+                throw ThrowSyntaxError("Invalid function parameter list", evalContext, realm);
+            }
             // ECMAScript builds the source with line feeds around the parameter list and body,
             // so HTML-like comments (<!--/-->) are recognized using the Script goal rules.
             var functionSource = $"(function anonymous({paramList}\n) {{\n{bodySource}\n}})";
@@ -226,21 +216,34 @@ public static partial class StandardLibrary
 
         static bool ContainsHtmlCloseCommentWithoutLineTerminator(string text)
         {
-            if (!text.Contains("-->"))
+            var index = text.IndexOf("-->", StringComparison.Ordinal);
+            if (index < 0)
             {
                 return false;
             }
 
-            // If any line terminator appears before the close comment, it's allowed.
-            foreach (var ch in text)
+            var current = index;
+            while (current >= 0)
             {
-                if (ch is '\r' or '\n' or '\u2028' or '\u2029')
+                var hasLineTerminatorBefore = false;
+                for (var i = current - 1; i >= 0; i--)
                 {
-                    return false;
+                    if (text[i] is '\r' or '\n' or '\u2028' or '\u2029')
+                    {
+                        hasLineTerminatorBefore = true;
+                        break;
+                    }
                 }
+
+                if (!hasLineTerminatorBefore)
+                {
+                    return true;
+                }
+
+                current = text.IndexOf("-->", current + 3, StringComparison.Ordinal);
             }
 
-            return true;
+            return false;
         }
     }
 }

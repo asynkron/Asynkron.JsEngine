@@ -66,9 +66,14 @@ public class JsRegExp
 
     public JsObject JsObject { get; }
 
+    public void SetProperty(string name, object? value, object? receiver)
+    {
+        JsObject.SetProperty(name, value, receiver ?? JsObject);
+    }
+
     public void SetProperty(string name, object? value)
     {
-        JsObject.SetProperty(name, value);
+        SetProperty(name, value, JsObject);
     }
 
     /// <summary>

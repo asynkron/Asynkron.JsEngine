@@ -184,9 +184,9 @@ public sealed class JsDataView : IJsPropertyAccessor
 
     public int ByteLength { get; }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, object? receiver, out object? value)
     {
-        if (_properties.TryGetProperty(name, out value))
+        if (_properties.TryGetProperty(name, receiver ?? this, out value))
         {
             return true;
         }
@@ -256,7 +256,17 @@ public sealed class JsDataView : IJsPropertyAccessor
         return false;
     }
 
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return TryGetProperty(name, this, out value);
+    }
+
     public void SetProperty(string name, object? value)
+    {
+        SetProperty(name, value, this);
+    }
+
+    public void SetProperty(string name, object? value, object? receiver)
     {
         switch (name)
         {
@@ -266,7 +276,7 @@ public sealed class JsDataView : IJsPropertyAccessor
                 throw new InvalidOperationException($"Cannot assign to read-only property '{name}' on DataView.");
         }
 
-        _properties.SetProperty(name, value);
+        _properties.SetProperty(name, value, receiver ?? this);
     }
 
     /// <summary>

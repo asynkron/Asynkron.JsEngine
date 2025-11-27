@@ -65,9 +65,14 @@ internal sealed class ModuleNamespace : IJsObjectLike
         return false;
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, object? value, object? receiver)
     {
         throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
+    }
+
+    public void SetProperty(string name, object? value)
+    {
+        SetProperty(name, value, this);
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)

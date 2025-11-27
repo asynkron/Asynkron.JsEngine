@@ -223,9 +223,8 @@ public static class TypedAstEvaluator
         var value = statement.Expression is null
             ? null
             : EvaluateExpression(statement.Expression, environment, context);
-        if (context.IsYield)
+        if (context.ShouldStopEvaluation)
         {
-            // Defer completing the return until the pending yield chain resumes and finishes.
             return value;
         }
 
@@ -5643,7 +5642,7 @@ public static class TypedAstEvaluator
             return _properties.DeleteOwnProperty(name);
         }
 
-        public bool TryGetProperty(string name, out object? value)
+        public bool TryGetProperty(string name, object? receiver, out object? value)
         {
             if (name.Length > 0 && name[0] == '#')
             {
@@ -5653,7 +5652,7 @@ public static class TypedAstEvaluator
                 }
             }
 
-            if (_properties.TryGetProperty(name, out value))
+            if (_properties.TryGetProperty(name, receiver ?? this, out value))
             {
                 return true;
             }
@@ -5712,7 +5711,17 @@ public static class TypedAstEvaluator
             return false;
         }
 
+        public bool TryGetProperty(string name, out object? value)
+        {
+            return TryGetProperty(name, this, out value);
+        }
+
         public void SetProperty(string name, object? value)
+        {
+            SetProperty(name, value, this);
+        }
+
+        public void SetProperty(string name, object? value, object? receiver)
         {
             if (name.Length > 0 && name[0] == '#')
             {
@@ -5720,7 +5729,7 @@ public static class TypedAstEvaluator
                 return;
             }
 
-            _properties.SetProperty(name, value);
+            _properties.SetProperty(name, value, receiver ?? this);
         }
 
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
@@ -5920,9 +5929,9 @@ public static class TypedAstEvaluator
             return _properties.DeleteOwnProperty(name);
         }
 
-        public bool TryGetProperty(string name, out object? value)
+        public bool TryGetProperty(string name, object? receiver, out object? value)
         {
-            if (_properties.TryGetProperty(name, out value))
+            if (_properties.TryGetProperty(name, receiver ?? this, out value))
             {
                 return true;
             }
@@ -5981,9 +5990,19 @@ public static class TypedAstEvaluator
             return false;
         }
 
+        public bool TryGetProperty(string name, out object? value)
+        {
+            return TryGetProperty(name, this, out value);
+        }
+
         public void SetProperty(string name, object? value)
         {
-            _properties.SetProperty(name, value);
+            SetProperty(name, value, this);
+        }
+
+        public void SetProperty(string name, object? value, object? receiver)
+        {
+            _properties.SetProperty(name, value, receiver ?? this);
         }
 
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
@@ -8005,9 +8024,9 @@ public static class TypedAstEvaluator
             _properties.Seal();
         }
 
-        public bool TryGetProperty(string name, out object? value)
+        public bool TryGetProperty(string name, object? receiver, out object? value)
         {
-            if (_properties.TryGetProperty(name, out value))
+            if (_properties.TryGetProperty(name, receiver ?? this, out value))
             {
                 return true;
             }
@@ -8069,9 +8088,19 @@ public static class TypedAstEvaluator
             return false;
         }
 
+        public bool TryGetProperty(string name, out object? value)
+        {
+            return TryGetProperty(name, this, out value);
+        }
+
         public void SetProperty(string name, object? value)
         {
-            _properties.SetProperty(name, value);
+            SetProperty(name, value, this);
+        }
+
+        public void SetProperty(string name, object? value, object? receiver)
+        {
+            _properties.SetProperty(name, value, receiver ?? this);
         }
 
         public bool Delete(string name)

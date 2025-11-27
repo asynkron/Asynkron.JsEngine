@@ -345,9 +345,13 @@ public sealed class JsEngine : IAsyncDisposable
     ///     typed AST. This is primarily used by the evaluator so we avoid rebuilding the typed
     ///     tree multiple times.
     /// </summary>
-    internal ParsedProgram ParseForExecution(string source, bool forceStrict = false, bool allowTopLevelAwait = false)
+    internal ParsedProgram ParseForExecution(
+        string source,
+        bool forceStrict = false,
+        bool allowTopLevelAwait = false,
+        bool allowHtmlComments = true)
     {
-        var typedProgram = ParseTypedProgram(source, forceStrict, allowTopLevelAwait);
+        var typedProgram = ParseTypedProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments);
         if (forceStrict && !typedProgram.IsStrict)
         {
             typedProgram = new ProgramNode(typedProgram.Source, typedProgram.Body, true);
@@ -399,9 +403,10 @@ public sealed class JsEngine : IAsyncDisposable
     private static ProgramNode ParseTypedProgram(
         string source,
         bool forceStrict = false,
-        bool allowTopLevelAwait = false)
+        bool allowTopLevelAwait = false,
+        bool allowHtmlComments = true)
     {
-        var lexer = new Lexer(source);
+        var lexer = new Lexer(source, allowHtmlComments);
         var tokens = lexer.Tokenize();
         var typedParser = new TypedAstParser(tokens, source, forceStrict, allowTopLevelAwait);
         return typedParser.ParseProgram();

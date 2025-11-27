@@ -160,11 +160,10 @@ public static partial class StandardLibrary
 
                     try
                     {
-                        var localDate = new DateTime((int)yearNum, month, day, hour, minute, second,
-                            millisecond, DateTimeKind.Local);
-                        var localOffset = new DateTimeOffset(localDate);
-                        var utcMs = localOffset.ToUniversalTime().ToUnixTimeMilliseconds();
-                        timeValue = TimeClip(utcMs);
+                        var utcDate = new DateTime((int)yearNum, month, day, hour, minute, second,
+                            millisecond, DateTimeKind.Utc);
+                        var utcOffset = new DateTimeOffset(utcDate);
+                        timeValue = TimeClip(utcOffset.ToUnixTimeMilliseconds());
                     }
                     catch
                     {

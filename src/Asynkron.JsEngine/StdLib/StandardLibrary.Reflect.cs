@@ -215,8 +215,9 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.get: target must be an object.");
         }
 
+        var receiver = args.Count > 2 ? args[2] : target;
         var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
-        return target.TryGetProperty(propertyKey, out var value) ? value : null;
+        return target.TryGetProperty(propertyKey, receiver, out var value) ? value : null;
     }
 
     private static object? ReflectGetOwnPropertyDescriptor(object? _, IReadOnlyList<object?> args, RealmState? realm)
@@ -369,17 +370,11 @@ public static partial class StandardLibrary
 
         var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
         var value = args.Count > 2 ? args[2] : Symbols.Undefined;
+        var receiver = args.Count > 3 ? args[3] : target;
         if (target is ModuleNamespace moduleNamespace)
         {
-            try
-            {
-                moduleNamespace.SetProperty(propertyKey, value);
-                return true;
-            }
-            catch (ThrowSignal)
-            {
-                return false;
-            }
+            moduleNamespace.SetProperty(propertyKey, value, receiver);
+            return true;
         }
 
         if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
@@ -387,15 +382,8 @@ public static partial class StandardLibrary
             return jsArray.SetLength(value, null, false);
         }
 
-        try
-        {
-            target.SetProperty(propertyKey, value);
-            return true;
-        }
-        catch (ThrowSignal)
-        {
-            return false;
-        }
+        target.SetProperty(propertyKey, value, receiver);
+        return true;
     }
 
     private static object? ReflectSetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)

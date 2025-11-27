@@ -80,9 +80,9 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
 
     public int MaxByteLength { get; }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, object? receiver, out object? value)
     {
-        if (_properties.TryGetProperty(name, out value))
+        if (_properties.TryGetProperty(name, receiver ?? this, out value))
         {
             return true;
         }
@@ -115,14 +115,24 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
         return false;
     }
 
-    public void SetProperty(string name, object? value)
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return TryGetProperty(name, this, out value);
+    }
+
+    public void SetProperty(string name, object? value, object? receiver)
     {
         if (string.Equals(name, "byteLength", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Cannot assign to read-only property 'byteLength' on ArrayBuffer.");
         }
 
-        _properties.SetProperty(name, value);
+        _properties.SetProperty(name, value, receiver ?? this);
+    }
+
+    public void SetProperty(string name, object? value)
+    {
+        SetProperty(name, value, this);
     }
 
     /// <summary>

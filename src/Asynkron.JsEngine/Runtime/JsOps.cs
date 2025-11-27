@@ -880,7 +880,7 @@ internal static class JsOps
     {
         if (target is IJsPropertyAccessor propertyAccessor)
         {
-            return propertyAccessor.TryGetProperty(propertyName, out value);
+            return propertyAccessor.TryGetProperty(propertyName, target, out value);
         }
 
         switch (target)
@@ -1054,7 +1054,7 @@ internal static class JsOps
     {
         if (target is IJsPropertyAccessor accessor)
         {
-            accessor.SetProperty(propertyName, value);
+            accessor.SetProperty(propertyName, value, target);
             return;
         }
 

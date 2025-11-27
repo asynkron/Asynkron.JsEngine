@@ -329,6 +329,11 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public void SetProperty(string name, object? value)
     {
+        SetProperty(name, value, this);
+    }
+
+    public void SetProperty(string name, object? value, object? receiver)
+    {
         if (string.Equals(name, PrototypeKey, StringComparison.Ordinal))
         {
             SetPrototype(value);
@@ -342,7 +347,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             {
                 if (desc.Set != null)
                 {
-                    desc.Set.Invoke([value], this);
+                    desc.Set.Invoke([value], receiver ?? this);
                 }
 
                 return;
@@ -358,7 +363,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
                 {
                     if (inheritedDesc.Set != null)
                     {
-                        inheritedDesc.Set.Invoke([value], this);
+                        inheritedDesc.Set.Invoke([value], receiver ?? this);
                     }
 
                     return;
@@ -378,7 +383,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             {
                 if (descriptor.Set != null)
                 {
-                    descriptor.Set.Invoke([value], this);
+                    descriptor.Set.Invoke([value], receiver ?? this);
                 }
 
                 return;
@@ -403,8 +408,31 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         var setter = GetSetter(name);
         if (setter != null)
         {
-            setter.Invoke([value], this);
+            setter.Invoke([value], receiver ?? this);
             return;
+        }
+
+        // When the prototype is a non-JsObject accessor (e.g., HostFunction),
+        // inspect its own descriptor and its JsObject prototype chain for a setter.
+        if (_prototypeAccessor is IJsObjectLike accessorObject)
+        {
+            var protoDescriptor = accessorObject.GetOwnPropertyDescriptor(name);
+            if (protoDescriptor is not null && protoDescriptor.IsAccessorDescriptor)
+            {
+                if (protoDescriptor.Set != null)
+                {
+                    protoDescriptor.Set.Invoke([value], receiver ?? this);
+                }
+
+                return;
+            }
+
+            if (accessorObject.Prototype is JsObject protoObj &&
+                protoObj.GetSetter(name) is { } protoSetter)
+            {
+                protoSetter.Invoke([value], receiver ?? this);
+                return;
+            }
         }
 
         // Frozen objects cannot have properties modified
@@ -457,7 +485,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         return TryGetProperty(name, this, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), out value);
     }
 
-    internal bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, object? receiver, out object? value)
     {
         return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), out value);
     }
@@ -651,7 +679,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             return jsObjPrototype.TryGetProperty(name, receiver ?? this, visited, out value);
         }
 
-        return prototype.TryGetProperty(name, out value);
+        return prototype.TryGetProperty(name, receiver ?? this, out value);
     }
 
     private bool TryGetOwnProperty(string name, object? receiver, out object? value)

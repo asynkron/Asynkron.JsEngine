@@ -30,4 +30,7 @@ public sealed class RealmState
     public HostFunction? TypedArrayConstructor { get; set; }
     public JsObject? ArrayBufferPrototype { get; set; }
     public HostFunction? ArrayBufferConstructor { get; set; }
+
+    // Internal flags to avoid re-attaching built-in surfaces per instance
+    public bool StringPrototypeMethodsInitialized { get; set; }
 }

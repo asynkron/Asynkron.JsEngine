@@ -1,3 +1,5 @@
+using Asynkron.JsEngine;
+
 namespace Asynkron.JsEngine.Tests;
 
 public class PrivateFieldsTests
@@ -87,10 +89,7 @@ public class PrivateFieldsTests
     public async Task PrivateFieldNotAccessibleOutsideClass()
     {
         await using var engine = new JsEngine();
-        // For now, private fields are accessible as they're stored as properties
-        // In a future implementation, we could add access control
-        // This test documents the current behavior
-        var result = await engine.Evaluate("""
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                                                        class Counter {
                                                            #count = 42;
@@ -99,8 +98,8 @@ public class PrivateFieldsTests
                                                        let c = new Counter();
                                                        c["#count"];
 
-                                           """);
-        Assert.Equal(42d, result);
+                                           """));
+        Assert.NotNull(ex);
     }
 
     [Fact(Timeout = 2000)]

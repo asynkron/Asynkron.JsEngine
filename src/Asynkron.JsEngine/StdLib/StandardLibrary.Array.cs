@@ -264,22 +264,29 @@ public static partial class StandardLibrary
 
     private static object? ArrayFilter(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
         {
             return null;
         }
 
+        var thisObj = ToArrayLike(thisValue, realm);
+        var thisArg = args.Count > 1 ? args[1] : Symbols.Undefined;
+
         var result = new JsArray(realm);
-        for (var i = 0; i < jsArray.Items.Count; i++)
+        var length = GetArrayLikeLength(thisObj);
+        for (var i = 0; i < length; i++)
         {
-            var element = jsArray.Items[i];
-            var keep = callback.Invoke([element, (double)i, jsArray], null);
+            if (!thisObj.TryGetProperty(i.ToString(CultureInfo.InvariantCulture), out var element))
+            {
+                continue;
+            }
+
+            var keep = callback.Invoke([element, (double)i, thisObj], thisArg);
             if (IsTruthy(keep))
             {
                 result.Push(element);
             }
         }
-
         AddArrayMethods(result, realm);
         return result;
     }
@@ -1152,6 +1159,45 @@ public static partial class StandardLibrary
     private static bool AreStrictlyEqual(object? left, object? right)
     {
         return JsOps.StrictEquals(left, right);
+    }
+
+    private static IJsObjectLike ToArrayLike(object? value, RealmState? realm)
+    {
+        if (value is IJsObjectLike accessor)
+        {
+            return accessor;
+        }
+
+        if (value is null || ReferenceEquals(value, Symbols.Undefined))
+        {
+            throw ThrowTypeError("Array method called on null or undefined", realm: realm);
+        }
+
+        if (TryGetObject(value, realm ?? new RealmState(), out var boxed))
+        {
+            return boxed;
+        }
+
+        throw ThrowTypeError("Array method receiver is not object-like", realm: realm);
+    }
+
+    private static int GetArrayLikeLength(IJsObjectLike obj)
+    {
+        if (obj.TryGetProperty("length", out var lengthVal))
+        {
+            var asNumber = JsOps.ToNumber(lengthVal);
+            if (!double.IsNaN(asNumber) && asNumber > 0)
+            {
+                if (asNumber > int.MaxValue)
+                {
+                    return int.MaxValue;
+                }
+
+                return (int)asNumber;
+            }
+        }
+
+        return 0;
     }
 
     private static bool TryGetObject(object candidate, RealmState realm, out IJsObjectLike accessor)

@@ -2023,16 +2023,6 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
-        if (TryGetPropertyValue(target, propertyValue, out var arrayValue, context))
-        {
-            return context.ShouldStopEvaluation ? JsSymbols.Undefined : arrayValue;
-        }
-
-        if (context.ShouldStopEvaluation)
-        {
-            return JsSymbols.Undefined;
-        }
-
         var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
         if (context.ShouldStopEvaluation)
         {

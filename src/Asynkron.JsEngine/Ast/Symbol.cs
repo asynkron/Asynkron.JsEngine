@@ -2,9 +2,7 @@ using System.Collections.Concurrent;
 
 namespace Asynkron.JsEngine.Ast;
 
-/// <summary>
-///     Represents a symbolic atom in an S-expression. Symbols are interned to avoid duplicate instances.
-/// </summary>
+
 public sealed class Symbol : IEquatable<Symbol>
 {
     private static readonly ConcurrentDictionary<string, Symbol> Cache = new(StringComparer.Ordinal);

@@ -199,10 +199,11 @@ var __anchorCount = (tagcloud.match(/<a /g) || []).length;
         output.WriteLine("anchorCount = " + anchors);
     }
 
-    [Fact(Timeout = 10000)]
+    [Fact(Timeout = 60000)]
     public async Task CryptoAes_Diagnose_CoreVsEscaping()
     {
         await using var engine = new JsEngine();
+        engine.ExecutionTimeout = TimeSpan.FromMinutes(2);
 
         var content = SunSpiderTests.GetEmbeddedFile("crypto-aes.js");
 

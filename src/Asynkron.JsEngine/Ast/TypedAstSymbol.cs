@@ -11,8 +11,8 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 public sealed class TypedAstSymbol : IJsPropertyAccessor
 {
-    private static readonly ConcurrentDictionary<string, TypedAstSymbol> _globalRegistry = new(StringComparer.Ordinal);
-    private static int _nextId;
+    private static readonly ConcurrentDictionary<string, TypedAstSymbol> GlobalRegistry = new(StringComparer.Ordinal);
+    private static int NextId;
     private static readonly HostFunction SymbolToStringFunction = new((thisValue, _) =>
     {
         if (thisValue is TypedAstSymbol typed)
@@ -46,7 +46,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     /// </summary>
     public static TypedAstSymbol Create(string? description = null)
     {
-        return new TypedAstSymbol(description, null, Interlocked.Increment(ref _nextId));
+        return new TypedAstSymbol(description, null, Interlocked.Increment(ref NextId));
     }
 
     /// <summary>
@@ -55,7 +55,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     /// </summary>
     public static TypedAstSymbol For(string key)
     {
-        return _globalRegistry.GetOrAdd(key, k => new TypedAstSymbol(k, k, Interlocked.Increment(ref _nextId)));
+        return GlobalRegistry.GetOrAdd(key, k => new TypedAstSymbol(k, k, Interlocked.Increment(ref NextId)));
     }
 
     /// <summary>

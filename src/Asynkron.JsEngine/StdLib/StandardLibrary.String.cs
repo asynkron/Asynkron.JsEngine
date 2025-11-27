@@ -30,13 +30,19 @@ public static partial class StandardLibrary
         // avoid allocating per-character descriptors for large strings.
         stringObj.SetVirtualPropertyProvider(new StringVirtualPropertyProvider(str));
 
-        var prototype = context?.RealmState?.StringPrototype ?? realm?.StringPrototype;
+        var realmState = realm ?? context?.RealmState;
+        var prototype = realmState?.StringPrototype;
         if (prototype is not null)
         {
+            EnsureStringPrototypeMethods(prototype, realmState);
             stringObj.SetPrototype(prototype);
         }
+        else
+        {
+            // Fallback when no realm prototype is available yet.
+            AddStringMethods(stringObj, realmState, forceAttach: true);
+        }
 
-        AddStringMethods(stringObj, str, realm ?? context?.RealmState);
         return stringObj;
     }
 
@@ -82,11 +88,23 @@ public static partial class StandardLibrary
         }
     }
 
-    /// <summary>
-    ///     Adds string methods to a string wrapper object.
-    /// </summary>
-    private static void AddStringMethods(JsObject stringObj, string str, RealmState? realm)
+    private static void EnsureStringPrototypeMethods(JsObject prototype, RealmState? realm)
     {
+        AddStringMethods(prototype, realm);
+    }
+
+    /// <summary>
+    ///     Attaches string instance methods to a target object (typically String.prototype).
+    /// </summary>
+    private static void AddStringMethods(JsObject stringObj, RealmState? realm, bool forceAttach = false)
+    {
+        if (!forceAttach &&
+            realm is { StringPrototype: { } proto, StringPrototypeMethodsInitialized: true } &&
+            ReferenceEquals(stringObj, proto))
+        {
+            return;
+        }
+
         stringObj.SetHostedProperty("charAt", CharAt);
         stringObj.SetHostedProperty("charCodeAt", CharCodeAt);
         stringObj.SetHostedProperty("indexOf", IndexOf);
@@ -125,6 +143,11 @@ public static partial class StandardLibrary
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
 
         stringObj.SetHostedProperty(iteratorKey, CreateIterator);
+
+        if (!forceAttach && realm is not null && ReferenceEquals(stringObj, realm.StringPrototype))
+        {
+            realm.StringPrototypeMethodsInitialized = true;
+        }
         return;
 
         string ResolveString(object? thisValue)
@@ -863,6 +886,8 @@ public static partial class StandardLibrary
                 stringProtoObj.SetPrototype(realm.ObjectPrototype);
             }
 
+            EnsureStringPrototypeMethods(stringProtoObj, realm);
+
             DefineBuiltinFunction(stringProtoObj, "toString", new HostFunction(StringPrototypeToString), 0,
                 isConstructor: false);
             DefineBuiltinFunction(stringProtoObj, "valueOf", new HostFunction(StringPrototypeValueOf), 0,
@@ -876,7 +901,6 @@ public static partial class StandardLibrary
                     var reviver = args.Count > 0 ? args[0] : null;
                     return ParseJsonWithReviver(source, realmState!, context, reviver);
                 }, realm), 1, isConstructor: false, writable: false, enumerable: false, configurable: true);
-            stringProtoObj.SetHostedProperty("slice", StringPrototypeSlice);
 
             var supFn = new HostFunction(StringPrototypeSup) { IsConstructor = false };
 
@@ -910,48 +934,6 @@ public static partial class StandardLibrary
         object? StringPrototypeValueOf(object? thisValue, IReadOnlyList<object?> _)
         {
             return RequireStringReceiver(thisValue);
-        }
-
-        object? StringPrototypeSlice(object? thisValue, IReadOnlyList<object?> args)
-        {
-            var str = JsValueToString(thisValue);
-            if (str is null)
-            {
-                return "";
-            }
-
-            if (args.Count == 0)
-            {
-                return str;
-            }
-
-            var start = args[0] is double d1 ? (int)d1 : 0;
-            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : str.Length;
-
-            if (start < 0)
-            {
-                start = Math.Max(0, str.Length + start);
-            }
-            else
-            {
-                start = Math.Min(start, str.Length);
-            }
-
-            if (end < 0)
-            {
-                end = Math.Max(0, str.Length + end);
-            }
-            else
-            {
-                end = Math.Min(end, str.Length);
-            }
-
-            if (start >= end)
-            {
-                return "";
-            }
-
-            return str.Substring(start, end - start);
         }
 
         object? StringPrototypeSup(object? thisValue, IReadOnlyList<object?> _)

@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
@@ -1051,12 +1052,18 @@ public static class TypedAstEvaluator
             prototype.SetPrototype(superPrototype);
         }
 
+        var privateNameScope = CreatePrivateNameScope(definition);
         if (constructorValue is TypedFunction typedFunction)
         {
             typedFunction.SetSuperBinding(superConstructor, superPrototype);
             var instanceFields = definition.Fields.Where(field => !field.IsStatic).ToImmutableArray();
             typedFunction.SetInstanceFields(instanceFields);
             typedFunction.SetIsClassConstructor(superConstructor is not null);
+            typedFunction.SetPrivateNameScope(privateNameScope);
+            if (privateNameScope is not null)
+            {
+                typedFunction.AddPrivateBrand(privateNameScope);
+            }
         }
 
         if (superConstructor is not null)
@@ -1076,14 +1083,14 @@ public static class TypedAstEvaluator
         prototype.SetProperty("constructor", constructorValue);
 
         AssignClassMembers(definition.Members, constructorAccessor, prototype, superConstructor, superPrototype,
-            environment, context);
+            environment, context, privateNameScope);
         if (context.ShouldStopEvaluation)
         {
             return JsSymbols.Undefined;
         }
 
         var staticFields = definition.Fields.Where(field => field.IsStatic).ToImmutableArray();
-        InitializeStaticFields(staticFields, constructorAccessor, environment, context);
+        InitializeStaticFields(staticFields, constructorAccessor, environment, context, privateNameScope);
         if (context.ShouldStopEvaluation)
         {
             return JsSymbols.Undefined;
@@ -1149,12 +1156,45 @@ public static class TypedAstEvaluator
         return created;
     }
 
+    private static PrivateNameScope? CreatePrivateNameScope(ClassDefinition definition)
+    {
+        var hasPrivateFields = definition.Fields.Any(f => f.IsPrivate);
+        var hasPrivateMembers = definition.Members.Any(m => m.Name.Length > 0 && m.Name[0] == '#');
+        return hasPrivateFields || hasPrivateMembers ? new PrivateNameScope() : null;
+    }
+
     private static void AssignClassMembers(ImmutableArray<ClassMember> members, IJsPropertyAccessor constructorAccessor,
         JsObject prototype, IJsEnvironmentAwareCallable? superConstructor, JsObject? superPrototype,
-        JsEnvironment environment, EvaluationContext context)
+        JsEnvironment environment, EvaluationContext context, PrivateNameScope? privateNameScope)
     {
         foreach (var member in members)
         {
+            var propertyName = member.Name;
+            if (member.IsComputed)
+            {
+                if (member.ComputedName is null)
+                {
+                    throw new InvalidOperationException("Computed class member is missing name expression.");
+                }
+
+                var nameValue = EvaluateExpression(member.ComputedName, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+
+                propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+            }
+
+            if (propertyName.Length > 0 && propertyName[0] == '#' && privateNameScope is not null)
+            {
+                propertyName = privateNameScope.GetKey(propertyName);
+            }
+
             var value = EvaluateExpression(member.Function, environment, context);
             if (context.ShouldStopEvaluation)
             {
@@ -1174,11 +1214,13 @@ public static class TypedAstEvaluator
                 : superPrototype;
             if (value is TypedFunction typedFunction)
             {
+                typedFunction.SetPrivateNameScope(privateNameScope);
                 typedFunction.SetSuperBinding(superConstructor, superTarget);
                 if (homeObject is not null)
                 {
                     typedFunction.SetHomeObject(homeObject);
                 }
+                typedFunction.EnsureHasName(propertyName);
             }
 
             if (member.Kind == ClassMemberKind.Method)
@@ -1187,7 +1229,7 @@ public static class TypedAstEvaluator
                 {
                     if (constructorAccessor is IJsObjectLike ctorObject)
                     {
-                        ctorObject.DefineProperty(member.Name,
+                        ctorObject.DefineProperty(propertyName,
                             new PropertyDescriptor
                             {
                                 Value = value,
@@ -1202,12 +1244,12 @@ public static class TypedAstEvaluator
                     }
                     else
                     {
-                        constructorAccessor.SetProperty(member.Name, value);
+                        constructorAccessor.SetProperty(propertyName, value);
                     }
                 }
                 else
                 {
-                    prototype.DefineProperty(member.Name,
+                    prototype.DefineProperty(propertyName,
                         new PropertyDescriptor
                         {
                             Value = value,
@@ -1229,7 +1271,7 @@ public static class TypedAstEvaluator
                 : prototype;
             if (accessorTarget is not null)
             {
-                accessorTarget.DefineProperty(member.Name,
+                accessorTarget.DefineProperty(propertyName,
                     new PropertyDescriptor
                     {
                         Get = member.Kind == ClassMemberKind.Getter ? callable : null,
@@ -1240,20 +1282,46 @@ public static class TypedAstEvaluator
             }
             else
             {
-                constructorAccessor.SetProperty(member.Name, value);
+                constructorAccessor.SetProperty(propertyName, value);
             }
         }
     }
 
     private static void InitializeStaticFields(ImmutableArray<ClassField> fields,
         IJsPropertyAccessor constructorAccessor,
-        JsEnvironment environment, EvaluationContext context)
+        JsEnvironment environment, EvaluationContext context, PrivateNameScope? privateNameScope)
     {
         foreach (var field in fields)
         {
+            var propertyName = field.Name;
+            if (field.IsComputed)
+            {
+                if (field.ComputedName is null)
+                {
+                    throw new InvalidOperationException("Computed class field is missing name expression.");
+                }
+
+                var nameValue = EvaluateExpression(field.ComputedName, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+
+                propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+            }
+            else if (field.IsPrivate && privateNameScope is not null)
+            {
+                propertyName = privateNameScope.GetKey(propertyName);
+            }
+
             object? value = JsSymbols.Undefined;
             if (field.Initializer is not null)
             {
+                using var _ = privateNameScope is not null ? context.EnterPrivateNameScope(privateNameScope) : null;
                 value = EvaluateExpression(field.Initializer, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
@@ -1261,7 +1329,7 @@ public static class TypedAstEvaluator
                 }
             }
 
-            constructorAccessor.SetProperty(field.Name, value);
+            constructorAccessor.SetProperty(propertyName, value);
         }
     }
 
@@ -1971,9 +2039,34 @@ public static class TypedAstEvaluator
             return JsSymbols.Undefined;
         }
 
-        return TryGetPropertyValue(target, propertyName, out var value, context)
-            ? context.ShouldStopEvaluation ? JsSymbols.Undefined : value
-            : JsSymbols.Undefined;
+        var isPrivateName = propertyName.Length > 0 && propertyName[0] == '#';
+        PrivateNameScope? privateScopeForAccess = null;
+        if (isPrivateName)
+        {
+            privateScopeForAccess = context.CurrentPrivateNameScope;
+            if (privateScopeForAccess is null)
+            {
+                PrivateNameScope.TryResolveScope(propertyName, out privateScopeForAccess);
+            }
+
+            if (privateScopeForAccess is not null &&
+                (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(privateScopeForAccess)))
+            {
+                throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
+            }
+        }
+
+        if (TryGetPropertyValue(target, propertyName, out var value, context))
+        {
+            return context.ShouldStopEvaluation ? JsSymbols.Undefined : value;
+        }
+
+        if (privateScopeForAccess is not null)
+        {
+            throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
+        }
+
+        return JsSymbols.Undefined;
     }
 
     private static object? EvaluateConditional(ConditionalExpression expression, JsEnvironment environment,
@@ -2253,16 +2346,6 @@ public static class TypedAstEvaluator
 
         try
         {
-            if (expression.Callee is SuperExpression)
-            {
-                if ((superBindingForCall is not null && superBindingForCall.IsThisInitialized) ||
-                    (thisInitializationValue is not null && JsOps.ToBoolean(thisInitializationValue)))
-                {
-                    throw StandardLibrary.ThrowReferenceError(
-                        "Super constructor may only be called once.", context, context.RealmState);
-                }
-            }
-
             if (callable is TypedFunction typedFunction)
             {
                 callResult = typedFunction.InvokeWithContext(frozenArguments, thisValue, context,
@@ -5391,6 +5474,7 @@ public static class TypedAstEvaluator
         private readonly FunctionExpression _function;
         private readonly RealmState _realmState;
         private readonly JsObject _properties = new();
+        private readonly Dictionary<string, object?> _privateSlots = new(StringComparer.Ordinal);
 
         public TypedGeneratorFactory(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
@@ -5502,6 +5586,14 @@ public static class TypedAstEvaluator
 
         public bool TryGetProperty(string name, out object? value)
         {
+            if (name.Length > 0 && name[0] == '#')
+            {
+                if (_privateSlots.TryGetValue(name, out value))
+                {
+                    return true;
+                }
+            }
+
             if (_properties.TryGetProperty(name, out value))
             {
                 return true;
@@ -5563,6 +5655,12 @@ public static class TypedAstEvaluator
 
         public void SetProperty(string name, object? value)
         {
+            if (name.Length > 0 && name[0] == '#')
+            {
+                _privateSlots[name] = value;
+                return;
+            }
+
             _properties.SetProperty(name, value);
         }
 
@@ -7499,7 +7597,7 @@ public static class TypedAstEvaluator
     }
 
     private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
-        ICallableMetadata, IFunctionNameTarget
+        ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
@@ -7511,16 +7609,19 @@ public static class TypedAstEvaluator
         private readonly Symbol[] _bodyLexicalNames;
         private readonly bool _hasHoistableDeclarations;
         private readonly object? _lexicalThis;
+        private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
         private bool _isClassConstructor;
         private bool _isDerivedClassConstructor;
         private IJsEnvironmentAwareCallable? _superConstructor;
         private IJsPropertyAccessor? _superPrototype;
+        private PrivateNameScope? _privateNameScope;
 
         public bool IsArrowFunction => _isArrowFunction;
         public bool IsAsyncFunction => _isAsyncFunction;
         public bool IsAsyncLike => _isAsyncFunction || _wasAsyncFunction;
+        public PrivateNameScope? PrivateNameScope => _privateNameScope;
 
         public TypedFunction(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
@@ -7641,6 +7742,9 @@ public static class TypedAstEvaluator
             var executionEnvironment = new JsEnvironment(functionEnvironment, false, _function.Body.IsStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(lexicalNames);
+            using var privateScope = _privateNameScope is not null
+                ? context.EnterPrivateNameScope(_privateNameScope)
+                : null;
 
             if (!_isArrowFunction)
             {
@@ -7952,6 +8056,21 @@ public static class TypedAstEvaluator
             return _properties.GetOwnPropertyNames();
         }
 
+        public void SetPrivateNameScope(PrivateNameScope? scope)
+        {
+            _privateNameScope = scope;
+        }
+
+        public void AddPrivateBrand(object brand)
+        {
+            _privateBrands.Add(brand);
+        }
+
+        public bool HasPrivateBrand(object brand)
+        {
+            return _privateBrands.Contains(brand);
+        }
+
         public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype)
         {
             _superConstructor = superConstructor;
@@ -8030,18 +8149,51 @@ public static class TypedAstEvaluator
                 }
             }
 
+            if (_privateNameScope is not null && instance is IPrivateBrandHolder brandHolder)
+            {
+                brandHolder.AddPrivateBrand(_privateNameScope);
+            }
+
             if (_instanceFields.IsDefaultOrEmpty || _instanceFields.Length == 0)
             {
                 return;
             }
 
+            using var _ = _privateNameScope is not null ? context.EnterPrivateNameScope(_privateNameScope) : null;
+
             foreach (var field in _instanceFields)
             {
+                var initEnv = new JsEnvironment(environment);
+                initEnv.Define(JsSymbols.This, instance);
+
+                var propertyName = field.Name;
+                if (field.IsComputed)
+                {
+                    if (field.ComputedName is null)
+                    {
+                        throw new InvalidOperationException("Computed class field is missing name expression.");
+                    }
+
+                    var nameValue = EvaluateExpression(field.ComputedName, initEnv, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return;
+                    }
+
+                    propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return;
+                    }
+                }
+                else if (field.IsPrivate && _privateNameScope is not null)
+                {
+                    propertyName = _privateNameScope.GetKey(propertyName);
+                }
+
                 object? value = JsSymbols.Undefined;
                 if (field.Initializer is not null)
                 {
-                    var initEnv = new JsEnvironment(environment);
-                    initEnv.Define(JsSymbols.This, instance);
                     value = EvaluateExpression(field.Initializer, initEnv, context);
                     if (context.ShouldStopEvaluation)
                     {
@@ -8049,7 +8201,7 @@ public static class TypedAstEvaluator
                     }
                 }
 
-                instance.SetProperty(field.Name, value);
+                instance.SetProperty(propertyName, value);
             }
         }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Parser;
 
@@ -665,7 +666,13 @@ public sealed class TypedAstParser(
             }
 
             Consume(TokenType.LeftBrace, "Expected '{' after class name or extends clause.");
-            var (constructor, members, fields) = ParseClassElements(className);
+            FunctionExpression? constructor;
+            ImmutableArray<ClassMember> members;
+            ImmutableArray<ClassField> fields;
+            using (EnterStrictContext(true))
+            {
+                (constructor, members, fields) = ParseClassElements(className);
+            }
             Consume(TokenType.RightBrace, "Expected '}' after class body.");
             var ctor = constructor ?? CreateDefaultConstructor(className, extendsExpression is not null);
             var source = CreateSourceReference(classToken);
@@ -718,7 +725,7 @@ public sealed class TypedAstParser(
                     var isGetter = accessorToken.Type == TokenType.Get;
                     var methodNameToken = ConsumePropertyIdentifierToken(
                         isGetter ? "Expected getter name in class body." : "Expected setter name in class body.");
-                    var methodName = methodNameToken.Lexeme;
+                    var methodName = GetPropertyNameValue(methodNameToken);
 
                     if (isGetter)
                     {
@@ -757,9 +764,23 @@ public sealed class TypedAstParser(
                     Advance(); // async
                     var isAsyncGeneratorMethod = Match(TokenType.Star);
 
-                    if (IsPropertyNameToken(Peek()))
+                    if (IsPropertyNameToken(Peek()) || Check(TokenType.LeftBracket))
                     {
-                        var asyncMethodNameToken = Advance();
+                        Token? asyncMethodNameToken = null;
+                        ExpressionNode? computedName = null;
+
+                        if (Check(TokenType.LeftBracket))
+                        {
+                            Advance(); // [
+                            computedName = ParseExpression(false);
+                            var closing = Consume(TokenType.RightBracket, "Expected ']' after computed property name.");
+                            asyncMethodNameToken = closing;
+                        }
+                        else
+                        {
+                            asyncMethodNameToken = Advance();
+                        }
+
                         var asyncMethodName = asyncMethodNameToken.Lexeme;
 
                         if (Check(TokenType.Equal))
@@ -776,7 +797,8 @@ public sealed class TypedAstParser(
 
                             var function = ParseClassMethod(null, asyncMethodNameToken, isAsyncGeneratorMethod, true);
                             members.Add(new ClassMember(CreateSourceReference(asyncMethodNameToken),
-                                ClassMemberKind.Method, asyncMethodName, function, isStatic));
+                                ClassMemberKind.Method, asyncMethodName, function, isStatic,
+                                IsComputed: computedName is not null, ComputedName: computedName));
                             continue;
                         }
                     }
@@ -788,12 +810,47 @@ public sealed class TypedAstParser(
 
                 var isGeneratorMethod = Match(TokenType.Star);
 
+                if (Check(TokenType.LeftBracket))
+                {
+                    Advance(); // [
+                    var nameExpression = ParseExpression(false);
+                    var closing = Consume(TokenType.RightBracket, "Expected ']' after computed property name.");
+                    var hasInitializer = Match(TokenType.Equal);
+                    var looksLikeMethod = !hasInitializer && Check(TokenType.LeftParen);
+
+                    if (!looksLikeMethod)
+                    {
+                        if (isGeneratorMethod)
+                        {
+                            throw new ParseException("Class fields cannot be prefixed with '*'.", closing, _source);
+                        }
+
+                        ExpressionNode? initializer = null;
+                        if (hasInitializer)
+                        {
+                            initializer = ParseExpression(false);
+                        }
+
+                        Match(TokenType.Semicolon);
+                        fields.Add(new ClassField(CreateSourceReference(closing), string.Empty, initializer, isStatic,
+                            false, true, nameExpression));
+                        continue;
+                    }
+
+                    var function = ParseClassMethod(null, closing, isGeneratorMethod, false);
+                    members.Add(new ClassMember(CreateSourceReference(closing), ClassMemberKind.Method, string.Empty,
+                        function, isStatic, IsComputed: true, ComputedName: nameExpression));
+                    continue;
+                }
+
                 if (IsPropertyNameToken(Peek()))
                 {
                     var methodNameToken = Advance();
-                    var methodName = methodNameToken.Lexeme;
+                    var methodName = GetPropertyNameValue(methodNameToken);
+                    var hasInitializer = Match(TokenType.Equal);
+                    var looksLikeMethod = !hasInitializer && Check(TokenType.LeftParen);
 
-                    if (Match(TokenType.Equal))
+                    if (!looksLikeMethod)
                     {
                         if (isGeneratorMethod)
                         {
@@ -801,7 +858,12 @@ public sealed class TypedAstParser(
                                 _source);
                         }
 
-                        var initializer = ParseExpression(false);
+                        ExpressionNode? initializer = null;
+                        if (hasInitializer)
+                        {
+                            initializer = ParseExpression(false);
+                        }
+
                         Match(TokenType.Semicolon);
                         fields.Add(new ClassField(CreateSourceReference(methodNameToken), methodName, initializer,
                             isStatic, false));
@@ -865,7 +927,7 @@ public sealed class TypedAstParser(
         {
             if (!isDerived)
             {
-                var emptyBody = new BlockStatement(null, ImmutableArray<StatementNode>.Empty, false);
+                var emptyBody = new BlockStatement(null, ImmutableArray<StatementNode>.Empty, true);
                 return new FunctionExpression(emptyBody.Source, className, ImmutableArray<FunctionParameter>.Empty,
                     emptyBody, false, false);
             }
@@ -877,7 +939,7 @@ public sealed class TypedAstParser(
                 ImmutableArray.Create(new CallArgument(null, new IdentifierExpression(null, argsSymbol), true));
             var superCall = new CallExpression(null, new SuperExpression(null), callArguments, false);
             var statements = ImmutableArray.Create<StatementNode>(new ExpressionStatement(null, superCall));
-            var body = new BlockStatement(null, statements, false);
+            var body = new BlockStatement(null, statements, true);
             return new FunctionExpression(body.Source, className, ImmutableArray.Create(restParameter), body, false,
                 false);
         }
@@ -3232,10 +3294,29 @@ public sealed class TypedAstParser(
             return token.Literal?.ToString() ?? string.Empty;
         }
 
+        private string GetPropertyNameValue(Token token)
+        {
+            return token.Type switch
+            {
+                TokenType.String => GetStringLiteralValue(token),
+                TokenType.Number => Convert.ToString(token.Literal, CultureInfo.InvariantCulture) ??
+                                    token.Lexeme,
+                TokenType.BigInt => token.Literal switch
+                {
+                    JsBigInt bigInt => bigInt.Value.ToString(CultureInfo.InvariantCulture),
+                    _ => Convert.ToString(token.Literal, CultureInfo.InvariantCulture) ?? token.Lexeme
+                },
+                _ => token.Lexeme
+            };
+        }
+
         private static bool IsPropertyNameToken(Token token)
         {
             return token.Type == TokenType.Identifier ||
                    token.Type == TokenType.PrivateIdentifier ||
+                   token.Type == TokenType.String ||
+                   token.Type == TokenType.Number ||
+                   token.Type == TokenType.BigInt ||
                    IsContextualIdentifierToken(token) ||
                    IsKeyword(token);
         }

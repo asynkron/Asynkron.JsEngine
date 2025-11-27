@@ -66,7 +66,7 @@ public sealed class PropertyDescriptor
 /// <summary>
 ///     Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal), IJsObjectLike
+public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal), IJsObjectLike, IPrivateBrandHolder
 {
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
@@ -75,6 +75,8 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
     private readonly List<string> _propertyInsertionOrder = new();
     private readonly HashSet<string> _propertyInsertionSet = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
+    private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
     private IVirtualPropertyProvider? _virtualPropertyProvider;
 
     public bool IsFrozen { get; private set; }
@@ -86,6 +88,11 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
     public bool IsSealed { get; private set; }
 
     IEnumerable<string> IJsObjectLike.Keys => Keys;
+
+    private static bool IsPrivateName(string name)
+    {
+        return name.Length > 0 && name[0] == '#';
+    }
 
     public void SetPrototype(object? candidate)
     {
@@ -102,6 +109,16 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
     }
 
+    public void AddPrivateBrand(object brand)
+    {
+        _privateBrands.Add(brand);
+    }
+
+    public bool HasPrivateBrand(object brand)
+    {
+        return _privateBrands.Contains(brand);
+    }
+
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
     {
         return DefinePropertyInternal(name, descriptor);
@@ -114,6 +131,12 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor)
     {
+        if (IsPrivateName(name))
+        {
+            _privateFields[name] = descriptor;
+            return true;
+        }
+
         var propertyExists = _descriptors.ContainsKey(name) || ContainsKey(name);
         var existingDesc = _descriptors.TryGetValue(name, out var found) ? found : null;
         if (existingDesc is null && TryGetValue(name, out var existingValue))
@@ -274,6 +297,11 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
+        if (IsPrivateName(name))
+        {
+            return null;
+        }
+
         if (_descriptors.TryGetValue(name, out var descriptor))
         {
             return descriptor;
@@ -304,6 +332,42 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         if (string.Equals(name, PrototypeKey, StringComparison.Ordinal))
         {
             SetPrototype(value);
+            return;
+        }
+
+        if (IsPrivateName(name))
+        {
+            if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor desc &&
+                desc.IsAccessorDescriptor)
+            {
+                if (desc.Set != null)
+                {
+                    desc.Set.Invoke([value], this);
+                }
+
+                return;
+            }
+
+            // If we didn't have an accessor on this object, walk the prototype
+            // chain for a private accessor before falling back to defining a slot.
+            var prototype = Prototype;
+            while (prototype is not null)
+            {
+                if (prototype._privateFields.TryGetValue(name, out var inherited) &&
+                    inherited is PropertyDescriptor inheritedDesc && inheritedDesc.IsAccessorDescriptor)
+                {
+                    if (inheritedDesc.Set != null)
+                    {
+                        inheritedDesc.Set.Invoke([value], this);
+                    }
+
+                    return;
+                }
+
+                prototype = prototype.Prototype;
+            }
+
+            _privateFields[name] = value;
             return;
         }
 
@@ -528,6 +592,42 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     private bool TryGetProperty(string name, object? receiver, HashSet<object> visited, out object? value)
     {
+        if (IsPrivateName(name))
+        {
+            if (_privateFields.TryGetValue(name, out var slot))
+            {
+                switch (slot)
+                {
+                    case PropertyDescriptor desc:
+                        if (desc.IsAccessorDescriptor)
+                        {
+                            if (desc.Get != null)
+                            {
+                                value = desc.Get.Invoke([], receiver ?? this);
+                                return true;
+                            }
+
+                            value = Symbols.Undefined;
+                            return true;
+                        }
+
+                        value = desc.HasValue ? desc.Value : Symbols.Undefined;
+                        return true;
+                    default:
+                        value = slot;
+                        return true;
+                }
+            }
+
+            if (Prototype is not null && Prototype.TryGetProperty(name, receiver ?? this, visited, out value))
+            {
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
         if (TryGetOwnProperty(name, receiver ?? this, out value))
         {
             return true;
@@ -758,6 +858,12 @@ public interface IVirtualPropertyProvider
 {
     bool TryGetOwnProperty(string name, out object? value, out PropertyDescriptor? descriptor);
     IEnumerable<string> GetEnumerableKeys();
+}
+
+public interface IPrivateBrandHolder
+{
+    void AddPrivateBrand(object brand);
+    bool HasPrivateBrand(object brand);
 }
 
 public sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>

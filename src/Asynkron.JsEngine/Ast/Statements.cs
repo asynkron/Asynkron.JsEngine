@@ -232,7 +232,9 @@ public sealed record ClassMember(
     ClassMemberKind Kind,
     string Name,
     FunctionExpression Function,
-    bool IsStatic) : AstNode(Source);
+    bool IsStatic,
+    bool IsComputed = false,
+    ExpressionNode? ComputedName = null) : AstNode(Source);
 
 /// <summary>
 ///     Distinguishes between regular methods, getters and setters.
@@ -252,7 +254,9 @@ public sealed record ClassField(
     string Name,
     ExpressionNode? Initializer,
     bool IsStatic,
-    bool IsPrivate) : AstNode(Source);
+    bool IsPrivate,
+    bool IsComputed = false,
+    ExpressionNode? ComputedName = null) : AstNode(Source);
 
 /// <summary>
 ///     Base type for module import/export statements. Concrete records capture the

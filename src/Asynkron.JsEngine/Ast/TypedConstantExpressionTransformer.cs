@@ -366,13 +366,25 @@ public sealed class TypedConstantExpressionTransformer
     private ClassMember TransformClassMember(ClassMember member)
     {
         var function = TransformFunctionExpression(member.Function);
-        return ReferenceEquals(function, member.Function) ? member : member with { Function = function };
+        var computedName = TransformOptionalExpression(member.ComputedName);
+        if (ReferenceEquals(function, member.Function) && ReferenceEquals(computedName, member.ComputedName))
+        {
+            return member;
+        }
+
+        return member with { Function = function, ComputedName = computedName };
     }
 
     private ClassField TransformClassField(ClassField field)
     {
         var initializer = TransformOptionalExpression(field.Initializer);
-        return ReferenceEquals(initializer, field.Initializer) ? field : field with { Initializer = initializer };
+        var computedName = TransformOptionalExpression(field.ComputedName);
+        if (ReferenceEquals(initializer, field.Initializer) && ReferenceEquals(computedName, field.ComputedName))
+        {
+            return field;
+        }
+
+        return field with { Initializer = initializer, ComputedName = computedName };
     }
 
     private ExportDefaultValue TransformExportDefaultValue(ExportDefaultValue value)

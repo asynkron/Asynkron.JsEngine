@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
@@ -602,6 +603,14 @@ internal static class JsOps
     {
         while (true)
         {
+            if (value is string { Length: > 0 } privateName &&
+                privateName[0] == '#' &&
+                context?.CurrentPrivateNameScope is { } privateScope &&
+                !privateName.Contains('@'))
+            {
+                return privateScope.GetKey(privateName);
+            }
+
             switch (value)
             {
                 case null:

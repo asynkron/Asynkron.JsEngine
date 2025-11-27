@@ -1,3 +1,4 @@
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -83,6 +84,21 @@ internal static class AssignmentReferenceResolver
         }
 
         var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
+        var isPrivateName = propertyName.Length > 0 && propertyName[0] == '#';
+        if (isPrivateName)
+        {
+            var privateScope = context.CurrentPrivateNameScope;
+            if (privateScope is null)
+            {
+                PrivateNameScope.TryResolveScope(propertyName, out privateScope);
+            }
+
+            if (privateScope is not null &&
+                (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(privateScope)))
+            {
+                throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
+            }
+        }
 
         return new AssignmentReference(
             () => JsOps.TryGetPropertyValue(target, propertyName, out var value) ? value : JsSymbols.Undefined,

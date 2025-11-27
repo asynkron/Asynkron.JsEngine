@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
@@ -18,6 +21,12 @@ public sealed class EvaluationContext(
     ///     break/continue should be handled by the current statement.
     /// </summary>
     private readonly Stack<Symbol> _labelStack = new();
+
+    /// <summary>
+    ///     Tracks the active private name scopes (innermost first) so private member
+    ///     lookups can be mapped to their class-specific brands.
+    /// </summary>
+    private readonly Stack<PrivateNameScope> _privateNameScopes = new();
 
     /// <summary>
     ///     Realm-specific state (prototypes/constructors) for the current execution.
@@ -121,6 +130,14 @@ public sealed class EvaluationContext(
     {
         _labelStack.Push(label);
     }
+
+    public IDisposable EnterPrivateNameScope(PrivateNameScope scope)
+    {
+        _privateNameScopes.Push(scope);
+        return new PrivateNameScopeHandle(_privateNameScopes);
+    }
+
+    public PrivateNameScope? CurrentPrivateNameScope => _privateNameScopes.Count > 0 ? _privateNameScopes.Peek() : null;
 
     /// <summary>
     ///     Pops a label from the label stack.
@@ -253,5 +270,67 @@ public sealed class EvaluationContext(
     public void Clear()
     {
         CurrentSignal = null;
+    }
+
+    private sealed class PrivateNameScopeHandle(Stack<PrivateNameScope> scopes) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (scopes.Count > 0)
+            {
+                scopes.Pop();
+            }
+
+            _disposed = true;
+        }
+    }
+}
+
+public sealed class PrivateNameScope
+{
+    private static int _nextId;
+    private static readonly ConcurrentDictionary<int, PrivateNameScope> _scopes = new();
+    private readonly int _id = Interlocked.Increment(ref _nextId);
+    private readonly Dictionary<string, string> _map = new(StringComparer.Ordinal);
+
+    public PrivateNameScope()
+    {
+        _scopes[_id] = this;
+    }
+
+    public string GetKey(string lexeme)
+    {
+        if (_map.TryGetValue(lexeme, out var key))
+        {
+            return key;
+        }
+
+        key = $"{lexeme}@{_id}";
+        _map[lexeme] = key;
+        return key;
+    }
+
+    public static bool TryResolveScope(string key, out PrivateNameScope? scope)
+    {
+        scope = null;
+        var separator = key.LastIndexOf('@');
+        if (separator < 0)
+        {
+            return false;
+        }
+
+        if (!int.TryParse(key.AsSpan(separator + 1), out var id))
+        {
+            return false;
+        }
+
+        return _scopes.TryGetValue(id, out scope);
     }
 }

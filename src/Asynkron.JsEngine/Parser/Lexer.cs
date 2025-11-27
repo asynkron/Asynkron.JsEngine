@@ -515,18 +515,43 @@ public sealed class Lexer(string source)
     private void ReadPrivateIdentifier()
     {
         // '#' has already been consumed
-        if (!IsAlpha(Peek()))
+        var builder = new StringBuilder();
+        builder.Append('#');
+
+        if (Peek() == '\\')
         {
-            throw new ParseException($"Expected identifier after '#' on line {_line} column {_column}.");
+            builder.Append(ReadIdentifierEscape());
+        }
+        else
+        {
+            var first = Peek();
+            if (!IsIdentifierStart(first))
+            {
+                throw new ParseException($"Expected identifier after '#' on line {_line} column {_column}.");
+            }
+
+            builder.Append(Advance());
         }
 
-        while (IsAlphaNumeric(Peek()))
+        while (true)
         {
-            Advance();
+            if (Peek() == '\\')
+            {
+                builder.Append(ReadIdentifierEscape());
+                continue;
+            }
+
+            var current = Peek();
+            if (!IsIdentifierPart(current))
+            {
+                break;
+            }
+
+            builder.Append(Advance());
         }
 
-        var text = _source[_start.._current]; // Includes the '#'
-        AddToken(TokenType.PrivateIdentifier, text);
+        var text = builder.ToString();
+        _tokens.Add(new Token(TokenType.PrivateIdentifier, text, null, _startLine, _startColumn, _start, _current));
     }
 
     private void ReadNumber()
@@ -1101,7 +1126,8 @@ public sealed class Lexer(string source)
 
     private static bool IsIdentifierStart(char c)
     {
-        if (c == '$' || c == '_' || char.IsLetter(c))
+        // Include Other_ID_Start code points (e.g. \u2118, \u212E, \u309B, \u309C) alongside the usual letter set.
+        if (c == '$' || c == '_' || char.IsLetter(c) || c is '\u2118' or '\u212E' or '\u309B' or '\u309C')
         {
             return true;
         }

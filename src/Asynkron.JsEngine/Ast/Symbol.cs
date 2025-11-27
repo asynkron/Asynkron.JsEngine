@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -6,10 +7,13 @@ namespace Asynkron.JsEngine.Ast;
 public sealed class Symbol : IEquatable<Symbol>
 {
     private static readonly ConcurrentDictionary<string, Symbol> Cache = new(StringComparer.Ordinal);
+    private static int NextId;
+    private readonly int _id;
 
     private Symbol(string name)
     {
         Name = name;
+        _id = Interlocked.Increment(ref NextId);
     }
 
     /// <summary>
@@ -43,7 +47,7 @@ public sealed class Symbol : IEquatable<Symbol>
 
     public override int GetHashCode()
     {
-        return Name.GetHashCode(StringComparison.Ordinal);
+        return _id;
     }
 
     public override string ToString()

@@ -299,6 +299,7 @@ public sealed class PrivateNameScope
     private static readonly ConcurrentDictionary<int, PrivateNameScope> _scopes = new();
     private readonly int _id = Interlocked.Increment(ref _nextId);
     private readonly Dictionary<string, string> _map = new(StringComparer.Ordinal);
+    public object BrandToken { get; } = new();
 
     public PrivateNameScope()
     {

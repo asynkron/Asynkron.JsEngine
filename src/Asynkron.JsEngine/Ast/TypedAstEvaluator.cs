@@ -1053,18 +1053,18 @@ public static class TypedAstEvaluator
         }
 
         var privateNameScope = CreatePrivateNameScope(definition);
-        if (constructorValue is TypedFunction typedFunction)
-        {
-            typedFunction.SetSuperBinding(superConstructor, superPrototype);
-            var instanceFields = definition.Fields.Where(field => !field.IsStatic).ToImmutableArray();
-            typedFunction.SetInstanceFields(instanceFields);
-            typedFunction.SetIsClassConstructor(superConstructor is not null);
-            typedFunction.SetPrivateNameScope(privateNameScope);
-            if (privateNameScope is not null)
+            if (constructorValue is TypedFunction typedFunction)
             {
-                typedFunction.AddPrivateBrand(privateNameScope);
+                typedFunction.SetSuperBinding(superConstructor, superPrototype);
+                var instanceFields = definition.Fields.Where(field => !field.IsStatic).ToImmutableArray();
+                typedFunction.SetInstanceFields(instanceFields);
+                typedFunction.SetIsClassConstructor(superConstructor is not null);
+                typedFunction.SetPrivateNameScope(privateNameScope);
+                if (privateNameScope is not null)
+                {
+                    typedFunction.AddPrivateBrand(privateNameScope.BrandToken);
+                }
             }
-        }
 
         if (superConstructor is not null)
         {
@@ -2049,8 +2049,18 @@ public static class TypedAstEvaluator
                 PrivateNameScope.TryResolveScope(propertyName, out privateScopeForAccess);
             }
 
-            if (privateScopeForAccess is not null &&
-                (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(privateScopeForAccess)))
+            if (privateScopeForAccess is null)
+            {
+                throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
+            }
+
+            if (!propertyName.Contains("@", StringComparison.Ordinal))
+            {
+                propertyName = privateScopeForAccess.GetKey(propertyName);
+            }
+
+            var brandToken = privateScopeForAccess.BrandToken;
+            if (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(brandToken))
             {
                 throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
             }
@@ -8151,7 +8161,7 @@ public static class TypedAstEvaluator
 
             if (_privateNameScope is not null && instance is IPrivateBrandHolder brandHolder)
             {
-                brandHolder.AddPrivateBrand(_privateNameScope);
+                brandHolder.AddPrivateBrand(_privateNameScope.BrandToken);
             }
 
             if (_instanceFields.IsDefaultOrEmpty || _instanceFields.Length == 0)

@@ -93,8 +93,13 @@ internal static class AssignmentReferenceResolver
                 PrivateNameScope.TryResolveScope(propertyName, out privateScope);
             }
 
-            if (privateScope is not null &&
-                (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(privateScope)))
+            if (privateScope is null)
+            {
+                throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
+            }
+
+            var brandToken = privateScope.BrandToken;
+            if (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(brandToken))
             {
                 throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
             }

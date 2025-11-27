@@ -698,15 +698,20 @@ public sealed class TypedAstParser(
                 if (Check(TokenType.PrivateIdentifier))
                 {
                     var fieldToken = Advance();
+                    var privateLexeme = fieldToken.Lexeme;
+                    if (privateLexeme.Length > 0 && privateLexeme[0] != '#')
+                    {
+                        privateLexeme = "#" + privateLexeme;
+                    }
                     if (Check(TokenType.LeftParen))
                     {
                         var function = ParseClassMethod(null, fieldToken, false, false);
                         members.Add(new ClassMember(CreateSourceReference(fieldToken), ClassMemberKind.Method,
-                            fieldToken.Lexeme, function, isStatic));
+                            privateLexeme, function, isStatic));
                         continue;
                     }
 
-                    var fieldName = fieldToken.Lexeme;
+                    var fieldName = privateLexeme;
                     ExpressionNode? initializer = null;
                     if (Match(TokenType.Equal))
                     {
@@ -2193,7 +2198,13 @@ public sealed class TypedAstParser(
             }
 
             var nameToken = Advance();
-            var property = new LiteralExpression(CreateSourceReference(nameToken), nameToken.Lexeme);
+            var lexeme = nameToken.Lexeme;
+            if (nameToken.Type == TokenType.PrivateIdentifier && lexeme.Length > 0 && lexeme[0] != '#')
+            {
+                lexeme = "#" + lexeme;
+            }
+
+            var property = new LiteralExpression(CreateSourceReference(nameToken), lexeme);
             return new MemberExpression(CreateSourceReference(nameToken), target, property, false, isOptional);
         }
 
@@ -3306,6 +3317,9 @@ public sealed class TypedAstParser(
                     JsBigInt bigInt => bigInt.Value.ToString(CultureInfo.InvariantCulture),
                     _ => Convert.ToString(token.Literal, CultureInfo.InvariantCulture) ?? token.Lexeme
                 },
+                TokenType.PrivateIdentifier => token.Lexeme.Length > 0 && token.Lexeme[0] == '#'
+                    ? token.Lexeme
+                    : "#" + token.Lexeme,
                 _ => token.Lexeme
             };
         }

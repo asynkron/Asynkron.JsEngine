@@ -17,12 +17,12 @@ public class JsRegExp
     private readonly Regex _regex;
     private readonly string _normalizedPattern;
 
-    public JsRegExp(string pattern, string flags = "", RealmState? realmState = null)
+    public JsRegExp(string pattern, string flags = "", RealmState? realmState = null, JsObject? existingObject = null)
     {
         Pattern = pattern;
         Flags = flags ?? string.Empty;
         _realmState = realmState;
-        JsObject = new JsObject();
+        JsObject = existingObject ?? new JsObject();
 
         ValidateFlags(Flags);
         var hasUnicodeFlag = Flags.Contains('u');
@@ -42,12 +42,6 @@ public class JsRegExp
 
         _regex = new Regex(_normalizedPattern, options);
 
-        // Set standard properties
-        JsObject["source"] = pattern;
-        JsObject["flags"] = flags;
-        JsObject["global"] = Global;
-        JsObject["ignoreCase"] = IgnoreCase;
-        JsObject["multiline"] = Multiline;
         JsObject.DefineProperty("lastIndex",
             new PropertyDescriptor
             {
@@ -62,9 +56,13 @@ public class JsRegExp
     public bool Global => Flags.Contains('g');
     public bool IgnoreCase => Flags.Contains('i');
     public bool Multiline => Flags.Contains('m');
+    public bool DotAll => Flags.Contains('s');
+    public bool Unicode => Flags.Contains('u');
+    public bool Sticky => Flags.Contains('y');
     public int LastIndex { get; set; }
 
     public JsObject JsObject { get; }
+    internal RealmState? RealmState => _realmState;
 
     public void SetProperty(string name, object? value, object? receiver)
     {
@@ -526,11 +524,10 @@ public class JsRegExp
             return;
         }
 
-        var captureCount = 0;
         var inCharClass = false;
         var escaped = false;
 
-        // First pass: count capturing groups and catch trailing escape
+        // First pass: catch trailing escape
         for (var i = 0; i < pattern.Length; i++)
         {
             var c = pattern[i];
@@ -558,110 +555,11 @@ public class JsRegExp
                 continue;
             }
 
-            if (!inCharClass && c == '(' && !(i + 1 < pattern.Length && pattern[i + 1] == '?'))
-            {
-                captureCount++;
-            }
         }
 
         if (escaped)
         {
             throw new ParseException("Invalid regular expression: incomplete escape.");
-        }
-
-        // Second pass: validate escapes/backreferences/quantifiers
-        inCharClass = false;
-        escaped = false;
-        for (var i = 0; i < pattern.Length; i++)
-        {
-            var c = pattern[i];
-            if (escaped)
-            {
-                escaped = false;
-                switch (c)
-                {
-                    case 'x':
-                        if (i + 2 >= pattern.Length || !IsHexDigit(pattern[i + 1]) || !IsHexDigit(pattern[i + 2]))
-                        {
-                            throw new ParseException("Invalid regular expression: incomplete hex escape.");
-                        }
-
-                        i += 2;
-                        break;
-                    case 'u':
-                        if (i + 4 >= pattern.Length ||
-                            !IsHexDigit(pattern[i + 1]) ||
-                            !IsHexDigit(pattern[i + 2]) ||
-                            !IsHexDigit(pattern[i + 3]) ||
-                            !IsHexDigit(pattern[i + 4]))
-                        {
-                            throw new ParseException("Invalid regular expression: incomplete unicode escape.");
-                        }
-
-                        i += 4;
-                        break;
-                    case 'c':
-                        if (i + 1 >= pattern.Length || !IsAsciiLetter(pattern[i + 1]))
-                        {
-                            throw new ParseException("Invalid regular expression: invalid control escape.");
-                        }
-
-                        i += 1;
-                        break;
-                    default:
-                        if (!inCharClass && char.IsDigit(c))
-                        {
-                            var start = i;
-                            var end = i;
-                            while (end < pattern.Length && char.IsDigit(pattern[end]))
-                            {
-                                end++;
-                            }
-
-                            var numText = pattern[start..end];
-                            if (numText.Length > 0 && numText[0] != '0' &&
-                                int.TryParse(numText, NumberStyles.None, CultureInfo.InvariantCulture, out var backref))
-                            {
-                                if (backref == 0 || backref > captureCount)
-                                {
-                                    throw new ParseException("Invalid regular expression: invalid backreference.");
-                                }
-                            }
-
-                            i = end - 1;
-                        }
-
-                        break;
-                }
-
-                continue;
-            }
-
-            if (c == '\\')
-            {
-                escaped = true;
-                continue;
-            }
-
-            if (c == '[')
-            {
-                inCharClass = true;
-                continue;
-            }
-
-            if (c == ']' && inCharClass)
-            {
-                inCharClass = false;
-                continue;
-            }
-
-            if (!inCharClass && c == '{')
-            {
-                if (i + 1 >= pattern.Length || !char.IsDigit(pattern[i + 1]))
-                {
-                    throw new ParseException("Invalid regular expression: incomplete quantifier.");
-                }
-            }
         }
     }
 

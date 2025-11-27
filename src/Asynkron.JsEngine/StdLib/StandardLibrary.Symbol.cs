@@ -22,6 +22,13 @@ public static partial class StandardLibrary
         symbolConstructor.SetProperty("toPrimitive", TypedAstSymbol.For("Symbol.toPrimitive"));
         symbolConstructor.SetProperty("toStringTag", TypedAstSymbol.For("Symbol.toStringTag"));
         symbolConstructor.SetProperty("unscopables", TypedAstSymbol.For("Symbol.unscopables"));
+        symbolConstructor.SetProperty("match", TypedAstSymbol.For("Symbol.match"));
+        symbolConstructor.SetProperty("matchAll", TypedAstSymbol.For("Symbol.matchAll"));
+        symbolConstructor.SetProperty("replace", TypedAstSymbol.For("Symbol.replace"));
+        symbolConstructor.SetProperty("replaceAll", TypedAstSymbol.For("Symbol.replaceAll"));
+        symbolConstructor.SetProperty("search", TypedAstSymbol.For("Symbol.search"));
+        symbolConstructor.SetProperty("split", TypedAstSymbol.For("Symbol.split"));
+        symbolConstructor.SetProperty("species", TypedAstSymbol.For("Symbol.species"));
 
         return symbolConstructor;
 

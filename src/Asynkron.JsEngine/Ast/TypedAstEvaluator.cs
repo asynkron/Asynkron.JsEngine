@@ -154,11 +154,10 @@ public static class TypedAstEvaluator
         var scope = new JsEnvironment(environment, false, block.IsStrict);
         object? result = EmptyCompletion;
 
-        var blockLexicalNames = CollectLexicalNames(block);
         Dictionary<Symbol, object?>? hoistedFunctions = null;
         if (!scope.IsStrict && !block.IsStrict)
         {
-            hoistedFunctions = InstantiateAnnexBBlockFunctions(block, scope, context, blockLexicalNames);
+            hoistedFunctions = InstantiateAnnexBBlockFunctions(block, scope, context);
         }
 
         foreach (var statement in block.Statements)
@@ -185,22 +184,7 @@ public static class TypedAstEvaluator
 
         if (hoistedFunctions is not null)
         {
-            var functionScope = scope.GetFunctionScope();
-            foreach (var kvp in hoistedFunctions)
-            {
-                if (functionScope.HasBodyLexicalName(kvp.Key) || functionScope.HasLexicalBinding(kvp.Key))
-                {
-                    continue;
-                }
-
-                functionScope.DefineFunctionScoped(
-                    kvp.Key,
-                    kvp.Value,
-                    hasInitializer: true,
-                    isFunctionDeclaration: true,
-                    globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
-                    context);
-            }
+            // Function declarations were already initialized for Annex B semantics.
         }
 
         return result;
@@ -209,8 +193,7 @@ public static class TypedAstEvaluator
     private static Dictionary<Symbol, object?> InstantiateAnnexBBlockFunctions(
         BlockStatement block,
         JsEnvironment blockEnvironment,
-        EvaluationContext context,
-        HashSet<Symbol> blockLexicalNames)
+        EvaluationContext context)
     {
         var hoisted = new Dictionary<Symbol, object?>();
         var functionScope = blockEnvironment.GetFunctionScope();
@@ -222,12 +205,17 @@ public static class TypedAstEvaluator
                 continue;
             }
 
+            var bindingExists =
+                blockEnvironment.HasBindingBeforeFunctionScope(functionDeclaration.Name) ||
+                functionScope.HasBodyLexicalName(functionDeclaration.Name) ||
+                (functionScope.IsGlobalFunctionScope && functionScope.HasOwnLexicalBinding(functionDeclaration.Name));
+
             var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context);
 
             blockEnvironment.Define(functionDeclaration.Name, functionValue, isLexical: true,
                 blocksFunctionScopeOverride: true);
 
-            if (!blockLexicalNames.Contains(functionDeclaration.Name))
+            if (!bindingExists && !functionScope.HasFunctionScopedBinding(functionDeclaration.Name))
             {
                 functionScope.DefineFunctionScoped(
                     functionDeclaration.Name,
@@ -236,6 +224,11 @@ public static class TypedAstEvaluator
                     isFunctionDeclaration: true,
                     globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
                     context);
+            }
+
+            if (functionScope.HasFunctionScopedBinding(functionDeclaration.Name) && !functionScope.HasOwnLexicalBinding(functionDeclaration.Name))
+            {
+                functionScope.Assign(functionDeclaration.Name, functionValue);
             }
 
             hoisted[functionDeclaration.Name] = functionValue;
@@ -3597,7 +3590,8 @@ public static class TypedAstEvaluator
         JsEnvironment environment,
         EvaluationContext context,
         bool hoistFunctionValues = true,
-        HashSet<Symbol>? lexicalNames = null)
+        HashSet<Symbol>? lexicalNames = null,
+        bool inBlockScope = false)
     {
         var effectiveLexicalNames = lexicalNames is null
             ? CollectLexicalNames(block)
@@ -3613,14 +3607,16 @@ public static class TypedAstEvaluator
             context,
             hoistFunctionValues,
             effectiveLexicalNames,
-            HoistPass.Functions);
+            HoistPass.Functions,
+            inBlockScope);
         HoistVarDeclarationsPass(
             block,
             environment,
             context,
             hoistFunctionValues: false,
             effectiveLexicalNames,
-            HoistPass.Vars);
+            HoistPass.Vars,
+            inBlockScope);
     }
 
     private static void HoistVarDeclarationsPass(
@@ -3629,11 +3625,13 @@ public static class TypedAstEvaluator
         EvaluationContext context,
         bool hoistFunctionValues,
         HashSet<Symbol> lexicalNames,
-        HoistPass pass)
+        HoistPass pass,
+        bool inBlockScope)
     {
         foreach (var statement in block.Statements)
         {
-            HoistFromStatement(statement, environment, context, hoistFunctionValues, lexicalNames, pass);
+            HoistFromStatement(statement, environment, context, hoistFunctionValues, lexicalNames, pass,
+                inBlockScope);
         }
     }
 
@@ -3650,7 +3648,8 @@ public static class TypedAstEvaluator
         EvaluationContext context,
         bool hoistFunctionValues,
         HashSet<Symbol> lexicalNames,
-        HoistPass pass)
+        HoistPass pass,
+        bool inBlockScope)
     {
         while (true)
         {
@@ -3670,11 +3669,12 @@ public static class TypedAstEvaluator
                         context,
                         hoistFunctionValues,
                         MergeLexicalNames(block, lexicalNames),
-                        pass);
+                        pass,
+                        true);
                     break;
                 case IfStatement ifStatement:
                     HoistFromStatement(ifStatement.Then, environment, context, false,
-                        lexicalNames, pass);
+                        lexicalNames, pass, inBlockScope);
                     if (ifStatement.Else is { } elseBranch)
                     {
                         statement = elseBranch;
@@ -3686,24 +3686,29 @@ public static class TypedAstEvaluator
                 case WhileStatement whileStatement:
                     statement = whileStatement.Body;
                     hoistFunctionValues = false;
+                    inBlockScope = true;
                     continue;
                 case DoWhileStatement doWhileStatement:
                     statement = doWhileStatement.Body;
                     hoistFunctionValues = false;
+                    inBlockScope = true;
                     continue;
                 case WithStatement withStatement:
                     statement = withStatement.Body;
                     hoistFunctionValues = false;
+                    inBlockScope = true;
                     continue;
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar &&
                         pass == HoistPass.Vars)
                     {
-                        HoistFromStatement(initVar, environment, context, hoistFunctionValues, lexicalNames, pass);
+                        HoistFromStatement(initVar, environment, context, hoistFunctionValues, lexicalNames, pass,
+                            inBlockScope);
                     }
 
                     statement = forStatement.Body;
                     hoistFunctionValues = false;
+                    inBlockScope = true;
                     continue;
                 case ForEachStatement forEachStatement:
                     if (pass == HoistPass.Vars && forEachStatement.DeclarationKind == VariableKind.Var)
@@ -3713,6 +3718,7 @@ public static class TypedAstEvaluator
 
                     statement = forEachStatement.Body;
                     hoistFunctionValues = false;
+                    inBlockScope = true;
                     continue;
                 case LabeledStatement labeled:
                     statement = labeled.Statement;
@@ -3720,19 +3726,22 @@ public static class TypedAstEvaluator
                 case TryStatement tryStatement:
                     HoistVarDeclarationsPass(tryStatement.TryBlock, environment, context, false,
                         MergeLexicalNames(tryStatement.TryBlock, lexicalNames),
-                        pass);
+                        pass,
+                        true);
                     if (tryStatement.Catch is { } catchClause)
                     {
                         HoistVarDeclarationsPass(catchClause.Body, environment, context, false,
                             MergeLexicalNames(catchClause.Body, lexicalNames),
-                            pass);
+                            pass,
+                            true);
                     }
 
                     if (tryStatement.Finally is { } finallyBlock)
                     {
                         HoistVarDeclarationsPass(finallyBlock, environment, context, false,
                             MergeLexicalNames(finallyBlock, lexicalNames),
-                            pass);
+                            pass,
+                            true);
                     }
 
                     break;
@@ -3741,7 +3750,8 @@ public static class TypedAstEvaluator
                     {
                         HoistVarDeclarationsPass(switchCase.Body, environment, context, false,
                             MergeLexicalNames(switchCase.Body, lexicalNames),
-                            pass);
+                            pass,
+                            true);
                     }
 
                     break;
@@ -3757,6 +3767,31 @@ public static class TypedAstEvaluator
                         break;
                     }
 
+                    var functionScope = environment.GetFunctionScope();
+                    var isAnnexBBlockFunction = inBlockScope && !environment.IsStrict;
+
+                    if (isAnnexBBlockFunction)
+                    {
+                        if (lexicalNames.Contains(functionDeclaration.Name) ||
+                            functionScope.HasBodyLexicalName(functionDeclaration.Name))
+                        {
+                            break;
+                        }
+
+                        if (!functionScope.HasFunctionScopedBinding(functionDeclaration.Name))
+                        {
+                            functionScope.DefineFunctionScoped(
+                                functionDeclaration.Name,
+                                JsSymbols.Undefined,
+                                hasInitializer: false,
+                                isFunctionDeclaration: true,
+                                globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
+                                context);
+                        }
+
+                        break;
+                    }
+
                     if (hoistFunctionValues)
                     {
                         var functionValue = CreateFunctionValue(functionDeclaration.Function, environment, context);
@@ -3764,27 +3799,6 @@ public static class TypedAstEvaluator
                             functionDeclaration.Name,
                             functionValue,
                             hasInitializer: true,
-                            isFunctionDeclaration: true,
-                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
-                            context);
-                        break;
-                    }
-
-                    // Annex B: in non-strict code, function declarations inside blocks are
-                    // treated as var-scoped for the enclosing function/global scope. In
-                    // strict mode the block-scoped function should not create a var
-                    // binding.
-                    if (!environment.IsStrict)
-                    {
-                        if (lexicalNames.Contains(functionDeclaration.Name))
-                        {
-                            break;
-                        }
-
-                        environment.DefineFunctionScoped(
-                            functionDeclaration.Name,
-                            JsSymbols.Undefined,
-                            hasInitializer: false,
                             isFunctionDeclaration: true,
                             globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
                             context);
@@ -3798,7 +3812,6 @@ public static class TypedAstEvaluator
 
             break;
         }
-
     }
 
     private static HashSet<Symbol> CollectLexicalNames(BlockStatement block)

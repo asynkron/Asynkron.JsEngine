@@ -262,6 +262,16 @@ public sealed class JsEnvironment
         return _enclosing?.HasBinding(name) ?? false;
     }
 
+    internal bool HasOwnBinding(Symbol name)
+    {
+        return _values.ContainsKey(name);
+    }
+
+    internal bool HasOwnLexicalBinding(Symbol name)
+    {
+        return _values.TryGetValue(name, out var binding) && binding.IsLexical;
+    }
+
     internal bool TryAssignBlockedBinding(Symbol name, object? value)
     {
         var current = this;
@@ -315,6 +325,8 @@ public sealed class JsEnvironment
 
         return false;
     }
+
+    internal bool IsObjectEnvironment => _withObject is not null;
 
     internal bool HasLexicalBindingBeforeFunctionScope(Symbol name)
     {

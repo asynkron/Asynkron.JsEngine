@@ -593,6 +593,7 @@ public class JsRegExp
         var escaped = false;
         var captureCount = 0;
         var totalCaptures = CountLegacyCaptures(pattern);
+        var lastClassAtomWasSingle = false;
 
         for (var i = 0; i < pattern.Length; i++)
         {
@@ -603,8 +604,27 @@ public class JsRegExp
 
                 if (inCharClass)
                 {
+                    if (c == 'c')
+                    {
+                        if (i + 1 < pattern.Length && IsClassControlLetter(pattern[i + 1]))
+                        {
+                            var control = pattern[i + 1];
+                            var controlValue = control % 32;
+                            AppendCodePoint(builder, controlValue, false, ignoreCase, true);
+                            i++;
+                        }
+                        else
+                        {
+                            builder.Append("\\\\c");
+                        }
+
+                        lastClassAtomWasSingle = true;
+                        continue;
+                    }
+
                     builder.Append('\\');
                     builder.Append(c);
+                    lastClassAtomWasSingle = !IsCharacterClassEscape(c);
                     continue;
                 }
 
@@ -712,8 +732,16 @@ public class JsRegExp
 
                         if (allOctal && octalDigits > 0)
                         {
-                            AppendCodePoint(builder, octalValue, false, ignoreCase, true);
-                            i = end - 1;
+                            var effectiveValue = octalValue;
+                            var effectiveDigits = octalDigits;
+                            while (effectiveValue > 0xFF && effectiveDigits > 1)
+                            {
+                                effectiveValue >>= 3;
+                                effectiveDigits--;
+                            }
+
+                            AppendCodePoint(builder, effectiveValue, false, ignoreCase, true);
+                            i = start + effectiveDigits - 1;
                             continue;
                         }
 
@@ -760,6 +788,7 @@ public class JsRegExp
             if (c == '[')
             {
                 inCharClass = true;
+                lastClassAtomWasSingle = false;
                 builder.Append(c);
                 continue;
             }
@@ -771,7 +800,26 @@ public class JsRegExp
                 continue;
             }
 
+            if (inCharClass && c == '-')
+            {
+                var nextIsSingle = IsSingleCharClassAtom(pattern, i + 1);
+                if (!lastClassAtomWasSingle || !nextIsSingle)
+                {
+                    builder.Append("\\-");
+                    lastClassAtomWasSingle = true;
+                    continue;
+                }
+
+                builder.Append(c);
+                lastClassAtomWasSingle = false;
+                continue;
+            }
+
             AppendCodePoint(builder, c, false, ignoreCase, false);
+            if (inCharClass)
+            {
+                lastClassAtomWasSingle = true;
+            }
         }
 
         if (escaped)
@@ -780,6 +828,59 @@ public class JsRegExp
         }
 
         return builder.ToString();
+    }
+
+    private static bool IsSingleCharClassAtom(string pattern, int index)
+    {
+        if (index >= pattern.Length)
+        {
+            return false;
+        }
+
+        var current = pattern[index];
+        if (current == ']')
+        {
+            return false;
+        }
+
+        if (current != '\\')
+        {
+            return true;
+        }
+
+        if (index + 1 >= pattern.Length)
+        {
+            return false;
+        }
+
+        var escape = pattern[index + 1];
+        if (IsCharacterClassEscape(escape))
+        {
+            return false;
+        }
+
+        if (escape == 'c')
+        {
+            return index + 2 < pattern.Length && IsClassControlLetter(pattern[index + 2]);
+        }
+
+        if (escape == 'x')
+        {
+            return index + 3 < pattern.Length &&
+                   IsHexDigit(pattern[index + 2]) &&
+                   IsHexDigit(pattern[index + 3]);
+        }
+
+        if (escape == 'u')
+        {
+            return index + 5 < pattern.Length &&
+                   IsHexDigit(pattern[index + 2]) &&
+                   IsHexDigit(pattern[index + 3]) &&
+                   IsHexDigit(pattern[index + 4]) &&
+                   IsHexDigit(pattern[index + 5]);
+        }
+
+        return true;
     }
 
     private static int CountLegacyCaptures(string pattern)
@@ -1105,6 +1206,11 @@ public class JsRegExp
         return c is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
     }
 
+    private static bool IsClassControlLetter(char c)
+    {
+        return IsControlLetter(c) || char.IsDigit(c) || c == '_';
+    }
+
     private static bool IsSyntaxCharacter(char c)
     {
         return c is '^' or '$' or '\\' or '.' or '*' or '+' or '?' or '(' or ')' or '[' or ']' or '{' or '}' or '|' or '/';
@@ -1113,6 +1219,11 @@ public class JsRegExp
     private static bool IsLegacyEscape(char c)
     {
         return c is 'b' or 'B' or 'f' or 'n' or 'r' or 't' or 'v' or 's' or 'S' or 'w' or 'W' or 'd' or 'D';
+    }
+
+    private static bool IsCharacterClassEscape(char c)
+    {
+        return c is 'd' or 'D' or 's' or 'S' or 'w' or 'W';
     }
 
     private static bool RequiresRegexEscape(char c)

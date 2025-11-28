@@ -323,12 +323,7 @@ public static partial class StandardLibrary
                 return value;
             }
 
-            var ctx = realm is not null ? new EvaluationContext(realm) : null;
-            var startNumber = JsOps.ToNumberWithContext(args[0], ctx);
-            if (ctx?.IsThrow == true)
-            {
-                throw new ThrowSignal(ctx.FlowValue);
-            }
+            var startNumber = ConvertToNumber(args[0]);
             double startInteger;
             if (double.IsNaN(startNumber))
             {
@@ -367,21 +362,12 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    lengthNumber = JsOps.ToNumberWithContext(args[1], ctx);
-                    if (ctx?.IsThrow == true)
-                    {
-                        throw new ThrowSignal(ctx.FlowValue);
-                    }
-
+                    lengthNumber = ConvertToNumber(args[1]);
                     lengthNumber = double.IsNaN(lengthNumber)
                         ? 0
                         : double.IsInfinity(lengthNumber) || lengthNumber == 0
                             ? lengthNumber
                             : Math.Sign(lengthNumber) * Math.Floor(Math.Abs(lengthNumber));
-                    if (ctx?.IsThrow == true)
-                    {
-                        throw new ThrowSignal(ctx.FlowValue);
-                    }
                 }
             }
             else
@@ -396,6 +382,30 @@ public static partial class StandardLibrary
 
             var substrLength = (int)Math.Min(lengthNumber, length - start);
             return value.Substring(start, substrLength);
+
+            double ConvertToNumber(object? input)
+            {
+                if (input is Symbol or TypedAstSymbol)
+                {
+                    throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number",
+                        context: null, realm: realm));
+                }
+
+                var numericContext = realm is not null ? new EvaluationContext(realm) : null;
+                var primitive = JsOps.ToPrimitive(input, "number", numericContext);
+                if (numericContext?.IsThrow == true)
+                {
+                    throw new ThrowSignal(numericContext.FlowValue);
+                }
+
+                var number = JsOps.ToNumberWithContext(primitive, numericContext);
+                if (numericContext?.IsThrow == true)
+                {
+                    throw new ThrowSignal(numericContext.FlowValue);
+                }
+
+                return number;
+            }
         }
 
         object? Concat(object? thisValue, IReadOnlyList<object?> args)

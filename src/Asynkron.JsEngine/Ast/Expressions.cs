@@ -154,7 +154,10 @@ public sealed record ArrayElement(SourceReference? Source, ExpressionNode? Expre
 /// <summary>
 ///     Represents an object literal.
 /// </summary>
-public sealed record ObjectExpression(SourceReference? Source, ImmutableArray<ObjectMember> Members)
+public sealed record ObjectExpression(
+    SourceReference? Source,
+    ImmutableArray<ObjectMember> Members,
+    bool HasCoverInitializedName = false)
     : ExpressionNode(Source);
 
 /// <summary>

@@ -66,17 +66,21 @@ public static class TypedAstEvaluator
         // function declarations like `function formatArgs(...) {}` are
         // available before earlier statements that reference them.
         var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
-        var blockedNames = CollectLexicalNames(programBlock);
+        var lexicalNames = CollectLexicalNames(programBlock);
         var catchParameterNames = CollectCatchParameterNames(programBlock);
         var simpleCatchParameterNames = CollectSimpleCatchParameterNames(programBlock);
-        context.BlockedFunctionVarNames = blockedNames;
-        executionEnvironment.SetBodyLexicalNames(blockedNames);
+        var bodyLexicalNames = lexicalNames.Count == 0
+            ? lexicalNames
+            : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+        bodyLexicalNames.ExceptWith(catchParameterNames);
+        context.BlockedFunctionVarNames = bodyLexicalNames;
+        executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
         var functionScope = executionEnvironment.GetFunctionScope();
         if (functionScope.IsGlobalFunctionScope)
         {
-            foreach (var blockedName in blockedNames)
+            foreach (var blockedName in bodyLexicalNames)
             {
-                if (functionScope.HasFunctionScopedBinding(blockedName) && executionEnvironment.IsStrict)
+                if (functionScope.HasFunctionScopedBinding(blockedName))
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Cannot redeclare var-scoped binding '{blockedName.Name}' with lexical declaration",
@@ -86,7 +90,7 @@ public static class TypedAstEvaluator
             }
         }
 
-        HoistVarDeclarations(programBlock, executionEnvironment, context, lexicalNames: blockedNames,
+        HoistVarDeclarations(programBlock, executionEnvironment, context, lexicalNames: lexicalNames,
             catchParameterNames: catchParameterNames,
             simpleCatchParameterNames: simpleCatchParameterNames);
 
@@ -198,6 +202,8 @@ public static class TypedAstEvaluator
     {
         var hoisted = new Dictionary<Symbol, object?>();
         var functionScope = blockEnvironment.GetFunctionScope();
+        var lexicalNames = CollectLexicalNames(block);
+        var simpleCatchParameterNames = CollectSimpleCatchParameterNames(block);
 
         foreach (var statement in block.Statements)
         {
@@ -206,6 +212,12 @@ public static class TypedAstEvaluator
                 continue;
             }
 
+            var hasNonCatchLexical = lexicalNames.Contains(functionDeclaration.Name) &&
+                                     !simpleCatchParameterNames.Contains(functionDeclaration.Name);
+            var hasOuterLexical = blockEnvironment.HasLexicalBindingBeforeFunctionScope(functionDeclaration.Name);
+            var shouldCreateVarBinding = !hasNonCatchLexical &&
+                                         !hasOuterLexical &&
+                                         !functionScope.HasBodyLexicalName(functionDeclaration.Name);
             var bindingExists =
                 blockEnvironment.HasBindingBeforeFunctionScope(functionDeclaration.Name) ||
                 functionScope.HasBodyLexicalName(functionDeclaration.Name) ||
@@ -215,6 +227,12 @@ public static class TypedAstEvaluator
 
             blockEnvironment.Define(functionDeclaration.Name, functionValue, isLexical: true,
                 blocksFunctionScopeOverride: true);
+
+            if (!shouldCreateVarBinding)
+            {
+                hoisted[functionDeclaration.Name] = functionValue;
+                continue;
+            }
 
             if (!bindingExists && !functionScope.HasFunctionScopedBinding(functionDeclaration.Name))
             {
@@ -8075,6 +8093,13 @@ public static class TypedAstEvaluator
             var lexicalNames = _bodyLexicalNames.Length == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+            var catchParameterNames = CollectCatchParameterNames(_function.Body);
+            var simpleCatchParameterNames = CollectSimpleCatchParameterNames(_function.Body);
+            var bodyLexicalNames = lexicalNames.Count == 0
+                ? lexicalNames
+                : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+            bodyLexicalNames.ExceptWith(catchParameterNames);
+            context.BlockedFunctionVarNames = bodyLexicalNames;
 
             // When parameter expressions are present, the parameter environment must sit
             // *outside* the var environment so defaults cannot observe var bindings from
@@ -8087,22 +8112,22 @@ public static class TypedAstEvaluator
             {
                 parameterEnvironment = new JsEnvironment(_closure, false, _function.Body.IsStrict, _function.Source,
                     description, isParameterEnvironment: true);
-                parameterEnvironment.SetBodyLexicalNames(lexicalNames);
+                parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
                 functionEnvironment = new JsEnvironment(parameterEnvironment, true, _function.Body.IsStrict,
                     _function.Source, description);
-                functionEnvironment.SetBodyLexicalNames(lexicalNames);
+                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             }
             else
             {
                 functionEnvironment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source,
                     description);
-                functionEnvironment.SetBodyLexicalNames(lexicalNames);
+                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
                 parameterEnvironment = functionEnvironment;
             }
 
             var executionEnvironment = new JsEnvironment(functionEnvironment, false, _function.Body.IsStrict,
                 _function.Source, description, isBodyEnvironment: true);
-            executionEnvironment.SetBodyLexicalNames(lexicalNames);
+            executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             using var privateScope = _privateNameScope is not null
                 ? context.EnterPrivateNameScope(_privateNameScope)
                 : null;
@@ -8218,7 +8243,10 @@ public static class TypedAstEvaluator
 
             if (_hasHoistableDeclarations)
             {
-                HoistVarDeclarations(_function.Body, executionEnvironment, context);
+                HoistVarDeclarations(_function.Body, executionEnvironment, context,
+                    lexicalNames: lexicalNames,
+                    catchParameterNames: catchParameterNames,
+                    simpleCatchParameterNames: simpleCatchParameterNames);
             }
 
             if (!_isArrowFunction)

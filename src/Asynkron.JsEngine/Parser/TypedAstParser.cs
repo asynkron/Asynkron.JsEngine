@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
@@ -1508,24 +1509,27 @@ public sealed class TypedAstParser(
                             "Assignment to eval or arguments is not allowed in strict mode.", Previous(), _source);
                     }
 
-                    return new AssignmentExpression(expr.Source ?? value.Source, identifier.Name, value);
+                    return ValidateExpression(
+                        new AssignmentExpression(expr.Source ?? value.Source, identifier.Name, value));
                 }
 
                 if (expr is MemberExpression member)
                 {
-                    return CreateMemberAssignment(member, value);
+                    return ValidateExpression(CreateMemberAssignment(member, value));
                 }
 
                 if (expr is ArrayExpression arrayPattern)
                 {
                     var binding = ConvertArrayExpressionToBinding(arrayPattern);
-                    return new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value);
+                    return ValidateExpression(
+                        new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value));
                 }
 
                 if (expr is ObjectExpression objectPattern)
                 {
                     var binding = ConvertObjectExpressionToBinding(objectPattern);
-                    return new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value);
+                    return ValidateExpression(
+                        new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value));
                 }
 
                 throw new NotSupportedException("Unsupported assignment target.");
@@ -1565,9 +1569,9 @@ public sealed class TypedAstParser(
 
                 return expr switch
                 {
-                    IdentifierExpression identifier => new AssignmentExpression(expr.Source ?? combined.Source,
-                        identifier.Name, combined),
-                    MemberExpression member => CreateMemberAssignment(member, combined),
+                    IdentifierExpression identifier => ValidateExpression(
+                        new AssignmentExpression(expr.Source ?? combined.Source, identifier.Name, combined)),
+                    MemberExpression member => ValidateExpression(CreateMemberAssignment(member, combined)),
                     _ => throw new NotSupportedException("Unsupported assignment target.")
                 };
             }
@@ -1577,7 +1581,7 @@ public sealed class TypedAstParser(
                 return FinishArrowFunction(expr, false, Previous());
             }
 
-            return expr;
+            return ValidateExpression(expr);
         }
 
         private ExpressionNode ParseConditional()
@@ -2336,6 +2340,7 @@ public sealed class TypedAstParser(
             var members = ImmutableArray.CreateBuilder<ObjectMember>();
             var startToken = Previous();
             var first = true;
+            var hasCoverInitializedName = false;
 
             while (!Check(TokenType.RightBrace))
             {
@@ -2460,7 +2465,16 @@ public sealed class TypedAstParser(
                     }
 
                     var symbol = Symbol.Intern(shorthandName);
-                    value = new IdentifierExpression(keySource, symbol);
+                    if (Match(TokenType.Equal))
+                    {
+                        var initializer = ParseAssignment();
+                        value = new AssignmentExpression(initializer.Source ?? keySource, symbol, initializer);
+                        hasCoverInitializedName = true;
+                    }
+                    else
+                    {
+                        value = new IdentifierExpression(keySource, symbol);
+                    }
                 }
 
                 members.Add(new ObjectMember(method?.Source ?? value?.Source ?? keySource, kind, key, value, method,
@@ -2468,7 +2482,7 @@ public sealed class TypedAstParser(
             }
 
             Consume(TokenType.RightBrace, "Expected '}' after object literal.");
-            return new ObjectExpression(CreateSourceReference(startToken), members.ToImmutable());
+            return new ObjectExpression(CreateSourceReference(startToken), members.ToImmutable(), hasCoverInitializedName);
         }
 
         private TemplateLiteralExpression ParseTemplateLiteralExpression(Token templateToken)
@@ -2832,10 +2846,10 @@ public sealed class TypedAstParser(
 
                 ExpressionNode? defaultValue = null;
                 var targetExpression = element.Expression;
-                if (element.Expression is AssignmentExpression assignmentExpression)
+                if (TryExtractDefaultedAssignment(targetExpression, out var extractedTarget, out var initializer))
                 {
-                    targetExpression = new IdentifierExpression(assignmentExpression.Source, assignmentExpression.Target);
-                    defaultValue = assignmentExpression.Value;
+                    targetExpression = extractedTarget;
+                    defaultValue = initializer;
                 }
 
                 var target = ConvertExpressionToBindingTarget(targetExpression)
@@ -2902,10 +2916,10 @@ public sealed class TypedAstParser(
 
                 ExpressionNode? defaultValue = null;
                 var valueExpression = member.Value;
-                if (member.Value is AssignmentExpression assignmentExpression)
+                if (TryExtractDefaultedAssignment(valueExpression, out var extractedTarget, out var initializer))
                 {
-                    valueExpression = new IdentifierExpression(assignmentExpression.Source, assignmentExpression.Target);
-                    defaultValue = assignmentExpression.Value;
+                    valueExpression = extractedTarget;
+                    defaultValue = initializer;
                 }
 
                 var target = ConvertExpressionToBindingTarget(valueExpression)
@@ -2932,6 +2946,192 @@ public sealed class TypedAstParser(
                 default:
                     return null;
             }
+        }
+
+        private static bool TryExtractDefaultedAssignment(
+            ExpressionNode expression,
+            out ExpressionNode targetExpression,
+            out ExpressionNode? defaultValue)
+        {
+            switch (expression)
+            {
+                case AssignmentExpression assignmentExpression:
+                    targetExpression = new IdentifierExpression(
+                        assignmentExpression.Source, assignmentExpression.Target);
+                    defaultValue = assignmentExpression.Value;
+                    return true;
+                case PropertyAssignmentExpression propertyAssignment:
+                    targetExpression = new MemberExpression(
+                        propertyAssignment.Source ?? propertyAssignment.Target.Source,
+                        propertyAssignment.Target,
+                        propertyAssignment.Property,
+                        propertyAssignment.IsComputed,
+                        false);
+                    defaultValue = propertyAssignment.Value;
+                    return true;
+                case IndexAssignmentExpression indexAssignment:
+                    targetExpression = new MemberExpression(
+                        indexAssignment.Source ?? indexAssignment.Target.Source,
+                        indexAssignment.Target,
+                        indexAssignment.Index,
+                        true,
+                        false);
+                    defaultValue = indexAssignment.Value;
+                    return true;
+                default:
+                    targetExpression = expression;
+                    defaultValue = null;
+                    return false;
+            }
+        }
+
+        private static bool ContainsCoverInitializedName(ExpressionNode expression)
+        {
+            var stack = new Stack<ExpressionNode>();
+            stack.Push(expression);
+
+            while (stack.Count > 0)
+            {
+                var current = stack.Pop();
+                if (current is ObjectExpression { HasCoverInitializedName: true })
+                {
+                    return true;
+                }
+
+                switch (current)
+                {
+                    case BinaryExpression binary:
+                        stack.Push(binary.Left);
+                        stack.Push(binary.Right);
+                        break;
+                    case UnaryExpression unary:
+                        stack.Push(unary.Operand);
+                        break;
+                    case ConditionalExpression conditional:
+                        stack.Push(conditional.Test);
+                        stack.Push(conditional.Consequent);
+                        stack.Push(conditional.Alternate);
+                        break;
+                    case CallExpression call:
+                        stack.Push(call.Callee);
+                        foreach (var argument in call.Arguments)
+                        {
+                            stack.Push(argument.Expression);
+                        }
+
+                        break;
+                    case NewExpression newExpression:
+                        stack.Push(newExpression.Constructor);
+                        foreach (var argument in newExpression.Arguments)
+                        {
+                            stack.Push(argument);
+                        }
+
+                        break;
+                    case MemberExpression member:
+                        stack.Push(member.Target);
+                        stack.Push(member.Property);
+                        break;
+                    case SequenceExpression sequence:
+                        stack.Push(sequence.Left);
+                        stack.Push(sequence.Right);
+                        break;
+                    case AssignmentExpression assignment:
+                        stack.Push(assignment.Value);
+                        break;
+                    case PropertyAssignmentExpression propertyAssignment:
+                        stack.Push(propertyAssignment.Target);
+                        stack.Push(propertyAssignment.Property);
+                        stack.Push(propertyAssignment.Value);
+                        break;
+                    case IndexAssignmentExpression indexAssignment:
+                        stack.Push(indexAssignment.Target);
+                        stack.Push(indexAssignment.Index);
+                        stack.Push(indexAssignment.Value);
+                        break;
+                    case DestructuringAssignmentExpression destructuringAssignment:
+                        stack.Push(destructuringAssignment.Value);
+                        break;
+                    case ArrayExpression arrayExpression:
+                        foreach (var element in arrayExpression.Elements)
+                        {
+                            if (element.Expression is { } elementExpression)
+                            {
+                                stack.Push(elementExpression);
+                            }
+                        }
+
+                        break;
+                    case ObjectExpression objectExpression:
+                        foreach (var member in objectExpression.Members)
+                        {
+                            if (member.Key is ExpressionNode keyExpression)
+                            {
+                                stack.Push(keyExpression);
+                            }
+
+                            if (member.Value is { } memberValue)
+                            {
+                                stack.Push(memberValue);
+                            }
+
+                            if (member.Function is { } functionExpression)
+                            {
+                                stack.Push(functionExpression);
+                            }
+                        }
+
+                        break;
+                    case FunctionExpression functionExpression:
+                        foreach (var parameter in functionExpression.Parameters)
+                        {
+                            if (parameter.DefaultValue is { } defaultValue)
+                            {
+                                stack.Push(defaultValue);
+                            }
+                        }
+
+                        break;
+                    case TaggedTemplateExpression taggedTemplate:
+                        stack.Push(taggedTemplate.Tag);
+                        stack.Push(taggedTemplate.StringsArray);
+                        stack.Push(taggedTemplate.RawStringsArray);
+                        foreach (var expr in taggedTemplate.Expressions)
+                        {
+                            stack.Push(expr);
+                        }
+
+                        break;
+                    case TemplateLiteralExpression templateLiteral:
+                        foreach (var part in templateLiteral.Parts)
+                        {
+                            if (part.Expression is { } templateExpression)
+                            {
+                                stack.Push(templateExpression);
+                            }
+                        }
+
+                        break;
+                    case YieldExpression { Expression: { } yieldValue }:
+                        stack.Push(yieldValue);
+                        break;
+                    case AwaitExpression awaitExpression:
+                        stack.Push(awaitExpression.Expression);
+                        break;
+                }
+            }
+
+            return false;
+        }
+
+        private ExpressionNode ValidateExpression(ExpressionNode expression)
+        {
+            if (ContainsCoverInitializedName(expression))
+            {
+                throw new ParseException("Invalid shorthand property initializer.", Previous(), _source);
+            }
+
+            return expression;
         }
 
         private bool TryParseAsyncArrowFunction(out ExpressionNode arrowFunction)

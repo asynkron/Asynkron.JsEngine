@@ -18,8 +18,7 @@ internal static class JsOps
     public static bool IsNullish(this object? value)
     {
         return value is null ||
-               (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined)) ||
-               value is IIsHtmlDda;
+               (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined));
     }
 
     /// <summary>
@@ -400,6 +399,24 @@ internal static class JsOps
     {
         while (true)
         {
+            var leftIsHtmlDda = left is IIsHtmlDda;
+            var rightIsHtmlDda = right is IIsHtmlDda;
+
+            if (leftIsHtmlDda || rightIsHtmlDda)
+            {
+                var leftNullish = IsNullish(left);
+                var rightNullish = IsNullish(right);
+                if ((leftIsHtmlDda && rightNullish) || (rightIsHtmlDda && leftNullish))
+                {
+                    return true;
+                }
+
+                if (leftIsHtmlDda && rightIsHtmlDda)
+                {
+                    return ReferenceEquals(left, right);
+                }
+            }
+
             if (IsNullish(left) && IsNullish(right))
             {
                 return true;

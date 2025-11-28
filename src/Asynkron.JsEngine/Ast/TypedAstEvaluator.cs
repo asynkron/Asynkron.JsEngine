@@ -72,7 +72,7 @@ public static class TypedAstEvaluator
         var bodyLexicalNames = lexicalNames.Count == 0
             ? lexicalNames
             : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-        bodyLexicalNames.ExceptWith(catchParameterNames);
+        bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
         context.BlockedFunctionVarNames = bodyLexicalNames;
         executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
         var functionScope = executionEnvironment.GetFunctionScope();
@@ -214,10 +214,10 @@ public static class TypedAstEvaluator
 
             var hasNonCatchLexical = lexicalNames.Contains(functionDeclaration.Name) &&
                                      !simpleCatchParameterNames.Contains(functionDeclaration.Name);
-            var hasOuterLexical = blockEnvironment.HasLexicalBindingBeforeFunctionScope(functionDeclaration.Name);
             var shouldCreateVarBinding = !hasNonCatchLexical &&
-                                         !hasOuterLexical &&
                                          !functionScope.HasBodyLexicalName(functionDeclaration.Name);
+            var blockedByParameters = context.BlockedFunctionVarNames is { } blocked &&
+                                      blocked.Contains(functionDeclaration.Name);
             var bindingExists =
                 blockEnvironment.HasBindingBeforeFunctionScope(functionDeclaration.Name) ||
                 functionScope.HasBodyLexicalName(functionDeclaration.Name) ||
@@ -228,7 +228,7 @@ public static class TypedAstEvaluator
             blockEnvironment.Define(functionDeclaration.Name, functionValue, isLexical: true,
                 blocksFunctionScopeOverride: true);
 
-            if (!shouldCreateVarBinding)
+            if (!shouldCreateVarBinding || blockedByParameters)
             {
                 hoisted[functionDeclaration.Name] = functionValue;
                 continue;
@@ -1477,9 +1477,8 @@ public static class TypedAstEvaluator
         EvaluationContext context)
     {
         var function = CreateFunctionValue(declaration.Function, environment, context);
-        var isFunctionScope = ReferenceEquals(environment.GetFunctionScope(), environment);
-        // In sloppy script/eval code, top-level function declarations are var-scoped only.
-        var shouldCreateLexicalBinding = environment.IsStrict || !isFunctionScope;
+        // In sloppy script/eval code, function declarations are var-scoped only.
+        var shouldCreateLexicalBinding = environment.IsStrict;
         if (shouldCreateLexicalBinding)
         {
             environment.Define(declaration.Name, function);
@@ -3835,6 +3834,12 @@ public static class TypedAstEvaluator
                         break;
                     }
 
+                    if (context.BlockedFunctionVarNames is { } blockedHoists &&
+                        blockedHoists.Contains(functionDeclaration.Name))
+                    {
+                        break;
+                    }
+
                     if (environment.IsStrict && lexicalNames.Contains(functionDeclaration.Name))
                     {
                         break;
@@ -5218,6 +5223,14 @@ public static class TypedAstEvaluator
         foreach (var parameter in function.Parameters)
         {
             CollectParameterNames(parameter, parameterNames);
+        }
+
+        if (context.BlockedFunctionVarNames is not null)
+        {
+            foreach (var name in parameterNames)
+            {
+                context.BlockedFunctionVarNames.Add(name);
+            }
         }
 
         foreach (var name in parameterNames)
@@ -8098,8 +8111,11 @@ public static class TypedAstEvaluator
             var bodyLexicalNames = lexicalNames.Count == 0
                 ? lexicalNames
                 : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-            bodyLexicalNames.ExceptWith(catchParameterNames);
-            context.BlockedFunctionVarNames = bodyLexicalNames;
+            bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
+            var blockedFunctionVarNames = bodyLexicalNames.Count == 0
+                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+                : new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+            context.BlockedFunctionVarNames = blockedFunctionVarNames;
 
             // When parameter expressions are present, the parameter environment must sit
             // *outside* the var environment so defaults cannot observe var bindings from

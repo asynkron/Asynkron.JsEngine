@@ -324,7 +324,16 @@ public static partial class StandardLibrary
             }
 
             var ctx = realm is not null ? new EvaluationContext(realm) : null;
-            var startNumber = ToIntegerOrInfinityLocal(args[0], ctx);
+            var startNumber = JsOps.ToNumberWithContext(args[0], ctx);
+            if (ctx?.IsThrow == true)
+            {
+                throw new ThrowSignal(ctx.FlowValue);
+            }
+            startNumber = double.IsNaN(startNumber)
+                ? 0
+                : double.IsInfinity(startNumber)
+                    ? startNumber
+                    : Math.Sign(startNumber) * Math.Floor(Math.Abs(startNumber));
             if (ctx?.IsThrow == true)
             {
                 throw new ThrowSignal(ctx.FlowValue);
@@ -343,7 +352,17 @@ public static partial class StandardLibrary
             double lengthNumber;
             if (args.Count > 1)
             {
-                lengthNumber = ToIntegerOrInfinityLocal(args[1], ctx);
+                lengthNumber = JsOps.ToNumberWithContext(args[1], ctx);
+                if (ctx?.IsThrow == true)
+                {
+                    throw new ThrowSignal(ctx.FlowValue);
+                }
+
+                lengthNumber = double.IsNaN(lengthNumber)
+                    ? double.NaN
+                    : double.IsInfinity(lengthNumber)
+                        ? lengthNumber
+                        : Math.Sign(lengthNumber) * Math.Floor(Math.Abs(lengthNumber));
                 if (ctx?.IsThrow == true)
                 {
                     throw new ThrowSignal(ctx.FlowValue);
@@ -1068,27 +1087,6 @@ public static partial class StandardLibrary
             }
 
             return created;
-        }
-
-        static double ToIntegerOrInfinityLocal(object? value, EvaluationContext? context)
-        {
-            var number = JsOps.ToNumberWithContext(value, context);
-            if (context is not null && context.IsThrow)
-            {
-                throw new ThrowSignal(context.FlowValue);
-            }
-
-            if (double.IsNaN(number))
-            {
-                return 0;
-            }
-
-            if (double.IsInfinity(number) || number == 0)
-            {
-                return number;
-            }
-
-            return Math.Sign(number) * Math.Floor(Math.Abs(number));
         }
 
         static string EscapeAttr(string input)

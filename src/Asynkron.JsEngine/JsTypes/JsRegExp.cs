@@ -608,7 +608,7 @@ public class JsRegExp
                     continue;
                 }
 
-                if (IsLineTerminator(c))
+                if (!inCharClass && IsLineTerminator(c))
                 {
                     throw new ParseException("Invalid regular expression: incomplete escape.");
                 }

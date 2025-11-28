@@ -71,6 +71,7 @@ public static class TypedAstEvaluator
         var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
         var blockedNames = CollectLexicalNames(programBlock);
         context.BlockedFunctionVarNames = blockedNames;
+        executionEnvironment.SetBodyLexicalNames(blockedNames);
         var functionScope = executionEnvironment.GetFunctionScope();
         if (functionScope.IsGlobalFunctionScope)
         {
@@ -152,7 +153,7 @@ public static class TypedAstEvaluator
         var scope = new JsEnvironment(environment, false, block.IsStrict);
         object? result = EmptyCompletion;
 
-        HashSet<Symbol>? hoistedFunctions = null;
+        Dictionary<Symbol, object?>? hoistedFunctions = null;
         if (!scope.IsStrict && !block.IsStrict)
         {
             hoistedFunctions = InstantiateAnnexBBlockFunctions(block, scope, context);
@@ -162,7 +163,7 @@ public static class TypedAstEvaluator
         {
             if (hoistedFunctions is not null &&
                 statement is FunctionDeclaration funcDecl &&
-                hoistedFunctions.Contains(funcDecl.Name))
+                hoistedFunctions.ContainsKey(funcDecl.Name))
             {
                 continue;
             }
@@ -180,15 +181,35 @@ public static class TypedAstEvaluator
             }
         }
 
+        if (hoistedFunctions is not null)
+        {
+            var functionScope = scope.GetFunctionScope();
+            foreach (var kvp in hoistedFunctions)
+            {
+                if (functionScope.HasBodyLexicalName(kvp.Key) || functionScope.HasLexicalBinding(kvp.Key))
+                {
+                    continue;
+                }
+
+                functionScope.DefineFunctionScoped(
+                    kvp.Key,
+                    kvp.Value,
+                    hasInitializer: true,
+                    isFunctionDeclaration: true,
+                    globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
+                    context);
+            }
+        }
+
         return result;
     }
 
-    private static HashSet<Symbol> InstantiateAnnexBBlockFunctions(
+    private static Dictionary<Symbol, object?> InstantiateAnnexBBlockFunctions(
         BlockStatement block,
         JsEnvironment blockEnvironment,
         EvaluationContext context)
     {
-        var hoisted = new HashSet<Symbol>();
+        var hoisted = new Dictionary<Symbol, object?>();
         var functionScope = blockEnvironment.GetFunctionScope();
 
         foreach (var statement in block.Statements)
@@ -205,13 +226,13 @@ public static class TypedAstEvaluator
 
             functionScope.DefineFunctionScoped(
                 functionDeclaration.Name,
-                functionValue,
-                hasInitializer: true,
+                JsSymbols.Undefined,
+                hasInitializer: false,
                 isFunctionDeclaration: true,
                 globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
                 context);
 
-            hoisted.Add(functionDeclaration.Name);
+            hoisted[functionDeclaration.Name] = functionValue;
         }
 
         return hoisted;
@@ -1445,10 +1466,11 @@ public static class TypedAstEvaluator
         {
             environment.Define(declaration.Name, function);
         }
-        var skipVarBinding = !environment.IsStrict &&
+        var skipVarBinding = environment.IsStrict &&
                              context.BlockedFunctionVarNames is { } blocked &&
                              blocked.Contains(declaration.Name);
-        if (!environment.IsStrict && !skipVarBinding)
+
+        if (!skipVarBinding)
         {
             var configurable = context.ExecutionKind == ExecutionKind.Eval;
             environment.DefineFunctionScoped(

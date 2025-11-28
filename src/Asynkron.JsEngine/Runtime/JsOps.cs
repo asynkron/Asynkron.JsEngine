@@ -18,7 +18,9 @@ internal static class JsOps
 
     public static bool IsNullish(this object? value)
     {
-        return value is null || (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined));
+        return value is null ||
+               (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined)) ||
+               value is IIsHtmlDda;
     }
 
     /// <summary>
@@ -409,10 +411,10 @@ internal static class JsOps
                 return false;
             }
 
-            if (left?.GetType() == right?.GetType())
-            {
-                return StrictEquals(left, right);
-            }
+        if (left?.GetType() == right?.GetType())
+        {
+            return StrictEquals(left, right);
+        }
 
             if (left is JsBigInt lbi && IsNumeric(right))
             {

@@ -1,12 +1,12 @@
-tests (179 tests) Failed: 179 tests failed
-  Asynkron.JsEngine.Tests.Test262 (179 tests) Failed: 179 tests failed
-    Asynkron.JsEngine.Tests.Test262 (179 tests) Failed: 179 tests failed
-      TestHarness (179 tests) Failed: One or more child tests had errors: 179 tests failed
-        AnnexBTests (179 tests) Failed: One or more child tests had errors: 179 tests failed
+tests (154 tests) Failed: 154 tests failed
+  Asynkron.JsEngine.Tests.Test262 (154 tests) Failed: 154 tests failed
+    Asynkron.JsEngine.Tests.Test262 (154 tests) Failed: 154 tests failed
+      TestHarness (154 tests) Failed: One or more child tests had errors: 154 tests failed
+        AnnexBTests (154 tests) Failed: One or more child tests had errors: 154 tests failed
           BuiltIns_String_prototype_substr (2 tests) Failed: One or more child tests had errors: 2 tests failed
             BuiltIns_String_prototype_substr("annexB/built-ins/String/prototype/substr/length-to-int-err.js",False) Failed
             BuiltIns_String_prototype_substr("annexB/built-ins/String/prototype/substr/length-to-int-err.js",True) Failed
-          Language_evalCode_direct (57 tests) Failed: One or more child tests had errors: 57 tests failed
+          Language_evalCode_direct (47 tests) Failed: One or more child tests had errors: 47 tests failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-no-skip-param.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-block.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-for-in.js",False) Failed
@@ -15,15 +15,10 @@ tests (179 tests) Failed: 179 tests failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-switch.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-try.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-no-skip-param.js",False) Failed
-            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-no-skip-try.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-b-eval-func-no-skip-param.js",False) Failed
-            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-b-eval-func-no-skip-try.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-stmt-eval-func-no-skip-param.js",False) Failed
-            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-stmt-eval-func-no-skip-try.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-no-else-eval-func-no-skip-param.js",False) Failed
-            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-no-else-eval-func-no-skip-try.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-no-skip-param.js",False) Failed
-            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-no-skip-try.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-case-eval-func-no-skip-param.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-case-eval-func-skip-early-err-block.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-case-eval-func-skip-early-err-for-in.js",False) Failed
@@ -46,11 +41,6 @@ tests (179 tests) Failed: 179 tests failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-skip-early-err-for.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-skip-early-err-switch.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-skip-early-err-try.js",False) Failed
-            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-no-skip-try.js",False) Failed
-            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-b-eval-global-no-skip-try.js",False) Failed
-            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-stmt-eval-global-no-skip-try.js",False) Failed
-            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-no-else-eval-global-no-skip-try.js",False) Failed
-            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-stmt-else-decl-eval-global-no-skip-try.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-skip-early-err-block.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-skip-early-err-for-in.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-skip-early-err-for-of.js",False) Failed
@@ -64,7 +54,7 @@ tests (179 tests) Failed: 179 tests failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-dflt-eval-global-skip-early-err-switch.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-dflt-eval-global-skip-early-err-try.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/script-decl-lex-no-collision.js",False) Failed
-          Language_evalCode_indirect (25 tests) Failed: One or more child tests had errors: 25 tests failed
+          Language_evalCode_indirect (20 tests) Failed: One or more child tests had errors: 20 tests failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-existing-non-enumerable-global-init.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-init.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-skip-early-err-block.js",False) Failed
@@ -73,11 +63,6 @@ tests (179 tests) Failed: 179 tests failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-skip-early-err-for.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-skip-early-err-switch.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-skip-early-err-try.js",False) Failed
-            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-a-eval-global-no-skip-try.js",False) Failed
-            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-b-eval-global-no-skip-try.js",False) Failed
-            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-stmt-eval-global-no-skip-try.js",False) Failed
-            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-no-skip-try.js",False) Failed
-            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-no-skip-try.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-skip-early-err-block.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-skip-early-err-for-in.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-skip-early-err-for-of.js",False) Failed
@@ -95,13 +80,7 @@ tests (179 tests) Failed: 179 tests failed
             Language_expressions_assignment_dstr("annexB/language/expressions/assignment/dstr/array-pattern-emulates-undefined.js",True) Failed
             Language_expressions_assignment_dstr("annexB/language/expressions/assignment/dstr/object-pattern-emulates-undefined.js",False) Failed
             Language_expressions_assignment_dstr("annexB/language/expressions/assignment/dstr/object-pattern-emulates-undefined.js",True) Failed
-          Language_expressions_doesNotEquals (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Language_expressions_doesNotEquals("annexB/language/expressions/does-not-equals/emulates-undefined.js",False) Failed
-            Language_expressions_doesNotEquals("annexB/language/expressions/does-not-equals/emulates-undefined.js",True) Failed
-          Language_expressions_equals (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Language_expressions_equals("annexB/language/expressions/equals/emulates-undefined.js",False) Failed
-            Language_expressions_equals("annexB/language/expressions/equals/emulates-undefined.js",True) Failed
-          Language_functionCode (56 tests) Failed: One or more child tests had errors: 56 tests failed
+          Language_functionCode (55 tests) Failed: One or more child tests had errors: 55 tests failed
             Language_functionCode("annexB/language/function-code/block-decl-func-existing-fn-update.js",False) Failed
             Language_functionCode("annexB/language/function-code/block-decl-func-skip-arguments.js",False) Failed
             Language_functionCode("annexB/language/function-code/block-decl-func-skip-dft-param.js",False) Failed
@@ -111,7 +90,6 @@ tests (179 tests) Failed: 179 tests failed
             Language_functionCode("annexB/language/function-code/block-decl-func-skip-early-err-for.js",False) Failed
             Language_functionCode("annexB/language/function-code/block-decl-func-skip-early-err-switch.js",False) Failed
             Language_functionCode("annexB/language/function-code/block-decl-func-skip-early-err-try.js",False) Failed
-            Language_functionCode("annexB/language/function-code/block-decl-nested-blocks-with-fun-decl.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-existing-fn-update.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-skip-dft-param.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-skip-early-err-block.js",False) Failed
@@ -158,18 +136,13 @@ tests (179 tests) Failed: 179 tests failed
             Language_functionCode("annexB/language/function-code/switch-dflt-func-skip-early-err-for.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-dflt-func-skip-early-err-switch.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-dflt-func-skip-early-err-try.js",False) Failed
-          Language_globalCode (23 tests) Failed: One or more child tests had errors: 23 tests failed
+          Language_globalCode (18 tests) Failed: One or more child tests had errors: 18 tests failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-block.js",False) Failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-for-in.js",False) Failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-for-of.js",False) Failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-for.js",False) Failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-switch.js",False) Failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-try.js",False) Failed
-            Language_globalCode("annexB/language/global-code/if-decl-else-decl-a-global-no-skip-try.js",False) Failed
-            Language_globalCode("annexB/language/global-code/if-decl-else-decl-b-global-no-skip-try.js",False) Failed
-            Language_globalCode("annexB/language/global-code/if-decl-else-stmt-global-no-skip-try.js",False) Failed
-            Language_globalCode("annexB/language/global-code/if-decl-no-else-global-no-skip-try.js",False) Failed
-            Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-no-skip-try.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-case-global-skip-early-err-block.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-case-global-skip-early-err-for-in.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-case-global-skip-early-err-for-of.js",False) Failed

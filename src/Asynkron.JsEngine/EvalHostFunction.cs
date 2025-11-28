@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
-using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine;
 
@@ -31,7 +30,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyA
     {
         if (arguments.Count == 0 || arguments[0] is not string code)
         {
-            return arguments.Count > 0 ? arguments[0] : Symbols.Undefined;
+            return arguments.Count > 0 ? arguments[0] : Symbol.Undefined;
         }
 
         // Use the calling environment if available, otherwise use global

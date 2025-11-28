@@ -110,7 +110,7 @@ public static partial class StandardLibrary
             object? Revoke(object? _, IReadOnlyList<object?> __)
             {
                 proxy.Handler = null;
-                return Symbols.Undefined;
+                return Symbol.Undefined;
             }
         });
         revocableFn.IsConstructor = false;

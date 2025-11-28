@@ -1,4 +1,3 @@
-using System;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -101,7 +100,7 @@ public static partial class StandardLibrary
 
         object? ObjectConstructor(IReadOnlyList<object?> args)
         {
-            if (args.Count == 0 || args[0] == null || args[0] == Symbols.Undefined)
+            if (args.Count == 0 || args[0] == null || args[0] == Symbol.Undefined)
             {
                 return CreateBlank();
             }
@@ -141,7 +140,7 @@ public static partial class StandardLibrary
             if (thisValue is JsObject obj)
             {
                 var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
-                if (obj.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbols.Undefined))
+                if (obj.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbol.Undefined))
                 {
                     var tagString = JsOps.ToJsString(tagValue);
                     return $"[object {tagString}]";
@@ -150,7 +149,7 @@ public static partial class StandardLibrary
             else if (thisValue is IJsPropertyAccessor accessor)
             {
                 var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
-                if (accessor.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbols.Undefined))
+                if (accessor.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbol.Undefined))
                 {
                     var tagString = JsOps.ToJsString(tagValue);
                     return $"[object {tagString}]";
@@ -166,7 +165,7 @@ public static partial class StandardLibrary
                 double => "Number",
                 bool => "Boolean",
                 IJsCallable => "Function",
-                _ when ReferenceEquals(thisValue, Symbols.Undefined) => "Undefined",
+                _ when ReferenceEquals(thisValue, Symbol.Undefined) => "Undefined",
                 _ => "Object"
             };
 
@@ -223,7 +222,7 @@ public static partial class StandardLibrary
 
         object? ObjectPrototypeIsPrototypeOf(object? thisValue, IReadOnlyList<object?> args)
         {
-            if (thisValue is null || ReferenceEquals(thisValue, Symbols.Undefined))
+            if (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined))
             {
                 var error = realm.TypeErrorConstructor is IJsCallable ctor
                     ? ctor.Invoke(["Object.prototype.isPrototypeOf called on null or undefined"], null)
@@ -232,7 +231,7 @@ public static partial class StandardLibrary
                 throw new ThrowSignal(error);
             }
 
-            if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbols.Undefined))
+            if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
             {
                 return false;
             }
@@ -265,7 +264,7 @@ public static partial class StandardLibrary
         {
             if (args.Count < 2)
             {
-                return args.Count > 0 ? args[0] : Symbols.Undefined;
+                return args.Count > 0 ? args[0] : Symbol.Undefined;
             }
 
             var target = args[0];
@@ -311,7 +310,7 @@ public static partial class StandardLibrary
 
                 if (descObj.TryGetProperty("get", out var getterVal))
                 {
-                    if (!ReferenceEquals(getterVal, Symbols.Undefined) && getterVal is not IJsCallable)
+                    if (!ReferenceEquals(getterVal, Symbol.Undefined) && getterVal is not IJsCallable)
                     {
                         throw ThrowTypeError("Getter must be a function", realm: realm);
                     }
@@ -321,7 +320,7 @@ public static partial class StandardLibrary
 
                 if (descObj.TryGetProperty("set", out var setterVal))
                 {
-                    if (!ReferenceEquals(setterVal, Symbols.Undefined) && setterVal is not IJsCallable)
+                    if (!ReferenceEquals(setterVal, Symbol.Undefined) && setterVal is not IJsCallable)
                     {
                         throw ThrowTypeError("Setter must be a function", realm: realm);
                     }
@@ -352,7 +351,7 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    accessor.SetProperty(key, descriptor.HasValue ? descriptor.Value : Symbols.Undefined);
+                    accessor.SetProperty(key, descriptor.HasValue ? descriptor.Value : Symbol.Undefined);
                 }
             }
 
@@ -363,7 +362,7 @@ public static partial class StandardLibrary
         {
             if (args.Count < 2)
             {
-                return args.Count > 0 ? args[0] : Symbols.Undefined;
+                return args.Count > 0 ? args[0] : Symbol.Undefined;
             }
 
             var target = args[0];
@@ -541,7 +540,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0 || args[0] is not IJsPropertyAccessor targetAccessor)
             {
-                return args.Count > 0 ? args[0] : Symbols.Undefined;
+                return args.Count > 0 ? args[0] : Symbol.Undefined;
             }
 
             for (var i = 1; i < args.Count; i++)
@@ -662,8 +661,8 @@ public static partial class StandardLibrary
         // ECMA-262 §7.2.9 (SameValue) exposed as Object.is.
         object? ObjectIs(IReadOnlyList<object?> args)
         {
-            var left = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var right = args.Count > 1 ? args[1] : Symbols.Undefined;
+            var left = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var right = args.Count > 1 ? args[1] : Symbol.Undefined;
 
             if (left is double ld && right is double rd)
             {
@@ -805,7 +804,7 @@ public static partial class StandardLibrary
         {
             if (args.Count < 2)
             {
-                return Symbols.Undefined;
+                return Symbol.Undefined;
             }
 
             var obj = args[0] as IJsPropertyAccessor;
@@ -816,7 +815,7 @@ public static partial class StandardLibrary
 
             if (obj is null)
             {
-                return Symbols.Undefined;
+                return Symbol.Undefined;
             }
 
             var propName = JsOps.GetRequiredPropertyName(args[1]);
@@ -824,7 +823,7 @@ public static partial class StandardLibrary
             var desc = obj.GetOwnPropertyDescriptor(propName);
             if (desc == null)
             {
-                return Symbols.Undefined;
+                return Symbol.Undefined;
             }
 
             if (string.Equals(propName, "name", StringComparison.Ordinal) && args[0] is IJsCallable)
@@ -873,7 +872,7 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            var proto = obj.Prototype ?? (object?)Symbols.Undefined;
+            var proto = obj.Prototype ?? (object?)Symbol.Undefined;
             if (proto is not JsObject &&
                 obj is HostFunction { Realm: JsObject fnRealm } &&
                 fnRealm.TryGetProperty("Function", out var fnVal) &&

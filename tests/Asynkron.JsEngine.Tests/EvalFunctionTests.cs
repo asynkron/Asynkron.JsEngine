@@ -90,7 +90,7 @@ public class EvalFunctionTests
                                                        eval();
 
                                            """);
-        Assert.True(ReferenceEquals(result, Symbols.Undefined));
+        Assert.True(ReferenceEquals(result, Symbol.Undefined));
     }
 
     [Fact(Timeout = 2000)]

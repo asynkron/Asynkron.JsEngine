@@ -13,35 +13,35 @@ public static partial class StandardLibrary
         console["log"] = new HostFunction(args =>
         {
             Console.WriteLine(FormatArgs(args));
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         // console.error(...args)
         console["error"] = new HostFunction(args =>
         {
             Console.Error.WriteLine(FormatArgs(args));
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         // console.warn(...args)
         console["warn"] = new HostFunction(args =>
         {
             Console.WriteLine($"Warning: {FormatArgs(args)}");
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         // console.info(...args)
         console["info"] = new HostFunction(args =>
         {
             Console.WriteLine(FormatArgs(args));
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         // console.debug(...args)
         console["debug"] = new HostFunction(args =>
         {
             Console.WriteLine($"Debug: {FormatArgs(args)}");
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         return console;
@@ -56,7 +56,7 @@ public static partial class StandardLibrary
                 {
                     parts.Add("null");
                 }
-                else if (ReferenceEquals(arg, Symbols.Undefined))
+                else if (ReferenceEquals(arg, Symbol.Undefined))
                 {
                     parts.Add("undefined");
                 }

@@ -51,7 +51,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).
-        _global.Define(Symbols.This, GlobalObject);
+        _global.Define(Symbol.This, GlobalObject);
 
         // Expose common aliases for the global object that many libraries
         // expect to exist (Node-style `global`, standard `globalThis`).
@@ -98,11 +98,11 @@ public sealed class JsEngine : IAsyncDisposable
         GlobalObject.DefineProperty("NaN",
             new PropertyDescriptor { Value = double.NaN, Writable = false, Enumerable = false, Configurable = false });
 
-        SetGlobal("undefined", Symbols.Undefined, true);
+        SetGlobal("undefined", Symbol.Undefined, true);
         GlobalObject.DefineProperty("undefined",
             new PropertyDescriptor
             {
-                Value = Symbols.Undefined, Writable = false, Enumerable = false, Configurable = false
+                Value = Symbol.Undefined, Writable = false, Enumerable = false, Configurable = false
             });
 
         // Register global functions
@@ -215,7 +215,7 @@ public sealed class JsEngine : IAsyncDisposable
                 buffer.Detach();
             }
 
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }));
 
         // Register timer functions
@@ -1193,7 +1193,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             if (!exports.TryGetValue(name, out var value))
             {
-                return Symbols.Undefined;
+                return Symbol.Undefined;
             }
 
             if (value is LiveExportBinding liveBinding)
@@ -1237,7 +1237,7 @@ public sealed class JsEngine : IAsyncDisposable
 
                             var symbol = identifier.Name;
                             var initialValue = variableDeclaration.Kind == VariableKind.Var
-                                ? (object?)Symbols.Undefined
+                                ? (object?)Symbol.Undefined
                                 : UninitializedExportMarker;
 
                             exports[symbol.Name] = initialValue;
@@ -1377,7 +1377,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             ExportDefaultExpression expression => ExecuteTypedExpression(expression.Expression, moduleEnv, isStrict),
             ExportDefaultDeclaration declaration => EvaluateExportDefaultDeclaration(declaration, moduleEnv, isStrict),
-            _ => Symbols.Undefined
+            _ => Symbol.Undefined
         };
     }
 
@@ -1389,7 +1389,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             FunctionDeclaration functionDeclaration => moduleEnv.Get(functionDeclaration.Name),
             ClassDeclaration classDeclaration => moduleEnv.Get(classDeclaration.Name),
-            _ => Symbols.Undefined
+            _ => Symbol.Undefined
         };
     }
 

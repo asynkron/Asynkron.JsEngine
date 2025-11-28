@@ -1,4 +1,3 @@
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -34,7 +33,7 @@ public static partial class StandardLibrary
 
         object? SymbolConstructor(IReadOnlyList<object?> args)
         {
-            var description = args.Count > 0 && args[0] != null && !ReferenceEquals(args[0], Symbols.Undefined)
+            var description = args.Count > 0 && args[0] != null && !ReferenceEquals(args[0], Symbol.Undefined)
                 ? args[0]!.ToString()
                 : null;
             return TypedAstSymbol.Create(description);
@@ -44,7 +43,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return Symbols.Undefined;
+                return Symbol.Undefined;
             }
 
             var key = args[0]?.ToString() ?? "";
@@ -55,11 +54,11 @@ public static partial class StandardLibrary
     {
         if (args.Count == 0 || args[0] is not TypedAstSymbol sym)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var key = TypedAstSymbol.KeyFor(sym);
-        return key ?? (object)Symbols.Undefined;
+        return key ?? (object)Symbol.Undefined;
     }
     }
 

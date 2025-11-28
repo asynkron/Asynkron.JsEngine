@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Linq;
 using System.Text.Json;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -127,7 +126,7 @@ public static partial class StandardLibrary
                 foreach (var key in obj.Keys.ToArray())
                 {
                     var revived = ApplyJsonReviver(reviver, obj, key, context, realm);
-                    if (ReferenceEquals(revived, Symbols.Undefined))
+                    if (ReferenceEquals(revived, Symbol.Undefined))
                     {
                         obj.Delete(key);
                     }
@@ -146,7 +145,7 @@ public static partial class StandardLibrary
                 {
                     var revived = ApplyJsonReviver(reviver, arr,
                         i.ToString(CultureInfo.InvariantCulture), context, realm);
-                    if (ReferenceEquals(revived, Symbols.Undefined))
+                    if (ReferenceEquals(revived, Symbol.Undefined))
                     {
                         arr.DeleteElement(i);
                     }

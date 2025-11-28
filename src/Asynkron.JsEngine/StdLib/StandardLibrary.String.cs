@@ -176,7 +176,7 @@ public static partial class StandardLibrary
         string ResolveString(object? thisValue)
         {
             var context = realm is not null ? new EvaluationContext(realm) : null;
-            if (ReferenceEquals(thisValue, Symbols.Undefined) || thisValue is null)
+            if (ReferenceEquals(thisValue, Symbol.Undefined) || thisValue is null)
             {
                 throw ThrowTypeError("Cannot convert undefined or null to object", realm: realm);
             }
@@ -329,17 +329,26 @@ public static partial class StandardLibrary
             {
                 throw new ThrowSignal(ctx.FlowValue);
             }
-            startNumber = double.IsNaN(startNumber)
-                ? 0
-                : double.IsInfinity(startNumber)
-                    ? startNumber
-                    : Math.Sign(startNumber) * Math.Floor(Math.Abs(startNumber));
-            if (ctx?.IsThrow == true)
+            double startInteger;
+            if (double.IsNaN(startNumber))
             {
-                throw new ThrowSignal(ctx.FlowValue);
+                startInteger = 0;
+            }
+            else if (double.IsInfinity(startNumber) || startNumber == 0)
+            {
+                startInteger = startNumber;
+            }
+            else
+            {
+                startInteger = Math.Sign(startNumber) * Math.Floor(Math.Abs(startNumber));
             }
 
-            var start = double.IsNegativeInfinity(startNumber) ? 0 : (int)startNumber;
+            var start = double.IsNegativeInfinity(startInteger) ? 0 : (int)startInteger;
+            if (double.IsPositiveInfinity(startInteger))
+            {
+                return "";
+            }
+
             if (start < 0)
             {
                 start = Math.Max(0, length + start);
@@ -352,20 +361,27 @@ public static partial class StandardLibrary
             double lengthNumber;
             if (args.Count > 1)
             {
-                lengthNumber = JsOps.ToNumberWithContext(args[1], ctx);
-                if (ctx?.IsThrow == true)
+                if (ReferenceEquals(args[1], Symbol.Undefined))
                 {
-                    throw new ThrowSignal(ctx.FlowValue);
+                    lengthNumber = double.PositiveInfinity;
                 }
-
-                lengthNumber = double.IsNaN(lengthNumber)
-                    ? double.NaN
-                    : double.IsInfinity(lengthNumber)
-                        ? lengthNumber
-                        : Math.Sign(lengthNumber) * Math.Floor(Math.Abs(lengthNumber));
-                if (ctx?.IsThrow == true)
+                else
                 {
-                    throw new ThrowSignal(ctx.FlowValue);
+                    lengthNumber = JsOps.ToNumberWithContext(args[1], ctx);
+                    if (ctx?.IsThrow == true)
+                    {
+                        throw new ThrowSignal(ctx.FlowValue);
+                    }
+
+                    lengthNumber = double.IsNaN(lengthNumber)
+                        ? 0
+                        : double.IsInfinity(lengthNumber) || lengthNumber == 0
+                            ? lengthNumber
+                            : Math.Sign(lengthNumber) * Math.Floor(Math.Abs(lengthNumber));
+                    if (ctx?.IsThrow == true)
+                    {
+                        throw new ThrowSignal(ctx.FlowValue);
+                    }
                 }
             }
             else
@@ -430,11 +446,11 @@ public static partial class StandardLibrary
             var splitMethod = GetMethod(separatorValue, splitKey, "@@split");
             if (splitMethod is not null)
             {
-                var limitArg = args.Count > 1 ? args[1] : Symbols.Undefined;
+                var limitArg = args.Count > 1 ? args[1] : Symbol.Undefined;
                 return splitMethod.Invoke([value, limitArg], separatorValue);
             }
 
-            var separator = ReferenceEquals(separatorValue, Symbols.Undefined)
+            var separator = ReferenceEquals(separatorValue, Symbol.Undefined)
                 ? null
                 : CoerceToString(separatorValue);
             var limit = args.Count > 1 && args[1] is double d ? (int)d : int.MaxValue;
@@ -457,8 +473,8 @@ public static partial class StandardLibrary
         object? Replace(object? thisValue, IReadOnlyList<object?> args)
         {
             var value = ResolveString(thisValue);
-            var search = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var replacement = args.Count > 1 ? args[1] : Symbols.Undefined;
+            var search = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var replacement = args.Count > 1 ? args[1] : Symbol.Undefined;
 
             var replaceMethod = GetMethod(search, replaceKey, "@@replace");
             if (replaceMethod is not null)
@@ -755,8 +771,8 @@ public static partial class StandardLibrary
         object? ReplaceAll(object? thisValue, IReadOnlyList<object?> args)
         {
             var value = ResolveString(thisValue);
-            var searchValue = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var replaceValue = args.Count > 1 ? args[1] : Symbols.Undefined;
+            var searchValue = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var replaceValue = args.Count > 1 ? args[1] : Symbol.Undefined;
 
             var replaceMethod = GetMethod(searchValue, replaceKey, "@@replace");
             if (replaceMethod is not null)
@@ -1036,7 +1052,7 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            if (method is null || ReferenceEquals(method, Symbols.Undefined))
+            if (method is null || ReferenceEquals(method, Symbol.Undefined))
             {
                 return null;
             }
@@ -1074,7 +1090,7 @@ public static partial class StandardLibrary
             }
 
             var ctx = realm is not null ? new EvaluationContext(realm) : null;
-            var pattern = ReferenceEquals(candidate, Symbols.Undefined) ? string.Empty : JsOps.ToJsString(candidate, ctx);
+            var pattern = ReferenceEquals(candidate, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(candidate, ctx);
             if (ctx?.IsThrow == true)
             {
                 throw new ThrowSignal(ctx.FlowValue);
@@ -1115,7 +1131,7 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    result.SetProperty("value", Symbols.Undefined);
+                    result.SetProperty("value", Symbol.Undefined);
                     result.SetProperty("done", true);
                 }
 
@@ -1148,7 +1164,7 @@ public static partial class StandardLibrary
         // String constructor
         var stringConstructor = new HostFunction((thisValue, args) =>
         {
-            var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var value = args.Count > 0 ? args[0] : Symbol.Undefined;
             var context = realm is not null ? new EvaluationContext(realm) : null;
             var str = JsOps.ToJsString(value, context);
 

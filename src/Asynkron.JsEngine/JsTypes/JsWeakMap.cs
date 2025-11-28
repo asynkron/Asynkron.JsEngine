@@ -85,7 +85,7 @@ public sealed class JsWeakMap : IJsObjectLike
     {
         if (key == null || !IsObject(key))
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (_entries.TryGetValue(key, out var value))
@@ -93,7 +93,7 @@ public sealed class JsWeakMap : IJsObjectLike
             return value;
         }
 
-        return Symbols.Undefined;
+        return Symbol.Undefined;
     }
 
     /// <summary>
@@ -135,7 +135,7 @@ public sealed class JsWeakMap : IJsObjectLike
         }
 
         // Check for undefined symbol
-        if (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
+        if (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined))
         {
             return false;
         }

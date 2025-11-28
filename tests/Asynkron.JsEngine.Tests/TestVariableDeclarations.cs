@@ -13,7 +13,7 @@ public class TestVariableDeclarations
             var x;
             x;
         ");
-        Assert.Equal(Symbols.Undefined, result);
+        Assert.Equal(Symbol.Undefined, result);
     }
 
     [Fact]

@@ -1,6 +1,3 @@
-using System.Threading.Tasks;
-using Xunit;
-
 namespace Asynkron.JsEngine.Tests;
 
 public class ResizableLastIndexOfTests

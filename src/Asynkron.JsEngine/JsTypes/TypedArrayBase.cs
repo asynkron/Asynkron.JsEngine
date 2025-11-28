@@ -63,7 +63,7 @@ public abstract class TypedArrayBase : IJsObjectLike
 
             if (args.Count == 0)
             {
-                return Symbols.Undefined;
+                return Symbol.Undefined;
             }
 
             var offset = args.Count > 1 && args[1] is double d ? (int)d : 0;
@@ -78,7 +78,7 @@ public abstract class TypedArrayBase : IJsObjectLike
                     break;
             }
 
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         _subarrayFunction = new HostFunction((thisValue, args) =>
@@ -329,7 +329,7 @@ public abstract class TypedArrayBase : IJsObjectLike
         }
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
-        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
         // Snapshot the length before coercion, as required by the spec.
         var initialLength = target.Length;
         if (initialLength <= 0)
@@ -408,7 +408,7 @@ public abstract class TypedArrayBase : IJsObjectLike
         }
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
-        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
         var initialLength = target.Length;
         if (initialLength <= 0)
         {
@@ -485,7 +485,7 @@ public abstract class TypedArrayBase : IJsObjectLike
         }
 
         var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
-        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
         var initialLength = target.Length;
         if (initialLength <= 0)
         {

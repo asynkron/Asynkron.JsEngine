@@ -108,7 +108,7 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
             case "call":
                 value = new HostFunction((_, args) =>
                 {
-                    var thisArg = args.Count > 0 ? args[0] : Symbols.Undefined;
+                    var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
                     var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
                     return jsCallable.Invoke(callArgs, thisArg);
                 });
@@ -117,7 +117,7 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
             case "apply":
                 value = new HostFunction((_, args) =>
                 {
-                    var thisArg = args.Count > 0 ? args[0] : Symbols.Undefined;
+                    var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
                     var argList = new List<object?>();
                     if (args.Count <= 1 || args[1] is not JsArray jsArray)
                     {
@@ -133,7 +133,7 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
             case "bind":
                 value = new HostFunction((_, args) =>
                 {
-                    var boundThis = args.Count > 0 ? args[0] : Symbols.Undefined;
+                    var boundThis = args.Count > 0 ? args[0] : Symbol.Undefined;
                     var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
                     return new HostFunction((_, innerArgs) =>

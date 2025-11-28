@@ -104,7 +104,7 @@ public sealed class JsMap : IJsObjectLike
             }
         }
 
-        return Symbols.Undefined;
+        return Symbol.Undefined;
     }
 
     /// <summary>

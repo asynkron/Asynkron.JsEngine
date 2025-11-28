@@ -1,8 +1,6 @@
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
-using JsSymbols = Asynkron.JsEngine.Ast.Symbols;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -51,13 +49,13 @@ internal static class AssignmentReferenceResolver
         var target = evaluateExpression(member.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return new AssignmentReference(() => JsSymbols.Undefined, _ => { });
+            return new AssignmentReference(() => Symbol.Undefined, _ => { });
         }
 
         var propertyValue = evaluateExpression(member.Property, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return new AssignmentReference(() => JsSymbols.Undefined, _ => { });
+            return new AssignmentReference(() => Symbol.Undefined, _ => { });
         }
 
         if (target is JsArray jsArray && JsOps.TryResolveArrayIndex(propertyValue, out var arrayIndex, context))
@@ -73,7 +71,7 @@ internal static class AssignmentReferenceResolver
             return new AssignmentReference(
                 () => typedIndex >= 0 && typedIndex < typedArray.Length
                     ? typedArray.GetElement(typedIndex)
-                    : JsSymbols.Undefined,
+                    : Symbol.Undefined,
                 newValue =>
                 {
                     if (typedIndex >= 0 && typedIndex < typedArray.Length)
@@ -106,7 +104,7 @@ internal static class AssignmentReferenceResolver
         }
 
         return new AssignmentReference(
-            () => JsOps.TryGetPropertyValue(target, propertyName, out var value) ? value : JsSymbols.Undefined,
+            () => JsOps.TryGetPropertyValue(target, propertyName, out var value) ? value : Symbol.Undefined,
             newValue => JsOps.AssignPropertyValueByName(target, propertyName, newValue));
     }
 }

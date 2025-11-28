@@ -53,7 +53,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
 
             var newLength = (int)d;
             target.Resize(newLength);
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         if (realmState?.ArrayBufferPrototype is not null)

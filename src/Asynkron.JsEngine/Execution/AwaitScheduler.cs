@@ -1,5 +1,5 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using JsSymbols = Asynkron.JsEngine.Ast.Symbols;
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -27,7 +27,7 @@ internal static class AwaitScheduler
             if (isRejected)
             {
                 context.SetThrow(settledValue);
-                resolvedValue = JsSymbols.Undefined;
+                resolvedValue = Symbol.Undefined;
                 return false;
             }
 
@@ -44,7 +44,7 @@ internal static class AwaitScheduler
                 if (rejected)
                 {
                     context.SetThrow(settled);
-                    resolvedValue = JsSymbols.Undefined;
+                    resolvedValue = Symbol.Undefined;
                     return false;
                 }
 
@@ -62,14 +62,14 @@ internal static class AwaitScheduler
 
             var onFulfilled = new HostFunction(args =>
             {
-                var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                var value = args.Count > 0 ? args[0] : Symbol.Undefined;
                 tcs.TrySetResult((true, value));
                 return null;
             });
 
             var onRejected = new HostFunction(args =>
             {
-                var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                var value = args.Count > 0 ? args[0] : Symbol.Undefined;
                 tcs.TrySetResult((false, value));
                 return null;
             });
@@ -81,7 +81,7 @@ internal static class AwaitScheduler
             catch (Exception ex)
             {
                 context.SetThrow(ex.Message);
-                resolvedValue = JsSymbols.Undefined;
+                resolvedValue = Symbol.Undefined;
                 return false;
             }
 
@@ -103,14 +103,14 @@ internal static class AwaitScheduler
             catch (Exception ex)
             {
                 context.SetThrow(ex.Message);
-                resolvedValue = JsSymbols.Undefined;
+                resolvedValue = Symbol.Undefined;
                 return false;
             }
 
             if (!awaited.Success)
             {
                 context.SetThrow(awaited.Value);
-                resolvedValue = JsSymbols.Undefined;
+                resolvedValue = Symbol.Undefined;
                 return false;
             }
 
@@ -135,7 +135,7 @@ internal static class AwaitScheduler
         if (candidate is JsObject promiseObj && IsPromiseLike(promiseObj))
         {
             pendingPromise = promiseObj;
-            resolvedValue = JsSymbols.Undefined;
+            resolvedValue = Symbol.Undefined;
             return false;
         }
 

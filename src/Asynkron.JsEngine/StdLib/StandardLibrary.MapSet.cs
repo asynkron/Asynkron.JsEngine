@@ -193,11 +193,11 @@ public static partial class StandardLibrary
     {
         if (thisValue is not JsMap map)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var value = args.Count > 1 ? args[1] : Symbols.Undefined;
+        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var value = args.Count > 1 ? args[1] : Symbol.Undefined;
         return map.Set(key, value);
     }
 
@@ -205,10 +205,10 @@ public static partial class StandardLibrary
     {
         if (thisValue is not JsMap map)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
         return map.Get(key);
     }
 
@@ -219,7 +219,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
         return map.Has(key);
     }
 
@@ -230,7 +230,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
         return map.Delete(key);
     }
 
@@ -241,49 +241,49 @@ public static partial class StandardLibrary
             map.Clear();
         }
 
-        return Symbols.Undefined;
+        return Symbol.Undefined;
     }
 
     private static object? MapSet_ForEach(object? thisValue, IReadOnlyList<object?> args)
     {
         if (thisValue is not JsMap map)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (args.Count == 0 || args[0] is not IJsCallable callback)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var thisArg = args.Count > 1 ? args[1] : null;
         map.ForEach(callback, thisArg);
-        return Symbols.Undefined;
+        return Symbol.Undefined;
     }
 
     private static object? MapSet_Entries(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsMap map ? map.Entries() : Symbols.Undefined;
+        return thisValue is JsMap map ? map.Entries() : Symbol.Undefined;
     }
 
     private static object? MapSet_Keys(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsMap map ? map.Keys() : Symbols.Undefined;
+        return thisValue is JsMap map ? map.Keys() : Symbol.Undefined;
     }
 
     private static object? MapSet_Values(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsMap map ? map.Values() : Symbols.Undefined;
+        return thisValue is JsMap map ? map.Values() : Symbol.Undefined;
     }
 
     private static object? Set_Add(object? thisValue, IReadOnlyList<object?> args)
     {
         if (thisValue is not JsSet set)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
         return set.Add(value);
     }
 
@@ -294,7 +294,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
         return set.Has(value);
     }
 
@@ -305,7 +305,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
         return set.Delete(value);
     }
 
@@ -316,50 +316,50 @@ public static partial class StandardLibrary
             set.Clear();
         }
 
-        return Symbols.Undefined;
+        return Symbol.Undefined;
     }
 
     private static object? Set_ForEach(object? thisValue, IReadOnlyList<object?> args)
     {
         if (thisValue is not JsSet set)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (args.Count == 0 || args[0] is not IJsCallable callback)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var thisArg = args.Count > 1 ? args[1] : null;
         set.ForEach(callback, thisArg);
-        return Symbols.Undefined;
+        return Symbol.Undefined;
     }
 
     private static object? Set_Entries(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsSet set ? set.Entries() : Symbols.Undefined;
+        return thisValue is JsSet set ? set.Entries() : Symbol.Undefined;
     }
 
     private static object? Set_Keys(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsSet set ? set.Keys() : Symbols.Undefined;
+        return thisValue is JsSet set ? set.Keys() : Symbol.Undefined;
     }
 
     private static object? Set_Values(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsSet set ? set.Values() : Symbols.Undefined;
+        return thisValue is JsSet set ? set.Values() : Symbol.Undefined;
     }
 
     private static object? WeakMap_Set(object? thisValue, IReadOnlyList<object?> args)
     {
         if (thisValue is not JsWeakMap weakMap)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var value = args.Count > 1 ? args[1] : Symbols.Undefined;
+        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var value = args.Count > 1 ? args[1] : Symbol.Undefined;
         try
         {
             return weakMap.Set(key, value);
@@ -374,10 +374,10 @@ public static partial class StandardLibrary
     {
         if (thisValue is not JsWeakMap weakMap)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
         return weakMap.Get(key);
     }
 
@@ -388,7 +388,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
         return weakMap.Has(key);
     }
 
@@ -399,7 +399,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
         return weakMap.Delete(key);
     }
 
@@ -407,10 +407,10 @@ public static partial class StandardLibrary
     {
         if (thisValue is not JsWeakSet weakSet)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
         try
         {
             return weakSet.Add(value);
@@ -428,7 +428,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
         return weakSet.Has(value);
     }
 
@@ -439,7 +439,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
         return weakSet.Delete(value);
     }
 }

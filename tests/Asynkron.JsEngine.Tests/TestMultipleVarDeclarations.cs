@@ -29,6 +29,6 @@ public class TestMultipleVarDeclarations
             }
             test();
         ");
-        Assert.Equal(Symbols.Undefined, result);
+        Assert.Equal(Symbol.Undefined, result);
     }
 }

@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Threading;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -54,4 +53,11 @@ public sealed class Symbol : IEquatable<Symbol>
     {
         return Name;
     }
+
+    public static readonly Symbol Undefined = Intern("undefined");
+    public static readonly Symbol This = Intern("this");
+    public static readonly Symbol Super = Intern("super");
+    public static readonly Symbol NewTarget = Intern("new.target");
+    public static readonly Symbol ThisInitialized = Intern("[[thisInitialized]]");
+    public static readonly Symbol Arguments = Intern("arguments");
 }

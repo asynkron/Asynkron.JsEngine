@@ -802,7 +802,7 @@ public sealed class TypedCpsTransformer
                     return returnStatement;
                 }
 
-                var expression = returnStatement.Expression ?? new IdentifierExpression(null, Symbols.Undefined);
+                var expression = returnStatement.Expression ?? new IdentifierExpression(null, Symbol.Undefined);
                 return returnStatement with { Expression = CreateResolveCall(expression) };
             case BlockStatement block:
                 var statements = EnsureResolvedReturns(block.Statements);
@@ -1041,7 +1041,7 @@ public sealed class TypedCpsTransformer
             var rewritten = RewriteStatements(statements);
             if (rewritten.IsDefaultOrEmpty || rewritten[^1] is not ReturnStatement)
             {
-                var undefinedValue = new IdentifierExpression(null, Symbols.Undefined);
+                var undefinedValue = new IdentifierExpression(null, Symbol.Undefined);
                 rewritten = rewritten.Add(new ReturnStatement(null, CreateInnerResolveCall(undefinedValue)));
             }
 
@@ -1186,7 +1186,7 @@ public sealed class TypedCpsTransformer
             {
                 case ReturnStatement returnStatement:
                     var returnExpression =
-                        returnStatement.Expression ?? new IdentifierExpression(null, Symbols.Undefined);
+                        returnStatement.Expression ?? new IdentifierExpression(null, Symbol.Undefined);
                     if (_currentLoopBreakSymbol is { } breakSymbol &&
                         IsCallToSymbol(returnExpression, breakSymbol))
                     {
@@ -1497,7 +1497,7 @@ public sealed class TypedCpsTransformer
                 return new BlockStatement(null, continuation, isStrict);
             }
 
-            var undefinedValue = new IdentifierExpression(null, Symbols.Undefined);
+            var undefinedValue = new IdentifierExpression(null, Symbol.Undefined);
             continuation = [new ReturnStatement(null, CreateInnerResolveCall(undefinedValue))];
 
             return new BlockStatement(null, continuation, isStrict);
@@ -1598,7 +1598,7 @@ public sealed class TypedCpsTransformer
 
         private static ReturnStatement CreateLoopContinueReturn(Symbol loopResolveSymbol)
         {
-            var undefinedValue = new IdentifierExpression(null, Symbols.Undefined);
+            var undefinedValue = new IdentifierExpression(null, Symbol.Undefined);
             var argument = new CallArgument(null, undefinedValue, false);
             var call = new CallExpression(null, new IdentifierExpression(null, loopResolveSymbol),
                 [argument], false);
@@ -1922,7 +1922,7 @@ public sealed class TypedCpsTransformer
                                         callbackStatements[^1] is not ReturnStatement;
                 if (needsContinuation)
                 {
-                    var undefinedValue = new IdentifierExpression(null, Symbols.Undefined);
+                    var undefinedValue = new IdentifierExpression(null, Symbol.Undefined);
                     callbackStatements.Add(new ReturnStatement(null, CreateInnerResolveCall(undefinedValue)));
                 }
             }

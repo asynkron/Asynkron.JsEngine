@@ -89,7 +89,7 @@ public static partial class StandardLibrary
             }
             else
             {
-                pair.Push(Symbols.Undefined);
+                pair.Push(Symbol.Undefined);
             }
 
             AddArrayMethods(pair, realm);
@@ -103,7 +103,7 @@ public static partial class StandardLibrary
         var valuesFn = DefineArrayIteratorFunction("values", (accessor, _) => idx =>
         {
             var key = idx.ToString(CultureInfo.InvariantCulture);
-            return accessor.TryGetProperty(key, out var value) ? value : Symbols.Undefined;
+            return accessor.TryGetProperty(key, out var value) ? value : Symbol.Undefined;
         });
         return;
 
@@ -139,7 +139,7 @@ public static partial class StandardLibrary
                 if (exhausted)
                 {
                     var doneResult = new JsObject();
-                    doneResult.SetProperty("value", Symbols.Undefined);
+                    doneResult.SetProperty("value", Symbol.Undefined);
                     doneResult.SetProperty("done", true);
                     return doneResult;
                 }
@@ -159,7 +159,7 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    result.SetProperty("value", Symbols.Undefined);
+                    result.SetProperty("value", Symbol.Undefined);
                     result.SetProperty("done", true);
                     exhausted = true;
                 }
@@ -178,7 +178,7 @@ public static partial class StandardLibrary
         {
             var fn = new HostFunction((thisValue, _) =>
             {
-                if (thisValue is null || ReferenceEquals(thisValue, Symbols.Undefined))
+                if (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined))
                 {
                     var error = realm?.TypeErrorConstructor is IJsCallable ctor
                         ? ctor.Invoke([$"{name} called on null or undefined"], null)
@@ -249,7 +249,7 @@ public static partial class StandardLibrary
             return null;
         }
 
-        var thisArg = args.Count > 1 ? args[1] : Symbols.Undefined;
+        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
         var result = new JsArray(realm);
         for (var i = 0; i < jsArray.Items.Count; i++)
         {
@@ -270,7 +270,7 @@ public static partial class StandardLibrary
         }
 
         var thisObj = ToArrayLike(thisValue, realm);
-        var thisArg = args.Count > 1 ? args[1] : Symbols.Undefined;
+        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
 
         var result = new JsArray(realm);
         var length = GetArrayLikeLength(thisObj);
@@ -445,7 +445,7 @@ public static partial class StandardLibrary
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", realm);
 
-        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
         var fromIndexArg = args.Count > 1 ? args[1] : 0d;
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
 
@@ -544,7 +544,7 @@ public static partial class StandardLibrary
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
         var evalContext = realm is not null ? new EvaluationContext(realm) : null;
-        var searchElement = args.Count > 0 ? args[0] : Symbols.Undefined;
+        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
         if (accessor is TypedArrayBase typed)
         {
             // Align Array.prototype.lastIndexOf with TypedArray semantics.
@@ -601,8 +601,8 @@ public static partial class StandardLibrary
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toLocaleString", realm);
 
-        var locales = args.Count > 0 ? args[0] : Symbols.Undefined;
-        var options = args.Count > 1 ? args[1] : Symbols.Undefined;
+        var locales = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var options = args.Count > 1 ? args[1] : Symbol.Undefined;
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
         var parts = new List<string>((int)length);
 
@@ -611,7 +611,7 @@ public static partial class StandardLibrary
             var key = i.ToString(CultureInfo.InvariantCulture);
             if (!accessor.TryGetProperty(key, out var element) ||
                 element is null ||
-                ReferenceEquals(element, Symbols.Undefined))
+                ReferenceEquals(element, Symbol.Undefined))
             {
                 parts.Add(string.Empty);
                 continue;
@@ -1168,7 +1168,7 @@ public static partial class StandardLibrary
             return accessor;
         }
 
-        if (value is null || ReferenceEquals(value, Symbols.Undefined))
+        if (value is null || ReferenceEquals(value, Symbol.Undefined))
         {
             throw ThrowTypeError("Array method called on null or undefined", realm: realm);
         }
@@ -1205,7 +1205,7 @@ public static partial class StandardLibrary
         switch (candidate)
         {
             case null:
-            case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
+            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
                 accessor = null!;
                 return false;
             case IJsObjectLike a:
@@ -1336,7 +1336,7 @@ public static partial class StandardLibrary
         HostFunction arrayFrom = null!;
         arrayFrom = new HostFunction((thisValue, args) =>
         {
-            if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbols.Undefined))
+            if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
             {
                 var error = realm.TypeErrorConstructor is IJsCallable ctor
                     ? ctor.Invoke(["Array.from requires an array-like or iterable"], null)
@@ -1346,7 +1346,7 @@ public static partial class StandardLibrary
 
             var source = args[0]!;
             var mapfn = args.Count > 1 ? args[1] : null;
-            var thisArg = args.Count > 2 ? args[2] : Symbols.Undefined;
+            var thisArg = args.Count > 2 ? args[2] : Symbol.Undefined;
             var callingEnv = arrayFrom.CallingJsEnvironment;
 
             if (mapfn is not null && mapfn is not IJsCallable)
@@ -1448,7 +1448,7 @@ public static partial class StandardLibrary
                         break;
                     }
 
-                    var value = stepObj.TryGetProperty("value", out var val) ? val : Symbols.Undefined;
+                    var value = stepObj.TryGetProperty("value", out var val) ? val : Symbol.Undefined;
                     if (mapfn is IJsCallable mapper)
                     {
                         if (mapper is IJsEnvironmentAwareCallable envAware && callingEnv is not null)
@@ -1590,10 +1590,10 @@ public static partial class StandardLibrary
                 var key = index.ToString(CultureInfo.InvariantCulture);
                 return target switch
                 {
-                    JsArray jsArr => index < jsArr.Items.Count ? jsArr.GetElement(index) : Symbols.Undefined,
-                    string str => index < str.Length ? str[index].ToString() : Symbols.Undefined,
+                    JsArray jsArr => index < jsArr.Items.Count ? jsArr.GetElement(index) : Symbol.Undefined,
+                    string str => index < str.Length ? str[index].ToString() : Symbol.Undefined,
                     JsObject jsObj when jsObj.TryGetProperty(key, out var value) => value,
-                    _ => Symbols.Undefined
+                    _ => Symbol.Undefined
                 };
             }
 
@@ -1604,7 +1604,7 @@ public static partial class StandardLibrary
                 methodValue = null;
                 if (sourceObj is not IJsPropertyAccessor accessor ||
                     !accessor.TryGetProperty(iteratorKey, out var value) ||
-                    ReferenceEquals(value, Symbols.Undefined) ||
+                    ReferenceEquals(value, Symbol.Undefined) ||
                     value is null)
                 {
                     return false;
@@ -1761,7 +1761,7 @@ public static partial class StandardLibrary
                 }
 
                 var current = typed.GetValueForIndex(index);
-                accumulator = callback.Invoke([accumulator, current, (double)index, typed], Symbols.Undefined);
+                accumulator = callback.Invoke([accumulator, current, (double)index, typed], Symbol.Undefined);
                 index += step;
             }
 
@@ -1804,7 +1804,7 @@ public static partial class StandardLibrary
             if (accessor.TryGetProperty(key, out var current))
             {
                 accumulatorGeneric = callback.Invoke([accumulatorGeneric, current, (double)indexGeneric, accessor],
-                    Symbols.Undefined);
+                    Symbol.Undefined);
             }
 
             indexGeneric += stepGeneric;
@@ -1825,7 +1825,7 @@ public static partial class StandardLibrary
 
     private static IJsPropertyAccessor EnsureArrayLikeReceiver(object? receiver, string methodName, RealmState? realm)
     {
-        if (receiver is null || ReferenceEquals(receiver, Symbols.Undefined))
+        if (receiver is null || ReferenceEquals(receiver, Symbol.Undefined))
         {
             throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
         }

@@ -205,7 +205,7 @@ public sealed class JsArray : IJsObjectLike
         var parts = new List<string>(_items.Count);
         foreach (var item in _items)
         {
-            if (ReferenceEquals(item, ArrayHole) || item is null || ReferenceEquals(item, Symbols.Undefined))
+            if (ReferenceEquals(item, ArrayHole) || item is null || ReferenceEquals(item, Symbol.Undefined))
             {
                 parts.Add(string.Empty);
                 continue;
@@ -229,7 +229,7 @@ public sealed class JsArray : IJsObjectLike
     {
         if (index < 0)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
         return GetElement((uint)index);
@@ -241,7 +241,7 @@ public sealed class JsArray : IJsObjectLike
         {
             var item = _items[(int)index];
             // Return undefined for holes in the array
-            return ReferenceEquals(item, ArrayHole) ? Symbols.Undefined : item;
+            return ReferenceEquals(item, ArrayHole) ? Symbol.Undefined : item;
         }
 
         if (_sparseItems is not null && _sparseItems.TryGetValue(index, out var value))
@@ -249,7 +249,7 @@ public sealed class JsArray : IJsObjectLike
             return value;
         }
 
-        return Symbols.Undefined;
+        return Symbol.Undefined;
     }
 
     /// <summary>
@@ -423,11 +423,11 @@ public sealed class JsArray : IJsObjectLike
     {
         if (_length == 0)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var lastIndex = _length - 1;
-        object? value = Symbols.Undefined;
+        object? value = Symbol.Undefined;
 
         if (lastIndex < _items.Count)
         {
@@ -444,14 +444,14 @@ public sealed class JsArray : IJsObjectLike
         SetExplicitLength(_length - 1);
 
         // Return undefined for holes
-        return ReferenceEquals(value, ArrayHole) ? Symbols.Undefined : value;
+        return ReferenceEquals(value, ArrayHole) ? Symbol.Undefined : value;
     }
 
     public object? Shift()
     {
         if (_length == 0 || _items.Count == 0)
         {
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var value = _items[0];
@@ -459,7 +459,7 @@ public sealed class JsArray : IJsObjectLike
         SetExplicitLength(_length - 1);
 
         // Return undefined for holes
-        return ReferenceEquals(value, ArrayHole) ? Symbols.Undefined : value;
+        return ReferenceEquals(value, ArrayHole) ? Symbol.Undefined : value;
     }
 
     public void Unshift(params object?[] values)
@@ -670,7 +670,7 @@ public sealed class JsArray : IJsObjectLike
                 }
                 else
                 {
-                    result.SetProperty("value", Symbols.Undefined);
+                    result.SetProperty("value", Symbol.Undefined);
                     result.SetProperty("done", true);
                 }
 

@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
-using Xunit;
 
 namespace Asynkron.JsEngine.Tests;
 

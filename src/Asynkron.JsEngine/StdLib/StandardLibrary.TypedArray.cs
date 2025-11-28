@@ -112,7 +112,7 @@ public static partial class StandardLibrary
                 }
 
                 buffer.Resize((int)d);
-                return Symbols.Undefined;
+                return Symbol.Undefined;
             });
 
         return constructor;
@@ -298,14 +298,14 @@ public static partial class StandardLibrary
         {
             var callingEnv = (thisValue as HostFunction)?.CallingJsEnvironment;
             IJsCallable? mapFn = null;
-            object? mapThis = Symbols.Undefined;
+            object? mapThis = Symbol.Undefined;
 
             if (args.Count == 0)
             {
                 return CreateTarget(0);
             }
 
-            if (args.Count > 1 && !ReferenceEquals(args[1], Symbols.Undefined))
+            if (args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined))
             {
                 if (args[1] is not IJsCallable callableMap)
                 {
@@ -313,7 +313,7 @@ public static partial class StandardLibrary
                 }
 
                 mapFn = callableMap;
-                mapThis = args.Count > 2 ? args[2] : Symbols.Undefined;
+                mapThis = args.Count > 2 ? args[2] : Symbol.Undefined;
             }
 
             var source = args[0];
@@ -351,7 +351,7 @@ public static partial class StandardLibrary
             var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
             if (source is IJsPropertyAccessor accessor &&
                 accessor.TryGetProperty(iteratorKey, out var methodVal) &&
-                !ReferenceEquals(methodVal, Symbols.Undefined))
+                !ReferenceEquals(methodVal, Symbol.Undefined))
             {
                 if (methodVal is not IJsCallable callableIterator)
                 {
@@ -394,7 +394,7 @@ public static partial class StandardLibrary
 
                     var value = nextResultAccessor.TryGetProperty("value", out var valueVal)
                         ? valueVal
-                        : Symbols.Undefined;
+                        : Symbol.Undefined;
                     collected.Add(value);
                 }
             }
@@ -411,7 +411,7 @@ public static partial class StandardLibrary
                 {
                     var key = i.ToString(CultureInfo.InvariantCulture);
                     var hasElement = arrayLike.TryGetProperty(key, out var element);
-                    target.SetValue(i, ApplyMap(i, hasElement ? element : Symbols.Undefined));
+                    target.SetValue(i, ApplyMap(i, hasElement ? element : Symbol.Undefined));
                 }
 
                 return target;

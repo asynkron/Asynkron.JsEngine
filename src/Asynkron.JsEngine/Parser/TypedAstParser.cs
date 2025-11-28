@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
@@ -1977,7 +1976,7 @@ public sealed class TypedAstParser(
             if (Match(TokenType.Undefined))
             {
                 var token = Previous();
-                var symbol = Symbols.Undefined;
+                var symbol = Symbol.Undefined;
                 expr = new IdentifierExpression(CreateSourceReference(token), symbol);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
@@ -2099,7 +2098,7 @@ public sealed class TypedAstParser(
             if (Check(TokenType.Undefined))
             {
                 var token = Advance();
-                var symbol = Symbols.Undefined;
+                var symbol = Symbol.Undefined;
                 var undefinedExpr = new IdentifierExpression(CreateSourceReference(token), symbol);
                 return ParseCallSuffix(undefinedExpr);
             }

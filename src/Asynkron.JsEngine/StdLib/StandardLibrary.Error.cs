@@ -103,7 +103,7 @@ public static partial class StandardLibrary
         return value switch
         {
             null => false,
-            Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => false,
+            Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => false,
             bool b => b,
             double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
             string s => s.Length > 0,

@@ -1,4 +1,3 @@
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Execution;
 
 namespace Asynkron.JsEngine.Tests;

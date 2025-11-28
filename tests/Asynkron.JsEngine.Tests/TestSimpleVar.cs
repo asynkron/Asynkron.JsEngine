@@ -23,6 +23,6 @@ public class TestSimpleVar
             var y;
             y;
         ");
-        Assert.Equal(Symbols.Undefined, result);
+        Assert.Equal(Symbol.Undefined, result);
     }
 }

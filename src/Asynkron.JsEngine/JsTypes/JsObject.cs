@@ -1,7 +1,5 @@
-using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.JsTypes;
@@ -635,11 +633,11 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
                                 return true;
                             }
 
-                            value = Symbols.Undefined;
+                            value = Symbol.Undefined;
                             return true;
                         }
 
-                        value = desc.HasValue ? desc.Value : Symbols.Undefined;
+                        value = desc.HasValue ? desc.Value : Symbol.Undefined;
                         return true;
                     default:
                         value = slot;
@@ -712,7 +710,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
                     return true;
                 }
 
-                value = Symbols.Undefined;
+                value = Symbol.Undefined;
                 return true;
             }
 
@@ -721,7 +719,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
                 return true;
             }
 
-            value = descriptor.HasValue ? descriptor.Value : Symbols.Undefined;
+            value = descriptor.HasValue ? descriptor.Value : Symbol.Undefined;
             return true;
         }
 

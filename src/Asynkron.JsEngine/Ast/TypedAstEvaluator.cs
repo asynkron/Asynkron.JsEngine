@@ -1,16 +1,13 @@
-using System.Collections;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
-using JsSymbols = Asynkron.JsEngine.Ast.Symbols;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -115,7 +112,7 @@ public static class TypedAstEvaluator
             throw new ThrowSignal(context.FlowValue);
         }
 
-        return ReferenceEquals(result, EmptyCompletion) ? JsSymbols.Undefined : result;
+        return ReferenceEquals(result, EmptyCompletion) ? Symbol.Undefined : result;
     }
 
     private static object? EvaluateStatement(StatementNode statement, JsEnvironment environment,
@@ -223,7 +220,7 @@ public static class TypedAstEvaluator
             {
                 functionScope.DefineFunctionScoped(
                     functionDeclaration.Name,
-                    JsSymbols.Undefined,
+                    Symbol.Undefined,
                     hasInitializer: false,
                     isFunctionDeclaration: true,
                     globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
@@ -274,7 +271,7 @@ public static class TypedAstEvaluator
                 var withObject = ToObjectForDestructuring(objValue, context);
                 if (context.IsThrow)
                 {
-                    return context.FlowValue ?? JsSymbols.Undefined;
+                    return context.FlowValue ?? Symbol.Undefined;
                 }
 
         var withEnv = new JsEnvironment(environment, false, environment.IsStrict, statement.Source, "with",
@@ -285,13 +282,13 @@ public static class TypedAstEvaluator
     private static object? EvaluateBreak(BreakStatement statement, EvaluationContext context)
     {
         context.SetBreak(statement.Label);
-        return JsSymbols.Undefined;
+        return Symbol.Undefined;
     }
 
     private static object? EvaluateContinue(ContinueStatement statement, EvaluationContext context)
     {
         context.SetContinue(statement.Label);
-        return JsSymbols.Undefined;
+        return Symbol.Undefined;
     }
 
     private static object? EvaluateIf(IfStatement statement, JsEnvironment environment, EvaluationContext context)
@@ -299,13 +296,13 @@ public static class TypedAstEvaluator
         var test = EvaluateExpression(statement.Condition, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var branch = IsTruthy(test) ? statement.Then : statement.Else;
         if (branch is null)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (branch is BlockStatement block)
@@ -366,7 +363,7 @@ public static class TypedAstEvaluator
         var iterable = EvaluateExpression(statement.Iterable, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         // In JavaScript, `for...in` requires an object value; iterating
@@ -379,14 +376,14 @@ public static class TypedAstEvaluator
             iterable is not JsArray &&
             iterable is not string &&
             iterable is not null &&
-            !ReferenceEquals(iterable, JsSymbols.Undefined))
+            !ReferenceEquals(iterable, Symbol.Undefined))
         {
             throw new ThrowSignal("Cannot iterate properties of non-object value.");
         }
 
         var loopEnvironment =
             new JsEnvironment(environment, creatingSource: statement.Source, description: "for-each-loop");
-        object? lastValue = JsSymbols.Undefined;
+        object? lastValue = Symbol.Undefined;
 
         if (statement.Kind == ForEachKind.Of &&
             TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
@@ -447,12 +444,12 @@ public static class TypedAstEvaluator
         var iterable = EvaluateExpression(statement.Iterable, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var loopEnvironment =
             new JsEnvironment(environment, creatingSource: statement.Source, description: "for-await-of loop");
-        object? lastValue = JsSymbols.Undefined;
+        object? lastValue = Symbol.Undefined;
 
         if (TryGetIteratorFromProtocols(iterable, out var iterator))
         {
@@ -604,7 +601,7 @@ public static class TypedAstEvaluator
             if (TryInvokeIteratorMethod(
                     iterator,
                     "return",
-                    JsSymbols.Undefined,
+                    Symbol.Undefined,
                     context,
                     out var closeResult,
                     hasArgument: false))
@@ -635,7 +632,7 @@ public static class TypedAstEvaluator
         EvaluationContext context,
         Symbol? loopLabel)
     {
-        object? lastValue = JsSymbols.Undefined;
+        object? lastValue = Symbol.Undefined;
         var iteratorDone = false;
 
         var state = new IteratorDriverState
@@ -676,7 +673,7 @@ public static class TypedAstEvaluator
 
                 var value = resultObj.TryGetProperty("value", out var yielded)
                     ? yielded
-                    : JsSymbols.Undefined;
+                    : Symbol.Undefined;
 
                 var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                     ? new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source,
@@ -920,10 +917,10 @@ public static class TypedAstEvaluator
         var discriminant = EvaluateExpression(statement.Discriminant, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
-        object? lastValue = JsSymbols.Undefined;
+        object? lastValue = Symbol.Undefined;
         var hasMatched = false;
 
         foreach (var switchCase in statement.Cases)
@@ -982,7 +979,7 @@ public static class TypedAstEvaluator
     private static object? EvaluateLoopPlan(LoopPlan plan, JsEnvironment environment, EvaluationContext context,
         Symbol? loopLabel)
     {
-        object? lastValue = JsSymbols.Undefined;
+        object? lastValue = Symbol.Undefined;
 
         if (!plan.LeadingStatements.IsDefaultOrEmpty)
         {
@@ -1116,13 +1113,13 @@ public static class TypedAstEvaluator
         var (superConstructor, superPrototype) = ResolveSuperclass(definition.Extends, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var constructorValue = EvaluateExpression(definition.Constructor, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (constructorValue is not IJsEnvironmentAwareCallable constructor ||
@@ -1172,14 +1169,14 @@ public static class TypedAstEvaluator
             environment, context, privateNameScope);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var staticFields = definition.Fields.Where(field => field.IsStatic).ToImmutableArray();
         InitializeStaticFields(staticFields, constructorAccessor, environment, context, privateNameScope);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         return constructorValue;
@@ -1405,7 +1402,7 @@ public static class TypedAstEvaluator
                 propertyName = privateNameScope.GetKey(propertyName);
             }
 
-            object? value = JsSymbols.Undefined;
+            object? value = Symbol.Undefined;
             if (field.Initializer is not null)
             {
                 using var _ = privateNameScope is not null ? context.EnterPrivateNameScope(privateNameScope) : null;
@@ -1439,7 +1436,7 @@ public static class TypedAstEvaluator
         JsEnvironment environment, EvaluationContext context)
     {
         var value = declarator.Initializer is null
-            ? JsSymbols.Undefined
+            ? Symbol.Undefined
             : EvaluateExpression(declarator.Initializer, environment, context);
 
         if (context.ShouldStopEvaluation)
@@ -1552,9 +1549,9 @@ public static class TypedAstEvaluator
             SequenceExpression sequence => EvaluateSequence(sequence, environment, context),
             MemberExpression member => EvaluateMember(member, environment, context),
             NewExpression newExpression => EvaluateNew(newExpression, environment, context),
-            NewTargetExpression => environment.TryGet(JsSymbols.NewTarget, out var newTarget)
+            NewTargetExpression => environment.TryGet(Symbol.NewTarget, out var newTarget)
                 ? newTarget
-                : JsSymbols.Undefined,
+                : Symbol.Undefined,
             ArrayExpression array => EvaluateArray(array, environment, context),
             ObjectExpression obj => EvaluateObject(obj, environment, context),
             ClassExpression classExpression => EvaluateClassExpression(classExpression, environment, context),
@@ -1564,7 +1561,7 @@ public static class TypedAstEvaluator
                 EvaluateTaggedTemplate(taggedTemplate, environment, context),
             AwaitExpression awaitExpression => EvaluateAwait(awaitExpression, environment, context),
             YieldExpression yieldExpression => EvaluateYield(yieldExpression, environment, context),
-            ThisExpression => environment.Get(JsSymbols.This),
+            ThisExpression => environment.Get(Symbol.This),
             SuperExpression => throw new InvalidOperationException(
                 $"Super is not available in this context.{GetSourceInfo(context, expression.Source)}"),
             _ => throw new NotSupportedException(
@@ -1598,7 +1595,7 @@ public static class TypedAstEvaluator
             if (environment.TryGet(Symbol.Intern("ReferenceError"), out var ctor) &&
                 ctor is IJsCallable callable)
             {
-                errorObject = callable.Invoke([ex.Message], JsSymbols.Undefined);
+                errorObject = callable.Invoke([ex.Message], Symbol.Undefined);
             }
 
             context.SetThrow(errorObject);
@@ -1622,7 +1619,7 @@ public static class TypedAstEvaluator
             {
                 try
                 {
-                    errorObject = callable.Invoke([ex.Message], JsSymbols.Undefined);
+                    errorObject = callable.Invoke([ex.Message], Symbol.Undefined);
                 }
                 catch (ThrowSignal signal)
                 {
@@ -1686,7 +1683,7 @@ public static class TypedAstEvaluator
         EvaluationContext context)
     {
         var yieldedValue = expression.Expression is null
-            ? JsSymbols.Undefined
+            ? Symbol.Undefined
             : EvaluateExpression(expression.Expression, environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -1699,7 +1696,7 @@ public static class TypedAstEvaluator
             var payload = GetResumePayload(environment, yieldIndex);
             if (!payload.HasValue)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
 
             if (payload.IsThrow)
@@ -1761,7 +1758,7 @@ public static class TypedAstEvaluator
 
             if (awaitedPromise && context.IsThrow)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
 
             pendingSend = null;
@@ -1970,19 +1967,19 @@ public static class TypedAstEvaluator
             var propertyKey = EvaluateExpression(superMember.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
 
             var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
 
             var assignedValue = EvaluateExpression(expression.Value, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
 
             var binding = ExpectSuperBinding(environment, context);
@@ -1993,7 +1990,7 @@ public static class TypedAstEvaluator
         var target = EvaluateExpression(expression.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (expression.IsComputed && IsNullish(target))
@@ -2004,13 +2001,13 @@ public static class TypedAstEvaluator
         var property = EvaluateExpression(expression.Property, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var value = EvaluateExpression(expression.Value, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         AssignPropertyValue(target, property, value, context);
@@ -2029,19 +2026,19 @@ public static class TypedAstEvaluator
         var target = EvaluateExpression(expression.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var index = EvaluateExpression(expression.Index, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var value = EvaluateExpression(expression.Value, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         AssignPropertyValue(target, index, value, context);
@@ -2053,7 +2050,7 @@ public static class TypedAstEvaluator
     {
         _ = EvaluateExpression(expression.Left, environment, context);
         return context.ShouldStopEvaluation
-            ? JsSymbols.Undefined
+            ? Symbol.Undefined
             : EvaluateExpression(expression.Right, environment, context);
     }
 
@@ -2095,30 +2092,30 @@ public static class TypedAstEvaluator
         if (expression.Target is SuperExpression)
         {
             var (memberValue, _) = ResolveSuperMember(expression, environment, context);
-            return context.ShouldStopEvaluation ? JsSymbols.Undefined : memberValue;
+            return context.ShouldStopEvaluation ? Symbol.Undefined : memberValue;
         }
 
         var target = EvaluateExpression(expression.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (expression.IsOptional && IsNullish(target))
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var propertyValue = EvaluateExpression(expression.Property, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var isPrivateName = propertyName.Length > 0 && propertyName[0] == '#';
@@ -2150,7 +2147,7 @@ public static class TypedAstEvaluator
 
         if (TryGetPropertyValue(target, propertyName, out var value, context))
         {
-            return context.ShouldStopEvaluation ? JsSymbols.Undefined : value;
+            return context.ShouldStopEvaluation ? Symbol.Undefined : value;
         }
 
         if (privateScopeForAccess is not null)
@@ -2158,7 +2155,7 @@ public static class TypedAstEvaluator
             throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
         }
 
-        return JsSymbols.Undefined;
+        return Symbol.Undefined;
     }
 
     private static object? EvaluateConditional(ConditionalExpression expression, JsEnvironment environment,
@@ -2167,7 +2164,7 @@ public static class TypedAstEvaluator
         var test = EvaluateExpression(expression.Test, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         return IsTruthy(test)
@@ -2209,7 +2206,7 @@ public static class TypedAstEvaluator
             var operandValue = EvaluateExpression(expression.Operand, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
 
             return GetTypeofString(operandValue);
@@ -2218,7 +2215,7 @@ public static class TypedAstEvaluator
         var operand = EvaluateExpression(expression.Operand, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         return expression.Operator switch
@@ -2229,7 +2226,7 @@ public static class TypedAstEvaluator
                 : JsOps.ToNumber(operand, context),
             "-" => operand is JsBigInt bigInt ? -bigInt : -JsOps.ToNumber(operand, context),
             "~" => BitwiseNot(operand, context),
-            "void" => JsSymbols.Undefined,
+            "void" => Symbol.Undefined,
             _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
         };
     }
@@ -2240,7 +2237,7 @@ public static class TypedAstEvaluator
         var left = EvaluateExpression(expression.Left, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         switch (expression.Operator)
@@ -2262,7 +2259,7 @@ public static class TypedAstEvaluator
         var right = EvaluateExpression(expression.Right, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         return expression.Operator switch
@@ -2298,7 +2295,7 @@ public static class TypedAstEvaluator
         var (callee, thisValue, skippedOptional) = EvaluateCallTarget(expression.Callee, environment, context);
         if (context.ShouldStopEvaluation || skippedOptional)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (++context.CallDepth > context.MaxCallDepth)
@@ -2309,7 +2306,7 @@ public static class TypedAstEvaluator
         if (expression.IsOptional && IsNullish(callee))
         {
             context.CallDepth--;
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (callee is not IJsCallable callable)
@@ -2348,7 +2345,7 @@ public static class TypedAstEvaluator
                     var target = EvaluateExpression(inner.Target, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return JsSymbols.Undefined;
+                        return Symbol.Undefined;
                     }
 
                     if (TryGetPropertyValue(target, "formatArgs", out var innerValue) &&
@@ -2378,7 +2375,7 @@ public static class TypedAstEvaluator
                 var spreadValue = EvaluateExpression(argument.Expression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return JsSymbols.Undefined;
+                    return Symbol.Undefined;
                 }
 
                 foreach (var item in EnumerateSpread(spreadValue, context))
@@ -2392,7 +2389,7 @@ public static class TypedAstEvaluator
             arguments.Add(EvaluateExpression(argument.Expression, environment, context));
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
         }
 
@@ -2413,10 +2410,10 @@ public static class TypedAstEvaluator
 
         var frozenArguments = FreezeArguments(arguments);
 
-        object? callResult = JsSymbols.Undefined;
+        object? callResult = Symbol.Undefined;
         object? newTargetForCall = null;
         if (expression.Callee is SuperExpression &&
-            environment.TryGet(JsSymbols.NewTarget, out var inheritedNewTarget))
+            environment.TryGet(Symbol.NewTarget, out var inheritedNewTarget))
         {
             newTargetForCall = inheritedNewTarget;
         }
@@ -2430,7 +2427,7 @@ public static class TypedAstEvaluator
         JsEnvironment? thisInitializationEnvironment = null;
         object? thisInitializationValue = null;
         if (expression.Callee is SuperExpression &&
-            environment.TryFindBinding(JsSymbols.ThisInitialized, out var foundEnv, out var foundValue))
+            environment.TryFindBinding(Symbol.ThisInitialized, out var foundEnv, out var foundValue))
         {
             thisInitializationEnvironment = foundEnv;
             thisInitializationValue = foundValue;
@@ -2457,20 +2454,20 @@ public static class TypedAstEvaluator
                 }
 
                 if (thisInitializationEnvironment is not null &&
-                    thisInitializationEnvironment.TryGet(JsSymbols.ThisInitialized, out var alreadyInitialized) &&
+                    thisInitializationEnvironment.TryGet(Symbol.ThisInitialized, out var alreadyInitialized) &&
                     JsOps.ToBoolean(alreadyInitialized))
                 {
                     throw StandardLibrary.ThrowReferenceError(
                         "Super constructor may only be called once.", context, context.RealmState);
                 }
 
-                environment.Assign(JsSymbols.This, thisAfterSuper);
+                environment.Assign(Symbol.This, thisAfterSuper);
 
-                if (environment.TryGet(JsSymbols.Super, out var superBinding) && superBinding is SuperBinding binding)
+                if (environment.TryGet(Symbol.Super, out var superBinding) && superBinding is SuperBinding binding)
                 {
                     var constructorForSuper = superBindingForCall?.Constructor ?? binding.Constructor;
                     var prototypeForSuper = superBindingForCall?.Prototype ?? binding.Prototype;
-                    environment.Assign(JsSymbols.Super,
+                    environment.Assign(Symbol.Super,
                         new SuperBinding(constructorForSuper, prototypeForSuper, thisAfterSuper, true));
                 }
 
@@ -2580,13 +2577,13 @@ public static class TypedAstEvaluator
         JsEnvironment environment,
         EvaluationContext context)
     {
-        object? thisArg = JsSymbols.Undefined;
+        object? thisArg = Symbol.Undefined;
         if (callArguments.Length > 0)
         {
             thisArg = EvaluateExpression(callArguments[0].Expression, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
         }
 
@@ -2596,7 +2593,7 @@ public static class TypedAstEvaluator
             var argsArray = EvaluateExpression(callArguments[1].Expression, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
 
             foreach (var item in EnumerateSpread(argsArray, context))
@@ -2624,7 +2621,7 @@ public static class TypedAstEvaluator
         JsEnvironment environment,
         EvaluationContext context)
     {
-        object? thisArg = JsSymbols.Undefined;
+        object? thisArg = Symbol.Undefined;
         var argsBuilder = ImmutableArray.CreateBuilder<object?>();
 
         for (var i = 0; i < callArguments.Length; i++)
@@ -2632,7 +2629,7 @@ public static class TypedAstEvaluator
             var argValue = EvaluateExpression(callArguments[i].Expression, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
 
             if (i == 0)
@@ -2681,7 +2678,7 @@ public static class TypedAstEvaluator
                 var (memberValue, binding) = ResolveSuperMember(member, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return (JsSymbols.Undefined, binding.ThisValue, true);
+                    return (Symbol.Undefined, binding.ThisValue, true);
                 }
 
                 return (memberValue, binding.ThisValue, false);
@@ -2690,7 +2687,7 @@ public static class TypedAstEvaluator
             var target = EvaluateExpression(member.Target, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return (JsSymbols.Undefined, null, true);
+                return (Symbol.Undefined, null, true);
             }
 
             if (member.IsOptional && IsNullish(target))
@@ -2701,25 +2698,25 @@ public static class TypedAstEvaluator
             var property = EvaluateExpression(member.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return (JsSymbols.Undefined, null, true);
+                return (Symbol.Undefined, null, true);
             }
 
             var propertyName = JsOps.GetRequiredPropertyName(property, context);
             if (context.ShouldStopEvaluation)
             {
-                return (JsSymbols.Undefined, null, true);
+                return (Symbol.Undefined, null, true);
             }
 
             if (!TryGetPropertyValue(target, propertyName, out var value, context))
             {
                 return context.ShouldStopEvaluation
-                    ? (JsSymbols.Undefined, null, true)
-                    : (JsSymbols.Undefined, target, false);
+                    ? (Symbol.Undefined, null, true)
+                    : (Symbol.Undefined, target, false);
             }
 
             if (context.ShouldStopEvaluation)
             {
-                return (JsSymbols.Undefined, null, true);
+                return (Symbol.Undefined, null, true);
             }
 
             return (value, target, false);
@@ -2809,7 +2806,7 @@ public static class TypedAstEvaluator
         var constructor = EvaluateExpression(expression.Constructor, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (constructor is not IJsCallable callable)
@@ -2843,7 +2840,7 @@ public static class TypedAstEvaluator
         InitializeClassInstance(constructor, instance, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         var args = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
@@ -2852,7 +2849,7 @@ public static class TypedAstEvaluator
             args.Add(EvaluateExpression(argument, environment, context));
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
         }
 
@@ -2909,7 +2906,7 @@ public static class TypedAstEvaluator
                 var spreadValue = EvaluateExpression(element.Expression!, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return JsSymbols.Undefined;
+                    return Symbol.Undefined;
                 }
 
                 foreach (var item in EnumerateSpread(spreadValue, context))
@@ -2930,7 +2927,7 @@ public static class TypedAstEvaluator
             }
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
         }
 
@@ -2977,11 +2974,11 @@ public static class TypedAstEvaluator
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return JsSymbols.Undefined;
+                        return Symbol.Undefined;
                     }
 
                     var value = member.Value is null
-                        ? JsSymbols.Undefined
+                        ? Symbol.Undefined
                         : EvaluateExpression(member.Value, environment, context);
                     obj.SetProperty(name, value);
                     break;
@@ -2996,7 +2993,7 @@ public static class TypedAstEvaluator
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return JsSymbols.Undefined;
+                        return Symbol.Undefined;
                     }
 
                     obj.SetProperty(name, callable);
@@ -3009,7 +3006,7 @@ public static class TypedAstEvaluator
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return JsSymbols.Undefined;
+                        return Symbol.Undefined;
                     }
 
                     DefineAccessorProperty(obj, name, getter, null);
@@ -3022,7 +3019,7 @@ public static class TypedAstEvaluator
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return JsSymbols.Undefined;
+                        return Symbol.Undefined;
                     }
 
                     DefineAccessorProperty(obj, name, null, setter);
@@ -3033,11 +3030,11 @@ public static class TypedAstEvaluator
                     var name = ResolveObjectMemberName(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return JsSymbols.Undefined;
+                        return Symbol.Undefined;
                     }
 
                     var value = member.Value is null
-                        ? JsSymbols.Undefined
+                        ? Symbol.Undefined
                         : EvaluateExpression(member.Value, environment, context);
                     obj.SetProperty(name, value);
                     break;
@@ -3047,7 +3044,7 @@ public static class TypedAstEvaluator
                     var spreadValue = EvaluateExpression(member.Value!, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return JsSymbols.Undefined;
+                        return Symbol.Undefined;
                     }
 
                     if (IsNullish(spreadValue) || spreadValue is IIsHtmlDda)
@@ -3075,7 +3072,7 @@ public static class TypedAstEvaluator
                     {
                         var spreadPropertyValue = accessor.TryGetProperty(key, out var val)
                             ? val
-                            : JsSymbols.Undefined;
+                            : Symbol.Undefined;
                         obj.SetProperty(key, spreadPropertyValue);
                     }
 
@@ -3145,7 +3142,7 @@ public static class TypedAstEvaluator
             var value = EvaluateExpression(part.Expression, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
 
             builder.Append(value.ToJsString());
@@ -3160,7 +3157,7 @@ public static class TypedAstEvaluator
         var (tagValue, thisValue, skippedOptional) = EvaluateCallTarget(expression.Tag, environment, context);
         if (context.ShouldStopEvaluation || skippedOptional)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (tagValue is not IJsCallable callable)
@@ -3171,7 +3168,7 @@ public static class TypedAstEvaluator
         var stringsArrayValue = EvaluateExpression(expression.StringsArray, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (stringsArrayValue is not JsArray stringsArray)
@@ -3182,7 +3179,7 @@ public static class TypedAstEvaluator
         var rawStringsArrayValue = EvaluateExpression(expression.RawStringsArray, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return JsSymbols.Undefined;
+            return Symbol.Undefined;
         }
 
         if (rawStringsArrayValue is not JsArray rawStringsArray)
@@ -3200,7 +3197,7 @@ public static class TypedAstEvaluator
             arguments.Add(EvaluateExpression(expr, environment, context));
             if (context.ShouldStopEvaluation)
             {
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
         }
 
@@ -3281,7 +3278,7 @@ public static class TypedAstEvaluator
                 v switch
                 {
                     TypedAstSymbol => true,
-                    Symbol sym when !ReferenceEquals(sym, Symbols.Undefined) => true,
+                    Symbol sym when !ReferenceEquals(sym, Symbol.Undefined) => true,
                     _ => false
                 };
 
@@ -3419,7 +3416,7 @@ public static class TypedAstEvaluator
         var numeric = JsOps.ToNumeric(operand, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? JsSymbols.Undefined;
+            return context.FlowValue ?? Symbol.Undefined;
         }
 
         if (numeric is JsBigInt bigInt)
@@ -3499,13 +3496,13 @@ public static class TypedAstEvaluator
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? JsSymbols.Undefined;
+            return context.FlowValue ?? Symbol.Undefined;
         }
 
         var rightNumeric = JsOps.ToNumeric(right, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? JsSymbols.Undefined;
+            return context.FlowValue ?? Symbol.Undefined;
         }
 
         if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
@@ -3842,7 +3839,7 @@ public static class TypedAstEvaluator
                         {
                             functionScope.DefineFunctionScoped(
                                 functionDeclaration.Name,
-                                JsSymbols.Undefined,
+                                Symbol.Undefined,
                                 hasInitializer: false,
                                 isFunctionDeclaration: true,
                                 globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
@@ -4238,7 +4235,7 @@ public static class TypedAstEvaluator
                     return;
                 }
 
-                environment.DefineFunctionScoped(identifier.Name, JsSymbols.Undefined, false, context: context);
+                environment.DefineFunctionScoped(identifier.Name, Symbol.Undefined, false, context: context);
             });
     }
 
@@ -4590,7 +4587,7 @@ public static class TypedAstEvaluator
                     return;
                 }
 
-                var elementValue = done ? JsSymbols.Undefined : nextValue;
+                var elementValue = done ? Symbol.Undefined : nextValue;
 
                 if (element.Target is null)
                 {
@@ -4599,7 +4596,7 @@ public static class TypedAstEvaluator
 
                 var usedDefault = false;
                 if (element.DefaultValue is not null &&
-                    ReferenceEquals(elementValue, JsSymbols.Undefined))
+                    ReferenceEquals(elementValue, Symbol.Undefined))
                 {
                     usedDefault = true;
                     elementValue = EvaluateExpression(element.DefaultValue, environment, context);
@@ -4762,10 +4759,10 @@ public static class TypedAstEvaluator
 
             usedKeys.Add(propertyName);
             var hasProperty = obj.TryGetProperty(propertyName, out var val);
-            var propertyValue = hasProperty ? val : JsSymbols.Undefined;
+            var propertyValue = hasProperty ? val : Symbol.Undefined;
 
             var usedDefault = false;
-            if (ReferenceEquals(propertyValue, JsSymbols.Undefined) && property.DefaultValue is not null)
+            if (ReferenceEquals(propertyValue, Symbol.Undefined) && property.DefaultValue is not null)
             {
                 usedDefault = true;
                 propertyValue = EvaluateExpression(property.DefaultValue, environment, context);
@@ -4836,7 +4833,7 @@ public static class TypedAstEvaluator
 
         IJsPropertyAccessor? iteratorTarget = value as IJsPropertyAccessor;
         object? thisArg = value;
-        if (iteratorTarget is null && value is not null && !ReferenceEquals(value, JsSymbols.Undefined))
+        if (iteratorTarget is null && value is not null && !ReferenceEquals(value, Symbol.Undefined))
         {
             iteratorTarget = ToObjectForDestructuring(value, context);
             thisArg = iteratorTarget;
@@ -4938,14 +4935,14 @@ public static class TypedAstEvaluator
 
                 var value = result.TryGetProperty("value", out var yielded)
                     ? yielded
-                    : JsSymbols.Undefined;
+                    : Symbol.Undefined;
 
-                return (done ? JsSymbols.Undefined : value, done);
+                return (done ? Symbol.Undefined : value, done);
             }
 
             if (enumerator?.MoveNext() != true)
             {
-                return (JsSymbols.Undefined, true);
+                return (Symbol.Undefined, true);
             }
 
             return (enumerator.Current, false);
@@ -4978,7 +4975,7 @@ public static class TypedAstEvaluator
                 return obj;
             }
             case null:
-            case Symbol sym when ReferenceEquals(sym, JsSymbols.Undefined):
+            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
             case IIsHtmlDda:
                 throw StandardLibrary.ThrowTypeError("Cannot destructure undefined or null", context, realm);
             case string s:
@@ -5047,7 +5044,7 @@ public static class TypedAstEvaluator
         var propertyValue = EvaluateExpression(expression.Property, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return (JsSymbols.Undefined, binding);
+            return (Symbol.Undefined, binding);
         }
 
         var propertyName = ToPropertyName(propertyValue, context)
@@ -5056,7 +5053,7 @@ public static class TypedAstEvaluator
 
         if (context.ShouldStopEvaluation)
         {
-            return (JsSymbols.Undefined, binding);
+            return (Symbol.Undefined, binding);
         }
 
         if (!binding.TryGetProperty(propertyName, out var value))
@@ -5072,7 +5069,7 @@ public static class TypedAstEvaluator
     {
         try
         {
-            if (environment.Get(JsSymbols.Super) is SuperBinding binding)
+            if (environment.Get(Symbol.Super) is SuperBinding binding)
             {
                 return binding;
             }
@@ -5104,7 +5101,7 @@ public static class TypedAstEvaluator
         if (environment.TryGet(Symbol.Intern("ReferenceError"), out var ctorVal) &&
             ctorVal is IJsCallable ctor)
         {
-            var error = ctor.Invoke([message], JsSymbols.Undefined);
+            var error = ctor.Invoke([message], Symbol.Undefined);
             return new ThrowSignal(error);
         }
 
@@ -5244,10 +5241,10 @@ public static class TypedAstEvaluator
                 continue;
             }
 
-            var value = argumentIndex < arguments.Count ? arguments[argumentIndex] : JsSymbols.Undefined;
+            var value = argumentIndex < arguments.Count ? arguments[argumentIndex] : Symbol.Undefined;
             argumentIndex++;
 
-            if (ReferenceEquals(value, JsSymbols.Undefined) && parameter.DefaultValue is not null)
+            if (ReferenceEquals(value, Symbol.Undefined) && parameter.DefaultValue is not null)
             {
                 if (parameter.Name is not null && DefaultReferencesParameter(parameter.DefaultValue, parameter.Name))
                 {
@@ -5587,7 +5584,7 @@ public static class TypedAstEvaluator
 
     private readonly record struct ResumePayload(bool HasValue, bool IsThrow, bool IsReturn, object? Value)
     {
-        public static ResumePayload Empty { get; } = new(false, false, false, JsSymbols.Undefined);
+        public static ResumePayload Empty { get; } = new(false, false, false, Symbol.Undefined);
 
         public static ResumePayload FromValue(object? value)
         {
@@ -5656,7 +5653,7 @@ public static class TypedAstEvaluator
                     methodInvoked = TryInvokeIteratorMethod(
                         _iterator,
                         "throw",
-                        sendValue ?? JsSymbols.Undefined,
+                        sendValue ?? Symbol.Undefined,
                         context,
                         out candidate);
                 }
@@ -5665,7 +5662,7 @@ public static class TypedAstEvaluator
                     methodInvoked = TryInvokeIteratorMethod(
                         _iterator,
                         "return",
-                        sendValue ?? JsSymbols.Undefined,
+                        sendValue ?? Symbol.Undefined,
                         context,
                         out candidate);
                 }
@@ -5676,7 +5673,7 @@ public static class TypedAstEvaluator
 
                 if (!methodInvoked && candidate is null)
                 {
-                    return (JsSymbols.Undefined, true, propagateThrow, propagateThrow);
+                    return (Symbol.Undefined, true, propagateThrow, propagateThrow);
                 }
 
                 if (methodInvoked && candidate is null)
@@ -5691,7 +5688,7 @@ public static class TypedAstEvaluator
                     awaitedPromise = true;
                     if (!AwaitScheduler.TryAwaitPromiseSync(promiseCandidate, context, out awaitedCandidate))
                     {
-                        return (JsSymbols.Undefined, true, true, propagateThrow);
+                        return (Symbol.Undefined, true, true, propagateThrow);
                     }
                 }
                 else
@@ -5710,7 +5707,7 @@ public static class TypedAstEvaluator
                            doneValue is bool and true;
                 var value = nextResult.TryGetProperty("value", out var yielded)
                     ? yielded
-                    : JsSymbols.Undefined;
+                    : Symbol.Undefined;
                 var delegatedCompletion = _isGeneratorObject && (propagateThrow || propagateReturn);
                 var propagateThrowResult = _isGeneratorObject && propagateThrow && done;
                 return (value, done, delegatedCompletion, propagateThrowResult);
@@ -5723,7 +5720,7 @@ public static class TypedAstEvaluator
                     throw new ThrowSignal(sendValue);
                 }
 
-                return (JsSymbols.Undefined, true, propagateReturn, false);
+                return (Symbol.Undefined, true, propagateReturn, false);
             }
 
             if (propagateThrow)
@@ -5738,7 +5735,7 @@ public static class TypedAstEvaluator
 
             if (!_enumerator.MoveNext())
             {
-                return (JsSymbols.Undefined, true, false, false);
+                return (Symbol.Undefined, true, false, false);
             }
 
             return (_enumerator.Current, false, false, false);
@@ -5794,21 +5791,21 @@ public static class TypedAstEvaluator
 
     private static void SetThisInitializationStatus(JsEnvironment environment, bool initialized)
     {
-        if (environment.HasBinding(JsSymbols.ThisInitialized))
+        if (environment.HasBinding(Symbol.ThisInitialized))
         {
-            environment.Assign(JsSymbols.ThisInitialized, initialized);
+            environment.Assign(Symbol.ThisInitialized, initialized);
             if (initialized &&
-                environment.TryGet(JsSymbols.Super, out var superBinding) &&
+                environment.TryGet(Symbol.Super, out var superBinding) &&
                 superBinding is SuperBinding binding &&
                 !binding.IsThisInitialized)
             {
-                environment.Assign(JsSymbols.Super,
+                environment.Assign(Symbol.Super,
                     new SuperBinding(binding.Constructor, binding.Prototype, binding.ThisValue, true));
             }
             return;
         }
 
-        environment.Define(JsSymbols.ThisInitialized, initialized, isConst: false, isLexical: true,
+        environment.Define(Symbol.ThisInitialized, initialized, isConst: false, isLexical: true,
             blocksFunctionScopeOverride: true);
     }
 
@@ -5949,7 +5946,7 @@ public static class TypedAstEvaluator
                 case "call":
                     value = new HostFunction((_, args) =>
                     {
-                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
                         var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
                         return callable.Invoke(callArgs, thisArg);
                     });
@@ -5958,7 +5955,7 @@ public static class TypedAstEvaluator
                 case "apply":
                     value = new HostFunction((_, args) =>
                     {
-                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
                         var argList = new List<object?>();
                         if (args.Count > 1 && args[1] is JsArray jsArray)
                         {
@@ -5975,7 +5972,7 @@ public static class TypedAstEvaluator
                 case "bind":
                     value = new HostFunction((_, args) =>
                     {
-                        var boundThis = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var boundThis = args.Count > 0 ? args[0] : Symbol.Undefined;
                         var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
                         return new HostFunction((_, innerArgs) =>
@@ -6228,7 +6225,7 @@ public static class TypedAstEvaluator
                 case "call":
                     value = new HostFunction((_, args) =>
                     {
-                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
                         var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
                         return callable.Invoke(callArgs, thisArg);
                     });
@@ -6237,7 +6234,7 @@ public static class TypedAstEvaluator
                 case "apply":
                     value = new HostFunction((_, args) =>
                     {
-                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
                         var argList = new List<object?>();
                         if (args.Count > 1 && args[1] is JsArray jsArray)
                         {
@@ -6254,7 +6251,7 @@ public static class TypedAstEvaluator
                 case "bind":
                     value = new HostFunction((_, args) =>
                     {
-                        var boundThis = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var boundThis = args.Count > 0 ? args[0] : Symbol.Undefined;
                         var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
                         return new HostFunction((_, innerArgs) =>
@@ -6394,7 +6391,7 @@ public static class TypedAstEvaluator
         private Symbol? _pendingAwaitKey;
         private object? _pendingPromise;
         private ResumePayloadKind _pendingResumeKind;
-        private object? _pendingResumeValue = JsSymbols.Undefined;
+        private object? _pendingResumeValue = Symbol.Undefined;
         private int _programCounter;
         private GeneratorState _state = GeneratorState.Start;
 
@@ -6421,7 +6418,7 @@ public static class TypedAstEvaluator
         public JsObject CreateGeneratorObject()
         {
             var iterator = CreateGeneratorIteratorObject(
-                args => Next(args.Count > 0 ? args[0] : JsSymbols.Undefined),
+                args => Next(args.Count > 0 ? args[0] : Symbol.Undefined),
                 args => Return(args.Count > 0 ? args[0] : null),
                 args => Throw(args.Count > 0 ? args[0] : null));
             iterator.SetProperty(IteratorSymbolPropertyName, new HostFunction((_, _) => iterator));
@@ -6466,7 +6463,7 @@ public static class TypedAstEvaluator
 
                 if (_pendingPromise is JsObject pending)
                 {
-                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsSymbols.Undefined, false,
+                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, Symbol.Undefined, false,
                         pending);
                 }
 
@@ -6482,13 +6479,13 @@ public static class TypedAstEvaluator
 
                 // If the plan completed without producing a well-formed iterator
                 // result, treat it as a completed step with undefined.
-                return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, JsSymbols.Undefined, true, null);
+                return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, Symbol.Undefined, true, null);
             }
             catch (PendingAwaitException)
             {
                 if (_pendingPromise is JsObject pending)
                 {
-                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsSymbols.Undefined, false,
+                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, Symbol.Undefined, false,
                         pending);
                 }
 
@@ -6507,7 +6504,7 @@ public static class TypedAstEvaluator
                 ? $"function* {name.Name}"
                 : "generator function";
             var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
-            environment.Define(JsSymbols.This, _thisValue ?? new JsObject());
+            environment.Define(Symbol.This, _thisValue ?? new JsObject());
             environment.Define(YieldResumeContextSymbol, _resumeContext);
             environment.Define(GeneratorInstanceSymbol, this);
 
@@ -6535,7 +6532,7 @@ public static class TypedAstEvaluator
             // Define `arguments` inside generator functions so generator bodies
             // can observe the values they were invoked with (including mappings).
             var argumentsObject = CreateArgumentsObject(_function, _arguments, environment, _realmState, _callable);
-            environment.Define(JsSymbols.Arguments, argumentsObject, isLexical: false);
+            environment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
 
             return environment;
         }
@@ -6700,7 +6697,7 @@ public static class TypedAstEvaluator
                             continue;
 
                         case YieldInstruction yieldInstruction:
-                            object? yieldedValue = JsSymbols.Undefined;
+                            object? yieldedValue = Symbol.Undefined;
                             if (yieldInstruction.YieldExpression is not null)
                             {
                                 yieldedValue = EvaluateExpression(yieldInstruction.YieldExpression, environment,
@@ -6790,7 +6787,7 @@ public static class TypedAstEvaluator
 
                             while (true)
                             {
-                                object? sendValue = JsSymbols.Undefined;
+                                object? sendValue = Symbol.Undefined;
                                 var hasSendValue = false;
                                 var propagateThrow = false;
                                 var propagateReturn = false;
@@ -7058,7 +7055,7 @@ public static class TypedAstEvaluator
 
                                     currentValue = resultObj.TryGetProperty("value", out var yielded)
                                         ? yielded
-                                        : JsSymbols.Undefined;
+                                        : Symbol.Undefined;
                                 }
                                 else if (driverState.Enumerator is IEnumerator<object?> enumerator)
                                 {
@@ -7140,7 +7137,7 @@ public static class TypedAstEvaluator
                                                 driverState);
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
-                                            return CreateIteratorResult(JsSymbols.Undefined, false);
+                                            return CreateIteratorResult(Symbol.Undefined, false);
                                         }
 
                                         if (context.IsThrow)
@@ -7179,7 +7176,7 @@ public static class TypedAstEvaluator
 
                                 var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
                                     ? yieldedAwait
-                                    : JsSymbols.Undefined;
+                                    : Symbol.Undefined;
                                 if (!TryAwaitPromiseOrSchedule(rawValue, context, out var fullyAwaitedValue))
                                 {
                                     if (_asyncStepMode && _pendingPromise is JsObject)
@@ -7189,7 +7186,7 @@ public static class TypedAstEvaluator
                                             driverState);
                                         _state = GeneratorState.Suspended;
                                         _programCounter = iteratorIndex;
-                                        return CreateIteratorResult(JsSymbols.Undefined, false);
+                                        return CreateIteratorResult(Symbol.Undefined, false);
                                     }
 
                                     if (context.IsThrow)
@@ -7229,7 +7226,7 @@ public static class TypedAstEvaluator
                                             driverState);
                                         _state = GeneratorState.Suspended;
                                         _programCounter = iteratorIndex;
-                                        return CreateIteratorResult(JsSymbols.Undefined, false);
+                                        return CreateIteratorResult(Symbol.Undefined, false);
                                     }
 
                                     if (context.IsThrow)
@@ -7307,7 +7304,7 @@ public static class TypedAstEvaluator
 
                         case ReturnInstruction returnInstruction:
                             var returnValue = returnInstruction.ReturnExpression is null
-                                ? JsSymbols.Undefined
+                                ? Symbol.Undefined
                                 : EvaluateExpression(returnInstruction.ReturnExpression, environment, context);
                             if (context.IsThrow)
                             {
@@ -7356,7 +7353,7 @@ public static class TypedAstEvaluator
                     throw;
                 }
 
-                return CreateIteratorResult(JsSymbols.Undefined, false);
+                return CreateIteratorResult(Symbol.Undefined, false);
             }
             catch
             {
@@ -7371,7 +7368,7 @@ public static class TypedAstEvaluator
             _state = GeneratorState.Completed;
             _done = true;
             _tryStack.Clear();
-            return CreateIteratorResult(JsSymbols.Undefined, true);
+            return CreateIteratorResult(Symbol.Undefined, true);
         }
 
         private JsEnvironment EnsureExecutionEnvironment()
@@ -7586,7 +7583,7 @@ public static class TypedAstEvaluator
             if (wasStart)
             {
                 _pendingResumeKind = ResumePayloadKind.None;
-                _pendingResumeValue = JsSymbols.Undefined;
+                _pendingResumeValue = Symbol.Undefined;
                 return;
             }
 
@@ -7612,11 +7609,11 @@ public static class TypedAstEvaluator
             var kind = _pendingResumeKind;
             var value = _pendingResumeValue;
             _pendingResumeKind = ResumePayloadKind.None;
-            _pendingResumeValue = JsSymbols.Undefined;
+            _pendingResumeValue = Symbol.Undefined;
 
             if (kind == ResumePayloadKind.None)
             {
-                return (ResumePayloadKind.Value, JsSymbols.Undefined);
+                return (ResumePayloadKind.Value, Symbol.Undefined);
             }
 
             return (kind, value);
@@ -7627,7 +7624,7 @@ public static class TypedAstEvaluator
             var frame = new TryFrame(instruction.HandlerIndex, instruction.CatchSlotSymbol, instruction.FinallyIndex);
             if (instruction.CatchSlotSymbol is { } slot && !environment.TryGet(slot, out _))
             {
-                environment.Define(slot, JsSymbols.Undefined);
+                environment.Define(slot, Symbol.Undefined);
             }
 
             _tryStack.Push(frame);
@@ -7837,7 +7834,7 @@ public static class TypedAstEvaluator
         {
             var asyncIterator = CreateGeneratorIteratorObject(
                 args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Next,
-                    args.Count > 0 ? args[0] : JsSymbols.Undefined),
+                    args.Count > 0 ? args[0] : Symbol.Undefined),
                 args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Return,
                     args.Count > 0 ? args[0] : null),
                 args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Throw,
@@ -7942,7 +7939,7 @@ public static class TypedAstEvaluator
 
             var onFulfilled = new HostFunction(args =>
             {
-                var value = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                var value = args.Count > 0 ? args[0] : Symbol.Undefined;
                 var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Next, value);
                 ResolveFromStep(resumed, resolve, reject);
                 return null;
@@ -7950,7 +7947,7 @@ public static class TypedAstEvaluator
 
             var onRejected = new HostFunction(args =>
             {
-                var reason = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                var reason = args.Count > 0 ? args[0] : Symbol.Undefined;
                 var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Throw, reason);
                 ResolveFromStep(resumed, resolve, reject);
                 return null;
@@ -8003,13 +8000,13 @@ public static class TypedAstEvaluator
             _isArrowFunction = function.IsArrow;
             _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
             _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
-            if (_isArrowFunction && _closure.TryGet(JsSymbols.This, out var capturedThis))
+            if (_isArrowFunction && _closure.TryGet(Symbol.This, out var capturedThis))
             {
                 _lexicalThis = capturedThis;
             }
             else if (_isArrowFunction)
             {
-                _lexicalThis = JsSymbols.Undefined;
+                _lexicalThis = Symbol.Undefined;
             }
             var paramCount = GetExpectedParameterCount(function.Parameters);
             if (_realmState.FunctionPrototype is not null)
@@ -8112,8 +8109,8 @@ public static class TypedAstEvaluator
 
             if (!_isArrowFunction)
             {
-                var newTargetValue = newTarget ?? JsSymbols.Undefined;
-                functionEnvironment.Define(JsSymbols.NewTarget, newTargetValue, isConst: true, isLexical: true,
+                var newTargetValue = newTarget ?? Symbol.Undefined;
+                functionEnvironment.Define(Symbol.NewTarget, newTargetValue, isConst: true, isLexical: true,
                     blocksFunctionScopeOverride: true);
             }
 
@@ -8121,23 +8118,23 @@ public static class TypedAstEvaluator
             object? boundThis = thisValue;
             if (_isArrowFunction)
             {
-                boundThis = _lexicalThis ?? JsSymbols.Undefined;
+                boundThis = _lexicalThis ?? Symbol.Undefined;
                 context.MarkThisInitialized();
-                functionEnvironment.Define(JsSymbols.This, boundThis);
-                if (_closure.TryGet(JsSymbols.ThisInitialized, out var closureThisInitialized))
+                functionEnvironment.Define(Symbol.This, boundThis);
+                if (_closure.TryGet(Symbol.ThisInitialized, out var closureThisInitialized))
                 {
                     SetThisInitializationStatus(functionEnvironment, JsOps.ToBoolean(closureThisInitialized));
                 }
-                else if (_closure.TryGet(JsSymbols.Super, out var closureSuper) && closureSuper is SuperBinding superBinding)
+                else if (_closure.TryGet(Symbol.Super, out var closureSuper) && closureSuper is SuperBinding superBinding)
                 {
                     SetThisInitializationStatus(functionEnvironment, superBinding.IsThisInitialized);
                 }
             }
             else
             {
-                if (!_function.Body.IsStrict && (thisValue is null || ReferenceEquals(thisValue, JsSymbols.Undefined)))
+                if (!_function.Body.IsStrict && (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined)))
                 {
-                    boundThis = CallingJsEnvironment?.Get(JsSymbols.This) ?? JsSymbols.Undefined;
+                    boundThis = CallingJsEnvironment?.Get(Symbol.This) ?? Symbol.Undefined;
                 }
 
                 if (!_function.Body.IsStrict &&
@@ -8158,7 +8155,7 @@ public static class TypedAstEvaluator
                 }
 
                 SetThisInitializationStatus(functionEnvironment, context.IsThisInitialized);
-                functionEnvironment.Define(JsSymbols.This, boundThis ?? new JsObject());
+                functionEnvironment.Define(Symbol.This, boundThis ?? new JsObject());
 
                 var prototypeForSuper = _superPrototype;
                 if (prototypeForSuper is null && _homeObject is not null)
@@ -8175,7 +8172,7 @@ public static class TypedAstEvaluator
                 {
                     var binding = new SuperBinding(_superConstructor, prototypeForSuper, boundThis,
                         context.IsThisInitialized);
-                    functionEnvironment.Define(JsSymbols.Super, binding);
+                    functionEnvironment.Define(Symbol.Super, binding);
                 }
             }
 
@@ -8216,7 +8213,7 @@ public static class TypedAstEvaluator
                     throw new ThrowSignal(thrownDuringBinding);
                 }
 
-                return JsSymbols.Undefined;
+                return Symbol.Undefined;
             }
 
             if (_hasHoistableDeclarations)
@@ -8228,7 +8225,7 @@ public static class TypedAstEvaluator
             {
                 var argumentsObject =
                     CreateArgumentsObject(_function, arguments, parameterEnvironment, _realmState, this);
-                functionEnvironment.Define(JsSymbols.Arguments, argumentsObject, isLexical: false);
+                functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
             }
 
             try
@@ -8257,12 +8254,12 @@ public static class TypedAstEvaluator
                 {
                     if (!context.IsReturn)
                     {
-                        if (_isClassConstructor && executionEnvironment.TryGet(JsSymbols.This, out var currentThis))
+                        if (_isClassConstructor && executionEnvironment.TryGet(Symbol.This, out var currentThis))
                         {
                             return currentThis;
                         }
 
-                        return JsSymbols.Undefined;
+                        return Symbol.Undefined;
                     }
 
                     var value = context.FlowValue;
@@ -8278,7 +8275,7 @@ public static class TypedAstEvaluator
                 }
                 else
                 {
-                    completionValue = JsSymbols.Undefined;
+                    completionValue = Symbol.Undefined;
                 }
 
                 return CreateResolvedPromise(completionValue, executionEnvironment);
@@ -8326,7 +8323,7 @@ public static class TypedAstEvaluator
                 case "call":
                     value = new HostFunction((_, args) =>
                     {
-                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
                         var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
                         return callable.Invoke(callArgs, thisArg);
                     });
@@ -8335,7 +8332,7 @@ public static class TypedAstEvaluator
                 case "apply":
                     value = new HostFunction((_, args) =>
                     {
-                        var thisArg = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
                         var argList = new List<object?>();
                         if (args.Count > 1 && args[1] is JsArray jsArray)
                         {
@@ -8352,7 +8349,7 @@ public static class TypedAstEvaluator
                 case "bind":
                     value = new HostFunction((_, args) =>
                     {
-                        var boundThis = args.Count > 0 ? args[0] : JsSymbols.Undefined;
+                        var boundThis = args.Count > 0 ? args[0] : Symbol.Undefined;
                         var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
                         return new HostFunction((_, innerArgs) =>
@@ -8538,7 +8535,7 @@ public static class TypedAstEvaluator
             foreach (var field in _instanceFields)
             {
                 var initEnv = new JsEnvironment(environment);
-                initEnv.Define(JsSymbols.This, instance);
+                initEnv.Define(Symbol.This, instance);
 
                 var propertyName = field.Name;
                 if (field.IsComputed)
@@ -8565,7 +8562,7 @@ public static class TypedAstEvaluator
                     propertyName = _privateNameScope.GetKey(propertyName);
                 }
 
-                object? value = JsSymbols.Undefined;
+                object? value = Symbol.Undefined;
                 if (field.Initializer is not null)
                 {
                     value = EvaluateExpression(field.Initializer, initEnv, context);

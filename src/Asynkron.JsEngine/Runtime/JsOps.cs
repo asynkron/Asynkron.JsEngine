@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Numerics;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
@@ -19,7 +18,7 @@ internal static class JsOps
     public static bool IsNullish(this object? value)
     {
         return value is null ||
-               (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined)) ||
+               (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined)) ||
                value is IIsHtmlDda;
     }
 
@@ -32,7 +31,7 @@ internal static class JsOps
         return value switch
         {
             null => false,
-            Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => false,
+            Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => false,
             IIsHtmlDda => false,
             bool b => b,
             double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
@@ -90,7 +89,7 @@ internal static class JsOps
             {
                 case null:
                     return (NumericKind.Number, 0d);
-                case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
+                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
                 case IIsHtmlDda:
                     return (NumericKind.Number, double.NaN);
                 case Symbol:
@@ -842,7 +841,7 @@ internal static class JsOps
             return "object";
         }
 
-        if (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
+        if (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined))
         {
             return "undefined";
         }
@@ -943,7 +942,7 @@ internal static class JsOps
     {
         if (context?.IsThrow == true)
         {
-            value = Symbols.Undefined;
+            value = Symbol.Undefined;
             return false;
         }
 
@@ -958,20 +957,20 @@ internal static class JsOps
 
         if (context?.IsThrow == true)
         {
-            value = Symbols.Undefined;
+            value = Symbol.Undefined;
             return false;
         }
 
         var propertyName = ToPropertyName(propertyKey, context);
         if (context?.IsThrow == true)
         {
-            value = Symbols.Undefined;
+            value = Symbol.Undefined;
             return false;
         }
 
         if (propertyName is null)
         {
-            value = Symbols.Undefined;
+            value = Symbol.Undefined;
             return true;
         }
 
@@ -1016,7 +1015,7 @@ internal static class JsOps
             }
             else
             {
-                value = Symbols.Undefined;
+                value = Symbol.Undefined;
             }
 
             return true;

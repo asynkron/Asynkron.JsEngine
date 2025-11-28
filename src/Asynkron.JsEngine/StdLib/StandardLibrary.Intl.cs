@@ -20,7 +20,7 @@ public static partial class StandardLibrary
                 return value;
             }
 
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
         calendarGetter.DefineProperty("name",
             new PropertyDescriptor
@@ -130,7 +130,7 @@ public static partial class StandardLibrary
             Value = new HostFunction(args =>
             {
                 var result = new JsArray();
-                if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbols.Undefined))
+                if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
                 {
                     return result;
                 }
@@ -279,7 +279,7 @@ public static partial class StandardLibrary
             var nf = ValidateNumberFormatReceiver(thisValue);
             return new HostFunction((_, formatArgs) =>
             {
-                var value = formatArgs.Count > 0 ? formatArgs[0] : Symbols.Undefined;
+                var value = formatArgs.Count > 0 ? formatArgs[0] : Symbol.Undefined;
                 var formatted = FormatNumberValue(value, realm);
                 return formatted;
             }, realm)
@@ -302,7 +302,7 @@ public static partial class StandardLibrary
         var formatToPartsFn = new HostFunction((thisValue, formatArgs) =>
         {
             ValidateNumberFormatReceiver(thisValue);
-            var value = formatArgs.Count > 0 ? formatArgs[0] : Symbols.Undefined;
+            var value = formatArgs.Count > 0 ? formatArgs[0] : Symbol.Undefined;
             var formatted = FormatNumberValue(value, realm);
             var part = new JsObject();
             part.SetProperty("type", "literal");
@@ -331,7 +331,7 @@ public static partial class StandardLibrary
         var numberFormatSupportedLocalesOf = new HostFunction((_, args) =>
         {
             var result = new JsArray();
-            if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbols.Undefined))
+            if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
             {
                 return result;
             }
@@ -412,8 +412,8 @@ public static partial class StandardLibrary
             instance.SetProperty("__minimumIntegerDigits__", 1d);
             instance.SetProperty("__minimumFractionDigits__", 0d);
             instance.SetProperty("__maximumFractionDigits__", 3d);
-            instance.SetProperty("__minimumSignificantDigits__", Symbols.Undefined);
-            instance.SetProperty("__maximumSignificantDigits__", Symbols.Undefined);
+            instance.SetProperty("__minimumSignificantDigits__", Symbol.Undefined);
+            instance.SetProperty("__maximumSignificantDigits__", Symbol.Undefined);
         }
 
         static JsObject CreateNumberFormatResolvedOptions(JsObject nf, RealmState realm)
@@ -431,9 +431,9 @@ public static partial class StandardLibrary
             obj.SetProperty("maximumFractionDigits",
                 nf.TryGetProperty("__maximumFractionDigits__", out var maxfd) && maxfd is not null ? maxfd : 3d);
             obj.SetProperty("minimumSignificantDigits",
-                nf.TryGetProperty("__minimumSignificantDigits__", out var minsig) ? minsig : Symbols.Undefined);
+                nf.TryGetProperty("__minimumSignificantDigits__", out var minsig) ? minsig : Symbol.Undefined);
             obj.SetProperty("maximumSignificantDigits",
-                nf.TryGetProperty("__maximumSignificantDigits__", out var maxsig) ? maxsig : Symbols.Undefined);
+                nf.TryGetProperty("__maximumSignificantDigits__", out var maxsig) ? maxsig : Symbol.Undefined);
             obj.SetPrototype(realm.ObjectPrototype);
             return obj;
         }
@@ -518,9 +518,9 @@ public static partial class StandardLibrary
 
         object? DurationToLocaleString(object? thisValue, IReadOnlyList<object?> args)
         {
-            var locale = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var options = args.Count > 1 ? args[1] : Symbols.Undefined;
-            if (Symbols.Undefined.Equals(locale) && args.Count > 0)
+            var locale = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var options = args.Count > 1 ? args[1] : Symbol.Undefined;
+            if (Symbol.Undefined.Equals(locale) && args.Count > 0)
             {
                 locale = args[0];
             }

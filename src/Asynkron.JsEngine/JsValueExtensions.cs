@@ -51,7 +51,7 @@ internal static class JsValueExtensions
             return value switch
             {
                 null => 0,
-                Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => double.NaN,
+                Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => double.NaN,
                 IIsHtmlDda => double.NaN,
                 JsBigInt bigInt => (double)bigInt.Value,
                 double d => d,
@@ -67,7 +67,7 @@ internal static class JsValueExtensions
                 sbyte sb => sb,
                 bool flag => flag ? 1 : 0,
                 string str => StringToNumber(str),
-                Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => double.NaN,
+                Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => double.NaN,
                 Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number"),
                 JsArray arr => ArrayToNumber(arr),
                 JsObject obj => obj.TryGetProperty("__value__", out var inner)
@@ -88,7 +88,7 @@ internal static class JsValueExtensions
                 return "null";
             }
 
-            if (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
+            if (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined))
             {
                 return "undefined";
             }
@@ -151,7 +151,7 @@ internal static class JsValueExtensions
 
         public string ToJsStringForArray(EvaluationContext? context = null)
         {
-            if (value is null || (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined)))
+            if (value is null || (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined)))
             {
                 return string.Empty;
             }

@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.StdLib;
 using Asynkron.JsEngine.Runtime;
 
@@ -311,7 +307,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike
             _mappedParameters[index] = null;
             if (index < _values.Length)
             {
-                _values[index] = Symbols.Undefined;
+                _values[index] = Symbol.Undefined;
             }
         }
 
@@ -481,12 +477,12 @@ internal sealed class JsArgumentsObject : IJsObjectLike
             }
             else
             {
-                normalized.Value = Symbols.Undefined;
+                normalized.Value = Symbol.Undefined;
             }
         }
         else
         {
-            normalized.Value = Symbols.Undefined;
+            normalized.Value = Symbol.Undefined;
         }
 
         normalized.Writable = descriptor.HasWritable

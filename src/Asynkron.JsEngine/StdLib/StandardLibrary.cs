@@ -21,7 +21,7 @@ public static partial class StandardLibrary
         if (realm?.TypeErrorConstructor is IJsCallable callable)
         {
             var result = callable.Invoke([message], null);
-            if (result is null || ReferenceEquals(result, Symbols.Undefined))
+            if (result is null || ReferenceEquals(result, Symbol.Undefined))
             {
                 return new InvalidOperationException(message);
             }
@@ -39,7 +39,7 @@ public static partial class StandardLibrary
         return value switch
         {
             null => "object",
-            Symbol sym when ReferenceEquals(sym, Symbols.Undefined) => "undefined",
+            Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => "undefined",
             TypedAstSymbol => "symbol",
             JsBigInt => "bigint",
             _ => value switch
@@ -156,7 +156,7 @@ public static partial class StandardLibrary
 
         while (true)
         {
-            if (ReferenceEquals(value, Symbols.Undefined))
+            if (ReferenceEquals(value, Symbol.Undefined))
             {
                 throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState);
             }
@@ -194,7 +194,7 @@ public static partial class StandardLibrary
 
                     return new JsBigInt(new BigInteger(numberValue));
                 case null:
-                case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
+                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
                 case IIsHtmlDda:
                     throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState);
                 case bool flag:

@@ -64,7 +64,7 @@ public sealed class JsDataView : IJsPropertyAccessor
             var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
             var value = args.Count > 1 && args[1] is double d2 ? (sbyte)(int)d2 : (sbyte)0;
             target.SetInt8(offset, value);
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         _getUint8 = CreateMethod((target, args) =>
@@ -78,7 +78,7 @@ public sealed class JsDataView : IJsPropertyAccessor
             var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
             var value = args.Count > 1 && args[1] is double d2 ? (byte)(int)d2 : (byte)0;
             target.SetUint8(offset, value);
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         _getInt16 = CreateMethod((target, args) =>
@@ -94,7 +94,7 @@ public sealed class JsDataView : IJsPropertyAccessor
             var value = args.Count > 1 && args[1] is double d2 ? (short)(int)d2 : (short)0;
             var littleEndian = args.Count > 2 && args[2] is bool and true;
             target.SetInt16(offset, value, littleEndian);
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         _getUint16 = CreateMethod((target, args) =>
@@ -110,7 +110,7 @@ public sealed class JsDataView : IJsPropertyAccessor
             var value = args.Count > 1 && args[1] is double d2 ? (ushort)(int)d2 : (ushort)0;
             var littleEndian = args.Count > 2 && args[2] is bool and true;
             target.SetUint16(offset, value, littleEndian);
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         _getInt32 = CreateMethod((target, args) =>
@@ -126,7 +126,7 @@ public sealed class JsDataView : IJsPropertyAccessor
             var value = args.Count > 1 && args[1] is double d2 ? (int)d2 : 0;
             var littleEndian = args.Count > 2 && args[2] is bool and true;
             target.SetInt32(offset, value, littleEndian);
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         _getUint32 = CreateMethod((target, args) =>
@@ -142,7 +142,7 @@ public sealed class JsDataView : IJsPropertyAccessor
             var value = args.Count > 1 && args[1] is double d2 ? (uint)d2 : 0u;
             var littleEndian = args.Count > 2 && args[2] is bool and true;
             target.SetUint32(offset, value, littleEndian);
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         _getFloat32 = CreateMethod((target, args) =>
@@ -158,7 +158,7 @@ public sealed class JsDataView : IJsPropertyAccessor
             var value = args.Count > 1 && args[1] is double d2 ? (float)d2 : 0f;
             var littleEndian = args.Count > 2 && args[2] is bool and true;
             target.SetFloat32(offset, value, littleEndian);
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         _getFloat64 = CreateMethod((target, args) =>
@@ -174,7 +174,7 @@ public sealed class JsDataView : IJsPropertyAccessor
             var value = args.Count > 1 && args[1] is double d2 ? d2 : 0.0;
             var littleEndian = args.Count > 2 && args[2] is bool and true;
             target.SetFloat64(offset, value, littleEndian);
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
     }
 

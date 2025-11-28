@@ -3,7 +3,6 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
-using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -68,10 +67,10 @@ public static partial class StandardLibrary
         {
             if (thisValue is not IJsCallable target)
             {
-                return Symbols.Undefined;
+                return Symbol.Undefined;
             }
 
-            object? thisArg = Symbols.Undefined;
+            object? thisArg = Symbol.Undefined;
             var callArgs = Array.Empty<object?>();
 
             if (args.Count > 0)
@@ -127,7 +126,7 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("Function.prototype[@@hasInstance] called on non-object", null, realm);
             }
 
-            var candidate = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var candidate = args.Count > 0 ? args[0] : Symbol.Undefined;
             if (candidate is not JsObject && candidate is not IJsObjectLike)
             {
                 return false;
@@ -190,7 +189,7 @@ public static partial class StandardLibrary
             {
                 case null:
                     return "null";
-                case Symbol sym when ReferenceEquals(sym, Symbols.Undefined):
+                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
                     return "undefined";
                 case Symbol:
                 case TypedAstSymbol:

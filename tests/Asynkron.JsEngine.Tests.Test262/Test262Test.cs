@@ -1,9 +1,6 @@
-using System.IO;
 using System.Net;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Runtime;
 using Test262Harness;
 
 namespace Asynkron.JsEngine.Tests.Test262;
@@ -77,7 +74,7 @@ public abstract partial class Test262Test
             {
                 if (args.Count == 0)
                 {
-                    return Symbols.Undefined;
+                    return Symbol.Undefined;
                 }
 
                 switch (args[0])
@@ -94,7 +91,7 @@ public abstract partial class Test262Test
                         break;
                 }
 
-                return Symbols.Undefined;
+                return Symbol.Undefined;
             }),
 
             // Host hook for resizable ArrayBuffers
@@ -260,7 +257,7 @@ public abstract partial class Test262Test
                 return tag;
             }
 
-            return Symbols.Undefined;
+            return Symbol.Undefined;
         });
 
         var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";

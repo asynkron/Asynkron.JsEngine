@@ -12,7 +12,7 @@ public class TestLetDeclaration
             let x;
             x;
         ");
-        Assert.Equal(Symbols.Undefined, result);
+        Assert.Equal(Symbol.Undefined, result);
     }
 
     [Fact]

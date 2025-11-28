@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text.RegularExpressions;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -53,8 +52,8 @@ public static partial class StandardLibrary
 
         object? ToString(IReadOnlyList<object?> args)
         {
-            var radixArg = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var radixNumber = ReferenceEquals(radixArg, Symbols.Undefined) ? 10d : JsOps.ToNumber(radixArg);
+            var radixArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var radixNumber = ReferenceEquals(radixArg, Symbol.Undefined) ? 10d : JsOps.ToNumber(radixArg);
             if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
             {
                 throw ThrowRangeError("radix must be an integer at least 2 and no greater than 36", realm: realm);
@@ -160,7 +159,7 @@ public static partial class StandardLibrary
                 if (string.Equals(style, "unit", StringComparison.OrdinalIgnoreCase) &&
                     options.TryGetProperty("unit", out var unitVal) &&
                     unitVal is not null &&
-                    !ReferenceEquals(unitVal, Symbols.Undefined))
+                    !ReferenceEquals(unitVal, Symbol.Undefined))
                 {
                     return $"{num.ToString(CultureInfo.InvariantCulture)} {unitVal}";
                 }
@@ -288,8 +287,8 @@ public static partial class StandardLibrary
         object? BigIntPrototypeToString(object? thisValue, IReadOnlyList<object?> args)
         {
             var value = ThisBigIntValue(thisValue);
-            var radixArg = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var radixNumber = ReferenceEquals(radixArg, Symbols.Undefined)
+            var radixArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var radixNumber = ReferenceEquals(radixArg, Symbol.Undefined)
                 ? 10d
                 : radixArg is JsBigInt biRadix
                     ? (double)biRadix.Value
@@ -328,7 +327,7 @@ public static partial class StandardLibrary
 
             var bits = ToIndex(args[0], realm);
             var value = args[1];
-            if (ReferenceEquals(value, Symbols.Undefined))
+            if (ReferenceEquals(value, Symbol.Undefined))
             {
                 throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: realm);
             }
@@ -346,7 +345,7 @@ public static partial class StandardLibrary
 
             var bits = ToIndex(args[0], realm);
             var value = args[1];
-            if (ReferenceEquals(value, Symbols.Undefined))
+            if (ReferenceEquals(value, Symbol.Undefined))
             {
                 throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: realm);
             }
@@ -535,8 +534,8 @@ public static partial class StandardLibrary
         {
             var num = RequireNumberReceiver(thisValue, "Number.prototype.toString");
 
-            var radixArg = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var radixNumber = ReferenceEquals(radixArg, Symbols.Undefined) ? 10d : JsOps.ToNumber(radixArg);
+            var radixArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var radixNumber = ReferenceEquals(radixArg, Symbol.Undefined) ? 10d : JsOps.ToNumber(radixArg);
             if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
             {
                 throw ThrowRangeError("radix must be an integer at least 2 and no greater than 36", realm: realm);

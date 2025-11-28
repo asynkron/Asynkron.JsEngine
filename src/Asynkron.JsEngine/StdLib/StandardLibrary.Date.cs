@@ -229,8 +229,8 @@ public static partial class StandardLibrary
             {
                 var timeValue = RequireDateValue(thisVal, realm, out var obj);
 
-                var yearArg = methodArgs.Count > 0 ? methodArgs[0] : Symbols.Undefined;
-                if (yearArg is Symbol sym && !ReferenceEquals(sym, Symbols.Undefined))
+                var yearArg = methodArgs.Count > 0 ? methodArgs[0] : Symbol.Undefined;
+                if (yearArg is Symbol sym && !ReferenceEquals(sym, Symbol.Undefined))
                 {
                     throw ThrowTypeError("Cannot convert a Symbol value to a number", realm: realm);
                 }
@@ -594,8 +594,8 @@ public static partial class StandardLibrary
             {
                 var timeValue = RequireDateValue(thisVal, realm, out var obj);
 
-                var yearArg = methodArgs.Count > 0 ? methodArgs[0] : Symbols.Undefined;
-                if (yearArg is Symbol sym && !ReferenceEquals(sym, Symbols.Undefined))
+                var yearArg = methodArgs.Count > 0 ? methodArgs[0] : Symbol.Undefined;
+                if (yearArg is Symbol sym && !ReferenceEquals(sym, Symbol.Undefined))
                 {
                     throw ThrowTypeError("Cannot convert a Symbol value to a number", realm: realm);
                 }

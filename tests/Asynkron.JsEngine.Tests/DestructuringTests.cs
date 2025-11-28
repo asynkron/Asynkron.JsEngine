@@ -26,7 +26,7 @@ public class DestructuringTests
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate("let [a, b, c] = [1, 2]; c;");
-        Assert.Same(Symbols.Undefined, result);
+        Assert.Same(Symbol.Undefined, result);
     }
 
     [Fact(Timeout = 2000)]
@@ -142,7 +142,7 @@ public class DestructuringTests
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate("let {x, y, z} = {x: 1, y: 2}; z;");
-        Assert.Same(Symbols.Undefined, result);
+        Assert.Same(Symbol.Undefined, result);
     }
 
     [Fact(Timeout = 2000)]
@@ -230,7 +230,7 @@ public class DestructuringTests
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate("let [a, b] = []; a;");
-        Assert.Same(Symbols.Undefined, result);
+        Assert.Same(Symbol.Undefined, result);
     }
 
     [Fact(Timeout = 2000)]
@@ -238,7 +238,7 @@ public class DestructuringTests
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate("let {x, y} = {}; x;");
-        Assert.Same(Symbols.Undefined, result);
+        Assert.Same(Symbol.Undefined, result);
     }
 
     [Fact(Timeout = 2000)]

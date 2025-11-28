@@ -122,7 +122,7 @@ public sealed class JsWeakSet : IJsObjectLike
         }
 
         // Check for undefined symbol
-        if (value is Symbol sym && ReferenceEquals(sym, Symbols.Undefined))
+        if (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined))
         {
             return false;
         }

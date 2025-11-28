@@ -117,7 +117,7 @@ public sealed class JsEnvironment
         JsObject? globalThis = null;
         PropertyDescriptor? existingDescriptor = null;
         object? existingGlobalValue = null;
-        if (isGlobalScope && scope._values.TryGetValue(Symbols.This, out var thisBinding) &&
+        if (isGlobalScope && scope._values.TryGetValue(Symbol.This, out var thisBinding) &&
             thisBinding.Value is JsObject globalObject)
         {
             globalThis = globalObject;
@@ -204,7 +204,7 @@ public sealed class JsEnvironment
                 }
 
                 if (current._enclosing is null &&
-                    current._values.TryGetValue(Symbols.This, out var thisBinding) &&
+                    current._values.TryGetValue(Symbol.This, out var thisBinding) &&
                     thisBinding.Value is JsObject globalObject &&
                     globalObject.TryGetProperty(name.Name, out var globalValue))
                 {
@@ -222,7 +222,7 @@ public sealed class JsEnvironment
             current = current._enclosing;
         }
 
-        if (_values.TryGetValue(Symbols.This, out var rootThis) &&
+        if (_values.TryGetValue(Symbol.This, out var rootThis) &&
             rootThis.Value is JsObject rootGlobal &&
             rootGlobal.TryGetProperty(name.Name, out var propertyValue))
         {
@@ -376,7 +376,7 @@ public sealed class JsEnvironment
                 }
 
                 if (current._enclosing is null &&
-                    current._values.TryGetValue(Symbols.This, out var thisBinding) &&
+                    current._values.TryGetValue(Symbol.This, out var thisBinding) &&
                     thisBinding.Value is JsObject globalObject &&
                     globalObject.TryGetProperty(name.Name, out var globalValue))
                 {
@@ -396,7 +396,7 @@ public sealed class JsEnvironment
             current = current._enclosing;
         }
 
-        if (_values.TryGetValue(Symbols.This, out var rootThis) &&
+        if (_values.TryGetValue(Symbol.This, out var rootThis) &&
             rootThis.Value is JsObject rootGlobal &&
             rootGlobal.TryGetProperty(name.Name, out var propertyValue))
         {
@@ -452,7 +452,7 @@ public sealed class JsEnvironment
     private void AssignInternal(Symbol name, object? value, bool isStrictContext)
     {
         JsObject? globalObject = null;
-        if (_enclosing is null && _values.TryGetValue(Symbols.This, out var thisBinding) &&
+        if (_enclosing is null && _values.TryGetValue(Symbol.This, out var thisBinding) &&
             thisBinding.Value is JsObject global)
         {
             globalObject = global;

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
@@ -68,12 +67,12 @@ public static partial class StandardLibrary
             resolved = ResolveRegExpInstance(receiver) ?? resolved;
 
             var input = JsOps.ToJsString(args.Count > 0 ? args[0] : string.Empty);
-            var limitValue = args.Count > 1 ? args[1] : Symbols.Undefined;
+            var limitValue = args.Count > 1 ? args[1] : Symbol.Undefined;
             var forcedFlags = resolved.Flags.Contains('g') ? resolved.Flags : resolved.Flags + "g";
             var splitter = new JsRegExp(resolved.Pattern, forcedFlags, realm);
             splitter.SetProperty("lastIndex", 0d);
 
-            var limit = ReferenceEquals(limitValue, Symbols.Undefined)
+            var limit = ReferenceEquals(limitValue, Symbol.Undefined)
                 ? uint.MaxValue
                 : ToUint32(limitValue);
 
@@ -283,12 +282,12 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
             }
 
-            var patternArg = args.Count > 0 ? args[0] : Symbols.Undefined;
-            var flagsArg = args.Count > 1 ? args[1] : Symbols.Undefined;
+            var patternArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var flagsArg = args.Count > 1 ? args[1] : Symbol.Undefined;
             string pattern;
             string flags;
 
-            if (patternArg is TypedAstSymbol || (!ReferenceEquals(flagsArg, Symbols.Undefined) && flagsArg is TypedAstSymbol))
+            if (patternArg is TypedAstSymbol || (!ReferenceEquals(flagsArg, Symbol.Undefined) && flagsArg is TypedAstSymbol))
             {
                 throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: realm);
             }
@@ -309,7 +308,7 @@ public static partial class StandardLibrary
             // Debug instrumentation to understand compile coercions.
             if (providedRegExp is JsRegExp otherRegExp)
             {
-                if (!ReferenceEquals(flagsArg, Symbols.Undefined))
+                if (!ReferenceEquals(flagsArg, Symbol.Undefined))
                 {
                     throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
                 }
@@ -319,8 +318,8 @@ public static partial class StandardLibrary
             }
             else
             {
-                pattern = ReferenceEquals(patternArg, Symbols.Undefined) ? string.Empty : JsOps.ToJsString(patternArg);
-                flags = ReferenceEquals(flagsArg, Symbols.Undefined) ? string.Empty : JsOps.ToJsString(flagsArg);
+                pattern = ReferenceEquals(patternArg, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(patternArg);
+                flags = ReferenceEquals(flagsArg, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(flagsArg);
             }
 
             // Reinitialize the existing RegExp instance per RegExpInitialize(O, P, F)
@@ -365,7 +364,7 @@ public static partial class StandardLibrary
         {
             try
             {
-                return ctor.Invoke([message], Symbols.Undefined);
+                return ctor.Invoke([message], Symbol.Undefined);
             }
             catch (ThrowSignal signal)
             {
@@ -507,7 +506,7 @@ public static partial class StandardLibrary
             Set = new HostFunction((thisValue, args) =>
             {
                 var statics = EnsureRegExpReceiver(thisValue);
-                var value = args.Count > 0 ? args[0] : Symbols.Undefined;
+                var value = args.Count > 0 ? args[0] : Symbol.Undefined;
                 statics.Input = value?.ToString() ?? string.Empty;
                 return null;
             })

@@ -1,7 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
-using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -369,7 +368,7 @@ public static partial class StandardLibrary
         }
 
         var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
-        var value = args.Count > 2 ? args[2] : Symbols.Undefined;
+        var value = args.Count > 2 ? args[2] : Symbol.Undefined;
         var receiver = args.Count > 3 ? args[3] : target;
         if (target is ModuleNamespace moduleNamespace)
         {

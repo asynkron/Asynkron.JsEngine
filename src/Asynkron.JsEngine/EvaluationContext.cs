@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine;
 
@@ -34,7 +35,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Lexically declared names that should prevent Annex B function var bindings.
     /// </summary>
-    public HashSet<Symbol> BlockedFunctionVarNames { get; set; } = new();
+    public HashSet<Symbol> BlockedFunctionVarNames { get; set; } = new(ReferenceEqualityComparer<Symbol>.Instance);
 
     /// <summary>
     ///     Indicates whether the current execution originated from script code or eval.

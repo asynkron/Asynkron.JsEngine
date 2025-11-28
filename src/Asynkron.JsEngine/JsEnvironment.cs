@@ -19,6 +19,7 @@ public sealed class JsEnvironment
     private HashSet<Symbol>? _bodyLexicalNames;
     private readonly bool _isBodyEnvironment;
     private readonly JsObject? _withObject;
+    private HashSet<Symbol>? _simpleCatchParameters;
 
     private readonly Dictionary<Symbol, Binding> _values = new();
     private Dictionary<Symbol, List<Action<object?>>>? _bindingObservers;
@@ -109,7 +110,8 @@ public sealed class JsEnvironment
         bool hasInitializer,
         bool isFunctionDeclaration = false,
         bool? globalFunctionConfigurable = null,
-        EvaluationContext? context = null)
+        EvaluationContext? context = null,
+        bool blocksFunctionScopeOverride = false)
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
         var scope = GetFunctionScope();
@@ -143,8 +145,27 @@ public sealed class JsEnvironment
 
         if (scope._values.TryGetValue(name, out var existing))
         {
-            if (existing.IsConst || existing.IsGlobalConstant || existing.BlocksFunctionScopeOverride)
+            if (existing.IsConst || existing.IsGlobalConstant)
             {
+                return;
+            }
+
+            if (blocksFunctionScopeOverride)
+            {
+                existing.UpgradeLexical(existing.IsLexical, true);
+            }
+
+            if (existing.BlocksFunctionScopeOverride)
+            {
+                if (hasInitializer)
+                {
+                    existing.Value = value;
+                    if (isGlobalScope && globalThis is not null)
+                    {
+                        globalThis.SetProperty(name.Name, value);
+                    }
+                }
+
                 return;
             }
 
@@ -169,7 +190,7 @@ public sealed class JsEnvironment
             shouldWriteGlobal = false;
         }
 
-        scope._values[name] = new Binding(initialValue, false, false, false, false);
+        scope._values[name] = new Binding(initialValue, false, false, false, blocksFunctionScopeOverride);
         if (isGlobalScope && globalThis is not null && shouldWriteGlobal)
         {
             if (isFunctionDeclaration)
@@ -281,6 +302,12 @@ public sealed class JsEnvironment
             {
                 binding.Value = value;
                 current.NotifyBindingObservers(name, value);
+                if (current._enclosing is null &&
+                    current._values.TryGetValue(Symbol.This, out var thisBinding) &&
+                    thisBinding.Value is JsObject globalObject)
+                {
+                    globalObject.SetProperty(name.Name, value);
+                }
                 return true;
             }
 
@@ -347,6 +374,7 @@ public sealed class JsEnvironment
 
     internal bool IsParameterEnvironment => _isParameterEnvironment;
     internal bool IsBodyEnvironment => _isBodyEnvironment;
+    internal bool IsFunctionScope => _isFunctionScope;
 
     internal void SetBodyLexicalNames(HashSet<Symbol> names)
     {
@@ -356,6 +384,16 @@ public sealed class JsEnvironment
     internal bool HasBodyLexicalName(Symbol name)
     {
         return _bodyLexicalNames is not null && _bodyLexicalNames.Contains(name);
+    }
+
+    internal void SetSimpleCatchParameters(HashSet<Symbol> names)
+    {
+        _simpleCatchParameters = names;
+    }
+
+    internal bool IsSimpleCatchParameter(Symbol name)
+    {
+        return _simpleCatchParameters is not null && _simpleCatchParameters.Contains(name);
     }
 
     internal JsEnvironment? Enclosing => _enclosing;

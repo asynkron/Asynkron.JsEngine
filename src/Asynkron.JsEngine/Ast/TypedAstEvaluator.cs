@@ -154,26 +154,22 @@ public static class TypedAstEvaluator
         };
     }
 
-    private static object? EvaluateBlock(BlockStatement block, JsEnvironment environment, EvaluationContext context)
+    private static object? EvaluateBlock(
+        BlockStatement block,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool skipAnnexBFunctionInstantiation = false)
     {
         var scope = new JsEnvironment(environment, false, block.IsStrict);
         object? result = EmptyCompletion;
 
-        Dictionary<Symbol, object?>? hoistedFunctions = null;
-        if (!scope.IsStrict && !block.IsStrict)
+        if (!skipAnnexBFunctionInstantiation && !scope.IsStrict && !block.IsStrict)
         {
-            hoistedFunctions = InstantiateAnnexBBlockFunctions(block, scope, context);
+            InstantiateAnnexBBlockFunctions(block, scope, context);
         }
 
         foreach (var statement in block.Statements)
         {
-            if (hoistedFunctions is not null &&
-                statement is FunctionDeclaration funcDecl &&
-                hoistedFunctions.ContainsKey(funcDecl.Name))
-            {
-                continue;
-            }
-
             context.ThrowIfCancellationRequested();
             var completion = EvaluateStatement(statement, scope, context);
             if (!ReferenceEquals(completion, EmptyCompletion))
@@ -187,20 +183,14 @@ public static class TypedAstEvaluator
             }
         }
 
-        if (hoistedFunctions is not null)
-        {
-            // Function declarations were already initialized for Annex B semantics.
-        }
-
         return result;
     }
 
-    private static Dictionary<Symbol, object?> InstantiateAnnexBBlockFunctions(
+    private static void InstantiateAnnexBBlockFunctions(
         BlockStatement block,
         JsEnvironment blockEnvironment,
         EvaluationContext context)
     {
-        var hoisted = new Dictionary<Symbol, object?>();
         var functionScope = blockEnvironment.GetFunctionScope();
         var lexicalNames = CollectLexicalNames(block);
         var simpleCatchParameterNames = CollectSimpleCatchParameterNames(block);
@@ -218,8 +208,14 @@ public static class TypedAstEvaluator
                                          !functionScope.HasBodyLexicalName(functionDeclaration.Name);
             var blockedByParameters = context.BlockedFunctionVarNames is { } blocked &&
                                       blocked.Contains(functionDeclaration.Name);
+            var hasLexicalBeforeFunctionScope =
+                blockEnvironment.HasBindingBeforeFunctionScope(functionDeclaration.Name);
+            var hasBlockingLexicalBeforeFunctionScope = hasLexicalBeforeFunctionScope &&
+                                                        !simpleCatchParameterNames.Contains(functionDeclaration.Name) &&
+                                                        !IsSimpleCatchParameterBinding(blockEnvironment,
+                                                            functionDeclaration.Name);
             var bindingExists =
-                blockEnvironment.HasBindingBeforeFunctionScope(functionDeclaration.Name) ||
+                hasLexicalBeforeFunctionScope ||
                 functionScope.HasBodyLexicalName(functionDeclaration.Name) ||
                 (functionScope.IsGlobalFunctionScope && functionScope.HasOwnLexicalBinding(functionDeclaration.Name));
 
@@ -228,13 +224,31 @@ public static class TypedAstEvaluator
             blockEnvironment.Define(functionDeclaration.Name, functionValue, isLexical: true,
                 blocksFunctionScopeOverride: true);
 
-            if (!shouldCreateVarBinding || blockedByParameters)
+            var skipVarUpdateForExistingGlobal = false;
+            if (bindingExists && functionScope.IsGlobalFunctionScope)
             {
-                hoisted[functionDeclaration.Name] = functionValue;
+                try
+                {
+                    if (functionScope.TryGet(functionDeclaration.Name, out var existingValue) &&
+                        !ReferenceEquals(existingValue, Symbol.Undefined))
+                    {
+                        skipVarUpdateForExistingGlobal = true;
+                    }
+                }
+                catch (Exception)
+                {
+                    // Ignore lookup failures (e.g., uninitialized); allow update in that case.
+                }
+            }
+
+            if (!shouldCreateVarBinding || blockedByParameters || skipVarUpdateForExistingGlobal ||
+                hasBlockingLexicalBeforeFunctionScope)
+            {
                 continue;
             }
 
-            if (!bindingExists && !functionScope.HasFunctionScopedBinding(functionDeclaration.Name))
+            var hasFunctionBinding = functionScope.HasFunctionScopedBinding(functionDeclaration.Name);
+            if (!bindingExists || hasFunctionBinding)
             {
                 functionScope.DefineFunctionScoped(
                     functionDeclaration.Name,
@@ -242,18 +256,53 @@ public static class TypedAstEvaluator
                     hasInitializer: false,
                     isFunctionDeclaration: true,
                     globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
-                    context);
+                    context,
+                    blocksFunctionScopeOverride: true);
             }
+        }
+    }
 
-            if (functionScope.HasFunctionScopedBinding(functionDeclaration.Name) && !functionScope.HasOwnLexicalBinding(functionDeclaration.Name))
+    private static bool IsSimpleCatchParameterBinding(JsEnvironment environment, Symbol name)
+    {
+        try
+        {
+            if (environment.TryFindBinding(name, out var bindingEnvironment, out _) &&
+                !bindingEnvironment.IsFunctionScope &&
+                bindingEnvironment.IsSimpleCatchParameter(name))
             {
-                functionScope.Assign(functionDeclaration.Name, functionValue);
+                return true;
             }
-
-            hoisted[functionDeclaration.Name] = functionValue;
+        }
+        catch (Exception)
+        {
+            // Ignore lookup failures such as TDZ reads.
         }
 
-        return hoisted;
+        return false;
+    }
+
+    private static bool HasBlockingLexicalBeforeFunctionScope(JsEnvironment environment, Symbol name)
+    {
+        var current = environment.Enclosing;
+        var skippedOwnBinding = false;
+        while (current is not null && !current.IsFunctionScope)
+        {
+            if (current.HasOwnLexicalBinding(name))
+            {
+                if (!skippedOwnBinding)
+                {
+                    skippedOwnBinding = true;
+                }
+                else if (!current.IsSimpleCatchParameter(name))
+                {
+                    return true;
+                }
+            }
+
+            current = current.Enclosing;
+        }
+
+        return false;
     }
 
     private static object? EvaluateReturn(ReturnStatement statement, JsEnvironment environment,
@@ -868,6 +917,11 @@ public static class TypedAstEvaluator
             context.Clear();
             var catchEnv = new JsEnvironment(environment, creatingSource: statement.Catch.Body.Source,
                 description: "catch");
+            if (statement.Catch.Binding is IdentifierBinding identifierBinding)
+            {
+                catchEnv.SetSimpleCatchParameters(
+                    new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { identifierBinding.Name });
+            }
             DefineBindingTarget(statement.Catch.Binding, thrownValue, catchEnv, context, false);
             result = EvaluateBlock(statement.Catch.Body, catchEnv, context);
         }
@@ -1476,7 +1530,15 @@ public static class TypedAstEvaluator
     private static object? EvaluateFunctionDeclaration(FunctionDeclaration declaration, JsEnvironment environment,
         EvaluationContext context)
     {
-        var function = CreateFunctionValue(declaration.Function, environment, context);
+        object? function = null;
+        if (!environment.IsStrict &&
+            environment.TryFindBinding(declaration.Name, out var bindingEnvironment, out var existingValue) &&
+            bindingEnvironment.HasOwnLexicalBinding(declaration.Name))
+        {
+            function = existingValue;
+        }
+
+        function ??= CreateFunctionValue(declaration.Function, environment, context);
         // In sloppy script/eval code, function declarations are var-scoped only.
         var shouldCreateLexicalBinding = environment.IsStrict;
         if (shouldCreateLexicalBinding)
@@ -1485,13 +1547,21 @@ public static class TypedAstEvaluator
         }
         var skipVarBinding = context.BlockedFunctionVarNames is { } blocked &&
                              blocked.Contains(declaration.Name);
-            if (environment.HasBodyLexicalName(declaration.Name))
+        if (environment.HasBodyLexicalName(declaration.Name))
+        {
+            skipVarBinding = true;
+        }
+
+        var hasBlockingLexicalBeforeFunctionScope =
+            !environment.IsStrict && HasBlockingLexicalBeforeFunctionScope(environment, declaration.Name);
+
+        if (!skipVarBinding && !hasBlockingLexicalBeforeFunctionScope)
+        {
+            if (!environment.IsStrict)
             {
-                skipVarBinding = true;
+                var assigned = environment.TryAssignBlockedBinding(declaration.Name, function);
             }
 
-        if (!skipVarBinding)
-        {
             var configurable = context.ExecutionKind == ExecutionKind.Eval;
             environment.DefineFunctionScoped(
                 declaration.Name,
@@ -3858,16 +3928,14 @@ public static class TypedAstEvaluator
                             break;
                         }
 
-                        if (!functionScope.HasFunctionScopedBinding(functionDeclaration.Name))
-                        {
-                            functionScope.DefineFunctionScoped(
-                                functionDeclaration.Name,
-                                Symbol.Undefined,
-                                hasInitializer: false,
-                                isFunctionDeclaration: true,
-                                globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
-                                context);
-                        }
+                        functionScope.DefineFunctionScoped(
+                            functionDeclaration.Name,
+                            Symbol.Undefined,
+                            hasInitializer: false,
+                            isFunctionDeclaration: true,
+                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
+                            context,
+                            blocksFunctionScopeOverride: true);
 
                         break;
                     }
@@ -7474,7 +7542,11 @@ public static class TypedAstEvaluator
                 var context = new EvaluationContext(_realmState);
                 _executionEnvironment.Define(YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
 
-                var result = EvaluateBlock(_function.Body, _executionEnvironment, context);
+                var result = EvaluateBlock(
+                    _function.Body,
+                    _executionEnvironment,
+                    context,
+                    skipAnnexBFunctionInstantiation: true);
 
                 if (context.IsThrow)
                 {
@@ -8293,7 +8365,11 @@ public static class TypedAstEvaluator
 
             try
             {
-                var result = EvaluateBlock(_function.Body, executionEnvironment, context);
+                var result = EvaluateBlock(
+                    _function.Body,
+                    executionEnvironment,
+                    context,
+                    skipAnnexBFunctionInstantiation: true);
 
                 if (context.IsThrow)
                 {

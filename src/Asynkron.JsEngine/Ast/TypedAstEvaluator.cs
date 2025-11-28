@@ -1485,10 +1485,10 @@ public static class TypedAstEvaluator
         }
         var skipVarBinding = context.BlockedFunctionVarNames is { } blocked &&
                              blocked.Contains(declaration.Name);
-        if (environment.HasBodyLexicalName(declaration.Name))
-        {
-            skipVarBinding = true;
-        }
+            if (environment.HasBodyLexicalName(declaration.Name))
+            {
+                skipVarBinding = true;
+            }
 
         if (!skipVarBinding)
         {
@@ -4244,6 +4244,22 @@ public static class TypedAstEvaluator
         WalkBindingTargets(target, id => names.Add(id.Name));
     }
 
+    private static void CollectParameterNamesFromFunction(FunctionExpression function, List<Symbol> names)
+    {
+        foreach (var parameter in function.Parameters)
+        {
+            if (parameter.Name is not null)
+            {
+                names.Add(parameter.Name);
+            }
+
+            if (parameter.Pattern is not null)
+            {
+                WalkBindingTargets(parameter.Pattern, id => names.Add(id.Name));
+            }
+        }
+    }
+
     private static void HoistFromBindingTarget(
         BindingTarget target,
         JsEnvironment environment,
@@ -5223,14 +5239,6 @@ public static class TypedAstEvaluator
         foreach (var parameter in function.Parameters)
         {
             CollectParameterNames(parameter, parameterNames);
-        }
-
-        if (context.BlockedFunctionVarNames is not null)
-        {
-            foreach (var name in parameterNames)
-            {
-                context.BlockedFunctionVarNames.Add(name);
-            }
         }
 
         foreach (var name in parameterNames)
@@ -8103,6 +8111,8 @@ public static class TypedAstEvaluator
             }
             var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
             var hasParameterExpressions = HasParameterExpressions(_function);
+            var parameterNames = new List<Symbol>();
+            CollectParameterNamesFromFunction(_function, parameterNames);
             var lexicalNames = _bodyLexicalNames.Length == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
@@ -8115,6 +8125,15 @@ public static class TypedAstEvaluator
             var blockedFunctionVarNames = bodyLexicalNames.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+            foreach (var parameterName in parameterNames)
+            {
+                blockedFunctionVarNames.Add(parameterName);
+            }
+
+            if (!_function.Body.IsStrict && !_isArrowFunction)
+            {
+                blockedFunctionVarNames.Add(Symbol.Arguments);
+            }
             context.BlockedFunctionVarNames = blockedFunctionVarNames;
 
             // When parameter expressions are present, the parameter environment must sit

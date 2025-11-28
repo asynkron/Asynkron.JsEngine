@@ -338,21 +338,6 @@ public static partial class StandardLibrary
                 startInteger = Math.Sign(startNumber) * Math.Floor(Math.Abs(startNumber));
             }
 
-            var start = double.IsNegativeInfinity(startInteger) ? 0 : (int)startInteger;
-            if (double.IsPositiveInfinity(startInteger))
-            {
-                return "";
-            }
-
-            if (start < 0)
-            {
-                start = Math.Max(0, length + start);
-            }
-            else if (start >= length)
-            {
-                return "";
-            }
-
             double lengthNumber;
             if (args.Count > 1)
             {
@@ -375,12 +360,29 @@ public static partial class StandardLibrary
                 lengthNumber = double.PositiveInfinity;
             }
 
+            var start = double.IsNegativeInfinity(startInteger) ? 0 : (int)startInteger;
+            if (double.IsPositiveInfinity(startInteger))
+            {
+                return "";
+            }
+
+            if (start < 0)
+            {
+                start = Math.Max(0, length + start);
+            }
+            else if (start > length)
+            {
+                start = length;
+            }
+
             if (double.IsNaN(lengthNumber) || lengthNumber <= 0)
             {
                 return "";
             }
 
-            var substrLength = (int)Math.Min(lengthNumber, length - start);
+            lengthNumber = Math.Min(Math.Max(lengthNumber, 0), length);
+
+            var substrLength = (int)Math.Min(lengthNumber, Math.Max(0, length - start));
             return value.Substring(start, substrLength);
 
             double ConvertToNumber(object? input)
@@ -401,7 +403,8 @@ public static partial class StandardLibrary
                 var number = JsOps.ToNumberWithContext(primitive, numericContext);
                 if (numericContext?.IsThrow == true)
                 {
-                    throw new ThrowSignal(numericContext.FlowValue);
+                    throw new ThrowSignal(numericContext.FlowValue ?? StandardLibrary.CreateTypeError(
+                        "Cannot convert object to primitive value", numericContext, realm));
                 }
 
                 return number;

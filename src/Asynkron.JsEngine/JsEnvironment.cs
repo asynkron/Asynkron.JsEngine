@@ -181,6 +181,9 @@ public sealed class JsEnvironment
             return;
         }
 
+        var allowConfigurableGlobalBinding =
+            context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
+
         var initialValue = value;
         var shouldWriteGlobal = true;
 
@@ -195,7 +198,7 @@ public sealed class JsEnvironment
         {
             if (isFunctionDeclaration)
             {
-                var configurable = globalFunctionConfigurable ?? false;
+                var configurable = globalFunctionConfigurable ?? allowConfigurableGlobalBinding;
                 globalThis.DefineProperty(name.Name,
                     new PropertyDescriptor
                     {
@@ -204,7 +207,22 @@ public sealed class JsEnvironment
             }
             else
             {
-                globalThis.SetProperty(name.Name, initialValue);
+                if (existingDescriptor is null)
+                {
+                    globalThis.DefineProperty(
+                        name.Name,
+                        new PropertyDescriptor
+                        {
+                            Value = initialValue,
+                            Writable = true,
+                            Enumerable = true,
+                            Configurable = allowConfigurableGlobalBinding
+                        });
+                }
+                else
+                {
+                    globalThis.SetProperty(name.Name, initialValue);
+                }
             }
         }
     }
@@ -351,6 +369,24 @@ public sealed class JsEnvironment
         }
 
         return false;
+    }
+
+    internal bool HasRestrictedGlobalProperty(Symbol name)
+    {
+        var scope = GetFunctionScope();
+        if (!scope.IsGlobalFunctionScope)
+        {
+            return false;
+        }
+
+        if (!scope._values.TryGetValue(Symbol.This, out var thisBinding) ||
+            thisBinding.Value is not JsObject globalObject)
+        {
+            return false;
+        }
+
+        var descriptor = globalObject.GetOwnPropertyDescriptor(name.Name);
+        return descriptor is not null && !descriptor.Configurable;
     }
 
     internal bool IsObjectEnvironment => _withObject is not null;

@@ -43,6 +43,11 @@ public sealed class EvaluationContext(
     public ExecutionKind ExecutionKind { get; } = executionKind;
 
     /// <summary>
+    ///     True when the currently executing source code was parsed in strict mode.
+    /// </summary>
+    public bool IsStrictSource { get; set; }
+
+    /// <summary>
     ///     The current control flow signal, if any.
     /// </summary>
     public ISignal? CurrentSignal { get; private set; }

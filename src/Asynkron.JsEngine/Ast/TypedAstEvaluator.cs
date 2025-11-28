@@ -52,7 +52,8 @@ public static class TypedAstEvaluator
     {
         var context = new EvaluationContext(realmState, cancellationToken, executionKind)
         {
-            SourceReference = program.Source
+            SourceReference = program.Source,
+            IsStrictSource = program.IsStrict
         };
         var executionEnvironment = program.IsStrict && createStrictEnvironment
             ? new JsEnvironment(environment, true, true)
@@ -80,7 +81,7 @@ public static class TypedAstEvaluator
         {
             foreach (var blockedName in bodyLexicalNames)
             {
-                if (functionScope.HasFunctionScopedBinding(blockedName))
+                if (functionScope.HasRestrictedGlobalProperty(blockedName))
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Cannot redeclare var-scoped binding '{blockedName.Name}' with lexical declaration",
@@ -250,14 +251,14 @@ public static class TypedAstEvaluator
             var hasFunctionBinding = functionScope.HasFunctionScopedBinding(functionDeclaration.Name);
             if (!bindingExists || hasFunctionBinding)
             {
-                functionScope.DefineFunctionScoped(
-                    functionDeclaration.Name,
-                    Symbol.Undefined,
-                    hasInitializer: false,
-                    isFunctionDeclaration: true,
-                    globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
-                    context,
-                    blocksFunctionScopeOverride: true);
+                    functionScope.DefineFunctionScoped(
+                        functionDeclaration.Name,
+                        Symbol.Undefined,
+                        hasInitializer: false,
+                        isFunctionDeclaration: true,
+                        globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval && !context.IsStrictSource,
+                        context,
+                        blocksFunctionScopeOverride: true);
             }
         }
     }
@@ -283,7 +284,7 @@ public static class TypedAstEvaluator
 
     private static bool HasBlockingLexicalBeforeFunctionScope(JsEnvironment environment, Symbol name)
     {
-        var current = environment.Enclosing;
+        var current = environment;
         var skippedOwnBinding = false;
         while (current is not null && !current.IsFunctionScope)
         {
@@ -1562,7 +1563,7 @@ public static class TypedAstEvaluator
                 var assigned = environment.TryAssignBlockedBinding(declaration.Name, function);
             }
 
-            var configurable = context.ExecutionKind == ExecutionKind.Eval;
+            var configurable = context.ExecutionKind == ExecutionKind.Eval && !context.IsStrictSource;
             environment.DefineFunctionScoped(
                 declaration.Name,
                 function,
@@ -3933,7 +3934,7 @@ public static class TypedAstEvaluator
                             Symbol.Undefined,
                             hasInitializer: false,
                             isFunctionDeclaration: true,
-                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
+                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval && !context.IsStrictSource,
                             context,
                             blocksFunctionScopeOverride: true);
 
@@ -3948,7 +3949,7 @@ public static class TypedAstEvaluator
                             functionValue,
                             hasInitializer: true,
                             isFunctionDeclaration: true,
-                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval,
+                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval && !context.IsStrictSource,
                             context);
                     }
                     break;

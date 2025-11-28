@@ -1,12 +1,18 @@
-tests (154 tests) Failed: 154 tests failed
-  Asynkron.JsEngine.Tests.Test262 (154 tests) Failed: 154 tests failed
-    Asynkron.JsEngine.Tests.Test262 (154 tests) Failed: 154 tests failed
-      TestHarness (154 tests) Failed: One or more child tests had errors: 154 tests failed
-        AnnexBTests (154 tests) Failed: One or more child tests had errors: 154 tests failed
-          BuiltIns_String_prototype_substr (2 tests) Failed: One or more child tests had errors: 2 tests failed
+tests (368 tests) Failed: 368 tests failed
+  Asynkron.JsEngine.Tests.Test262 (368 tests) Failed: 368 tests failed
+    Asynkron.JsEngine.Tests.Test262 (368 tests) Failed: 368 tests failed
+      TestHarness (368 tests) Failed: One or more child tests had errors: 368 tests failed
+        AnnexBTests (368 tests) Failed: One or more child tests had errors: 368 tests failed
+          BuiltIns_String_prototype_substr (6 tests) Failed: One or more child tests had errors: 6 tests failed
             BuiltIns_String_prototype_substr("annexB/built-ins/String/prototype/substr/length-to-int-err.js",False) Failed
             BuiltIns_String_prototype_substr("annexB/built-ins/String/prototype/substr/length-to-int-err.js",True) Failed
-          Language_evalCode_direct (47 tests) Failed: One or more child tests had errors: 47 tests failed
+            BuiltIns_String_prototype_substr("annexB/built-ins/String/prototype/substr/length-undef.js",False) Failed
+            BuiltIns_String_prototype_substr("annexB/built-ins/String/prototype/substr/length-undef.js",True) Failed
+            BuiltIns_String_prototype_substr("annexB/built-ins/String/prototype/substr/start-and-length-as-numbers.js",False) Failed
+            BuiltIns_String_prototype_substr("annexB/built-ins/String/prototype/substr/start-and-length-as-numbers.js",True) Failed
+          Language_evalCode_direct (135 tests) Failed: One or more child tests had errors: 135 tests failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-init.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-no-skip-param.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-block.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-for-in.js",False) Failed
@@ -14,11 +20,47 @@ tests (154 tests) Failed: 154 tests failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-for.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-switch.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-existing-block-fn-no-init.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-no-skip-param.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-skip-early-err-block.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-skip-early-err-for.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-skip-early-err-switch.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-b-eval-func-existing-block-fn-no-init.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-b-eval-func-no-skip-param.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-b-eval-func-skip-early-err-block.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-b-eval-func-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-b-eval-func-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-b-eval-func-skip-early-err-for.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-b-eval-func-skip-early-err-switch.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-b-eval-func-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-stmt-eval-func-existing-block-fn-no-init.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-stmt-eval-func-no-skip-param.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-stmt-eval-func-skip-early-err-block.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-stmt-eval-func-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-stmt-eval-func-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-stmt-eval-func-skip-early-err-for.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-stmt-eval-func-skip-early-err-switch.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-stmt-eval-func-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-no-else-eval-func-existing-block-fn-no-init.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-no-else-eval-func-no-skip-param.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-no-else-eval-func-skip-early-err-block.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-no-else-eval-func-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-no-else-eval-func-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-no-else-eval-func-skip-early-err-for.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-no-else-eval-func-skip-early-err-switch.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-no-else-eval-func-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-existing-block-fn-no-init.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-no-skip-param.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-skip-early-err-block.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-skip-early-err-for.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-skip-early-err-switch.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-case-eval-func-existing-block-fn-no-init.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-case-eval-func-no-skip-param.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-case-eval-func-skip-early-err-block.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-case-eval-func-skip-early-err-for-in.js",False) Failed
@@ -26,6 +68,7 @@ tests (154 tests) Failed: 154 tests failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-case-eval-func-skip-early-err-for.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-case-eval-func-skip-early-err-switch.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-case-eval-func-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-dflt-eval-func-existing-block-fn-no-init.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-dflt-eval-func-no-skip-param.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-dflt-eval-func-skip-early-err-block.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-dflt-eval-func-skip-early-err-for-in.js",False) Failed
@@ -33,55 +76,156 @@ tests (154 tests) Failed: 154 tests failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-dflt-eval-func-skip-early-err-for.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-dflt-eval-func-skip-early-err-switch.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-dflt-eval-func-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-existing-block-fn-no-init.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-existing-non-enumerable-global-init.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-init.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-no-skip-try.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-skip-early-err-block.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-skip-early-err-for-in.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-skip-early-err-for-of.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-skip-early-err-for.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-skip-early-err-switch.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-block-decl-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-skip-early-err-block.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-skip-early-err-for.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-skip-early-err-switch.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-b-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-b-eval-global-skip-early-err-block.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-b-eval-global-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-b-eval-global-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-b-eval-global-skip-early-err-for.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-b-eval-global-skip-early-err-switch.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-b-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-b-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-stmt-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-stmt-eval-global-skip-early-err-block.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-stmt-eval-global-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-stmt-eval-global-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-stmt-eval-global-skip-early-err-for.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-stmt-eval-global-skip-early-err-switch.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-stmt-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-stmt-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-no-else-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-no-else-eval-global-skip-early-err-block.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-no-else-eval-global-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-no-else-eval-global-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-no-else-eval-global-skip-early-err-for.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-no-else-eval-global-skip-early-err-switch.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-no-else-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-no-else-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-stmt-else-decl-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-stmt-else-decl-eval-global-skip-early-err-block.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-stmt-else-decl-eval-global-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-stmt-else-decl-eval-global-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-stmt-else-decl-eval-global-skip-early-err-for.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-stmt-else-decl-eval-global-skip-early-err-switch.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-stmt-else-decl-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-if-stmt-else-decl-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-no-skip-try.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-skip-early-err-block.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-skip-early-err-for-in.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-skip-early-err-for-of.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-skip-early-err-for.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-skip-early-err-switch.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-case-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-dflt-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-dflt-eval-global-no-skip-try.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-dflt-eval-global-skip-early-err-block.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-dflt-eval-global-skip-early-err-for-in.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-dflt-eval-global-skip-early-err-for-of.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-dflt-eval-global-skip-early-err-for.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-dflt-eval-global-skip-early-err-switch.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-dflt-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_direct("annexB/language/eval-code/direct/global-switch-dflt-eval-global-skip-early-err.js",False) Failed
             Language_evalCode_direct("annexB/language/eval-code/direct/script-decl-lex-no-collision.js",False) Failed
-          Language_evalCode_indirect (20 tests) Failed: One or more child tests had errors: 20 tests failed
+          Language_evalCode_indirect (69 tests) Failed: One or more child tests had errors: 69 tests failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-existing-block-fn-no-init.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-existing-non-enumerable-global-init.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-init.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-no-skip-try.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-skip-early-err-block.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-skip-early-err-for-in.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-skip-early-err-for-of.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-skip-early-err-for.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-skip-early-err-switch.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-block-decl-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-a-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-a-eval-global-skip-early-err-block.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-a-eval-global-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-a-eval-global-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-a-eval-global-skip-early-err-for.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-a-eval-global-skip-early-err-switch.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-a-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-a-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-b-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-b-eval-global-skip-early-err-block.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-b-eval-global-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-b-eval-global-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-b-eval-global-skip-early-err-for.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-b-eval-global-skip-early-err-switch.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-b-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-decl-b-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-stmt-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-stmt-eval-global-skip-early-err-block.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-stmt-eval-global-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-stmt-eval-global-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-stmt-eval-global-skip-early-err-for.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-stmt-eval-global-skip-early-err-switch.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-stmt-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-else-stmt-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-skip-early-err-block.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-skip-early-err-for.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-skip-early-err-switch.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-skip-early-err-block.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-skip-early-err-for-in.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-skip-early-err-for-of.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-skip-early-err-for.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-skip-early-err-switch.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-no-skip-try.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-skip-early-err-block.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-skip-early-err-for-in.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-skip-early-err-for-of.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-skip-early-err-for.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-skip-early-err-switch.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-case-eval-global-skip-early-err.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-dflt-eval-global-existing-block-fn-no-init.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-dflt-eval-global-no-skip-try.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-dflt-eval-global-skip-early-err-block.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-dflt-eval-global-skip-early-err-for-in.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-dflt-eval-global-skip-early-err-for-of.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-dflt-eval-global-skip-early-err-for.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-dflt-eval-global-skip-early-err-switch.js",False) Failed
             Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-dflt-eval-global-skip-early-err-try.js",False) Failed
+            Language_evalCode_indirect("annexB/language/eval-code/indirect/global-switch-dflt-eval-global-skip-early-err.js",False) Failed
           Language_expressions_assignment_dstr (4 tests) Failed: One or more child tests had errors: 4 tests failed
             Language_expressions_assignment_dstr("annexB/language/expressions/assignment/dstr/array-pattern-emulates-undefined.js",False) Failed
             Language_expressions_assignment_dstr("annexB/language/expressions/assignment/dstr/array-pattern-emulates-undefined.js",True) Failed
             Language_expressions_assignment_dstr("annexB/language/expressions/assignment/dstr/object-pattern-emulates-undefined.js",False) Failed
             Language_expressions_assignment_dstr("annexB/language/expressions/assignment/dstr/object-pattern-emulates-undefined.js",True) Failed
-          Language_functionCode (55 tests) Failed: One or more child tests had errors: 55 tests failed
+          Language_functionCode (77 tests) Failed: One or more child tests had errors: 77 tests failed
+            Language_functionCode("annexB/language/function-code/block-decl-func-existing-block-fn-no-init.js",False) Failed
             Language_functionCode("annexB/language/function-code/block-decl-func-existing-fn-update.js",False) Failed
+            Language_functionCode("annexB/language/function-code/block-decl-func-init.js",False) Failed
+            Language_functionCode("annexB/language/function-code/block-decl-func-no-skip-try.js",False) Failed
             Language_functionCode("annexB/language/function-code/block-decl-func-skip-arguments.js",False) Failed
             Language_functionCode("annexB/language/function-code/block-decl-func-skip-dft-param.js",False) Failed
             Language_functionCode("annexB/language/function-code/block-decl-func-skip-early-err-block.js",False) Failed
@@ -90,37 +234,54 @@ tests (154 tests) Failed: 154 tests failed
             Language_functionCode("annexB/language/function-code/block-decl-func-skip-early-err-for.js",False) Failed
             Language_functionCode("annexB/language/function-code/block-decl-func-skip-early-err-switch.js",False) Failed
             Language_functionCode("annexB/language/function-code/block-decl-func-skip-early-err-try.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-existing-block-fn-no-init.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-existing-fn-update.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-skip-dft-param.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-skip-early-err-block.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-skip-early-err-for-in.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-skip-early-err-for-of.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-skip-early-err-for.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-skip-early-err-switch.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-a-func-skip-early-err-try.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-else-decl-b-func-existing-block-fn-no-init.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-b-func-existing-fn-update.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-b-func-skip-dft-param.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-b-func-skip-early-err-block.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-else-decl-b-func-skip-early-err-for-in.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-else-decl-b-func-skip-early-err-for-of.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-b-func-skip-early-err-for.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-b-func-skip-early-err-switch.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-decl-b-func-skip-early-err-try.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-else-stmt-func-existing-block-fn-no-init.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-stmt-func-existing-fn-update.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-stmt-func-skip-dft-param.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-stmt-func-skip-early-err-block.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-else-stmt-func-skip-early-err-for-in.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-else-stmt-func-skip-early-err-for-of.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-stmt-func-skip-early-err-for.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-stmt-func-skip-early-err-switch.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-else-stmt-func-skip-early-err-try.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-no-else-func-existing-block-fn-no-init.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-no-else-func-existing-fn-update.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-no-else-func-skip-dft-param.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-no-else-func-skip-early-err-block.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-no-else-func-skip-early-err-for-in.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-decl-no-else-func-skip-early-err-for-of.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-no-else-func-skip-early-err-for.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-no-else-func-skip-early-err-switch.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-decl-no-else-func-skip-early-err-try.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-stmt-else-decl-func-existing-block-fn-no-init.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-stmt-else-decl-func-existing-fn-update.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-stmt-else-decl-func-skip-dft-param.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-stmt-else-decl-func-skip-early-err-block.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-stmt-else-decl-func-skip-early-err-for-in.js",False) Failed
+            Language_functionCode("annexB/language/function-code/if-stmt-else-decl-func-skip-early-err-for-of.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-stmt-else-decl-func-skip-early-err-for.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-stmt-else-decl-func-skip-early-err-switch.js",False) Failed
             Language_functionCode("annexB/language/function-code/if-stmt-else-decl-func-skip-early-err-try.js",False) Failed
+            Language_functionCode("annexB/language/function-code/switch-case-func-existing-block-fn-no-init.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-case-func-existing-fn-update.js",False) Failed
+            Language_functionCode("annexB/language/function-code/switch-case-func-no-skip-try.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-case-func-skip-dft-param.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-case-func-skip-early-err-block.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-case-func-skip-early-err-for-in.js",False) Failed
@@ -128,7 +289,9 @@ tests (154 tests) Failed: 154 tests failed
             Language_functionCode("annexB/language/function-code/switch-case-func-skip-early-err-for.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-case-func-skip-early-err-switch.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-case-func-skip-early-err-try.js",False) Failed
+            Language_functionCode("annexB/language/function-code/switch-dflt-func-existing-block-fn-no-init.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-dflt-func-existing-fn-update.js",False) Failed
+            Language_functionCode("annexB/language/function-code/switch-dflt-func-no-skip-try.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-dflt-func-skip-dft-param.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-dflt-func-skip-early-err-block.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-dflt-func-skip-early-err-for-in.js",False) Failed
@@ -136,25 +299,76 @@ tests (154 tests) Failed: 154 tests failed
             Language_functionCode("annexB/language/function-code/switch-dflt-func-skip-early-err-for.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-dflt-func-skip-early-err-switch.js",False) Failed
             Language_functionCode("annexB/language/function-code/switch-dflt-func-skip-early-err-try.js",False) Failed
-          Language_globalCode (18 tests) Failed: One or more child tests had errors: 18 tests failed
+          Language_globalCode (69 tests) Failed: One or more child tests had errors: 69 tests failed
+            Language_globalCode("annexB/language/global-code/block-decl-global-existing-block-fn-no-init.js",False) Failed
+            Language_globalCode("annexB/language/global-code/block-decl-global-existing-non-enumerable-global-init.js",False) Failed
+            Language_globalCode("annexB/language/global-code/block-decl-global-init.js",False) Failed
+            Language_globalCode("annexB/language/global-code/block-decl-global-no-skip-try.js",False) Failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-block.js",False) Failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-for-in.js",False) Failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-for-of.js",False) Failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-for.js",False) Failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-switch.js",False) Failed
             Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err-try.js",False) Failed
+            Language_globalCode("annexB/language/global-code/block-decl-global-skip-early-err.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-a-global-existing-block-fn-no-init.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-a-global-skip-early-err-block.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-a-global-skip-early-err-for-in.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-a-global-skip-early-err-for-of.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-a-global-skip-early-err-for.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-a-global-skip-early-err-switch.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-a-global-skip-early-err-try.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-a-global-skip-early-err.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-b-global-existing-block-fn-no-init.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-b-global-skip-early-err-block.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-b-global-skip-early-err-for-in.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-b-global-skip-early-err-for-of.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-b-global-skip-early-err-for.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-b-global-skip-early-err-switch.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-b-global-skip-early-err-try.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-decl-b-global-skip-early-err.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-stmt-global-existing-block-fn-no-init.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-stmt-global-skip-early-err-block.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-stmt-global-skip-early-err-for-in.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-stmt-global-skip-early-err-for-of.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-stmt-global-skip-early-err-for.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-stmt-global-skip-early-err-switch.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-stmt-global-skip-early-err-try.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-else-stmt-global-skip-early-err.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-no-else-global-existing-block-fn-no-init.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-no-else-global-skip-early-err-block.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-no-else-global-skip-early-err-for-in.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-no-else-global-skip-early-err-for-of.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-no-else-global-skip-early-err-for.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-no-else-global-skip-early-err-switch.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-no-else-global-skip-early-err-try.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-decl-no-else-global-skip-early-err.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-existing-block-fn-no-init.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-skip-early-err-block.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-skip-early-err-for-in.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-skip-early-err-for-of.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-skip-early-err-for.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-skip-early-err-switch.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-skip-early-err-try.js",False) Failed
+            Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-skip-early-err.js",False) Failed
+            Language_globalCode("annexB/language/global-code/switch-case-global-existing-block-fn-no-init.js",False) Failed
+            Language_globalCode("annexB/language/global-code/switch-case-global-no-skip-try.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-case-global-skip-early-err-block.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-case-global-skip-early-err-for-in.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-case-global-skip-early-err-for-of.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-case-global-skip-early-err-for.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-case-global-skip-early-err-switch.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-case-global-skip-early-err-try.js",False) Failed
+            Language_globalCode("annexB/language/global-code/switch-case-global-skip-early-err.js",False) Failed
+            Language_globalCode("annexB/language/global-code/switch-dflt-global-existing-block-fn-no-init.js",False) Failed
+            Language_globalCode("annexB/language/global-code/switch-dflt-global-no-skip-try.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-dflt-global-skip-early-err-block.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-dflt-global-skip-early-err-for-in.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-dflt-global-skip-early-err-for-of.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-dflt-global-skip-early-err-for.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-dflt-global-skip-early-err-switch.js",False) Failed
             Language_globalCode("annexB/language/global-code/switch-dflt-global-skip-early-err-try.js",False) Failed
+            Language_globalCode("annexB/language/global-code/switch-dflt-global-skip-early-err.js",False) Failed
           Language_literals_regexp (8 tests) Failed: One or more child tests had errors: 8 tests failed
             Language_literals_regexp("annexB/language/literals/regexp/class-escape.js",False) Failed
             Language_literals_regexp("annexB/language/literals/regexp/class-escape.js",True) Failed

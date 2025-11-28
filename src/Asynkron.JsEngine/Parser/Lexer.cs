@@ -118,6 +118,9 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             case ';':
                 AddToken(TokenType.Semicolon);
                 break;
+            case '@':
+                AddToken(TokenType.At);
+                break;
             case '+':
                 if (Match('+'))
                 {

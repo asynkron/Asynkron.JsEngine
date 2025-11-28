@@ -79,6 +79,13 @@ public sealed class TypedAstParser(
                 return new EmptyStatement(CreateSourceReference(Previous()));
             }
 
+            if (Check(TokenType.At))
+            {
+                SkipDecorators();
+                Consume(TokenType.Class, "Decorators are only supported on classes.");
+                return ParseClassDeclaration();
+            }
+
             if (Check(TokenType.Import))
             {
                 if (PeekNext().Type == TokenType.LeftParen)
@@ -657,6 +664,25 @@ public sealed class TypedAstParser(
             return new ClassExpression(definition.Source ?? CreateSourceReference(classToken), name, definition);
         }
 
+        private void SkipDecorators()
+        {
+            while (Match(TokenType.At))
+            {
+                ParseDecoratorExpression();
+            }
+        }
+
+        private void ParseDecoratorExpression()
+        {
+            // Parse the decorator expression and ignore the result; semantics are not implemented.
+            var previousAllowIn = _allowInExpressions;
+            _allowInExpressions = true;
+            var expr = ParseExpression();
+            _allowInExpressions = previousAllowIn;
+            // Keep a source reference to aid future implementation
+            _ = new DecoratorExpression(CreateSourceReference(Previous()), expr);
+        }
+
         private ClassDefinition ParseClassDefinition(Symbol? className, Token classToken)
         {
             ExpressionNode? extendsExpression = null;
@@ -691,6 +717,11 @@ public sealed class TypedAstParser(
                 if (Match(TokenType.Semicolon))
                 {
                     continue;
+                }
+
+                if (Check(TokenType.At))
+                {
+                    SkipDecorators();
                 }
 
                 var isStatic = Match(TokenType.Static);
@@ -1065,6 +1096,12 @@ public sealed class TypedAstParser(
                 var functionToken = Advance(); // function
                 return ParseExportDefaultFunction(CreateSourceReference(keyword), functionToken, true);
             }
+
+                if (Check(TokenType.At))
+                {
+                    SkipDecorators();
+                    Consume(TokenType.Class, "Decorators are only supported on classes.");
+                }
 
                 if (Match(TokenType.Class))
                 {

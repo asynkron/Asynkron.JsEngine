@@ -20,6 +20,11 @@ public abstract record StatementNode(SourceReference? Source) : AstNode(Source);
 public abstract record ExpressionNode(SourceReference? Source) : AstNode(Source);
 
 /// <summary>
+///     Placeholder expression node for decorator syntax. Semantics are not yet implemented.
+/// </summary>
+public sealed record DecoratorExpression(SourceReference? Source, ExpressionNode Expression) : ExpressionNode(Source);
+
+/// <summary>
 ///     Represents the root program node.
 /// </summary>
 /// <param name="Source">Location of the original S-expression.</param>

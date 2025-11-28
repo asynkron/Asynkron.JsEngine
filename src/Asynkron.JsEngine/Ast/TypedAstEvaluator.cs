@@ -77,7 +77,7 @@ public static class TypedAstEvaluator
         {
             foreach (var blockedName in blockedNames)
             {
-                if (functionScope.HasFunctionScopedBinding(blockedName))
+                if (functionScope.HasFunctionScopedBinding(blockedName) && executionEnvironment.IsStrict)
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Cannot redeclare var-scoped binding '{blockedName.Name}' with lexical declaration",
@@ -104,6 +104,7 @@ public static class TypedAstEvaluator
                 break;
             }
         }
+
 
         if (context.IsThrow)
         {
@@ -1466,9 +1467,12 @@ public static class TypedAstEvaluator
         {
             environment.Define(declaration.Name, function);
         }
-        var skipVarBinding = environment.IsStrict &&
-                             context.BlockedFunctionVarNames is { } blocked &&
+        var skipVarBinding = context.BlockedFunctionVarNames is { } blocked &&
                              blocked.Contains(declaration.Name);
+        if (environment.HasBodyLexicalName(declaration.Name))
+        {
+            skipVarBinding = true;
+        }
 
         if (!skipVarBinding)
         {
@@ -1552,6 +1556,7 @@ public static class TypedAstEvaluator
             ArrayExpression array => EvaluateArray(array, environment, context),
             ObjectExpression obj => EvaluateObject(obj, environment, context),
             ClassExpression classExpression => EvaluateClassExpression(classExpression, environment, context),
+            DecoratorExpression => throw new NotSupportedException("Decorators are not supported."),
             TemplateLiteralExpression template => EvaluateTemplateLiteral(template, environment, context),
             TaggedTemplateExpression taggedTemplate =>
                 EvaluateTaggedTemplate(taggedTemplate, environment, context),
@@ -3783,6 +3788,7 @@ public static class TypedAstEvaluator
 
             break;
         }
+
     }
 
     private static HashSet<Symbol> CollectLexicalNames(BlockStatement block)

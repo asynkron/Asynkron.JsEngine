@@ -13,6 +13,7 @@ public enum TokenType
     Dot,
     DotDotDot,
     Semicolon,
+    At,
     Plus,
     PlusPlus,
     PlusEqual,

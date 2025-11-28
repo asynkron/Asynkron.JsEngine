@@ -70,6 +70,8 @@ public static class TypedAstEvaluator
         // available before earlier statements that reference them.
         var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
         var blockedNames = CollectLexicalNames(programBlock);
+        var catchParameterNames = CollectCatchParameterNames(programBlock);
+        var simpleCatchParameterNames = CollectSimpleCatchParameterNames(programBlock);
         context.BlockedFunctionVarNames = blockedNames;
         executionEnvironment.SetBodyLexicalNames(blockedNames);
         var functionScope = executionEnvironment.GetFunctionScope();
@@ -87,7 +89,9 @@ public static class TypedAstEvaluator
             }
         }
 
-        HoistVarDeclarations(programBlock, executionEnvironment, context, lexicalNames: blockedNames);
+        HoistVarDeclarations(programBlock, executionEnvironment, context, lexicalNames: blockedNames,
+            catchParameterNames: catchParameterNames,
+            simpleCatchParameterNames: simpleCatchParameterNames);
 
         object? result = EmptyCompletion;
         foreach (var statement in program.Body)
@@ -3591,6 +3595,8 @@ public static class TypedAstEvaluator
         EvaluationContext context,
         bool hoistFunctionValues = true,
         HashSet<Symbol>? lexicalNames = null,
+        HashSet<Symbol>? catchParameterNames = null,
+        HashSet<Symbol>? simpleCatchParameterNames = null,
         bool inBlockScope = false)
     {
         var effectiveLexicalNames = lexicalNames is null
@@ -3601,12 +3607,30 @@ public static class TypedAstEvaluator
             effectiveLexicalNames.UnionWith(CollectLexicalNames(block));
         }
 
+        var effectiveCatchNames = catchParameterNames is null
+            ? CollectCatchParameterNames(block)
+            : new HashSet<Symbol>(catchParameterNames);
+        if (catchParameterNames is not null)
+        {
+            effectiveCatchNames.UnionWith(CollectCatchParameterNames(block));
+        }
+
+        var effectiveSimpleCatchNames = simpleCatchParameterNames is null
+            ? CollectSimpleCatchParameterNames(block)
+            : new HashSet<Symbol>(simpleCatchParameterNames);
+        if (simpleCatchParameterNames is not null)
+        {
+            effectiveSimpleCatchNames.UnionWith(CollectSimpleCatchParameterNames(block));
+        }
+
         HoistVarDeclarationsPass(
             block,
             environment,
             context,
             hoistFunctionValues,
             effectiveLexicalNames,
+            effectiveCatchNames,
+            effectiveSimpleCatchNames,
             HoistPass.Functions,
             inBlockScope);
         HoistVarDeclarationsPass(
@@ -3615,6 +3639,8 @@ public static class TypedAstEvaluator
             context,
             hoistFunctionValues: false,
             effectiveLexicalNames,
+            effectiveCatchNames,
+            effectiveSimpleCatchNames,
             HoistPass.Vars,
             inBlockScope);
     }
@@ -3625,12 +3651,16 @@ public static class TypedAstEvaluator
         EvaluationContext context,
         bool hoistFunctionValues,
         HashSet<Symbol> lexicalNames,
+        HashSet<Symbol> catchParameterNames,
+        HashSet<Symbol> simpleCatchParameterNames,
         HoistPass pass,
         bool inBlockScope)
     {
         foreach (var statement in block.Statements)
         {
-            HoistFromStatement(statement, environment, context, hoistFunctionValues, lexicalNames, pass,
+            HoistFromStatement(statement, environment, context, hoistFunctionValues, lexicalNames, catchParameterNames,
+                simpleCatchParameterNames,
+                pass,
                 inBlockScope);
         }
     }
@@ -3642,12 +3672,28 @@ public static class TypedAstEvaluator
         return merged;
     }
 
+    private static HashSet<Symbol> MergeCatchNames(BlockStatement block, HashSet<Symbol> catchParameterNames)
+    {
+        var merged = new HashSet<Symbol>(catchParameterNames);
+        merged.UnionWith(CollectCatchParameterNames(block));
+        return merged;
+    }
+
+    private static HashSet<Symbol> MergeSimpleCatchNames(BlockStatement block, HashSet<Symbol> simpleCatchParameterNames)
+    {
+        var merged = new HashSet<Symbol>(simpleCatchParameterNames);
+        merged.UnionWith(CollectSimpleCatchParameterNames(block));
+        return merged;
+    }
+
     private static void HoistFromStatement(
         StatementNode statement,
         JsEnvironment environment,
         EvaluationContext context,
         bool hoistFunctionValues,
         HashSet<Symbol> lexicalNames,
+        HashSet<Symbol> catchParameterNames,
+        HashSet<Symbol> simpleCatchParameterNames,
         HoistPass pass,
         bool inBlockScope)
     {
@@ -3669,16 +3715,19 @@ public static class TypedAstEvaluator
                         context,
                         hoistFunctionValues,
                         MergeLexicalNames(block, lexicalNames),
+                        MergeCatchNames(block, catchParameterNames),
+                        MergeSimpleCatchNames(block, simpleCatchParameterNames),
                         pass,
                         true);
                     break;
                 case IfStatement ifStatement:
                     HoistFromStatement(ifStatement.Then, environment, context, false,
-                        lexicalNames, pass, inBlockScope);
+                        lexicalNames, catchParameterNames, simpleCatchParameterNames, pass, true);
                     if (ifStatement.Else is { } elseBranch)
                     {
                         statement = elseBranch;
                         hoistFunctionValues = false;
+                        inBlockScope = true;
                         continue;
                     }
 
@@ -3702,7 +3751,8 @@ public static class TypedAstEvaluator
                     if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar &&
                         pass == HoistPass.Vars)
                     {
-                        HoistFromStatement(initVar, environment, context, hoistFunctionValues, lexicalNames, pass,
+                        HoistFromStatement(initVar, environment, context, hoistFunctionValues, lexicalNames,
+                            catchParameterNames, simpleCatchParameterNames, pass,
                             inBlockScope);
                     }
 
@@ -3726,12 +3776,16 @@ public static class TypedAstEvaluator
                 case TryStatement tryStatement:
                     HoistVarDeclarationsPass(tryStatement.TryBlock, environment, context, false,
                         MergeLexicalNames(tryStatement.TryBlock, lexicalNames),
+                        MergeCatchNames(tryStatement.TryBlock, catchParameterNames),
+                        MergeSimpleCatchNames(tryStatement.TryBlock, simpleCatchParameterNames),
                         pass,
                         true);
                     if (tryStatement.Catch is { } catchClause)
                     {
                         HoistVarDeclarationsPass(catchClause.Body, environment, context, false,
                             MergeLexicalNames(catchClause.Body, lexicalNames),
+                            MergeCatchNames(catchClause.Body, catchParameterNames),
+                            MergeSimpleCatchNames(catchClause.Body, simpleCatchParameterNames),
                             pass,
                             true);
                     }
@@ -3740,6 +3794,8 @@ public static class TypedAstEvaluator
                     {
                         HoistVarDeclarationsPass(finallyBlock, environment, context, false,
                             MergeLexicalNames(finallyBlock, lexicalNames),
+                            MergeCatchNames(finallyBlock, catchParameterNames),
+                            MergeSimpleCatchNames(finallyBlock, simpleCatchParameterNames),
                             pass,
                             true);
                     }
@@ -3750,6 +3806,8 @@ public static class TypedAstEvaluator
                     {
                         HoistVarDeclarationsPass(switchCase.Body, environment, context, false,
                             MergeLexicalNames(switchCase.Body, lexicalNames),
+                            MergeCatchNames(switchCase.Body, catchParameterNames),
+                            MergeSimpleCatchNames(switchCase.Body, simpleCatchParameterNames),
                             pass,
                             true);
                     }
@@ -3767,12 +3825,14 @@ public static class TypedAstEvaluator
                         break;
                     }
 
+                    var hasNonCatchLexical = lexicalNames.Contains(functionDeclaration.Name) &&
+                                             !simpleCatchParameterNames.Contains(functionDeclaration.Name);
                     var functionScope = environment.GetFunctionScope();
                     var isAnnexBBlockFunction = inBlockScope && !environment.IsStrict;
 
                     if (isAnnexBBlockFunction)
                     {
-                        if (lexicalNames.Contains(functionDeclaration.Name) ||
+                        if (hasNonCatchLexical ||
                             functionScope.HasBodyLexicalName(functionDeclaration.Name))
                         {
                             break;
@@ -3818,6 +3878,20 @@ public static class TypedAstEvaluator
     {
         var names = new HashSet<Symbol>();
         CollectLexicalNamesFromStatement(block, names);
+        return names;
+    }
+
+    private static HashSet<Symbol> CollectCatchParameterNames(BlockStatement block)
+    {
+        var names = new HashSet<Symbol>();
+        CollectCatchNamesFromStatement(block, names);
+        return names;
+    }
+
+    private static HashSet<Symbol> CollectSimpleCatchParameterNames(BlockStatement block)
+    {
+        var names = new HashSet<Symbol>();
+        CollectSimpleCatchNamesFromStatement(block, names);
         return names;
     }
 
@@ -3986,6 +4060,150 @@ public static class TypedAstEvaluator
                     {
                         CollectSymbolsFromBinding(catchClause.Binding, names);
                         CollectLexicalNamesFromStatement(catchClause.Body, names);
+                    }
+
+                    if (tryStatement.Finally is { } finallyBlock)
+                    {
+                        statement = finallyBlock;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
+    }
+
+    private static void CollectCatchNamesFromStatement(StatementNode statement, HashSet<Symbol> names)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case BlockStatement block:
+                    foreach (var inner in block.Statements)
+                    {
+                        CollectCatchNamesFromStatement(inner, names);
+                    }
+
+                    break;
+                case IfStatement ifStatement:
+                    CollectCatchNamesFromStatement(ifStatement.Then, names);
+                    if (ifStatement.Else is { } elseBranch)
+                    {
+                        statement = elseBranch;
+                        continue;
+                    }
+
+                    break;
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Body is not null)
+                    {
+                        statement = forStatement.Body;
+                        continue;
+                    }
+
+                    break;
+                case ForEachStatement forEachStatement:
+                    statement = forEachStatement.Body;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        CollectCatchNamesFromStatement(switchCase.Body, names);
+                    }
+
+                    break;
+                case TryStatement tryStatement:
+                    CollectCatchNamesFromStatement(tryStatement.TryBlock, names);
+                    if (tryStatement.Catch is { } catchClause)
+                    {
+                        CollectSymbolsFromBinding(catchClause.Binding, names);
+                        CollectCatchNamesFromStatement(catchClause.Body, names);
+                    }
+
+                    if (tryStatement.Finally is { } finallyBlock)
+                    {
+                        statement = finallyBlock;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
+    }
+
+    private static void CollectSimpleCatchNamesFromStatement(StatementNode statement, HashSet<Symbol> names)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case BlockStatement block:
+                    foreach (var inner in block.Statements)
+                    {
+                        CollectSimpleCatchNamesFromStatement(inner, names);
+                    }
+
+                    break;
+                case IfStatement ifStatement:
+                    CollectSimpleCatchNamesFromStatement(ifStatement.Then, names);
+                    if (ifStatement.Else is { } elseBranch)
+                    {
+                        statement = elseBranch;
+                        continue;
+                    }
+
+                    break;
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Body is not null)
+                    {
+                        statement = forStatement.Body;
+                        continue;
+                    }
+
+                    break;
+                case ForEachStatement forEachStatement:
+                    statement = forEachStatement.Body;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        CollectSimpleCatchNamesFromStatement(switchCase.Body, names);
+                    }
+
+                    break;
+                case TryStatement tryStatement:
+                    CollectSimpleCatchNamesFromStatement(tryStatement.TryBlock, names);
+                    if (tryStatement.Catch is { } catchClause)
+                    {
+                        if (catchClause.Binding is IdentifierBinding identifierBinding)
+                        {
+                            names.Add(identifierBinding.Name);
+                        }
+
+                        CollectSimpleCatchNamesFromStatement(catchClause.Body, names);
                     }
 
                     if (tryStatement.Finally is { } finallyBlock)

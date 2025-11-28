@@ -14,7 +14,7 @@ public static partial class StandardLibrary
 
         functionConstructor = new HostFunction((_, args) =>
         {
-            var evalContext = new EvaluationContext(realm);
+            var evalContext = realm.CreateContext();
             var argCount = args.Count;
             var bodyValue = argCount > 0 ? args[argCount - 1] : string.Empty;
             var parameterCount = Math.Max(argCount - 1, 0);

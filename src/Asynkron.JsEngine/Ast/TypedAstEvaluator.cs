@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
@@ -50,11 +51,15 @@ public static class TypedAstEvaluator
         ExecutionKind executionKind = ExecutionKind.Script,
         bool createStrictEnvironment = true)
     {
-        var context = new EvaluationContext(realmState, cancellationToken, executionKind)
-        {
-            SourceReference = program.Source,
-            IsStrictSource = program.IsStrict
-        };
+        var context = realmState.CreateContext(
+            ScopeKind.Program,
+            program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
+            skipAnnexBInstantiation: false,
+            cancellationToken: cancellationToken,
+            executionKind: executionKind,
+            pushScope: false);
+        context.SourceReference = program.Source;
+        context.IsStrictSource = program.IsStrict;
         var executionEnvironment = program.IsStrict && createStrictEnvironment
             ? new JsEnvironment(environment, true, true)
             : environment;
@@ -62,6 +67,11 @@ public static class TypedAstEvaluator
         {
             executionEnvironment = new JsEnvironment(executionEnvironment, true, true);
         }
+
+        var programMode = executionEnvironment.IsStrict
+            ? ScopeMode.Strict
+            : (context.Options.EnableAnnexBFunctionExtensions ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy);
+        using var programScope = context.PushScope(ScopeKind.Program, programMode);
 
         // Hoist var and function declarations in the program body so that
         // function declarations like `function formatArgs(...) {}` are
@@ -164,7 +174,20 @@ public static class TypedAstEvaluator
         var scope = new JsEnvironment(environment, false, block.IsStrict);
         object? result = EmptyCompletion;
 
-        if (!skipAnnexBFunctionInstantiation && !scope.IsStrict && !block.IsStrict)
+        var currentMode = context.CurrentScope.Mode;
+        var allowAnnexB = currentMode == ScopeMode.SloppyAnnexB &&
+                          !scope.IsStrict &&
+                          !block.IsStrict;
+        var mode = scope.IsStrict
+            ? ScopeMode.Strict
+            : (allowAnnexB ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy);
+        using var scopeHandle = context.PushScope(
+            ScopeKind.Block,
+            mode,
+            skipAnnexBFunctionInstantiation);
+
+        var currentFrame = context.CurrentScope;
+        if (currentFrame.AllowAnnexB && !currentFrame.SkipAnnexBInstantiation)
         {
             InstantiateAnnexBBlockFunctions(block, scope, context);
         }
@@ -192,6 +215,12 @@ public static class TypedAstEvaluator
         JsEnvironment blockEnvironment,
         EvaluationContext context)
     {
+        var frame = context.CurrentScope;
+        if (!frame.AllowAnnexB || frame.SkipAnnexBInstantiation)
+        {
+            return;
+        }
+
         var functionScope = blockEnvironment.GetFunctionScope();
         var lexicalNames = CollectLexicalNames(block);
         var simpleCatchParameterNames = CollectSimpleCatchParameterNames(block);
@@ -331,18 +360,18 @@ public static class TypedAstEvaluator
     private static object? EvaluateWith(WithStatement statement, JsEnvironment environment, EvaluationContext context)
     {
         var objValue = EvaluateExpression(statement.Object, environment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return objValue;
-                }
+        if (context.ShouldStopEvaluation)
+        {
+            return objValue;
+        }
 
-                var withObject = ToObjectForDestructuring(objValue, context);
-                if (context.IsThrow)
-                {
-                    return context.FlowValue ?? Symbol.Undefined;
-                }
+        var withObject = ToObjectForDestructuring(objValue, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? Symbol.Undefined;
+        }
 
-        var withEnv = new JsEnvironment(environment, false, environment.IsStrict, statement.Source, "with",
+        var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict, statement.Source, "with",
             withObject);
         return EvaluateStatement(statement.Body, withEnv, context);
     }
@@ -378,7 +407,7 @@ public static class TypedAstEvaluator
             return EvaluateBlock(block, environment, context);
         }
 
-        var branchScope = new JsEnvironment(environment, false, environment.IsStrict);
+        var branchScope = new JsEnvironment(environment, false, context.CurrentScope.IsStrict);
         return EvaluateStatement(branch, branchScope, context);
     }
 
@@ -1531,8 +1560,11 @@ public static class TypedAstEvaluator
     private static object? EvaluateFunctionDeclaration(FunctionDeclaration declaration, JsEnvironment environment,
         EvaluationContext context)
     {
+        var currentScope = context.CurrentScope;
+        var annexBEnabled = currentScope.AllowAnnexB;
+        var isStrictScope = currentScope.IsStrict;
         object? function = null;
-        if (!environment.IsStrict &&
+        if (!isStrictScope &&
             environment.TryFindBinding(declaration.Name, out var bindingEnvironment, out var existingValue) &&
             bindingEnvironment.HasOwnLexicalBinding(declaration.Name))
         {
@@ -1540,8 +1572,9 @@ public static class TypedAstEvaluator
         }
 
         function ??= CreateFunctionValue(declaration.Function, environment, context);
-        // In sloppy script/eval code, function declarations are var-scoped only.
-        var shouldCreateLexicalBinding = environment.IsStrict;
+        var isBlockEnvironment = !environment.IsFunctionScope;
+        var shouldCreateLexicalBinding = isStrictScope ||
+                                         (!annexBEnabled && isBlockEnvironment);
         if (shouldCreateLexicalBinding)
         {
             environment.Define(declaration.Name, function);
@@ -1554,11 +1587,12 @@ public static class TypedAstEvaluator
         }
 
         var hasBlockingLexicalBeforeFunctionScope =
-            !environment.IsStrict && HasBlockingLexicalBeforeFunctionScope(environment, declaration.Name);
+            !isStrictScope && HasBlockingLexicalBeforeFunctionScope(environment, declaration.Name);
 
-        if (!skipVarBinding && !hasBlockingLexicalBeforeFunctionScope)
+        var shouldCreateVarBinding = annexBEnabled || !isBlockEnvironment;
+        if (shouldCreateVarBinding && !skipVarBinding && !hasBlockingLexicalBeforeFunctionScope)
         {
-            if (!environment.IsStrict)
+            if (!isStrictScope)
             {
                 var assigned = environment.TryAssignBlockedBinding(declaration.Name, function);
             }
@@ -2483,9 +2517,18 @@ public static class TypedAstEvaluator
 
         var isAsyncCallable = callable is TypedFunction tf && tf.IsAsyncLike;
 
+        IJsEnvironmentAwareCallable? envAwareHandle = null;
         if (callable is IJsEnvironmentAwareCallable envAware)
         {
             envAware.CallingJsEnvironment = environment;
+            envAwareHandle = envAware;
+        }
+
+        IEvaluationContextAwareCallable? contextAwareHandle = null;
+        if (callable is IEvaluationContextAwareCallable contextAware)
+        {
+            contextAware.CallingContext = context;
+            contextAwareHandle = contextAware;
         }
 
         DebugAwareHostFunction? debugFunction = null;
@@ -2590,6 +2633,16 @@ public static class TypedAstEvaluator
             {
                 debugFunction.CurrentJsEnvironment = null;
                 debugFunction.CurrentContext = null;
+            }
+
+            if (envAwareHandle is not null)
+            {
+                envAwareHandle.CallingJsEnvironment = null;
+            }
+
+            if (contextAwareHandle is not null)
+            {
+                contextAwareHandle.CallingContext = null;
             }
         }
 
@@ -2876,7 +2929,7 @@ public static class TypedAstEvaluator
             }
 
             var deleted = DeletePropertyValue(target, propertyValue, context);
-            if (!deleted && environment.IsStrict)
+            if (!deleted && context.CurrentScope.IsStrict)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot delete property", context, context.RealmState);
             }
@@ -3911,7 +3964,7 @@ public static class TypedAstEvaluator
                         break;
                     }
 
-                    if (environment.IsStrict && lexicalNames.Contains(functionDeclaration.Name))
+                    if (context.CurrentScope.IsStrict && lexicalNames.Contains(functionDeclaration.Name))
                     {
                         break;
                     }
@@ -3919,7 +3972,10 @@ public static class TypedAstEvaluator
                     var hasNonCatchLexical = lexicalNames.Contains(functionDeclaration.Name) &&
                                              !simpleCatchParameterNames.Contains(functionDeclaration.Name);
                     var functionScope = environment.GetFunctionScope();
-                    var isAnnexBBlockFunction = inBlockScope && !environment.IsStrict;
+                    var isAnnexBBlockFunction =
+                        inBlockScope &&
+                        !context.CurrentScope.IsStrict &&
+                        context.CurrentScope.AllowAnnexB;
 
                     if (isAnnexBBlockFunction)
                     {
@@ -3938,6 +3994,11 @@ public static class TypedAstEvaluator
                             context,
                             blocksFunctionScopeOverride: true);
 
+                        break;
+                    }
+
+                    if (inBlockScope)
+                    {
                         break;
                     }
 
@@ -4338,7 +4399,7 @@ public static class TypedAstEvaluator
         WalkBindingTargets(target,
             identifier =>
             {
-                if (!environment.IsStrict && lexicalNames is not null && lexicalNames.Contains(identifier.Name))
+                if (!context.CurrentScope.IsStrict && lexicalNames is not null && lexicalNames.Contains(identifier.Name))
                 {
                     return;
                 }
@@ -6621,20 +6682,23 @@ public static class TypedAstEvaluator
                 environment.Define(functionName, _callable);
             }
 
-            HoistVarDeclarations(_function.Body, environment, new EvaluationContext(_realmState));
+            var generatorContext = _realmState.CreateContext(
+                ScopeKind.Function,
+                DetermineGeneratorScopeMode(),
+                skipAnnexBInstantiation: true);
+            HoistVarDeclarations(_function.Body, environment, generatorContext);
 
-            var bindingContext = new EvaluationContext(_realmState);
-            BindFunctionParameters(_function, _arguments, environment, bindingContext);
-            if (bindingContext.IsThrow)
+            BindFunctionParameters(_function, _arguments, environment, generatorContext);
+            if (generatorContext.IsThrow)
             {
-                var thrown = bindingContext.FlowValue;
-                bindingContext.Clear();
+                var thrown = generatorContext.FlowValue;
+                generatorContext.Clear();
                 throw new ThrowSignal(thrown);
             }
 
-            if (bindingContext.IsReturn)
+            if (generatorContext.IsReturn)
             {
-                bindingContext.ClearReturn();
+                generatorContext.ClearReturn();
             }
 
             // Define `arguments` inside generator functions so generator bodies
@@ -6710,8 +6774,11 @@ public static class TypedAstEvaluator
                 _programCounter = -1;
                 _tryStack.Clear();
                 _resumeContext.Clear();
-                _context ??= new EvaluationContext(_realmState);
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", _context, _realmState);
+                var throwContext = _context ??= _realmState.CreateContext(
+                    ScopeKind.Function,
+                    DetermineGeneratorScopeMode(),
+                    skipAnnexBInstantiation: true);
+                throw StandardLibrary.ThrowTypeError("Generator is already executing", throwContext, _realmState);
             }
 
             var wasStart = _state == GeneratorState.Start;
@@ -7488,7 +7555,10 @@ public static class TypedAstEvaluator
         {
             if (_context is null)
             {
-                _context = new EvaluationContext(_realmState);
+                _context = _realmState.CreateContext(
+                    ScopeKind.Function,
+                    DetermineGeneratorScopeMode(),
+                    skipAnnexBInstantiation: true);
             }
             else
             {
@@ -7496,6 +7566,16 @@ public static class TypedAstEvaluator
             }
 
             return _context;
+        }
+
+        private ScopeMode DetermineGeneratorScopeMode()
+        {
+            if (_function.Body.IsStrict)
+            {
+                return ScopeMode.Strict;
+            }
+
+            return _realmState.Options.EnableAnnexBFunctionExtensions ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy;
         }
 
         private object? ResumeGenerator(ResumeMode mode, object? value)
@@ -7540,7 +7620,10 @@ public static class TypedAstEvaluator
                     }
                 }
 
-                var context = new EvaluationContext(_realmState);
+                var context = _realmState.CreateContext(
+                    ScopeKind.Function,
+                    DetermineGeneratorScopeMode(),
+                    skipAnnexBInstantiation: true);
                 _executionEnvironment.Define(YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
 
                 var result = EvaluateBlock(
@@ -8176,7 +8259,7 @@ public static class TypedAstEvaluator
             EvaluationContext? callingContext,
             object? newTarget = null)
         {
-            var context = new EvaluationContext(_realmState);
+            var context = _realmState.CreateContext(pushScope: false);
             if (callingContext is not null)
             {
                 context.CallDepth = callingContext.CallDepth;
@@ -8202,6 +8285,11 @@ public static class TypedAstEvaluator
             {
                 blockedFunctionVarNames.Add(parameterName);
             }
+
+            var functionMode = _function.Body.IsStrict
+                ? ScopeMode.Strict
+                : (_realmState.Options.EnableAnnexBFunctionExtensions ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy);
+            using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
 
             if (!_function.Body.IsStrict && !_isArrowFunction)
             {

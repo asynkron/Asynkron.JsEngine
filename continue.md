@@ -52,3 +52,20 @@
    - Next steps from `docs/UNIFIED_CONTROL_FLOW_BUILDING_BLOCKS.md`: finish unifying iterator handling by reusing the shared `IteratorDriverPlan` template in the IR builder (instead of assembling per-iteration blocks manually), then move on to non-blocking await scheduling and the shared rollback/loop helpers. Await handling is now centralized via `AwaitScheduler`, and async generators surface pending promises to `AsyncGeneratorInstance`; plain async functions/other iterator paths still need the non-blocking scheduler wired in.
 5. **Harden recursion/overflow handling**
    - Promise callbacks now run via the event queue to avoid synchronous recursion. Follow up by threading call-depth diagnostics through the async scheduler so remaining re-entry paths are covered and we can add a regression test.
+
+---
+
+## Annex B Scope Modes
+
+### Current State
+- `EvaluationContext` now tracks `ScopeMode` frames (`Strict`, `Sloppy`, `SloppyAnnexB`), and `RealmState.CreateContext` produces pre-scoped strict contexts for host helpers so sloppy vs Annex B semantics flow through the scope stack.
+- The realm context factory now supports cancellation/execution options, and all runtime helpers (program + function invocation) use it instead of `new EvaluationContext`, so scope stacks are created uniformly.
+- Standard library helpers (String/Number/JSON/Array/Function), typed arrays, and `JsArgumentsObject` all rely on the realm factory instead of hand-rolling `EvaluationContext`, so coercion helpers automatically inherit the correct strict/Annex B behaviour.
+- Generator execution contexts (both IR-backed and fallback) use the same factory, and Annex B block instantiation during hoisting now keys off `context.CurrentScope.AllowAnnexB` instead of global option checks.
+- `AnnexBOptionsTests` now cover lexical/parameter blocking, loop-scoped functions, and nested eval inside loops so Annex B toggles are validated across more control-flow shapes.
+
+### Next Steps
+1. **Parser/Evaluator Awareness**
+   - Audit the parser and evaluator helpers that still peek at lexical environments directly (e.g. `TryFindBinding`, class field initialisation, Annex B diagnostics) and thread `ScopeMode` / evaluation context data so all sloppy vs Annex B behaviour is scope-driven.
+2. **Annex B Toggle Tests**
+   - Extend regression coverage to remaining shapes (e.g. block functions inside `switch`/`try`, nested `with` + eval combos) and add module/eval integration cases so Annex B enable/disable behaviour stays guarded beyond loops.

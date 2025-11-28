@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine;
 ///     A special host function for eval() that has access to the calling environment
 ///     and can evaluate code synchronously in that context.
 /// </summary>
-public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
+public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationContextAwareCallable, IJsPropertyAccessor
 {
     private readonly JsEngine _engine;
     private readonly JsObject _properties = new();
@@ -37,11 +37,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyA
         var environment = CallingJsEnvironment ?? throw new InvalidOperationException(
             "eval() called without a calling environment");
 
+        var forceStrict = CallingContext?.CurrentScope.IsStrict ?? false;
+
         // Parse the code and build the typed AST so eval shares the same pipeline
         ParsedProgram program;
         try
         {
-            program = _engine.ParseForExecution(code, environment.IsStrict);
+            program = _engine.ParseForExecution(code, forceStrict);
         }
         catch (ParseException parseException)
         {
@@ -71,6 +73,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyA
 
         return result;
     }
+
+    public EvaluationContext? CallingContext { get; set; }
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {

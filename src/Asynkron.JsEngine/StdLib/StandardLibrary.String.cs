@@ -175,7 +175,7 @@ public static partial class StandardLibrary
 
         string ResolveString(object? thisValue)
         {
-            var context = realm is not null ? new EvaluationContext(realm) : null;
+            var context = realm?.CreateContext();
             if (ReferenceEquals(thisValue, Symbol.Undefined) || thisValue is null)
             {
                 throw ThrowTypeError("Cannot convert undefined or null to object", realm: realm);
@@ -192,7 +192,7 @@ public static partial class StandardLibrary
 
         string CoerceToString(object? value)
         {
-            var context = realm is not null ? new EvaluationContext(realm) : null;
+            var context = realm?.CreateContext();
             var result = JsOps.ToJsString(value, context);
             if (context?.IsThrow == true)
             {
@@ -393,7 +393,7 @@ public static partial class StandardLibrary
                         context: null, realm: realm));
                 }
 
-                var numericContext = realm is not null ? new EvaluationContext(realm) : null;
+                var numericContext = realm?.CreateContext();
                 var primitive = JsOps.ToPrimitive(input, "number", numericContext);
                 if (numericContext?.IsThrow == true)
                 {
@@ -1102,7 +1102,7 @@ public static partial class StandardLibrary
                 return stored;
             }
 
-            var ctx = realm is not null ? new EvaluationContext(realm) : null;
+            var ctx = realm?.CreateContext();
             var pattern = ReferenceEquals(candidate, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(candidate, ctx);
             if (ctx?.IsThrow == true)
             {
@@ -1178,7 +1178,7 @@ public static partial class StandardLibrary
         var stringConstructor = new HostFunction((thisValue, args) =>
         {
             var value = args.Count > 0 ? args[0] : Symbol.Undefined;
-            var context = realm is not null ? new EvaluationContext(realm) : null;
+            var context = realm?.CreateContext();
             var str = JsOps.ToJsString(value, context);
 
             if (thisValue is not JsObject obj)
@@ -1219,7 +1219,7 @@ public static partial class StandardLibrary
                 new HostFunction((thisValue, args, realmState) =>
                 {
                     realmState ??= realm;
-                    var context = realmState is not null ? new EvaluationContext(realmState) : null;
+                    var context = realmState?.CreateContext();
                     var source = JsOps.ToJsString(thisValue, context);
                     var reviver = args.Count > 0 ? args[0] : null;
                     return ParseJsonWithReviver(source, realmState!, context, reviver);

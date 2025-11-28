@@ -328,7 +328,7 @@ public abstract class TypedArrayBase : IJsObjectLike
             throw target.CreateOutOfBoundsTypeError();
         }
 
-        var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
+        var evalContext = target._buffer.RealmState?.CreateContext();
         var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
         // Snapshot the length before coercion, as required by the spec.
         var initialLength = target.Length;
@@ -407,7 +407,7 @@ public abstract class TypedArrayBase : IJsObjectLike
             throw target.CreateOutOfBoundsTypeError();
         }
 
-        var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
+        var evalContext = target._buffer.RealmState?.CreateContext();
         var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
         var initialLength = target.Length;
         if (initialLength <= 0)
@@ -484,7 +484,7 @@ public abstract class TypedArrayBase : IJsObjectLike
             throw target.CreateOutOfBoundsTypeError();
         }
 
-        var evalContext = target._buffer.RealmState is { } realmState ? new EvaluationContext(realmState) : null;
+        var evalContext = target._buffer.RealmState?.CreateContext();
         var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
         var initialLength = target.Length;
         if (initialLength <= 0)
@@ -588,7 +588,7 @@ public abstract class TypedArrayBase : IJsObjectLike
     /// </summary>
     public virtual void SetValue(int index, object? value)
     {
-        var context = _buffer.RealmState is not null ? new EvaluationContext(_buffer.RealmState) : null;
+        var context = _buffer.RealmState?.CreateContext();
         if (value is JsBigInt)
         {
             throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context,

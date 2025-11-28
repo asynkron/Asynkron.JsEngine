@@ -507,7 +507,7 @@ public static partial class StandardLibrary
         }
 
         var searchElement = args[0];
-        var evalContext = realm is not null ? new EvaluationContext(realm) : null;
+        var evalContext = realm?.CreateContext();
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
@@ -543,7 +543,7 @@ public static partial class StandardLibrary
     private static object? ArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
-        var evalContext = realm is not null ? new EvaluationContext(realm) : null;
+        var evalContext = realm?.CreateContext();
         var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
         if (accessor is TypedArrayBase typed)
         {

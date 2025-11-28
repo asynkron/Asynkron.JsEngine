@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Parser;
@@ -13,16 +14,18 @@ public sealed class TypedAstParser(
     IReadOnlyList<Token> tokens,
     string source,
     bool forceStrict = false,
-    bool allowTopLevelAwait = false)
+    bool allowTopLevelAwait = false,
+    IJsEngineOptions? options = null)
 {
     private readonly string _source = source ?? string.Empty;
     private readonly bool _forceStrict = forceStrict;
     private readonly bool _allowTopLevelAwait = allowTopLevelAwait;
     private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
+    private readonly IJsEngineOptions _options = options ?? JsEngineOptions.Default;
 
     public ProgramNode ParseProgram()
     {
-        var direct = new DirectParser(_tokens, _source, _forceStrict, _allowTopLevelAwait);
+        var direct = new DirectParser(_tokens, _source, _forceStrict, _allowTopLevelAwait, _options);
         return direct.ParseProgram();
     }
 
@@ -34,7 +37,8 @@ public sealed class TypedAstParser(
         IReadOnlyList<Token> tokens,
         string source,
         bool forceStrict,
-        bool allowTopLevelAwait)
+        bool allowTopLevelAwait,
+        IJsEngineOptions options)
     {
         private readonly bool _forceStrict = forceStrict;
         private readonly Stack<FunctionContext> _functionContexts = new();
@@ -42,6 +46,7 @@ public sealed class TypedAstParser(
         private readonly Stack<bool> _strictContexts = new();
         private readonly bool _allowTopLevelAwait = allowTopLevelAwait;
         private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
+        private readonly IJsEngineOptions _options = options ?? JsEngineOptions.Default;
 
         // Controls whether the `in` token is treated as a relational operator inside
         // expressions. For `for (x in y)` we temporarily disable `in` as an operator
@@ -2585,7 +2590,7 @@ public sealed class TypedAstParser(
             var wrappedSource = $"{trimmed};";
             var lexer = new Lexer(wrappedSource);
             var tokens = lexer.Tokenize();
-            var embeddedParser = new TypedAstParser(tokens, wrappedSource);
+            var embeddedParser = new TypedAstParser(tokens, wrappedSource, options: _options);
             var program = embeddedParser.ParseProgram();
             if (program.Body.Length == 0 || program.Body[0] is not ExpressionStatement expressionStatement)
             {

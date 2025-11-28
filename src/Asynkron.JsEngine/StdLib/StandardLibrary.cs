@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -152,7 +153,7 @@ public static partial class StandardLibrary
     internal static JsBigInt ToBigInt(object? value, EvaluationContext? context = null, RealmState? realmState = null)
     {
         realmState ??= context?.RealmState;
-        var localContext = context ?? (realmState is not null ? new EvaluationContext(realmState) : null);
+        var localContext = context ?? realmState?.CreateContext();
 
         while (true)
         {

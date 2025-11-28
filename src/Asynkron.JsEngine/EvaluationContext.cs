@@ -15,6 +15,8 @@ public sealed class EvaluationContext(
     CancellationToken cancellationToken = default,
     ExecutionKind executionKind = ExecutionKind.Script)
 {
+    private readonly Stack<ScopeFrame> _scopeStack = new();
+
     /// <summary>
     ///     Stack of enclosing labels (innermost first). Used to determine if a labeled
     ///     break/continue should be handled by the current statement.
@@ -31,6 +33,8 @@ public sealed class EvaluationContext(
     ///     Realm-specific state (prototypes/constructors) for the current execution.
     /// </summary>
     public RealmState RealmState { get; } = realmState ?? throw new ArgumentNullException(nameof(realmState));
+
+    public IJsEngineOptions Options => RealmState.Options;
 
     /// <summary>
     ///     Lexically declared names that should prevent Annex B function var bindings.
@@ -108,6 +112,18 @@ public sealed class EvaluationContext(
     ///     Returns true if the current signal is Yield.
     /// </summary>
     public bool IsYield => CurrentSignal is YieldSignal;
+
+    public ScopeFrame CurrentScope => _scopeStack.Count > 0 ? _scopeStack.Peek() : ScopeFrame.Default;
+
+    public IDisposable PushScope(
+        ScopeKind kind,
+        ScopeMode mode,
+        bool skipAnnexBInstantiation = false)
+    {
+        var frame = new ScopeFrame(kind, mode, skipAnnexBInstantiation);
+        _scopeStack.Push(frame);
+        return new ScopeHandle(_scopeStack);
+    }
 
     public void MarkThisUninitialized()
     {
@@ -295,6 +311,50 @@ public sealed class EvaluationContext(
             _disposed = true;
         }
     }
+
+    private sealed class ScopeHandle(Stack<ScopeFrame> scopes) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (scopes.Count > 0)
+            {
+                scopes.Pop();
+            }
+
+            _disposed = true;
+        }
+    }
+}
+
+public enum ScopeKind
+{
+    Program,
+    Function,
+    Block
+}
+
+public enum ScopeMode
+{
+    Strict,
+    Sloppy,
+    SloppyAnnexB
+}
+
+public readonly record struct ScopeFrame(
+    ScopeKind Kind,
+    ScopeMode Mode,
+    bool SkipAnnexBInstantiation)
+{
+    public bool IsStrict => Mode == ScopeMode.Strict;
+    public bool AllowAnnexB => Mode == ScopeMode.SloppyAnnexB;
+    public static ScopeFrame Default { get; } = new(ScopeKind.Program, ScopeMode.Strict, false);
 }
 
 public sealed class PrivateNameScope

@@ -27,7 +27,7 @@ internal static class AssignmentReferenceResolver
     private static AssignmentReference ResolveIdentifier(IdentifierExpression identifier, JsEnvironment environment,
         EvaluationContext context)
     {
-        if (environment.IsStrict &&
+        if (context.CurrentScope.IsStrict &&
             (string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal) ||
              string.Equals(identifier.Name.Name, "arguments", StringComparison.Ordinal)))
         {

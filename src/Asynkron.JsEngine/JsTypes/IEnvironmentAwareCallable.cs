@@ -1,3 +1,5 @@
+using Asynkron.JsEngine;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -10,4 +12,12 @@ public interface IJsEnvironmentAwareCallable : IJsCallable
     ///     This is used to build proper call stacks for debugging.
     /// </summary>
     JsEnvironment? CallingJsEnvironment { get; set; }
+}
+
+/// <summary>
+///     Allows host callables to observe the current evaluation context (scope mode, call depth, etc.).
+/// </summary>
+public interface IEvaluationContextAwareCallable : IJsCallable
+{
+    EvaluationContext? CallingContext { get; set; }
 }

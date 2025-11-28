@@ -16,7 +16,7 @@ public static partial class StandardLibrary
         json["parse"] = new HostFunction((_, args, realmState) =>
         {
             realmState ??= realm;
-            var context = realmState is not null ? new EvaluationContext(realmState) : null;
+            var context = realmState?.CreateContext();
 
             if (args.Count == 0)
             {

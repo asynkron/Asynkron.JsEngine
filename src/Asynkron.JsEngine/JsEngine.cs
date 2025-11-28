@@ -15,6 +15,7 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly HashSet<Task> _activeTimerTasks = [];
     private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
     private readonly bool _asyncIteratorTracingEnabled;
+    private readonly IJsEngineOptions _options;
 
     //DEBUG code
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
@@ -45,9 +46,11 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Initializes a new instance of JsEngine with standard library objects.
     /// </summary>
-    public JsEngine()
+    public JsEngine(IJsEngineOptions? options = null)
     {
+        _options = options ?? JsEngineOptions.Default;
         _asyncIteratorTracingEnabled = false;
+        RealmState.Options = _options;
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).
@@ -251,6 +254,7 @@ public sealed class JsEngine : IAsyncDisposable
     internal JsEnvironment GlobalEnvironment => _global;
 
     internal RealmState RealmState { get; } = new();
+    public IJsEngineOptions Options => _options;
 
     public async ValueTask DisposeAsync()
     {
@@ -337,7 +341,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public ProgramNode Parse(string source)
     {
-        return ParseTypedProgram(source);
+        return ParseTypedProgram(source, options: _options);
     }
 
     /// <summary>
@@ -351,7 +355,7 @@ public sealed class JsEngine : IAsyncDisposable
         bool allowTopLevelAwait = false,
         bool allowHtmlComments = true)
     {
-        var typedProgram = ParseTypedProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments);
+        var typedProgram = ParseTypedProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, _options);
         if (forceStrict && !typedProgram.IsStrict)
         {
             typedProgram = new ProgramNode(typedProgram.Source, typedProgram.Body, true);
@@ -389,7 +393,7 @@ public sealed class JsEngine : IAsyncDisposable
     public (ProgramNode original, ProgramNode constantFolded, ProgramNode cpsTransformed)
         ParseWithTransformationSteps(string source)
     {
-        var original = ParseTypedProgram(source);
+        var original = ParseTypedProgram(source, options: _options);
         var constantFolded = _typedConstantTransformer.Transform(original);
         var cpsTransformed = constantFolded;
         if (TypedCpsTransformer.NeedsTransformation(constantFolded))
@@ -404,11 +408,12 @@ public sealed class JsEngine : IAsyncDisposable
         string source,
         bool forceStrict = false,
         bool allowTopLevelAwait = false,
-        bool allowHtmlComments = true)
+        bool allowHtmlComments = true,
+        IJsEngineOptions? options = null)
     {
         var lexer = new Lexer(source, allowHtmlComments);
         var tokens = lexer.Tokenize();
-        var typedParser = new TypedAstParser(tokens, source, forceStrict, allowTopLevelAwait);
+        var typedParser = new TypedAstParser(tokens, source, forceStrict, allowTopLevelAwait, options);
         return typedParser.ParseProgram();
     }
 

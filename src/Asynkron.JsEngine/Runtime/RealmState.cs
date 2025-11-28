@@ -1,3 +1,5 @@
+using System.Threading;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Runtime;
@@ -8,6 +10,7 @@ namespace Asynkron.JsEngine.Runtime;
 /// </summary>
 public sealed class RealmState
 {
+    public IJsEngineOptions Options { get; internal set; } = JsEngineOptions.Default;
     public JsObject? ObjectPrototype { get; set; }
     public JsObject? FunctionPrototype { get; set; }
     public JsObject? ArrayPrototype { get; set; }
@@ -35,6 +38,39 @@ public sealed class RealmState
 
     // Internal flags to avoid re-attaching built-in surfaces per instance
     public bool StringPrototypeMethodsInitialized { get; set; }
+
+    public EvaluationContext CreateContext(
+        ScopeKind kind = ScopeKind.Function,
+        ScopeMode mode = ScopeMode.Strict,
+        bool skipAnnexBInstantiation = false,
+        CancellationToken cancellationToken = default,
+        ExecutionKind executionKind = ExecutionKind.Script,
+        bool pushScope = true)
+    {
+        var context = new EvaluationContext(this, cancellationToken, executionKind);
+        if (pushScope)
+        {
+            context.PushScope(kind, mode, skipAnnexBInstantiation);
+        }
+
+        return context;
+    }
+
+    public EvaluationContext CreateStrictContext(
+        ScopeKind kind = ScopeKind.Function,
+        bool skipAnnexBInstantiation = false,
+        CancellationToken cancellationToken = default,
+        ExecutionKind executionKind = ExecutionKind.Script,
+        bool pushScope = true)
+    {
+        return CreateContext(
+            kind,
+            ScopeMode.Strict,
+            skipAnnexBInstantiation,
+            cancellationToken,
+            executionKind,
+            pushScope);
+    }
 }
 
 public sealed class RegExpStatics

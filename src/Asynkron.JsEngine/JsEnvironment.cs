@@ -502,12 +502,6 @@ public sealed class JsEnvironment
                 return true;
             }
 
-            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out value))
-            {
-                environment = current;
-                return true;
-            }
-
             current = current._enclosing;
         }
 

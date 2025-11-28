@@ -358,7 +358,7 @@ public static partial class StandardLibrary
     private static int ToIndex(object? value, RealmState? realm = null)
     {
         const double MaxLength = 9007199254740991d; // 2^53 - 1
-        var context = realm is not null ? new EvaluationContext(realm) : null;
+        var context = realm?.CreateContext();
 
         var numeric = JsOps.ToNumeric(value, context);
         if (context?.IsThrow == true)

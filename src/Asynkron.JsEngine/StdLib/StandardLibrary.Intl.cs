@@ -375,7 +375,7 @@ public static partial class StandardLibrary
 
         static string FormatNumberValue(object? value, RealmState realm)
         {
-            var context = new EvaluationContext(realm);
+            var context = realm.CreateContext();
             double number;
             try
             {

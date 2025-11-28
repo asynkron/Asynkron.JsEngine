@@ -127,7 +127,7 @@ public static partial class StandardLibrary
 
         if (value is IJsPropertyAccessor accessor)
         {
-            var context = new EvaluationContext(realm);
+            var context = realm.CreateContext();
             primitive = JsOps.ToPrimitive(accessor, "string", context);
             if (context.IsThrow)
             {

@@ -61,19 +61,21 @@ public static partial class StandardLibrary
 
             // Trigger IsRegExp style side-effects (e.g., Symbol.match getter) before cloning flags/pattern.
             var matchKey = $"@@symbol:{TypedAstSymbol.For("Symbol.match").GetHashCode()}";
-            JsOps.TryGetPropertyValue(thisValue ?? resolved.JsObject, matchKey, out _, null);
+            var receiver = thisValue ?? resolved.JsObject;
+            JsOps.TryGetPropertyValue(receiver, matchKey, out _, null);
+
+            // Re-resolve after potential side-effects (e.g., RegExp.prototype.compile).
+            resolved = ResolveRegExpInstance(receiver) ?? resolved;
 
             var input = JsOps.ToJsString(args.Count > 0 ? args[0] : string.Empty);
             var limitValue = args.Count > 1 ? args[1] : Symbols.Undefined;
-            var limit = ReferenceEquals(limitValue, Symbols.Undefined)
-                ? uint.MaxValue
-                : ToUint32(limitValue);
-
-            // The limit coercion may have side-effects; refresh the resolved regex afterwards.
-            resolved = ResolveRegExpInstance(thisValue) ?? resolved;
             var forcedFlags = resolved.Flags.Contains('g') ? resolved.Flags : resolved.Flags + "g";
             var splitter = new JsRegExp(resolved.Pattern, forcedFlags, realm);
             splitter.SetProperty("lastIndex", 0d);
+
+            var limit = ReferenceEquals(limitValue, Symbols.Undefined)
+                ? uint.MaxValue
+                : ToUint32(limitValue);
 
             var resultArray = new JsArray(realm);
             if (limit == 0)
@@ -222,6 +224,12 @@ public static partial class StandardLibrary
                 depth++;
                 if (i + 2 < pattern.Length && pattern[i + 1] == '?' && pattern[i + 2] == '<')
                 {
+                    // Skip lookbehind assertions (?<=...) / (?<!...).
+                    if (i + 3 < pattern.Length && (pattern[i + 3] == '=' || pattern[i + 3] == '!'))
+                    {
+                        continue;
+                    }
+
                     var end = pattern.IndexOf('>', i + 3);
                     if (end == -1)
                     {

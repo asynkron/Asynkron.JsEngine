@@ -150,24 +150,24 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    // JS months are 0-indexed
-                    var month = (int)monthNum + 1;
-                    var day = (int)dayNum;
-                    var hour = (int)hourNum;
-                    var minute = (int)minuteNum;
-                    var second = (int)secondNum;
-                    var millisecond = (int)millisecondNum;
+                    var day = MakeDay(yearNum, monthNum, dayNum);
+                    var hour = Math.Truncate(hourNum);
+                    var minute = Math.Truncate(minuteNum);
+                    var second = Math.Truncate(secondNum);
+                    var millisecond = Math.Truncate(millisecondNum);
 
-                    try
-                    {
-                        var utcDate = new DateTime((int)yearNum, month, day, hour, minute, second,
-                            millisecond, DateTimeKind.Utc);
-                        var utcOffset = new DateTimeOffset(utcDate);
-                        timeValue = TimeClip(utcOffset.ToUnixTimeMilliseconds());
-                    }
-                    catch
+                    if (double.IsInfinity(hour) || double.IsInfinity(minute) ||
+                        double.IsInfinity(second) || double.IsInfinity(millisecond))
                     {
                         timeValue = double.NaN;
+                    }
+                    else
+                    {
+                        var timeWithinDay = hour * MsPerHour + minute * MsPerMinute + second * MsPerSecond +
+                                            millisecond;
+                        var localDate = MakeDate(day, timeWithinDay);
+                        var utc = UTCTimeFromLocal(localDate);
+                        timeValue = TimeClip(utc);
                     }
                 }
             }

@@ -136,8 +136,15 @@ public static partial class StandardLibrary
         stringObj.SetHostedProperty("localeCompare", LocaleCompare);
         stringObj.SetHostedProperty("normalize", Normalize);
         stringObj.SetHostedProperty("matchAll", MatchAll);
-        stringObj.SetHostedProperty("anchor", Anchor);
-        stringObj.SetHostedProperty("link", Link);
+        DefineBuiltinFunction(stringObj, "anchor", new HostFunction(Anchor), 1, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "big", new HostFunction(Big), 0, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "blink", new HostFunction(Blink), 0, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "bold", new HostFunction(Bold), 0, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "fixed", new HostFunction(Fixed), 0, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "fontcolor", new HostFunction(FontColor), 1, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "fontsize", new HostFunction(FontSize), 1, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "italics", new HostFunction(Italics), 0, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "link", new HostFunction(Link), 1, isConstructor: false);
 
         var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
@@ -152,7 +159,31 @@ public static partial class StandardLibrary
 
         string ResolveString(object? thisValue)
         {
-            return JsValueToString(thisValue);
+            var context = realm is not null ? new EvaluationContext(realm) : null;
+            if (ReferenceEquals(thisValue, Symbols.Undefined) || thisValue is null)
+            {
+                throw ThrowTypeError("Cannot convert undefined or null to object", realm: realm);
+            }
+
+            var str = JsOps.ToJsString(thisValue, context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            return str;
+        }
+
+        string CoerceToString(object? value)
+        {
+            var context = realm is not null ? new EvaluationContext(realm) : null;
+            var result = JsOps.ToJsString(value, context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            return result;
         }
 
         object? CharAt(object? thisValue, IReadOnlyList<object?> args)
@@ -787,17 +818,64 @@ public static partial class StandardLibrary
         object? Anchor(object? thisValue, IReadOnlyList<object?> args)
         {
             var value = ResolveString(thisValue);
-            var name = args.Count > 0 ? args[0]?.ToString() ?? "" : "";
-            name = name.Replace("\"", "&quot;");
-            return $"<a name=\"{name}\">{value}</a>";
+            var name = args.Count > 0 ? CoerceToString(args[0]) : string.Empty;
+            return $"<a name=\"{EscapeAttr(name)}\">{value}</a>";
         }
 
         object? Link(object? thisValue, IReadOnlyList<object?> args)
         {
             var value = ResolveString(thisValue);
-            var url = args.Count > 0 ? args[0]?.ToString() ?? "" : "";
-            url = url.Replace("\"", "&quot;");
-            return $"<a href=\"{url}\">{value}</a>";
+            var url = args.Count > 0 ? CoerceToString(args[0]) : string.Empty;
+            return $"<a href=\"{EscapeAttr(url)}\">{value}</a>";
+        }
+
+        object? Bold(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            return $"<b>{value}</b>";
+        }
+
+        object? Italics(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            return $"<i>{value}</i>";
+        }
+
+        object? Fixed(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            return $"<tt>{value}</tt>";
+        }
+
+        object? Blink(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            return $"<blink>{value}</blink>";
+        }
+
+        object? Big(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            return $"<big>{value}</big>";
+        }
+
+        object? FontColor(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            var color = args.Count > 0 ? CoerceToString(args[0]) : string.Empty;
+            return $"<font color=\"{EscapeAttr(color)}\">{value}</font>";
+        }
+
+        object? FontSize(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            var size = args.Count > 0 ? CoerceToString(args[0]) : string.Empty;
+            return $"<font size=\"{EscapeAttr(size)}\">{value}</font>";
+        }
+
+        static string EscapeAttr(string input)
+        {
+            return input.Replace("\"", "&quot;");
         }
 
         object? CreateIterator(object? thisValue, IReadOnlyList<object?> _)

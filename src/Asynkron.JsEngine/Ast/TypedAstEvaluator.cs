@@ -562,14 +562,10 @@ public static class TypedAstEvaluator
             return false;
         }
 
-        if (methodValue is IIsHtmlDda && methodValue is not IJsCallable)
-        {
-            return false;
-        }
-
         if (methodValue is not IJsCallable callable)
         {
-            return false;
+            throw new ThrowSignal(StandardLibrary.CreateTypeError("Iterator method is not callable", context,
+                context.RealmState));
         }
 
         var args = hasArgument ? new[] { argument } : Array.Empty<object?>();
@@ -587,11 +583,18 @@ public static class TypedAstEvaluator
                     JsSymbols.Undefined,
                     context,
                     out var closeResult,
-                    hasArgument: false) &&
-                closeResult is JsObject promiseCandidate &&
-                IsPromiseLike(promiseCandidate))
+                    hasArgument: false))
             {
-                AwaitScheduler.TryAwaitPromiseSync(promiseCandidate, context, out _);
+                if (closeResult is not JsObject returnObject)
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateTypeError("Iterator.return() must return an object",
+                        context, context.RealmState));
+                }
+
+                if (IsPromiseLike(returnObject))
+                {
+                    AwaitScheduler.TryAwaitPromiseSync(returnObject, context, out _);
+                }
             }
         }
         catch (ThrowSignal) when (preserveExistingThrow || context.IsThrow)
@@ -609,6 +612,7 @@ public static class TypedAstEvaluator
         Symbol? loopLabel)
     {
         object? lastValue = JsSymbols.Undefined;
+        var iteratorDone = false;
 
         var state = new IteratorDriverState
         {
@@ -642,6 +646,7 @@ public static class TypedAstEvaluator
                            doneValue is bool and true;
                 if (done)
                 {
+                    iteratorDone = true;
                     break;
                 }
 
@@ -660,6 +665,12 @@ public static class TypedAstEvaluator
             }
             else
             {
+                if (state.IteratorObject is not null)
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                        "Iterator.next() did not return an object", context, context.RealmState));
+                }
+
                 // Enumerator path (non-object next)
                 var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                     ? new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source,
@@ -685,6 +696,11 @@ public static class TypedAstEvaluator
             {
                 break;
             }
+        }
+
+        if (state.IteratorObject is not null && !iteratorDone)
+        {
+            IteratorClose(state.IteratorObject, context, preserveExistingThrow: context.IsThrow);
         }
 
         return lastValue;
@@ -1167,7 +1183,8 @@ public static class TypedAstEvaluator
         if (baseValue is not IJsEnvironmentAwareCallable callable ||
             baseValue is not IJsPropertyAccessor accessor)
         {
-            throw new InvalidOperationException("Classes can only extend other constructors or null.");
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                "Class extends value is not a constructor or null", context, context.RealmState));
         }
 
         if (!TryGetPropertyValue(baseValue, "prototype", out var prototypeValue) ||

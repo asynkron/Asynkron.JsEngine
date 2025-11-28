@@ -1274,21 +1274,48 @@ public sealed class TypedAstParser(
             {
                 if (Match(TokenType.Let))
                 {
-                    initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Let,
-                        false, true);
-                    initializer = initializerDeclaration;
+                    var previousAllowIn = _allowInExpressions;
+                    _allowInExpressions = false;
+                    try
+                    {
+                        initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Let,
+                            false, true);
+                        initializer = initializerDeclaration;
+                    }
+                    finally
+                    {
+                        _allowInExpressions = previousAllowIn;
+                    }
                 }
                 else if (Match(TokenType.Const))
                 {
-                    initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Const,
-                        false, true);
-                    initializer = initializerDeclaration;
+                    var previousAllowIn = _allowInExpressions;
+                    _allowInExpressions = false;
+                    try
+                    {
+                        initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Const,
+                            false, true);
+                        initializer = initializerDeclaration;
+                    }
+                    finally
+                    {
+                        _allowInExpressions = previousAllowIn;
+                    }
                 }
                 else if (Match(TokenType.Var))
                 {
-                    initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Var,
-                        false, true);
-                    initializer = initializerDeclaration;
+                    var previousAllowIn = _allowInExpressions;
+                    _allowInExpressions = false;
+                    try
+                    {
+                        initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Var,
+                            false, true);
+                        initializer = initializerDeclaration;
+                    }
+                    finally
+                    {
+                        _allowInExpressions = previousAllowIn;
+                    }
                 }
                 else
                 {
@@ -1345,8 +1372,23 @@ public sealed class TypedAstParser(
                 Consume(TokenType.RightParen, "Expected ')' after for-each header.");
                 var body = ParseStatement();
                 var declarationKind = initializerDeclaration?.Kind;
-                return new ForEachStatement(CreateSourceReference(forToken), target, iterable, body, eachKind,
+                var forEachStatement = new ForEachStatement(CreateSourceReference(forToken), target, iterable, body,
+                    eachKind,
                     declarationKind);
+                if (!InStrictContext &&
+                    declarationKind == VariableKind.Var &&
+                    initializerDeclaration is { Declarators.Length: 1 } varDecl &&
+                    varDecl.Declarators[0].Initializer is { } varInitializer)
+                {
+                    var assignment = CreateInitializerAssignment(varDecl.Declarators[0].Target, varInitializer);
+                    var assignmentStatement = new ExpressionStatement(
+                        assignment.Source ?? varInitializer.Source ?? CreateSourceReference(forToken), assignment);
+                    var isStrict = body is BlockStatement b ? b.IsStrict : InStrictContext;
+                    return new BlockStatement(forEachStatement.Source,
+                        [assignmentStatement, forEachStatement], isStrict);
+                }
+
+                return forEachStatement;
             }
 
             if (!firstClauseTerminated)
@@ -2699,6 +2741,18 @@ public sealed class TypedAstParser(
                 default:
                     return null;
             }
+        }
+
+        private static ExpressionNode CreateInitializerAssignment(BindingTarget target, ExpressionNode initializer)
+        {
+            return target switch
+            {
+                IdentifierBinding identifier => new AssignmentExpression(
+                    initializer.Source ?? identifier.Source, identifier.Name, initializer),
+                ArrayBinding or ObjectBinding => new DestructuringAssignmentExpression(
+                    initializer.Source ?? target.Source, target, initializer),
+                _ => throw new NotSupportedException("Unsupported initializer binding in for-each statement.")
+            };
         }
 
         private BindingTarget? TryConvertExpressionToBindingTarget(ExpressionNode expression)

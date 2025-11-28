@@ -14,7 +14,7 @@ namespace Asynkron.JsEngine.JsTypes;
 public class JsRegExp
 {
     private readonly RealmState? _realmState;
-    private readonly Regex _regex;
+    private readonly RegexOptions _regexOptions;
     private readonly string _normalizedPattern;
 
     public JsRegExp(string pattern, string flags = "", RealmState? realmState = null, JsObject? existingObject = null)
@@ -30,10 +30,6 @@ public class JsRegExp
 
         // Convert JavaScript regex flags to .NET RegexOptions
         var options = RegexOptions.CultureInvariant;
-        if (!hasUnicodeFlag)
-        {
-            options |= RegexOptions.ECMAScript;
-        }
         if (IgnoreCase)
         {
             options |= RegexOptions.IgnoreCase;
@@ -44,7 +40,7 @@ public class JsRegExp
             options |= RegexOptions.Multiline;
         }
 
-        _regex = new Regex(_normalizedPattern, options);
+        _regexOptions = options;
 
         if (existingObject is null)
         {
@@ -97,7 +93,7 @@ public class JsRegExp
             startIndex = 0;
         }
 
-        var match = _regex.Match(input, startIndex);
+        var match = EnsureRegex().Match(input, startIndex);
 
         if (match.Success && Global)
         {
@@ -140,7 +136,7 @@ public class JsRegExp
             return null;
         }
 
-        var match = _regex.Match(input, startIndex);
+        var match = EnsureRegex().Match(input, startIndex);
 
         if (!match.Success)
         {
@@ -190,7 +186,7 @@ public class JsRegExp
         }
 
         var result = new JsArray(_realmState);
-        var matches = _regex.Matches(input);
+        var matches = EnsureRegex().Matches(input);
 
         foreach (Match match in matches)
         {
@@ -213,6 +209,13 @@ public class JsRegExp
         StandardLibrary.AddArrayMethods(result, _realmState);
         return result;
     }
+
+    private Regex EnsureRegex()
+    {
+        return _compiledRegex ??= new Regex(_normalizedPattern, _regexOptions);
+    }
+
+    private Regex? _compiledRegex;
 
     private static void ValidateFlags(string flags)
     {
@@ -580,6 +583,7 @@ public class JsRegExp
         var inCharClass = false;
         var escaped = false;
         var captureCount = 0;
+        var totalCaptures = CountLegacyCaptures(pattern);
 
         for (var i = 0; i < pattern.Length; i++)
         {
@@ -637,14 +641,30 @@ public class JsRegExp
                             continue;
                         }
 
-                        AppendCodePoint(builder, 'c', false, ignoreCase, true);
+                        // Invalid control escape: treat the backslash and 'c' as literals.
+                        builder.Append("\\\\c");
                         continue;
 
                     case var digit when char.IsDigit(digit):
                         var start = i;
                         var end = start;
+                        var octalDigits = 0;
+                        var octalValue = 0;
+                        var allOctal = true;
                         while (end < pattern.Length && char.IsDigit(pattern[end]))
                         {
+                            var d = pattern[end] - '0';
+                            if (d > 7)
+                            {
+                                allOctal = false;
+                            }
+
+                            if (octalDigits < 3 && d <= 7)
+                            {
+                                octalValue = (octalValue * 8) + d;
+                                octalDigits++;
+                            }
+
                             end++;
                         }
 
@@ -657,19 +677,42 @@ public class JsRegExp
                         }
 
                         if (int.TryParse(numText, NumberStyles.None, CultureInfo.InvariantCulture, out var value) &&
-                            value > 0 && value <= captureCount)
+                            value > 0 && value <= totalCaptures)
                         {
-                            builder.Append('\\');
-                            builder.Append(numText);
+                            if (value <= captureCount)
+                            {
+                                builder.Append('\\');
+                                builder.Append(numText);
+                            }
+                            else
+                            {
+                                // Forward reference behaves like an empty string in JS.
+                                builder.Append("(?:)");
+                            }
+
                             i = end - 1;
                             continue;
                         }
 
-                        foreach (var ch in numText)
+                        if (allOctal && octalDigits > 0)
                         {
-                            AppendCodePoint(builder, ch, false, ignoreCase, true);
+                            AppendCodePoint(builder, octalValue, false, ignoreCase, true);
+                            i = end - 1;
+                            continue;
                         }
 
+                        if (!int.TryParse(numText, NumberStyles.None, CultureInfo.InvariantCulture, out value))
+                        {
+                            foreach (var ch in numText)
+                            {
+                                AppendCodePoint(builder, ch, false, ignoreCase, true);
+                            }
+                            i = end - 1;
+                            continue;
+                        }
+
+                        var codeUnitValue = value % 256;
+                        AppendCodePoint(builder, codeUnitValue, false, ignoreCase, true);
                         i = end - 1;
                         continue;
 
@@ -696,7 +739,11 @@ public class JsRegExp
 
             if (!inCharClass && c == '(')
             {
-                if (!(i + 1 < pattern.Length && pattern[i + 1] == '?'))
+                var hasQuestion = i + 1 < pattern.Length && pattern[i + 1] == '?';
+                var isNamedCapture = hasQuestion && i + 2 < pattern.Length && pattern[i + 2] == '<' &&
+                                     (i + 3 >= pattern.Length || (pattern[i + 3] != '=' && pattern[i + 3] != '!'));
+
+                if (!hasQuestion || isNamedCapture)
                 {
                     captureCount++;
                 }
@@ -725,6 +772,59 @@ public class JsRegExp
         }
 
         return builder.ToString();
+    }
+
+    private static int CountLegacyCaptures(string pattern)
+    {
+        var inCharClass = false;
+        var escaped = false;
+        var count = 0;
+
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            var c = pattern[i];
+            if (escaped)
+            {
+                escaped = false;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                if (c == ']')
+                {
+                    inCharClass = false;
+                }
+
+                continue;
+            }
+
+            if (c == '[')
+            {
+                inCharClass = true;
+                continue;
+            }
+
+            if (c == '(')
+            {
+                var isQuestion = i + 1 < pattern.Length && pattern[i + 1] == '?';
+                var isNamedCapture = isQuestion && i + 2 < pattern.Length && pattern[i + 2] == '<' &&
+                                     (i + 3 >= pattern.Length || (pattern[i + 3] != '=' && pattern[i + 3] != '!'));
+
+                if (!isQuestion || isNamedCapture)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
     }
 
     private static HashSet<string> CollectGroupNames(string pattern)

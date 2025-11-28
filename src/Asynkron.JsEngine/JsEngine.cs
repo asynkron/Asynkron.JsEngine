@@ -564,9 +564,9 @@ public sealed class JsEngine : IAsyncDisposable
         var tcs = new TaskCompletionSource<object?>();
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
         var configured = ExecutionTimeout;
-        var timeout = configured.HasValue && configured.Value > TimeSpan.Zero
-            ? configured.Value
-            : TimeSpan.FromSeconds(10);
+        var enforceTimeout = configured.HasValue && configured.Value > TimeSpan.Zero &&
+                             configured.Value != Timeout.InfiniteTimeSpan;
+        var timeout = enforceTimeout ? configured!.Value : Timeout.InfiniteTimeSpan;
         var watchdog = Task.Delay(timeout, cancellationToken);
 
         // Schedule the evaluation on the event queue
@@ -637,7 +637,7 @@ public sealed class JsEngine : IAsyncDisposable
                 throw new OperationCanceledException(combinedToken);
             }
 
-            if (timeoutCts?.IsCancellationRequested == true || !watchdog.IsCanceled)
+            if (enforceTimeout && (timeoutCts?.IsCancellationRequested == true || !watchdog.IsCanceled))
             {
                 throw new TimeoutException(
                     $"JavaScript execution exceeded the configured timeout of {timeout}.");

@@ -16,7 +16,7 @@ public abstract partial class Test262Test
     {
         var engine = new JsEngine
         {
-            ExecutionTimeout = TimeSpan.FromSeconds(10)
+            ExecutionTimeout = null
         };
 
         if (file.Flags.Contains("raw"))

@@ -50,6 +50,15 @@ public class JsRegExp
                     Value = 0d, Writable = true, Enumerable = false, Configurable = false
                 });
         }
+
+        try
+        {
+            EnsureRegex();
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ParseException(ex.Message);
+        }
     }
 
     public string Pattern { get; }
@@ -592,6 +601,13 @@ public class JsRegExp
             {
                 escaped = false;
 
+                if (inCharClass)
+                {
+                    builder.Append('\\');
+                    builder.Append(c);
+                    continue;
+                }
+
                 if (IsLineTerminator(c))
                 {
                     throw new ParseException("Invalid regular expression: incomplete escape.");
@@ -701,18 +717,10 @@ public class JsRegExp
                             continue;
                         }
 
-                        if (!int.TryParse(numText, NumberStyles.None, CultureInfo.InvariantCulture, out value))
+                        foreach (var ch in numText)
                         {
-                            foreach (var ch in numText)
-                            {
-                                AppendCodePoint(builder, ch, false, ignoreCase, true);
-                            }
-                            i = end - 1;
-                            continue;
+                            AppendCodePoint(builder, ch, false, ignoreCase, true);
                         }
-
-                        var codeUnitValue = value % 256;
-                        AppendCodePoint(builder, codeUnitValue, false, ignoreCase, true);
                         i = end - 1;
                         continue;
 

@@ -98,6 +98,11 @@ public static partial class StandardLibrary
     /// </summary>
     private static void AddStringMethods(JsObject stringObj, RealmState? realm, bool forceAttach = false)
     {
+        var matchKey = $"@@symbol:{TypedAstSymbol.For("Symbol.match").GetHashCode()}";
+        var matchAllKey = $"@@symbol:{TypedAstSymbol.For("Symbol.matchAll").GetHashCode()}";
+        var replaceKey = $"@@symbol:{TypedAstSymbol.For("Symbol.replace").GetHashCode()}";
+        var searchKey = $"@@symbol:{TypedAstSymbol.For("Symbol.search").GetHashCode()}";
+        var splitKey = $"@@symbol:{TypedAstSymbol.For("Symbol.split").GetHashCode()}";
         if (!forceAttach &&
             realm is { StringPrototype: { } proto, StringPrototypeMethodsInitialized: true } &&
             ReferenceEquals(stringObj, proto))
@@ -111,15 +116,22 @@ public static partial class StandardLibrary
         stringObj.SetHostedProperty("lastIndexOf", LastIndexOf);
         stringObj.SetHostedProperty("substring", Substring);
         stringObj.SetHostedProperty("slice", Slice);
-        stringObj.SetHostedProperty("substr", Substr);
+        var substrFn = new HostFunction(Substr) { IsConstructor = false };
+        DefineBuiltinFunction(stringObj, "substr", substrFn, 2, isConstructor: false);
         stringObj.SetHostedProperty("concat", Concat);
         stringObj.SetHostedProperty("toLowerCase", ToLowerCase);
         stringObj.SetHostedProperty("toUpperCase", ToUpperCase);
+        var trimStartFn = new HostFunction(TrimStart) { IsConstructor = false };
+        DefineBuiltinFunction(stringObj, "trimStart", trimStartFn, 0, isConstructor: false);
+        stringObj.DefineProperty("trimLeft",
+            new PropertyDescriptor { Value = trimStartFn, Writable = true, Enumerable = false, Configurable = true });
+
+        var trimEndFn = new HostFunction(TrimEnd) { IsConstructor = false };
+        DefineBuiltinFunction(stringObj, "trimEnd", trimEndFn, 0, isConstructor: false);
+        stringObj.DefineProperty("trimRight",
+            new PropertyDescriptor { Value = trimEndFn, Writable = true, Enumerable = false, Configurable = true });
+
         stringObj.SetHostedProperty("trim", Trim);
-        stringObj.SetHostedProperty("trimStart", TrimStart);
-        stringObj.SetHostedProperty("trimLeft", TrimStart);
-        stringObj.SetHostedProperty("trimEnd", TrimEnd);
-        stringObj.SetHostedProperty("trimRight", TrimEnd);
         stringObj.SetHostedProperty("split", Split, realm);
         stringObj.SetHostedProperty("replace", Replace);
         stringObj.SetHostedProperty("match", Match);
@@ -136,6 +148,10 @@ public static partial class StandardLibrary
         stringObj.SetHostedProperty("localeCompare", LocaleCompare);
         stringObj.SetHostedProperty("normalize", Normalize);
         stringObj.SetHostedProperty("matchAll", MatchAll);
+        DefineBuiltinFunction(stringObj, "small", new HostFunction(Small), 0, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "strike", new HostFunction(Strike), 0, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "sub", new HostFunction(Sub), 0, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "sup", new HostFunction(Sup), 0, isConstructor: false);
         DefineBuiltinFunction(stringObj, "anchor", new HostFunction(Anchor), 1, isConstructor: false);
         DefineBuiltinFunction(stringObj, "big", new HostFunction(Big), 0, isConstructor: false);
         DefineBuiltinFunction(stringObj, "blink", new HostFunction(Blink), 0, isConstructor: false);
@@ -307,7 +323,14 @@ public static partial class StandardLibrary
                 return value;
             }
 
-            var start = args[0] is double d1 ? (int)d1 : 0;
+            var ctx = realm is not null ? new EvaluationContext(realm) : null;
+            var startNumber = ToIntegerOrInfinityLocal(args[0], ctx);
+            if (ctx?.IsThrow == true)
+            {
+                throw new ThrowSignal(ctx.FlowValue);
+            }
+
+            var start = double.IsNegativeInfinity(startNumber) ? 0 : (int)startNumber;
             if (start < 0)
             {
                 start = Math.Max(0, length + start);
@@ -317,21 +340,26 @@ public static partial class StandardLibrary
                 return "";
             }
 
-            int substrLength;
-            if (args.Count > 1 && args[1] is double d2)
+            double lengthNumber;
+            if (args.Count > 1)
             {
-                if (d2 <= 0)
+                lengthNumber = ToIntegerOrInfinityLocal(args[1], ctx);
+                if (ctx?.IsThrow == true)
                 {
-                    return "";
+                    throw new ThrowSignal(ctx.FlowValue);
                 }
-
-                substrLength = (int)Math.Min(d2, length - start);
             }
             else
             {
-                substrLength = length - start;
+                lengthNumber = double.PositiveInfinity;
             }
 
+            if (double.IsNaN(lengthNumber) || lengthNumber <= 0)
+            {
+                return "";
+            }
+
+            var substrLength = (int)Math.Min(lengthNumber, length - start);
             return value.Substring(start, substrLength);
         }
 
@@ -379,7 +407,17 @@ public static partial class StandardLibrary
                 return CreateArrayFromStrings([value], realmState ?? realm);
             }
 
-            var separator = args[0]?.ToString();
+            var separatorValue = args[0];
+            var splitMethod = GetMethod(separatorValue, splitKey, "@@split");
+            if (splitMethod is not null)
+            {
+                var limitArg = args.Count > 1 ? args[1] : Symbols.Undefined;
+                return splitMethod.Invoke([value, limitArg], separatorValue);
+            }
+
+            var separator = ReferenceEquals(separatorValue, Symbols.Undefined)
+                ? null
+                : CoerceToString(separatorValue);
             var limit = args.Count > 1 && args[1] is double d ? (int)d : int.MaxValue;
 
             if (separator is null or "")
@@ -400,19 +438,18 @@ public static partial class StandardLibrary
         object? Replace(object? thisValue, IReadOnlyList<object?> args)
         {
             var value = ResolveString(thisValue);
-            if (args.Count < 2)
-            {
-                return value;
-            }
+            var search = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var replacement = args.Count > 1 ? args[1] : Symbols.Undefined;
 
-            var search = args[0];
-            var replacement = args[1];
+            var replaceMethod = GetMethod(search, replaceKey, "@@replace");
+            if (replaceMethod is not null)
+            {
+                return replaceMethod.Invoke([value, replacement], search);
+            }
 
             if (replacement is IJsCallable replacer)
             {
-                if (search is JsObject regexObj &&
-                    regexObj.TryGetProperty("__regex__", out var regexValue) &&
-                    regexValue is JsRegExp regex)
+                if (TryResolveRegExp(search, out var regex))
                 {
                     var dotNetRegex = new Regex(regex.Pattern);
                     var result = new StringBuilder();
@@ -473,7 +510,7 @@ public static partial class StandardLibrary
                     return result.ToString();
                 }
 
-                var searchValueFunc = search?.ToString() ?? "";
+                var searchValueFunc = CoerceToString(search);
                 if (searchValueFunc.Length == 0)
                 {
                     var replacementValue = replacer.Invoke([""], value);
@@ -493,8 +530,7 @@ public static partial class StandardLibrary
                 return prefix + replacedSegment + suffix;
             }
 
-            if (search is JsObject regexObj2 && regexObj2.TryGetProperty("__regex__", out var regexValue2) &&
-                regexValue2 is JsRegExp regex2)
+            if (TryResolveRegExp(search, out var regex2))
             {
                 var replaceValue = replacement?.ToString() ?? "";
                 if (regex2.Global)
@@ -512,8 +548,8 @@ public static partial class StandardLibrary
                 return value;
             }
 
-            var searchValue = search?.ToString() ?? "";
-            var replaceStr = replacement?.ToString() ?? "";
+            var searchValue = CoerceToString(search);
+            var replaceStr = CoerceToString(replacement);
             var index = value.IndexOf(searchValue, StringComparison.Ordinal);
             if (index == -1)
             {
@@ -531,12 +567,14 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            if (args[0] is not JsObject regexObj || !regexObj.TryGetProperty("__regex__", out var regexValue) ||
-                regexValue is not JsRegExp regex)
+            var searchValue = args[0];
+            var matcher = GetMethod(searchValue, matchKey, "@@match");
+            if (matcher is not null)
             {
-                return null;
+                return matcher.Invoke([value], searchValue);
             }
 
+            var regex = ToRegExpValue(searchValue, string.Empty, requireGlobal: false);
             return regex.Global ? regex.MatchAll(value) : regex.Exec(value);
         }
 
@@ -548,12 +586,14 @@ public static partial class StandardLibrary
                 return -1d;
             }
 
-            if (args[0] is not JsObject regexObj || !regexObj.TryGetProperty("__regex__", out var regexValue) ||
-                regexValue is not JsRegExp regex)
+            var searchValue = args[0];
+            var searchMethod = GetMethod(searchValue, searchKey, "@@search");
+            if (searchMethod is not null)
             {
-                return -1d;
+                return searchMethod.Invoke([value], searchValue);
             }
 
+            var regex = ToRegExpValue(searchValue, string.Empty, requireGlobal: false);
             var result = regex.Exec(value);
             if (result is JsArray arr && arr.TryGetProperty("index", out var indexObj) &&
                 indexObj is double d)
@@ -696,14 +736,67 @@ public static partial class StandardLibrary
         object? ReplaceAll(object? thisValue, IReadOnlyList<object?> args)
         {
             var value = ResolveString(thisValue);
-            if (args.Count < 2)
+            var searchValue = args.Count > 0 ? args[0] : Symbols.Undefined;
+            var replaceValue = args.Count > 1 ? args[1] : Symbols.Undefined;
+
+            var replaceMethod = GetMethod(searchValue, replaceKey, "@@replace");
+            if (replaceMethod is not null)
             {
-                return value;
+                return replaceMethod.Invoke([value, replaceValue], searchValue);
             }
 
-            var searchValue = args[0]?.ToString() ?? "";
-            var replaceValue = args[1]?.ToString() ?? "";
-            return value.Replace(searchValue, replaceValue);
+            if (TryResolveRegExp(searchValue, out var regex))
+            {
+                if (!regex.Global)
+                {
+                    throw ThrowTypeError("String.prototype.replaceAll called with a non-global RegExp", realm: realm);
+                }
+
+                var replaceStr = CoerceToString(replaceValue);
+                return Regex.Replace(value, regex.Pattern, replaceStr);
+            }
+
+            if (replaceValue is IJsCallable replacer)
+            {
+                var searchStrFunc = CoerceToString(searchValue);
+                if (searchStrFunc.Length == 0)
+                {
+                    var replacementValue = replacer.Invoke([""], value).ToJsString();
+                    var builder = new StringBuilder();
+                    builder.Append(replacementValue);
+                    foreach (var ch in value)
+                    {
+                        builder.Append(ch);
+                        builder.Append(replacementValue);
+                    }
+
+                    return builder.ToString();
+                }
+
+                var result = new StringBuilder();
+                var currentIndex = 0;
+                while (true)
+                {
+                    var idx = value.IndexOf(searchStrFunc, currentIndex, StringComparison.Ordinal);
+                    if (idx < 0)
+                    {
+                        result.Append(value.AsSpan(currentIndex));
+                        break;
+                    }
+
+                    result.Append(value.AsSpan(currentIndex, idx - currentIndex));
+                    var replacementValue = replacer.Invoke([searchStrFunc], value);
+                    var replacementString = replacementValue.ToJsString();
+                    result.Append(replacementString);
+                    currentIndex = idx + searchStrFunc.Length;
+                }
+
+                return result.ToString();
+            }
+
+            var searchStr = CoerceToString(searchValue);
+            var replaceStrPlain = CoerceToString(replaceValue);
+            return value.Replace(searchStr, replaceStrPlain);
         }
 
         object? At(object? thisValue, IReadOnlyList<object?> args)
@@ -804,15 +897,15 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            if (args[0] is JsObject regexObj && regexObj.TryGetProperty("__regex__", out var regexValue) &&
-                regexValue is JsRegExp regex)
+            var matcher = args[0];
+            var method = GetMethod(matcher, matchAllKey, "@@matchAll");
+            if (method is not null)
             {
-                return regex.MatchAll(value);
+                return method.Invoke([value], matcher);
             }
 
-            var pattern = args[0]?.ToString() ?? "";
-            var tempRegex = new JsRegExp(pattern, "g");
-            return tempRegex.MatchAll(value);
+            var regex = ToRegExpValue(matcher, "g", requireGlobal: true);
+            return regex.MatchAll(value);
         }
 
         object? Anchor(object? thisValue, IReadOnlyList<object?> args)
@@ -871,6 +964,131 @@ public static partial class StandardLibrary
             var value = ResolveString(thisValue);
             var size = args.Count > 0 ? CoerceToString(args[0]) : string.Empty;
             return $"<font size=\"{EscapeAttr(size)}\">{value}</font>";
+        }
+
+        object? Small(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            return $"<small>{value}</small>";
+        }
+
+        object? Strike(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            return $"<strike>{value}</strike>";
+        }
+
+        object? Sub(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            return $"<sub>{value}</sub>";
+        }
+
+        object? Sup(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var value = ResolveString(thisValue);
+            return $"<sup>{value}</sup>";
+        }
+
+        bool TryResolveRegExp(object? candidate, out JsRegExp regex)
+        {
+            if (candidate is JsRegExp direct)
+            {
+                regex = direct;
+                return true;
+            }
+
+            if (candidate is JsObject obj &&
+                obj.TryGetProperty("__regex__", out var regexValue) &&
+                regexValue is JsRegExp stored)
+            {
+                regex = stored;
+                return true;
+            }
+
+            regex = null!;
+            return false;
+        }
+
+        IJsCallable? GetMethod(object? value, string methodKey, string opName)
+        {
+            if (!JsOps.TryGetPropertyValue(value, methodKey, out var method, null))
+            {
+                return null;
+            }
+
+            if (method is null || ReferenceEquals(method, Symbols.Undefined))
+            {
+                return null;
+            }
+
+            if (method is not IJsCallable callable)
+            {
+                throw ThrowTypeError($"{opName} is not callable", realm: realm);
+            }
+
+            return callable;
+        }
+
+        JsRegExp ToRegExpValue(object? candidate, string defaultFlags, bool requireGlobal)
+        {
+            if (candidate is JsRegExp direct)
+            {
+                if (requireGlobal && !direct.Global)
+                {
+                    throw ThrowTypeError("RegExp.prototype.matchAll requires a global RegExp", realm: realm);
+                }
+
+                return direct;
+            }
+
+            if (candidate is JsObject obj &&
+                obj.TryGetProperty("__regex__", out var regexValue) &&
+                regexValue is JsRegExp stored)
+            {
+                if (requireGlobal && !stored.Global)
+                {
+                    throw ThrowTypeError("RegExp.prototype.matchAll requires a global RegExp", realm: realm);
+                }
+
+                return stored;
+            }
+
+            var ctx = realm is not null ? new EvaluationContext(realm) : null;
+            var pattern = ReferenceEquals(candidate, Symbols.Undefined) ? string.Empty : JsOps.ToJsString(candidate, ctx);
+            if (ctx?.IsThrow == true)
+            {
+                throw new ThrowSignal(ctx.FlowValue);
+            }
+
+            var created = new JsRegExp(pattern, defaultFlags ?? string.Empty, realm);
+            if (requireGlobal && !created.Global)
+            {
+                throw ThrowTypeError("RegExp.prototype.matchAll requires a global RegExp", realm: realm);
+            }
+
+            return created;
+        }
+
+        static double ToIntegerOrInfinityLocal(object? value, EvaluationContext? context)
+        {
+            var number = JsOps.ToNumberWithContext(value, context);
+            if (context is not null && context.IsThrow)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            if (double.IsNaN(number))
+            {
+                return 0;
+            }
+
+            if (double.IsInfinity(number) || number == 0)
+            {
+                return number;
+            }
+
+            return Math.Sign(number) * Math.Floor(Math.Abs(number));
         }
 
         static string EscapeAttr(string input)
@@ -979,13 +1197,6 @@ public static partial class StandardLibrary
                     var reviver = args.Count > 0 ? args[0] : null;
                     return ParseJsonWithReviver(source, realmState!, context, reviver);
                 }, realm), 1, isConstructor: false, writable: false, enumerable: false, configurable: true);
-
-            var supFn = new HostFunction(StringPrototypeSup) { IsConstructor = false };
-
-            supFn.DefineProperty("length",
-                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
-
-            stringProtoObj.SetProperty("sup", supFn);
         }
 
         // String.fromCodePoint(...codePoints)
@@ -1012,17 +1223,6 @@ public static partial class StandardLibrary
         object? StringPrototypeValueOf(object? thisValue, IReadOnlyList<object?> _)
         {
             return RequireStringReceiver(thisValue);
-        }
-
-        object? StringPrototypeSup(object? thisValue, IReadOnlyList<object?> _)
-        {
-            if (thisValue is null || (thisValue is Symbol sym && ReferenceEquals(sym, Symbols.Undefined)))
-            {
-                throw ThrowTypeError("String.prototype.sup called on null or undefined");
-            }
-
-            var s = JsValueToString(thisValue);
-            return $"<sup>{s}</sup>";
         }
 
         string RequireStringReceiver(object? receiver)

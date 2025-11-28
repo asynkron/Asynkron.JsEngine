@@ -68,7 +68,7 @@ public static partial class StandardLibrary
 
                 var next = input[i + 1];
                 // %uXXXX form
-                if ((next == 'u' || next == 'U') && i + 5 < input.Length &&
+                if (next == 'u' && i + 5 < input.Length &&
                     IsHex(input[i + 2]) && IsHex(input[i + 3]) && IsHex(input[i + 4]) && IsHex(input[i + 5]))
                 {
                     var code = Convert.ToInt32(input.Substring(i + 2, 4), 16);

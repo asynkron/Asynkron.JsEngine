@@ -3636,7 +3636,7 @@ public static class TypedAstEvaluator
                         block,
                         environment,
                         context,
-                        false,
+                        hoistFunctionValues,
                         MergeLexicalNames(block, lexicalNames),
                         pass);
                     break;
@@ -3720,7 +3720,7 @@ public static class TypedAstEvaluator
                         break;
                     }
 
-                    if (lexicalNames.Contains(functionDeclaration.Name))
+                    if (environment.IsStrict && lexicalNames.Contains(functionDeclaration.Name))
                     {
                         break;
                     }

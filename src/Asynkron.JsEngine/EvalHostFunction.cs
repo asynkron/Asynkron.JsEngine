@@ -66,37 +66,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IJsPropertyA
             throw new ThrowSignal(errorObject);
         }
 
-        var varNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-        CollectVarDeclaredNames(program.Typed.Body, varNames);
-        var varEnvironment = environment.GetFunctionScope();
-        foreach (var name in varNames)
-        {
-            var hasBindingBeforeFunction = environment.HasBindingBeforeFunctionScope(name);
-            var hasLexicalInVarEnv = varEnvironment.HasLexicalBinding(name);
-            var bodyHasLexical = false;
-            var current = environment;
-            while (current is not null)
-            {
-                if (current.HasBodyLexicalName(name))
-                {
-                    bodyHasLexical = true;
-                    break;
-                }
-
-                current = current.Enclosing;
-            }
-            var shouldThrow = hasBindingBeforeFunction ||
-                              hasLexicalInVarEnv ||
-                              bodyHasLexical;
-            if (shouldThrow)
-            {
-                var syntaxError = StandardLibrary.CreateSyntaxError(
-                    $"Identifier '{name.Name}' has already been declared",
-                    realm: _engine.RealmState);
-                throw new ThrowSignal(syntaxError);
-            }
-        }
-
         // Evaluate directly in the calling environment without going through the event queue
         // This is safe because eval() is synchronous in JavaScript
         var result = _engine.ExecuteProgram(program, environment, CancellationToken.None, ExecutionKind.Eval);

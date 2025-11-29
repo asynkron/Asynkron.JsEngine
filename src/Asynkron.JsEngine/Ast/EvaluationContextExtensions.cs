@@ -23,10 +23,7 @@ public static partial class TypedAstEvaluator
             return
                 $" at {source} (snippet: '{snippet}') Source: '{source.Source}' Start: {source.StartPosition} End: {source.EndPosition}";
         }
-    }
 
-    extension(EvaluationContext context)
-    {
         private void RestoreSignal(ISignal? signal)
         {
             switch (signal)

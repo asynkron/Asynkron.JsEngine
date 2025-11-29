@@ -92,10 +92,7 @@ public static partial class TypedAstEvaluator
 
             return ReferenceEquals(lastValue, EmptyCompletion) ? Symbol.Undefined : lastValue;
         }
-    }
 
-    extension(ForEachStatement statement)
-    {
         private object? EvaluateForAwaitOf(JsEnvironment environment,
             EvaluationContext context, Symbol? loopLabel)
         {

@@ -84,10 +84,7 @@ public static partial class TypedAstEvaluator
 
             return NormalizeLoopCompletion(lastValue);
         }
-    }
 
-    extension(LoopPlan plan)
-    {
         private bool ExecuteCondition(JsEnvironment environment, EvaluationContext context)
         {
             if (!plan.ConditionPrologue.IsDefaultOrEmpty)
@@ -110,10 +107,7 @@ public static partial class TypedAstEvaluator
 
             return IsTruthy(test);
         }
-    }
 
-    extension(LoopPlan plan)
-    {
         private bool ExecutePostIteration(JsEnvironment environment, EvaluationContext context,
             ref object? lastValue)
         {

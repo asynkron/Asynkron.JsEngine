@@ -44,15 +44,12 @@ public static partial class TypedAstEvaluator
             var frozenArguments = FreezeArguments(argsBuilder);
             if (targetFunction is TypedFunction typedFunction)
             {
-                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context, null);
+                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context);
             }
 
             return targetFunction.Invoke(frozenArguments, thisArg);
         }
-    }
 
-    extension(IJsCallable targetFunction)
-    {
         private object? InvokeWithCall(ImmutableArray<CallArgument> callArguments,
             JsEnvironment environment,
             EvaluationContext context)
@@ -86,7 +83,7 @@ public static partial class TypedAstEvaluator
             var frozenArguments = FreezeArguments(argsBuilder);
             if (targetFunction is TypedFunction typedFunction)
             {
-                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context, null);
+                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context);
             }
 
             return targetFunction.Invoke(frozenArguments, thisArg);

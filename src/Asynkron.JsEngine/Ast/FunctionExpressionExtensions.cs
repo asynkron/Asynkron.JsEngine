@@ -57,25 +57,7 @@ public static partial class TypedAstEvaluator
 
             return true;
         }
-    }
 
-    extension(FunctionExpression functionExpression)
-    {
-        private IJsCallable CreateFunctionValue(JsEnvironment environment,
-            EvaluationContext context)
-        {
-            return functionExpression.IsGenerator switch
-            {
-                true when functionExpression.IsAsync => new AsyncGeneratorFactory(functionExpression, environment,
-                    context.RealmState),
-                true => new TypedGeneratorFactory(functionExpression, environment, context.RealmState),
-                _ => new TypedFunction(functionExpression, environment, context.RealmState)
-            };
-        }
-    }
-
-    extension(FunctionExpression function)
-    {
         private void CollectParameterNamesFromFunction(List<Symbol> names)
         {
             foreach (var parameter in function.Parameters)
@@ -91,10 +73,7 @@ public static partial class TypedAstEvaluator
                 }
             }
         }
-    }
 
-    extension(FunctionExpression function)
-    {
         private void BindFunctionParameters(IReadOnlyList<object?> arguments,
             JsEnvironment environment, EvaluationContext context)
         {
@@ -334,10 +313,7 @@ public static partial class TypedAstEvaluator
                 }
             }
         }
-    }
 
-    extension(FunctionExpression function)
-    {
         private bool HasParameterExpressions()
         {
             foreach (var parameter in function.Parameters)
@@ -354,6 +330,21 @@ public static partial class TypedAstEvaluator
             }
 
             return false;
+        }
+    }
+
+    extension(FunctionExpression functionExpression)
+    {
+        private IJsCallable CreateFunctionValue(JsEnvironment environment,
+            EvaluationContext context)
+        {
+            return functionExpression.IsGenerator switch
+            {
+                true when functionExpression.IsAsync => new AsyncGeneratorFactory(functionExpression, environment,
+                    context.RealmState),
+                true => new TypedGeneratorFactory(functionExpression, environment, context.RealmState),
+                _ => new TypedFunction(functionExpression, environment, context.RealmState)
+            };
         }
     }
 }

@@ -77,10 +77,7 @@ public static partial class TypedAstEvaluator
             InitializeStaticFields(staticFields, constructorAccessor, environment, context, privateNameScope);
             return context.ShouldStopEvaluation ? Symbol.Undefined : constructorValue;
         }
-    }
 
-    extension(ClassDefinition definition)
-    {
         private PrivateNameScope? CreatePrivateNameScope()
         {
             var hasPrivateFields = definition.Fields.Any(f => f.IsPrivate);

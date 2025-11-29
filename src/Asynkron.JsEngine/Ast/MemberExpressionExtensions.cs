@@ -29,10 +29,7 @@ public static partial class TypedAstEvaluator
 
             return EvaluateDefaultMember(expression, environment, context);
         }
-    }
 
-    extension(MemberExpression expression)
-    {
         private object? EvaluateDefaultMember(JsEnvironment environment,
             EvaluationContext context)
         {
@@ -116,10 +113,7 @@ public static partial class TypedAstEvaluator
 
             return Symbol.Undefined;
         }
-    }
 
-    extension(MemberExpression expression)
-    {
         private (object? Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,
             EvaluationContext context)
         {

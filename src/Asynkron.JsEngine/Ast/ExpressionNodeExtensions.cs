@@ -87,6 +87,122 @@ public static partial class TypedAstEvaluator
                     $"Typed evaluator does not yet support '{expression.GetType().Name}'.")
             };
         }
+
+        private string DescribeCallee()
+        {
+            return expression switch
+            {
+                IdentifierExpression id => id.Name.Name,
+                MemberExpression member => $"{DescribeCallee(member.Target)}.{DescribeMemberName(member.Property)}",
+                CallExpression call => $"{DescribeCallee(call.Callee)}(...)",
+                _ => expression.GetType().Name
+            };
+        }
+
+        private bool IsAnonymousFunctionDefinition()
+        {
+            return expression switch
+            {
+                FunctionExpression func => func.Name is null,
+                ClassExpression classExpression => classExpression.Name is null,
+                _ => false
+            };
+        }
+
+        private bool ContainsDirectEvalCall()
+        {
+            while (true)
+            {
+                switch (expression)
+                {
+                    case CallExpression { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } }:
+                        return true;
+                    case CallExpression call:
+                        if (ContainsDirectEvalCall(call.Callee))
+                        {
+                            return true;
+                        }
+
+                        foreach (var arg in call.Arguments)
+                        {
+                            if (ContainsDirectEvalCall(arg.Expression))
+                            {
+                                return true;
+                            }
+                        }
+
+                        return false;
+                    case BinaryExpression binary:
+                        return ContainsDirectEvalCall(binary.Left) || ContainsDirectEvalCall(binary.Right);
+                    case ConditionalExpression cond:
+                        return ContainsDirectEvalCall(cond.Test) || ContainsDirectEvalCall(cond.Consequent) ||
+                               ContainsDirectEvalCall(cond.Alternate);
+                    case MemberExpression member:
+                        return ContainsDirectEvalCall(member.Target) || ContainsDirectEvalCall(member.Property);
+                    case UnaryExpression unary:
+                        expression = unary.Operand;
+                        continue;
+                    case SequenceExpression seq:
+                        return ContainsDirectEvalCall(seq.Left) || ContainsDirectEvalCall(seq.Right);
+                    case ArrayExpression array:
+                        foreach (var element in array.Elements)
+                        {
+                            if (element.Expression is not null && ContainsDirectEvalCall(element.Expression))
+                            {
+                                return true;
+                            }
+                        }
+
+                        return false;
+                    case ObjectExpression obj:
+                        foreach (var member in obj.Members)
+                        {
+                            if (member.Value is not null && ContainsDirectEvalCall(member.Value))
+                            {
+                                return true;
+                            }
+
+                            if (member.Function is not null && ContainsDirectEvalCall(member.Function))
+                            {
+                                return true;
+                            }
+                        }
+
+                        return false;
+                    case TemplateLiteralExpression template:
+                        foreach (var part in template.Parts)
+                        {
+                            if (part.Expression is not null && ContainsDirectEvalCall(part.Expression))
+                            {
+                                return true;
+                            }
+                        }
+
+                        return false;
+                    case TaggedTemplateExpression tagged:
+                        if (ContainsDirectEvalCall(tagged.Tag) || ContainsDirectEvalCall(tagged.StringsArray) ||
+                            ContainsDirectEvalCall(tagged.RawStringsArray))
+                        {
+                            return true;
+                        }
+
+                        foreach (var expr in tagged.Expressions)
+                        {
+                            if (ContainsDirectEvalCall(expr))
+                            {
+                                return true;
+                            }
+                        }
+
+                        return false;
+                    case FunctionExpression:
+                        // Direct eval inside nested functions does not affect the parameter scope we are validating here.
+                        return false;
+                    default:
+                        return false;
+                }
+            }
+        }
     }
 
     extension(ExpressionNode callee)
@@ -207,19 +323,6 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    extension(ExpressionNode expression)
-    {
-        private string DescribeCallee()
-        {
-            return expression switch
-            {
-                IdentifierExpression id => id.Name.Name,
-                MemberExpression member => $"{DescribeCallee(member.Target)}.{DescribeMemberName(member.Property)}",
-                CallExpression call => $"{DescribeCallee(call.Callee)}(...)",
-                _ => expression.GetType().Name
-            };
-        }
-    }
 
     extension(ExpressionNode property)
     {
@@ -231,117 +334,6 @@ public static partial class TypedAstEvaluator
                 IdentifierExpression id => id.Name.Name,
                 _ => property.GetType().Name
             };
-        }
-    }
-
-    extension(ExpressionNode expression)
-    {
-        private bool IsAnonymousFunctionDefinition()
-        {
-            return expression switch
-            {
-                FunctionExpression func => func.Name is null,
-                ClassExpression classExpression => classExpression.Name is null,
-                _ => false
-            };
-        }
-    }
-
-    extension(ExpressionNode expression)
-    {
-        private bool ContainsDirectEvalCall()
-        {
-            while (true)
-            {
-                switch (expression)
-                {
-                    case CallExpression { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } }:
-                        return true;
-                    case CallExpression call:
-                        if (ContainsDirectEvalCall(call.Callee))
-                        {
-                            return true;
-                        }
-
-                        foreach (var arg in call.Arguments)
-                        {
-                            if (ContainsDirectEvalCall(arg.Expression))
-                            {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    case BinaryExpression binary:
-                        return ContainsDirectEvalCall(binary.Left) || ContainsDirectEvalCall(binary.Right);
-                    case ConditionalExpression cond:
-                        return ContainsDirectEvalCall(cond.Test) || ContainsDirectEvalCall(cond.Consequent) ||
-                               ContainsDirectEvalCall(cond.Alternate);
-                    case MemberExpression member:
-                        return ContainsDirectEvalCall(member.Target) || ContainsDirectEvalCall(member.Property);
-                    case UnaryExpression unary:
-                        expression = unary.Operand;
-                        continue;
-                    case SequenceExpression seq:
-                        return ContainsDirectEvalCall(seq.Left) || ContainsDirectEvalCall(seq.Right);
-                    case ArrayExpression array:
-                        foreach (var element in array.Elements)
-                        {
-                            if (element.Expression is not null && ContainsDirectEvalCall(element.Expression))
-                            {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    case ObjectExpression obj:
-                        foreach (var member in obj.Members)
-                        {
-                            if (member.Value is not null && ContainsDirectEvalCall(member.Value))
-                            {
-                                return true;
-                            }
-
-                            if (member.Function is not null && ContainsDirectEvalCall(member.Function))
-                            {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    case TemplateLiteralExpression template:
-                        foreach (var part in template.Parts)
-                        {
-                            if (part.Expression is not null && ContainsDirectEvalCall(part.Expression))
-                            {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    case TaggedTemplateExpression tagged:
-                        if (ContainsDirectEvalCall(tagged.Tag) || ContainsDirectEvalCall(tagged.StringsArray) ||
-                            ContainsDirectEvalCall(tagged.RawStringsArray))
-                        {
-                            return true;
-                        }
-
-                        foreach (var expr in tagged.Expressions)
-                        {
-                            if (ContainsDirectEvalCall(expr))
-                            {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    case FunctionExpression:
-                        // Direct eval inside nested functions does not affect the parameter scope we are validating here.
-                        return false;
-                    default:
-                        return false;
-                }
-            }
         }
     }
 }

@@ -48,10 +48,7 @@ public static partial class TypedAstEvaluator
 
             return false;
         }
-    }
 
-    extension(JsEnvironment environment)
-    {
         private YieldTracker GetYieldTracker()
         {
             if (!environment.TryGet(Symbol.YieldTrackerSymbol, out var tracker) ||
@@ -62,10 +59,7 @@ public static partial class TypedAstEvaluator
 
             return yieldTracker;
         }
-    }
 
-    extension(JsEnvironment environment)
-    {
         private ResumePayload GetResumePayload(int yieldIndex)
         {
             if (!environment.TryGet(Symbol.YieldResumeContextSymbol, out var contextValue) ||
@@ -76,19 +70,13 @@ public static partial class TypedAstEvaluator
 
             return resumeContext.TakePayload(yieldIndex);
         }
-    }
 
-    extension(JsEnvironment environment)
-    {
         private bool IsGeneratorContext()
         {
             return environment.TryGet(Symbol.YieldResumeContextSymbol, out var contextValue) &&
                    contextValue is YieldResumeContext;
         }
-    }
 
-    extension(JsEnvironment environment)
-    {
         private GeneratorPendingCompletion GetGeneratorPendingCompletion()
         {
             if (environment.TryGet(Symbol.GeneratorPendingCompletionSymbol, out var existing) &&
@@ -101,10 +89,7 @@ public static partial class TypedAstEvaluator
             environment.DefineFunctionScoped(Symbol.GeneratorPendingCompletionSymbol, created, true);
             return created;
         }
-    }
 
-    extension(JsEnvironment environment)
-    {
         private void EnsureFunctionScopedVarBinding(Symbol name,
             EvaluationContext context)
         {
@@ -115,10 +100,7 @@ public static partial class TypedAstEvaluator
 
             environment.DefineFunctionScoped(name, Symbol.Undefined, false, context: context);
         }
-    }
 
-    extension(JsEnvironment environment)
-    {
         private SuperBinding ExpectSuperBinding(EvaluationContext context)
         {
             try
@@ -147,10 +129,7 @@ public static partial class TypedAstEvaluator
 
             throw fallback;
         }
-    }
 
-    extension(JsEnvironment environment)
-    {
         private Exception CreateSuperReferenceError(EvaluationContext context,
             Exception? inner)
         {
@@ -164,10 +143,7 @@ public static partial class TypedAstEvaluator
             var error = ctor.Invoke([message], Symbol.Undefined);
             return new ThrowSignal(error);
         }
-    }
 
-    extension(JsEnvironment environment)
-    {
         private void SetThisInitializationStatus(bool initialized)
         {
             if (environment.HasBinding(Symbol.ThisInitialized))
@@ -184,7 +160,7 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            environment.Define(Symbol.ThisInitialized, initialized, false, isLexical: true,
+            environment.Define(Symbol.ThisInitialized, initialized, isLexical: true,
                 blocksFunctionScopeOverride: true);
         }
     }

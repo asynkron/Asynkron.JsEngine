@@ -18,10 +18,7 @@ public static partial class TypedAstEvaluator
             var args = hasSendValue ? new[] { sendValue } : Array.Empty<object?>();
             return callable.Invoke(args, iterator);
         }
-    }
 
-    extension(JsObject iterator)
-    {
         private bool TryInvokeIteratorMethod(string methodName,
             object? argument,
             EvaluationContext context,
@@ -49,10 +46,7 @@ public static partial class TypedAstEvaluator
             result = callable.Invoke(args, iterator);
             return true;
         }
-    }
 
-    extension(JsObject iterator)
-    {
         private void IteratorClose(EvaluationContext context, bool preserveExistingThrow = false)
         {
             try
@@ -85,6 +79,7 @@ public static partial class TypedAstEvaluator
             }
         }
     }
+
 
     extension(JsObject obj)
     {

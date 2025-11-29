@@ -42,18 +42,12 @@ public static partial class TypedAstEvaluator
                     $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
             };
         }
-    }
 
-    extension(StatementNode statement)
-    {
         private bool IsStrictBlock()
         {
             return statement is BlockStatement { IsStrict: true };
         }
-    }
 
-    extension(StatementNode statement)
-    {
         private void HoistFromStatement(JsEnvironment environment,
             EvaluationContext context,
             bool hoistFunctionValues,
@@ -218,7 +212,6 @@ public static partial class TypedAstEvaluator
                                 functionDeclaration.Name,
                                 Symbol.Undefined,
                                 false,
-                                false,
                                 context: context,
                                 blocksFunctionScopeOverride: true,
                                 globalVarConfigurable: forceConfigurableGlobal ? true : null);
@@ -253,10 +246,7 @@ public static partial class TypedAstEvaluator
                 break;
             }
         }
-    }
 
-    extension(StatementNode statement)
-    {
         private void CollectLexicalNamesFromStatement(HashSet<Symbol> names)
         {
             while (true)
@@ -350,10 +340,7 @@ public static partial class TypedAstEvaluator
                 break;
             }
         }
-    }
 
-    extension(StatementNode statement)
-    {
         private void CollectCatchNamesFromStatement(HashSet<Symbol> names)
         {
             while (true)
@@ -423,10 +410,7 @@ public static partial class TypedAstEvaluator
                 break;
             }
         }
-    }
 
-    extension(StatementNode statement)
-    {
         private void CollectSimpleCatchNamesFromStatement(HashSet<Symbol> names)
         {
             while (true)

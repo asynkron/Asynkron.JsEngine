@@ -139,7 +139,6 @@ public static partial class TypedAstEvaluator
                     functionDeclaration.Name,
                     Symbol.Undefined,
                     false,
-                    false,
                     context: context,
                     blocksFunctionScopeOverride: true,
                     globalVarConfigurable: forceConfigurableGlobal ? true : null);

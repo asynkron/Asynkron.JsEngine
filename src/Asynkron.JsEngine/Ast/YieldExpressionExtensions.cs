@@ -11,10 +11,7 @@ public static partial class TypedAstEvaluator
                 ? EvaluateDelegatedYield(expression, environment, context)
                 : EvaluateSimpleYield(expression, environment, context);
         }
-    }
 
-    extension(YieldExpression expression)
-    {
         private object? EvaluateSimpleYield(JsEnvironment environment,
             EvaluationContext context)
         {
@@ -53,10 +50,7 @@ public static partial class TypedAstEvaluator
             context.SetYield(yieldedValue);
             return yieldedValue;
         }
-    }
 
-    extension(YieldExpression expression)
-    {
         private object? EvaluateDelegatedYield(JsEnvironment environment,
             EvaluationContext context)
         {
@@ -158,10 +152,7 @@ public static partial class TypedAstEvaluator
                 return value;
             }
         }
-    }
 
-    extension(YieldExpression expression)
-    {
         private Symbol? GetDelegatedStateKey()
         {
             if (expression.Source is null)

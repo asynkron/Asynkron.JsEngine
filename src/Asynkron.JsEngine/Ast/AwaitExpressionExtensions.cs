@@ -44,10 +44,7 @@ public static partial class TypedAstEvaluator
 
             return resolved;
         }
-    }
 
-    extension(AwaitExpression expression)
-    {
         private Symbol? GetAwaitStateKey()
         {
             if (expression.Source is null)

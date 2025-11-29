@@ -18,10 +18,7 @@ public static partial class TypedAstEvaluator
 
             return null;
         }
-    }
 
-    extension(Symbol? key)
-    {
         private void StoreDelegatedState(JsEnvironment environment, DelegatedYieldState state)
         {
             if (key is null)
@@ -38,10 +35,7 @@ public static partial class TypedAstEvaluator
                 environment.Define(key, state);
             }
         }
-    }
 
-    extension(Symbol? key)
-    {
         private void ClearDelegatedState(JsEnvironment environment)
         {
             if (key is null)

@@ -17,12 +17,64 @@ public static class ActivityTimelineFormatter
         ArgumentNullException.ThrowIfNull(root);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(width, 0);
 
-        var filtered = activities?
-                           .Where(a => predicate?.Invoke(a) ?? true)
-                           .OrderBy(a => a.StartTimeUtc)
-                           .ToList()
-                       ?? new List<Activity>();
+        var filtered = MaterializeActivities(activities, predicate);
+        return FormatLines(root, filtered, width);
+    }
 
+    public static void Write(Activity root,
+        IEnumerable<Activity> activities,
+        ITestOutputHelper output,
+        int width = 80,
+        Func<Activity, bool>? predicate = null)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+        ArgumentNullException.ThrowIfNull(root);
+
+        var filtered = MaterializeActivities(activities, predicate);
+        foreach (var entry in FormatLines(root, filtered, width))
+        {
+            output.WriteLine(entry);
+        }
+
+        if (filtered.Count == 0)
+        {
+            output.WriteLine("No activities recorded.");
+            return;
+        }
+
+        output.WriteLine("Activity Tags:");
+        foreach (var activity in filtered)
+        {
+            output.WriteLine(FormattableString.Invariant($"- {activity.DisplayName}"));
+            var hadTag = false;
+            foreach (var tag in activity.Tags)
+            {
+                hadTag = true;
+                output.WriteLine(
+                    FormattableString.Invariant($"    {tag.Key} = {FormatTagValue(tag.Value)}"));
+            }
+
+            if (!hadTag)
+            {
+                output.WriteLine("    (no tags)");
+            }
+        }
+    }
+
+    private static List<Activity> MaterializeActivities(IEnumerable<Activity> activities,
+        Func<Activity, bool>? predicate)
+    {
+        return activities?
+                   .Where(a => predicate?.Invoke(a) ?? true)
+                   .OrderBy(a => a.StartTimeUtc)
+                   .ToList()
+               ?? new List<Activity>();
+    }
+
+    private static IReadOnlyList<string> FormatLines(Activity root,
+        IReadOnlyList<Activity> filtered,
+        int width)
+    {
         var reference = filtered.FirstOrDefault(a => string.Equals(a.DisplayName, "Program", StringComparison.Ordinal))
                          ?? filtered.FirstOrDefault()
                          ?? root;
@@ -40,19 +92,6 @@ public static class ActivityTimelineFormatter
                 width,
                 referenceDepth,
                 depths.TryGetValue(activity, out var activityDepth) ? activityDepth : 0)).ToList();
-    }
-
-    public static void Write(Activity root,
-        IEnumerable<Activity> activities,
-        ITestOutputHelper output,
-        int width = 80,
-        Func<Activity, bool>? predicate = null)
-    {
-        ArgumentNullException.ThrowIfNull(output);
-        foreach (var entry in Format(root, activities, width, predicate: predicate))
-        {
-            output.WriteLine(entry);
-        }
     }
 
     private static string FormatLine(Activity activity,
@@ -154,6 +193,16 @@ public static class ActivityTimelineFormatter
         return activity.Duration > TimeSpan.Zero
             ? activity.Duration
             : TimeSpan.FromMilliseconds(0.1);
+    }
+
+    private static string FormatTagValue(object? value)
+    {
+        return value switch
+        {
+            null => "<null>",
+            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+            _ => value.ToString() ?? "<null>"
+        };
     }
 
     private static char SelectLeftBlock(double fraction)

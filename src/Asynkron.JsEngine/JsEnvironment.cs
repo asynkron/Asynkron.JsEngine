@@ -1,4 +1,3 @@
-using System.IO;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
@@ -128,24 +127,32 @@ public sealed class JsEnvironment
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
         var scope = GetFunctionScope();
         var isGlobalScope = scope.Enclosing is null;
+        var wasTrackedAnnexBFunction = scope._annexBFunctionNames?.Contains(name) == true;
         JsObject? globalThis = null;
         PropertyDescriptor? existingDescriptor = null;
         object? existingGlobalValue = null;
-        if (isGlobalScope && scope._values.TryGetValue(Symbol.This, out var thisBinding) &&
-            thisBinding.Value is JsObject globalObject)
+        var hasLooseGlobalValue = false;
+        if (isGlobalScope)
         {
-            globalThis = globalObject;
-            existingDescriptor = globalObject.GetOwnPropertyDescriptor(name.Name);
-            if (existingDescriptor is not null)
+            globalThis = scope.GetRootGlobalObject();
+            if (globalThis is not null)
             {
-                globalObject.TryGetProperty(name.Name, out existingGlobalValue);
+                existingDescriptor = globalThis.GetOwnPropertyDescriptor(name.Name);
+                if (existingDescriptor is not null)
+                {
+                    globalThis.TryGetProperty(name.Name, out existingGlobalValue);
+                }
+                else if (globalThis.TryGetProperty(name.Name, out var looseValue))
+                {
+                    existingGlobalValue = looseValue;
+                    hasLooseGlobalValue = true;
+                }
             }
-            if (name.Name == "legacyFn")
-            {
-                var logLine =
-                    $"phase={(allowExistingGlobalFunctionRedeclaration ? "runtime" : "hoist")}, hasDescriptor={(existingDescriptor is not null)}, valueIsUndefined={ReferenceEquals(value, Symbol.Undefined)}{Environment.NewLine}";
-                File.AppendAllText("legacy.log", logLine);
-            }
+        }
+        if (name.Name == "legacyFn")
+        {
+            System.Console.WriteLine(
+                $"legacyFn entry: hasInitializer={hasInitializer}, isGlobal={isGlobalScope}, allowRedecl={allowExistingGlobalFunctionRedeclaration}, tracked={wasTrackedAnnexBFunction}, hasDescriptor={existingDescriptor is not null}, loose={hasLooseGlobalValue}");
         }
 
         if (isGlobalScope &&
@@ -209,7 +216,7 @@ public sealed class JsEnvironment
         var initialValue = value;
         var shouldWriteGlobal = true;
 
-        if (isGlobalScope && existingDescriptor is not null && !hasInitializer)
+        if (isGlobalScope && !hasInitializer && (existingDescriptor is not null || hasLooseGlobalValue))
         {
             initialValue = existingGlobalValue;
             shouldWriteGlobal = false;
@@ -221,7 +228,15 @@ public sealed class JsEnvironment
         {
             if (isFunctionDeclaration)
             {
-                if (existingDescriptor is not null && allowExistingGlobalFunctionRedeclaration)
+                var canUpdateExisting =
+                    allowExistingGlobalFunctionRedeclaration &&
+                    (existingDescriptor is not null || wasTrackedAnnexBFunction || hasLooseGlobalValue);
+                if (name.Name == "legacyFn")
+                {
+                    System.Console.WriteLine(
+                        $"legacyFn call: hasInitializer={hasInitializer}, allowRedecl={allowExistingGlobalFunctionRedeclaration}, tracked={wasTrackedAnnexBFunction}, hasDescriptor={existingDescriptor is not null}, loose={hasLooseGlobalValue}, canUpdate={canUpdateExisting}");
+                }
+                if (canUpdateExisting)
                 {
                     globalThis.SetProperty(name.Name, initialValue);
                 }

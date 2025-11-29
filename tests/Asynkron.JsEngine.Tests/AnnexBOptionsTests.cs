@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -314,8 +315,21 @@ legacyFn();
 """;
 
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate(Script);
-        Assert.Equal("updated", result);
+        using var root = new Activity("AnnexB.Block.GlobalRedeclare");
+        root.Start();
+        using var recorder = EvaluatorActivityRecorder.Attach(root);
+
+        try
+        {
+            var result = await engine.Evaluate(Script);
+            Assert.Equal("updated", result);
+        }
+        finally
+        {
+            root.Stop();
+        }
+
+        AssertAnnexBFunctionActivities(recorder, ExecutionKind.Script);
     }
 
     [Fact]
@@ -334,8 +348,21 @@ legacyEvalFn();
 """;
 
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate(Script);
-        Assert.Equal("updated", result);
+        using var root = new Activity("AnnexB.Eval.GlobalRedeclare");
+        root.Start();
+        using var recorder = EvaluatorActivityRecorder.Attach(root);
+
+        try
+        {
+            var result = await engine.Evaluate(Script);
+            Assert.Equal("updated", result);
+        }
+        finally
+        {
+            root.Stop();
+        }
+
+        AssertAnnexBFunctionActivities(recorder, ExecutionKind.Script, ExecutionKind.Eval);
     }
 
     [Fact]
@@ -366,5 +393,54 @@ innerType + ":" + typeof withFn;
         await using var strictEngine = new JsEngine(new JsEngineOptions { EnableAnnexBFunctionExtensions = false });
         var strictResult = await strictEngine.Evaluate(Script);
         Assert.Equal("undefined:undefined", strictResult);
+    }
+
+    private static void AssertAnnexBFunctionActivities(EvaluatorActivityRecorder recorder,
+        params ExecutionKind[] expectedKinds)
+    {
+        ArgumentNullException.ThrowIfNull(recorder);
+        var activities = recorder.Activities;
+        var functionActivities = activities
+            .Where(activity => string.Equals(activity.DisplayName, "Statement:FunctionDeclaration",
+                StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.NotEmpty(functionActivities);
+
+        var expectedKindStrings = new HashSet<string>(
+            expectedKinds.Select(kind => kind.ToString()),
+            StringComparer.Ordinal);
+
+        Assert.Contains(functionActivities,
+            activity => HasTag(activity, "js.scope.mode", ScopeMode.SloppyAnnexB.ToString()));
+
+        if (expectedKindStrings.Count > 0)
+        {
+            Assert.Contains(functionActivities,
+                activity => activity.Tags.Any(tag =>
+                    tag.Key == "js.execution.kind" &&
+                    expectedKindStrings.Contains(tag.Value?.ToString() ?? string.Empty)));
+        }
+
+        Assert.All(functionActivities,
+            activity =>
+                Assert.Contains(activity.Tags, tag => tag.Key == "code.span"));
+
+        var blockScopes = activities
+            .Where(activity => string.Equals(activity.DisplayName, "Scope:Block", StringComparison.Ordinal))
+            .ToArray();
+        if (blockScopes.Length > 0)
+        {
+            Assert.Contains(blockScopes,
+                activity => HasTag(activity, "js.scope.mode", ScopeMode.SloppyAnnexB.ToString()));
+        }
+    }
+
+    private static bool HasTag(Activity activity, string key, string expectedValue)
+    {
+        ArgumentNullException.ThrowIfNull(activity);
+        return activity.Tags.Any(tag =>
+            tag.Key == key &&
+            string.Equals(tag.Value?.ToString(), expectedValue, StringComparison.Ordinal));
     }
 }

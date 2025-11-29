@@ -1,4 +1,3 @@
-using System.IO;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -953,11 +952,6 @@ public static partial class StandardLibrary
             var propName = JsOps.ToPropertyName(args[1]) ?? string.Empty;
             var descriptor = ToPropertyDescriptor(args[2], realm);
 
-            if (string.Equals(propName, "legacyFn", StringComparison.Ordinal))
-            {
-                File.AppendAllText("legacy.log",
-                    $"defineProperty targetHas={obj.GetOwnPropertyDescriptor(propName) is not null}, descriptorHasValue={descriptor.HasValue}, hasWritable={descriptor.HasWritable}, hasConfigurable={descriptor.HasConfigurable}{Environment.NewLine}");
-            }
             TryDefinePropertyOnTarget(obj, propName, descriptor, realm, true);
             return obj;
         }

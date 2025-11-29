@@ -139,14 +139,22 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                var forceConfigurableGlobal = functionScope.IsGlobalFunctionScope;
+                var allowConfigurableFunctions =
+                    context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
+                bool? globalFunctionConfigurable = functionScope.IsGlobalFunctionScope
+                    ? allowConfigurableFunctions
+                    : null;
                 functionScope.DefineFunctionScoped(
                     functionDeclaration.Name,
                     Symbol.Undefined,
                     false,
-                    context: context,
+                    true,
+                    globalFunctionConfigurable,
+                    context,
                     blocksFunctionScopeOverride: true,
-                    globalVarConfigurable: forceConfigurableGlobal ? true : null);
+                    globalVarConfigurable: null,
+                    allowExistingGlobalFunctionRedeclaration: true,
+                    isAnnexBFunction: true);
             }
         }
 

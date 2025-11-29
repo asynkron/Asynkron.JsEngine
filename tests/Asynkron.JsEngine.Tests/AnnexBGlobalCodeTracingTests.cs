@@ -286,11 +286,11 @@ JSON.stringify({
     public async Task LexicalDeclarationConflictsWithHoistedFunction()
     {
         await using var engine = new JsEngine();
-        await engine.Evaluate("if (true) { function test262Fn() {} }");
-
         using var root = new Activity("AnnexB.Global.LexCollision");
         root.Start();
         using var recorder = EvaluatorActivityRecorder.Attach(root);
+
+        await engine.Evaluate("if (true) { function test262Fn() {} }");
 
         var syntaxError = await Assert.ThrowsAsync<ThrowSignal>(() => engine.Evaluate("var x; let test262Fn;"));
         Assert.Equal("SyntaxError", ResolveErrorName(syntaxError.ThrownValue));

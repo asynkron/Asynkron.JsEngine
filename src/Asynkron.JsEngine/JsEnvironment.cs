@@ -1,3 +1,4 @@
+using System.IO;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
@@ -18,6 +19,7 @@ public sealed class JsEnvironment
     private Dictionary<Symbol, List<Action<object?>>>? _bindingObservers;
     private HashSet<Symbol>? _bodyLexicalNames;
     private HashSet<Symbol>? _simpleCatchParameters;
+    private HashSet<Symbol>? _annexBFunctionNames;
 
     public JsEnvironment(
         JsEnvironment? enclosing = null,
@@ -119,7 +121,9 @@ public sealed class JsEnvironment
         bool? globalFunctionConfigurable = null,
         EvaluationContext? context = null,
         bool blocksFunctionScopeOverride = false,
-        bool? globalVarConfigurable = null)
+        bool? globalVarConfigurable = null,
+        bool allowExistingGlobalFunctionRedeclaration = false,
+        bool isAnnexBFunction = false)
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
         var scope = GetFunctionScope();
@@ -136,9 +140,18 @@ public sealed class JsEnvironment
             {
                 globalObject.TryGetProperty(name.Name, out existingGlobalValue);
             }
+            if (name.Name == "legacyFn")
+            {
+                var logLine =
+                    $"phase={(allowExistingGlobalFunctionRedeclaration ? "runtime" : "hoist")}, hasDescriptor={(existingDescriptor is not null)}, valueIsUndefined={ReferenceEquals(value, Symbol.Undefined)}{Environment.NewLine}";
+                File.AppendAllText("legacy.log", logLine);
+            }
         }
 
-        if (isGlobalScope && isFunctionDeclaration && existingDescriptor is not null)
+        if (isGlobalScope &&
+            isFunctionDeclaration &&
+            existingDescriptor is not null &&
+            !allowExistingGlobalFunctionRedeclaration)
         {
             var canDeclare = existingDescriptor.Configurable ||
                              existingDescriptor is { IsDataDescriptor: true, Writable: true, Enumerable: true };
@@ -153,6 +166,7 @@ public sealed class JsEnvironment
         {
             if (existing.IsConst || existing.IsGlobalConstant)
             {
+                TrackAnnexBBinding();
                 return;
             }
 
@@ -184,6 +198,7 @@ public sealed class JsEnvironment
                 }
             }
 
+            TrackAnnexBBinding();
             return;
         }
 
@@ -201,16 +216,24 @@ public sealed class JsEnvironment
         }
 
         scope._values[name] = new Binding(initialValue, false, false, false, blocksFunctionScopeOverride);
+        TrackAnnexBBinding();
         if (isGlobalScope && globalThis is not null && shouldWriteGlobal)
         {
             if (isFunctionDeclaration)
             {
-                var configurable = globalFunctionConfigurable ?? allowConfigurableGlobalBinding;
-                globalThis.DefineProperty(name.Name,
-                    new PropertyDescriptor
-                    {
-                        Value = initialValue, Writable = true, Enumerable = true, Configurable = configurable
-                    });
+                if (existingDescriptor is not null && allowExistingGlobalFunctionRedeclaration)
+                {
+                    globalThis.SetProperty(name.Name, initialValue);
+                }
+                else
+                {
+                    var configurable = globalFunctionConfigurable ?? allowConfigurableGlobalBinding;
+                    globalThis.DefineProperty(name.Name,
+                        new PropertyDescriptor
+                        {
+                            Value = initialValue, Writable = true, Enumerable = true, Configurable = configurable
+                        });
+                }
             }
             else
             {
@@ -230,6 +253,25 @@ public sealed class JsEnvironment
                 {
                     globalThis.SetProperty(name.Name, initialValue);
                 }
+            }
+        }
+
+        void TrackAnnexBBinding()
+        {
+            if (!isGlobalScope)
+            {
+                return;
+            }
+
+            if (isAnnexBFunction)
+            {
+                scope._annexBFunctionNames ??=
+                    new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+                scope._annexBFunctionNames.Add(name);
+            }
+            else
+            {
+                scope._annexBFunctionNames?.Remove(name);
             }
         }
     }
@@ -471,7 +513,12 @@ public sealed class JsEnvironment
         }
 
         var descriptor = globalObject.GetOwnPropertyDescriptor(name.Name);
-        return descriptor is not null && !descriptor.Configurable;
+        if (descriptor is not null && !descriptor.Configurable)
+        {
+            return true;
+        }
+
+        return scope._annexBFunctionNames is not null && scope._annexBFunctionNames.Contains(name);
     }
 
     internal bool HasLexicalBindingBeforeFunctionScope(Symbol name)

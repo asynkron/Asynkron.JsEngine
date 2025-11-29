@@ -47,16 +47,17 @@ public static partial class TypedAstEvaluator
             }
 
             var configurable = context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
-            bool? globalVarConfigurable = isAnnexBBlockFunction ? true : null;
-            bool? globalFunctionConfigurable = isAnnexBBlockFunction ? null : configurable;
+            bool? globalFunctionConfigurable = configurable;
             environment.DefineFunctionScoped(
                 declaration.Name,
                 function,
                 true,
-                !isAnnexBBlockFunction,
+                true,
                 globalFunctionConfigurable,
                 context,
-                globalVarConfigurable: globalVarConfigurable);
+                globalVarConfigurable: null,
+                allowExistingGlobalFunctionRedeclaration: isAnnexBBlockFunction,
+                isAnnexBFunction: isAnnexBBlockFunction);
 
             return EmptyCompletion;
         }

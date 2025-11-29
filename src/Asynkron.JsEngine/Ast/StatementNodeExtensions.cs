@@ -11,6 +11,8 @@ public static partial class TypedAstEvaluator
         {
             context.SourceReference = statement.Source;
             context.ThrowIfCancellationRequested();
+            using var statementActivity =
+                StartEvaluatorActivity($"Statement:{statement.GetType().Name}", context, statement.Source);
 
             return statement switch
             {

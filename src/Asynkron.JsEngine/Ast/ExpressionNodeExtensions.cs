@@ -48,6 +48,8 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             context.SourceReference = expression.Source;
+            using var expressionActivity =
+                StartEvaluatorActivity($"Expression:{expression.GetType().Name}", context, expression.Source);
 
             return expression switch
             {

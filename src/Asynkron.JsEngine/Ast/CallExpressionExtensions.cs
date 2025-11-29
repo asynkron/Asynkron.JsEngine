@@ -11,6 +11,11 @@ public static partial class TypedAstEvaluator
     {
         private object? EvaluateCall(JsEnvironment environment, EvaluationContext context)
         {
+            using var callActivity = StartEvaluatorActivity("CallExpression", context, expression.Source);
+            callActivity?.SetTag("js.call.arguments", expression.Arguments.Length);
+            callActivity?.SetTag("js.call.optional", expression.IsOptional);
+            callActivity?.SetTag("js.call.calleeType", expression.Callee.GetType().Name);
+
             var (callee, thisValue, skippedOptional) = EvaluateCallTarget(expression.Callee, environment, context);
             if (context.ShouldStopEvaluation || skippedOptional)
             {

@@ -25,6 +25,9 @@ public static partial class TypedAstEvaluator
                 ScopeKind.Block,
                 mode,
                 skipAnnexBFunctionInstantiation);
+            using var blockActivity = StartEvaluatorActivity("Scope:Block", context, block.Source);
+            blockActivity?.SetTag("js.block.strict", block.IsStrict);
+            blockActivity?.SetTag("js.block.statementCount", block.Statements.Length);
 
             var currentFrame = context.CurrentScope;
             if (currentFrame is { AllowAnnexB: true, SkipAnnexBInstantiation: false })

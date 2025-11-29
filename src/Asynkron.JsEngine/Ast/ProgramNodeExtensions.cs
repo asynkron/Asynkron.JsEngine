@@ -24,6 +24,8 @@ public static partial class TypedAstEvaluator
                 false);
             context.SourceReference = program.Source;
             context.IsStrictSource = program.IsStrict;
+            using var programActivity = StartEvaluatorActivity("Program", context, program.Source);
+            programActivity?.SetTag("js.program.strict", program.IsStrict);
             var executionEnvironment = program.IsStrict && createStrictEnvironment
                 ? new JsEnvironment(environment, true, true)
                 : environment;

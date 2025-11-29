@@ -438,17 +438,10 @@ public static partial class StandardLibrary
                         throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
                     }
 
-                    var lastIndexDescriptor = target.GetOwnPropertyDescriptor("lastIndex");
-
                     var reinitialized = new JsRegExp(pattern, flags, realm, target);
                     target.SetProperty("__regex__", reinitialized);
 
-                    if (lastIndexDescriptor is { IsAccessorDescriptor: false, Writable: false })
-                    {
-                        throw ThrowTypeError("Cannot assign to read only property 'lastIndex'", realm: realm);
-                    }
-
-                    target.SetProperty("lastIndex", 0d);
+                    ResetLastIndex(realm, target);
                 }
                 catch (ThrowSignal)
                 {
@@ -462,6 +455,31 @@ public static partial class StandardLibrary
                 return target;
             });
             DefineBuiltinFunction(prototype, "compile", compileFn, 2);
+        }
+
+        private static void ResetLastIndex(RealmState realm, JsObject target)
+        {
+            // RegExpInitialize performs OrdinaryDefineOwnProperty on lastIndex, so
+            // observable setters and read-only descriptors must be honoured here too.
+            var descriptor = target.GetOwnPropertyDescriptor("lastIndex");
+            if (descriptor is not null)
+            {
+                if (descriptor.IsAccessorDescriptor)
+                {
+                    descriptor.Set?.Invoke([0d], target);
+                    return;
+                }
+
+                if (!descriptor.Writable)
+                {
+                    throw ThrowTypeError("Cannot assign to read only property 'lastIndex'", realm: realm);
+                }
+
+                target["lastIndex"] = 0d;
+                return;
+            }
+
+            target.SetProperty("lastIndex", 0d);
         }
 
         private void DefineRegExpAccessors(RealmState realm)

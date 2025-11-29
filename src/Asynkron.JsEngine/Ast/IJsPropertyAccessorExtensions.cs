@@ -1,16 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Globalization;
-using System.Numerics;
-using System.Text;
-using Asynkron.JsEngine.Converters;
-using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
-using Asynkron.JsEngine.StdLib;
-using JetBrains.Annotations;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -68,6 +57,31 @@ extension(IJsPropertyAccessor accessor)
             {
                 yield return key;
             }
+        }
+    }
+
+extension(IJsPropertyAccessor constructor)
+    {
+        private JsObject EnsurePrototype(RealmState realm)
+        {
+            if (constructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue is JsObject prototype)
+            {
+                if (prototype.Prototype is null && realm.ObjectPrototype is not null)
+                {
+                    prototype.SetPrototype(realm.ObjectPrototype);
+                }
+
+                return prototype;
+            }
+
+            var created = new JsObject();
+            if (realm.ObjectPrototype is not null)
+            {
+                created.SetPrototype(realm.ObjectPrototype);
+            }
+
+            constructor.SetProperty("prototype", created);
+            return created;
         }
     }
 

@@ -1,5 +1,3 @@
-using Asynkron.JsEngine.Runtime;
-
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator

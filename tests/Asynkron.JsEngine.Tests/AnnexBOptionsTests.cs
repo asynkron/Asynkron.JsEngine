@@ -236,6 +236,48 @@ typeof nestedEvalFn;
     }
 
     [Fact]
+    public async Task AnnexBBlockFunctionRedeclaresNonConfigGlobal()
+    {
+        const string Script = """
+Object.defineProperty(this, "legacyFn", {
+    value: function () { return "legacy"; },
+    writable: true,
+    configurable: false
+});
+
+if (true) {
+    function legacyFn() { return "updated"; }
+}
+
+legacyFn();
+""";
+
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(Script);
+        Assert.Equal("updated", result);
+    }
+
+    [Fact]
+    public async Task AnnexBEvalRedeclaresNonConfigGlobal()
+    {
+        const string Script = """
+Object.defineProperty(this, "legacyEvalFn", {
+    value: function () { return "legacy"; },
+    writable: true,
+    configurable: false
+});
+
+eval("if (true) { function legacyEvalFn() { return 'updated'; } }");
+
+legacyEvalFn();
+""";
+
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(Script);
+        Assert.Equal("updated", result);
+    }
+
+    [Fact]
     public async Task WithStatementBlocksAnnexBLeakWhenDisabled()
     {
         const string Script = """

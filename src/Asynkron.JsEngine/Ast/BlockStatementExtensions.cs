@@ -1,10 +1,3 @@
-using System;
-using System.Collections.Generic;
-using Asynkron.JsEngine.Execution;
-using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Runtime;
-using Asynkron.JsEngine.StdLib;
-
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -132,23 +125,23 @@ public static partial class TypedAstEvaluator
                 }
 
                 var hasFunctionBinding = functionScope.HasFunctionScopedBinding(functionDeclaration.Name);
-                if (!bindingExists || hasFunctionBinding)
+                if (bindingExists && !hasFunctionBinding)
                 {
-                    functionScope.DefineFunctionScoped(
-                        functionDeclaration.Name,
-                        Symbol.Undefined,
-                        hasInitializer: false,
-                        isFunctionDeclaration: true,
-                        globalFunctionConfigurable: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
-                        context,
-                        blocksFunctionScopeOverride: true);
+                    continue;
                 }
+
+                var forceConfigurableGlobal = functionScope.IsGlobalFunctionScope;
+                functionScope.DefineFunctionScoped(
+                    functionDeclaration.Name,
+                    Symbol.Undefined,
+                    hasInitializer: false,
+                    isFunctionDeclaration: false,
+                    context: context,
+                    blocksFunctionScopeOverride: true,
+                    globalVarConfigurable: forceConfigurableGlobal ? true : null);
             }
         }
-    }
 
-extension(BlockStatement block)
-    {
         private void HoistVarDeclarations(JsEnvironment environment,
             EvaluationContext context,
             bool hoistFunctionValues = true,
@@ -202,10 +195,7 @@ extension(BlockStatement block)
                 HoistPass.Vars,
                 inBlockScope);
         }
-    }
 
-extension(BlockStatement block)
-    {
         private void HoistVarDeclarationsPass(JsEnvironment environment,
             EvaluationContext context,
             bool hoistFunctionValues,
@@ -223,70 +213,49 @@ extension(BlockStatement block)
                     inBlockScope);
             }
         }
-    }
 
-extension(BlockStatement block)
-    {
         private HashSet<Symbol> MergeLexicalNames(HashSet<Symbol> lexicalNames)
         {
             var merged = new HashSet<Symbol>(lexicalNames);
             merged.UnionWith(CollectLexicalNames(block));
             return merged;
         }
-    }
 
-extension(BlockStatement block)
-    {
         private HashSet<Symbol> MergeCatchNames(HashSet<Symbol> catchParameterNames)
         {
             var merged = new HashSet<Symbol>(catchParameterNames);
             merged.UnionWith(CollectCatchParameterNames(block));
             return merged;
         }
-    }
 
-extension(BlockStatement block)
-    {
         private HashSet<Symbol> MergeSimpleCatchNames(HashSet<Symbol> simpleCatchParameterNames)
         {
             var merged = new HashSet<Symbol>(simpleCatchParameterNames);
             merged.UnionWith(CollectSimpleCatchParameterNames(block));
             return merged;
         }
-    }
 
-extension(BlockStatement block)
-    {
         private HashSet<Symbol> CollectLexicalNames()
         {
             var names = new HashSet<Symbol>();
             CollectLexicalNamesFromStatement(block, names);
             return names;
         }
-    }
 
-extension(BlockStatement block)
-    {
         private HashSet<Symbol> CollectCatchParameterNames()
         {
             var names = new HashSet<Symbol>();
             CollectCatchNamesFromStatement(block, names);
             return names;
         }
-    }
 
-extension(BlockStatement block)
-    {
         private HashSet<Symbol> CollectSimpleCatchParameterNames()
         {
             var names = new HashSet<Symbol>();
             CollectSimpleCatchNamesFromStatement(block, names);
             return names;
         }
-    }
 
-extension(BlockStatement block)
-    {
         private bool HasHoistableDeclarations()
         {
             var stack = new Stack<StatementNode>();

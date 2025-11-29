@@ -1,23 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Globalization;
-using System.Numerics;
-using System.Text;
-using Asynkron.JsEngine.Converters;
-using Asynkron.JsEngine.Execution;
-using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Parser;
-using Asynkron.JsEngine.Runtime;
-using Asynkron.JsEngine.StdLib;
-using JetBrains.Annotations;
-
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(BindingTarget target)
+    extension(BindingTarget target)
     {
         private void AssignLoopBinding(object? value, JsEnvironment loopEnvironment,
             JsEnvironment outerEnvironment, EvaluationContext context, VariableKind? declarationKind)
@@ -43,18 +28,12 @@ extension(BindingTarget target)
                     throw new ArgumentOutOfRangeException();
             }
         }
-    }
 
-extension(BindingTarget target)
-    {
         private void CollectSymbolsFromBinding(HashSet<Symbol> names)
         {
             WalkBindingTargets(target, id => names.Add(id.Name));
         }
-    }
 
-extension(BindingTarget target)
-    {
         private void HoistFromBindingTarget(JsEnvironment environment,
             EvaluationContext context,
             HashSet<Symbol>? lexicalNames = null)
@@ -62,7 +41,8 @@ extension(BindingTarget target)
             WalkBindingTargets(target,
                 identifier =>
                 {
-                    if (!context.CurrentScope.IsStrict && lexicalNames is not null && lexicalNames.Contains(identifier.Name))
+                    if (!context.CurrentScope.IsStrict && lexicalNames is not null &&
+                        lexicalNames.Contains(identifier.Name))
                     {
                         return;
                     }
@@ -70,10 +50,7 @@ extension(BindingTarget target)
                     environment.DefineFunctionScoped(identifier.Name, Symbol.Undefined, false, context: context);
                 });
         }
-    }
 
-extension(BindingTarget target)
-    {
         private void WalkBindingTargets(Action<IdentifierBinding> onIdentifier)
         {
             while (true)
@@ -121,38 +98,26 @@ extension(BindingTarget target)
                 }
             }
         }
-    }
 
-extension(BindingTarget target)
-    {
         private void AssignBindingTarget(object? value, JsEnvironment environment,
             EvaluationContext context)
         {
             ApplyBindingTarget(target, value, environment, context, BindingMode.Assign);
         }
-    }
 
-extension(BindingTarget target)
-    {
         private void DefineBindingTarget(object? value, JsEnvironment environment,
             EvaluationContext context, bool isConst)
         {
             ApplyBindingTarget(target, value, environment, context,
                 isConst ? BindingMode.DefineConst : BindingMode.DefineLet);
         }
-    }
 
-extension(BindingTarget target)
-    {
         private void DefineOrAssignVar(object? value, JsEnvironment environment,
             EvaluationContext context)
         {
             ApplyBindingTarget(target, value, environment, context, BindingMode.DefineVar);
         }
-    }
 
-extension(BindingTarget target)
-    {
         private void ApplyBindingTarget(object? value,
             JsEnvironment environment,
             EvaluationContext context,
@@ -163,7 +128,8 @@ extension(BindingTarget target)
             switch (target)
             {
                 case IdentifierBinding identifier:
-                    ApplyIdentifierBinding(identifier, value, environment, context, mode, hasInitializer, allowNameInference);
+                    ApplyIdentifierBinding(identifier, value, environment, context, mode, hasInitializer,
+                        allowNameInference);
                     break;
                 case ArrayBinding arrayBinding:
                     BindArrayPattern(arrayBinding, value, environment, context, mode);
@@ -191,5 +157,4 @@ extension(BindingTarget target)
             }
         }
     }
-
 }

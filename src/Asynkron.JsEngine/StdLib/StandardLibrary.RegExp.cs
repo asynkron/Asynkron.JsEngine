@@ -13,8 +13,7 @@ public static partial class StandardLibrary
         var prototype = new JsObject();
         realm.RegExpPrototype = prototype;
 
-        HostFunction constructor = null!;
-        constructor = new HostFunction((thisValue, args) =>
+        var constructor = new HostFunction((thisValue, args) =>
         {
             JsObject? target = null;
             if (thisValue is JsObject candidate && IsRegExpLikeInstance(candidate, realm))
@@ -116,11 +115,13 @@ public static partial class StandardLibrary
                     splitter.SetProperty("lastIndex", (double)position);
                 }
 
-                if (position > input.Length)
+                if (position <= input.Length)
                 {
-                    position = input.Length;
-                    break;
+                    continue;
                 }
+
+                position = input.Length;
+                break;
             }
 
             if (resultArray.Length < limit)
@@ -255,124 +256,169 @@ public static partial class StandardLibrary
         }
     }
 
-    /// <summary>
-    ///     Adds RegExp prototype methods.
-    /// </summary>
-    private static void AddRegExpPrototypeMethods(JsObject prototype, RealmState realm)
+    extension(JsObject prototype)
     {
-        // test(string) - returns boolean
-        prototype.SetHostedProperty("test", RegExpTest);
-
-        // exec(string) - returns array with match details or null
-        prototype.SetHostedProperty("exec", RegExpExec);
-
-        // toString() - returns `/pattern/flags`
-        prototype.SetHostedProperty("toString", RegExpToString);
-
-        // RegExp.prototype.compile (Annex B)
-        var compileFn = new HostFunction((thisValue, args) =>
+        /// <summary>
+        ///     Adds RegExp prototype methods.
+        /// </summary>
+        private void AddRegExpPrototypeMethods(RealmState realm)
         {
-            if (thisValue is not JsObject target ||
-                !ReferenceEquals(target.Prototype, realm.RegExpPrototype) ||
-                target.TryGetValue("__regex__", out var existingInner) != true ||
-                existingInner is not JsRegExp existingRegExp ||
-                !ReferenceEquals(existingRegExp.RealmState, realm) ||
-                !ReferenceEquals(existingRegExp.JsObject, target))
-            {
-                throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
-            }
+            // test(string) - returns boolean
+            prototype.SetHostedProperty("test", RegExpTest);
 
-            var patternArg = args.Count > 0 ? args[0] : Symbol.Undefined;
-            var flagsArg = args.Count > 1 ? args[1] : Symbol.Undefined;
-            string pattern;
-            string flags;
+            // exec(string) - returns array with match details or null
+            prototype.SetHostedProperty("exec", RegExpExec);
 
-            if (patternArg is TypedAstSymbol || (!ReferenceEquals(flagsArg, Symbol.Undefined) && flagsArg is TypedAstSymbol))
-            {
-                throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: realm);
-            }
+            // toString() - returns `/pattern/flags`
+            prototype.SetHostedProperty("toString", RegExpToString);
 
-            JsRegExp? providedRegExp = null;
-            if (patternArg is JsObject patternObj &&
-                patternObj.TryGetValue("__regex__", out var innerVal) &&
-                innerVal is JsRegExp regExpFromSlot &&
-                ReferenceEquals(regExpFromSlot.JsObject, patternObj))
+            // RegExp.prototype.compile (Annex B)
+            var compileFn = new HostFunction((thisValue, args) =>
             {
-                providedRegExp = regExpFromSlot;
-            }
-            else
-            {
-                providedRegExp = ResolveRegExpInstance(patternArg);
-            }
-
-            // Debug instrumentation to understand compile coercions.
-            if (providedRegExp is JsRegExp otherRegExp)
-            {
-                if (!ReferenceEquals(flagsArg, Symbol.Undefined))
+                if (thisValue is not JsObject target ||
+                    !ReferenceEquals(target.Prototype, realm.RegExpPrototype) ||
+                    !target.TryGetValue("__regex__", out var existingInner) ||
+                    existingInner is not JsRegExp existingRegExp ||
+                    !ReferenceEquals(existingRegExp.RealmState, realm) ||
+                    !ReferenceEquals(existingRegExp.JsObject, target))
                 {
                     throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
                 }
 
-                pattern = otherRegExp.Pattern;
-                flags = otherRegExp.Flags;
-            }
-            else
-            {
-                pattern = ReferenceEquals(patternArg, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(patternArg);
-                flags = ReferenceEquals(flagsArg, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(flagsArg);
-            }
+                var patternArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+                var flagsArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+                string pattern;
+                string flags;
 
-            // Reinitialize the existing RegExp instance per RegExpInitialize(O, P, F)
-            try
-            {
-                ValidateGroupNames(pattern);
-
-                if (!target.TryGetProperty("constructor", out var ctor) ||
-                    !ReferenceEquals(ctor, realm.RegExpConstructor))
+                if (patternArg is TypedAstSymbol || (!ReferenceEquals(flagsArg, Symbol.Undefined) && flagsArg is TypedAstSymbol))
                 {
-                    throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
+                    throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: realm);
                 }
 
-                var lastIndexDescriptor = target.GetOwnPropertyDescriptor("lastIndex");
-
-                var reinitialized = new JsRegExp(pattern, flags, realm, target);
-                target.SetProperty("__regex__", reinitialized);
-
-                if (lastIndexDescriptor is { IsAccessorDescriptor: false, Writable: false })
+                JsRegExp? providedRegExp = null;
+                if (patternArg is JsObject patternObj &&
+                    patternObj.TryGetValue("__regex__", out var innerVal) &&
+                    innerVal is JsRegExp regExpFromSlot &&
+                    ReferenceEquals(regExpFromSlot.JsObject, patternObj))
                 {
-                    throw ThrowTypeError("Cannot assign to read only property 'lastIndex'", realm: realm);
+                    providedRegExp = regExpFromSlot;
+                }
+                else
+                {
+                    providedRegExp = ResolveRegExpInstance(patternArg);
                 }
 
-                target.SetProperty("lastIndex", 0d);
-            }
-            catch (ThrowSignal)
+                // Debug instrumentation to understand compile coercions.
+                if (providedRegExp is { } otherRegExp)
+                {
+                    if (!ReferenceEquals(flagsArg, Symbol.Undefined))
+                    {
+                        throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
+                    }
+
+                    pattern = otherRegExp.Pattern;
+                    flags = otherRegExp.Flags;
+                }
+                else
+                {
+                    pattern = ReferenceEquals(patternArg, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(patternArg);
+                    flags = ReferenceEquals(flagsArg, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(flagsArg);
+                }
+
+                // Reinitialize the existing RegExp instance per RegExpInitialize(O, P, F)
+                try
+                {
+                    ValidateGroupNames(pattern);
+
+                    if (!target.TryGetProperty("constructor", out var ctor) ||
+                        !ReferenceEquals(ctor, realm.RegExpConstructor))
+                    {
+                        throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
+                    }
+
+                    var lastIndexDescriptor = target.GetOwnPropertyDescriptor("lastIndex");
+
+                    var reinitialized = new JsRegExp(pattern, flags, realm, target);
+                    target.SetProperty("__regex__", reinitialized);
+
+                    if (lastIndexDescriptor is { IsAccessorDescriptor: false, Writable: false })
+                    {
+                        throw ThrowTypeError("Cannot assign to read only property 'lastIndex'", realm: realm);
+                    }
+
+                    target.SetProperty("lastIndex", 0d);
+                }
+                catch (ThrowSignal)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    throw new ThrowSignal(CreateSyntaxError(ex.Message, realm));
+                }
+                return target;
+            });
+            DefineBuiltinFunction(prototype, "compile", compileFn, 2, isConstructor: false);
+        }
+
+        private void DefineRegExpAccessors(RealmState realm)
+        {
+            static string GetSortedFlags(JsRegExp r)
             {
-                throw;
+                Span<char> buffer = stackalloc char[6];
+                var length = 0;
+                if (r.Global) buffer[length++] = 'g';
+                if (r.IgnoreCase) buffer[length++] = 'i';
+                if (r.Multiline) buffer[length++] = 'm';
+                if (r.DotAll) buffer[length++] = 's';
+                if (r.Unicode) buffer[length++] = 'u';
+                if (r.Sticky) buffer[length++] = 'y';
+                return new string(buffer[..length]);
             }
-            catch (Exception ex)
+
+            PropertyDescriptor MakeGetter(Func<JsRegExp, object?> getter)
             {
-                throw new ThrowSignal(CreateSyntaxError(ex.Message, realm));
+                return new PropertyDescriptor
+                {
+                    Get = new HostFunction((thisValue, _) =>
+                        {
+                            var resolved = ResolveRegExpInstance(thisValue);
+                            if (resolved is null)
+                            {
+                                throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
+                            }
+
+                            return getter(resolved);
+                        })
+                        { IsConstructor = false },
+                    Enumerable = false,
+                    Configurable = true
+                };
             }
-            return target;
-        });
-        DefineBuiltinFunction(prototype, "compile", compileFn, 2, isConstructor: false);
+
+            prototype.DefineProperty("flags", MakeGetter(GetSortedFlags));
+            prototype.DefineProperty("source", MakeGetter(r => string.IsNullOrEmpty(r.Pattern) ? "(?:)" : r.Pattern));
+            prototype.DefineProperty("global", MakeGetter(r => r.Global));
+            prototype.DefineProperty("ignoreCase", MakeGetter(r => r.IgnoreCase));
+            prototype.DefineProperty("multiline", MakeGetter(r => r.Multiline));
+        }
     }
 
     private static object CreateSyntaxError(string message, RealmState? realm)
     {
-        if (realm?.SyntaxErrorConstructor is { } ctor)
+        if (realm?.SyntaxErrorConstructor is not { } ctor)
         {
-            try
-            {
-                return ctor.Invoke([message], Symbol.Undefined);
-            }
-            catch (ThrowSignal signal)
-            {
-                return signal.ThrownValue ?? message;
-            }
+            return message;
         }
 
-        return message;
+        try
+        {
+            return ctor.Invoke([message], Symbol.Undefined);
+        }
+        catch (ThrowSignal signal)
+        {
+            return signal.ThrownValue ?? message;
+        }
     }
 
     private static object? RegExpTest(object? thisValue, IReadOnlyList<object?> args)
@@ -426,178 +472,129 @@ public static partial class StandardLibrary
         return null;
     }
 
-    private static object RegExpToString(object? thisValue, IReadOnlyList<object?> args)
+    private static string RegExpToString(object? thisValue, IReadOnlyList<object?> args)
     {
         var resolved = ResolveRegExpInstance(thisValue);
-        if (resolved is null)
-        {
-            return "/undefined/";
-        }
-
-        return $"/{resolved.Pattern}/{resolved.Flags}";
+        return resolved is null ? "/undefined/" : $"/{resolved.Pattern}/{resolved.Flags}";
     }
 
-    internal static void UpdateRegExpStatics(RealmState? realm, string input, System.Text.RegularExpressions.Match match)
+    extension(RealmState? realm)
     {
-        if (realm is null)
+        internal void UpdateRegExpStatics(string input, System.Text.RegularExpressions.Match match)
         {
-            return;
-        }
-
-        var statics = realm.RegExpStatics;
-        statics.Input = input ?? string.Empty;
-        statics.LastMatch = match.Value;
-        statics.LeftContext = input[..match.Index];
-        statics.RightContext = input[(match.Index + match.Length)..];
-
-        statics.LastParen = string.Empty;
-        Array.Clear(statics.Captures, 0, statics.Captures.Length);
-
-        for (var i = 1; i < match.Groups.Count && i <= 9; i++)
-        {
-            var group = match.Groups[i];
-            var value = group.Success ? group.Value : string.Empty;
-            statics.Captures[i - 1] = value;
-            if (group.Success && group.Index + group.Length == match.Index + match.Length)
+            if (realm is null)
             {
-                statics.LastParen = value;
-            }
-        }
-    }
-
-    private static void DefineLegacyRegExpAccessors(HostFunction constructor, JsObject prototype, RealmState realm)
-    {
-        RegExpStatics EnsureRegExpReceiver(object? thisValue)
-        {
-            if (!ReferenceEquals(thisValue, realm.RegExpConstructor))
-            {
-                throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
+                return;
             }
 
-            return realm.RegExpStatics;
-        }
+            var statics = realm.RegExpStatics;
+            statics.Input = input ?? string.Empty;
+            statics.LastMatch = match.Value;
+            statics.LeftContext = input[..match.Index];
+            statics.RightContext = input[(match.Index + match.Length)..];
 
-        PropertyDescriptor MakeAccessor(Func<RegExpStatics, object?> getter)
-        {
-            return new PropertyDescriptor
+            statics.LastParen = string.Empty;
+            Array.Clear(statics.Captures, 0, statics.Captures.Length);
+
+            for (var i = 1; i < match.Groups.Count && i <= 9; i++)
             {
-                Get = new HostFunction((thisValue, _) =>
+                var group = match.Groups[i];
+                var value = group.Success ? group.Value : string.Empty;
+                statics.Captures[i - 1] = value;
+                if (group.Success && group.Index + group.Length == match.Index + match.Length)
                 {
-                    var statics = EnsureRegExpReceiver(thisValue);
-                    return getter(statics);
-                })
-                { IsConstructor = false },
-                Set = null,
-                Enumerable = false,
-                Configurable = true
-            };
+                    statics.LastParen = value;
+                }
+            }
         }
+    }
 
-        object? GetCapture(RegExpStatics s, int index) => index < s.Captures.Length ? s.Captures[index] : string.Empty;
-
-        var inputDescriptor = new PropertyDescriptor
+    extension(HostFunction constructor)
+    {
+        private void DefineLegacyRegExpAccessors(JsObject prototype, RealmState realm)
         {
-            Get = new HostFunction((thisValue, _) =>
-            {
-                var statics = EnsureRegExpReceiver(thisValue);
-                return statics.Input;
-            })
-            { IsConstructor = false },
-            Set = new HostFunction((thisValue, args) =>
-            {
-                var statics = EnsureRegExpReceiver(thisValue);
-                var value = args.Count > 0 ? args[0] : Symbol.Undefined;
-                statics.Input = value?.ToString() ?? string.Empty;
-                return null;
-            })
-            { IsConstructor = false },
-            Enumerable = false,
-            Configurable = true
-        };
-
-        var lastMatchDescriptor = MakeAccessor(s => s.LastMatch);
-        var lastParenDescriptor = MakeAccessor(s => s.LastParen);
-        var leftDescriptor = MakeAccessor(s => s.LeftContext);
-        var rightDescriptor = MakeAccessor(s => s.RightContext);
-
-        constructor.DefineProperty("input", inputDescriptor);
-        constructor.DefineProperty("$_", inputDescriptor);
-        constructor.DefineProperty("lastMatch", lastMatchDescriptor);
-        constructor.DefineProperty("$&", lastMatchDescriptor);
-        constructor.DefineProperty("lastParen", lastParenDescriptor);
-        constructor.DefineProperty("$+", lastParenDescriptor);
-        constructor.DefineProperty("leftContext", leftDescriptor);
-        constructor.DefineProperty("$`", leftDescriptor);
-        constructor.DefineProperty("rightContext", rightDescriptor);
-        constructor.DefineProperty("$'", rightDescriptor);
-
-        for (var i = 1; i <= 9; i++)
-        {
-            var idx = i;
-            var captureDescriptor = MakeAccessor(s => GetCapture(s, idx - 1));
-            constructor.DefineProperty($"${idx}", captureDescriptor);
-        }
-
-        // RegExp.multiline legacy accessor aliases RegExp.prototype.flags? Treat as global statics flag.
-        var multilineDescriptor = new PropertyDescriptor
-        {
-            Get = new HostFunction((thisValue, _) =>
+            RegExpStatics EnsureRegExpReceiver(object? thisValue)
             {
                 if (!ReferenceEquals(thisValue, realm.RegExpConstructor))
                 {
                     throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
                 }
 
-                return false;
-            })
-            { IsConstructor = false },
-            Set = null,
-            Enumerable = false,
-            Configurable = true
-        };
-        constructor.DefineProperty("multiline", multilineDescriptor);
-    }
+                return realm.RegExpStatics;
+            }
 
-    private static void DefineRegExpAccessors(JsObject prototype, RealmState realm)
-    {
-        static string GetSortedFlags(JsRegExp r)
-        {
-            Span<char> buffer = stackalloc char[6];
-            var length = 0;
-            if (r.Global) buffer[length++] = 'g';
-            if (r.IgnoreCase) buffer[length++] = 'i';
-            if (r.Multiline) buffer[length++] = 'm';
-            if (r.DotAll) buffer[length++] = 's';
-            if (r.Unicode) buffer[length++] = 'u';
-            if (r.Sticky) buffer[length++] = 'y';
-            return new string(buffer[..length]);
-        }
+            PropertyDescriptor MakeAccessor(Func<RegExpStatics, object?> getter)
+            {
+                return new PropertyDescriptor
+                {
+                    Get = new HostFunction((thisValue, _) =>
+                        {
+                            var statics = EnsureRegExpReceiver(thisValue);
+                            return getter(statics);
+                        })
+                        { IsConstructor = false },
+                    Set = null,
+                    Enumerable = false,
+                    Configurable = true
+                };
+            }
 
-        PropertyDescriptor MakeGetter(Func<JsRegExp, object?> getter)
-        {
-            return new PropertyDescriptor
+            object? GetCapture(RegExpStatics s, int index) => index < s.Captures.Length ? s.Captures[index] : string.Empty;
+
+            var inputDescriptor = new PropertyDescriptor
             {
                 Get = new HostFunction((thisValue, _) =>
-                {
-                    var resolved = ResolveRegExpInstance(thisValue);
-                    if (resolved is null)
                     {
-                        throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
-                    }
-
-                    return getter(resolved);
-                })
-                { IsConstructor = false },
+                        var statics = EnsureRegExpReceiver(thisValue);
+                        return statics.Input;
+                    })
+                    { IsConstructor = false },
+                Set = new HostFunction((thisValue, args) =>
+                    {
+                        var statics = EnsureRegExpReceiver(thisValue);
+                        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+                        statics.Input = value?.ToString() ?? string.Empty;
+                        return null;
+                    })
+                    { IsConstructor = false },
                 Enumerable = false,
                 Configurable = true
             };
-        }
 
-        prototype.DefineProperty("flags", MakeGetter(GetSortedFlags));
-        prototype.DefineProperty("source", MakeGetter(r => string.IsNullOrEmpty(r.Pattern) ? "(?:)" : r.Pattern));
-        prototype.DefineProperty("global", MakeGetter(r => r.Global));
-        prototype.DefineProperty("ignoreCase", MakeGetter(r => r.IgnoreCase));
-        prototype.DefineProperty("multiline", MakeGetter(r => r.Multiline));
+            var lastMatchDescriptor = MakeAccessor(s => s.LastMatch);
+            var lastParenDescriptor = MakeAccessor(s => s.LastParen);
+            var leftDescriptor = MakeAccessor(s => s.LeftContext);
+            var rightDescriptor = MakeAccessor(s => s.RightContext);
+
+            constructor.DefineProperty("input", inputDescriptor);
+            constructor.DefineProperty("$_", inputDescriptor);
+            constructor.DefineProperty("lastMatch", lastMatchDescriptor);
+            constructor.DefineProperty("$&", lastMatchDescriptor);
+            constructor.DefineProperty("lastParen", lastParenDescriptor);
+            constructor.DefineProperty("$+", lastParenDescriptor);
+            constructor.DefineProperty("leftContext", leftDescriptor);
+            constructor.DefineProperty("$`", leftDescriptor);
+            constructor.DefineProperty("rightContext", rightDescriptor);
+            constructor.DefineProperty("$'", rightDescriptor);
+
+            for (var i = 1; i <= 9; i++)
+            {
+                var idx = i;
+                var captureDescriptor = MakeAccessor(s => GetCapture(s, idx - 1));
+                constructor.DefineProperty($"${idx}", captureDescriptor);
+            }
+
+            // RegExp.multiline legacy accessor aliases RegExp.prototype.flags? Treat as global statics flag.
+            var multilineDescriptor = new PropertyDescriptor
+            {
+                Get = new HostFunction((thisValue, _) => !ReferenceEquals(thisValue, realm.RegExpConstructor) ? throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm) : false)
+                    { IsConstructor = false },
+                Set = null,
+                Enumerable = false,
+                Configurable = true
+            };
+            constructor.DefineProperty("multiline", multilineDescriptor);
+        }
     }
 
     private static uint ToUint32(object? value)

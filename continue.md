@@ -71,14 +71,12 @@
 - Object-environment bindings now detect when `Symbol.unscopables` deletes a property during resolution and remember whether the assignment should stay on the original binding. Sloppy writes flow through to the original object (matching Annex B), strict writes throw a `ReferenceError`, and deletions that happen later fall back through the environment so the typed-array and proxy `SetMutableBinding` suites are green.
 - Identifier member access and call expressions now raise JavaScript `TypeError`s when targeting `null`/`undefined` receivers or non-callable values so `delete`-driven Sputnik tests can observe the abrupt completion they rely on instead of silently receiving `Symbol.Undefined`.
 - Strict-mode identifier resolution no longer rejects plain `eval`/`arguments` reads; `AssignmentReferenceResolver` now enforces that restriction only when a write is attempted, so Annex B strict-code paths can call `eval` without tripping the runtime guard (`StrictMode_CanAccessGlobalEval` / `StrictMode_DirectEvalInvokesSuccessfully` lock this down).
+- Annex B block-level functions now reuse the existing global/eval binding when redeclared: hoisting and runtime instantiation call through the var-binding path (configurable `CreateGlobalVarBinding`) so sloppy `$262.evalScript` snippets can replace non-configurable globals instead of throwing `TypeError: Cannot redeclare non-configurable global function`.
 
 ### Next Steps
-1. **Annex B Global/Eval Hoisting**
-   - Implement the `CreateGlobalVarBinding(F, true)` tweaks from B.3.3.3 so `$262.evalScript`/global code can redeclare legacy functions even when non-configurable globals already exist (current Annex B global + eval tests throw `TypeError: Cannot redefine property`).
-   - Ensure EvalDeclarationInstantiation mirrors the Annex B var binding rules for direct/indirect eval so `Language_evalCode_*` suites observe the expected blocking/updates instead of throwing.
-2. **RegExp Annex B Behaviour**
+1. **RegExp Annex B Behaviour**
    - Teach `RegExp.prototype.compile` to perform the `lastIndex` reset via ordinary `Set` semantics so immutable `lastIndex` descriptors trigger the user-observable `TypeError` from inside `compile` rather than at script instantiation time (`pattern-regexp-immutable-lastindex.js`).
-3. **Parser/Evaluator Follow-ups**
+2. **Parser/Evaluator Follow-ups**
    - Teach the parser about the `with (...) let` ExpressionStatement carve-out so Annex B’s `let`-as-identifier cases parse without relying on runtime fallbacks.
    - Audit helper paths (`TryFindBinding`, class field initialisers, eval-in-with) and the Annex B scope plumbing to ensure they read `ScopeMode` from the scope stack rather than reaching for global toggles.
    - Confirm that the new nullish member-access/call behaviour covers every entry-point (e.g. optional chaining fallbacks, destructuring, and host helper paths) so we don’t regress on the Sputnik delete suite.

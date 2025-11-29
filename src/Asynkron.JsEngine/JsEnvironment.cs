@@ -111,7 +111,8 @@ public sealed class JsEnvironment
         bool isFunctionDeclaration = false,
         bool? globalFunctionConfigurable = null,
         EvaluationContext? context = null,
-        bool blocksFunctionScopeOverride = false)
+        bool blocksFunctionScopeOverride = false,
+        bool? globalVarConfigurable = null)
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
         var scope = GetFunctionScope();
@@ -181,6 +182,7 @@ public sealed class JsEnvironment
 
         var allowConfigurableGlobalBinding =
             context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
+        var varBindingConfigurable = globalVarConfigurable ?? allowConfigurableGlobalBinding;
 
         var initialValue = value;
         var shouldWriteGlobal = true;
@@ -214,7 +216,7 @@ public sealed class JsEnvironment
                             Value = initialValue,
                             Writable = true,
                             Enumerable = true,
-                            Configurable = allowConfigurableGlobalBinding
+                            Configurable = varBindingConfigurable
                         });
                 }
                 else

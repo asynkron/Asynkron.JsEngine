@@ -1,6 +1,3 @@
-using System;
-using Asynkron.JsEngine.JsTypes;
-
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -212,14 +209,16 @@ extension(StatementNode statement)
                                 break;
                             }
 
+                            var forceConfigurableGlobal =
+                                functionScope.IsGlobalFunctionScope;
                             functionScope.DefineFunctionScoped(
                                 functionDeclaration.Name,
                                 Symbol.Undefined,
                                 hasInitializer: false,
-                                isFunctionDeclaration: true,
-                                globalFunctionConfigurable: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
-                                context,
-                                blocksFunctionScopeOverride: true);
+                                isFunctionDeclaration: false,
+                                context: context,
+                                blocksFunctionScopeOverride: true,
+                                globalVarConfigurable: forceConfigurableGlobal ? true : null);
 
                             break;
                         }

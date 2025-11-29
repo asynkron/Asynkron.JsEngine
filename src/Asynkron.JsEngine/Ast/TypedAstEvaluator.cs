@@ -1,11 +1,9 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
-using System.Text;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using JetBrains.Annotations;
@@ -36,12 +34,6 @@ public static partial class TypedAstEvaluator
 
     private static readonly object GeneratorBrandMarker = new();
     private static readonly object EmptyCompletion = new();
-
-    private enum HoistPass
-    {
-        Functions,
-        Vars
-    }
 
     private static bool TryConvertToWithBindingObject(
         object? value,
@@ -78,17 +70,6 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
 
     // Per ECMA-262 §7.4.1/§7.4.2 (GetIterator / GetAsyncIterator) via @@iterator/@@asyncIterator.
     private static bool TryGetIteratorFromProtocols(object? iterable, out JsObject? iterator)
@@ -114,18 +95,8 @@ public static partial class TypedAstEvaluator
 
         iterator = iteratorObj;
         return true;
-
     }
 
-    
-
-    
-
-    
-
-    
-
-    
 
     private static bool IsPromiseLike(object? candidate)
     {
@@ -142,7 +113,6 @@ public static partial class TypedAstEvaluator
         return AwaitScheduler.TryAwaitPromiseSync(candidate, context, out resolvedValue);
     }
 
-    
 
     private static IEnumerable<object?> EnumeratePropertyKeys(object? value)
     {
@@ -218,102 +188,11 @@ public static partial class TypedAstEvaluator
         throw new InvalidOperationException("Value is not iterable.");
     }
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
 
     private static object? NormalizeLoopCompletion(object? completion)
     {
         return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;
     }
-
-    
-
-    
-
-    
-
-    
-
-    private static JsObject EnsurePrototype(IJsPropertyAccessor constructor, RealmState realm)
-    {
-        if (constructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue is JsObject prototype)
-        {
-            if (prototype.Prototype is null && realm.ObjectPrototype is not null)
-            {
-                prototype.SetPrototype(realm.ObjectPrototype);
-            }
-
-            return prototype;
-        }
-
-        var created = new JsObject();
-        if (realm.ObjectPrototype is not null)
-        {
-            created.SetPrototype(realm.ObjectPrototype);
-        }
-
-        constructor.SetProperty("prototype", created);
-        return created;
-    }
-
-    
-
-    
-
-    private static void InitializeStaticFields(ImmutableArray<ClassField> fields,
-        IJsPropertyAccessor constructorAccessor,
-        JsEnvironment environment, EvaluationContext context, PrivateNameScope? privateNameScope)
-    {
-        using var staticFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, skipAnnexBInstantiation: true);
-        Func<IDisposable?>? privateScopeFactory = privateNameScope is not null
-            ? () => context.EnterPrivateNameScope(privateNameScope)
-            : null;
-
-        if (!fields.TryInitializeStaticFields(constructorAccessor,
-            expr => EvaluateExpression(expr, environment, context),
-            context,
-            privateNameScope,
-            privateScopeFactory))
-        {
-        }
-    }
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
 
     private static DelegatedYieldState CreateDelegatedState(object? iterable)
     {
@@ -326,43 +205,6 @@ public static partial class TypedAstEvaluator
         return DelegatedYieldState.FromEnumerable(values);
     }
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
 
     private static ImmutableArray<object?> FreezeArguments(ImmutableArray<object?>.Builder builder)
     {
@@ -389,8 +231,6 @@ public static partial class TypedAstEvaluator
         {
             return signal.ThrownValue;
         }
-
-        return reason;
     }
 
     private static object? CreateResolvedPromise(object? value, JsEnvironment environment)
@@ -411,15 +251,8 @@ public static partial class TypedAstEvaluator
         {
             return signal.ThrownValue;
         }
-
-        return value;
     }
 
-    
-
-    
-
-    
 
     // SpreadElement runtime semantics (ECMA-262 §12.2.5.2) use GetIterator on the operand.
     private static IEnumerable<object?> EnumerateSpread(object? value, EvaluationContext context)
@@ -430,7 +263,6 @@ public static partial class TypedAstEvaluator
         }
 
         var iteratorRecord = new ArrayPatternIterator(iterator, enumerator);
-        var iteratorThrew = false;
 
         try
         {
@@ -466,9 +298,6 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    
-
-    
 
     private static void InitializeClassInstance(object? constructor, JsObject instance, JsEnvironment environment,
         EvaluationContext context)
@@ -479,23 +308,6 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
 
     private static bool IsNullish(object? value)
     {
@@ -523,13 +335,15 @@ public static partial class TypedAstEvaluator
 
         if (leftPrimitive is string || rightPrimitive is string)
         {
-            bool IsRealSymbol(object? v) =>
-                v switch
+            bool IsRealSymbol(object? v)
+            {
+                return v switch
                 {
                     TypedAstSymbol => true,
                     Symbol sym when !ReferenceEquals(sym, Symbol.Undefined) => true,
                     _ => false
                 };
+            }
 
             if (IsRealSymbol(leftPrimitive) || IsRealSymbol(rightPrimitive))
             {
@@ -803,11 +617,6 @@ public static partial class TypedAstEvaluator
         return JsOps.ToPropertyName(value, context);
     }
 
-    private static bool TryResolveArrayIndex(object? candidate, out int index, EvaluationContext? context = null)
-    {
-        return JsOps.TryResolveArrayIndex(candidate, out index, context);
-    }
-
     private static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
     {
         return JsOps.TryGetPropertyValue(target, propertyName, out value);
@@ -825,49 +634,11 @@ public static partial class TypedAstEvaluator
         JsOps.AssignPropertyValue(target, propertyKey, value, context);
     }
 
-    private static void AssignPropertyValueByName(object? target, string propertyName, object? value)
-    {
-        JsOps.AssignPropertyValueByName(target, propertyName, value);
-    }
-
     private static bool DeletePropertyValue(object? target, object? propertyKey, EvaluationContext? context = null)
     {
         return JsOps.DeletePropertyValue(target, propertyKey, context);
     }
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
 
     private static bool InOperator(object? property, object? target, EvaluationContext context)
     {
@@ -930,7 +701,6 @@ public static partial class TypedAstEvaluator
         context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
             context));
         return false;
-
     }
 
     private static bool OrdinaryHasInstance(object? candidate, object? constructor, EvaluationContext context)
@@ -978,25 +748,6 @@ public static partial class TypedAstEvaluator
         return JsOps.GetTypeofString(value);
     }
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
 
     // Array/object destructuring uses iterator protocol (ECMA-262 §14.1.5).
     private static bool TryGetIteratorForDestructuring(object? value, EvaluationContext context,
@@ -1048,7 +799,6 @@ public static partial class TypedAstEvaluator
             iterator = wrapper;
 
             return true;
-
         }
 
         switch (value)
@@ -1064,7 +814,6 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
-    
 
     [MustDisposeResource]
     private static IEnumerator<object?> EnumerateStringCharacters(string value)
@@ -1078,33 +827,6 @@ public static partial class TypedAstEvaluator
         }
 
         return Enumerate().GetEnumerator();
-    }
-
-    private readonly struct ArrayPatternIterator(JsObject? iterator, IEnumerator<object?>? enumerator)
-    {
-        public (object? Value, bool Done) Next(EvaluationContext context)
-        {
-            if (iterator is null)
-            {
-                return enumerator?.MoveNext() != true ? (Symbol.Undefined, true) : (enumerator.Current, false);
-            }
-
-            var candidate = InvokeIteratorNext(iterator);
-            if (candidate is not JsObject result)
-            {
-                throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
-            }
-
-            var done = result.TryGetProperty("done", out var doneValue) &&
-                       doneValue is bool and true;
-
-            var value = result.TryGetProperty("value", out var yielded)
-                ? yielded
-                : Symbol.Undefined;
-
-            return (done ? Symbol.Undefined : value, done);
-
-        }
     }
 
     private static JsObject ToObjectForDestructuring(object? value, EvaluationContext context)
@@ -1190,25 +912,6 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    
-
-    
-
-    
-
-    
-
-    private static bool IsNullOrUndefined(object? value)
-    {
-        return value.IsNullish();
-    }
-
-    
-
-    
-
-    
-
     private static JsObject CreateGeneratorIteratorObject(
         Func<IReadOnlyList<object?>, object?> next,
         Func<IReadOnlyList<object?>, object?> @return,
@@ -1221,19 +924,4 @@ public static partial class TypedAstEvaluator
         return iterator;
     }
 
-    private enum BindingMode
-    {
-        Assign,
-        DefineLet,
-        DefineConst,
-        DefineVar,
-        DefineParameter
-    }
-
-
-    
-
-    
-
-    
 }

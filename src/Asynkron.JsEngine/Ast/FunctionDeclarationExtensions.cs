@@ -1,17 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Globalization;
-using System.Numerics;
-using System.Text;
-using Asynkron.JsEngine.Converters;
-using Asynkron.JsEngine.Execution;
-using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Parser;
-using Asynkron.JsEngine.Runtime;
-using Asynkron.JsEngine.StdLib;
-using JetBrains.Annotations;
-
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -47,6 +33,7 @@ extension(FunctionDeclaration declaration)
             var hasBlockingLexicalBeforeFunctionScope =
                 !isStrictScope && HasBlockingLexicalBeforeFunctionScope(environment, declaration.Name);
 
+            var isAnnexBBlockFunction = !isStrictScope && annexBEnabled && isBlockEnvironment;
             var shouldCreateVarBinding = annexBEnabled || !isBlockEnvironment;
             if (!shouldCreateVarBinding || skipVarBinding || hasBlockingLexicalBeforeFunctionScope)
             {
@@ -59,13 +46,16 @@ extension(FunctionDeclaration declaration)
             }
 
             var configurable = context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
+            bool? globalVarConfigurable = isAnnexBBlockFunction ? true : null;
+            bool? globalFunctionConfigurable = isAnnexBBlockFunction ? null : configurable;
             environment.DefineFunctionScoped(
                 declaration.Name,
                 function,
                 true,
-                true,
-                configurable,
-                context);
+                isFunctionDeclaration: !isAnnexBBlockFunction,
+                globalFunctionConfigurable: globalFunctionConfigurable,
+                context: context,
+                globalVarConfigurable: globalVarConfigurable);
 
             return EmptyCompletion;
         }

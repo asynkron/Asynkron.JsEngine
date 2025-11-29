@@ -5,7 +5,9 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private static readonly ActivitySource EvaluatorActivitySource = new("Asynkron.JsEngine.TypedAstEvaluator");
+    public const string ActivitySourceName = "Asynkron.JsEngine.TypedAstEvaluator";
+
+    private static readonly ActivitySource EvaluatorActivitySource = new(ActivitySourceName);
 
     private static Activity? StartEvaluatorActivity(this Activity parent,
         string name,

@@ -24,10 +24,6 @@ public interface ICallableMetadata
 public static partial class TypedAstEvaluator
 {
     private const string GeneratorBrandPropertyName = "__generator_brand__";
-    private static readonly Symbol YieldTrackerSymbol = Symbol.Intern("__yieldTracker__");
-    private static readonly Symbol YieldResumeContextSymbol = Symbol.Intern("__yieldResume__");
-    private static readonly Symbol GeneratorPendingCompletionSymbol = Symbol.Intern("__generatorPending__");
-    private static readonly Symbol GeneratorInstanceSymbol = Symbol.Intern("__generatorInstance__");
 
     private static readonly string IteratorSymbolPropertyName =
         $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
@@ -215,7 +211,7 @@ public static partial class TypedAstEvaluator
 
     private static object? CreateRejectedPromise(object? reason, JsEnvironment environment)
     {
-        if (!environment.TryGet(Symbol.Intern("Promise"), out var promiseCtor) ||
+        if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
             promiseCtor is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("reject", out var rejectValue) ||
             rejectValue is not IJsCallable rejectCallable)
@@ -235,7 +231,7 @@ public static partial class TypedAstEvaluator
 
     private static object? CreateResolvedPromise(object? value, JsEnvironment environment)
     {
-        if (!environment.TryGet(Symbol.Intern("Promise"), out var promiseCtor) ||
+        if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
             promiseCtor is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("resolve", out var resolveValue) ||
             resolveValue is not IJsCallable resolveCallable)

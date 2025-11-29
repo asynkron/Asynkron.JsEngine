@@ -13,7 +13,6 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public class JsRegExp
 {
-    private readonly RealmState? _realmState;
     private readonly RegexOptions _regexOptions;
     private readonly string _normalizedPattern;
 
@@ -21,7 +20,7 @@ public class JsRegExp
     {
         Pattern = pattern;
         Flags = flags ?? string.Empty;
-        _realmState = realmState;
+        RealmState = realmState;
         JsObject = existingObject ?? new JsObject();
 
         ValidateFlags(Flags);
@@ -71,12 +70,12 @@ public class JsRegExp
     public bool DotAll => Flags.Contains('s');
     public bool Unicode => Flags.Contains('u');
     public bool Sticky => Flags.Contains('y');
-    public int LastIndex { get; set; }
+    private int LastIndex { get; set; }
 
     public JsObject JsObject { get; }
-    internal RealmState? RealmState => _realmState;
+    internal RealmState? RealmState { get; }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    private void SetProperty(string name, object? value, object? receiver)
     {
         JsObject.SetProperty(name, value, receiver ?? JsObject);
     }
@@ -117,7 +116,7 @@ public class JsRegExp
 
         if (match.Success)
         {
-            StandardLibrary.UpdateRegExpStatics(_realmState, input, match);
+            RealmState.UpdateRegExpStatics(input, match);
         }
 
         return match.Success;
@@ -165,7 +164,7 @@ public class JsRegExp
         }
 
         // Build result array
-        var result = new JsArray(_realmState);
+        var result = new JsArray(RealmState);
         result.Push(match.Value); // Full match at index 0
 
         // Add capture groups
@@ -179,8 +178,8 @@ public class JsRegExp
         result.SetProperty("index", (double)match.Index);
         result.SetProperty("input", input);
 
-        StandardLibrary.AddArrayMethods(result, _realmState);
-        StandardLibrary.UpdateRegExpStatics(_realmState, input, match);
+        StandardLibrary.AddArrayMethods(result, RealmState);
+        RealmState.UpdateRegExpStatics(input, match);
         return result;
     }
 
@@ -191,15 +190,15 @@ public class JsRegExp
     {
         if (input == null)
         {
-            return new JsArray(_realmState);
+            return new JsArray(RealmState);
         }
 
-        var result = new JsArray(_realmState);
+        var result = new JsArray(RealmState);
         var matches = EnsureRegex().Matches(input);
 
         foreach (Match match in matches)
         {
-            var matchArray = new JsArray(_realmState);
+            var matchArray = new JsArray(RealmState);
             matchArray.Push(match.Value);
 
             for (var i = 1; i < match.Groups.Count; i++)
@@ -210,12 +209,12 @@ public class JsRegExp
 
             matchArray.SetProperty("index", (double)match.Index);
             matchArray.SetProperty("input", input);
-            StandardLibrary.AddArrayMethods(matchArray, _realmState);
+            StandardLibrary.AddArrayMethods(matchArray, RealmState);
 
             result.Push(matchArray);
         }
 
-        StandardLibrary.AddArrayMethods(result, _realmState);
+        StandardLibrary.AddArrayMethods(result, RealmState);
         return result;
     }
 
@@ -533,52 +532,6 @@ public class JsRegExp
         }
 
         return builder.ToString();
-    }
-
-    private static void ValidateLegacyPattern(string pattern)
-    {
-        if (string.IsNullOrEmpty(pattern))
-        {
-            return;
-        }
-
-        var inCharClass = false;
-        var escaped = false;
-
-        // First pass: catch trailing escape
-        for (var i = 0; i < pattern.Length; i++)
-        {
-            var c = pattern[i];
-            if (escaped)
-            {
-                escaped = false;
-                continue;
-            }
-
-            if (c == '\\')
-            {
-                escaped = true;
-                continue;
-            }
-
-            if (c == '[')
-            {
-                inCharClass = true;
-                continue;
-            }
-
-            if (c == ']' && inCharClass)
-            {
-                inCharClass = false;
-                continue;
-            }
-
-        }
-
-        if (escaped)
-        {
-            throw new ParseException("Invalid regular expression: incomplete escape.");
-        }
     }
 
     private static string NormalizeLegacyPattern(string pattern, bool ignoreCase)
@@ -1191,11 +1144,6 @@ public class JsRegExp
         return c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F';
     }
 
-    private static bool IsAsciiLetter(char c)
-    {
-        return c is >= 'a' and <= 'z' || c is >= 'A' and <= 'Z';
-    }
-
     private static bool IsLineTerminator(char c)
     {
         return c is '\n' or '\r' or '\u2028' or '\u2029';
@@ -1230,17 +1178,6 @@ public class JsRegExp
     {
         return c is '.' or '$' or '^' or '{' or '[' or '(' or '|' or ')' or '*' or '+' or '?' or '\\' or '/' or ']'
             or '}';
-    }
-
-    private static string EscapeLiteralRune(Rune rune)
-    {
-        if (rune.Value == 0)
-        {
-            return "\\x00";
-        }
-
-        var text = rune.ToString();
-        return Regex.Escape(text);
     }
 
     private static string EscapeCodeUnit(int codeUnit)

@@ -971,7 +971,7 @@ public sealed class TypedAstParser(
                     emptyBody, false, false);
             }
 
-            var argsSymbol = Symbol.Intern("args");
+            var argsSymbol = Symbol.ArgsIdentifier;
             var restParameter =
                 new FunctionParameter(null, argsSymbol, true, null, null);
             var callArguments =

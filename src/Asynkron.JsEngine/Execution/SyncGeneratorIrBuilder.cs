@@ -551,7 +551,6 @@ internal sealed class SyncGeneratorIrBuilder
                 defaultIndex = i;
             }
         }
-
         var instructionStart = _instructions.Count;
         var discriminantSymbol = Symbol.Intern($"__switch_disc_{instructionStart}");
         var matchIndexSymbol = Symbol.Intern($"__switch_match_{instructionStart}");

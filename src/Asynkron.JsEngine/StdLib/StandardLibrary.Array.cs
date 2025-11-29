@@ -1536,7 +1536,7 @@ public static partial class StandardLibrary
             IJsCallable? ResolveTypeErrorCtor()
             {
                 if (callingEnv is not null &&
-                    callingEnv.TryGet(Symbol.Intern("TypeError"), out var typeErrorVal) &&
+                    callingEnv.TryGet(Symbol.TypeErrorIdentifier, out var typeErrorVal) &&
                     typeErrorVal is IJsCallable typeErrorFromEnv)
                 {
                     return typeErrorFromEnv;

@@ -43,7 +43,7 @@ extension(AssignmentExpression expression)
                 // If a ReferenceError constructor is available, use it to
                 // create a proper JS error instance so user code can catch
                 // and inspect it.
-                if (environment.TryGet(Symbol.Intern("ReferenceError"), out var ctor) &&
+                if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
                     ctor is IJsCallable callable)
                 {
                     errorObject = callable.Invoke([ex.Message], Symbol.Undefined);

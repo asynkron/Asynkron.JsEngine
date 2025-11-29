@@ -1127,11 +1127,6 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         return c is >= '0' and <= '9';
     }
 
-    private static bool IsDigitOrUnderscore(char c)
-    {
-        return IsDigit(c) || c == '_';
-    }
-
     private string ReadDigitsWithSeparators(Func<char, bool> isDigit, string context, bool hasLeadingDigit = false)
     {
         var builder = new StringBuilder();
@@ -1210,11 +1205,6 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     private static bool IsAlpha(char c)
     {
         return IsIdentifierStart(c);
-    }
-
-    private static bool IsAlphaNumeric(char c)
-    {
-        return IsIdentifierPart(c);
     }
 
     private static bool IsHexDigit(char c)

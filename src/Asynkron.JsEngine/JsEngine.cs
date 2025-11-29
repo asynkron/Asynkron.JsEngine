@@ -235,7 +235,7 @@ public sealed class JsEngine : IAsyncDisposable
             new HostFunction(_ => GlobalObject) { Realm = GlobalObject, RealmState = RealmState }, true);
 
         // Register debug function as a debug-aware host function
-        _global.Define(Symbol.Intern("__debug"), new DebugAwareHostFunction(CaptureDebugMessage));
+        _global.Define(Symbol.DebugIdentifier, new DebugAwareHostFunction(CaptureDebugMessage));
     }
 
     /// <summary>

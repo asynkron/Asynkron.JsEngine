@@ -142,8 +142,8 @@ public static partial class TypedAstEvaluator
                 : "generator function";
             var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
             environment.Define(Symbol.This, _thisValue ?? new JsObject());
-            environment.Define(YieldResumeContextSymbol, _resumeContext);
-            environment.Define(GeneratorInstanceSymbol, this);
+            environment.Define(Symbol.YieldResumeContextSymbol, _resumeContext);
+            environment.Define(Symbol.GeneratorInstanceSymbol, this);
 
             if (_function.Name is { } functionName)
             {
@@ -1092,7 +1092,7 @@ public static partial class TypedAstEvaluator
                     ScopeKind.Function,
                     DetermineGeneratorScopeMode(),
                     skipAnnexBInstantiation: true);
-                _executionEnvironment.Define(YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
+                _executionEnvironment.Define(Symbol.YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
 
                 var result = EvaluateBlock(
                     _function.Body,
@@ -1176,7 +1176,6 @@ public static partial class TypedAstEvaluator
             // Async-aware mode: use per-site await state so we don't re-run
             // side-effecting expressions after the promise has resolved.
             var awaitKey = GetAwaitStateKey(expression);
-            AwaitState? existingState = null;
             if (awaitKey is not null &&
                 environment.TryGet(awaitKey, out var stateObj) &&
                 stateObj is AwaitState { HasResult: true } state)
@@ -1198,7 +1197,7 @@ public static partial class TypedAstEvaluator
 
             if (awaitKey is not null)
             {
-                existingState = new AwaitState();
+                var existingState = new AwaitState();
 
                 if (environment.TryGet(awaitKey, out _))
                 {
@@ -1212,24 +1211,26 @@ public static partial class TypedAstEvaluator
 
             // Async-aware mode: surface promise-like values as pending steps
             // so AsyncGeneratorInstance can resume via the event queue.
-            if (!TryAwaitPromiseOrSchedule(awaitedValue, context, out var resolved))
+            if (TryAwaitPromiseOrSchedule(awaitedValue, context, out var resolved))
             {
-                if (_pendingPromise is JsObject && awaitKey is not null)
-                {
-                    // Remember which await site is pending so we can stash the
-                    // resolved value on resume.
-                    _pendingAwaitKey = awaitKey;
-                    _state = GeneratorState.Suspended;
-                    _programCounter = _currentInstructionIndex;
-                    throw new PendingAwaitException();
-                }
-
-                // If TryAwaitPromiseOrSchedule reported an error via the context,
-                // let the caller observe the pending throw/return.
                 return resolved;
             }
 
-            return resolved;
+            if (_pendingPromise is not JsObject || awaitKey is null)
+            {
+                return resolved;
+            }
+
+            // Remember which await site is pending so we can stash the
+            // resolved value on resume.
+            _pendingAwaitKey = awaitKey;
+            _state = GeneratorState.Suspended;
+            _programCounter = _currentInstructionIndex;
+            throw new PendingAwaitException();
+
+            // If TryAwaitPromiseOrSchedule reported an error via the context,
+            // let the caller observe the pending throw/return.
+
         }
 
         private bool TryAwaitPromiseOrSchedule(object? candidate, EvaluationContext context, out object? resolvedValue)

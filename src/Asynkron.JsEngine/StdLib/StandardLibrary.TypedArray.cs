@@ -422,7 +422,7 @@ public static partial class StandardLibrary
             IJsCallable? ResolveTypeErrorCtor(JsEnvironment? env)
             {
                 if (env is not null &&
-                    env.TryGet(Symbol.Intern("TypeError"), out var typeErrorVal) &&
+                    env.TryGet(Symbol.TypeErrorIdentifier, out var typeErrorVal) &&
                     typeErrorVal is IJsCallable typeErrorFromEnv)
                 {
                     return typeErrorFromEnv;

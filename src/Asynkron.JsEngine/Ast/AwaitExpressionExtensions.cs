@@ -15,7 +15,7 @@ extension(AwaitExpression expression)
             // carries a back-reference to the active generator instance so we can surface
             // pending promises instead of blocking. In that case the generator instance
             // is responsible for evaluating the awaited expression and managing resume.
-            if (environment.TryGet(GeneratorInstanceSymbol, out var instanceObj) &&
+            if (environment.TryGet(Symbol.GeneratorInstanceSymbol, out var instanceObj) &&
                 instanceObj is TypedGeneratorInstance generator)
             {
                 return generator.EvaluateAwaitInGenerator(expression, environment, context);

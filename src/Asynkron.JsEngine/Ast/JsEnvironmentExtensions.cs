@@ -54,7 +54,7 @@ extension(JsEnvironment environment)
     {
         private YieldTracker GetYieldTracker()
         {
-            if (!environment.TryGet(YieldTrackerSymbol, out var tracker) || tracker is not YieldTracker yieldTracker)
+            if (!environment.TryGet(Symbol.YieldTrackerSymbol, out var tracker) || tracker is not YieldTracker yieldTracker)
             {
                 throw new InvalidOperationException("'yield' can only be used inside a generator function.");
             }
@@ -67,7 +67,7 @@ extension(JsEnvironment environment)
     {
         private ResumePayload GetResumePayload(int yieldIndex)
         {
-            if (!environment.TryGet(YieldResumeContextSymbol, out var contextValue) ||
+            if (!environment.TryGet(Symbol.YieldResumeContextSymbol, out var contextValue) ||
                 contextValue is not YieldResumeContext resumeContext)
             {
                 return ResumePayload.Empty;
@@ -81,7 +81,7 @@ extension(JsEnvironment environment)
     {
         private bool IsGeneratorContext()
         {
-            return environment.TryGet(YieldResumeContextSymbol, out var contextValue) &&
+            return environment.TryGet(Symbol.YieldResumeContextSymbol, out var contextValue) &&
                    contextValue is YieldResumeContext;
         }
     }
@@ -90,14 +90,14 @@ extension(JsEnvironment environment)
     {
         private GeneratorPendingCompletion GetGeneratorPendingCompletion()
         {
-            if (environment.TryGet(GeneratorPendingCompletionSymbol, out var existing) &&
+            if (environment.TryGet(Symbol.GeneratorPendingCompletionSymbol, out var existing) &&
                 existing is GeneratorPendingCompletion pending)
             {
                 return pending;
             }
 
             var created = new GeneratorPendingCompletion();
-            environment.DefineFunctionScoped(GeneratorPendingCompletionSymbol, created, true);
+            environment.DefineFunctionScoped(Symbol.GeneratorPendingCompletionSymbol, created, true);
             return created;
         }
     }
@@ -154,14 +154,15 @@ extension(JsEnvironment environment)
             Exception? inner)
         {
             var message = $"Super is not available in this context.{GetSourceInfo(context)}";
-            if (environment.TryGet(Symbol.Intern("ReferenceError"), out var ctorVal) &&
-                ctorVal is IJsCallable ctor)
+            if (!environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctorVal) ||
+                ctorVal is not IJsCallable ctor)
             {
-                var error = ctor.Invoke([message], Symbol.Undefined);
-                return new ThrowSignal(error);
+                return new InvalidOperationException(message, inner);
             }
 
-            return new InvalidOperationException(message, inner);
+            var error = ctor.Invoke([message], Symbol.Undefined);
+            return new ThrowSignal(error);
+
         }
     }
 

@@ -49,11 +49,11 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             var message = parseException.Message;
             object? errorObject = message;
-            if (!environment.TryGet(Symbol.Intern("SyntaxError"), out var ctor) ||
-                ctor is not IJsCallable callable)
-            {
-                throw new ThrowSignal(errorObject);
-            }
+        if (!environment.TryGet(Symbol.SyntaxErrorIdentifier, out var ctor) ||
+            ctor is not IJsCallable callable)
+        {
+            throw new ThrowSignal(errorObject);
+        }
 
             try
             {

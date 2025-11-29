@@ -51,20 +51,20 @@ public class TypedCpsTransformerTests
         Assert.Equal("then", thenProperty.Value);
 
         var awaitHelperCall = Assert.IsType<CallExpression>(thenMember.Target);
-        AssertIdentifierOrMember(awaitHelperCall.Callee, Symbol.Intern("__awaitHelper"), "__awaitHelper");
+        AssertIdentifierOrMember(awaitHelperCall.Callee, Symbol.AwaitHelperIdentifier, "__awaitHelper");
 
         Assert.Single(thenInvocation.Arguments);
         var callback = Assert.IsType<FunctionExpression>(thenInvocation.Arguments[0].Expression);
         var callbackBody = Assert.IsType<BlockStatement>(callback.Body);
         var callbackReturn = Assert.IsType<ReturnStatement>(Assert.Single(callbackBody.Statements));
         var resolveCall = Assert.IsType<CallExpression>(callbackReturn.Expression);
-        AssertIdentifierOrMember(resolveCall.Callee, Symbol.Intern("__resolve"), "__resolve");
+        AssertIdentifierOrMember(resolveCall.Callee, Symbol.ResolveIdentifier, "__resolve");
 
         Assert.Single(catchCall.Arguments);
         var catchCallback = Assert.IsType<FunctionExpression>(catchCall.Arguments[0].Expression);
         var catchCallbackReturn = Assert.IsType<ReturnStatement>(Assert.Single(catchCallback.Body.Statements));
         var catchRejectCall = Assert.IsType<CallExpression>(catchCallbackReturn.Expression);
-        AssertIdentifierOrMember(catchRejectCall.Callee, Symbol.Intern("__reject"), "__reject");
+        AssertIdentifierOrMember(catchRejectCall.Callee, Symbol.RejectIdentifier, "__reject");
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class TypedCpsTransformerTests
         var catchClause = Assert.IsType<CatchClause>(tryStatement.Catch);
         var catchReturn = Assert.IsType<ReturnStatement>(Assert.Single(catchClause.Body.Statements));
         var rejectCall = Assert.IsType<CallExpression>(catchReturn.Expression);
-        AssertIdentifierOrMember(rejectCall.Callee, Symbol.Intern("__reject"), "__reject");
+        AssertIdentifierOrMember(rejectCall.Callee, Symbol.RejectIdentifier, "__reject");
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public class TypedCpsTransformerTests
         switch (expression)
         {
             case IdentifierExpression identifier:
-                Assert.Same(Symbol.Intern("Promise"), identifier.Name);
+                Assert.Same(Symbol.PromiseIdentifier, identifier.Name);
                 return;
             case MemberExpression member when member.Property is LiteralExpression literal &&
                                               literal.Value is string literalValue &&

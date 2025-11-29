@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
         private object? CreateStepPromise(TypedGeneratorInstance.ResumeMode mode, object? argument)
         {
             // Look up the global Promise constructor from the closure environment.
-            if (!closure.TryGet(Symbol.Intern("Promise"), out var promiseCtorObj) ||
+            if (!closure.TryGet(Symbol.PromiseIdentifier, out var promiseCtorObj) ||
                 promiseCtorObj is not IJsCallable promiseCtor)
             {
                 throw new InvalidOperationException("Promise constructor is not available in the current environment.");

@@ -19,7 +19,7 @@ extension(IdentifierExpression identifier)
             {
                 object? errorObject = ex.Message;
 
-                if (environment.TryGet(Symbol.Intern("ReferenceError"), out var ctor) &&
+                if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
                     ctor is IJsCallable callable)
                 {
                     try

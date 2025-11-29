@@ -13,12 +13,6 @@ namespace Asynkron.JsEngine.Ast;
 public sealed class TypedCpsTransformer
 {
     private const string ThenPropertyName = "then";
-    private static readonly Symbol PromiseIdentifier = Symbol.Intern("Promise");
-    private static readonly Symbol ResolveIdentifier = Symbol.Intern("__resolve");
-    private static readonly Symbol RejectIdentifier = Symbol.Intern("__reject");
-    private static readonly Symbol AwaitHelperIdentifier = Symbol.Intern("__awaitHelper");
-    private static readonly Symbol AwaitValueIdentifier = Symbol.Intern("__value");
-    private static readonly Symbol CatchIdentifier = Symbol.Intern("__error");
 
     /// <summary>
     ///     Returns true when the typed program contains async functions that would
@@ -752,18 +746,18 @@ public sealed class TypedCpsTransformer
         var rewrittenStatements = EnsureResolvedReturns(rewriter.Rewrite(normalizedStatements));
         var tryBlock = new BlockStatement(null, rewrittenStatements, body.IsStrict);
         var catchBodyStatements = ImmutableArray.Create<StatementNode>(
-            new ReturnStatement(null, CreateRejectCall(new IdentifierExpression(null, CatchIdentifier))));
+            new ReturnStatement(null, CreateRejectCall(new IdentifierExpression(null, Symbol.CatchIdentifier))));
         var catchBody = new BlockStatement(null, catchBodyStatements, body.IsStrict);
-        var catchClause = new CatchClause(null, new IdentifierBinding(null, CatchIdentifier), catchBody);
+        var catchClause = new CatchClause(null, new IdentifierBinding(null, Symbol.CatchIdentifier), catchBody);
         var tryStatement = new TryStatement(null, tryBlock, catchClause, null);
         var executorBody = new BlockStatement(null, [tryStatement], body.IsStrict);
         var executor = new FunctionExpression(null, null,
             [
-                new FunctionParameter(null, ResolveIdentifier, false, null, null),
-                new FunctionParameter(null, RejectIdentifier, false, null, null)
+                new FunctionParameter(null, Symbol.ResolveIdentifier, false, null, null),
+                new FunctionParameter(null, Symbol.RejectIdentifier, false, null, null)
             ],
             executorBody, false, false);
-        var promise = new NewExpression(null, new IdentifierExpression(null, PromiseIdentifier),
+        var promise = new NewExpression(null, new IdentifierExpression(null, Symbol.PromiseIdentifier),
             [executor]);
         var returnPromise = new ReturnStatement(null, promise);
         return body with { Statements = [returnPromise] };
@@ -884,7 +878,7 @@ public sealed class TypedCpsTransformer
     private static bool IsResolveCall(ExpressionNode? expression)
     {
         return expression is CallExpression { Callee: IdentifierExpression { Name: var name } } &&
-               ReferenceEquals(name, ResolveIdentifier);
+               ReferenceEquals(name, Symbol.ResolveIdentifier);
     }
 
     private static bool IsPromiseChain(ExpressionNode? expression)
@@ -940,7 +934,7 @@ public sealed class TypedCpsTransformer
     private static ExpressionNode CreateAwaitHelperCall(ExpressionNode awaited)
     {
         var argument = new CallArgument(awaited.Source, awaited, false);
-        return new CallExpression(null, new IdentifierExpression(null, AwaitHelperIdentifier),
+        return new CallExpression(null, new IdentifierExpression(null, Symbol.AwaitHelperIdentifier),
             [argument], false);
     }
 
@@ -956,12 +950,12 @@ public sealed class TypedCpsTransformer
 
     private static FunctionExpression CreateDefaultResolveCallback()
     {
-        var resolveCall = CreateResolveCall(new IdentifierExpression(null, AwaitValueIdentifier));
+        var resolveCall = CreateResolveCall(new IdentifierExpression(null, Symbol.AwaitValueIdentifier));
         var callbackBodyStatements = ImmutableArray.Create<StatementNode>(
             new ExpressionStatement(null, resolveCall));
         var callbackBody = new BlockStatement(null, callbackBodyStatements, false);
         return new FunctionExpression(null, null,
-            [new FunctionParameter(null, AwaitValueIdentifier, false, null, null)],
+            [new FunctionParameter(null, Symbol.AwaitValueIdentifier, false, null, null)],
             callbackBody, false, false);
     }
 
@@ -972,7 +966,7 @@ public sealed class TypedCpsTransformer
             return expression;
         }
 
-        var errorParameter = Symbol.Intern("__awaitError");
+        var errorParameter = Symbol.AwaitErrorIdentifier;
         var rejectTarget = new IdentifierExpression(null, rejectIdentifier);
         var rejectCall = new CallExpression(null, rejectTarget,
             [new CallArgument(null, new IdentifierExpression(null, errorParameter), false)], false);
@@ -990,14 +984,14 @@ public sealed class TypedCpsTransformer
     private static CallExpression CreateResolveCall(ExpressionNode value)
     {
         var argument = new CallArgument(value.Source, value, false);
-        return new CallExpression(null, new IdentifierExpression(null, ResolveIdentifier),
+        return new CallExpression(null, new IdentifierExpression(null, Symbol.ResolveIdentifier),
             [argument], false);
     }
 
     private static CallExpression CreateRejectCall(ExpressionNode value)
     {
         var argument = new CallArgument(value.Source, value, false);
-        return new CallExpression(null, new IdentifierExpression(null, RejectIdentifier),
+        return new CallExpression(null, new IdentifierExpression(null, Symbol.RejectIdentifier),
             [argument], false);
     }
 
@@ -1031,9 +1025,9 @@ public sealed class TypedCpsTransformer
         Symbol? resolveOverride = null,
         Symbol? rejectOverride = null)
     {
-        private readonly Symbol _resolveIdentifier = resolveOverride ?? ResolveIdentifier;
+        private readonly Symbol _resolveIdentifier = resolveOverride ?? Symbol.ResolveIdentifier;
         private Symbol? _currentLoopBreakSymbol;
-        private Symbol? _rejectIdentifier = rejectOverride ?? RejectIdentifier;
+        private Symbol? _rejectIdentifier = rejectOverride ?? Symbol.RejectIdentifier;
         private int _temporaryId;
 
         public ImmutableArray<StatementNode> Rewrite(ImmutableArray<StatementNode> statements)
@@ -1050,7 +1044,7 @@ public sealed class TypedCpsTransformer
 
         private CallExpression CreateInnerResolveCall(ExpressionNode value)
         {
-            if (ReferenceEquals(_resolveIdentifier, ResolveIdentifier))
+            if (ReferenceEquals(_resolveIdentifier, Symbol.ResolveIdentifier))
             {
                 return CreateResolveCall(value);
             }
@@ -1475,14 +1469,14 @@ public sealed class TypedCpsTransformer
 
         private static CallExpression BuildGetAsyncIteratorCall(ExpressionNode iterable)
         {
-            var callee = new IdentifierExpression(null, Symbol.Intern("__getAsyncIterator"));
+            var callee = new IdentifierExpression(null, Symbol.GetAsyncIteratorIdentifier);
             var argument = new CallArgument(null, iterable, false);
             return new CallExpression(null, callee, [argument], false);
         }
 
         private static CallExpression BuildGetIteratorCall(ExpressionNode iterable)
         {
-            var symbolIdentifier = new IdentifierExpression(null, Symbol.Intern("Symbol"));
+            var symbolIdentifier = new IdentifierExpression(null, Symbol.SymbolConstructorIdentifier);
             var iteratorProperty = new MemberExpression(null, symbolIdentifier, new LiteralExpression(null, "iterator"),
                 false, false);
             var iteratorAccessor = new MemberExpression(null, iterable, iteratorProperty, true, false);
@@ -1550,7 +1544,7 @@ public sealed class TypedCpsTransformer
         private FunctionDeclaration CreateLoopResolveFunction(Symbol loopResolveSymbol, Symbol loopCheckSymbol,
             ImmutableArray<StatementNode>? preLoopStatements = null)
         {
-            var parameter = new FunctionParameter(null, Symbol.Intern("__loopValue"), false, null, null);
+            var parameter = new FunctionParameter(null, Symbol.LoopValueIdentifier, false, null, null);
             BlockStatement body;
             if (preLoopStatements is { IsDefaultOrEmpty: false })
             {
@@ -1822,7 +1816,7 @@ public sealed class TypedCpsTransformer
             Symbol resultSymbol, BlockStatement afterLoopBlock, BlockStatement loopBodyBlock)
         {
             var iteratorIdentifier = new IdentifierExpression(null, iteratorSymbol);
-            var iteratorNextCallee = new IdentifierExpression(null, Symbol.Intern("__iteratorNext"));
+            var iteratorNextCallee = new IdentifierExpression(null, Symbol.IteratorNextIdentifier);
             var iteratorNextCall = new CallExpression(null, iteratorNextCallee,
                 [new CallArgument(null, iteratorIdentifier, false)], false);
 

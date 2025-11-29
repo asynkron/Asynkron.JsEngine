@@ -59,7 +59,7 @@ public static partial class StandardLibrary
                 : setterValue as IJsCallable;
         }
 
-        if (descriptor.IsAccessorDescriptor && descriptor.IsDataDescriptor)
+        if (descriptor is { IsAccessorDescriptor: true, IsDataDescriptor: true })
         {
             throw ThrowTypeError("Invalid property descriptor. Cannot both specify accessors and a value or writable attribute",
                 realm: realm);
@@ -84,9 +84,9 @@ public static partial class StandardLibrary
         if (descriptor.IsAccessorDescriptor)
         {
             result.SetProperty("get",
-                descriptor.HasGet && descriptor.Get is not null ? descriptor.Get : Symbol.Undefined);
+                descriptor is { HasGet: true, Get: not null } ? descriptor.Get : Symbol.Undefined);
             result.SetProperty("set",
-                descriptor.HasSet && descriptor.Set is not null ? descriptor.Set : Symbol.Undefined);
+                descriptor is { HasSet: true, Set: not null } ? descriptor.Set : Symbol.Undefined);
         }
         else
         {
@@ -617,7 +617,7 @@ public static partial class StandardLibrary
                     continue;
                 }
 
-                var entry = new JsArray(new object?[] { key, value }, realm);
+                var entry = new JsArray([key, value], realm);
                 AddArrayMethods(entry, realm);
                 entries.Push(entry);
             }
@@ -885,7 +885,7 @@ public static partial class StandardLibrary
                 return Symbol.Undefined;
             }
 
-            PropertyDescriptor descriptorForResult = desc;
+            var descriptorForResult = desc;
             if (string.Equals(propName, "name", StringComparison.Ordinal) && args[0] is IJsCallable)
             {
                 descriptorForResult = desc.Clone();

@@ -773,7 +773,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     private static bool SameValueZero(object? left, object? right)
     {
-        if (left is double dl && double.IsNaN(dl) && right is double dr && double.IsNaN(dr))
+        if (left is double and Double.NaN && right is double and Double.NaN)
         {
             return true;
         }

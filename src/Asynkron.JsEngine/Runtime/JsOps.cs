@@ -228,20 +228,22 @@ internal static class JsOps
         var toStringAttempted = TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context);
         attempted = attempted || toStringAttempted;
         if (!toStringAttempted ||
-            (toStringResult is IJsPropertyAccessor && toStringResult is not TypedAstSymbol and not Symbol) ||
+            (toStringResult is IJsPropertyAccessor && toStringResult is not TypedAstSymbol && toStringResult is not Symbol) ||
             toStringResult is JsObject)
         {
-            // OrdinaryToPrimitive failure path should be an abrupt completion.
-            if (attempted)
-            {
-                var error = CreateTypeError("Cannot convert object to primitive value", context);
-                if (context is null)
-                {
-                    throw new ThrowSignal(error);
-                }
 
-                context.SetThrow(error);
+            if (!attempted)
+            {
+                return false;
             }
+            // OrdinaryToPrimitive failure path should be an abrupt completion.
+            var error = CreateTypeError("Cannot convert object to primitive value", context);
+            if (context is null)
+            {
+                throw new ThrowSignal(error);
+            }
+
+            context.SetThrow(error);
 
             return false;
         }

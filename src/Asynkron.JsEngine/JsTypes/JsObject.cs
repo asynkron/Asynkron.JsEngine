@@ -1,4 +1,3 @@
-using System;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
@@ -153,7 +152,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
-    private readonly List<string> _propertyInsertionOrder = new();
+    private readonly List<string> _propertyInsertionOrder = [];
     private readonly HashSet<string> _propertyInsertionSet = new(StringComparer.Ordinal);
     private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
     private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
@@ -321,7 +320,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
         if (!current.Configurable)
         {
-            if (candidate.HasConfigurable && candidate.Configurable)
+            if (candidate is { HasConfigurable: true, Configurable: true })
             {
                 return false;
             }
@@ -345,9 +344,9 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
         if (currentIsData && candidate.IsDataDescriptor)
         {
-            if (!current.Configurable && !current.Writable)
+            if (current is { Configurable: false, Writable: false })
             {
-                if (candidate.HasWritable && candidate.Writable)
+                if (candidate is { HasWritable: true, Writable: true })
                 {
                     return false;
                 }
@@ -405,7 +404,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             {
                 target.Value = source.Value;
             }
-            else if (!target.IsAccessorDescriptor && !target.HasValue)
+            else if (target is { IsAccessorDescriptor: false, HasValue: false })
             {
                 target.Value = Symbol.Undefined;
             }
@@ -414,7 +413,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             {
                 target.Writable = source.Writable;
             }
-            else if (!target.IsAccessorDescriptor && !target.HasWritable)
+            else if (target is { IsAccessorDescriptor: false, HasWritable: false })
             {
                 target.Writable = false;
             }
@@ -448,7 +447,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
     {
         if (descriptor.IsAccessorDescriptor)
         {
-            if (descriptor.HasGet && descriptor.Get is not null)
+            if (descriptor is { HasGet: true, Get: not null })
             {
                 this[GetterPrefix + name] = descriptor.Get;
             }
@@ -457,7 +456,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
                 Remove(GetterPrefix + name);
             }
 
-            if (descriptor.HasSet && descriptor.Set is not null)
+            if (descriptor is { HasSet: true, Set: not null })
             {
                 this[SetterPrefix + name] = descriptor.Set;
             }
@@ -600,8 +599,10 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
         if (IsPrivateName(name))
         {
-            if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor desc &&
-                desc.IsAccessorDescriptor)
+            if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor
+                {
+                    IsAccessorDescriptor: true
+                } desc)
             {
                 if (desc.Set != null)
                 {
@@ -617,7 +618,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             while (prototype is not null)
             {
                 if (prototype._privateFields.TryGetValue(name, out var inherited) &&
-                    inherited is PropertyDescriptor inheritedDesc && inheritedDesc.IsAccessorDescriptor)
+                    inherited is PropertyDescriptor { IsAccessorDescriptor: true } inheritedDesc)
                 {
                     if (inheritedDesc.Set != null)
                     {
@@ -1082,7 +1083,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
                 continue;
             }
 
-            if (!includeNonEnumerable && descriptor.HasEnumerable && !descriptor.Enumerable)
+            if (!includeNonEnumerable && descriptor is { HasEnumerable: true, Enumerable: false })
             {
                 continue;
             }

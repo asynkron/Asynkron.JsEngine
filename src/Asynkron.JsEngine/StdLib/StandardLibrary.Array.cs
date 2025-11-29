@@ -1740,7 +1740,7 @@ public static partial class StandardLibrary
             var index = fromRight ? length - 1 : 0;
 
             var hasAccumulator = args.Count > 1;
-            object? accumulator = hasAccumulator ? args[1] : null;
+            var accumulator = hasAccumulator ? args[1] : null;
 
             if (!hasAccumulator)
             {
@@ -1773,7 +1773,7 @@ public static partial class StandardLibrary
         var indexGeneric = fromRight ? lengthGeneric - 1 : 0;
 
         var hasAccumulatorGeneric = args.Count > 1;
-        object? accumulatorGeneric = hasAccumulatorGeneric ? args[1] : null;
+        var accumulatorGeneric = hasAccumulatorGeneric ? args[1] : null;
 
         if (!hasAccumulatorGeneric)
         {

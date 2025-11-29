@@ -2,13 +2,13 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using JetBrains.Annotations;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -23,7 +23,7 @@ public interface ICallableMetadata
 ///     rather than virtual methods on the node hierarchy. Only a focused subset of JavaScript semantics is
 ///     implemented for now so the skeleton stays approachable.
 /// </summary>
-public static class TypedAstEvaluator
+public static partial class TypedAstEvaluator
 {
     private const string GeneratorBrandPropertyName = "__generator_brand__";
     private static readonly Symbol YieldTrackerSymbol = Symbol.Intern("__yieldTracker__");
@@ -43,365 +43,389 @@ public static class TypedAstEvaluator
         Vars
     }
 
-    public static object? EvaluateProgram(
-        ProgramNode program,
-        JsEnvironment environment,
-        RealmState realmState,
-        CancellationToken cancellationToken = default,
-        ExecutionKind executionKind = ExecutionKind.Script,
-        bool createStrictEnvironment = true)
+    extension(ProgramNode program)
     {
-        var context = realmState.CreateContext(
-            ScopeKind.Program,
-            program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
-            skipAnnexBInstantiation: false,
-            cancellationToken: cancellationToken,
-            executionKind: executionKind,
-            pushScope: false);
-        context.SourceReference = program.Source;
-        context.IsStrictSource = program.IsStrict;
-        var executionEnvironment = program.IsStrict && createStrictEnvironment
-            ? new JsEnvironment(environment, true, true)
-            : environment;
-        if (program.IsStrict && !executionEnvironment.IsStrict)
+        public object? EvaluateProgram(JsEnvironment environment,
+            RealmState realmState,
+            CancellationToken cancellationToken = default,
+            ExecutionKind executionKind = ExecutionKind.Script,
+            bool createStrictEnvironment = true)
         {
-            executionEnvironment = new JsEnvironment(executionEnvironment, true, true);
-        }
-
-        var programMode = executionEnvironment.IsStrict
-            ? ScopeMode.Strict
-            : (context.Options.EnableAnnexBFunctionExtensions ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy);
-        using var programScope = context.PushScope(ScopeKind.Program, programMode);
-
-        // Hoist var and function declarations in the program body so that
-        // function declarations like `function formatArgs(...) {}` are
-        // available before earlier statements that reference them.
-        var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
-        var lexicalNames = CollectLexicalNames(programBlock);
-        var catchParameterNames = CollectCatchParameterNames(programBlock);
-        var simpleCatchParameterNames = CollectSimpleCatchParameterNames(programBlock);
-        var bodyLexicalNames = lexicalNames.Count == 0
-            ? lexicalNames
-            : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-        bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
-        context.BlockedFunctionVarNames = bodyLexicalNames;
-        executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-        var functionScope = executionEnvironment.GetFunctionScope();
-        if (functionScope.IsGlobalFunctionScope)
-        {
-            foreach (var blockedName in bodyLexicalNames)
+            var context = realmState.CreateContext(
+                ScopeKind.Program,
+                program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
+                skipAnnexBInstantiation: false,
+                cancellationToken: cancellationToken,
+                executionKind: executionKind,
+                pushScope: false);
+            context.SourceReference = program.Source;
+            context.IsStrictSource = program.IsStrict;
+            var executionEnvironment = program.IsStrict && createStrictEnvironment
+                ? new JsEnvironment(environment, true, true)
+                : environment;
+            if (program.IsStrict && !executionEnvironment.IsStrict)
             {
-                if (functionScope.HasRestrictedGlobalProperty(blockedName))
+                executionEnvironment = new JsEnvironment(executionEnvironment, true, true);
+            }
+
+            var programMode = executionEnvironment.IsStrict
+                ? ScopeMode.Strict
+                : (context.Options.EnableAnnexBFunctionExtensions ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy);
+            using var programScope = context.PushScope(ScopeKind.Program, programMode);
+
+            // Hoist var and function declarations in the program body so that
+            // function declarations like `function formatArgs(...) {}` are
+            // available before earlier statements that reference them.
+            var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
+            var lexicalNames = CollectLexicalNames(programBlock);
+            var catchParameterNames = CollectCatchParameterNames(programBlock);
+            var simpleCatchParameterNames = CollectSimpleCatchParameterNames(programBlock);
+            var bodyLexicalNames = lexicalNames.Count == 0
+                ? lexicalNames
+                : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+            bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
+            context.BlockedFunctionVarNames = bodyLexicalNames;
+            executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+            var functionScope = executionEnvironment.GetFunctionScope();
+            if (functionScope.IsGlobalFunctionScope)
+            {
+                foreach (var blockedName in bodyLexicalNames)
                 {
-                    throw StandardLibrary.ThrowSyntaxError(
-                        $"Cannot redeclare var-scoped binding '{blockedName.Name}' with lexical declaration",
-                        context,
-                        context.RealmState);
-                }
-            }
-        }
-
-        HoistVarDeclarations(programBlock, executionEnvironment, context, lexicalNames: lexicalNames,
-            catchParameterNames: catchParameterNames,
-            simpleCatchParameterNames: simpleCatchParameterNames);
-
-        object? result = EmptyCompletion;
-        foreach (var statement in program.Body)
-        {
-            context.ThrowIfCancellationRequested();
-            var completion = EvaluateStatement(statement, executionEnvironment, context);
-            if (!ReferenceEquals(completion, EmptyCompletion))
-            {
-                result = completion;
-            }
-
-            if (context.ShouldStopEvaluation)
-            {
-                break;
-            }
-        }
-
-
-        if (context.IsThrow)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        return ReferenceEquals(result, EmptyCompletion) ? Symbol.Undefined : result;
-    }
-
-    private static object? EvaluateStatement(StatementNode statement, JsEnvironment environment,
-        EvaluationContext context,
-        Symbol? activeLabel = null)
-    {
-        context.SourceReference = statement.Source;
-        context.ThrowIfCancellationRequested();
-
-        return statement switch
-        {
-            BlockStatement block => EvaluateBlock(block, environment, context),
-            ExpressionStatement expressionStatement => EvaluateExpression(expressionStatement.Expression, environment,
-                context),
-            ReturnStatement returnStatement => EvaluateReturn(returnStatement, environment, context),
-            ThrowStatement throwStatement => EvaluateThrow(throwStatement, environment, context),
-            VariableDeclaration declaration => EvaluateVariableDeclaration(declaration, environment, context),
-            FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment,
-                context),
-            IfStatement ifStatement => EvaluateIf(ifStatement, environment, context),
-            WhileStatement whileStatement => EvaluateWhile(whileStatement, environment, context, activeLabel),
-            DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context, activeLabel),
-            ForStatement forStatement => EvaluateFor(forStatement, environment, context, activeLabel),
-            ForEachStatement forEachStatement => EvaluateForEach(forEachStatement, environment, context, activeLabel),
-            BreakStatement breakStatement => EvaluateBreak(breakStatement, context),
-            ContinueStatement continueStatement => EvaluateContinue(continueStatement, context),
-            LabeledStatement labeledStatement => EvaluateLabeled(labeledStatement, environment, context),
-            TryStatement tryStatement => EvaluateTry(tryStatement, environment, context),
-            SwitchStatement switchStatement => EvaluateSwitch(switchStatement, environment, context, activeLabel),
-            ClassDeclaration classDeclaration => EvaluateClass(classDeclaration, environment, context),
-            WithStatement withStatement => EvaluateWith(withStatement, environment, context),
-            EmptyStatement => EmptyCompletion,
-            _ => throw new NotSupportedException(
-                $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
-        };
-    }
-
-    private static object? EvaluateBlock(
-        BlockStatement block,
-        JsEnvironment environment,
-        EvaluationContext context,
-        bool skipAnnexBFunctionInstantiation = false)
-    {
-        var scope = new JsEnvironment(environment, false, block.IsStrict);
-        object? result = EmptyCompletion;
-
-        var currentMode = context.CurrentScope.Mode;
-        var allowAnnexB = currentMode == ScopeMode.SloppyAnnexB &&
-                          !scope.IsStrict &&
-                          !block.IsStrict;
-        var mode = scope.IsStrict
-            ? ScopeMode.Strict
-            : (allowAnnexB ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy);
-        using var scopeHandle = context.PushScope(
-            ScopeKind.Block,
-            mode,
-            skipAnnexBFunctionInstantiation);
-
-        var currentFrame = context.CurrentScope;
-        if (currentFrame.AllowAnnexB && !currentFrame.SkipAnnexBInstantiation)
-        {
-            InstantiateAnnexBBlockFunctions(block, scope, context);
-        }
-
-        foreach (var statement in block.Statements)
-        {
-            context.ThrowIfCancellationRequested();
-            var completion = EvaluateStatement(statement, scope, context);
-            var shouldStop = context.ShouldStopEvaluation;
-            var shouldCapture =
-                !ReferenceEquals(completion, EmptyCompletion) &&
-                (!shouldStop ||
-                 context.IsReturn ||
-                 context.IsThrow ||
-                 context.IsYield ||
-                 context.IsBreak ||
-                 context.IsContinue);
-
-            if (shouldCapture)
-            {
-                result = completion;
-            }
-
-            if (shouldStop)
-            {
-                break;
-            }
-        }
-
-        return result;
-    }
-
-    private static void InstantiateAnnexBBlockFunctions(
-        BlockStatement block,
-        JsEnvironment blockEnvironment,
-        EvaluationContext context)
-    {
-        var frame = context.CurrentScope;
-        if (!frame.AllowAnnexB || frame.SkipAnnexBInstantiation)
-        {
-            return;
-        }
-
-        var functionScope = blockEnvironment.GetFunctionScope();
-        var lexicalNames = CollectLexicalNames(block);
-        var simpleCatchParameterNames = CollectSimpleCatchParameterNames(block);
-
-        foreach (var statement in block.Statements)
-        {
-            if (statement is not FunctionDeclaration functionDeclaration)
-            {
-                continue;
-            }
-
-            var hasNonCatchLexical = lexicalNames.Contains(functionDeclaration.Name) &&
-                                     !simpleCatchParameterNames.Contains(functionDeclaration.Name);
-            var shouldCreateVarBinding = !hasNonCatchLexical &&
-                                         !functionScope.HasBodyLexicalName(functionDeclaration.Name);
-            var blockedByParameters = context.BlockedFunctionVarNames is { } blocked &&
-                                      blocked.Contains(functionDeclaration.Name);
-            var hasLexicalBeforeFunctionScope =
-                blockEnvironment.HasBindingBeforeFunctionScope(functionDeclaration.Name);
-            var hasBlockingLexicalBeforeFunctionScope = hasLexicalBeforeFunctionScope &&
-                                                        !simpleCatchParameterNames.Contains(functionDeclaration.Name) &&
-                                                        !IsSimpleCatchParameterBinding(blockEnvironment,
-                                                            functionDeclaration.Name);
-            var bindingExists =
-                hasLexicalBeforeFunctionScope ||
-                functionScope.HasBodyLexicalName(functionDeclaration.Name) ||
-                (functionScope.IsGlobalFunctionScope && functionScope.HasOwnLexicalBinding(functionDeclaration.Name));
-
-            var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context);
-
-            blockEnvironment.Define(functionDeclaration.Name, functionValue, isLexical: true,
-                blocksFunctionScopeOverride: true);
-
-            var skipVarUpdateForExistingGlobal = false;
-            if (bindingExists && functionScope.IsGlobalFunctionScope)
-            {
-                try
-                {
-                    if (functionScope.TryGet(functionDeclaration.Name, out var existingValue) &&
-                        !ReferenceEquals(existingValue, Symbol.Undefined))
+                    if (functionScope.HasRestrictedGlobalProperty(blockedName))
                     {
-                        skipVarUpdateForExistingGlobal = true;
+                        throw StandardLibrary.ThrowSyntaxError(
+                            $"Cannot redeclare var-scoped binding '{blockedName.Name}' with lexical declaration",
+                            context,
+                            context.RealmState);
                     }
                 }
-                catch (Exception)
+            }
+
+            HoistVarDeclarations(programBlock, executionEnvironment, context, lexicalNames: lexicalNames,
+                catchParameterNames: catchParameterNames,
+                simpleCatchParameterNames: simpleCatchParameterNames);
+
+            var result = EmptyCompletion;
+            foreach (var statement in program.Body)
+            {
+                context.ThrowIfCancellationRequested();
+                var completion = EvaluateStatement(statement, executionEnvironment, context);
+                if (!ReferenceEquals(completion, EmptyCompletion))
                 {
-                    // Ignore lookup failures (e.g., uninitialized); allow update in that case.
+                    result = completion;
+                }
+
+                if (context.ShouldStopEvaluation)
+                {
+                    break;
                 }
             }
 
-            if (!shouldCreateVarBinding || blockedByParameters || skipVarUpdateForExistingGlobal ||
-                hasBlockingLexicalBeforeFunctionScope)
+
+            if (context.IsThrow)
             {
-                continue;
+                throw new ThrowSignal(context.FlowValue);
             }
 
-            var hasFunctionBinding = functionScope.HasFunctionScopedBinding(functionDeclaration.Name);
-            if (!bindingExists || hasFunctionBinding)
+            return ReferenceEquals(result, EmptyCompletion) ? Symbol.Undefined : result;
+        }
+    }
+
+    extension(StatementNode statement)
+    {
+        private object? EvaluateStatement(JsEnvironment environment,
+            EvaluationContext context,
+            Symbol? activeLabel = null)
+        {
+            context.SourceReference = statement.Source;
+            context.ThrowIfCancellationRequested();
+
+            return statement switch
             {
+                BlockStatement block => EvaluateBlock(block, environment, context),
+                ExpressionStatement expressionStatement => EvaluateExpression(expressionStatement.Expression, environment,
+                    context),
+                ReturnStatement returnStatement => EvaluateReturn(returnStatement, environment, context),
+                ThrowStatement throwStatement => EvaluateThrow(throwStatement, environment, context),
+                VariableDeclaration declaration => EvaluateVariableDeclaration(declaration, environment, context),
+                FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment,
+                    context),
+                IfStatement ifStatement => EvaluateIf(ifStatement, environment, context),
+                WhileStatement whileStatement => EvaluateWhile(whileStatement, environment, context, activeLabel),
+                DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context, activeLabel),
+                ForStatement forStatement => EvaluateFor(forStatement, environment, context, activeLabel),
+                ForEachStatement forEachStatement => EvaluateForEach(forEachStatement, environment, context, activeLabel),
+                BreakStatement breakStatement => EvaluateBreak(breakStatement, context),
+                ContinueStatement continueStatement => EvaluateContinue(continueStatement, context),
+                LabeledStatement labeledStatement => EvaluateLabeled(labeledStatement, environment, context),
+                TryStatement tryStatement => EvaluateTry(tryStatement, environment, context),
+                SwitchStatement switchStatement => EvaluateSwitch(switchStatement, environment, context, activeLabel),
+                ClassDeclaration classDeclaration => EvaluateClass(classDeclaration, environment, context),
+                WithStatement withStatement => EvaluateWith(withStatement, environment, context),
+                EmptyStatement => EmptyCompletion,
+                _ => throw new NotSupportedException(
+                    $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
+            };
+        }
+    }
+
+    extension(BlockStatement block)
+    {
+        private object? EvaluateBlock(JsEnvironment environment,
+            EvaluationContext context,
+            bool skipAnnexBFunctionInstantiation = false)
+        {
+            var scope = new JsEnvironment(environment, false, block.IsStrict);
+            var result = EmptyCompletion;
+
+            var currentMode = context.CurrentScope.Mode;
+            var allowAnnexB = currentMode == ScopeMode.SloppyAnnexB &&
+                              !scope.IsStrict &&
+                              !block.IsStrict;
+            var mode = scope.IsStrict
+                ? ScopeMode.Strict
+                : (allowAnnexB ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy);
+            using var scopeHandle = context.PushScope(
+                ScopeKind.Block,
+                mode,
+                skipAnnexBFunctionInstantiation);
+
+            var currentFrame = context.CurrentScope;
+            if (currentFrame is { AllowAnnexB: true, SkipAnnexBInstantiation: false })
+            {
+                InstantiateAnnexBBlockFunctions(block, scope, context);
+            }
+
+            foreach (var statement in block.Statements)
+            {
+                context.ThrowIfCancellationRequested();
+                var completion = EvaluateStatement(statement, scope, context);
+                var shouldStop = context.ShouldStopEvaluation;
+                var shouldCapture =
+                    !ReferenceEquals(completion, EmptyCompletion) &&
+                    (!shouldStop ||
+                     context.IsReturn ||
+                     context.IsThrow ||
+                     context.IsYield ||
+                     context.IsBreak ||
+                     context.IsContinue);
+
+                if (shouldCapture)
+                {
+                    result = completion;
+                }
+
+                if (shouldStop)
+                {
+                    break;
+                }
+            }
+
+            return result;
+        }
+    }
+
+    extension(BlockStatement block)
+    {
+        private void InstantiateAnnexBBlockFunctions(JsEnvironment blockEnvironment,
+            EvaluationContext context)
+        {
+            var frame = context.CurrentScope;
+            if (!frame.AllowAnnexB || frame.SkipAnnexBInstantiation)
+            {
+                return;
+            }
+
+            var functionScope = blockEnvironment.GetFunctionScope();
+            var lexicalNames = CollectLexicalNames(block);
+            var simpleCatchParameterNames = CollectSimpleCatchParameterNames(block);
+
+            foreach (var statement in block.Statements)
+            {
+                if (statement is not FunctionDeclaration functionDeclaration)
+                {
+                    continue;
+                }
+
+                var hasNonCatchLexical = lexicalNames.Contains(functionDeclaration.Name) &&
+                                         !simpleCatchParameterNames.Contains(functionDeclaration.Name);
+                var shouldCreateVarBinding = !hasNonCatchLexical &&
+                                             !functionScope.HasBodyLexicalName(functionDeclaration.Name);
+                var blockedByParameters = context.BlockedFunctionVarNames is { } blocked &&
+                                          blocked.Contains(functionDeclaration.Name);
+                var hasLexicalBeforeFunctionScope =
+                    blockEnvironment.HasBindingBeforeFunctionScope(functionDeclaration.Name);
+                var hasBlockingLexicalBeforeFunctionScope = hasLexicalBeforeFunctionScope &&
+                                                            !simpleCatchParameterNames.Contains(functionDeclaration.Name) &&
+                                                            !IsSimpleCatchParameterBinding(blockEnvironment,
+                                                                functionDeclaration.Name);
+                var bindingExists =
+                    hasLexicalBeforeFunctionScope ||
+                    functionScope.HasBodyLexicalName(functionDeclaration.Name) ||
+                    (functionScope.IsGlobalFunctionScope && functionScope.HasOwnLexicalBinding(functionDeclaration.Name));
+
+                var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context);
+
+                blockEnvironment.Define(functionDeclaration.Name, functionValue, isLexical: true,
+                    blocksFunctionScopeOverride: true);
+
+                var skipVarUpdateForExistingGlobal = false;
+                if (bindingExists && functionScope.IsGlobalFunctionScope)
+                {
+                    try
+                    {
+                        if (functionScope.TryGet(functionDeclaration.Name, out var existingValue) &&
+                            !ReferenceEquals(existingValue, Symbol.Undefined))
+                        {
+                            skipVarUpdateForExistingGlobal = true;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // Ignore lookup failures (e.g., uninitialized); allow update in that case.
+                    }
+                }
+
+                if (!shouldCreateVarBinding || blockedByParameters || skipVarUpdateForExistingGlobal ||
+                    hasBlockingLexicalBeforeFunctionScope)
+                {
+                    continue;
+                }
+
+                var hasFunctionBinding = functionScope.HasFunctionScopedBinding(functionDeclaration.Name);
+                if (!bindingExists || hasFunctionBinding)
+                {
                     functionScope.DefineFunctionScoped(
                         functionDeclaration.Name,
                         Symbol.Undefined,
                         hasInitializer: false,
                         isFunctionDeclaration: true,
-                        globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval && !context.IsStrictSource,
+                        globalFunctionConfigurable: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
                         context,
                         blocksFunctionScopeOverride: true);
-            }
-        }
-    }
-
-    private static bool IsSimpleCatchParameterBinding(JsEnvironment environment, Symbol name)
-    {
-        try
-        {
-            if (environment.TryFindBinding(name, out var bindingEnvironment, out _) &&
-                !bindingEnvironment.IsFunctionScope &&
-                bindingEnvironment.IsSimpleCatchParameter(name))
-            {
-                return true;
-            }
-        }
-        catch (Exception)
-        {
-            // Ignore lookup failures such as TDZ reads.
-        }
-
-        return false;
-    }
-
-    private static bool HasBlockingLexicalBeforeFunctionScope(JsEnvironment environment, Symbol name)
-    {
-        var current = environment;
-        var skippedOwnBinding = false;
-        while (current is not null && !current.IsFunctionScope)
-        {
-            if (current.HasOwnLexicalBinding(name))
-            {
-                if (!skippedOwnBinding)
-                {
-                    skippedOwnBinding = true;
                 }
-                else if (!current.IsSimpleCatchParameter(name))
+            }
+        }
+    }
+
+    extension(JsEnvironment environment)
+    {
+        private bool IsSimpleCatchParameterBinding(Symbol name)
+        {
+            try
+            {
+                if (environment.TryFindBinding(name, out var bindingEnvironment, out _) &&
+                    !bindingEnvironment.IsFunctionScope &&
+                    bindingEnvironment.IsSimpleCatchParameter(name))
                 {
                     return true;
                 }
             }
+            catch (Exception)
+            {
+                // Ignore lookup failures such as TDZ reads.
+            }
 
-            current = current.Enclosing;
+            return false;
         }
-
-        return false;
     }
 
-    private static object? EvaluateReturn(ReturnStatement statement, JsEnvironment environment,
-        EvaluationContext context)
+    extension(JsEnvironment environment)
     {
-        var value = statement.Expression is null
-            ? null
-            : EvaluateExpression(statement.Expression, environment, context);
-        if (context.ShouldStopEvaluation)
+        private bool HasBlockingLexicalBeforeFunctionScope(Symbol name)
         {
+            var current = environment;
+            var skippedOwnBinding = false;
+            while (current?.IsFunctionScope == false)
+            {
+                if (current.HasOwnLexicalBinding(name))
+                {
+                    if (!skippedOwnBinding)
+                    {
+                        skippedOwnBinding = true;
+                    }
+                    else if (!current.IsSimpleCatchParameter(name))
+                    {
+                        return true;
+                    }
+                }
+
+                current = current.Enclosing;
+            }
+
+            return false;
+        }
+    }
+
+    extension(ReturnStatement statement)
+    {
+        private object? EvaluateReturn(JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var value = statement.Expression is null
+                ? null
+                : EvaluateExpression(statement.Expression, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return value;
+            }
+
+            context.SetReturn(value);
             return value;
         }
-
-        context.SetReturn(value);
-        return value;
     }
 
-    private static object? EvaluateThrow(ThrowStatement statement, JsEnvironment environment, EvaluationContext context)
+    extension(ThrowStatement statement)
     {
-        var value = EvaluateExpression(statement.Expression, environment, context);
-        context.SetThrow(value);
-        return value;
-    }
-
-    private static object? EvaluateWith(WithStatement statement, JsEnvironment environment, EvaluationContext context)
-    {
-        var objValue = EvaluateExpression(statement.Object, environment, context);
-        if (context.ShouldStopEvaluation)
+        private object? EvaluateThrow(JsEnvironment environment, EvaluationContext context)
         {
-            return objValue;
+            var value = EvaluateExpression(statement.Expression, environment, context);
+            context.SetThrow(value);
+            return value;
         }
-
-        if (!TryConvertToWithBindingObject(objValue, context, out var withObject))
-        {
-            return Symbol.Undefined;
-        }
-
-        var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict, statement.Source, "with",
-            withObject);
-        var completion = EvaluateStatement(statement.Body, withEnv, context);
-
-        if (ReferenceEquals(completion, EmptyCompletion))
-        {
-            return Symbol.Undefined;
-        }
-
-        return completion;
     }
 
-    private static object? EvaluateBreak(BreakStatement statement, EvaluationContext context)
+    extension(WithStatement statement)
     {
-        context.SetBreak(statement.Label);
-        return EmptyCompletion;
+        private object? EvaluateWith(JsEnvironment environment, EvaluationContext context)
+        {
+            var objValue = EvaluateExpression(statement.Object, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return objValue;
+            }
+
+            if (!TryConvertToWithBindingObject(objValue, context, out var withObject))
+            {
+                return Symbol.Undefined;
+            }
+
+            var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict, statement.Source, "with",
+                withObject);
+            var completion = EvaluateStatement(statement.Body, withEnv, context);
+
+            return ReferenceEquals(completion, EmptyCompletion) ?
+                Symbol.Undefined :
+                completion;
+        }
     }
 
-    private static object? EvaluateContinue(ContinueStatement statement, EvaluationContext context)
+    extension(BreakStatement statement)
     {
-        context.SetContinue(statement.Label);
-        return EmptyCompletion;
+        private object EvaluateBreak(EvaluationContext context)
+        {
+            context.SetBreak(statement.Label);
+            return EmptyCompletion;
+        }
+    }
+
+    extension(ContinueStatement statement)
+    {
+        private object EvaluateContinue(EvaluationContext context)
+        {
+            context.SetContinue(statement.Label);
+            return EmptyCompletion;
+        }
     }
 
     private static bool TryConvertToWithBindingObject(
@@ -1412,9 +1436,7 @@ public static class TypedAstEvaluator
     {
         foreach (var member in members)
         {
-            if (!ClassPropertyNameResolver.TryResolveMemberName(
-                    member,
-                    expr => EvaluateExpression(expr, environment, context),
+            if (!member.TryResolveMemberName(expr => EvaluateExpression(expr, environment, context),
                     context,
                     privateNameScope,
                     out var propertyName))
@@ -1450,7 +1472,7 @@ public static class TypedAstEvaluator
                 typedFunction.EnsureHasName(propertyName);
             }
 
-            ClassMemberEmitter.DefineMember(member, propertyName, callable, constructorAccessor, prototype);
+            member.DefineMember(propertyName, callable, constructorAccessor, prototype);
         }
     }
 
@@ -1459,30 +1481,17 @@ public static class TypedAstEvaluator
         JsEnvironment environment, EvaluationContext context, PrivateNameScope? privateNameScope)
     {
         using var staticFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, skipAnnexBInstantiation: true);
-        foreach (var field in fields)
+        Func<IDisposable?>? privateScopeFactory = privateNameScope is not null
+            ? () => context.EnterPrivateNameScope(privateNameScope)
+            : null;
+
+        if (!fields.TryInitializeStaticFields(constructorAccessor,
+            expr => EvaluateExpression(expr, environment, context),
+            context,
+            privateNameScope,
+            privateScopeFactory))
         {
-            if (!ClassPropertyNameResolver.TryResolveFieldName(
-                    field,
-                    expr => EvaluateExpression(expr, environment, context),
-                    context,
-                    privateNameScope,
-                    out var propertyName))
-            {
-                return;
-            }
-
-            object? value = Symbol.Undefined;
-            if (field.Initializer is not null)
-            {
-                using var _ = privateNameScope is not null ? context.EnterPrivateNameScope(privateNameScope) : null;
-                value = EvaluateExpression(field.Initializer, environment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return;
-                }
-            }
-
-            constructorAccessor.SetProperty(propertyName, value);
+            return;
         }
     }
 
@@ -1547,11 +1556,7 @@ public static class TypedAstEvaluator
             environment.Define(declaration.Name, function);
         }
         var skipVarBinding = context.BlockedFunctionVarNames is { } blocked &&
-                             blocked.Contains(declaration.Name);
-        if (environment.HasBodyLexicalName(declaration.Name))
-        {
-            skipVarBinding = true;
-        }
+            blocked.Contains(declaration.Name) || environment.HasBodyLexicalName(declaration.Name);
 
         var hasBlockingLexicalBeforeFunctionScope =
             !isStrictScope && HasBlockingLexicalBeforeFunctionScope(environment, declaration.Name);
@@ -1564,7 +1569,7 @@ public static class TypedAstEvaluator
                 var assigned = environment.TryAssignBlockedBinding(declaration.Name, function);
             }
 
-            var configurable = context.ExecutionKind == ExecutionKind.Eval && !context.IsStrictSource;
+            var configurable = context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
             environment.DefineFunctionScoped(
                 declaration.Name,
                 function,
@@ -2601,7 +2606,7 @@ public static class TypedAstEvaluator
             }
         }
 
-        var isAsyncCallable = callable is TypedFunction tf && tf.IsAsyncLike;
+        var isAsyncCallable = callable is TypedFunction { IsAsyncLike: true };
 
         IJsEnvironmentAwareCallable? envAwareHandle = null;
         if (callable is IJsEnvironmentAwareCallable envAware)
@@ -3064,7 +3069,7 @@ public static class TypedAstEvaluator
             throw new ThrowSignal(error);
         }
 
-        if (constructor is TypedFunction typed && typed.IsArrowFunction)
+        if (constructor is TypedFunction { IsArrowFunction: true })
         {
             var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                 ? typeErrorCtor.Invoke(["Target is not a constructor"], null)
@@ -3295,7 +3300,7 @@ public static class TypedAstEvaluator
 
                     // Object spread uses CopyDataProperties (ECMA-262 PropertyDefinitionEvaluation),
                     // which skips null/undefined and copies enumerable own keys in [[OwnPropertyKeys]] order.
-                    if (spreadValue is IDictionary<string, object?> dictionary && spreadValue is not JsObject)
+                    if (spreadValue is IDictionary<string, object?> dictionary and not JsObject)
                     {
                         foreach (var kvp in dictionary)
                         {
@@ -3305,7 +3310,7 @@ public static class TypedAstEvaluator
                         break;
                     }
 
-                    IJsPropertyAccessor accessor = spreadValue is IJsPropertyAccessor propertyAccessor
+                    var accessor = spreadValue is IJsPropertyAccessor propertyAccessor
                         ? propertyAccessor
                         : ToObjectForDestructuring(spreadValue, context);
 
@@ -3592,7 +3597,7 @@ public static class TypedAstEvaluator
     private static object Power(object? left, object? right, EvaluationContext context)
     {
         return PerformBigIntOrNumericOperation(left, right,
-            (l, r) => JsBigInt.Pow(l, r),
+            JsBigInt.Pow,
             (l, r) => Math.Pow(l, r),
             context);
     }
@@ -3839,7 +3844,7 @@ public static class TypedAstEvaluator
     {
         var effectiveLexicalNames = lexicalNames is null
             ? CollectLexicalNames(block)
-            : new HashSet<Symbol>(lexicalNames);
+            : [..lexicalNames];
         if (lexicalNames is not null)
         {
             effectiveLexicalNames.UnionWith(CollectLexicalNames(block));
@@ -3847,7 +3852,7 @@ public static class TypedAstEvaluator
 
         var effectiveCatchNames = catchParameterNames is null
             ? CollectCatchParameterNames(block)
-            : new HashSet<Symbol>(catchParameterNames);
+            : [..catchParameterNames];
         if (catchParameterNames is not null)
         {
             effectiveCatchNames.UnionWith(CollectCatchParameterNames(block));
@@ -3855,7 +3860,7 @@ public static class TypedAstEvaluator
 
         var effectiveSimpleCatchNames = simpleCatchParameterNames is null
             ? CollectSimpleCatchParameterNames(block)
-            : new HashSet<Symbol>(simpleCatchParameterNames);
+            : [..simpleCatchParameterNames];
         if (simpleCatchParameterNames is not null)
         {
             effectiveSimpleCatchNames.UnionWith(CollectSimpleCatchParameterNames(block));
@@ -4074,8 +4079,7 @@ public static class TypedAstEvaluator
                     var functionScope = environment.GetFunctionScope();
                     var isAnnexBBlockFunction =
                         inBlockScope &&
-                        !context.CurrentScope.IsStrict &&
-                        context.CurrentScope.AllowAnnexB;
+                        context.CurrentScope is { IsStrict: false, AllowAnnexB: true };
 
                     if (isAnnexBBlockFunction)
                     {
@@ -4090,7 +4094,7 @@ public static class TypedAstEvaluator
                             Symbol.Undefined,
                             hasInitializer: false,
                             isFunctionDeclaration: true,
-                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval && !context.IsStrictSource,
+                            globalFunctionConfigurable: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
                             context,
                             blocksFunctionScopeOverride: true);
 
@@ -4110,7 +4114,7 @@ public static class TypedAstEvaluator
                             functionValue,
                             hasInitializer: true,
                             isFunctionDeclaration: true,
-                            globalFunctionConfigurable: context.ExecutionKind == ExecutionKind.Eval && !context.IsStrictSource,
+                            globalFunctionConfigurable: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
                             context);
                     }
                     break;
@@ -4594,7 +4598,7 @@ public static class TypedAstEvaluator
 
                 try
                 {
-                    var result = callable.Invoke(new object?[] { left }, right);
+                    var result = callable.Invoke([left], right);
                     return JsOps.ToBoolean(result);
                 }
                 catch (ThrowSignal signal)
@@ -4899,8 +4903,7 @@ public static class TypedAstEvaluator
                 }
 
                 if (usedDefault &&
-                    element.Target is IdentifierBinding identifierTarget &&
-                    element.DefaultValue is { } defaultExpression &&
+                    element is { Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression } &&
                     IsAnonymousFunctionDefinition(defaultExpression) &&
                     elementValue is IFunctionNameTarget nameTarget)
                 {
@@ -5060,8 +5063,7 @@ public static class TypedAstEvaluator
             }
 
             if (usedDefault &&
-                property.Target is IdentifierBinding identifierTarget &&
-                property.DefaultValue is { } defaultExpression &&
+                property is { Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression } &&
                 IsAnonymousFunctionDefinition(defaultExpression) &&
                 propertyValue is IFunctionNameTarget nameTarget)
             {
@@ -5113,13 +5115,13 @@ public static class TypedAstEvaluator
 
     // Array/object destructuring uses iterator protocol (ECMA-262 §14.1.5).
     private static bool TryGetIteratorForDestructuring(object? value, EvaluationContext context,
-        out JsObject? iterator, out IEnumerator<object?>? enumerator)
+        out JsObject? iterator, [MustDisposeResource] out IEnumerator<object?>? enumerator)
     {
         iterator = null;
         enumerator = null;
 
-        IJsPropertyAccessor? iteratorTarget = value as IJsPropertyAccessor;
-        object? thisArg = value;
+        var iteratorTarget = value as IJsPropertyAccessor;
+        var thisArg = value;
         if (iteratorTarget is null && value is not null && !ReferenceEquals(value, Symbol.Undefined))
         {
             iteratorTarget = ToObjectForDestructuring(value, context);
@@ -5174,6 +5176,7 @@ public static class TypedAstEvaluator
         return false;
     }
 
+    [MustDisposeResource]
     private static IEnumerator<object?> EnumerateArrayElements(JsArray array)
     {
         IEnumerable<object?> Enumerate()
@@ -5191,6 +5194,7 @@ public static class TypedAstEvaluator
         return Enumerate().GetEnumerator();
     }
 
+    [MustDisposeResource]
     private static IEnumerator<object?> EnumerateStringCharacters(string value)
     {
         IEnumerable<object?> Enumerate()
@@ -5217,8 +5221,7 @@ public static class TypedAstEvaluator
                 }
 
                 var done = result.TryGetProperty("done", out var doneValue) &&
-                           doneValue is bool doneBool &&
-                           doneBool;
+                           doneValue is bool and true;
 
                 var value = result.TryGetProperty("value", out var yielded)
                     ? yielded
@@ -5418,48 +5421,53 @@ public static class TypedAstEvaluator
         return value.IsNullish();
     }
 
-    private static JsArgumentsObject CreateArgumentsObject(FunctionExpression function,
-        IReadOnlyList<object?> arguments, JsEnvironment environment, RealmState realmState, IJsCallable? callee)
+    extension(FunctionExpression function)
     {
-        var values = new object?[arguments.Count];
-        for (var i = 0; i < arguments.Count; i++)
+        private JsArgumentsObject CreateArgumentsObject(IReadOnlyList<object?> arguments, JsEnvironment environment, RealmState realmState, IJsCallable? callee)
         {
-            values[i] = arguments[i];
-        }
-
-        var mapped = !function.Body.IsStrict && IsSimpleParameterList(function);
-        var mappedParameters = new Symbol?[arguments.Count];
-        if (mapped)
-        {
-            var parameterSymbols = function.Parameters
-                .Where(p => !p.IsRest && p.Pattern is null && p.DefaultValue is null && p.Name is not null)
-                .Select(p => p.Name!)
-                .ToArray();
-
-            for (var i = 0; i < mappedParameters.Length && i < parameterSymbols.Length; i++)
+            var values = new object?[arguments.Count];
+            for (var i = 0; i < arguments.Count; i++)
             {
-                mappedParameters[i] = parameterSymbols[i];
+                values[i] = arguments[i];
             }
-        }
 
-        return new JsArgumentsObject(values, mappedParameters, environment, mapped, realmState, callee,
-            function.Body.IsStrict);
+            var mapped = !function.Body.IsStrict && IsSimpleParameterList(function);
+            var mappedParameters = new Symbol?[arguments.Count];
+            if (mapped)
+            {
+                var parameterSymbols = function.Parameters
+                    .Where(p => p is { IsRest: false, Pattern: null, DefaultValue: null, Name: not null })
+                    .Select(p => p.Name!)
+                    .ToArray();
+
+                for (var i = 0; i < mappedParameters.Length && i < parameterSymbols.Length; i++)
+                {
+                    mappedParameters[i] = parameterSymbols[i];
+                }
+            }
+
+            return new JsArgumentsObject(values, mappedParameters, environment, mapped, realmState, callee,
+                function.Body.IsStrict);
+        }
     }
 
-    private static bool IsSimpleParameterList(FunctionExpression function)
+    extension(FunctionExpression function)
     {
-        foreach (var parameter in function.Parameters)
+        private bool IsSimpleParameterList()
         {
-            if (parameter.IsRest || parameter.Pattern is not null || parameter.DefaultValue is not null)
+            foreach (var parameter in function.Parameters)
             {
-                return false;
+                if (parameter.IsRest || parameter.Pattern is not null || parameter.DefaultValue is not null)
+                {
+                    return false;
+                }
             }
-        }
 
-        return true;
+            return true;
+        }
     }
 
-    private static void RestoreSignal(EvaluationContext context, ISignal? signal)
+    private static void RestoreSignal(this EvaluationContext context, ISignal? signal)
     {
         switch (signal)
         {
@@ -5480,7 +5488,7 @@ public static class TypedAstEvaluator
         }
     }
 
-    private static void BindFunctionParameters(FunctionExpression function, IReadOnlyList<object?> arguments,
+    private static void BindFunctionParameters(this FunctionExpression function, IReadOnlyList<object?> arguments,
         JsEnvironment environment, EvaluationContext context)
     {
         var parameterNames = new List<Symbol>();
@@ -5567,7 +5575,9 @@ public static class TypedAstEvaluator
             environment.Define(parameter.Name, value, isLexical: false);
         }
 
-        static bool DefaultReferencesParameter(ExpressionNode expression, Symbol parameterName)
+        return;
+
+        static bool DefaultReferencesParameter( ExpressionNode expression, Symbol parameterName)
         {
             switch (expression)
             {
@@ -5584,12 +5594,8 @@ public static class TypedAstEvaluator
                            DefaultReferencesParameter(cond.Consequent, parameterName) ||
                            DefaultReferencesParameter(cond.Alternate, parameterName);
                 case CallExpression call:
-                    if (DefaultReferencesParameter(call.Callee, parameterName))
-                    {
-                        return true;
-                    }
+                    return DefaultReferencesParameter(call.Callee, parameterName) || call.Arguments.Any(arg => DefaultReferencesParameter(arg.Expression, parameterName));
 
-                    return call.Arguments.Any(arg => DefaultReferencesParameter(arg.Expression, parameterName));
                 case MemberExpression member:
                     return DefaultReferencesParameter(member.Target, parameterName) ||
                            DefaultReferencesParameter(member.Property, parameterName);
@@ -5642,7 +5648,7 @@ public static class TypedAstEvaluator
                            DefaultReferencesParameter(tagged.StringsArray, parameterName) ||
                            DefaultReferencesParameter(tagged.RawStringsArray, parameterName) ||
                            tagged.Expressions.Any(expr => DefaultReferencesParameter(expr, parameterName));
-                case YieldExpression yieldExpression when yieldExpression.Expression is not null:
+                case YieldExpression { Expression: not null } yieldExpression:
                     return DefaultReferencesParameter(yieldExpression.Expression, parameterName);
                 case AwaitExpression awaitExpression:
                     return DefaultReferencesParameter(awaitExpression.Expression, parameterName);
@@ -5696,11 +5702,11 @@ public static class TypedAstEvaluator
                     case ObjectBinding objectBinding:
                         foreach (var property in objectBinding.Properties)
                         {
-                    CollectBindingNames(property.Target, names);
-                }
+                            CollectBindingNames(property.Target, names);
+                        }
 
-                if (objectBinding.RestElement is not null)
-                {
+                        if (objectBinding.RestElement is not null)
+                        {
                             target = objectBinding.RestElement;
                             continue;
                         }
@@ -5718,7 +5724,7 @@ public static class TypedAstEvaluator
         }
     }
 
-    private static bool ContainsDirectEvalCall(ExpressionNode expression)
+    private static bool ContainsDirectEvalCall(this ExpressionNode expression)
     {
         while (true)
         {
@@ -5808,8 +5814,6 @@ public static class TypedAstEvaluator
                 default:
                     return false;
             }
-
-            break;
         }
     }
 
@@ -5825,70 +5829,6 @@ public static class TypedAstEvaluator
         return iterator;
     }
 
-    private sealed class GeneratorPendingCompletion
-    {
-        public bool HasValue { get; set; }
-        public bool IsThrow { get; set; }
-        public bool IsReturn { get; set; }
-        public object? Value { get; set; }
-    }
-
-    private sealed class YieldResumeContext
-    {
-        private readonly Dictionary<int, ResumePayload> _pending = new();
-
-        public void SetValue(int yieldIndex, object? value)
-        {
-            _pending[yieldIndex] = ResumePayload.FromValue(value);
-        }
-
-        public void SetException(int yieldIndex, object? value)
-        {
-            _pending[yieldIndex] = ResumePayload.FromThrow(value);
-        }
-
-        public void SetReturn(int yieldIndex, object? value)
-        {
-            _pending[yieldIndex] = ResumePayload.FromReturn(value);
-        }
-
-        public ResumePayload TakePayload(int yieldIndex)
-        {
-            if (_pending.TryGetValue(yieldIndex, out var payload))
-            {
-                _pending.Remove(yieldIndex);
-                return payload;
-            }
-
-            return ResumePayload.Empty;
-        }
-
-        public void Clear()
-        {
-            _pending.Clear();
-        }
-    }
-
-    private readonly record struct ResumePayload(bool HasValue, bool IsThrow, bool IsReturn, object? Value)
-    {
-        public static ResumePayload Empty { get; } = new(false, false, false, Symbol.Undefined);
-
-        public static ResumePayload FromValue(object? value)
-        {
-            return new ResumePayload(true, false, false, value);
-        }
-
-        public static ResumePayload FromThrow(object? value)
-        {
-            return new ResumePayload(true, true, false, value);
-        }
-
-        public static ResumePayload FromReturn(object? value)
-        {
-            return new ResumePayload(true, false, true, value);
-        }
-    }
-
     private enum BindingMode
     {
         Assign,
@@ -5898,146 +5838,8 @@ public static class TypedAstEvaluator
         DefineParameter
     }
 
-    private sealed class DelegatedYieldState
-    {
-        private readonly IEnumerator<object?>? _enumerator;
-        private readonly bool _isGeneratorObject;
-        private readonly JsObject? _iterator;
 
-        private DelegatedYieldState(JsObject? iterator, IEnumerator<object?>? enumerator, bool isGeneratorObject)
-        {
-            _iterator = iterator;
-            _enumerator = enumerator;
-            _isGeneratorObject = isGeneratorObject;
-        }
-
-        public static DelegatedYieldState FromIterator(JsObject iterator)
-        {
-            return new DelegatedYieldState(iterator, null, IsGeneratorObject(iterator));
-        }
-
-        public static DelegatedYieldState FromEnumerable(IEnumerable<object?> enumerable)
-        {
-            return new DelegatedYieldState(null, enumerable.GetEnumerator(), false);
-        }
-
-        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow) MoveNext(
-            object? sendValue,
-            bool hasSendValue,
-            bool propagateThrow,
-            bool propagateReturn,
-            EvaluationContext context,
-            out bool awaitedPromise)
-        {
-            awaitedPromise = false;
-            if (_iterator is not null)
-            {
-                JsObject? nextResult;
-                object? candidate = null;
-                var methodInvoked = false;
-                if (propagateThrow)
-                {
-                    methodInvoked = TryInvokeIteratorMethod(
-                        _iterator,
-                        "throw",
-                        sendValue ?? Symbol.Undefined,
-                        context,
-                        out candidate);
-                }
-                else if (propagateReturn)
-                {
-                    methodInvoked = TryInvokeIteratorMethod(
-                        _iterator,
-                        "return",
-                        sendValue ?? Symbol.Undefined,
-                        context,
-                        out candidate);
-                }
-                else
-                {
-                    candidate = InvokeIteratorNext(_iterator, sendValue, hasSendValue);
-                }
-
-                if (!methodInvoked && candidate is null)
-                {
-                    return (Symbol.Undefined, true, propagateThrow, propagateThrow);
-                }
-
-                if (methodInvoked && candidate is null)
-                {
-                    throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
-                }
-
-                var nextCandidate = candidate ?? throw new InvalidOperationException("Iterator result missing.");
-                object? awaitedCandidate;
-                if (nextCandidate is JsObject promiseCandidate && IsPromiseLike(promiseCandidate))
-                {
-                    awaitedPromise = true;
-                    if (!AwaitScheduler.TryAwaitPromiseSync(promiseCandidate, context, out awaitedCandidate))
-                    {
-                        return (Symbol.Undefined, true, true, propagateThrow);
-                    }
-                }
-                else
-                {
-                    awaitedCandidate = nextCandidate;
-                }
-
-                if (awaitedCandidate is not JsObject resolvedObject)
-                {
-                    throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
-                }
-
-                nextResult = resolvedObject;
-
-                var done = nextResult.TryGetProperty("done", out var doneValue) &&
-                           doneValue is bool and true;
-                var value = nextResult.TryGetProperty("value", out var yielded)
-                    ? yielded
-                    : Symbol.Undefined;
-                var delegatedCompletion = _isGeneratorObject && (propagateThrow || propagateReturn);
-                var propagateThrowResult = _isGeneratorObject && propagateThrow && done;
-                return (value, done, delegatedCompletion, propagateThrowResult);
-            }
-
-            if (_enumerator is null)
-            {
-                if (propagateThrow)
-                {
-                    throw new ThrowSignal(sendValue);
-                }
-
-                return (Symbol.Undefined, true, propagateReturn, false);
-            }
-
-            if (propagateThrow)
-            {
-                throw new ThrowSignal(sendValue);
-            }
-
-            if (propagateReturn)
-            {
-                return (sendValue, true, true, false);
-            }
-
-            if (!_enumerator.MoveNext())
-            {
-                return (Symbol.Undefined, true, false, false);
-            }
-
-            return (_enumerator.Current, false, false, false);
-        }
-
-        private static bool IsGeneratorObject(JsObject iterator)
-        {
-            return iterator.TryGetProperty(GeneratorBrandPropertyName, out var brand) &&
-                   ReferenceEquals(brand, GeneratorBrandMarker);
-        }
-
-    }
-
-
-    private static int GetExpectedParameterCount(ImmutableArray<FunctionParameter> parameters)
+    private static int GetExpectedParameterCount(this ImmutableArray<FunctionParameter> parameters)
     {
         var count = 0;
         foreach (var parameter in parameters)
@@ -6053,7 +5855,7 @@ public static class TypedAstEvaluator
         return count;
     }
 
-    private static bool HasParameterExpressions(FunctionExpression function)
+    private static bool HasParameterExpressions(this FunctionExpression function)
     {
         foreach (var parameter in function.Parameters)
         {
@@ -6071,20 +5873,14 @@ public static class TypedAstEvaluator
         return false;
     }
 
-    private interface IFunctionNameTarget
-    {
-        void EnsureHasName(string name);
-    }
-
-    private static void SetThisInitializationStatus(JsEnvironment environment, bool initialized)
+    private static void SetThisInitializationStatus(this JsEnvironment environment, bool initialized)
     {
         if (environment.HasBinding(Symbol.ThisInitialized))
         {
             environment.Assign(Symbol.ThisInitialized, initialized);
             if (initialized &&
                 environment.TryGet(Symbol.Super, out var superBinding) &&
-                superBinding is SuperBinding binding &&
-                !binding.IsThisInitialized)
+                superBinding is SuperBinding { IsThisInitialized: false } binding)
             {
                 environment.Assign(Symbol.Super,
                     new SuperBinding(binding.Constructor, binding.Prototype, binding.ThisValue, true));
@@ -6094,2862 +5890,5 @@ public static class TypedAstEvaluator
 
         environment.Define(Symbol.ThisInitialized, initialized, isConst: false, isLexical: true,
             blocksFunctionScopeOverride: true);
-    }
-
-    private sealed class TypedGeneratorFactory : IJsCallable, IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
-        IFunctionNameTarget
-    {
-        private readonly JsEnvironment _closure;
-        private readonly FunctionExpression _function;
-        private readonly RealmState _realmState;
-        private readonly JsObject _properties = new();
-        private readonly Dictionary<string, object?> _privateSlots = new(StringComparer.Ordinal);
-
-        public TypedGeneratorFactory(FunctionExpression function, JsEnvironment closure, RealmState realmState)
-        {
-            if (!function.IsGenerator)
-            {
-                throw new ArgumentException("Factory can only wrap generator functions.", nameof(function));
-            }
-
-            _function = function;
-            _closure = closure;
-            _realmState = realmState;
-            InitializeProperties();
-        }
-
-        public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
-        {
-            var instance = new TypedGeneratorInstance(_function, _closure, arguments, thisValue, this, _realmState);
-            instance.Initialize();
-            return instance.CreateGeneratorObject();
-        }
-
-        public override string ToString()
-        {
-            return _function.Name is { } name
-                ? $"[GeneratorFunction: {name.Name}]"
-                : "[GeneratorFunction]";
-        }
-
-        private void InitializeProperties()
-        {
-            if (_realmState.FunctionPrototype is JsObject functionPrototype)
-            {
-                _properties.SetPrototype(functionPrototype);
-            }
-
-            if (_realmState.ObjectPrototype is not null)
-            {
-                var generatorPrototype = new JsObject();
-                generatorPrototype.SetPrototype(_realmState.ObjectPrototype);
-                generatorPrototype.DefineProperty("constructor",
-                    new PropertyDescriptor
-                    {
-                        Value = this,
-                        Writable = true,
-                        Enumerable = false,
-                        Configurable = true,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
-                    });
-                _properties.SetProperty("prototype", generatorPrototype);
-            }
-
-            var paramCount = GetExpectedParameterCount(_function.Parameters);
-            _properties.DefineProperty("length",
-                new PropertyDescriptor
-                {
-                    Value = (double)paramCount,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-
-            var functionNameValue = _function.Name?.Name ?? string.Empty;
-            _properties.DefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = functionNameValue,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-        }
-
-        public JsObject? Prototype => _properties.Prototype;
-
-        public bool IsSealed => _properties.IsSealed;
-        public bool IsExtensible => _properties.IsExtensible;
-
-        public IEnumerable<string> Keys => _properties.Keys;
-
-        public void DefineProperty(string name, PropertyDescriptor descriptor)
-        {
-            _properties.DefineProperty(name, descriptor);
-        }
-
-        public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-        {
-            return _properties.TryDefineProperty(name, descriptor);
-        }
-
-        public void SetPrototype(object? candidate)
-        {
-            _properties.SetPrototype(candidate);
-        }
-
-        public void PreventExtensions()
-        {
-            _properties.PreventExtensions();
-        }
-
-        public void Seal()
-        {
-            _properties.Seal();
-        }
-
-        public bool Delete(string name)
-        {
-            return _properties.DeleteOwnProperty(name);
-        }
-
-        public bool TryGetProperty(string name, object? receiver, out object? value)
-        {
-            if (name.Length > 0 && name[0] == '#')
-            {
-                if (_privateSlots.TryGetValue(name, out value))
-                {
-                    return true;
-                }
-            }
-
-            if (_properties.TryGetProperty(name, receiver ?? this, out value))
-            {
-                return true;
-            }
-
-            var callable = (IJsCallable)this;
-            switch (name)
-            {
-                case "call":
-                    value = new HostFunction((_, args) =>
-                    {
-                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
-                        var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
-                        return callable.Invoke(callArgs, thisArg);
-                    });
-                    return true;
-
-                case "apply":
-                    value = new HostFunction((_, args) =>
-                    {
-                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
-                        var argList = new List<object?>();
-                        if (args.Count > 1 && args[1] is JsArray jsArray)
-                        {
-                            foreach (var item in jsArray.Items)
-                            {
-                                argList.Add(item);
-                            }
-                        }
-
-                        return callable.Invoke(argList.ToArray(), thisArg);
-                    });
-                    return true;
-
-                case "bind":
-                    value = new HostFunction((_, args) =>
-                    {
-                        var boundThis = args.Count > 0 ? args[0] : Symbol.Undefined;
-                        var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
-
-                        return new HostFunction((_, innerArgs) =>
-                        {
-                            var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
-                            boundArgs.CopyTo(finalArgs, 0);
-                            for (var i = 0; i < innerArgs.Count; i++)
-                            {
-                                finalArgs[boundArgs.Length + i] = innerArgs[i];
-                            }
-
-                            return callable.Invoke(finalArgs, boundThis);
-                        });
-                    });
-                    return true;
-            }
-
-            value = null;
-            return false;
-        }
-
-        public bool TryGetProperty(string name, out object? value)
-        {
-            return TryGetProperty(name, this, out value);
-        }
-
-        public void SetProperty(string name, object? value)
-        {
-            SetProperty(name, value, this);
-        }
-
-        public void SetProperty(string name, object? value, object? receiver)
-        {
-            if (name.Length > 0 && name[0] == '#')
-            {
-                _privateSlots[name] = value;
-                return;
-            }
-
-            _properties.SetProperty(name, value, receiver ?? this);
-        }
-
-        PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
-        {
-            var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
-            {
-                descriptor.Writable = false;
-                descriptor.Enumerable = false;
-                descriptor.Configurable = true;
-            }
-
-            return descriptor;
-        }
-
-        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
-        {
-            var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
-            {
-                descriptor.Writable = false;
-                descriptor.Enumerable = false;
-                descriptor.Configurable = true;
-            }
-
-            return descriptor;
-        }
-
-        public IEnumerable<string> GetOwnPropertyNames()
-        {
-            return _properties.GetOwnPropertyNames();
-        }
-
-        public IEnumerable<string> GetEnumerablePropertyNames()
-        {
-            return _properties.GetEnumerablePropertyNames();
-        }
-
-        public void EnsureHasName(string name)
-        {
-            if (string.IsNullOrEmpty(name))
-            {
-                return;
-            }
-
-            if (_function.Name is not null)
-            {
-                return;
-            }
-
-            var descriptor = _properties.GetOwnPropertyDescriptor("name");
-            if (descriptor is { Configurable: false })
-            {
-                return;
-            }
-
-            if (descriptor is not null)
-            {
-                if (descriptor.IsAccessorDescriptor || descriptor.Value is IJsCallable)
-                {
-                    return;
-                }
-
-                if (descriptor.Value is string { Length: > 0 })
-                {
-                    return;
-                }
-            }
-
-            _properties.DefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = name,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-        }
-    }
-
-    private sealed class AsyncGeneratorFactory : IJsCallable, IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
-        IFunctionNameTarget
-    {
-        private readonly JsEnvironment _closure;
-        private readonly FunctionExpression _function;
-        private readonly RealmState _realmState;
-        private readonly JsObject _properties = new();
-
-        public AsyncGeneratorFactory(FunctionExpression function, JsEnvironment closure, RealmState realmState)
-        {
-            if (!function.IsGenerator || !function.IsAsync)
-            {
-                throw new ArgumentException("Factory can only wrap async generator functions.", nameof(function));
-            }
-
-            _function = function;
-            _closure = closure;
-            _realmState = realmState;
-            InitializeProperties();
-        }
-
-        public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
-        {
-            var instance = new AsyncGeneratorInstance(_function, _closure, arguments, thisValue, this, _realmState);
-            instance.Initialize();
-            return instance.CreateAsyncIteratorObject();
-        }
-
-        public override string ToString()
-        {
-            return _function.Name is { } name
-                ? $"[AsyncGeneratorFunction: {name.Name}]"
-                : "[AsyncGeneratorFunction]";
-        }
-
-        private void InitializeProperties()
-        {
-            if (_realmState.FunctionPrototype is JsObject functionPrototype)
-            {
-                _properties.SetPrototype(functionPrototype);
-            }
-
-            if (_realmState.ObjectPrototype is not null)
-            {
-                var generatorPrototype = new JsObject();
-                generatorPrototype.SetPrototype(_realmState.ObjectPrototype);
-                generatorPrototype.DefineProperty("constructor",
-                    new PropertyDescriptor
-                    {
-                        Value = this,
-                        Writable = true,
-                        Enumerable = false,
-                        Configurable = true,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
-                    });
-                _properties.SetProperty("prototype", generatorPrototype);
-            }
-
-            var paramCount = GetExpectedParameterCount(_function.Parameters);
-            _properties.DefineProperty("length",
-                new PropertyDescriptor
-                {
-                    Value = (double)paramCount,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-
-            var functionNameValue = _function.Name?.Name ?? string.Empty;
-            _properties.DefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = functionNameValue,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-        }
-
-        public JsObject? Prototype => _properties.Prototype;
-
-        public bool IsSealed => _properties.IsSealed;
-        public bool IsExtensible => _properties.IsExtensible;
-
-        public IEnumerable<string> Keys => _properties.Keys;
-
-        public void DefineProperty(string name, PropertyDescriptor descriptor)
-        {
-            _properties.DefineProperty(name, descriptor);
-        }
-
-        public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-        {
-            return _properties.TryDefineProperty(name, descriptor);
-        }
-
-        public void SetPrototype(object? candidate)
-        {
-            _properties.SetPrototype(candidate);
-        }
-
-        public void PreventExtensions()
-        {
-            _properties.PreventExtensions();
-        }
-
-        public void Seal()
-        {
-            _properties.Seal();
-        }
-
-        public bool Delete(string name)
-        {
-            return _properties.DeleteOwnProperty(name);
-        }
-
-        public bool TryGetProperty(string name, object? receiver, out object? value)
-        {
-            if (_properties.TryGetProperty(name, receiver ?? this, out value))
-            {
-                return true;
-            }
-
-            var callable = (IJsCallable)this;
-            switch (name)
-            {
-                case "call":
-                    value = new HostFunction((_, args) =>
-                    {
-                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
-                        var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
-                        return callable.Invoke(callArgs, thisArg);
-                    });
-                    return true;
-
-                case "apply":
-                    value = new HostFunction((_, args) =>
-                    {
-                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
-                        var argList = new List<object?>();
-                        if (args.Count > 1 && args[1] is JsArray jsArray)
-                        {
-                            foreach (var item in jsArray.Items)
-                            {
-                                argList.Add(item);
-                            }
-                        }
-
-                        return callable.Invoke(argList.ToArray(), thisArg);
-                    });
-                    return true;
-
-                case "bind":
-                    value = new HostFunction((_, args) =>
-                    {
-                        var boundThis = args.Count > 0 ? args[0] : Symbol.Undefined;
-                        var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
-
-                        return new HostFunction((_, innerArgs) =>
-                        {
-                            var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
-                            boundArgs.CopyTo(finalArgs, 0);
-                            for (var i = 0; i < innerArgs.Count; i++)
-                            {
-                                finalArgs[boundArgs.Length + i] = innerArgs[i];
-                            }
-
-                            return callable.Invoke(finalArgs, boundThis);
-                        });
-                    });
-                    return true;
-            }
-
-            value = null;
-            return false;
-        }
-
-        public bool TryGetProperty(string name, out object? value)
-        {
-            return TryGetProperty(name, this, out value);
-        }
-
-        public void SetProperty(string name, object? value)
-        {
-            SetProperty(name, value, this);
-        }
-
-        public void SetProperty(string name, object? value, object? receiver)
-        {
-            _properties.SetProperty(name, value, receiver ?? this);
-        }
-
-        PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
-        {
-            var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
-            {
-                descriptor.Writable = false;
-                descriptor.Enumerable = false;
-                descriptor.Configurable = true;
-            }
-
-            return descriptor;
-        }
-
-        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
-        {
-            var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
-            {
-                descriptor.Writable = false;
-                descriptor.Enumerable = false;
-                descriptor.Configurable = true;
-            }
-
-            return descriptor;
-        }
-
-        public IEnumerable<string> GetOwnPropertyNames()
-        {
-            return _properties.GetOwnPropertyNames();
-        }
-
-        public IEnumerable<string> GetEnumerablePropertyNames()
-        {
-            return _properties.GetEnumerablePropertyNames();
-        }
-
-        public void EnsureHasName(string name)
-        {
-            if (string.IsNullOrEmpty(name))
-            {
-                return;
-            }
-
-            if (_function.Name is not null)
-            {
-                return;
-            }
-
-            var descriptor = _properties.GetOwnPropertyDescriptor("name");
-            if (descriptor is { Configurable: false })
-            {
-                return;
-            }
-
-            if (descriptor is not null)
-            {
-                if (descriptor.IsAccessorDescriptor || descriptor.Value is IJsCallable)
-                {
-                    return;
-                }
-
-                if (descriptor.Value is string { Length: > 0 })
-                {
-                    return;
-                }
-            }
-
-            _properties.DefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = name,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-        }
-    }
-
-    private sealed class TypedGeneratorInstance
-    {
-        private readonly IReadOnlyList<object?> _arguments;
-        private readonly IJsCallable _callable;
-        private readonly JsEnvironment _closure;
-        private readonly FunctionExpression _function;
-        private readonly GeneratorPlan? _plan;
-        private readonly RealmState _realmState;
-        private readonly YieldResumeContext _resumeContext = new();
-        private readonly object? _thisValue;
-        private readonly Stack<TryFrame> _tryStack = new();
-        private bool _asyncStepMode;
-        private EvaluationContext? _context;
-        private int _currentInstructionIndex;
-        private int _currentYieldIndex;
-        private bool _done;
-        private JsEnvironment? _executionEnvironment;
-
-        private Symbol? _pendingAwaitKey;
-        private object? _pendingPromise;
-        private ResumePayloadKind _pendingResumeKind;
-        private object? _pendingResumeValue = Symbol.Undefined;
-        private int _programCounter;
-        private GeneratorState _state = GeneratorState.Start;
-
-        public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
-            IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable, RealmState realmState)
-        {
-            _function = function;
-            _closure = closure;
-            _arguments = arguments;
-            _thisValue = thisValue;
-            _callable = callable;
-            _realmState = realmState;
-
-            if (!GeneratorIrBuilder.TryBuild(function, out var plan, out var failureReason))
-            {
-                var reason = failureReason ?? "Generator contains unsupported construct for IR.";
-                throw new NotSupportedException($"Generator IR not implemented for this function: {reason}");
-            }
-
-            _plan = plan;
-            _programCounter = plan.EntryPoint;
-        }
-
-        public JsObject CreateGeneratorObject()
-        {
-            var iterator = CreateGeneratorIteratorObject(
-                args => Next(args.Count > 0 ? args[0] : Symbol.Undefined),
-                args => Return(args.Count > 0 ? args[0] : null),
-                args => Throw(args.Count > 0 ? args[0] : null));
-            iterator.SetProperty(IteratorSymbolPropertyName, new HostFunction((_, _) => iterator));
-            iterator.SetProperty(GeneratorBrandPropertyName, GeneratorBrandMarker);
-            return iterator;
-        }
-
-        public void Initialize()
-        {
-            EnsureExecutionEnvironment();
-        }
-
-        private object? Next(object? value)
-        {
-            return ExecutePlan(ResumeMode.Next, value);
-        }
-
-        private object? Return(object? value)
-        {
-            return ExecutePlan(ResumeMode.Return, value);
-        }
-
-        private object? Throw(object? error)
-        {
-            return ExecutePlan(ResumeMode.Throw, error);
-        }
-
-        internal AsyncGeneratorStepResult ExecuteAsyncStep(ResumeMode mode, object? resumeValue)
-        {
-            // Reuse the existing ExecutePlan logic but translate its iterator
-            // result / exceptions into a structured step result that async
-            // generators can consume without throwing. This entrypoint also
-            // marks the executor as async-aware so future steps can surface
-            // pending Promises instead of blocking.
-            var previousAsyncStepMode = _asyncStepMode;
-            _asyncStepMode = true;
-            _pendingPromise = null;
-
-            try
-            {
-                var result = ExecutePlan(mode, resumeValue);
-
-                if (_pendingPromise is JsObject pending)
-                {
-                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, Symbol.Undefined, false,
-                        pending);
-                }
-
-                if (result is JsObject obj &&
-                    obj.TryGetProperty("done", out var doneRaw) &&
-                    doneRaw is bool done &&
-                    obj.TryGetProperty("value", out var value))
-                {
-                    return done
-                        ? new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, value, true, null)
-                        : new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Yield, value, false, null);
-                }
-
-                // If the plan completed without producing a well-formed iterator
-                // result, treat it as a completed step with undefined.
-                return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, Symbol.Undefined, true, null);
-            }
-            catch (PendingAwaitException)
-            {
-                if (_pendingPromise is JsObject pending)
-                {
-                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, Symbol.Undefined, false,
-                        pending);
-                }
-
-                throw new InvalidOperationException("Async generator awaited a non-promise value.");
-            }
-            finally
-            {
-                _asyncStepMode = previousAsyncStepMode;
-                _pendingPromise = null;
-            }
-        }
-
-        private JsEnvironment CreateExecutionEnvironment()
-        {
-            var description = _function.Name is { } name
-                ? $"function* {name.Name}"
-                : "generator function";
-            var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
-            environment.Define(Symbol.This, _thisValue ?? new JsObject());
-            environment.Define(YieldResumeContextSymbol, _resumeContext);
-            environment.Define(GeneratorInstanceSymbol, this);
-
-            if (_function.Name is { } functionName)
-            {
-                environment.Define(functionName, _callable);
-            }
-
-            var generatorContext = _realmState.CreateContext(
-                ScopeKind.Function,
-                DetermineGeneratorScopeMode(),
-                skipAnnexBInstantiation: true);
-            HoistVarDeclarations(_function.Body, environment, generatorContext);
-
-            BindFunctionParameters(_function, _arguments, environment, generatorContext);
-            if (generatorContext.IsThrow)
-            {
-                var thrown = generatorContext.FlowValue;
-                generatorContext.Clear();
-                throw new ThrowSignal(thrown);
-            }
-
-            if (generatorContext.IsReturn)
-            {
-                generatorContext.ClearReturn();
-            }
-
-            // Define `arguments` inside generator functions so generator bodies
-            // can observe the values they were invoked with (including mappings).
-            var argumentsObject = CreateArgumentsObject(_function, _arguments, environment, _realmState, _callable);
-            environment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
-
-            return environment;
-        }
-
-        private static JsObject CreateIteratorResult(object? value, bool done)
-        {
-            var result = new JsObject();
-            result.SetProperty("value", value);
-            result.SetProperty("done", done);
-            return result;
-        }
-
-        private static IteratorDriverState CreateIteratorDriverState(object? iterable, IteratorDriverKind kind)
-        {
-            if (TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
-            {
-                return new IteratorDriverState
-                {
-                    IteratorObject = iterator, Enumerator = null, IsAsyncIterator = kind == IteratorDriverKind.Await
-                };
-            }
-
-            var enumerable = EnumerateValues(iterable);
-            return new IteratorDriverState
-            {
-                IteratorObject = null,
-                Enumerator = enumerable.GetEnumerator(),
-                IsAsyncIterator = kind == IteratorDriverKind.Await
-            };
-        }
-
-        private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? value)
-        {
-            if (environment.TryGet(symbol, out _))
-            {
-                environment.Assign(symbol, value);
-            }
-            else
-            {
-                environment.Define(symbol, value);
-            }
-        }
-
-        private static bool TryGetSymbolValue(JsEnvironment environment, Symbol symbol, out object? value)
-        {
-            if (environment.TryGet(symbol, out var existing))
-            {
-                value = existing;
-                return true;
-            }
-
-            value = null;
-            return false;
-        }
-
-        private object? ExecutePlan(ResumeMode mode, object? resumeValue)
-        {
-            if (_plan is null)
-            {
-                throw new InvalidOperationException("No generator plan available.");
-            }
-
-            if (_state == GeneratorState.Executing)
-            {
-                _state = GeneratorState.Completed;
-                _done = true;
-                _programCounter = -1;
-                _tryStack.Clear();
-                _resumeContext.Clear();
-                var throwContext = _context ??= _realmState.CreateContext(
-                    ScopeKind.Function,
-                    DetermineGeneratorScopeMode(),
-                    skipAnnexBInstantiation: true);
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", throwContext, _realmState);
-            }
-
-            var wasStart = _state == GeneratorState.Start;
-            if (_done || _state == GeneratorState.Completed)
-            {
-                _done = true;
-                return FinishExternalCompletion(mode, resumeValue);
-            }
-
-            if ((mode == ResumeMode.Throw || mode == ResumeMode.Return) && wasStart)
-            {
-                _state = GeneratorState.Completed;
-                _done = true;
-                return FinishExternalCompletion(mode, resumeValue);
-            }
-
-            _state = GeneratorState.Executing;
-            PreparePendingResumeValue(mode, resumeValue, wasStart);
-
-            var environment = EnsureExecutionEnvironment();
-            var context = EnsureEvaluationContext();
-
-            // If we are resuming after a pending await, thread the resolved
-            // value into the per-site await state so subsequent evaluations
-            // of the AwaitExpression see the fulfilled value instead of the
-            // original promise object.
-            if (_pendingAwaitKey is { } awaitKey)
-            {
-                var (kind, value) = ConsumeResumeValue();
-                if (kind == ResumePayloadKind.Value)
-                {
-                    if (environment.TryGet(awaitKey, out var stateObj) && stateObj is AwaitState state)
-                    {
-                        state.HasResult = true;
-                        state.Result = value;
-                        environment.Assign(awaitKey, state);
-                    }
-                    else
-                    {
-                        var newState = new AwaitState { HasResult = true, Result = value };
-                        if (environment.TryGet(awaitKey, out _))
-                        {
-                            environment.Assign(awaitKey, newState);
-                        }
-                        else
-                        {
-                            environment.Define(awaitKey, newState);
-                        }
-                    }
-                }
-
-                _pendingAwaitKey = null;
-            }
-
-            try
-            {
-                while (_programCounter >= 0 && _programCounter < _plan.Instructions.Length)
-                {
-                    _currentInstructionIndex = _programCounter;
-                    var instruction = _plan.Instructions[_programCounter];
-                    switch (instruction)
-                    {
-                        case StatementInstruction statementInstruction:
-                            EvaluateStatement(statementInstruction.Statement, environment, context);
-                            if (context.IsThrow)
-                            {
-                                var thrown = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                {
-                                    continue;
-                                }
-
-                                _tryStack.Clear();
-                                throw new ThrowSignal(thrown);
-                            }
-
-                            if (context.IsReturn)
-                            {
-                                var returnSignalValue = context.FlowValue;
-                                context.ClearReturn();
-                                if (HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
-                                {
-                                    continue;
-                                }
-
-                                return CompleteReturn(returnSignalValue);
-                            }
-
-                            _programCounter = statementInstruction.Next;
-                            continue;
-
-                        case YieldInstruction yieldInstruction:
-                            object? yieldedValue = Symbol.Undefined;
-                            if (yieldInstruction.YieldExpression is not null)
-                            {
-                                yieldedValue = EvaluateExpression(yieldInstruction.YieldExpression, environment,
-                                    context);
-                                if (context.IsThrow)
-                                {
-                                    var thrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    _tryStack.Clear();
-                                    throw new ThrowSignal(thrown);
-                                }
-                            }
-
-                            _programCounter = yieldInstruction.Next;
-                            _state = GeneratorState.Suspended;
-                            return CreateIteratorResult(yieldedValue, false);
-
-                        case YieldStarInstruction yieldStarInstruction:
-                        {
-                            var currentIndex = _programCounter;
-                            if (!TryGetSymbolValue(environment, yieldStarInstruction.StateSlotSymbol,
-                                    out var stateValue) ||
-                                stateValue is not YieldStarState yieldStarState)
-                            {
-                                yieldStarState = new YieldStarState();
-                                StoreSymbolValue(environment, yieldStarInstruction.StateSlotSymbol, yieldStarState);
-                            }
-
-                            if (yieldStarState.PendingAbrupt != AbruptKind.None &&
-                                _pendingResumeKind is not ResumePayloadKind.Throw and not ResumePayloadKind.Return)
-                            {
-                                var pendingKind = yieldStarState.PendingAbrupt;
-                                var pendingValue = yieldStarState.PendingValue;
-                                yieldStarState.PendingAbrupt = AbruptKind.None;
-                                yieldStarState.PendingValue = null;
-                                yieldStarState.State = null;
-                                yieldStarState.AwaitingResume = false;
-                                environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
-
-                                if (pendingKind == AbruptKind.Throw)
-                                {
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    _tryStack.Clear();
-                                    throw new ThrowSignal(pendingValue);
-                                }
-
-                                if (pendingKind == AbruptKind.Return)
-                                {
-                                    if (HandleAbruptCompletion(AbruptKind.Return, pendingValue, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    return CompleteReturn(pendingValue);
-                                }
-                            }
-
-                            if (yieldStarState.State is null)
-                            {
-                                var yieldStarIterable =
-                                    EvaluateExpression(yieldStarInstruction.IterableExpression, environment, context);
-                                if (context.IsThrow)
-                                {
-                                    var thrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    _tryStack.Clear();
-                                    throw new ThrowSignal(thrown);
-                                }
-
-                                yieldStarState.State = CreateDelegatedState(yieldStarIterable);
-                                yieldStarState.AwaitingResume = false;
-                            }
-
-                            while (true)
-                            {
-                                object? sendValue = Symbol.Undefined;
-                                var hasSendValue = false;
-                                var propagateThrow = false;
-                                var propagateReturn = false;
-
-                                if (yieldStarState.AwaitingResume)
-                                {
-                                    var (delegatedResumeKind, delegatedResumePayload) = ConsumeResumeValue();
-                                    switch (delegatedResumeKind)
-                                    {
-                                        case ResumePayloadKind.Throw:
-                                            propagateThrow = true;
-                                            hasSendValue = true;
-                                            sendValue = delegatedResumePayload;
-                                            break;
-                                        case ResumePayloadKind.Return:
-                                            propagateReturn = true;
-                                            hasSendValue = true;
-                                            sendValue = delegatedResumePayload;
-                                            break;
-                                        default:
-                                            hasSendValue = true;
-                                            sendValue = delegatedResumePayload;
-                                            break;
-                                    }
-                                }
-
-                                var iteratorResult = yieldStarState.State!.MoveNext(
-                                    sendValue,
-                                    hasSendValue,
-                                    propagateThrow,
-                                    propagateReturn,
-                                    context,
-                                    out _);
-
-                                if (iteratorResult.IsDelegatedCompletion)
-                                {
-                                    var pendingKind = propagateThrow ? AbruptKind.Throw : AbruptKind.Return;
-                                    object? abruptValue;
-                                    if (pendingKind == AbruptKind.Throw && context.IsThrow)
-                                    {
-                                        abruptValue = context.FlowValue;
-                                        context.Clear();
-                                    }
-                                    else
-                                    {
-                                        abruptValue = pendingKind == AbruptKind.Throw
-                                            ? sendValue
-                                            : iteratorResult.Value;
-                                    }
-
-                                    if (!iteratorResult.Done)
-                                    {
-                                        yieldStarState.PendingAbrupt = pendingKind;
-                                        yieldStarState.PendingValue = sendValue;
-                                        yieldStarState.AwaitingResume = true;
-                                        _programCounter = currentIndex;
-                                        _state = GeneratorState.Suspended;
-                                        return CreateIteratorResult(iteratorResult.Value, false);
-                                    }
-
-                                    yieldStarState.State = null;
-                                    yieldStarState.AwaitingResume = false;
-                                    environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
-
-                                    if (pendingKind == AbruptKind.Throw)
-                                    {
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, abruptValue, environment))
-                                        {
-                                            break;
-                                        }
-
-                                        _tryStack.Clear();
-                                        throw new ThrowSignal(abruptValue);
-                                    }
-
-                                    if (HandleAbruptCompletion(AbruptKind.Return, abruptValue, environment))
-                                    {
-                                        break;
-                                    }
-
-                                    return CompleteReturn(abruptValue);
-                                }
-
-                                if (iteratorResult.Done && !propagateThrow && !propagateReturn)
-                                {
-                                    yieldStarState.State = null;
-                                    yieldStarState.AwaitingResume = false;
-                                    environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
-                                    if (yieldStarInstruction.ResultSlotSymbol is { } resultSlot)
-                                    {
-                                        StoreSymbolValue(environment, resultSlot, iteratorResult.Value);
-                                    }
-
-                                    _programCounter = yieldStarInstruction.Next;
-                                    break;
-                                }
-
-                                yieldStarState.AwaitingResume = true;
-                                _programCounter = currentIndex;
-                                _state = GeneratorState.Suspended;
-                                var resultDone = propagateReturn ? iteratorResult.Done : false;
-                                return CreateIteratorResult(iteratorResult.Value, resultDone);
-                            }
-
-                            continue;
-                        }
-
-                        case StoreResumeValueInstruction storeResumeValueInstruction:
-                            var (resumeKind, resumePayload) = ConsumeResumeValue();
-                            if (resumeKind == ResumePayloadKind.Throw)
-                            {
-                                context.SetThrow(resumePayload);
-                            }
-                            else if (resumeKind == ResumePayloadKind.Return)
-                            {
-                                context.SetReturn(resumePayload);
-                            }
-                            else if (storeResumeValueInstruction.TargetSymbol is { } resumeSymbol)
-                            {
-                                if (environment.TryGet(resumeSymbol, out _))
-                                {
-                                    environment.Assign(resumeSymbol, resumePayload);
-                                }
-                                else
-                                {
-                                    environment.Define(resumeSymbol, resumePayload);
-                                }
-                            }
-
-                            if (context.IsThrow)
-                            {
-                                var thrownPayload = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownPayload, environment))
-                                {
-                                    continue;
-                                }
-
-                                _tryStack.Clear();
-                                throw new ThrowSignal(thrownPayload);
-                            }
-
-                            if (context.IsReturn)
-                            {
-                                var resumeReturnValue = context.FlowValue;
-                                context.ClearReturn();
-                                if (HandleAbruptCompletion(AbruptKind.Return, resumeReturnValue, environment))
-                                {
-                                    continue;
-                                }
-
-                                return CompleteReturn(resumeReturnValue);
-                            }
-
-                            _programCounter = storeResumeValueInstruction.Next;
-                            continue;
-
-                        case EnterTryInstruction enterTryInstruction:
-                            PushTryFrame(enterTryInstruction, environment);
-                            _programCounter = enterTryInstruction.Next;
-                            continue;
-
-                        case LeaveTryInstruction leaveTryInstruction:
-                            CompleteTryNormally(leaveTryInstruction.Next);
-                            continue;
-
-                        case EndFinallyInstruction endFinallyInstruction:
-                            if (_tryStack.Count == 0)
-                            {
-                                _programCounter = endFinallyInstruction.Next;
-                                continue;
-                            }
-
-                            var completedFrame = _tryStack.Pop();
-                            var pending = completedFrame.PendingCompletion;
-                            // Console.WriteLine($"[IR] EndFinally: pending={pending.Kind}, value={pending.Value}, resume={pending.ResumeTarget}, stack={_tryStack.Count}");
-                            if (pending.Kind == AbruptKind.None)
-                            {
-                                var target = pending.ResumeTarget >= 0
-                                    ? pending.ResumeTarget
-                                    : endFinallyInstruction.Next;
-                                _programCounter = target;
-                                continue;
-                            }
-
-                            if (pending.Kind == AbruptKind.Return)
-                            {
-                                if (HandleAbruptCompletion(AbruptKind.Return, pending.Value, environment))
-                                {
-                                    continue;
-                                }
-
-                                return CompleteReturn(pending.Value);
-                            }
-
-                            if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
-                            {
-                                if (HandleAbruptCompletion(pending.Kind, pending.Value, environment))
-                                {
-                                    continue;
-                                }
-
-                                _programCounter = pending.Value is int idx ? idx : endFinallyInstruction.Next;
-                                continue;
-                            }
-
-                            if (HandleAbruptCompletion(AbruptKind.Throw, pending.Value, environment))
-                            {
-                                continue;
-                            }
-
-                            _tryStack.Clear();
-                            throw new ThrowSignal(pending.Value);
-
-                        case IteratorInitInstruction iteratorInitInstruction:
-                            var iterableValue = EvaluateExpression(iteratorInitInstruction.IterableExpression,
-                                environment, context);
-                            if (context.IsThrow)
-                            {
-                                var initThrown = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, initThrown, environment))
-                                {
-                                    continue;
-                                }
-
-                                _tryStack.Clear();
-                                throw new ThrowSignal(initThrown);
-                            }
-
-                            var iteratorState = CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind);
-                            StoreSymbolValue(environment, iteratorInitInstruction.IteratorSlot, iteratorState);
-                            _programCounter = iteratorInitInstruction.Next;
-                            continue;
-
-                        case IteratorMoveNextInstruction iteratorMoveNextInstruction:
-                            var iteratorIndex = _programCounter;
-                            if (!TryGetSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                    out var iteratorStateValue) ||
-                                iteratorStateValue is not IteratorDriverState driverState)
-                            {
-                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                continue;
-                            }
-
-                            if (!driverState.IsAsyncIterator)
-                            {
-                                object? currentValue;
-                                if (driverState.IteratorObject is JsObject iteratorObj)
-                                {
-                                    var nextResult = InvokeIteratorNext(iteratorObj);
-                                    if (nextResult is not JsObject resultObj)
-                                    {
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                        continue;
-                                    }
-
-                                    var done = resultObj.TryGetProperty("done", out var doneValue) &&
-                                               doneValue is bool and true;
-                                    if (done)
-                                    {
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                        continue;
-                                    }
-
-                                    currentValue = resultObj.TryGetProperty("value", out var yielded)
-                                        ? yielded
-                                        : Symbol.Undefined;
-                                }
-                                else if (driverState.Enumerator is IEnumerator<object?> enumerator)
-                                {
-                                    if (!enumerator.MoveNext())
-                                    {
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                        continue;
-                                    }
-
-                                    currentValue = enumerator.Current;
-                                }
-                                else
-                                {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue);
-                                _programCounter = iteratorMoveNextInstruction.Next;
-                                continue;
-                            }
-
-                            object? awaitedValue = null;
-                            object? awaitedNextResult = null;
-
-                            // If we're resuming after a pending await from this
-                            // iterator site, consume the resume payload and treat
-                            // it as the awaited result instead of calling into the
-                            // iterator again.
-                            if (driverState.AwaitingNextResult || driverState.AwaitingValue)
-                            {
-                                var awaitingValue = driverState.AwaitingValue;
-                                driverState.AwaitingNextResult = false;
-                                driverState.AwaitingValue = false;
-                                var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
-                                StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
-
-                                if (forAwaitResumeKind == ResumePayloadKind.Throw)
-                                {
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    _tryStack.Clear();
-                                    throw new ThrowSignal(forAwaitResumePayload);
-                                }
-
-                                if (forAwaitResumeKind == ResumePayloadKind.Return)
-                                {
-                                    if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    return CompleteReturn(forAwaitResumePayload);
-                                }
-
-                                if (awaitingValue)
-                                {
-                                    awaitedValue = forAwaitResumePayload;
-                                    goto StoreIteratorValue;
-                                }
-
-                                awaitedNextResult = forAwaitResumePayload;
-                            }
-
-                            if (driverState.IteratorObject is JsObject awaitIteratorObj)
-                            {
-                                if (awaitedNextResult is null)
-                                {
-                                    var nextResult = InvokeIteratorNext(awaitIteratorObj);
-                                    if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNext))
-                                    {
-                                        if (_asyncStepMode && _pendingPromise is JsObject)
-                                        {
-                                            driverState.AwaitingNextResult = true;
-                                            StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                                driverState);
-                                            _state = GeneratorState.Suspended;
-                                            _programCounter = iteratorIndex;
-                                            return CreateIteratorResult(Symbol.Undefined, false);
-                                        }
-
-                                        if (context.IsThrow)
-                                        {
-                                            var thrownAwait = context.FlowValue;
-                                            context.Clear();
-                                            if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait, environment))
-                                            {
-                                                continue;
-                                            }
-
-                                            _tryStack.Clear();
-                                            throw new ThrowSignal(thrownAwait);
-                                        }
-
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                        continue;
-                                    }
-
-                                    awaitedNextResult = awaitedNext;
-                                }
-
-                                if (awaitedNextResult is not JsObject awaitResultObj)
-                                {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
-                                                awaitDoneValue is bool and true;
-                                if (doneAwait)
-                                {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
-                                    ? yieldedAwait
-                                    : Symbol.Undefined;
-                                if (!TryAwaitPromiseOrSchedule(rawValue, context, out var fullyAwaitedValue))
-                                {
-                                    if (_asyncStepMode && _pendingPromise is JsObject)
-                                    {
-                                        driverState.AwaitingValue = true;
-                                        StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                            driverState);
-                                        _state = GeneratorState.Suspended;
-                                        _programCounter = iteratorIndex;
-                                        return CreateIteratorResult(Symbol.Undefined, false);
-                                    }
-
-                                    if (context.IsThrow)
-                                    {
-                                        var thrownAwaitValue = context.FlowValue;
-                                        context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitValue, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        _tryStack.Clear();
-                                        throw new ThrowSignal(thrownAwaitValue);
-                                    }
-
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                awaitedValue = fullyAwaitedValue;
-                            }
-                            else if (driverState.Enumerator is IEnumerator<object?> awaitEnumerator)
-                            {
-                                if (!awaitEnumerator.MoveNext())
-                                {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                var enumerated = awaitEnumerator.Current;
-                                if (!TryAwaitPromiseOrSchedule(enumerated, context, out var awaitedEnumerated))
-                                {
-                                    if (_asyncStepMode && _pendingPromise is JsObject)
-                                    {
-                                        driverState.AwaitingValue = true;
-                                        StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                            driverState);
-                                        _state = GeneratorState.Suspended;
-                                        _programCounter = iteratorIndex;
-                                        return CreateIteratorResult(Symbol.Undefined, false);
-                                    }
-
-                                    if (context.IsThrow)
-                                    {
-                                        var thrownAwaitEnum = context.FlowValue;
-                                        context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitEnum, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        _tryStack.Clear();
-                                        throw new ThrowSignal(thrownAwaitEnum);
-                                    }
-
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                awaitedValue = awaitedEnumerated;
-                            }
-                            else
-                            {
-                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                continue;
-                            }
-
-                            StoreIteratorValue:
-                            StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue);
-                            _programCounter = iteratorMoveNextInstruction.Next;
-                            continue;
-
-                        case JumpInstruction jumpInstruction:
-                            _programCounter = jumpInstruction.TargetIndex;
-                            continue;
-
-                        case BranchInstruction branchInstruction:
-                            var testValue = EvaluateExpression(branchInstruction.Condition, environment, context);
-                            if (context.IsThrow)
-                            {
-                                var thrownBranch = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownBranch, environment))
-                                {
-                                    continue;
-                                }
-
-                                _tryStack.Clear();
-                                throw new ThrowSignal(thrownBranch);
-                            }
-
-                            _programCounter = IsTruthy(testValue)
-                                ? branchInstruction.ConsequentIndex
-                                : branchInstruction.AlternateIndex;
-                            continue;
-
-                        case BreakInstruction breakInstruction:
-                            if (HandleAbruptCompletion(AbruptKind.Break, breakInstruction.TargetIndex, environment))
-                            {
-                                continue;
-                            }
-
-                            _programCounter = breakInstruction.TargetIndex;
-                            continue;
-
-                        case ContinueInstruction continueInstruction:
-                            if (HandleAbruptCompletion(AbruptKind.Continue, continueInstruction.TargetIndex,
-                                    environment))
-                            {
-                                continue;
-                            }
-
-                            _programCounter = continueInstruction.TargetIndex;
-                            continue;
-
-                        case ReturnInstruction returnInstruction:
-                            var returnValue = returnInstruction.ReturnExpression is null
-                                ? Symbol.Undefined
-                                : EvaluateExpression(returnInstruction.ReturnExpression, environment, context);
-                            if (context.IsThrow)
-                            {
-                                var pendingThrow = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
-                                {
-                                    continue;
-                                }
-
-                                _tryStack.Clear();
-                                throw new ThrowSignal(pendingThrow);
-                            }
-
-                            if (context.IsReturn)
-                            {
-                                var pendingReturn = context.FlowValue;
-                                context.ClearReturn();
-                                returnValue = pendingReturn;
-                            }
-
-                            if (HandleAbruptCompletion(AbruptKind.Return, returnValue, environment))
-                            {
-                                continue;
-                            }
-
-                            _programCounter = -1;
-                            _state = GeneratorState.Completed;
-                            _done = true;
-                            _tryStack.Clear();
-                            return CreateIteratorResult(returnValue, true);
-
-                        default:
-                            throw new InvalidOperationException(
-                                $"Unsupported generator instruction {instruction.GetType().Name}");
-                    }
-                }
-            }
-            catch (PendingAwaitException)
-            {
-                // A pending await surfaced from within the generator body.
-                // Async-aware callers translate this into a Pending step so
-                // the generator can resume once the promise settles.
-                if (_asyncStepMode)
-                {
-                    throw;
-                }
-
-                return CreateIteratorResult(Symbol.Undefined, false);
-            }
-            catch
-            {
-                _state = GeneratorState.Completed;
-                _done = true;
-                _programCounter = -1;
-                _tryStack.Clear();
-                _resumeContext.Clear();
-                throw;
-            }
-
-            _state = GeneratorState.Completed;
-            _done = true;
-            _tryStack.Clear();
-            return CreateIteratorResult(Symbol.Undefined, true);
-        }
-
-        private JsEnvironment EnsureExecutionEnvironment()
-        {
-            return _executionEnvironment ??= CreateExecutionEnvironment();
-        }
-
-        private EvaluationContext EnsureEvaluationContext()
-        {
-            if (_context is null)
-            {
-                _context = _realmState.CreateContext(
-                    ScopeKind.Function,
-                    DetermineGeneratorScopeMode(),
-                    skipAnnexBInstantiation: true);
-            }
-            else
-            {
-                _context.Clear();
-            }
-
-            return _context;
-        }
-
-        private ScopeMode DetermineGeneratorScopeMode()
-        {
-            if (_function.Body.IsStrict)
-            {
-                return ScopeMode.Strict;
-            }
-
-            return _realmState.Options.EnableAnnexBFunctionExtensions ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy;
-        }
-
-        private object? ResumeGenerator(ResumeMode mode, object? value)
-        {
-            var completed = _done || _state == GeneratorState.Completed;
-            if (completed)
-            {
-                _state = GeneratorState.Completed;
-                _done = true;
-                _resumeContext.Clear();
-                return FinishExternalCompletion(mode, value);
-            }
-
-            var wasStart = _state == GeneratorState.Start;
-            if ((mode == ResumeMode.Throw || mode == ResumeMode.Return) && wasStart)
-            {
-                _state = GeneratorState.Completed;
-                _done = true;
-                _resumeContext.Clear();
-                return FinishExternalCompletion(mode, value);
-            }
-
-            try
-            {
-                _state = GeneratorState.Executing;
-
-                _executionEnvironment ??= CreateExecutionEnvironment();
-
-                if (!wasStart && _currentYieldIndex > 0)
-                {
-                    switch (mode)
-                    {
-                        case ResumeMode.Throw:
-                            _resumeContext.SetException(_currentYieldIndex - 1, value);
-                            break;
-                        case ResumeMode.Return:
-                            _resumeContext.SetReturn(_currentYieldIndex - 1, value);
-                            break;
-                        default:
-                            _resumeContext.SetValue(_currentYieldIndex - 1, value);
-                            break;
-                    }
-                }
-
-                var context = _realmState.CreateContext(
-                    ScopeKind.Function,
-                    DetermineGeneratorScopeMode(),
-                    skipAnnexBInstantiation: true);
-                _executionEnvironment.Define(YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
-
-                var result = EvaluateBlock(
-                    _function.Body,
-                    _executionEnvironment,
-                    context,
-                    skipAnnexBFunctionInstantiation: true);
-
-                if (context.IsThrow)
-                {
-                    var thrown = context.FlowValue;
-                    context.Clear();
-                    _state = GeneratorState.Completed;
-                    _done = true;
-                    _resumeContext.Clear();
-                    throw new ThrowSignal(thrown);
-                }
-
-                if (context.IsYield)
-                {
-                    var yielded = context.FlowValue;
-                    context.Clear();
-                    _state = GeneratorState.Suspended;
-                    _currentYieldIndex++;
-                    return CreateIteratorResult(yielded, false);
-                }
-
-                if (context.IsReturn)
-                {
-                    var returnValue = context.FlowValue;
-                    context.ClearReturn();
-                    _state = GeneratorState.Completed;
-                    _done = true;
-                    _resumeContext.Clear();
-                    return CreateIteratorResult(returnValue, true);
-                }
-
-                _state = GeneratorState.Completed;
-                _done = true;
-                _resumeContext.Clear();
-                return CreateIteratorResult(result, true);
-            }
-            catch
-            {
-                _state = GeneratorState.Completed;
-                _done = true;
-                _resumeContext.Clear();
-                throw;
-            }
-        }
-
-        private static object? FinishExternalCompletion(ResumeMode mode, object? value)
-        {
-            return mode switch
-            {
-                ResumeMode.Throw => throw new ThrowSignal(value),
-                _ => CreateIteratorResult(value, true)
-            };
-        }
-
-        internal object? EvaluateAwaitInGenerator(AwaitExpression expression, JsEnvironment environment,
-            EvaluationContext context)
-        {
-            // When not executing under async-aware stepping, fall back to the
-            // legacy blocking helper so synchronous generators remain usable.
-            if (!_asyncStepMode)
-            {
-                var awaitedValueSync = EvaluateExpression(expression.Expression, environment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return awaitedValueSync;
-                }
-
-                if (!TryAwaitPromise(awaitedValueSync, context, out var resolvedSync))
-                {
-                    return resolvedSync;
-                }
-
-                return resolvedSync;
-            }
-
-            // Async-aware mode: use per-site await state so we don't re-run
-            // side-effecting expressions after the promise has resolved.
-            var awaitKey = GetAwaitStateKey(expression);
-            AwaitState? existingState = null;
-            if (awaitKey is not null &&
-                environment.TryGet(awaitKey, out var stateObj) &&
-                stateObj is AwaitState { HasResult: true } state)
-            {
-                // Await has already completed; reuse the resolved value once
-                // for this resume, then clear the flag so future iterations
-                // (e.g. in loops) see a fresh await.
-                var result = state.Result;
-                environment.Assign(awaitKey, new AwaitState());
-                _pendingAwaitKey = null;
-                return result;
-            }
-
-            var awaitedValue = EvaluateExpression(expression.Expression, environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return awaitedValue;
-            }
-
-            if (awaitKey is not null)
-            {
-                existingState = new AwaitState();
-
-                if (environment.TryGet(awaitKey, out _))
-                {
-                    environment.Assign(awaitKey, existingState);
-                }
-                else
-                {
-                    environment.Define(awaitKey, existingState);
-                }
-            }
-
-            // Async-aware mode: surface promise-like values as pending steps
-            // so AsyncGeneratorInstance can resume via the event queue.
-            if (!TryAwaitPromiseOrSchedule(awaitedValue, context, out var resolved))
-            {
-                if (_pendingPromise is JsObject && awaitKey is not null)
-                {
-                    // Remember which await site is pending so we can stash the
-                    // resolved value on resume.
-                    _pendingAwaitKey = awaitKey;
-                    _state = GeneratorState.Suspended;
-                    _programCounter = _currentInstructionIndex;
-                    throw new PendingAwaitException();
-                }
-
-                // If TryAwaitPromiseOrSchedule reported an error via the context,
-                // let the caller observe the pending throw/return.
-                return resolved;
-            }
-
-            return resolved;
-        }
-
-        private bool TryAwaitPromiseOrSchedule(object? candidate, EvaluationContext context, out object? resolvedValue)
-        {
-            var pendingPromise = _pendingPromise;
-            var result = AwaitScheduler.TryAwaitPromiseOrSchedule(candidate, _asyncStepMode, ref pendingPromise,
-                context, out resolvedValue);
-            _pendingPromise = pendingPromise;
-            return result;
-        }
-
-        private void PreparePendingResumeValue(ResumeMode mode, object? resumeValue, bool wasStart)
-        {
-            if (wasStart)
-            {
-                _pendingResumeKind = ResumePayloadKind.None;
-                _pendingResumeValue = Symbol.Undefined;
-                return;
-            }
-
-            switch (mode)
-            {
-                case ResumeMode.Throw:
-                    _pendingResumeKind = ResumePayloadKind.Throw;
-                    _pendingResumeValue = resumeValue;
-                    break;
-                case ResumeMode.Return:
-                    _pendingResumeKind = ResumePayloadKind.Return;
-                    _pendingResumeValue = resumeValue;
-                    break;
-                default:
-                    _pendingResumeKind = ResumePayloadKind.Value;
-                    _pendingResumeValue = resumeValue;
-                    break;
-            }
-        }
-
-        private (ResumePayloadKind Kind, object? Value) ConsumeResumeValue()
-        {
-            var kind = _pendingResumeKind;
-            var value = _pendingResumeValue;
-            _pendingResumeKind = ResumePayloadKind.None;
-            _pendingResumeValue = Symbol.Undefined;
-
-            if (kind == ResumePayloadKind.None)
-            {
-                return (ResumePayloadKind.Value, Symbol.Undefined);
-            }
-
-            return (kind, value);
-        }
-
-        private void PushTryFrame(EnterTryInstruction instruction, JsEnvironment environment)
-        {
-            var frame = new TryFrame(instruction.HandlerIndex, instruction.CatchSlotSymbol, instruction.FinallyIndex);
-            if (instruction.CatchSlotSymbol is { } slot && !environment.TryGet(slot, out _))
-            {
-                environment.Define(slot, Symbol.Undefined);
-            }
-
-            _tryStack.Push(frame);
-        }
-
-        private void CompleteTryNormally(int resumeTarget)
-        {
-            if (_tryStack.Count == 0)
-            {
-                _programCounter = resumeTarget;
-                return;
-            }
-
-            var frame = _tryStack.Peek();
-            if (frame is { FinallyIndex: >= 0, FinallyScheduled: false })
-            {
-                frame.FinallyScheduled = true;
-                frame.PendingCompletion = PendingCompletion.FromNormal(resumeTarget);
-                _programCounter = frame.FinallyIndex;
-                return;
-            }
-
-            _tryStack.Pop();
-            _programCounter = resumeTarget;
-        }
-
-        private bool HandleAbruptCompletion(AbruptKind kind, object? value, JsEnvironment environment)
-        {
-            // Console.WriteLine($"[IR] HandleAbruptCompletion kind={kind}, value={value}, stack={_tryStack.Count}");
-            while (_tryStack.Count > 0)
-            {
-                var frame = _tryStack.Peek();
-                if (kind == AbruptKind.Throw && frame is { HandlerIndex: >= 0, CatchUsed: false })
-                {
-                    frame.CatchUsed = true;
-                    if (frame.CatchSlotSymbol is { } slot)
-                    {
-                        if (environment.TryGet(slot, out _))
-                        {
-                            environment.Assign(slot, value);
-                        }
-                        else
-                        {
-                            environment.Define(slot, value);
-                        }
-                    }
-
-                    _programCounter = frame.HandlerIndex;
-                    return true;
-                }
-
-                if (frame.FinallyIndex >= 0)
-                {
-                    if (!frame.FinallyScheduled)
-                    {
-                        frame.FinallyScheduled = true;
-                        frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
-                        _programCounter = frame.FinallyIndex;
-                        return true;
-                    }
-
-                    frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
-                    return true;
-                }
-
-                _tryStack.Pop();
-            }
-
-            return false;
-        }
-
-        private object? CompleteReturn(object? value)
-        {
-            _programCounter = -1;
-            _state = GeneratorState.Completed;
-            _done = true;
-            _tryStack.Clear();
-            return CreateIteratorResult(value, true);
-        }
-
-        private sealed class PendingAwaitException : Exception
-        {
-        }
-
-
-        private sealed class AwaitState
-        {
-            public bool HasResult { get; set; }
-            public object? Result { get; set; }
-        }
-
-        // Lightweight step result used by async-generator wrappers so they can
-        // drive the same IR plan without duplicating the interpreter. This
-        // supports yield/completion/throw, and has room for a future "Pending"
-        // state that surfaces promise-like values without blocking.
-        internal readonly record struct AsyncGeneratorStepResult(
-            AsyncGeneratorStepKind Kind,
-            object? Value,
-            bool Done,
-            object? PendingPromise);
-
-        internal enum AsyncGeneratorStepKind
-        {
-            Yield,
-            Completed,
-            Throw,
-            Pending
-        }
-
-        internal enum ResumeMode
-        {
-            Next,
-            Throw,
-            Return
-        }
-
-        private enum GeneratorState
-        {
-            Start,
-            Suspended,
-            Executing,
-            Completed
-        }
-
-        private enum ResumePayloadKind
-        {
-            None,
-            Value,
-            Throw,
-            Return
-        }
-
-        private enum AbruptKind
-        {
-            None,
-            Return,
-            Throw,
-            Break,
-            Continue
-        }
-
-        private sealed class TryFrame(int handlerIndex, Symbol? catchSlotSymbol, int finallyIndex)
-        {
-            public int HandlerIndex { get; } = handlerIndex;
-            public Symbol? CatchSlotSymbol { get; } = catchSlotSymbol;
-            public int FinallyIndex { get; } = finallyIndex;
-            public bool CatchUsed { get; set; }
-            public bool FinallyScheduled { get; set; }
-            public PendingCompletion PendingCompletion { get; set; } = PendingCompletion.None;
-        }
-
-        private readonly record struct PendingCompletion(AbruptKind Kind, object? Value, int ResumeTarget)
-        {
-            public static PendingCompletion None { get; } = new(AbruptKind.None, null, -1);
-
-            public static PendingCompletion FromNormal(int resumeTarget)
-            {
-                return new PendingCompletion(AbruptKind.None, null, resumeTarget);
-            }
-
-            public static PendingCompletion FromAbrupt(AbruptKind kind, object? value)
-            {
-                return new PendingCompletion(kind, value, -1);
-            }
-        }
-
-        private sealed class YieldStarState
-        {
-            public DelegatedYieldState? State { get; set; }
-            public bool AwaitingResume { get; set; }
-            public AbruptKind PendingAbrupt { get; set; }
-            public object? PendingValue { get; set; }
-        }
-    }
-
-    private sealed class AsyncGeneratorInstance(
-        FunctionExpression function,
-        JsEnvironment closure,
-        IReadOnlyList<object?> arguments,
-        object? thisValue,
-        IJsCallable callable,
-        RealmState realmState)
-    {
-        private readonly TypedGeneratorInstance _inner = new(function, closure, arguments, thisValue, callable,
-            realmState);
-
-        // WAITING ON FULL ASYNC GENERATOR IR SUPPORT:
-        // For now we reuse the sync generator IR plan and runtime to execute
-        // the body. Async semantics are modeled by driving the shared plan
-        // through a small step API and wrapping each step in a Promise. Once
-        // we have a dedicated async-generator IR executor, this wiring
-        // should be revisited so await/yield drive a single non-blocking
-        // state machine.
-        public void Initialize()
-        {
-            _inner.Initialize();
-        }
-
-        public JsObject CreateAsyncIteratorObject()
-        {
-            var asyncIterator = CreateGeneratorIteratorObject(
-                args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Next,
-                    args.Count > 0 ? args[0] : Symbol.Undefined),
-                args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Return,
-                    args.Count > 0 ? args[0] : null),
-                args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Throw,
-                    args.Count > 0 ? args[0] : null));
-
-            // asyncIterator[Symbol.asyncIterator] returns itself.
-            var asyncSymbol = TypedAstSymbol.For("Symbol.asyncIterator");
-            var asyncKey = $"@@symbol:{asyncSymbol.GetHashCode()}";
-            asyncIterator.SetProperty(asyncKey, new HostFunction((thisValue, _) => thisValue));
-
-            return asyncIterator;
-        }
-
-        private object? CreateStepPromise(TypedGeneratorInstance.ResumeMode mode, object? argument)
-        {
-            // Look up the global Promise constructor from the closure environment.
-            if (!closure.TryGet(Symbol.Intern("Promise"), out var promiseCtorObj) ||
-                promiseCtorObj is not IJsCallable promiseCtor)
-            {
-                throw new InvalidOperationException("Promise constructor is not available in the current environment.");
-            }
-
-            var executor = new HostFunction((_, execArgs) =>
-            {
-                if (execArgs.Count < 2 ||
-                    execArgs[0] is not IJsCallable resolve ||
-                    execArgs[1] is not IJsCallable reject)
-                {
-                    return null;
-                }
-
-                // Drive the underlying generator plan by a single step and
-                // resolve/reject the Promise based on the step outcome.
-                var step = _inner.ExecuteAsyncStep(mode, argument);
-                switch (step.Kind)
-                {
-                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Yield:
-                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
-                    {
-                        var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                        resolve.Invoke([iteratorResult], null);
-                        break;
-                    }
-                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
-                        reject.Invoke([step.Value], null);
-                        break;
-                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
-                        HandlePendingStep(step, resolve, reject);
-                        break;
-                }
-
-                return null;
-            });
-
-            var promiseObj = promiseCtor.Invoke([executor], null);
-            return promiseObj;
-        }
-
-        private static JsObject CreateAsyncIteratorResult(object? value, bool done)
-        {
-            var result = new JsObject();
-            result.SetProperty("value", value);
-            result.SetProperty("done", done);
-            return result;
-        }
-
-        private void ResolveFromStep(
-            TypedGeneratorInstance.AsyncGeneratorStepResult step,
-            IJsCallable resolve,
-            IJsCallable reject)
-        {
-            switch (step.Kind)
-            {
-                case TypedGeneratorInstance.AsyncGeneratorStepKind.Yield:
-                case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
-                {
-                    var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                    resolve.Invoke([iteratorResult], null);
-                    break;
-                }
-                case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
-                    reject.Invoke([step.Value], null);
-                    break;
-                case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
-                    HandlePendingStep(step, resolve, reject);
-                    break;
-            }
-        }
-
-        private void HandlePendingStep(
-            TypedGeneratorInstance.AsyncGeneratorStepResult step,
-            IJsCallable resolve,
-            IJsCallable reject)
-        {
-            if (step.PendingPromise is not JsObject pendingPromise ||
-                !pendingPromise.TryGetProperty("then", out var thenValue) ||
-                thenValue is not IJsCallable thenCallable)
-            {
-                reject.Invoke(["Awaited value is not a promise"], null);
-                return;
-            }
-
-            var onFulfilled = new HostFunction(args =>
-            {
-                var value = args.Count > 0 ? args[0] : Symbol.Undefined;
-                var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Next, value);
-                ResolveFromStep(resumed, resolve, reject);
-                return null;
-            });
-
-            var onRejected = new HostFunction(args =>
-            {
-                var reason = args.Count > 0 ? args[0] : Symbol.Undefined;
-                var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Throw, reason);
-                ResolveFromStep(resumed, resolve, reject);
-                return null;
-            });
-
-            thenCallable.Invoke([onFulfilled, onRejected], pendingPromise);
-        }
-    }
-
-    private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
-        ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost, IExtensibilityControl
-    {
-        private readonly JsEnvironment _closure;
-        private readonly FunctionExpression _function;
-        private readonly JsObject _properties = new();
-        private readonly RealmState _realmState;
-        private readonly bool _isAsyncFunction;
-        private readonly bool _wasAsyncFunction;
-        private readonly bool _isArrowFunction;
-        private readonly Symbol[] _bodyLexicalNames;
-        private readonly bool _hasHoistableDeclarations;
-        private readonly object? _lexicalThis;
-        private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
-        private IJsObjectLike? _homeObject;
-        private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
-        private bool _isClassConstructor;
-        private bool _isDerivedClassConstructor;
-        private IJsEnvironmentAwareCallable? _superConstructor;
-        private IJsPropertyAccessor? _superPrototype;
-        private PrivateNameScope? _privateNameScope;
-
-        public bool IsArrowFunction => _isArrowFunction;
-        public bool IsAsyncFunction => _isAsyncFunction;
-        public bool IsAsyncLike => _isAsyncFunction || _wasAsyncFunction;
-        public PrivateNameScope? PrivateNameScope => _privateNameScope;
-
-        public TypedFunction(FunctionExpression function, JsEnvironment closure, RealmState realmState)
-        {
-            if (function.IsGenerator)
-            {
-                throw new NotSupportedException(
-                    "Generator functions should be created via the generator factory.");
-            }
-
-            _function = function;
-            _closure = closure;
-            _realmState = realmState;
-            _isAsyncFunction = function.IsAsync;
-            _wasAsyncFunction = function.WasAsync;
-            _isArrowFunction = function.IsArrow;
-            _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
-            _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
-            if (_isArrowFunction && _closure.TryGet(Symbol.This, out var capturedThis))
-            {
-                _lexicalThis = capturedThis;
-            }
-            else if (_isArrowFunction)
-            {
-                _lexicalThis = Symbol.Undefined;
-            }
-            var paramCount = GetExpectedParameterCount(function.Parameters);
-            if (_realmState.FunctionPrototype is not null)
-            {
-                _properties.SetPrototype(_realmState.FunctionPrototype);
-            }
-
-            // Functions expose a prototype object so instances created via `new` can inherit from it.
-            if (!_isArrowFunction)
-            {
-                var functionPrototype = new JsObject();
-                functionPrototype.SetPrototype(_realmState.ObjectPrototype);
-                functionPrototype.DefineProperty("constructor",
-                    new PropertyDescriptor { Value = this, Writable = true, Enumerable = false, Configurable = true });
-                _properties.SetProperty("prototype", functionPrototype);
-            }
-            _properties.DefineProperty("length",
-                new PropertyDescriptor
-                {
-                    Value = (double)paramCount,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-
-            var functionNameValue = _function.Name?.Name ?? string.Empty;
-            _properties.DefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = functionNameValue,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-        }
-
-        public JsEnvironment? CallingJsEnvironment { get; set; }
-
-        public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
-        {
-            return InvokeWithContext(arguments, thisValue, callingContext: null);
-        }
-
-        public object? InvokeWithContext(
-            IReadOnlyList<object?> arguments,
-            object? thisValue,
-            EvaluationContext? callingContext,
-            object? newTarget = null)
-        {
-            var context = _realmState.CreateContext(pushScope: false);
-            if (callingContext is not null)
-            {
-                context.CallDepth = callingContext.CallDepth;
-                context.MaxCallDepth = callingContext.MaxCallDepth;
-            }
-            var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
-            var hasParameterExpressions = HasParameterExpressions(_function);
-            var parameterNames = new List<Symbol>();
-            CollectParameterNamesFromFunction(_function, parameterNames);
-            var lexicalNames = _bodyLexicalNames.Length == 0
-                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
-                : new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-            var catchParameterNames = CollectCatchParameterNames(_function.Body);
-            var simpleCatchParameterNames = CollectSimpleCatchParameterNames(_function.Body);
-            var bodyLexicalNames = lexicalNames.Count == 0
-                ? lexicalNames
-                : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-            bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
-            var blockedFunctionVarNames = bodyLexicalNames.Count == 0
-                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
-                : new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-            foreach (var parameterName in parameterNames)
-            {
-                blockedFunctionVarNames.Add(parameterName);
-            }
-
-            var functionMode = _function.Body.IsStrict
-                ? ScopeMode.Strict
-                : (_realmState.Options.EnableAnnexBFunctionExtensions ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy);
-            using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
-
-            if (!_function.Body.IsStrict && !_isArrowFunction)
-            {
-                blockedFunctionVarNames.Add(Symbol.Arguments);
-            }
-            context.BlockedFunctionVarNames = blockedFunctionVarNames;
-
-            // When parameter expressions are present, the parameter environment must sit
-            // *outside* the var environment so defaults cannot observe var bindings from
-            // the body (per FunctionDeclarationInstantiation step 27). Keep the var
-            // environment as the function scope so hoisted vars/arguments/this live
-            // there, with the parameter scope as its outer environment.
-            JsEnvironment parameterEnvironment;
-            JsEnvironment functionEnvironment;
-            if (hasParameterExpressions)
-            {
-                parameterEnvironment = new JsEnvironment(_closure, false, _function.Body.IsStrict, _function.Source,
-                    description, isParameterEnvironment: true);
-                parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                functionEnvironment = new JsEnvironment(parameterEnvironment, true, _function.Body.IsStrict,
-                    _function.Source, description);
-                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-            }
-            else
-            {
-                functionEnvironment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source,
-                    description);
-                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                parameterEnvironment = functionEnvironment;
-            }
-
-            var executionEnvironment = new JsEnvironment(functionEnvironment, false, _function.Body.IsStrict,
-                _function.Source, description, isBodyEnvironment: true);
-            executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-            using var privateScope = _privateNameScope is not null
-                ? context.EnterPrivateNameScope(_privateNameScope)
-                : null;
-
-            if (!_isArrowFunction)
-            {
-                var newTargetValue = newTarget ?? Symbol.Undefined;
-                functionEnvironment.Define(Symbol.NewTarget, newTargetValue, isConst: true, isLexical: true,
-                    blocksFunctionScopeOverride: true);
-            }
-
-            // Bind `this`.
-            object? boundThis = thisValue;
-            if (_isArrowFunction)
-            {
-                boundThis = _lexicalThis ?? Symbol.Undefined;
-                context.MarkThisInitialized();
-                functionEnvironment.Define(Symbol.This, boundThis);
-                if (_closure.TryGet(Symbol.ThisInitialized, out var closureThisInitialized))
-                {
-                    SetThisInitializationStatus(functionEnvironment, JsOps.ToBoolean(closureThisInitialized));
-                }
-                else if (_closure.TryGet(Symbol.Super, out var closureSuper) && closureSuper is SuperBinding superBinding)
-                {
-                    SetThisInitializationStatus(functionEnvironment, superBinding.IsThisInitialized);
-                }
-            }
-            else
-            {
-                if (!_function.Body.IsStrict && (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined)))
-                {
-                    boundThis = CallingJsEnvironment?.Get(Symbol.This) ?? Symbol.Undefined;
-                }
-
-                if (!_function.Body.IsStrict &&
-                    boundThis is not JsObject &&
-                    !IsNullish(boundThis) &&
-                    boundThis is not IIsHtmlDda)
-                {
-                    boundThis = ToObjectForDestructuring(boundThis, context);
-                }
-
-                if (_isDerivedClassConstructor && _superConstructor is not null)
-                {
-                    context.MarkThisUninitialized();
-                }
-                else
-                {
-                    context.MarkThisInitialized();
-                }
-
-                SetThisInitializationStatus(functionEnvironment, context.IsThisInitialized);
-                functionEnvironment.Define(Symbol.This, boundThis ?? new JsObject());
-
-                var prototypeForSuper = _superPrototype;
-                if (prototypeForSuper is null && _homeObject is not null)
-                {
-                    prototypeForSuper = _homeObject.Prototype;
-                }
-
-                if (prototypeForSuper is null && thisValue is JsObject thisObj)
-                {
-                    prototypeForSuper = thisObj.Prototype;
-                }
-
-                if (_superConstructor is not null || prototypeForSuper is not null)
-                {
-                    var binding = new SuperBinding(_superConstructor, prototypeForSuper, boundThis,
-                        context.IsThisInitialized);
-                    functionEnvironment.Define(Symbol.Super, binding);
-                }
-            }
-
-            // Define `arguments` so non-arrow function bodies can observe the
-            // arguments they were called with. Arrow functions are also
-            // represented as FunctionExpression for now, so this behaves like a
-            // per-call arguments array rather than a lexical binding.
-            // Named function expressions should see their name inside the body.
-            if (!_isArrowFunction && _function.Name is { } functionName)
-            {
-                parameterEnvironment.Define(functionName, this);
-            }
-
-            BindFunctionParameters(_function, arguments, parameterEnvironment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                if (context.IsThrow)
-                {
-                    var thrownDuringBinding = context.FlowValue;
-                    context.Clear();
-
-                    if (_isAsyncFunction || _wasAsyncFunction)
-                    {
-                        // Async functions must reject instead of throwing synchronously.
-                        if (callingContext is not null)
-                        {
-                            callingContext.Clear();
-                        }
-
-                        return CreateRejectedPromise(thrownDuringBinding, parameterEnvironment);
-                    }
-
-                    if (callingContext is not null)
-                    {
-                        callingContext.SetThrow(thrownDuringBinding);
-                    }
-
-                    throw new ThrowSignal(thrownDuringBinding);
-                }
-
-                return Symbol.Undefined;
-            }
-
-            if (_hasHoistableDeclarations)
-            {
-                HoistVarDeclarations(_function.Body, executionEnvironment, context,
-                    lexicalNames: lexicalNames,
-                    catchParameterNames: catchParameterNames,
-                    simpleCatchParameterNames: simpleCatchParameterNames);
-            }
-
-            if (!_isArrowFunction)
-            {
-                var argumentsObject =
-                    CreateArgumentsObject(_function, arguments, parameterEnvironment, _realmState, this);
-                functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
-            }
-
-            try
-            {
-                var result = EvaluateBlock(
-                    _function.Body,
-                    executionEnvironment,
-                    context,
-                    skipAnnexBFunctionInstantiation: true);
-
-                if (context.IsThrow)
-                {
-                    var thrown = context.FlowValue;
-                    context.Clear();
-
-                    if (_isAsyncFunction || _wasAsyncFunction)
-                    {
-                        return CreateRejectedPromise(thrown, executionEnvironment);
-                    }
-
-                    if (callingContext is not null)
-                    {
-                        callingContext.SetThrow(thrown);
-                    }
-
-                    throw new ThrowSignal(thrown);
-                }
-
-                if (!_isAsyncFunction)
-                {
-                    if (!context.IsReturn)
-                    {
-                        if (_isClassConstructor && executionEnvironment.TryGet(Symbol.This, out var currentThis))
-                        {
-                            return currentThis;
-                        }
-
-                        return Symbol.Undefined;
-                    }
-
-                    var value = context.FlowValue;
-                    context.ClearReturn();
-                    return value;
-                }
-
-                object? completionValue;
-                if (context.IsReturn)
-                {
-                    completionValue = context.FlowValue;
-                    context.ClearReturn();
-                }
-                else
-                {
-                    completionValue = Symbol.Undefined;
-                }
-
-                return CreateResolvedPromise(completionValue, executionEnvironment);
-            }
-            catch (ThrowSignal signal) when (_isAsyncFunction || _wasAsyncFunction)
-            {
-                return CreateRejectedPromise(signal.ThrownValue, executionEnvironment);
-            }
-        }
-
-        public JsObject? Prototype => _properties.Prototype;
-
-        public bool IsSealed => _properties.IsSealed;
-        public bool IsExtensible => _properties.IsExtensible;
-
-        public IEnumerable<string> Keys => _properties.Keys;
-
-        public void DefineProperty(string name, PropertyDescriptor descriptor)
-        {
-            _properties.DefineProperty(name, descriptor);
-        }
-
-        public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-        {
-            return _properties.TryDefineProperty(name, descriptor);
-        }
-
-        public void SetPrototype(object? candidate)
-        {
-            _properties.SetPrototype(candidate);
-        }
-
-        public void PreventExtensions()
-        {
-            _properties.PreventExtensions();
-        }
-
-        public void Seal()
-        {
-            _properties.Seal();
-        }
-
-        public bool TryGetProperty(string name, object? receiver, out object? value)
-        {
-            if (_properties.TryGetProperty(name, receiver ?? this, out value))
-            {
-                return true;
-            }
-
-            // Provide minimal Function.prototype-style helpers for typed
-            // functions so patterns like fn.call/apply/bind work for code
-            // emitted by tools like Babel/regenerator.
-            var callable = (IJsCallable)this;
-            switch (name)
-            {
-                case "call":
-                    value = new HostFunction((_, args) =>
-                    {
-                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
-                        var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
-                        return callable.Invoke(callArgs, thisArg);
-                    });
-                    return true;
-
-                case "apply":
-                    value = new HostFunction((_, args) =>
-                    {
-                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
-                        var argList = new List<object?>();
-                        if (args.Count > 1 && args[1] is JsArray jsArray)
-                        {
-                            foreach (var item in jsArray.Items)
-                            {
-                                argList.Add(item);
-                            }
-                        }
-
-                        return callable.Invoke(argList.ToArray(), thisArg);
-                    });
-                    return true;
-
-                case "bind":
-                    value = new HostFunction((_, args) =>
-                    {
-                        var boundThis = args.Count > 0 ? args[0] : Symbol.Undefined;
-                        var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
-
-                        return new HostFunction((_, innerArgs) =>
-                        {
-                            var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
-                            boundArgs.CopyTo(finalArgs, 0);
-                            for (var i = 0; i < innerArgs.Count; i++)
-                            {
-                                finalArgs[boundArgs.Length + i] = innerArgs[i];
-                            }
-
-                            return callable.Invoke(finalArgs, boundThis);
-                        });
-                    });
-                    return true;
-            }
-
-            value = null;
-            return false;
-        }
-
-        public bool TryGetProperty(string name, out object? value)
-        {
-            return TryGetProperty(name, this, out value);
-        }
-
-        public void SetProperty(string name, object? value)
-        {
-            SetProperty(name, value, this);
-        }
-
-        public void SetProperty(string name, object? value, object? receiver)
-        {
-            _properties.SetProperty(name, value, receiver ?? this);
-        }
-
-        public bool Delete(string name)
-        {
-            return _properties.DeleteOwnProperty(name);
-        }
-
-        PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
-        {
-            var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
-            {
-                descriptor.Writable = false;
-                descriptor.Enumerable = false;
-                descriptor.Configurable = true;
-            }
-
-            return descriptor;
-        }
-
-        IEnumerable<string> IJsPropertyAccessor.GetOwnPropertyNames()
-        {
-            return _properties.GetOwnPropertyNames();
-        }
-
-        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
-        {
-            var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
-            {
-                descriptor.Writable = false;
-                descriptor.Enumerable = false;
-                descriptor.Configurable = true;
-            }
-
-            return descriptor;
-        }
-
-        public IEnumerable<string> GetOwnPropertyNames()
-        {
-            return _properties.GetOwnPropertyNames();
-        }
-
-        public void SetPrivateNameScope(PrivateNameScope? scope)
-        {
-            _privateNameScope = scope;
-        }
-
-        public void AddPrivateBrand(object brand)
-        {
-            _privateBrands.Add(brand);
-        }
-
-        public bool HasPrivateBrand(object brand)
-        {
-            return _privateBrands.Contains(brand);
-        }
-
-        public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype)
-        {
-            _superConstructor = superConstructor;
-            _superPrototype = superPrototype;
-        }
-
-        public void SetHomeObject(IJsObjectLike homeObject)
-        {
-            _homeObject = homeObject;
-        }
-
-        public void SetIsClassConstructor(bool isDerived)
-        {
-            _isClassConstructor = true;
-            _isDerivedClassConstructor = isDerived;
-        }
-
-        public void SetInstanceFields(ImmutableArray<ClassField> fields)
-        {
-            _instanceFields = fields;
-        }
-
-        public void EnsureHasName(string name)
-        {
-            if (string.IsNullOrEmpty(name))
-            {
-                return;
-            }
-
-            if (_function.Name is not null)
-            {
-                return;
-            }
-
-            var descriptor = _properties.GetOwnPropertyDescriptor("name");
-            if (descriptor is { Configurable: false })
-            {
-                return;
-            }
-
-            if (descriptor is not null)
-            {
-                if (descriptor.IsAccessorDescriptor || descriptor.Value is IJsCallable)
-                {
-                    return;
-                }
-
-                if (descriptor.Value is string { Length: > 0 })
-                {
-                    return;
-                }
-            }
-
-            _properties.DefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = name,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-        }
-
-        public void InitializeInstance(JsObject instance, JsEnvironment environment, EvaluationContext context)
-        {
-            if (_superConstructor is TypedFunction typedFunction)
-            {
-                typedFunction.InitializeInstance(instance, environment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return;
-                }
-            }
-
-            if (_privateNameScope is not null && instance is IPrivateBrandHolder brandHolder)
-            {
-                brandHolder.AddPrivateBrand(_privateNameScope.BrandToken);
-            }
-
-            if (_instanceFields.IsDefaultOrEmpty || _instanceFields.Length == 0)
-            {
-                return;
-            }
-
-            using var _ = _privateNameScope is not null ? context.EnterPrivateNameScope(_privateNameScope) : null;
-            using var instanceFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, skipAnnexBInstantiation: true);
-
-            foreach (var field in _instanceFields)
-            {
-                var initEnv = new JsEnvironment(environment, isStrict: true);
-                initEnv.Define(Symbol.This, instance);
-
-                var propertyName = field.Name;
-                if (field.IsComputed)
-                {
-                    if (field.ComputedName is null)
-                    {
-                        throw new InvalidOperationException("Computed class field is missing name expression.");
-                    }
-
-                    var nameValue = EvaluateExpression(field.ComputedName, initEnv, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return;
-                    }
-
-                    propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return;
-                    }
-                }
-                else if (field.IsPrivate && _privateNameScope is not null)
-                {
-                    propertyName = _privateNameScope.GetKey(propertyName);
-                }
-
-                object? value = Symbol.Undefined;
-                if (field.Initializer is not null)
-                {
-                    value = EvaluateExpression(field.Initializer, initEnv, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return;
-                    }
-                }
-
-                instance.SetProperty(propertyName, value);
-            }
-        }
-
     }
 }

@@ -164,7 +164,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             _mappedParameters[index] is { } mappedSymbol)
         {
             var shouldUnmap = descriptor.IsAccessorDescriptor ||
-                              (descriptor.HasWritable && !descriptor.Writable);
+                              descriptor is { HasWritable: true, Writable: false };
 
             var success = _backing.TryDefineProperty(name, normalized);
             if (!success)
@@ -436,7 +436,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
             if (!currentWritable)
             {
-                if (candidate.HasWritable && candidate.Writable)
+                if (candidate is { HasWritable: true, Writable: true })
                 {
                     return false;
                 }

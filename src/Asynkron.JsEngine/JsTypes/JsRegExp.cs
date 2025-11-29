@@ -1108,7 +1108,7 @@ public class JsRegExp
                         throw new ParseException("Invalid regular expression: invalid group name.");
                     }
 
-                    if (codePoint is < 0 or > 0x10FFFF || (codePoint >= 0xD800 && codePoint <= 0xDFFF))
+                    if (codePoint is < 0 or > 0x10FFFF || codePoint is >= 0xD800 and <= 0xDFFF)
                     {
                         throw new ParseException("Invalid regular expression: invalid group name.");
                     }
@@ -1129,7 +1129,7 @@ public class JsRegExp
                     throw new ParseException("Invalid regular expression: invalid group name.");
                 }
 
-                if (code >= 0xD800 && code <= 0xDFFF)
+                if (code is >= 0xD800 and <= 0xDFFF)
                 {
                     throw new ParseException("Invalid regular expression: invalid group name.");
                 }
@@ -1193,7 +1193,7 @@ public class JsRegExp
 
     private static bool IsAsciiLetter(char c)
     {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+        return c is >= 'a' and <= 'z' || c is >= 'A' and <= 'Z';
     }
 
     private static bool IsLineTerminator(char c)

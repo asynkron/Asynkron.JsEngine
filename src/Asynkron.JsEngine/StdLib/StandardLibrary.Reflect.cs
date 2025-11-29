@@ -37,7 +37,7 @@ public static partial class StandardLibrary
         var thisArg = args[1];
         var argList = args.Count > 2 && args[2] is JsArray arr
             ? arr.Items.ToArray()
-            : Array.Empty<object?>();
+            : [];
 
         return callable.Invoke(argList, thisArg);
     }
@@ -54,7 +54,7 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.construct: target must be a constructor.");
         }
 
-        var argList = args[1] is JsArray arr ? arr.Items.ToArray() : Array.Empty<object?>();
+        var argList = args[1] is JsArray arr ? arr.Items.ToArray() : [];
         var newTarget = args.Count > 2 && args[2] is IJsCallable ctor ? ctor : target;
 
         if (target is HostFunction hostTarget &&

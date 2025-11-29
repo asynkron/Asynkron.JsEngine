@@ -4,89 +4,87 @@ namespace Asynkron.JsEngine.Ast;
 
 internal static class ClassMemberEmitter
 {
-    public static void DefineMember(
-        ClassMember member,
-        string propertyName,
-        IJsCallable callable,
-        IJsPropertyAccessor constructorAccessor,
-        JsObject prototype)
+    extension(ClassMember member)
     {
-        if (member.Kind == ClassMemberKind.Method)
+        public void DefineMember(string propertyName,
+            IJsCallable callable,
+            IJsPropertyAccessor constructorAccessor,
+            JsObject prototype)
         {
-            DefineMethod(member, propertyName, callable, constructorAccessor, prototype);
-            return;
-        }
-
-        DefineAccessor(member, propertyName, callable, constructorAccessor, prototype);
-    }
-
-    private static void DefineMethod(
-        ClassMember member,
-        string propertyName,
-        IJsCallable callable,
-        IJsPropertyAccessor constructorAccessor,
-        JsObject prototype)
-    {
-        var descriptor = new PropertyDescriptor
-        {
-            Value = callable,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true,
-            HasValue = true,
-            HasWritable = true,
-            HasEnumerable = true,
-            HasConfigurable = true
-        };
-
-        if (member.IsStatic)
-        {
-            if (constructorAccessor is IJsObjectLike ctorObject)
+            if (member.Kind == ClassMemberKind.Method)
             {
-                ctorObject.DefineProperty(propertyName, descriptor);
-            }
-            else
-            {
-                constructorAccessor.SetProperty(propertyName, callable);
+                DefineMethod(member, propertyName, callable, constructorAccessor, prototype);
+                return;
             }
 
-            return;
+            DefineAccessor(member, propertyName, callable, constructorAccessor, prototype);
         }
 
-        prototype.DefineProperty(propertyName, descriptor);
-    }
-
-    private static void DefineAccessor(
-        ClassMember member,
-        string propertyName,
-        IJsCallable callable,
-        IJsPropertyAccessor constructorAccessor,
-        JsObject prototype)
-    {
-        var accessorTarget = member.IsStatic
-            ? constructorAccessor as IJsObjectLike
-            : prototype;
-        if (accessorTarget is not null)
+        private void DefineMethod(string propertyName,
+            IJsCallable callable,
+            IJsPropertyAccessor constructorAccessor,
+            JsObject prototype)
         {
             var descriptor = new PropertyDescriptor
             {
+                Value = callable,
+                Writable = true,
                 Enumerable = false,
-                Configurable = true
+                Configurable = true,
+                HasValue = true,
+                HasWritable = true,
+                HasEnumerable = true,
+                HasConfigurable = true
             };
 
-            if (member.Kind == ClassMemberKind.Getter)
+            if (member.IsStatic)
             {
-                descriptor.Get = callable;
-            }
-            else if (member.Kind == ClassMemberKind.Setter)
-            {
-                descriptor.Set = callable;
+                if (constructorAccessor is IJsObjectLike ctorObject)
+                {
+                    ctorObject.DefineProperty(propertyName, descriptor);
+                }
+                else
+                {
+                    constructorAccessor.SetProperty(propertyName, callable);
+                }
+
+                return;
             }
 
-            accessorTarget.DefineProperty(propertyName, descriptor);
-            return;
+            prototype.DefineProperty(propertyName, descriptor);
         }
 
-        constructorAccessor.SetProperty(propertyName, callable);
+        private void DefineAccessor(string propertyName,
+            IJsCallable callable,
+            IJsPropertyAccessor constructorAccessor,
+            JsObject prototype)
+        {
+            var accessorTarget = member.IsStatic
+                ? constructorAccessor as IJsObjectLike
+                : prototype;
+            if (accessorTarget is not null)
+            {
+                var descriptor = new PropertyDescriptor
+                {
+                    Enumerable = false,
+                    Configurable = true
+                };
+
+                switch (member.Kind)
+                {
+                    case ClassMemberKind.Getter:
+                        descriptor.Get = callable;
+                        break;
+                    case ClassMemberKind.Setter:
+                        descriptor.Set = callable;
+                        break;
+                }
+
+                accessorTarget.DefineProperty(propertyName, descriptor);
+                return;
+            }
+
+            constructorAccessor.SetProperty(propertyName, callable);
+        }
     }
 }

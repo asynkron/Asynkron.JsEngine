@@ -1,73 +1,74 @@
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Ast;
 
 internal static class ClassPropertyNameResolver
 {
-    public static bool TryResolveMemberName(
-        ClassMember member,
-        Func<ExpressionNode, object?> evaluator,
-        EvaluationContext context,
-        PrivateNameScope? privateNameScope,
-        out string propertyName)
+    extension(ClassMember member)
     {
-        propertyName = member.Name;
-        if (member.IsComputed)
+        public bool TryResolveMemberName(Func<ExpressionNode, object?> evaluator,
+            EvaluationContext context,
+            PrivateNameScope? privateNameScope,
+            out string propertyName)
         {
-            if (member.ComputedName is null)
+            propertyName = member.Name;
+            if (member.IsComputed)
             {
-                throw new InvalidOperationException("Computed class member is missing name expression.");
+                if (member.ComputedName is null)
+                {
+                    throw new InvalidOperationException("Computed class member is missing name expression.");
+                }
+
+                var nameValue = evaluator(member.ComputedName);
+                if (context.ShouldStopEvaluation)
+                {
+                    return false;
+                }
+
+                propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
+                return !context.ShouldStopEvaluation;
             }
 
-            var nameValue = evaluator(member.ComputedName);
-            if (context.ShouldStopEvaluation)
+            if (propertyName.Length > 0 && propertyName[0] == '#' && privateNameScope is not null)
             {
-                return false;
+                propertyName = privateNameScope.GetKey(propertyName);
             }
 
-            propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
-            return !context.ShouldStopEvaluation;
+            return true;
         }
-
-        if (propertyName.Length > 0 && propertyName[0] == '#' && privateNameScope is not null)
-        {
-            propertyName = privateNameScope.GetKey(propertyName);
-        }
-
-        return true;
     }
 
-    public static bool TryResolveFieldName(
-        ClassField field,
-        Func<ExpressionNode, object?> evaluator,
-        EvaluationContext context,
-        PrivateNameScope? privateNameScope,
-        out string propertyName)
+    extension(ClassField field)
     {
-        propertyName = field.Name;
-        if (field.IsComputed)
+        public bool TryResolveFieldName(Func<ExpressionNode, object?> evaluator,
+            EvaluationContext context,
+            PrivateNameScope? privateNameScope,
+            out string propertyName)
         {
-            if (field.ComputedName is null)
+            propertyName = field.Name;
+            if (field.IsComputed)
             {
-                throw new InvalidOperationException("Computed class field is missing name expression.");
+                if (field.ComputedName is null)
+                {
+                    throw new InvalidOperationException("Computed class field is missing name expression.");
+                }
+
+                var nameValue = evaluator(field.ComputedName);
+                if (context.ShouldStopEvaluation)
+                {
+                    return false;
+                }
+
+                propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
+                return !context.ShouldStopEvaluation;
             }
 
-            var nameValue = evaluator(field.ComputedName);
-            if (context.ShouldStopEvaluation)
+            if (field.IsPrivate && privateNameScope is not null)
             {
-                return false;
+                propertyName = privateNameScope.GetKey(propertyName);
             }
 
-            propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
-            return !context.ShouldStopEvaluation;
+            return true;
         }
-
-        if (field.IsPrivate && privateNameScope is not null)
-        {
-            propertyName = privateNameScope.GetKey(propertyName);
-        }
-
-        return true;
     }
 }

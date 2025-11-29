@@ -1454,7 +1454,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                                 var hexDigits = rawString.Substring(i + 3, closingBrace - (i + 3));
                                 if (int.TryParse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture,
                                         out var codePoint) &&
-                                    codePoint >= 0 && codePoint <= 0x10FFFF)
+                                    codePoint is >= 0 and <= 0x10FFFF)
                                 {
                                     result.Append(char.ConvertFromUtf32(codePoint));
                                     i = closingBrace + 1;

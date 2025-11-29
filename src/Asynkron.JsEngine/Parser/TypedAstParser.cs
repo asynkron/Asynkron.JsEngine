@@ -1,8 +1,6 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Parser;
@@ -981,7 +979,7 @@ public sealed class TypedAstParser(
             var superCall = new CallExpression(null, new SuperExpression(null), callArguments, false);
             var statements = ImmutableArray.Create<StatementNode>(new ExpressionStatement(null, superCall));
             var body = new BlockStatement(null, statements, true);
-            return new FunctionExpression(body.Source, className, ImmutableArray.Create(restParameter), body, false,
+            return new FunctionExpression(body.Source, className, [restParameter], body, false,
                 false);
         }
 
@@ -1419,8 +1417,7 @@ public sealed class TypedAstParser(
                     declarationKind);
                 if (!InStrictContext &&
                     declarationKind == VariableKind.Var &&
-                    initializerDeclaration is { Declarators.Length: 1 } varDecl &&
-                    varDecl.Declarators[0].Initializer is { } varInitializer)
+                    initializerDeclaration is { Declarators: [{ Initializer: { } varInitializer }] } varDecl)
                 {
                     var assignment = CreateInitializerAssignment(varDecl.Declarators[0].Target, varInitializer);
                     var assignmentStatement = new ExpressionStatement(
@@ -2904,7 +2901,7 @@ public sealed class TypedAstParser(
                     throw new NotSupportedException("Invalid object destructuring pattern.");
                 }
 
-                string name = string.Empty;
+                var name = string.Empty;
                 ExpressionNode? nameExpression = null;
                 if (member.IsComputed)
                 {

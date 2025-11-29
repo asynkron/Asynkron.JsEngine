@@ -186,7 +186,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
 
     public void Detach()
     {
-        Buffer = Array.Empty<byte>();
+        Buffer = [];
         IsDetached = true;
     }
 

@@ -133,9 +133,7 @@ public sealed class JsEnvironment
         if (isGlobalScope && isFunctionDeclaration && existingDescriptor is not null)
         {
             var canDeclare = existingDescriptor.Configurable ||
-                             (existingDescriptor.IsDataDescriptor &&
-                              existingDescriptor.Writable &&
-                              existingDescriptor.Enumerable);
+                             existingDescriptor is { IsDataDescriptor: true, Writable: true, Enumerable: true };
             if (!canDeclare)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot redeclare non-configurable global function",
@@ -437,7 +435,7 @@ public sealed class JsEnvironment
                 return true;
             }
 
-            if (current._isFunctionScope && !current._isParameterEnvironment)
+            if (current is { _isFunctionScope: true, _isParameterEnvironment: false })
             {
                 break;
             }
@@ -952,7 +950,7 @@ public sealed class JsEnvironment
         _bindingObservers ??= new Dictionary<Symbol, List<Action<object?>>>(ReferenceEqualityComparer<Symbol>.Instance);
         if (!_bindingObservers.TryGetValue(symbol, out var list))
         {
-            list = new List<Action<object?>>();
+            list = [];
             _bindingObservers[symbol] = list;
         }
 

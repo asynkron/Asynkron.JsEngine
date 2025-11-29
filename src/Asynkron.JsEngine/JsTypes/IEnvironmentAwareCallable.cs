@@ -1,5 +1,3 @@
-using Asynkron.JsEngine;
-
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>

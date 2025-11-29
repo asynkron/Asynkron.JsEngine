@@ -18,7 +18,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         _target = target ?? throw new ArgumentNullException(nameof(target));
         Handler = handler ?? throw new ArgumentNullException(nameof(handler));
-        if (_target is JsObject jsObject && jsObject.Prototype is not null)
+        if (_target is JsObject { Prototype: not null } jsObject)
         {
             _meta.SetPrototype(jsObject.Prototype);
         }
@@ -279,7 +279,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             descriptor.Set = ReferenceEquals(setterValue, Symbol.Undefined) ? null : (IJsCallable?)setterValue;
         }
 
-        if (descriptor.IsAccessorDescriptor && descriptor.IsDataDescriptor)
+        if (descriptor is { IsAccessorDescriptor: true, IsDataDescriptor: true })
         {
             throw StandardLibrary.ThrowTypeError(
                 "Invalid property descriptor. Cannot both specify accessors and a value or writable attribute");
@@ -295,18 +295,18 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (descriptor.IsAccessorDescriptor)
         {
             result.SetProperty("get",
-                descriptor.HasGet && descriptor.Get is not null ? descriptor.Get : Symbol.Undefined);
+                descriptor is { HasGet: true, Get: not null } ? descriptor.Get : Symbol.Undefined);
             result.SetProperty("set",
-                descriptor.HasSet && descriptor.Set is not null ? descriptor.Set : Symbol.Undefined);
+                descriptor is { HasSet: true, Set: not null } ? descriptor.Set : Symbol.Undefined);
         }
         else
         {
             result.SetProperty("value", descriptor.HasValue ? descriptor.Value : Symbol.Undefined);
-            result.SetProperty("writable", descriptor.HasWritable && descriptor.Writable);
+            result.SetProperty("writable", descriptor is { HasWritable: true, Writable: true });
         }
 
-        result.SetProperty("enumerable", descriptor.HasEnumerable && descriptor.Enumerable);
-        result.SetProperty("configurable", descriptor.HasConfigurable && descriptor.Configurable);
+        result.SetProperty("enumerable", descriptor is { HasEnumerable: true, Enumerable: true });
+        result.SetProperty("configurable", descriptor is { HasConfigurable: true, Configurable: true });
         return result;
     }
 }

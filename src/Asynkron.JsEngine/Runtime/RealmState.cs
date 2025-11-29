@@ -1,5 +1,3 @@
-using System.Threading;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Runtime;

@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;

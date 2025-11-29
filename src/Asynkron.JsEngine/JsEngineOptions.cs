@@ -1,3 +1,5 @@
+using System;
+
 namespace Asynkron.JsEngine;
 
 /// <summary>
@@ -11,6 +13,13 @@ public interface IJsEngineOptions
     ///     remain block-scoped even in sloppy mode.
     /// </summary>
     bool EnableAnnexBFunctionExtensions { get; }
+
+    /// <summary>
+    ///     Time zone used for Date local-time calculations and formatting. Defaults to UTC to keep
+    ///     evaluations deterministic across hosts; set to <see cref="TimeZoneInfo.Local" /> or any other zone to
+    ///     emulate a specific environment.
+    /// </summary>
+    TimeZoneInfo TimeZone { get; }
 }
 
 /// <summary>
@@ -24,4 +33,5 @@ public sealed class JsEngineOptions : IJsEngineOptions
     public static JsEngineOptions Default { get; } = new();
 
     public bool EnableAnnexBFunctionExtensions { get; init; } = true;
+    public TimeZoneInfo TimeZone { get; init; } = TimeZoneInfo.Utc;
 }

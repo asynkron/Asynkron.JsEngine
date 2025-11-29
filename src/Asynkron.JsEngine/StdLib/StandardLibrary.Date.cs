@@ -166,7 +166,7 @@ public static partial class StandardLibrary
                         var timeWithinDay = hour * MsPerHour + minute * MsPerMinute + second * MsPerSecond +
                                             millisecond;
                         var localDate = MakeDate(day, timeWithinDay);
-                        var utc = UTCTimeFromLocal(localDate);
+                        var utc = UTCTimeFromLocal(localDate, realm);
                         timeValue = TimeClip(utc);
                     }
                 }
@@ -208,7 +208,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var local = LocalTimeMs(timeValue);
+                var local = LocalTimeMs(timeValue, realm);
                 return YearFromTime(local);
             });
 
@@ -220,7 +220,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var local = LocalTimeMs(timeValue);
+                var local = LocalTimeMs(timeValue, realm);
                 return YearFromTime(local) - 1900;
             });
             DefineBuiltinFunction(dateInstance, "getYear", getYearFn, 0);
@@ -254,7 +254,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var tLocal = double.IsNaN(timeValue) ? 0d : LocalTimeMs(timeValue);
+                var tLocal = double.IsNaN(timeValue) ? 0d : LocalTimeMs(timeValue, realm);
                 var month = MonthFromTime(tLocal);
                 var date = DateFromTime(tLocal);
                 var hour = HourFromTime(tLocal);
@@ -290,7 +290,7 @@ public static partial class StandardLibrary
                 {
                     var d = MakeDay(fullYear, month, date);
                     var newDate = MakeDate(d, TimeWithinDay(tLocal));
-                    var utc = UTCTimeFromLocal(newDate);
+                    var utc = UTCTimeFromLocal(newDate, realm);
                     clipped = TimeClip(utc);
                 }
 
@@ -307,7 +307,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var local = LocalTimeMs(timeValue);
+                var local = LocalTimeMs(timeValue, realm);
                 return (double)MonthFromTime(local); // JS months are 0-indexed
             });
 
@@ -319,7 +319,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var local = LocalTimeMs(timeValue);
+                var local = LocalTimeMs(timeValue, realm);
                 return (double)DateFromTime(local);
             });
 
@@ -331,7 +331,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var local = LocalTimeMs(timeValue);
+                var local = LocalTimeMs(timeValue, realm);
                 return WeekDayFromTime(local);
             });
 
@@ -343,7 +343,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var local = LocalTimeMs(timeValue);
+                var local = LocalTimeMs(timeValue, realm);
                 return HourFromTime(local);
             });
 
@@ -355,7 +355,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var local = LocalTimeMs(timeValue);
+                var local = LocalTimeMs(timeValue, realm);
                 return MinFromTime(local);
             });
 
@@ -367,7 +367,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var local = LocalTimeMs(timeValue);
+                var local = LocalTimeMs(timeValue, realm);
                 return SecFromTime(local);
             });
 
@@ -379,7 +379,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var local = LocalTimeMs(timeValue);
+                var local = LocalTimeMs(timeValue, realm);
                 return MsFromTime(local);
             });
 
@@ -391,7 +391,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var offset = GetLocalOffsetMs(timeValue);
+                var offset = GetLocalOffsetMs(timeValue, realm);
                 return -(offset / MsPerMinute);
             });
 
@@ -414,8 +414,8 @@ public static partial class StandardLibrary
                 {
                     try
                     {
-                        var local = ConvertMillisecondsToUtc(ms).ToLocalTime();
-                        return FormatDateToJsString(local);
+                        var local = ConvertMillisecondsToLocal(ms, realm);
+                        return FormatDateToJsString(local, realm);
                     }
                     catch
                     {
@@ -585,7 +585,7 @@ public static partial class StandardLibrary
                     return double.NaN;
                 }
 
-                var local = LocalTimeMs(timeValue);
+                var local = LocalTimeMs(timeValue, realm);
                 return YearFromTime(local) - 1900;
             }), 0);
 
@@ -608,7 +608,7 @@ public static partial class StandardLibrary
                 var y = JsOps.ToNumber(yearArg);
                 var fullYear = MakeFullYear(y);
 
-                var tLocal = double.IsNaN(timeValue) ? 0d : LocalTimeMs(timeValue);
+                var tLocal = double.IsNaN(timeValue) ? 0d : LocalTimeMs(timeValue, realm);
                 var month = MonthFromTime(tLocal);
                 var date = DateFromTime(tLocal);
                 var hour = HourFromTime(tLocal);
@@ -618,7 +618,7 @@ public static partial class StandardLibrary
 
                 var day = MakeDay(fullYear, month, date);
                 var newDate = MakeDate(day, TimeWithinDay(tLocal));
-                var utc = UTCTimeFromLocal(newDate);
+                var utc = UTCTimeFromLocal(newDate, realm);
                 var clipped = TimeClip(utc);
 
                 StoreInternalDateValue(obj, clipped);
@@ -651,12 +651,6 @@ public static partial class StandardLibrary
 
         return dateConstructor;
 
-        static DateTimeOffset GetLocalTimeFromInternalDate(JsObject obj)
-        {
-            var utc = GetUtcTimeFromInternalDate(obj);
-            return utc.ToLocalTime();
-        }
-
         static DateTimeOffset GetUtcTimeFromInternalDate(JsObject obj)
         {
             if (obj.TryGetProperty("_internalDate", out var stored) && stored is double storedMs)
@@ -665,6 +659,23 @@ public static partial class StandardLibrary
             }
 
             return ConvertMillisecondsToUtc(0);
+        }
+
+        static DateTimeOffset ConvertMillisecondsToLocal(double milliseconds, RealmState realmState)
+        {
+            var utc = ConvertMillisecondsToUtc(milliseconds);
+            return ConvertToConfiguredLocal(utc, realmState);
+        }
+
+        static DateTimeOffset ConvertToConfiguredLocal(DateTimeOffset utc, RealmState realmState)
+        {
+            var timeZone = ResolveTimeZone(realmState);
+            return TimeZoneInfo.ConvertTime(utc, timeZone);
+        }
+
+        static TimeZoneInfo ResolveTimeZone(RealmState realmState)
+        {
+            return realmState.Options.TimeZone ?? TimeZoneInfo.Utc;
         }
 
         static void StoreInternalDateValue(JsObject obj, double timeValue)
@@ -871,7 +882,7 @@ public static partial class StandardLibrary
             return w;
         }
 
-        static double GetLocalOffsetMs(double utcTime)
+        static double GetLocalOffsetMs(double utcTime, RealmState realmState)
         {
             if (double.IsNaN(utcTime) || double.IsInfinity(utcTime))
             {
@@ -881,27 +892,28 @@ public static partial class StandardLibrary
             try
             {
                 var dto = DateTimeOffset.FromUnixTimeMilliseconds((long)Math.Truncate(utcTime));
-                return dto.ToLocalTime().Offset.TotalMilliseconds;
+                var local = ConvertToConfiguredLocal(dto, realmState);
+                return local.Offset.TotalMilliseconds;
             }
             catch
             {
-                return TimeZoneInfo.Local.BaseUtcOffset.TotalMilliseconds;
+                return ResolveTimeZone(realmState).BaseUtcOffset.TotalMilliseconds;
             }
         }
 
-        static double LocalTimeMs(double utcTime)
+        static double LocalTimeMs(double utcTime, RealmState realmState)
         {
-            return utcTime + GetLocalOffsetMs(utcTime);
+            return utcTime + GetLocalOffsetMs(utcTime, realmState);
         }
 
-        static double UTCTimeFromLocal(double localTime)
+        static double UTCTimeFromLocal(double localTime, RealmState realmState)
         {
-            var guess = localTime - GetLocalOffsetMs(localTime);
-            var offset = GetLocalOffsetMs(guess);
+            var guess = localTime - GetLocalOffsetMs(localTime, realmState);
+            var offset = GetLocalOffsetMs(guess, realmState);
             return localTime - offset;
         }
 
-        static string FormatDateToJsString(DateTimeOffset localTime)
+        static string FormatDateToJsString(DateTimeOffset localTime, RealmState realmState)
         {
             // Match the typical "Wed Jan 02 2008 00:00:00 GMT+0100 (Central European Standard Time)" output.
             var culture = CultureInfo.InvariantCulture;
@@ -914,11 +926,12 @@ public static partial class StandardLibrary
             // ECMAScript requires the GMT offset in the form GMT+HHMM.
             var offset = localTime.ToString("zzz", culture).Replace(":", string.Empty);
 
-            var timeZone = TimeZoneInfo.Local.IsDaylightSavingTime(localTime.DateTime)
-                ? TimeZoneInfo.Local.DaylightName
-                : TimeZoneInfo.Local.StandardName;
+            var timeZone = ResolveTimeZone(realmState);
+            var timeZoneName = timeZone.IsDaylightSavingTime(localTime.DateTime)
+                ? timeZone.DaylightName
+                : timeZone.StandardName;
 
-            return $"{weekday} {month} {day} {year} {time} GMT{offset} ({timeZone})";
+            return $"{weekday} {month} {day} {year} {time} GMT{offset} ({timeZoneName})";
         }
 
         static string FormatUtcToJsUtcString(DateTimeOffset utcTime)

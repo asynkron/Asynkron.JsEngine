@@ -28,40 +28,18 @@ public static class ActivityTimelineFormatter
                          ?? root;
 
         var rootStart = reference.StartTimeUtc;
-        var rootEnd = rootStart + (reference.Duration > TimeSpan.Zero
-            ? reference.Duration
-            : TimeSpan.FromTicks(Math.Max(1, filtered.LastOrDefault()?.Duration.Ticks ?? 1)));
+        var rootDuration = GetEffectiveDuration(reference);
 
-        foreach (var activity in filtered)
-        {
-            if (activity.StartTimeUtc < rootStart)
-            {
-                rootStart = activity.StartTimeUtc;
-            }
+        var depths = CalculateDepths(filtered);
+        var referenceDepth = depths.TryGetValue(reference, out var depth) ? depth : 0;
 
-            var activityEnd = activity.StartTimeUtc + (activity.Duration > TimeSpan.Zero
-                ? activity.Duration
-                : TimeSpan.FromMilliseconds(0.1));
-            if (activityEnd > rootEnd)
-            {
-                rootEnd = activityEnd;
-            }
-        }
-
-        var rootDuration = rootEnd - rootStart;
-        if (rootDuration <= TimeSpan.Zero)
-        {
-            rootDuration = TimeSpan.FromMilliseconds(1);
-        }
-
-        var lines = new List<string>();
-
-        foreach (var activity in filtered)
-        {
-            lines.Add(FormatLine(activity, rootStart, rootDuration, width));
-        }
-
-        return lines;
+        return filtered.Select(activity =>
+            FormatLine(activity,
+                rootStart,
+                rootDuration,
+                width,
+                referenceDepth,
+                depths.TryGetValue(activity, out var activityDepth) ? activityDepth : 0)).ToList();
     }
 
     public static void Write(Activity root,
@@ -71,20 +49,20 @@ public static class ActivityTimelineFormatter
         Func<Activity, bool>? predicate = null)
     {
         ArgumentNullException.ThrowIfNull(output);
-        foreach (var line in Format(root, activities, width, predicate: predicate))
+        foreach (var entry in Format(root, activities, width, predicate: predicate))
         {
-            output.WriteLine(line);
+            output.WriteLine(entry);
         }
     }
 
     private static string FormatLine(Activity activity,
         DateTime rootStart,
         TimeSpan rootDuration,
-        int width)
+        int width,
+        int referenceDepth,
+        int depth)
     {
-        var duration = activity.Duration > TimeSpan.Zero
-            ? activity.Duration
-            : TimeSpan.FromMilliseconds(0.1);
+        var duration = GetEffectiveDuration(activity);
         var startOffset = activity.StartTimeUtc - rootStart;
         var startRatio = Math.Clamp(startOffset.TotalMilliseconds / rootDuration.TotalMilliseconds, 0, 1);
         var durationRatio = Math.Clamp(duration.TotalMilliseconds / rootDuration.TotalMilliseconds, 0, 1);
@@ -119,7 +97,12 @@ public static class ActivityTimelineFormatter
             };
         }
 
-        var label = FormattableString.Invariant($"{activity.DisplayName}, {duration.TotalMilliseconds:F1}ms");
+        var baseName = ExtractDisplayName(activity.DisplayName);
+
+        depth = Math.Max(0, depth - referenceDepth);
+        var indent = depth == 0 ? string.Empty : new string(' ', depth);
+
+        var label = FormattableString.Invariant($"{indent}{baseName}, {duration.TotalMilliseconds:F1}ms");
         const int labelWidth = 40;
         if (label.Length > labelWidth)
         {
@@ -127,6 +110,50 @@ public static class ActivityTimelineFormatter
         }
 
         return $"{label.PadRight(labelWidth)} : {new string(buffer)}";
+    }
+
+    private static string ExtractDisplayName(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return "(unknown)";
+        }
+
+        var typeSeparator = displayName.IndexOf(':');
+        if (typeSeparator >= 0 && typeSeparator + 1 < displayName.Length)
+        {
+            return displayName[(typeSeparator + 1)..].TrimStart();
+        }
+
+        return displayName.TrimStart();
+    }
+
+    private static Dictionary<Activity, int> CalculateDepths(IReadOnlyList<Activity> activities)
+    {
+        var depths = new Dictionary<Activity, int>();
+        var stack = new Stack<(Activity activity, DateTime endTime)>();
+
+        foreach (var activity in activities)
+        {
+            var effectiveEnd = activity.StartTimeUtc + GetEffectiveDuration(activity);
+
+            while (stack.Count > 0 && stack.Peek().endTime <= activity.StartTimeUtc)
+            {
+                stack.Pop();
+            }
+
+            depths[activity] = stack.Count;
+            stack.Push((activity, effectiveEnd));
+        }
+
+        return depths;
+    }
+
+    private static TimeSpan GetEffectiveDuration(Activity activity)
+    {
+        return activity.Duration > TimeSpan.Zero
+            ? activity.Duration
+            : TimeSpan.FromMilliseconds(0.1);
     }
 
     private static char SelectLeftBlock(double fraction)

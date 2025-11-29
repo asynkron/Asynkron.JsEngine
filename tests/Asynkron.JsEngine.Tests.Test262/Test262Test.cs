@@ -42,19 +42,11 @@ public abstract partial class Test262Test
         var obj262 = new JsObject
         {
             // evalScript function
-            ["evalScript"] = new HostFunction(args =>
+            ["evalScript"] = new HostFunction(args => args.Count switch
             {
-                if (args.Count > 1)
-                {
-                    throw new Exception("only script parsing supported");
-                }
-
-                if (args.Count > 0 && args[0] is string script)
-                {
-                    return ExecuteSource(engine, script).GetAwaiter().GetResult();
-                }
-
-                return null;
+                > 1 => throw new Exception("only script parsing supported"),
+                > 0 when args[0] is string script => ExecuteSource(engine, script).GetAwaiter().GetResult(),
+                _ => null
             }),
 
             // createRealm function - not fully implemented but needed for compatibility
@@ -301,7 +293,10 @@ public abstract partial class Test262Test
         }
     }
 
+#pragma warning disable CA1822
+    // ReSharper disable once UnusedParameterInPartialMethod
     private partial bool ShouldThrow(Test262File testCase, bool strict)
+#pragma warning restore CA1822
     {
         return testCase.Negative;
     }

@@ -1514,14 +1514,23 @@ public static class TypedAstEvaluator
                 : prototype;
             if (accessorTarget is not null)
             {
-                accessorTarget.DefineProperty(propertyName,
-                    new PropertyDescriptor
-                    {
-                        Get = member.Kind == ClassMemberKind.Getter ? callable : null,
-                        Set = member.Kind == ClassMemberKind.Setter ? callable : null,
-                        Enumerable = false,
-                        Configurable = true
-                    });
+                var descriptor = new PropertyDescriptor
+                {
+                    Enumerable = false,
+                    Configurable = true
+                };
+
+                if (member.Kind == ClassMemberKind.Getter)
+                {
+                    descriptor.Get = callable;
+                }
+
+                if (member.Kind == ClassMemberKind.Setter)
+                {
+                    descriptor.Set = callable;
+                }
+
+                accessorTarget.DefineProperty(propertyName, descriptor);
             }
             else
             {

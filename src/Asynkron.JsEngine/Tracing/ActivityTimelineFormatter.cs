@@ -1,11 +1,8 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.Linq;
-using Xunit.Abstractions;
+using System.Text;
 
-namespace Asynkron.JsEngine.Tests.Tracing;
+namespace Asynkron.JsEngine.Tracing;
 
 public static class ActivityTimelineFormatter
 {
@@ -21,44 +18,46 @@ public static class ActivityTimelineFormatter
         return FormatLines(root, filtered, width);
     }
 
-    public static void Write(Activity root,
+    public static string Write(
+        Activity root,
         IEnumerable<Activity> activities,
-        ITestOutputHelper output,
         int width = 80,
         Func<Activity, bool>? predicate = null)
     {
-        ArgumentNullException.ThrowIfNull(output);
+        var output = new  StringBuilder();
         ArgumentNullException.ThrowIfNull(root);
 
         var filtered = MaterializeActivities(activities, predicate);
         foreach (var entry in FormatLines(root, filtered, width))
         {
-            output.WriteLine(entry);
+            output.AppendLine(entry);
         }
 
         if (filtered.Count == 0)
         {
-            output.WriteLine("No activities recorded.");
-            return;
+            output.AppendLine("No activities recorded.");
+            return "";
         }
 
-        output.WriteLine("Activity Tags:");
+        output.AppendLine("Activity Tags:");
         foreach (var activity in filtered)
         {
-            output.WriteLine(FormattableString.Invariant($"- {activity.DisplayName}"));
+            output.AppendLine(FormattableString.Invariant($"- {activity.DisplayName}"));
             var hadTag = false;
             foreach (var tag in activity.Tags)
             {
                 hadTag = true;
-                output.WriteLine(
+                output.AppendLine(
                     FormattableString.Invariant($"    {tag.Key} = {FormatTagValue(tag.Value)}"));
             }
 
             if (!hadTag)
             {
-                output.WriteLine("    (no tags)");
+                output.AppendLine("    (no tags)");
             }
         }
+
+        return output.ToString();
     }
 
     private static List<Activity> MaterializeActivities(IEnumerable<Activity> activities,
@@ -68,7 +67,7 @@ public static class ActivityTimelineFormatter
                    .Where(a => predicate?.Invoke(a) ?? true)
                    .OrderBy(a => a.StartTimeUtc)
                    .ToList()
-               ?? new List<Activity>();
+               ?? [];
     }
 
     private static IReadOnlyList<string> FormatLines(Activity root,
@@ -83,7 +82,7 @@ public static class ActivityTimelineFormatter
         var rootDuration = GetEffectiveDuration(reference);
 
         var depths = CalculateDepths(filtered);
-        var referenceDepth = depths.TryGetValue(reference, out var depth) ? depth : 0;
+        var referenceDepth = depths.GetValueOrDefault(reference, 0);
 
         return filtered.Select(activity =>
             FormatLine(activity,
@@ -91,7 +90,7 @@ public static class ActivityTimelineFormatter
                 rootDuration,
                 width,
                 referenceDepth,
-                depths.TryGetValue(activity, out var activityDepth) ? activityDepth : 0)).ToList();
+                depths.GetValueOrDefault(activity, 0))).ToList();
     }
 
     private static string FormatLine(Activity activity,
@@ -148,7 +147,7 @@ public static class ActivityTimelineFormatter
             label = label[..labelWidth];
         }
 
-        return $"{label.PadRight(labelWidth)} : {new string(buffer)}";
+        return $"{label,-labelWidth} : {new string(buffer)}";
     }
 
     private static string ExtractDisplayName(string displayName)

@@ -1,3 +1,6 @@
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
+
 namespace Asynkron.JsEngine.Tests;
 
 public class JsEvaluatorTests
@@ -267,6 +270,33 @@ public class JsEvaluatorTests
         var result = await engine.Evaluate(source);
 
         Assert.Equal(10d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ClassFieldInitializerCanAccessSuper()
+    {
+        await using var engine = new JsEngine();
+        var source = """
+                     var executed = false;
+                     class Base {
+                         constructor() { this.value = 1; }
+                         get read() { return this.value; }
+                     }
+                     class Derived extends Base {
+                         field = eval('executed = true; () => super.read;');
+                         constructor() {
+                             super();
+                         }
+                     }
+                     var instance = new Derived();
+                     var getter = instance.field;
+                     var result = getter.call(instance);
+                     ({ executed, result });
+                     """;
+
+        var outcome = Assert.IsType<JsObject>(await engine.Evaluate(source));
+        Assert.True(JsOps.TryGetPropertyValue(outcome, "executed", out var executedValue) && JsOps.ToBoolean(executedValue));
+        Assert.Equal(1d, JsOps.ToNumber(JsOps.GetRequiredPropertyValue(outcome, "result", null)));
     }
 
     [Fact(Timeout = 2000)]

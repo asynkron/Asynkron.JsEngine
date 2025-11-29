@@ -213,6 +213,27 @@ public static partial class TypedAstEvaluator
                     context.MarkThisInitialized();
                     SetThisInitializationStatus(thisInitializationEnvironment ?? environment,
                         context.IsThisInitialized);
+
+                    if (thisAfterSuper is JsObject initializedThis &&
+                        context.TryPopClassFieldInitializer(out var pendingInitializer) &&
+                        pendingInitializer.Constructor is TypedFunction pendingConstructor)
+                    {
+                        pendingConstructor.InitializeInstance(
+                            initializedThis,
+                            pendingInitializer.Environment,
+                            context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            if (context.IsThrow)
+                            {
+                                var thrownDuringInitialization = context.FlowValue;
+                                context.Clear();
+                                throw new ThrowSignal(thrownDuringInitialization);
+                            }
+
+                            return context.FlowValue;
+                        }
+                    }
                 }
             }
             catch (ThrowSignal signal)

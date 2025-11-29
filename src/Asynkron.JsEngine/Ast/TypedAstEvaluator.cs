@@ -295,16 +295,6 @@ public static partial class TypedAstEvaluator
     }
 
 
-    private static void InitializeClassInstance(object? constructor, JsObject instance, JsEnvironment environment,
-        EvaluationContext context)
-    {
-        if (constructor is TypedFunction typedFunction)
-        {
-            typedFunction.InitializeInstance(instance, environment, context);
-        }
-    }
-
-
     private static bool IsNullish(object? value)
     {
         return value.IsNullish();

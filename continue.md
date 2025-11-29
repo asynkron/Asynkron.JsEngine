@@ -80,10 +80,4 @@
 - Global identifier reads now prefer lexical bindings when resolving the root scope, so Annex B direct-eval block functions no longer mask subsequent `let`/`const` declarations; the Annex B global/eval suites (direct + indirect) now pass their Test262 filters.
 
 ### Next Steps
-1. **Activity-backed Annex B Regression Coverage**
-   - Mirror the previously failing Test262 Annex B global/eval hoist scenarios inside the internal suite, capture their Activity traces, and assert on the spans/tag payload so future regressions surface without rerunning the full Annex B filter.
-2. **Parser/Evaluator Follow-ups**
-   - Teach the parser about the `with (...) let` ExpressionStatement carve-out so Annex B’s `let`-as-identifier cases parse without relying on runtime fallbacks.
-   - Audit helper paths (`TryFindBinding`, class field initialisers, eval-in-with) and the Annex B scope plumbing to ensure they read `ScopeMode` from the scope stack rather than reaching for global toggles.
-3. **Confirm nullish member-access/call coverage**
-   - Ensure the tightened nullish member-access/call behaviour is wired through optional chaining fallbacks, destructuring initialisers, and host helper paths so the Sputnik delete suite stays green.
+- Annex B scope work is complete and the full 1,370-test annexB suite is green. No further Annex B-specific tasks are planned; future work can proceed to other subsystems.

@@ -28,6 +28,7 @@ public sealed class EvaluationContext(
     private readonly Stack<PrivateNameScope> _privateNameScopes = new();
 
     private readonly Stack<ScopeFrame> _scopeStack = new();
+    private readonly Stack<PendingClassFieldInitialization> _pendingClassFieldInitializers = new();
 
     /// <summary>
     ///     Realm-specific state (prototypes/constructors) for the current execution.
@@ -341,6 +342,29 @@ public sealed class EvaluationContext(
             _disposed = true;
         }
     }
+
+    internal void PushClassFieldInitializer(PendingClassFieldInitialization initializer)
+    {
+        _pendingClassFieldInitializers.Push(initializer);
+    }
+
+    internal bool TryPopClassFieldInitializer(out PendingClassFieldInitialization initializer)
+    {
+        return _pendingClassFieldInitializers.TryPop(out initializer);
+    }
+
+    internal void RemovePendingClassFieldInitializer(object function)
+    {
+        if (_pendingClassFieldInitializers.Count == 0)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_pendingClassFieldInitializers.Peek().Constructor, function))
+        {
+            _pendingClassFieldInitializers.Pop();
+        }
+    }
 }
 
 public enum ScopeKind
@@ -410,3 +434,7 @@ public sealed class PrivateNameScope
         return _scopes.TryGetValue(id, out scope);
     }
 }
+
+internal readonly record struct PendingClassFieldInitialization(
+    object Constructor,
+    JsEnvironment Environment);

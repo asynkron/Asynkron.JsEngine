@@ -3,21 +3,14 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Tests.Tracing;
+using Asynkron.JsEngine.Tracing;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AnnexBGlobalCodeTracingTests
+public class AnnexBGlobalCodeTracingTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public AnnexBGlobalCodeTracingTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact]
     public async Task GlobalIfElseFunctionDeclarationInitializesBinding()
     {
@@ -70,10 +63,10 @@ JSON.stringify({
         }
 
         Assert.Contains(recorder.Activities, activity => activity.DisplayName == "Statement:IfStatement");
-        ActivityTimelineFormatter.Write(root,
+        var res = ActivityTimelineFormatter.Write(root,
             recorder.Activities,
-            _output,
             predicate: activity => activity.DisplayName != "xUnit.net Test");
+        output.WriteLine(res);
     }
 
     [Fact]
@@ -122,10 +115,10 @@ JSON.stringify({
         }
 
         Assert.Contains(recorder.Activities, activity => activity.DisplayName == "Statement:SwitchStatement");
-        ActivityTimelineFormatter.Write(root,
+        var res = ActivityTimelineFormatter.Write(root,
             recorder.Activities,
-            _output,
             predicate: activity => activity.DisplayName != "xUnit.net Test");
+        output.WriteLine(res);
     }
 
     [Fact]
@@ -172,10 +165,10 @@ JSON.stringify({
         }
 
         Assert.Contains(recorder.Activities, activity => activity.DisplayName == "Statement:SwitchStatement");
-        ActivityTimelineFormatter.Write(root,
+        var res = ActivityTimelineFormatter.Write(root,
             recorder.Activities,
-            _output,
             predicate: activity => activity.DisplayName != "xUnit.net Test");
+        output.WriteLine(res);
     }
 
     [Fact]
@@ -224,10 +217,10 @@ JSON.stringify({
         }
 
         Assert.Contains(recorder.Activities, activity => activity.DisplayName == "Statement:SwitchStatement");
-        ActivityTimelineFormatter.Write(root,
+        var res = ActivityTimelineFormatter.Write(root,
             recorder.Activities,
-            _output,
             predicate: activity => activity.DisplayName != "xUnit.net Test");
+        output.WriteLine(res);
     }
 
     [Fact]
@@ -276,10 +269,10 @@ JSON.stringify({
         }
 
         Assert.Contains(recorder.Activities, activity => activity.DisplayName == "Statement:SwitchStatement");
-        ActivityTimelineFormatter.Write(root,
+        var res = ActivityTimelineFormatter.Write(root,
             recorder.Activities,
-            _output,
             predicate: activity => activity.DisplayName != "xUnit.net Test");
+        output.WriteLine(res);
     }
 
     [Fact]
@@ -301,10 +294,10 @@ JSON.stringify({
         root.Stop();
 
         Assert.Contains(recorder.Activities, activity => activity.DisplayName == "Statement:IfStatement");
-        ActivityTimelineFormatter.Write(root,
+        var res = ActivityTimelineFormatter.Write(root,
             recorder.Activities,
-            _output,
             predicate: activity => activity.DisplayName != "xUnit.net Test");
+        output.WriteLine(res);
     }
 
     private static async Task<JsonDocument> EvaluateReportAsync(JsEngine engine, string script)

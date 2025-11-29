@@ -376,6 +376,8 @@ public static partial class TypedAstEvaluator
             using var privateScope = PrivateNameScope is not null
                 ? context.EnterPrivateNameScope(PrivateNameScope)
                 : null;
+            PendingClassFieldInitialization pendingFieldInitialization = default;
+            var hasPendingFieldInitialization = false;
 
             if (!IsArrowFunction)
             {
@@ -426,7 +428,9 @@ public static partial class TypedAstEvaluator
                 }
 
                 SetThisInitializationStatus(functionEnvironment, context.IsThisInitialized);
-                functionEnvironment.Define(Symbol.This, boundThis ?? new JsObject());
+                var resolvedThis = boundThis ?? new JsObject();
+                functionEnvironment.Define(Symbol.This, resolvedThis);
+                boundThis = resolvedThis;
 
                 var prototypeForSuper = _superPrototype;
                 if (prototypeForSuper is null && _homeObject is not null)
@@ -445,70 +449,103 @@ public static partial class TypedAstEvaluator
                         context.IsThisInitialized);
                     functionEnvironment.Define(Symbol.Super, binding);
                 }
-            }
 
-            // Define `arguments` so non-arrow function bodies can observe the
-            // arguments they were called with. Arrow functions are also
-            // represented as FunctionExpression for now, so this behaves like a
-            // per-call arguments array rather than a lexical binding.
-            // Named function expressions should see their name inside the body.
-            if (!IsArrowFunction && _function.Name is { } functionName)
-            {
-                parameterEnvironment.Define(functionName, this);
-            }
-
-            BindFunctionParameters(_function, arguments, parameterEnvironment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                if (context.IsThrow)
+                if (_isClassConstructor && boundThis is JsObject thisInstance)
                 {
-                    var thrownDuringBinding = context.FlowValue;
-                    context.Clear();
-
-                    if (IsAsyncFunction || _wasAsyncFunction)
+                    if (_isDerivedClassConstructor && _superConstructor is not null)
                     {
-                        // Async functions must reject instead of throwing synchronously.
-                        if (callingContext is not null)
+                        pendingFieldInitialization = new PendingClassFieldInitialization(this, functionEnvironment);
+                        context.PushClassFieldInitializer(pendingFieldInitialization);
+                        hasPendingFieldInitialization = true;
+                    }
+                    else
+                    {
+                        InitializeInstance(thisInstance, functionEnvironment, context);
+                        if (context.ShouldStopEvaluation)
                         {
-                            callingContext.Clear();
+                            if (context.IsThrow)
+                            {
+                                var thrownDuringInitialization = context.FlowValue;
+                                context.Clear();
+
+                                if (callingContext is not null)
+                                {
+                                    callingContext.SetThrow(thrownDuringInitialization);
+                                }
+
+                                throw new ThrowSignal(thrownDuringInitialization);
+                            }
+
+                            return Symbol.Undefined;
                         }
-
-                        return CreateRejectedPromise(thrownDuringBinding, parameterEnvironment);
                     }
-
-                    if (callingContext is not null)
-                    {
-                        callingContext.SetThrow(thrownDuringBinding);
-                    }
-
-                    throw new ThrowSignal(thrownDuringBinding);
                 }
-
-                return Symbol.Undefined;
-            }
-
-            if (_hasHoistableDeclarations)
-            {
-                HoistVarDeclarations(_function.Body, executionEnvironment, context,
-                    lexicalNames: lexicalNames,
-                    catchParameterNames: catchParameterNames,
-                    simpleCatchParameterNames: simpleCatchParameterNames);
-            }
-
-            if (!IsArrowFunction)
-            {
-                var argumentsObject =
-                    CreateArgumentsObject(_function, arguments, parameterEnvironment, _realmState, this);
-                functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
             }
 
             try
             {
-                var result = EvaluateBlock(
-                    _function.Body,
-                    executionEnvironment,
-                    context,
-                    true);
+                // Define `arguments` so non-arrow function bodies can observe the
+                // arguments they were called with. Arrow functions are also
+                // represented as FunctionExpression for now, so this behaves like a
+                // per-call arguments array rather than a lexical binding.
+                // Named function expressions should see their name inside the body.
+                if (!IsArrowFunction && _function.Name is { } functionName)
+                {
+                    parameterEnvironment.Define(functionName, this);
+                }
+
+                BindFunctionParameters(_function, arguments, parameterEnvironment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    if (context.IsThrow)
+                    {
+                        var thrownDuringBinding = context.FlowValue;
+                        context.Clear();
+
+                        if (IsAsyncFunction || _wasAsyncFunction)
+                        {
+                            // Async functions must reject instead of throwing synchronously.
+                            if (callingContext is not null)
+                            {
+                                callingContext.Clear();
+                            }
+
+                            return CreateRejectedPromise(thrownDuringBinding, parameterEnvironment);
+                        }
+
+                        if (callingContext is not null)
+                        {
+                            callingContext.SetThrow(thrownDuringBinding);
+                        }
+
+                        throw new ThrowSignal(thrownDuringBinding);
+                    }
+
+                    return Symbol.Undefined;
+                }
+
+                if (_hasHoistableDeclarations)
+                {
+                    HoistVarDeclarations(_function.Body, executionEnvironment, context,
+                        lexicalNames: lexicalNames,
+                        catchParameterNames: catchParameterNames,
+                        simpleCatchParameterNames: simpleCatchParameterNames);
+                }
+
+                if (!IsArrowFunction)
+                {
+                    var argumentsObject =
+                        CreateArgumentsObject(_function, arguments, parameterEnvironment, _realmState, this);
+                    functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+                }
+
+                try
+                {
+                    var result = EvaluateBlock(
+                        _function.Body,
+                        executionEnvironment,
+                        context,
+                        true);
 
                 if (context.IsThrow)
                 {
@@ -563,6 +600,14 @@ public static partial class TypedAstEvaluator
                 return CreateRejectedPromise(signal.ThrownValue, executionEnvironment);
             }
         }
+        finally
+        {
+            if (hasPendingFieldInitialization)
+            {
+                context.RemovePendingClassFieldInitializer(this);
+            }
+        }
+    }
 
         public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
         {
@@ -611,15 +656,6 @@ public static partial class TypedAstEvaluator
 
         public void InitializeInstance(JsObject instance, JsEnvironment environment, EvaluationContext context)
         {
-            if (_superConstructor is TypedFunction typedFunction)
-            {
-                typedFunction.InitializeInstance(instance, environment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return;
-                }
-            }
-
             if (PrivateNameScope is not null && instance is IPrivateBrandHolder brandHolder)
             {
                 brandHolder.AddPrivateBrand(PrivateNameScope.BrandToken);
@@ -637,6 +673,21 @@ public static partial class TypedAstEvaluator
             {
                 var initEnv = new JsEnvironment(environment, isStrict: true);
                 initEnv.Define(Symbol.This, instance);
+                if (environment.TryGet(Symbol.Super, out var superBinding))
+                {
+                    initEnv.Define(Symbol.Super, superBinding, true, isLexical: true, blocksFunctionScopeOverride: true);
+                }
+
+                if (environment.TryGet(Symbol.NewTarget, out var newTargetValue))
+                {
+                    initEnv.Define(Symbol.NewTarget, newTargetValue, true, isLexical: true,
+                        blocksFunctionScopeOverride: true);
+                }
+
+                if (environment.TryGet(Symbol.Arguments, out var argumentsValue))
+                {
+                    initEnv.Define(Symbol.Arguments, argumentsValue, isLexical: false);
+                }
 
                 var propertyName = field.Name;
                 if (field.IsComputed)

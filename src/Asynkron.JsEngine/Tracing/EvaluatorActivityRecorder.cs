@@ -1,9 +1,7 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using Asynkron.JsEngine.Ast;
 
-namespace Asynkron.JsEngine.Tests.Tracing;
+namespace Asynkron.JsEngine.Tracing;
 
 /// <summary>
 ///     Captures the evaluator's ActivitySource output for test assertions.

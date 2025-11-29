@@ -45,12 +45,6 @@ public static partial class TypedAstEvaluator
                 instance.SetPrototype(proto);
             }
 
-            InitializeClassInstance(constructor, instance, environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return Symbol.Undefined;
-            }
-
             var args = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
             foreach (var argument in expression.Arguments)
             {

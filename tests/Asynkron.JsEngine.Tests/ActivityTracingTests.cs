@@ -1,19 +1,13 @@
 using System.Diagnostics;
 using System.Linq;
-using Asynkron.JsEngine.Tests.Tracing;
+using System.Text;
+using Asynkron.JsEngine.Tracing;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ActivityTracingTests
+public class ActivityTracingTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public ActivityTracingTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact]
     public async Task EvaluatorActivitiesAttachToTestRoot()
     {
@@ -45,10 +39,11 @@ public class ActivityTracingTests
             activity => Assert.Equal(recorder.RootActivity.TraceId, activity.TraceId));
 
         root.Stop();
-        ActivityTimelineFormatter.Write(recorder.RootActivity,
+        var res = ActivityTimelineFormatter.Write(recorder.RootActivity,
             recorder.Activities,
-            _output,
             predicate: activity => activity.DisplayName != "xUnit.net Test");
+        output.WriteLine(res);
+
     }
 
     [Fact]
@@ -77,9 +72,9 @@ public class ActivityTracingTests
         Assert.Equal(root.TraceId, traceIds[0]);
         Assert.Contains(recorder.Activities, activity => activity.DisplayName == "Scope:Block");
 
-        ActivityTimelineFormatter.Write(root,
+
+        ActivityTimelineFormatter.Write( root,
             recorder.Activities,
-            _output,
             predicate: activity => activity.DisplayName != "xUnit.net Test");
     }
 }

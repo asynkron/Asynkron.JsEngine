@@ -3118,7 +3118,7 @@ public class GeneratorTests
             return null;
         });
 
-        engine.SetGlobalFunction("markError", args =>
+        engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
             Console.WriteLine("LOG: Error caught!");

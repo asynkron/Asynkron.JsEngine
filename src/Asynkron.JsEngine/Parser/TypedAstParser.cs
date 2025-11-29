@@ -77,7 +77,7 @@ public sealed class TypedAstParser(
                 isStrict);
         }
 
-        private StatementNode ParseStatement()
+        private StatementNode ParseStatement(bool allowLexicalDeclarations = true)
         {
             if (Match(TokenType.Semicolon))
             {
@@ -119,7 +119,7 @@ public sealed class TypedAstParser(
                 return ParseFunctionDeclaration(false, Previous());
             }
 
-            if (Match(TokenType.Class))
+            if (allowLexicalDeclarations && Match(TokenType.Class))
             {
                 return ParseClassDeclaration();
             }
@@ -184,12 +184,12 @@ public sealed class TypedAstParser(
                 return ParseBlock(true);
             }
 
-            if (Match(TokenType.Let))
+            if (allowLexicalDeclarations && Match(TokenType.Let))
             {
                 return ParseVariableDeclaration(VariableKind.Let);
             }
 
-            if (Match(TokenType.Const))
+            if (allowLexicalDeclarations && Match(TokenType.Const))
             {
                 return ParseVariableDeclaration(VariableKind.Const);
             }
@@ -218,7 +218,7 @@ public sealed class TypedAstParser(
             Consume(TokenType.LeftParen, "Expected '(' after 'with'.");
             var obj = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after with object.");
-            var body = ParseStatement();
+            var body = ParseStatement(allowLexicalDeclarations: false);
             return new WithStatement(CreateSourceReference(withToken), obj, body);
         }
 
@@ -252,11 +252,11 @@ public sealed class TypedAstParser(
             Consume(TokenType.LeftParen, "Expected '(' after 'if'.");
             var condition = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after condition.");
-            var thenBranch = ParseStatement();
+            var thenBranch = ParseStatement(allowLexicalDeclarations: false);
             StatementNode? elseBranch = null;
             if (Match(TokenType.Else))
             {
-                elseBranch = ParseStatement();
+                elseBranch = ParseStatement(allowLexicalDeclarations: false);
             }
 
             return new IfStatement(CreateSourceReference(keyword), condition, thenBranch, elseBranch);
@@ -268,14 +268,14 @@ public sealed class TypedAstParser(
             Consume(TokenType.LeftParen, "Expected '(' after 'while'.");
             var condition = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after condition.");
-            var body = ParseStatement();
+            var body = ParseStatement(allowLexicalDeclarations: false);
             return new WhileStatement(CreateSourceReference(keyword), condition, body);
         }
 
         private StatementNode ParseDoWhileStatement()
         {
             var keyword = Previous();
-            var body = ParseStatement();
+            var body = ParseStatement(allowLexicalDeclarations: false);
             Consume(TokenType.While, "Expected 'while' after do-while body.");
             Consume(TokenType.LeftParen, "Expected '(' after 'while'.");
             var condition = ParseExpression();
@@ -641,7 +641,7 @@ public sealed class TypedAstParser(
             var labelToken = Advance();
             var label = Symbol.Intern(labelToken.Lexeme);
             Consume(TokenType.Colon, "Expected ':' after label.");
-            var statement = ParseStatement();
+            var statement = ParseStatement(allowLexicalDeclarations: false);
             return new LabeledStatement(CreateSourceReference(labelToken), label, statement);
         }
 
@@ -1412,7 +1412,7 @@ public sealed class TypedAstParser(
 
                 var iterable = ParseExpression();
                 Consume(TokenType.RightParen, "Expected ')' after for-each header.");
-                var body = ParseStatement();
+                var body = ParseStatement(allowLexicalDeclarations: false);
                 var declarationKind = initializerDeclaration?.Kind;
                 var forEachStatement = new ForEachStatement(CreateSourceReference(forToken), target, iterable, body,
                     eachKind,
@@ -1453,7 +1453,7 @@ public sealed class TypedAstParser(
             }
 
             Consume(TokenType.RightParen, "Expected ')' after for-loop clauses.");
-            var bodyStatement = ParseStatement();
+            var bodyStatement = ParseStatement(allowLexicalDeclarations: false);
             return new ForStatement(CreateSourceReference(forToken), initializer, condition, increment, bodyStatement);
         }
 
@@ -1991,6 +1991,13 @@ public sealed class TypedAstParser(
             }
 
             if (Match(TokenType.Identifier))
+            {
+                var symbol = Symbol.Intern(Previous().Lexeme);
+                expr = new IdentifierExpression(CreateSourceReference(Previous()), symbol);
+                return ApplyCallSuffix(expr, allowCallSuffix);
+            }
+
+            if (!InStrictContext && Match(TokenType.Let))
             {
                 var symbol = Symbol.Intern(Previous().Lexeme);
                 expr = new IdentifierExpression(CreateSourceReference(Previous()), symbol);

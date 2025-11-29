@@ -396,9 +396,17 @@ public sealed class JsEnvironment
             }
 
             if (current._withObject is not null &&
-                TryResolveObjectBinding(current._withObject, name, out var propertyName))
+                TryResolveObjectBinding(
+                    current._withObject,
+                    name,
+                    out var propertyName,
+                    out var allowMissingAssignment))
             {
-                binding = new ObjectEnvironmentBinding(current._withObject, propertyName, isStrictReference);
+                binding = new ObjectEnvironmentBinding(
+                    current._withObject,
+                    propertyName,
+                    isStrictReference,
+                    allowMissingAssignment);
                 return true;
             }
 
@@ -751,14 +759,19 @@ public sealed class JsEnvironment
         return null;
     }
 
-    private static bool IsBlockedByUnscopables(IJsObjectLike target, string name)
+    private static bool IsBlockedByUnscopables(IJsObjectLike target, string name, out bool touchedUnscopables)
     {
+        touchedUnscopables = false;
         var unscopablesSymbol = TypedAstSymbol.For("Symbol.unscopables");
         var key = $"@@symbol:{unscopablesSymbol.GetHashCode()}";
-        if (target.TryGetProperty(key, out var unscopables) && unscopables is IJsPropertyAccessor accessor &&
-            JsOps.TryGetPropertyValue(accessor, name, out var blocked) && JsOps.ToBoolean(blocked))
+        if (target.TryGetProperty(key, out var unscopables))
         {
-            return true;
+            touchedUnscopables = true;
+            if (unscopables is IJsPropertyAccessor accessor &&
+                JsOps.TryGetPropertyValue(accessor, name, out var blocked) && JsOps.ToBoolean(blocked))
+            {
+                return true;
+            }
         }
 
         return false;
@@ -779,7 +792,7 @@ public sealed class JsEnvironment
             return false;
         }
 
-        if (IsBlockedByUnscopables(target, propertyName))
+        if (IsBlockedByUnscopables(target, propertyName, out _))
         {
             value = null;
             return false;
@@ -796,12 +809,17 @@ public sealed class JsEnvironment
 
     private static bool HasVisibleWithBinding(IJsObjectLike target, Symbol name)
     {
-        return TryResolveObjectBinding(target, name, out _);
+        return TryResolveObjectBinding(target, name, out _, out _);
     }
 
-    private static bool TryResolveObjectBinding(IJsObjectLike target, Symbol name, out string propertyName)
+    private static bool TryResolveObjectBinding(
+        IJsObjectLike target,
+        Symbol name,
+        out string propertyName,
+        out bool allowMissingAssignment)
     {
         propertyName = name.Name;
+        allowMissingAssignment = false;
         if (string.IsNullOrEmpty(propertyName))
         {
             return false;
@@ -812,9 +830,27 @@ public sealed class JsEnvironment
             return false;
         }
 
-        if (IsBlockedByUnscopables(target, propertyName))
+        JsObject? jsObject = null;
+        PropertyDescriptor? originalDescriptor = null;
+        if (target is JsObject candidate)
+        {
+            jsObject = candidate;
+            originalDescriptor = candidate.GetOwnPropertyDescriptor(propertyName);
+        }
+
+        var touchedUnscopables = false;
+        if (IsBlockedByUnscopables(target, propertyName, out touchedUnscopables))
         {
             return false;
+        }
+
+        if (touchedUnscopables && jsObject is not null && originalDescriptor is not null)
+        {
+            var currentDescriptor = jsObject.GetOwnPropertyDescriptor(propertyName);
+            if (currentDescriptor is null)
+            {
+                allowMissingAssignment = true;
+            }
         }
 
         return true;
@@ -869,16 +905,46 @@ public sealed class JsEnvironment
             : Symbol.Undefined;
     }
 
-    internal static void SetWithBindingValue(in ObjectEnvironmentBinding binding, object? value)
+    internal static bool TrySetWithBindingValue(in ObjectEnvironmentBinding binding, object? value)
     {
         var propertyName = binding.PropertyName;
-        var stillExists = HasProperty(binding.BindingObject, propertyName);
-        if (!stillExists && binding.IsStrictReference)
+        var bindingObject = binding.BindingObject;
+        var stillExists = HasProperty(bindingObject, propertyName);
+        if (!stillExists)
         {
-            throw new InvalidOperationException($"ReferenceError: {propertyName} is not defined");
+            if (binding.IsStrictReference)
+            {
+                throw new InvalidOperationException($"ReferenceError: {propertyName} is not defined");
+            }
+
+            if (!binding.AllowMissingAssignment)
+            {
+                return false;
+            }
         }
 
-        JsOps.AssignPropertyValueByName(binding.BindingObject, propertyName, value);
+        JsOps.AssignPropertyValueByName(bindingObject, propertyName, value);
+
+        var ownDescriptor = bindingObject.GetOwnPropertyDescriptor(propertyName);
+        if (ownDescriptor is null)
+        {
+            return true;
+        }
+
+        if (bindingObject is not IPropertyDefinitionHost definitionHost)
+        {
+            return true;
+        }
+
+        if (!ownDescriptor.IsDataDescriptor)
+        {
+            return true;
+        }
+
+        var descriptorClone = ownDescriptor.Clone();
+        descriptorClone.Value = value;
+        definitionHost.TryDefineProperty(propertyName, descriptorClone);
+        return true;
     }
 
     internal void AddBindingObserver(Symbol symbol, Action<object?> observer)
@@ -1047,4 +1113,5 @@ internal enum DeleteBindingResult
 internal readonly record struct ObjectEnvironmentBinding(
     IJsObjectLike BindingObject,
     string PropertyName,
-    bool IsStrictReference);
+    bool IsStrictReference,
+    bool AllowMissingAssignment);

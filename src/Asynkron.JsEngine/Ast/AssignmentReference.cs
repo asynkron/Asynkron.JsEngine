@@ -27,24 +27,43 @@ internal static class AssignmentReferenceResolver
     private static AssignmentReference ResolveIdentifier(IdentifierExpression identifier, JsEnvironment environment,
         EvaluationContext context)
     {
-        if (context.CurrentScope.IsStrict &&
-            (string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal) ||
-             string.Equals(identifier.Name.Name, "arguments", StringComparison.Ordinal)))
-        {
-            throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
-                "Assignment to eval or arguments is not allowed in strict mode.", context, context.RealmState));
-        }
+        var isStrictTarget = context.CurrentScope.IsStrict &&
+                             (string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal) ||
+                              string.Equals(identifier.Name.Name, "arguments", StringComparison.Ordinal));
 
         if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
         {
             return new AssignmentReference(
                 () => JsEnvironment.GetWithBindingValue(withBinding),
-                newValue => JsEnvironment.SetWithBindingValue(withBinding, newValue));
+                newValue =>
+                {
+                    if (isStrictTarget)
+                    {
+                        throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
+                            "Assignment to eval or arguments is not allowed in strict mode.", context,
+                            context.RealmState));
+                    }
+
+                    if (!JsEnvironment.TrySetWithBindingValue(withBinding, newValue))
+                    {
+                        environment.Assign(identifier.Name, newValue);
+                    }
+                });
         }
 
         return new AssignmentReference(
             () => environment.GetDeclarative(identifier.Name),
-            value => environment.Assign(identifier.Name, value));
+            value =>
+            {
+                if (isStrictTarget)
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
+                        "Assignment to eval or arguments is not allowed in strict mode.", context,
+                        context.RealmState));
+                }
+
+                environment.Assign(identifier.Name, value);
+            });
     }
 
     private static AssignmentReference ResolveMember(

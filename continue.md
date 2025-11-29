@@ -68,12 +68,17 @@
 - Var declarators now route initialisers through the regular assignment pipeline instead of calling `DefineFunctionScoped`, so Annex B cases like `with (o) { var foo = 1; }` update the `with` binding when the property exists and fall back to the outer var environment only when it does not. `WithStatement` also applies the spec’s `UpdateEmpty` step, so empty bodies yield `undefined` and `cptn-*` completion tests pass.
 - Loop statements now call through `UpdateEmpty` as well: `EvaluateBlock` captures values even when a `break`/`continue` is pending, and `EvaluateLoopPlan` normalizes `EmptyCompletion` to `undefined`, so Annex B `cptn-abrupt-empty.js` variants in `do/while/while` no longer leak the previous completion.
 - Object-environment references now hold onto a resolved binding record; each read/write replays `HasProperty` so proxy-backed `with` scopes see the precise `has`/`get` ordering (fixing the `has-binding`/`get-binding-value` logging suites and cutting `Statements_with` failures from 34 to 7).
+- Object-environment bindings now detect when `Symbol.unscopables` deletes a property during resolution and remember whether the assignment should stay on the original binding. Sloppy writes flow through to the original object (matching Annex B), strict writes throw a `ReferenceError`, and deletions that happen later fall back through the environment so the typed-array and proxy `SetMutableBinding` suites are green.
+- Identifier member access and call expressions now raise JavaScript `TypeError`s when targeting `null`/`undefined` receivers or non-callable values so `delete`-driven Sputnik tests can observe the abrupt completion they rely on instead of silently receiving `Symbol.Undefined`.
+- Strict-mode identifier resolution no longer rejects plain `eval`/`arguments` reads; `AssignmentReferenceResolver` now enforces that restriction only when a write is attempted, so Annex B strict-code paths can call `eval` without tripping the runtime guard (`StrictMode_CanAccessGlobalEval` / `StrictMode_DirectEvalInvokesSuccessfully` lock this down).
 
 ### Next Steps
-1. **Parser/Evaluator Awareness**
-   - Plumb the pre-resolved binding reference into compound assignments and nested `eval` so `@@unscopables` is queried once and the write hits the same binding (`With_EvalUsesSingleUnscopablesLookup` is still skipped).
-   - Finish the object-environment record: `SetMutableBinding` still needs to route through the object’s `[[DefineOwnProperty]]`/descriptor path so proxy logs show the expected `getOwnPropertyDescriptor`/`defineProperty` pairs, and the typed-array deletion tests (`set-mutable-binding-binding-deleted-with-typed-array*.js`) require the post-unscopables `HasProperty` walk across the prototype indices.
-   - Teach the parser about the `with (...) let` ExpressionStatement lookahead carve-out so `let-block-with-newline.js` parses instead of treating `let` as a declaration in that context.
-   - Audit remaining helper paths (`TryFindBinding`, class field initialisers, eval-in-with) to ensure any Annex B-sensitive logic reads `ScopeMode` from the scope stack rather than global toggles.
-2. **Annex B Toggle Tests**
-   - Add targeted tests for `@@unscopables` + nested eval and proxy-backed `with` objects once the evaluator stops double-reading bindings, and extend the Annex B suite to cover the remaining loop/function combinations so we can rely on the unit tests instead of full Statements_with runs for regressions.
+1. **Annex B Global/Eval Hoisting**
+   - Implement the `CreateGlobalVarBinding(F, true)` tweaks from B.3.3.3 so `$262.evalScript`/global code can redeclare legacy functions even when non-configurable globals already exist (current Annex B global + eval tests throw `TypeError: Cannot redefine property`).
+   - Ensure EvalDeclarationInstantiation mirrors the Annex B var binding rules for direct/indirect eval so `Language_evalCode_*` suites observe the expected blocking/updates instead of throwing.
+2. **RegExp Annex B Behaviour**
+   - Teach `RegExp.prototype.compile` to perform the `lastIndex` reset via ordinary `Set` semantics so immutable `lastIndex` descriptors trigger the user-observable `TypeError` from inside `compile` rather than at script instantiation time (`pattern-regexp-immutable-lastindex.js`).
+3. **Parser/Evaluator Follow-ups**
+   - Teach the parser about the `with (...) let` ExpressionStatement carve-out so Annex B’s `let`-as-identifier cases parse without relying on runtime fallbacks.
+   - Audit helper paths (`TryFindBinding`, class field initialisers, eval-in-with) and the Annex B scope plumbing to ensure they read `ScopeMode` from the scope stack rather than reaching for global toggles.
+   - Confirm that the new nullish member-access/call behaviour covers every entry-point (e.g. optional chaining fallbacks, destructuring, and host helper paths) so we don’t regress on the Sputnik delete suite.

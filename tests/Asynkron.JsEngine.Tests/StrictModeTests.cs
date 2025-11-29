@@ -21,6 +21,32 @@ public class StrictModeTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task StrictMode_CanAccessGlobalEval()
+    {
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            "use strict";
+            typeof eval;
+            """);
+
+        Assert.Equal("function", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task StrictMode_DirectEvalInvokesSuccessfully()
+    {
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            "use strict";
+            eval("1 + 2");
+            """);
+
+        Assert.Equal(3d, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task StrictMode_ErrorMessageFormat()
     {
         // In strict mode, assigning to an undefined variable should throw a ReferenceError

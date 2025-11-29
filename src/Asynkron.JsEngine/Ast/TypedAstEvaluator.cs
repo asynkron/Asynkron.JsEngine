@@ -2390,6 +2390,16 @@ public static class TypedAstEvaluator
             return Symbol.Undefined;
         }
 
+        if (IsNullish(target))
+        {
+            var error = StandardLibrary.CreateTypeError(
+                "Cannot read properties of null or undefined",
+                context,
+                context.RealmState);
+            context.SetThrow(error);
+            return Symbol.Undefined;
+        }
+
         var propertyValue = EvaluateExpression(expression.Property, environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -2647,8 +2657,13 @@ public static class TypedAstEvaluator
             var calleeDescription = DescribeCallee(expression.Callee);
             Console.Error.WriteLine(
                 $"[EvaluateCall] Non-callable callee={calleeDescription}, type={typeName}, thisValueType={thisValue?.GetType().Name ?? "null"}{symbolSuffix}{sourceInfo}");
-            throw new InvalidOperationException(
-                $"Attempted to call a non-callable value '{calleeDescription}' of type '{typeName}'{symbolSuffix}.{sourceInfo}");
+            var error = StandardLibrary.CreateTypeError(
+                $"Attempted to call a non-callable value '{calleeDescription}' of type '{typeName}'{symbolSuffix}.",
+                context,
+                context.RealmState);
+            context.SetThrow(error);
+            context.CallDepth--;
+            return Symbol.Undefined;
         }
 
         var arguments = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
@@ -8221,15 +8236,8 @@ public static class TypedAstEvaluator
         IJsCallable callable,
         RealmState realmState)
     {
-        private readonly IReadOnlyList<object?> _arguments = arguments;
-        private readonly IJsCallable _callable = callable;
-        private readonly FunctionExpression _function = function;
-
         private readonly TypedGeneratorInstance _inner = new(function, closure, arguments, thisValue, callable,
             realmState);
-
-        private readonly RealmState _realmState = realmState;
-        private readonly object? _thisValue = thisValue;
 
         // WAITING ON FULL ASYNC GENERATOR IR SUPPORT:
         // For now we reuse the sync generator IR plan and runtime to execute

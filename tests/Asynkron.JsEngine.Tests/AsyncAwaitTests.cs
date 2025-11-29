@@ -231,7 +231,7 @@ public class AsyncAwaitTests
         await using var engine = new JsEngine();
         var caught = false;
 
-        engine.SetGlobalFunction("markCaught", args =>
+        engine.SetGlobalFunction("markCaught", _ =>
         {
             caught = true;
             return null;
@@ -489,7 +489,7 @@ public class AsyncAwaitTests
         await using var engine = new JsEngine();
         var wasCalled = false;
 
-        engine.SetGlobalFunction("markCalled", args =>
+        engine.SetGlobalFunction("markCalled", _ =>
         {
             wasCalled = true;
             return null;
@@ -519,7 +519,7 @@ public class AsyncAwaitTests
         await using var engine = new JsEngine();
         var wasCalled = false;
 
-        engine.SetGlobalFunction("markCalled", args =>
+        engine.SetGlobalFunction("markCalled", _ =>
         {
             wasCalled = true;
             return null;

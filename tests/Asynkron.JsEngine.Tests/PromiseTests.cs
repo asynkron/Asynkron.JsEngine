@@ -205,7 +205,7 @@ public class PromiseTests
         await using var engine = new JsEngine();
         var caught = false;
 
-        engine.SetGlobalFunction("markCaught", args =>
+        engine.SetGlobalFunction("markCaught", _ =>
         {
             caught = true;
             return null;
@@ -234,7 +234,7 @@ public class PromiseTests
         await using var engine = new JsEngine();
         var finallyCount = 0;
 
-        engine.SetGlobalFunction("incrementFinally", args =>
+        engine.SetGlobalFunction("incrementFinally", _ =>
         {
             finallyCount++;
             return null;
@@ -394,7 +394,7 @@ public class PromiseTests
         await using var engine = new JsEngine();
         var executorCount = 0;
 
-        engine.SetGlobalFunction("markExecutorRan", args =>
+        engine.SetGlobalFunction("markExecutorRan", _ =>
         {
             executorCount++;
             return null;

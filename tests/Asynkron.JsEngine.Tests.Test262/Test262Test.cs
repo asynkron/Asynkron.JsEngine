@@ -1,4 +1,4 @@
-using System.Net;
+using System.Net.Http;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Test262Harness;
@@ -58,7 +58,7 @@ public abstract partial class Test262Test
             }),
 
             // createRealm function - not fully implemented but needed for compatibility
-            ["createRealm"] = new HostFunction(args =>
+            ["createRealm"] = new HostFunction(_ =>
             {
                 // Create a fresh engine with its own intrinsics; expose its global
                 // object so tests can access constructors like Array/Function.
@@ -103,7 +103,7 @@ public abstract partial class Test262Test
             }),
 
             // gc function - triggers garbage collection
-            ["gc"] = new HostFunction(args =>
+            ["gc"] = new HostFunction(_ =>
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
@@ -120,7 +120,7 @@ public abstract partial class Test262Test
         engine.SetGlobalValue("$262", obj262);
 
         var moduleSourceCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        engine.SetModuleLoader((specifier, referrer) =>
+        engine.SetModuleLoader((specifier, _) =>
         {
             var normalized = specifier.Replace('\\', '/');
             if (moduleSourceCache.TryGetValue(normalized, out var cached))
@@ -145,12 +145,12 @@ public abstract partial class Test262Test
                 try
                 {
                     var url = $"https://raw.githubusercontent.com/tc39/test262/{State.GitHubSha}/test/{normalized}";
-                    using var client = new WebClient();
-                    var source = client.DownloadString(url);
+                    using var httpClient = new HttpClient();
+                    var source = httpClient.GetStringAsync(url).GetAwaiter().GetResult();
                     moduleSourceCache[normalized] = source;
                     return source;
                 }
-                catch (Exception downloadEx)
+                catch (Exception)
                 {
                     throw new FileNotFoundException($"Module not found: {normalized}", ex.GetBaseException() ?? ex);
                 }
@@ -189,7 +189,7 @@ public abstract partial class Test262Test
             prototype.SetPrototype(protoObj);
         }
 
-        var constructor = new HostFunction((thisValue, _) =>
+        var constructor = new HostFunction((_, _) =>
         {
             object? error = "%AbstractModuleSource% is not constructable";
             if (engine.GlobalObject.TryGetValue("TypeError", out var typeErrorValue) &&

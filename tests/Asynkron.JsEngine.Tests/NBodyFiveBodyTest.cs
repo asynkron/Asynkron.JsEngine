@@ -6,7 +6,7 @@ public class NBodyFiveBodyTest
     public async Task FiveBodies_Energy_Works()
     {
         await using var engine = new JsEngine();
-        engine.SetGlobalFunction("__debug", args => null);
+        engine.SetGlobalFunction("__debug", _ => null);
 
         var content = SunSpiderTests.GetEmbeddedFile("access-nbody.js");
 
@@ -17,7 +17,7 @@ public class NBodyFiveBodyTest
     public async Task FiveBodies_FullTest_Works()
     {
         await using var engine = new JsEngine();
-        engine.SetGlobalFunction("__debug", args => null);
+        engine.SetGlobalFunction("__debug", _ => null);
 
         var content = SunSpiderTests.GetEmbeddedFile("access-nbody.js");
 
@@ -32,7 +32,7 @@ public class NBodyFiveBodyTest
         {
             // JavaScript threw an error - this is a failure
             var message = ex.ThrownValue?.ToString() ?? "null";
-            throw new Exception($"JavaScript error: {message}", ex);
+            throw new InvalidOperationException($"JavaScript error: {message}", ex);
         }
     }
 }

@@ -152,7 +152,6 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
-    private const string DescriptorPrefix = "__descriptor__";
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
     private readonly List<string> _propertyInsertionOrder = new();
     private readonly HashSet<string> _propertyInsertionSet = new(StringComparer.Ordinal);

@@ -418,7 +418,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
             return null;
         });
 
-        engine.SetGlobalFunction("markError", args =>
+        engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
             output.WriteLine("LOG: Error caught!");
@@ -487,7 +487,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
             return null;
         });
 
-        engine.SetGlobalFunction("markError", args =>
+        engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
             output.WriteLine("LOG: Error caught!");

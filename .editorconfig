@@ -146,6 +146,9 @@ dotnet_diagnostic.CA1805.severity = warning
 # CA1810: Do not initialize unnecessarily
 dotnet_diagnostic.CA1810.severity = warning
 
+# CA1811: Avoid uncalled private code
+dotnet_diagnostic.CA1811.severity = warning
+
 # CA1821: Remove empty Finalizers
 dotnet_diagnostic.CA1821.severity = warning
 
@@ -328,9 +331,18 @@ dotnet_diagnostic.IDE0055.severity = suggestion
 # IDE0059: Unnecessary assignment to a value
 dotnet_diagnostic.IDE0059.severity = warning
 
+# CS0162: Unreachable code detected
+dotnet_diagnostic.CS0162.severity = warning
+
 # IDE0060: Remove unused parameter
 dotnet_code_quality_unused_parameters = non_public
 dotnet_diagnostic.IDE0060.severity = warning
+
+# Roslynator analyzers focused on dead/unused code
+dotnet_diagnostic.RCS1163.severity = warning
+dotnet_diagnostic.RCS1164.severity = warning
+dotnet_diagnostic.RCS1175.severity = warning
+dotnet_diagnostic.RCS1213.severity = warning
 
 # IDE0062: Make local function static
 dotnet_diagnostic.IDE0062.severity = warning

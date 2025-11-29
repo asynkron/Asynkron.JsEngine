@@ -19,7 +19,6 @@ internal sealed class SyncGeneratorIrBuilder
     private const string ResumeSlotPrefix = "\u0001_resume";
     private const string CatchSlotPrefix = "\u0001_catch";
     private const string YieldStarStatePrefix = "\u0001_yieldstar";
-    private static readonly LiteralExpression TrueLiteralExpression = new(null, true);
     private readonly List<GeneratorInstruction> _instructions = [];
     private readonly Stack<LoopScope> _loopScopes = new();
     private int _catchSlotCounter;
@@ -683,67 +682,6 @@ internal sealed class SyncGeneratorIrBuilder
         }
 
         return true;
-    }
-
-    private static bool ContainsTryStatement(StatementNode statement)
-    {
-        while (true)
-        {
-            switch (statement)
-            {
-                case TryStatement:
-                    return true;
-                case BlockStatement block:
-                    foreach (var s in block.Statements)
-                    {
-                        if (ContainsTryStatement(s))
-                        {
-                            return true;
-                        }
-                    }
-
-                    break;
-                case IfStatement ifStatement:
-                    if (ContainsTryStatement(ifStatement.Then))
-                    {
-                        return true;
-                    }
-
-                    if (ifStatement.Else is not null && ContainsTryStatement(ifStatement.Else))
-                    {
-                        return true;
-                    }
-
-                    break;
-                case WhileStatement whileStatement:
-                    statement = whileStatement.Body;
-                    continue;
-                case DoWhileStatement doWhileStatement:
-                    statement = doWhileStatement.Body;
-                    continue;
-                case ForStatement forStatement:
-                    statement = forStatement.Body;
-                    continue;
-                case ForEachStatement forEachStatement:
-                    statement = forEachStatement.Body;
-                    continue;
-                case LabeledStatement labeledStatement:
-                    statement = labeledStatement.Statement;
-                    continue;
-                case SwitchStatement switchStatement:
-                    foreach (var c in switchStatement.Cases)
-                    {
-                        if (ContainsTryStatement(c.Body))
-                        {
-                            return true;
-                        }
-                    }
-
-                    break;
-            }
-
-            return false;
-        }
     }
 
     private bool TryBuildForOfStatement(ForEachStatement statement, int nextIndex, out int entryIndex, Symbol? label)

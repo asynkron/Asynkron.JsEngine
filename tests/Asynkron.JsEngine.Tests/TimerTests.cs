@@ -8,7 +8,7 @@ public class TimerTests
         await using var engine = new JsEngine();
         var executed = false;
 
-        engine.SetGlobalFunction("callback", args =>
+        engine.SetGlobalFunction("callback", _ =>
         {
             executed = true;
             return null;
@@ -45,7 +45,7 @@ public class TimerTests
         await using var engine = new JsEngine();
         var executed = false;
 
-        engine.SetGlobalFunction("callback", args =>
+        engine.SetGlobalFunction("callback", _ =>
         {
             executed = true;
             return null;
@@ -70,13 +70,13 @@ public class TimerTests
         await using var engine = new JsEngine();
         var count = 0;
 
-        engine.SetGlobalFunction("callback", args =>
+        engine.SetGlobalFunction("callback", _ =>
         {
             count++;
             return null;
         });
 
-        engine.SetGlobalFunction("getCount", args => count);
+        engine.SetGlobalFunction("getCount", _ => count);
 
         var result = await engine.Run("""
 
@@ -98,7 +98,7 @@ public class TimerTests
         await using var engine = new JsEngine();
         var count = 0;
 
-        engine.SetGlobalFunction("callback", args =>
+        engine.SetGlobalFunction("callback", _ =>
         {
             count++;
             return null;

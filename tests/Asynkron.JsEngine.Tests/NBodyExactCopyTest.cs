@@ -21,7 +21,7 @@ public class NBodyExactCopyTest
             return null;
         });
         // Add __debug() function for debugging test scripts
-        engine.SetGlobalFunction("__debug", args =>
+        engine.SetGlobalFunction("__debug", _ =>
         {
             // No-op function for debug markers in test scripts
             return null;
@@ -36,7 +36,7 @@ public class NBodyExactCopyTest
             // Re-throw with the actual thrown value as the message
             var thrownValue = ex.ThrownValue;
             var message = thrownValue != null ? thrownValue.ToString() : "null";
-            throw new Exception($"JavaScript error: {message}", ex);
+            throw new InvalidOperationException($"JavaScript error: {message}", ex);
         }
     }
 

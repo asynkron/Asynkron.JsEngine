@@ -92,7 +92,7 @@ public class SunSpiderTests
             // Re-throw with the actual thrown value as the message for better diagnostics.
             var thrownValue = ex.ThrownValue;
             var message = thrownValue != null ? thrownValue.ToString() : "null";
-            throw new Exception($"JavaScript error: {message}", ex);
+            throw new InvalidOperationException($"JavaScript error: {message}", ex);
         }
     }
 

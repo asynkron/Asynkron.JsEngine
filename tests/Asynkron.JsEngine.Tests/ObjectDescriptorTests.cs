@@ -43,18 +43,18 @@ public class ObjectDescriptorTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task DefineProperty_Default_Writable_Is_True()
+    public async Task DefineProperty_Default_Writable_Is_False()
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
 
-                                                       let obj = {};
-                                                       Object.defineProperty(obj, 'prop', { value: 10 });
-                                                       obj.prop = 20;
-                                                       obj.prop;
+                                       let obj = {};
+                                       Object.defineProperty(obj, 'prop', { value: 10 });
+                                       obj.prop = 20;
+                                       obj.prop;
 
-                                           """);
-        Assert.Equal(20d, result);
+                                       """);
+        Assert.Equal(10d, result);
     }
 
     // Tests for Object.defineProperty with enumerable descriptor

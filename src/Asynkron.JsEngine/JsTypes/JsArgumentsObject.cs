@@ -517,19 +517,36 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     private static PropertyDescriptor CloneDescriptor(PropertyDescriptor source)
     {
-        var clone = new PropertyDescriptor
+        var clone = new PropertyDescriptor();
+
+        if (source.HasValue)
         {
-            Enumerable = source.Enumerable, Configurable = source.Configurable, Get = source.Get, Set = source.Set
-        };
+            clone.Value = source.Value;
+        }
 
         if (source.HasWritable)
         {
             clone.Writable = source.Writable;
         }
 
-        if (source.HasValue)
+        if (source.HasEnumerable)
         {
-            clone.Value = source.Value;
+            clone.Enumerable = source.Enumerable;
+        }
+
+        if (source.HasConfigurable)
+        {
+            clone.Configurable = source.Configurable;
+        }
+
+        if (source.HasGet)
+        {
+            clone.Get = source.Get;
+        }
+
+        if (source.HasSet)
+        {
+            clone.Set = source.Set;
         }
 
         return clone;

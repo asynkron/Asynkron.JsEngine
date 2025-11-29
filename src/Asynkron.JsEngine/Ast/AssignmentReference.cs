@@ -34,7 +34,7 @@ internal static class AssignmentReferenceResolver
         if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
         {
             return new AssignmentReference(
-                () => JsEnvironment.GetWithBindingValue(withBinding),
+                () => ReadIdentifierValue(() => JsEnvironment.GetWithBindingValue(withBinding), context),
                 newValue =>
                 {
                     if (isStrictTarget)
@@ -52,7 +52,7 @@ internal static class AssignmentReferenceResolver
         }
 
         return new AssignmentReference(
-            () => environment.GetDeclarative(identifier.Name),
+            () => ReadIdentifierValue(() => environment.GetDeclarative(identifier.Name), context),
             value =>
             {
                 if (isStrictTarget)
@@ -132,5 +132,24 @@ internal static class AssignmentReferenceResolver
         return new AssignmentReference(
             () => JsOps.TryGetPropertyValue(target, propertyName, out var value) ? value : Symbol.Undefined,
             newValue => JsOps.AssignPropertyValueByName(target, propertyName, newValue));
+    }
+
+    private static object? ReadIdentifierValue(Func<object?> getter, EvaluationContext context)
+    {
+        try
+        {
+            return getter();
+        }
+        catch (InvalidOperationException ex) when (IsReferenceError(ex))
+        {
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+            context.SetThrow(errorObject);
+            return Symbol.Undefined;
+        }
+    }
+
+    private static bool IsReferenceError(Exception ex)
+    {
+        return ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal);
     }
 }

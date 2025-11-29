@@ -503,7 +503,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
             if (!descriptor.HasWritable)
             {
-                descriptor.Writable = true;
+                descriptor.Writable = false;
             }
         }
         else

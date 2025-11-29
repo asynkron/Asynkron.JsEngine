@@ -57,3 +57,8 @@ When you encounter an unsupported language/runtime feature or AST shape, fail fa
 ## Generated code
 
 - Never edit files with `.generated.` in their names. They are produced by tooling and will be regenerated, so any manual change will be lost (and may break future syncs). Always apply fixes by editing the non-generated partials/helpers instead.
+
+## Debugging
+
+You have access powerful visualizations and debug outputs, check the ActivityTracingTests.EvaluatorActivitiesAttachToTestRoot test to see how you can leverage System.Diagnostics.Activity for tracing code execution paths.
+

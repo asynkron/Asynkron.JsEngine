@@ -1,51 +1,17 @@
-tests (4537 tests) Failed: 4537 tests failed
+tests (4581 tests) Aborted: 4483 tests failed
   Asynkron.JsEngine.Tests (2 tests) Failed: 2 tests failed
     Asynkron.JsEngine.Tests (2 tests) Failed: 2 tests failed
       JsEvaluatorTests (1 test) Failed: One or more child tests failed: 1 test failed
         DateToIsoStringReturnsFormattedString Failed: Assert.Contains() Failure: Sub-string not found
       ObjectDescriptorTests (1 test) Failed: One or more child tests failed: 1 test failed
         DefineProperty_Configurable_False_Prevents_Redefinition Failed: Assert.Equal() Failure: Values differ
-  Asynkron.JsEngine.Tests.Test262 (4535 tests) Failed: 4535 tests failed
-    Asynkron.JsEngine.Tests.Test262 (4535 tests) Failed: 4535 tests failed
-      TestHarness (4535 tests) Failed: One or more child tests had errors: 4535 tests failed
-        LanguageTests (4535 tests) Failed: One or more child tests had errors: 4535 tests failed
+  Asynkron.JsEngine.Tests.Test262 (4579 tests) Aborted: 4481 tests failed
+    Asynkron.JsEngine.Tests.Test262 (4579 tests) Aborted: 4481 tests failed
+      TestHarness (4579 tests) Aborted: One or more child tests had errors: 4481 tests failed
+        LanguageTests (4579 tests) Aborted: One or more child tests had errors: 4481 tests failed
           ArgumentsObject (2 tests) Failed: One or more child tests had errors: 2 tests failed
             ArgumentsObject("language/arguments-object/10.6-13-a-2.js",False) Failed
             ArgumentsObject("language/arguments-object/10.6-13-a-3.js",False) Failed
-          ArgumentsObject_mapped (16 tests) Failed: One or more child tests had errors: 16 tests failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-3.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-delete-3.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-2.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-3.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-4.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-5.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-strict-delete-3.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-basic.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-set-value-by-arguments.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-set-value-with-define-property.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-with-param-assign.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-nonenumerable-nonwritable-descriptors-set-by-arguments.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-nonenumerable-nonwritable-descriptors-set-by-param.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-nonwritable-descriptors-define-property-consecutive.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-nonwritable-descriptors-set-by-arguments.js",False) Failed
-            ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-nonwritable-descriptors-set-by-param.js",False) Failed
-          Asi (16 tests) Failed: One or more child tests had errors: 16 tests failed
-            Asi("language/asi/do-while-same-line.js",False) Failed
-            Asi("language/asi/do-while-same-line.js",True) Failed
-            Asi("language/asi/S7.9_A3.js",False) Failed
-            Asi("language/asi/S7.9_A3.js",True) Failed
-            Asi("language/asi/S7.9_A5.2_T1.js",False) Failed
-            Asi("language/asi/S7.9_A5.2_T1.js",True) Failed
-            Asi("language/asi/S7.9_A5.4_T1.js",False) Failed
-            Asi("language/asi/S7.9_A5.4_T1.js",True) Failed
-            Asi("language/asi/S7.9_A5.6_T1.js",False) Failed
-            Asi("language/asi/S7.9_A5.6_T1.js",True) Failed
-            Asi("language/asi/S7.9_A5.6_T2.js",False) Failed
-            Asi("language/asi/S7.9_A5.6_T2.js",True) Failed
-            Asi("language/asi/S7.9.2_A1_T4.js",False) Failed
-            Asi("language/asi/S7.9.2_A1_T4.js",True) Failed
-            Asi("language/asi/S7.9.2_A1_T5.js",False) Failed
-            Asi("language/asi/S7.9.2_A1_T5.js",True) Failed
           Comments_hashbang (11 tests) Failed: One or more child tests had errors: 11 tests failed
             Comments_hashbang("language/comments/hashbang/eval-indirect.js",False) Failed
             Comments_hashbang("language/comments/hashbang/eval-indirect.js",True) Failed
@@ -119,7 +85,7 @@ tests (4537 tests) Failed: 4537 tests failed
             DirectivePrologue("language/directive-prologue/14.1-5-s.js",False) Failed
             DirectivePrologue("language/directive-prologue/14.1-6-s.js",False) Failed
             DirectivePrologue("language/directive-prologue/14.1-7-s.js",False) Failed
-          EvalCode_direct (201 tests) Failed: One or more child tests had errors: 201 tests failed
+          EvalCode_direct (197 tests) Failed: One or more child tests had errors: 197 tests failed
             EvalCode_direct("language/eval-code/direct/arrow-fn-a-following-parameter-is-named-arguments-arrow-func-declare-arguments-assign-incl-def-param-arrow-arguments.js",False) Failed
             EvalCode_direct("language/eval-code/direct/arrow-fn-a-following-parameter-is-named-arguments-arrow-func-declare-arguments-assign.js",False) Failed
             EvalCode_direct("language/eval-code/direct/arrow-fn-a-preceding-parameter-is-named-arguments-arrow-func-declare-arguments-assign-incl-def-param-arrow-arguments.js",False) Failed
@@ -283,10 +249,6 @@ tests (4537 tests) Failed: 4537 tests failed
             EvalCode_direct("language/eval-code/direct/new.target.js",True) Failed
             EvalCode_direct("language/eval-code/direct/non-definable-function-with-function.js",False) Failed
             EvalCode_direct("language/eval-code/direct/non-definable-global-var.js",False) Failed
-            EvalCode_direct("language/eval-code/direct/parse-failure-1.js",False) Failed
-            EvalCode_direct("language/eval-code/direct/parse-failure-1.js",True) Failed
-            EvalCode_direct("language/eval-code/direct/parse-failure-2.js",False) Failed
-            EvalCode_direct("language/eval-code/direct/parse-failure-2.js",True) Failed
             EvalCode_direct("language/eval-code/direct/parse-failure-3.js",False) Failed
             EvalCode_direct("language/eval-code/direct/parse-failure-3.js",True) Failed
             EvalCode_direct("language/eval-code/direct/parse-failure-4.js",False) Failed
@@ -321,7 +283,7 @@ tests (4537 tests) Failed: 4537 tests failed
             EvalCode_direct("language/eval-code/direct/var-env-lower-lex-non-strict.js",False) Failed
             EvalCode_direct("language/eval-code/direct/var-env-var-init-global-exstng.js",False) Failed
             EvalCode_direct("language/eval-code/direct/var-env-var-init-local-new-delete.js",False) Failed
-          EvalCode_indirect (65 tests) Failed: One or more child tests had errors: 65 tests failed
+          EvalCode_indirect (61 tests) Failed: One or more child tests had errors: 61 tests failed
             EvalCode_indirect("language/eval-code/indirect/always-non-strict.js",True) Failed
             EvalCode_indirect("language/eval-code/indirect/cptn-nrml-empty-for.js",False) Failed
             EvalCode_indirect("language/eval-code/indirect/cptn-nrml-empty-for.js",True) Failed
@@ -356,10 +318,6 @@ tests (4537 tests) Failed: 4537 tests failed
             EvalCode_indirect("language/eval-code/indirect/non-definable-global-generator.js",True) Failed
             EvalCode_indirect("language/eval-code/indirect/non-definable-global-var.js",False) Failed
             EvalCode_indirect("language/eval-code/indirect/non-definable-global-var.js",True) Failed
-            EvalCode_indirect("language/eval-code/indirect/parse-failure-1.js",False) Failed
-            EvalCode_indirect("language/eval-code/indirect/parse-failure-1.js",True) Failed
-            EvalCode_indirect("language/eval-code/indirect/parse-failure-2.js",False) Failed
-            EvalCode_indirect("language/eval-code/indirect/parse-failure-2.js",True) Failed
             EvalCode_indirect("language/eval-code/indirect/parse-failure-3.js",False) Failed
             EvalCode_indirect("language/eval-code/indirect/parse-failure-3.js",True) Failed
             EvalCode_indirect("language/eval-code/indirect/parse-failure-4.js",False) Failed
@@ -387,8 +345,10 @@ tests (4537 tests) Failed: 4537 tests failed
             EvalCode_indirect("language/eval-code/indirect/var-env-var-init-global-new.js",True) Failed
             EvalCode_indirect("language/eval-code/indirect/var-env-var-non-strict.js",False) Failed
             EvalCode_indirect("language/eval-code/indirect/var-env-var-non-strict.js",True) Failed
-          Expressions_arrowFunction (4 tests) Failed: One or more child tests had errors: 4 tests failed
+          Expressions_arrowFunction (6 tests) Failed: One or more child tests had errors: 6 tests failed
             Expressions_arrowFunction("language/expressions/arrow-function/eval-var-scope-syntax-err.js",False) Failed
+            Expressions_arrowFunction("language/expressions/arrow-function/lexical-supercall-from-immediately-invoked-arrow.js",False) Failed
+            Expressions_arrowFunction("language/expressions/arrow-function/lexical-supercall-from-immediately-invoked-arrow.js",True) Failed
             Expressions_arrowFunction("language/expressions/arrow-function/scope-body-lex-distinct.js",False) Failed
             Expressions_arrowFunction("language/expressions/arrow-function/unscopables-with-in-nested-fn.js",False) Failed
             Expressions_arrowFunction("language/expressions/arrow-function/unscopables-with.js",False) Failed
@@ -753,7 +713,7 @@ tests (4537 tests) Failed: 4537 tests failed
             Expressions_class_decorator_syntax_valid("language/expressions/class/decorator/syntax/valid/decorator-parenthesized-expr-identifier-reference-yield.js",False) Failed
             Expressions_class_decorator_syntax_valid("language/expressions/class/decorator/syntax/valid/decorator-parenthesized-expr-identifier-reference.js",False) Failed
             Expressions_class_decorator_syntax_valid("language/expressions/class/decorator/syntax/valid/decorator-parenthesized-expr-identifier-reference.js",True) Failed
-          Expressions_class_elements (279 tests) Failed: One or more child tests had errors: 279 tests failed
+          Expressions_class_elements (271 tests) Failed: One or more child tests had errors: 271 tests failed
             Expressions_class_elements("language/expressions/class/elements/arrow-body-derived-cls-direct-eval-contains-superproperty-1.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/arrow-body-derived-cls-direct-eval-contains-superproperty-1.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/arrow-body-derived-cls-direct-eval-contains-superproperty-2.js",False) Failed
@@ -776,6 +736,8 @@ tests (4537 tests) Failed: 4537 tests failed
             Expressions_class_elements("language/expressions/class/elements/arrow-body-derived-cls-indirect-eval-err-contains-supercall.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/arrow-body-direct-eval-err-contains-arguments.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/arrow-body-direct-eval-err-contains-arguments.js",True) Failed
+            Expressions_class_elements("language/expressions/class/elements/arrow-body-direct-eval-err-contains-newtarget.js",False) Failed
+            Expressions_class_elements("language/expressions/class/elements/arrow-body-direct-eval-err-contains-newtarget.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/arrow-body-indirect-eval-err-contains-newtarget.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/arrow-body-indirect-eval-err-contains-newtarget.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/arrow-body-private-derived-cls-direct-eval-contains-superproperty-1.js",False) Failed
@@ -804,11 +766,7 @@ tests (4537 tests) Failed: 4537 tests failed
             Expressions_class_elements("language/expressions/class/elements/arrow-body-private-indirect-eval-err-contains-newtarget.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/class-name-static-initializer-anonymous.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/class-name-static-initializer-anonymous.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/class-name-static-initializer-decl.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/class-name-static-initializer-decl.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/class-name-static-initializer-default-export.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/class-name-static-initializer-expr.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/class-name-static-initializer-expr.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/computed-name-toprimitive-symbol.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/computed-name-toprimitive-symbol.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/computed-name-toprimitive.js",False) Failed
@@ -835,12 +793,12 @@ tests (4537 tests) Failed: 4537 tests failed
             Expressions_class_elements("language/expressions/class/elements/derived-cls-indirect-eval-err-contains-supercall.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/direct-eval-err-contains-arguments.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/direct-eval-err-contains-arguments.js",True) Failed
+            Expressions_class_elements("language/expressions/class/elements/direct-eval-err-contains-newtarget.js",False) Failed
+            Expressions_class_elements("language/expressions/class/elements/direct-eval-err-contains-newtarget.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/fields-computed-name-static-propname-prototype.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/fields-computed-name-static-propname-prototype.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/fields-multiple-definitions-static-private-methods-proxy.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/fields-multiple-definitions-static-private-methods-proxy.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/fields-run-once-on-double-super.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/fields-run-once-on-double-super.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/indirect-eval-err-contains-newtarget.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/indirect-eval-err-contains-newtarget.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/init-value-defined-after-class.js",False) Failed
@@ -871,6 +829,8 @@ tests (4537 tests) Failed: 4537 tests failed
             Expressions_class_elements("language/expressions/class/elements/nested-derived-cls-indirect-eval-err-contains-supercall.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/nested-direct-eval-err-contains-arguments.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/nested-direct-eval-err-contains-arguments.js",True) Failed
+            Expressions_class_elements("language/expressions/class/elements/nested-direct-eval-err-contains-newtarget.js",False) Failed
+            Expressions_class_elements("language/expressions/class/elements/nested-direct-eval-err-contains-newtarget.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/nested-indirect-eval-err-contains-newtarget.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/nested-indirect-eval-err-contains-newtarget.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/nested-private-derived-cls-direct-eval-contains-superproperty-1.js",False) Failed
@@ -989,8 +949,6 @@ tests (4537 tests) Failed: 4537 tests failed
             Expressions_class_elements("language/expressions/class/elements/private-static-method-shadowed-by-setter-on-nested-class.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/private-static-method-usage-inside-nested-class.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/private-static-method-usage-inside-nested-class.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/prod-private-getter-before-super-return-in-constructor.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/prod-private-getter-before-super-return-in-constructor.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/prod-private-method-before-super-return-in-constructor.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/prod-private-method-before-super-return-in-constructor.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/prod-private-method-before-super-return-in-field-initializer.js",False) Failed
@@ -1005,12 +963,6 @@ tests (4537 tests) Failed: 4537 tests failed
             Expressions_class_elements("language/expressions/class/elements/static-as-valid-instance-field.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/static-field-anonymous-function-name.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/static-field-anonymous-function-name.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/static-field-init-this-inside-arrow-function.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/static-field-init-this-inside-arrow-function.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/static-field-init-with-this.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/static-field-init-with-this.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/static-field-redeclaration.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/static-field-redeclaration.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/static-private-getter-access-on-inner-arrow-function.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/static-private-getter-access-on-inner-arrow-function.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/static-private-getter-access-on-inner-class.js",False) Failed
@@ -2960,6 +2912,105 @@ tests (4537 tests) Failed: 4537 tests failed
           Import_importDefer_syntax (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Import_importDefer_syntax("language/import/import-defer/syntax/import-attributes.js",True) Failed
             Import_importDefer_syntax("language/import/import-defer/syntax/valid-defer-namespace.js",True) Failed
+          Literals_regexp (98 tests) Aborted: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A1.1_T2.js",False) Aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A1.1_T2.js",True) Aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A1.4_T2.js",False) Aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A1.4_T2.js",True) Aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.1_T2.js",False) Aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.1_T2.js",True) Aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.4_T2.js",False) Aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.4_T2.js",True) Aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T1.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T1.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T2.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T2.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T3.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T3.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T4.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T4.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T5.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T5.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T6.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A2.5_T6.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T1.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T1.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T2.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T2.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T3.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T3.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T4.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T4.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T5.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T5.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T6.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A3.1_T6.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A4.1.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A4.1.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A4.2.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/S7.8.5_A4.2.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-astral-char-class-invert.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-astral-char-class-invert.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-astral.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-astral.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-case-mapping.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-case-mapping.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-class-escape.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-class-escape.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-extended-pattern-char.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-extended-pattern-char.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-identity-escape.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-identity-escape.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-legacy-octal-escape.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-legacy-octal-escape.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-a.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-a.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-ab.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-ab.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-b.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-b.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-non-empty-class-ranges.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-non-empty-class-ranges.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-oob-decimal-escape.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-oob-decimal-escape.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-optional-lookahead.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-optional-lookahead.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-optional-lookbehind.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-optional-lookbehind.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-optional-negative-lookahead.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-optional-negative-lookahead.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-optional-negative-lookbehind.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-optional-negative-lookbehind.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-range-lookahead.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-range-lookahead.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-range-lookbehind.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-range-lookbehind.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-range-negative-lookahead.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-range-negative-lookahead.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-range-negative-lookbehind.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-invalid-range-negative-lookbehind.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-null-character-escape.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-null-character-escape.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-surrogate-pairs-atom-char-class.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-surrogate-pairs-atom-char-class.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-surrogate-pairs-atom-dot.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-surrogate-pairs-atom-dot.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-surrogate-pairs-atom-escape-char-class.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-surrogate-pairs-atom-escape-char-class.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-surrogate-pairs-atom-escape-decimal.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-surrogate-pairs-atom-escape-decimal.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-surrogate-pairs.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-surrogate-pairs.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-unicode-esc-bounds.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-unicode-esc-bounds.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-unicode-esc-non-hex.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-unicode-esc-non-hex.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-unicode-esc.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/u-unicode-esc.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/unicode-escape-nls-err.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/unicode-escape-nls-err.js",True) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/y-assertion-start.js",False) Inconclusive: Run was aborted
+            Literals_regexp("language/literals/regexp/y-assertion-start.js",True) Inconclusive: Run was aborted
           Literals_regexp_namedGroups (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Literals_regexp_namedGroups("language/literals/regexp/named-groups/forward-reference.js",False) Failed
             Literals_regexp_namedGroups("language/literals/regexp/named-groups/forward-reference.js",True) Failed
@@ -3343,7 +3394,7 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_class_definition("language/statements/class/definition/this-access-restriction-2.js",True) Failed
             Statements_class_definition("language/statements/class/definition/this-access-restriction.js",False) Failed
             Statements_class_definition("language/statements/class/definition/this-access-restriction.js",True) Failed
-          Statements_class_elements (401 tests) Failed: One or more child tests had errors: 401 tests failed
+          Statements_class_elements (397 tests) Failed: One or more child tests had errors: 397 tests failed
             Statements_class_elements("language/statements/class/elements/arrow-body-derived-cls-direct-eval-contains-superproperty-1.js",False) Failed
             Statements_class_elements("language/statements/class/elements/arrow-body-derived-cls-direct-eval-contains-superproperty-1.js",True) Failed
             Statements_class_elements("language/statements/class/elements/arrow-body-derived-cls-direct-eval-contains-superproperty-2.js",False) Failed
@@ -3366,6 +3417,8 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_class_elements("language/statements/class/elements/arrow-body-derived-cls-indirect-eval-err-contains-supercall.js",True) Failed
             Statements_class_elements("language/statements/class/elements/arrow-body-direct-eval-err-contains-arguments.js",False) Failed
             Statements_class_elements("language/statements/class/elements/arrow-body-direct-eval-err-contains-arguments.js",True) Failed
+            Statements_class_elements("language/statements/class/elements/arrow-body-direct-eval-err-contains-newtarget.js",False) Failed
+            Statements_class_elements("language/statements/class/elements/arrow-body-direct-eval-err-contains-newtarget.js",True) Failed
             Statements_class_elements("language/statements/class/elements/arrow-body-indirect-eval-err-contains-newtarget.js",False) Failed
             Statements_class_elements("language/statements/class/elements/arrow-body-indirect-eval-err-contains-newtarget.js",True) Failed
             Statements_class_elements("language/statements/class/elements/arrow-body-private-derived-cls-direct-eval-contains-superproperty-1.js",False) Failed
@@ -3423,6 +3476,8 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_class_elements("language/statements/class/elements/derived-cls-indirect-eval-err-contains-supercall.js",True) Failed
             Statements_class_elements("language/statements/class/elements/direct-eval-err-contains-arguments.js",False) Failed
             Statements_class_elements("language/statements/class/elements/direct-eval-err-contains-arguments.js",True) Failed
+            Statements_class_elements("language/statements/class/elements/direct-eval-err-contains-newtarget.js",False) Failed
+            Statements_class_elements("language/statements/class/elements/direct-eval-err-contains-newtarget.js",True) Failed
             Statements_class_elements("language/statements/class/elements/fields-computed-name-static-computed-var-propname-prototype.js",False) Failed
             Statements_class_elements("language/statements/class/elements/fields-computed-name-static-computed-var-propname-prototype.js",True) Failed
             Statements_class_elements("language/statements/class/elements/fields-computed-name-static-propname-prototype.js",False) Failed
@@ -3465,6 +3520,8 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_class_elements("language/statements/class/elements/nested-derived-cls-indirect-eval-err-contains-supercall.js",True) Failed
             Statements_class_elements("language/statements/class/elements/nested-direct-eval-err-contains-arguments.js",False) Failed
             Statements_class_elements("language/statements/class/elements/nested-direct-eval-err-contains-arguments.js",True) Failed
+            Statements_class_elements("language/statements/class/elements/nested-direct-eval-err-contains-newtarget.js",False) Failed
+            Statements_class_elements("language/statements/class/elements/nested-direct-eval-err-contains-newtarget.js",True) Failed
             Statements_class_elements("language/statements/class/elements/nested-indirect-eval-err-contains-newtarget.js",False) Failed
             Statements_class_elements("language/statements/class/elements/nested-indirect-eval-err-contains-newtarget.js",True) Failed
             Statements_class_elements("language/statements/class/elements/nested-private-derived-cls-direct-eval-contains-superproperty-1.js",False) Failed
@@ -3651,8 +3708,6 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_class_elements("language/statements/class/elements/privatefieldget-typeerror-3.js",True) Failed
             Statements_class_elements("language/statements/class/elements/privatefieldput-primitive-receiver.js",False) Failed
             Statements_class_elements("language/statements/class/elements/privatefieldput-primitive-receiver.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/privatefieldset-evaluation-order-3.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/privatefieldset-evaluation-order-3.js",True) Failed
             Statements_class_elements("language/statements/class/elements/privatefieldset-typeerror-1.js",False) Failed
             Statements_class_elements("language/statements/class/elements/privatefieldset-typeerror-1.js",True) Failed
             Statements_class_elements("language/statements/class/elements/privatefieldset-typeerror-2.js",False) Failed
@@ -3689,8 +3744,6 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_class_elements("language/statements/class/elements/privatename-not-valid-eval-earlyerr-8.js",True) Failed
             Statements_class_elements("language/statements/class/elements/privatename-valid-no-earlyerr.js",False) Failed
             Statements_class_elements("language/statements/class/elements/privatename-valid-no-earlyerr.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/prod-private-getter-before-super-return-in-constructor.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/prod-private-getter-before-super-return-in-constructor.js",True) Failed
             Statements_class_elements("language/statements/class/elements/prod-private-method-before-super-return-in-constructor.js",False) Failed
             Statements_class_elements("language/statements/class/elements/prod-private-method-before-super-return-in-constructor.js",True) Failed
             Statements_class_elements("language/statements/class/elements/prod-private-method-before-super-return-in-field-initializer.js",False) Failed
@@ -3719,12 +3772,6 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_class_elements("language/statements/class/elements/static-as-valid-instance-field.js",True) Failed
             Statements_class_elements("language/statements/class/elements/static-field-anonymous-function-name.js",False) Failed
             Statements_class_elements("language/statements/class/elements/static-field-anonymous-function-name.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/static-field-init-this-inside-arrow-function.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/static-field-init-this-inside-arrow-function.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/static-field-init-with-this.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/static-field-init-with-this.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/static-field-redeclaration.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/static-field-redeclaration.js",True) Failed
             Statements_class_elements("language/statements/class/elements/static-private-getter-access-on-inner-arrow-function.js",False) Failed
             Statements_class_elements("language/statements/class/elements/static-private-getter-access-on-inner-arrow-function.js",True) Failed
             Statements_class_elements("language/statements/class/elements/static-private-getter-access-on-inner-class.js",False) Failed
@@ -3872,7 +3919,7 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_class_nameBinding("language/statements/class/name-binding/in-extends-expression-assigned.js",True) Failed
           Statements_class_strictMode (1 test) Failed: One or more child tests had errors: 1 test failed
             Statements_class_strictMode("language/statements/class/strict-mode/arguments-callee.js",False) Failed
-          Statements_class_subclass (40 tests) Failed: One or more child tests had errors: 40 tests failed
+          Statements_class_subclass (46 tests) Failed: One or more child tests had errors: 46 tests failed
             Statements_class_subclass("language/statements/class/subclass/binding.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/binding.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/builtins.js",False) Failed
@@ -3889,12 +3936,18 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/default-constructor.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/default-constructor.js",True) Failed
+            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-finally-arrow.js",False) Failed
+            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-finally-arrow.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-super-arrow.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-super-arrow.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-super.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-super.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch.js",True) Failed
+            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-finally-super-arrow.js",False) Failed
+            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-finally-super-arrow.js",True) Failed
+            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-for-of-arrow.js",False) Failed
+            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-for-of-arrow.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-boolean.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-boolean.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-null.js",False) Failed
@@ -4447,7 +4500,7 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_forOf_dstr("language/statements/for-of/dstr/obj-prop-put-let.js",False) Failed
             Statements_forOf_dstr("language/statements/for-of/dstr/obj-prop-put-let.js",True) Failed
             Statements_forOf_dstr("language/statements/for-of/dstr/obj-prop-put-unresolvable-strict.js",True) Failed
-          Statements_function (51 tests) Failed: One or more child tests had errors: 51 tests failed
+          Statements_function (47 tests) Failed: One or more child tests had errors: 47 tests failed
             Statements_function("language/statements/function/13.1-19-s.js",False) Failed
             Statements_function("language/statements/function/13.1-2-s.js",True) Failed
             Statements_function("language/statements/function/13.1-21-s.js",False) Failed
@@ -4481,10 +4534,6 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_function("language/statements/function/S13_A6_T2.js",True) Failed
             Statements_function("language/statements/function/S13.2_A8_T1.js",True) Failed
             Statements_function("language/statements/function/S13.2_A8_T2.js",True) Failed
-            Statements_function("language/statements/function/S13.2.1_A9_T1.js",False) Failed
-            Statements_function("language/statements/function/S13.2.1_A9_T1.js",True) Failed
-            Statements_function("language/statements/function/S13.2.1_A9_T2.js",False) Failed
-            Statements_function("language/statements/function/S13.2.1_A9_T2.js",True) Failed
             Statements_function("language/statements/function/S13.2.2_A1_T1.js",False) Failed
             Statements_function("language/statements/function/S13.2.2_A1_T1.js",True) Failed
             Statements_function("language/statements/function/S13.2.2_A1_T2.js",False) Failed
@@ -4579,13 +4628,6 @@ tests (4537 tests) Failed: 4537 tests failed
             Statements_let_syntax("language/statements/let/syntax/let-iteration-variable-is-freshly-allocated-for-each-iteration-multi-let-binding.js",True) Failed
             Statements_let_syntax("language/statements/let/syntax/let-iteration-variable-is-freshly-allocated-for-each-iteration-single-let-binding.js",False) Failed
             Statements_let_syntax("language/statements/let/syntax/let-iteration-variable-is-freshly-allocated-for-each-iteration-single-let-binding.js",True) Failed
-          Statements_return (6 tests) Failed: One or more child tests had errors: 6 tests failed
-            Statements_return("language/statements/return/line-terminators.js",False) Failed
-            Statements_return("language/statements/return/line-terminators.js",True) Failed
-            Statements_return("language/statements/return/S12.9_A3.js",False) Failed
-            Statements_return("language/statements/return/S12.9_A3.js",True) Failed
-            Statements_return("language/statements/return/S12.9_A5.js",False) Failed
-            Statements_return("language/statements/return/S12.9_A5.js",True) Failed
           Statements_switch (55 tests) Failed: One or more child tests had errors: 55 tests failed
             Statements_switch("language/statements/switch/cptn-a-abrupt-empty.js",False) Failed
             Statements_switch("language/statements/switch/cptn-a-abrupt-empty.js",True) Failed

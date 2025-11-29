@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.Runtime;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -25,14 +27,35 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            var value = EvaluateExpression(expression.Value, environment, context);
+            var propertyName = JsOps.GetRequiredPropertyName(index, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
-            AssignPropertyValue(target, index, value, context);
-            return value;
+            var reference = CreatePropertyReference(target, propertyName, context);
+
+            if (expression.IsCompoundAssignment &&
+                TryEvaluateCompoundAssignmentValue(expression.Value, reference, environment, context,
+                    out var compoundValue))
+            {
+                if (context.ShouldStopEvaluation)
+                {
+                    return compoundValue;
+                }
+
+                reference.SetValue(compoundValue);
+                return compoundValue;
+            }
+
+            var assignedValue = EvaluateExpression(expression.Value, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return assignedValue;
+            }
+
+            reference.SetValue(assignedValue);
+            return assignedValue;
         }
     }
 }

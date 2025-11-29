@@ -102,7 +102,11 @@ public sealed record NewTargetExpression(SourceReference? Source) : ExpressionNo
 /// <summary>
 ///     Represents an assignment to an identifier.
 /// </summary>
-public sealed record AssignmentExpression(SourceReference? Source, Symbol Target, ExpressionNode Value)
+public sealed record AssignmentExpression(
+    SourceReference? Source,
+    Symbol Target,
+    ExpressionNode Value,
+    bool IsCompoundAssignment = false)
     : ExpressionNode(Source);
 
 /// <summary>
@@ -113,7 +117,8 @@ public sealed record PropertyAssignmentExpression(
     ExpressionNode Target,
     ExpressionNode Property,
     ExpressionNode Value,
-    bool IsComputed) : ExpressionNode(Source);
+    bool IsComputed,
+    bool IsCompoundAssignment = false) : ExpressionNode(Source);
 
 /// <summary>
 ///     Represents an assignment to an indexed access.
@@ -122,7 +127,8 @@ public sealed record IndexAssignmentExpression(
     SourceReference? Source,
     ExpressionNode Target,
     ExpressionNode Index,
-    ExpressionNode Value) : ExpressionNode(Source);
+    ExpressionNode Value,
+    bool IsCompoundAssignment = false) : ExpressionNode(Source);
 
 /// <summary>
 ///     Represents a sequence expression (comma operator).

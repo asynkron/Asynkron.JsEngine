@@ -393,14 +393,39 @@ public static partial class TypedAstEvaluator
                 boundThis = _lexicalThis ?? Symbol.Undefined;
                 context.MarkThisInitialized();
                 functionEnvironment.Define(Symbol.This, boundThis);
+
+                var hasCopiedInitialization = false;
                 if (_closure.TryGet(Symbol.ThisInitialized, out var closureThisInitialized))
                 {
                     SetThisInitializationStatus(functionEnvironment, JsOps.ToBoolean(closureThisInitialized));
+                    hasCopiedInitialization = true;
                 }
-                else if (_closure.TryGet(Symbol.Super, out var closureSuper) &&
-                         closureSuper is SuperBinding superBinding)
+                else if (_closure.TryGet(Symbol.Super, out var closureSuperStatus) &&
+                         closureSuperStatus is SuperBinding closureSuperBinding)
                 {
-                    SetThisInitializationStatus(functionEnvironment, superBinding.IsThisInitialized);
+                    SetThisInitializationStatus(functionEnvironment, closureSuperBinding.IsThisInitialized);
+                    hasCopiedInitialization = true;
+                }
+
+                SuperBinding? lexicalSuperBinding = null;
+                if (_superConstructor is not null || _superPrototype is not null)
+                {
+                    lexicalSuperBinding = new SuperBinding(_superConstructor, _superPrototype, boundThis, true);
+                }
+                else if (_closure.TryGet(Symbol.Super, out var inheritedSuper) &&
+                         inheritedSuper is SuperBinding inheritedSuperBinding)
+                {
+                    lexicalSuperBinding = inheritedSuperBinding;
+                }
+
+                if (lexicalSuperBinding is not null)
+                {
+                    functionEnvironment.Define(Symbol.Super, lexicalSuperBinding, true, isLexical: true,
+                        blocksFunctionScopeOverride: true);
+                    if (!hasCopiedInitialization)
+                    {
+                        SetThisInitializationStatus(functionEnvironment, lexicalSuperBinding.IsThisInitialized);
+                    }
                 }
             }
             else
@@ -654,6 +679,28 @@ public static partial class TypedAstEvaluator
             _instanceFields = fields;
         }
 
+        private SuperBinding? ResolveInstanceFieldSuperBinding(JsEnvironment constructorEnvironment, JsObject instance)
+        {
+            if (constructorEnvironment.TryGet(Symbol.Super, out var existingBinding) &&
+                existingBinding is SuperBinding binding)
+            {
+                return binding;
+            }
+
+            IJsPropertyAccessor? prototypeForSuper = _superPrototype;
+            if (prototypeForSuper is null)
+            {
+                prototypeForSuper = instance.Prototype?.Prototype;
+            }
+
+            if (prototypeForSuper is null && _superConstructor is null && instance.Prototype is null)
+            {
+                return null;
+            }
+
+            return new SuperBinding(_superConstructor, prototypeForSuper, instance, true);
+        }
+
         public void InitializeInstance(JsObject instance, JsEnvironment environment, EvaluationContext context)
         {
             if (PrivateNameScope is not null && instance is IPrivateBrandHolder brandHolder)
@@ -673,9 +720,12 @@ public static partial class TypedAstEvaluator
             {
                 var initEnv = new JsEnvironment(environment, isStrict: true);
                 initEnv.Define(Symbol.This, instance);
-                if (environment.TryGet(Symbol.Super, out var superBinding))
+
+                var fieldSuperBinding = ResolveInstanceFieldSuperBinding(environment, instance);
+                if (fieldSuperBinding is not null)
                 {
-                    initEnv.Define(Symbol.Super, superBinding, true, isLexical: true, blocksFunctionScopeOverride: true);
+                    initEnv.Define(Symbol.Super, fieldSuperBinding, true, isLexical: true,
+                        blocksFunctionScopeOverride: true);
                 }
 
                 if (environment.TryGet(Symbol.NewTarget, out var newTargetValue))
@@ -721,6 +771,13 @@ public static partial class TypedAstEvaluator
                     if (context.ShouldStopEvaluation)
                     {
                         return;
+                    }
+
+                    if (value is TypedFunction typedFunction &&
+                        typedFunction.IsArrowFunction &&
+                        fieldSuperBinding is not null)
+                    {
+                        typedFunction.SetSuperBinding(fieldSuperBinding.Constructor, fieldSuperBinding.Prototype);
                     }
                 }
 

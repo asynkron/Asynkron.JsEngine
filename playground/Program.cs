@@ -9,6 +9,17 @@ internal class Program
     {
         await using var engine = new JsEngine();
 
+        var source = @"function f2() { return
+1; } var result = f2(); result;";
+        var lexer = new Asynkron.JsEngine.Parser.Lexer(source);
+        var tokens = lexer.Tokenize();
+        Console.WriteLine("Tokens:");
+        foreach (var token in tokens)
+        {
+            var escaped = token.Lexeme.Replace("\n", "\\n");
+            Console.WriteLine($"{token.Type,-12} line={token.Line} col={token.Column} lexeme='{escaped}'");
+        }
+
         var scenarios = new[]
         {
             ("simple var", "var f = 123; f;"),
@@ -16,6 +27,13 @@ internal class Program
             ("switch func after", "var f = 123; var before = f; switch (1) { case 1: function f() {} } before;"),
             ("if func after", "var f = 123; var before = f; if (true) function f() {} before;"),
             ("switch case assert", "var f = 123; if (f !== 123) throw 'bad'; switch (1) { case 1: function f() {} } 'done';"),
+            ("return newline", @"function f(){ return
+1; } f();"),
+            ("literal undefined", "undefined;"),
+            ("return newline check", @"function f(){ return
+1; }
+var value = f();
+value === undefined ? 'undefined' : (typeof value + ':' + value);"),
             ("class accessor descriptor", @"
                 class MyClass {
                     constructor() { this._value = 0; }

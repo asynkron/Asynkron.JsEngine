@@ -9,7 +9,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             var value = statement.Expression is null
-                ? null
+                ? Symbol.Undefined
                 : EvaluateExpression(statement.Expression, environment, context);
             if (context.ShouldStopEvaluation)
             {

@@ -280,7 +280,11 @@ public sealed class TypedAstParser(
             Consume(TokenType.LeftParen, "Expected '(' after 'while'.");
             var condition = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after condition.");
-            Consume(TokenType.Semicolon, "Expected ';' after do-while statement.");
+            if (!Match(TokenType.Semicolon) && !CanInsertSemicolon())
+            {
+                // Automatic Semicolon Insertion: if the next token cannot appear here,
+                // the semicolon terminating the do-while is inserted implicitly.
+            }
             return new DoWhileStatement(CreateSourceReference(keyword), body, condition);
         }
 
@@ -1576,8 +1580,9 @@ public sealed class TypedAstParser(
                 return expr switch
                 {
                     IdentifierExpression identifier => ValidateExpression(
-                        new AssignmentExpression(expr.Source ?? combined.Source, identifier.Name, combined)),
-                    MemberExpression member => ValidateExpression(CreateMemberAssignment(member, combined)),
+                        new AssignmentExpression(expr.Source ?? combined.Source, identifier.Name, combined, true)),
+                    MemberExpression member => ValidateExpression(
+                        CreateMemberAssignment(member, combined, true)),
                     _ => throw new NotSupportedException("Unsupported assignment target.")
                 };
             }
@@ -1912,14 +1917,26 @@ public sealed class TypedAstParser(
         {
             var expr = ParsePrimary();
 
-            if (Match(TokenType.PlusPlus))
+            if (Check(TokenType.PlusPlus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "++", expr, false);
+                if (!HasLineTerminatorBefore())
+                {
+                    var op = Advance();
+                    return new UnaryExpression(CreateSourceReference(op), "++", expr, false);
+                }
+
+                return expr;
             }
 
-            if (Match(TokenType.MinusMinus))
+            if (Check(TokenType.MinusMinus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "--", expr, false);
+                if (!HasLineTerminatorBefore())
+                {
+                    var op = Advance();
+                    return new UnaryExpression(CreateSourceReference(op), "--", expr, false);
+                }
+
+                return expr;
             }
 
             return expr;
@@ -2779,7 +2796,10 @@ public sealed class TypedAstParser(
             return new BinaryExpression(source, op, left, right);
         }
 
-        private static ExpressionNode CreateMemberAssignment(MemberExpression member, ExpressionNode value)
+        private static ExpressionNode CreateMemberAssignment(
+            MemberExpression member,
+            ExpressionNode value,
+            bool isCompoundAssignment = false)
         {
             if (member.IsOptional)
             {
@@ -2789,11 +2809,11 @@ public sealed class TypedAstParser(
             if (member.IsComputed)
             {
                 return new IndexAssignmentExpression(member.Source ?? value.Source, member.Target, member.Property,
-                    value);
+                    value, isCompoundAssignment);
             }
 
             return new PropertyAssignmentExpression(member.Source ?? value.Source, member.Target, member.Property,
-                value, false);
+                value, false, isCompoundAssignment);
         }
 
         private BindingTarget? ExtractBindingTarget(StatementNode initializer)

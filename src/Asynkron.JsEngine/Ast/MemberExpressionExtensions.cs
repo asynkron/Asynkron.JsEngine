@@ -140,8 +140,7 @@ public static partial class TypedAstEvaluator
 
             if (!binding.TryGetProperty(propertyName, out var value))
             {
-                throw new InvalidOperationException(
-                    $"Cannot read property '{propertyName}' from super prototype.{GetSourceInfo(context, expression.Source)}");
+                return (Symbol.Undefined, binding);
             }
 
             return (value, binding);

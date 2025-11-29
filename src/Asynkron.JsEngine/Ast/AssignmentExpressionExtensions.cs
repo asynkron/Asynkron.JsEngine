@@ -14,7 +14,8 @@ public static partial class TypedAstEvaluator
                 new IdentifierExpression(expression.Source, expression.Target), environment, context,
                 EvaluateExpression);
 
-            if (TryEvaluateCompoundAssignmentValue(expression, reference, environment, context, out var compoundValue))
+            if (expression.IsCompoundAssignment &&
+                TryEvaluateCompoundAssignmentValue(expression.Value, reference, environment, context, out var compoundValue))
             {
                 if (context.ShouldStopEvaluation)
                 {
@@ -56,95 +57,92 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    extension(AssignmentExpression assignment)
+    private static bool TryEvaluateCompoundAssignmentValue(
+        ExpressionNode candidate,
+        AssignmentReference reference,
+        JsEnvironment environment,
+        EvaluationContext context,
+        out object? value)
     {
-        private bool TryEvaluateCompoundAssignmentValue(AssignmentReference reference,
-            JsEnvironment environment,
-            EvaluationContext context,
-            out object? value)
+        if (candidate is not BinaryExpression binary)
         {
-            if (assignment.Value is not BinaryExpression binary ||
-                binary.Left is not IdentifierExpression identifier ||
-                !ReferenceEquals(identifier.Name, assignment.Target))
-            {
-                value = null;
-                return false;
-            }
+            value = null;
+            return false;
+        }
 
-            var leftValue = reference.GetValue();
-            if (context.ShouldStopEvaluation)
-            {
-                value = Symbol.Undefined;
-                return true;
-            }
-
-            switch (binary.Operator)
-            {
-                case "&&":
-                    if (!IsTruthy(leftValue))
-                    {
-                        value = leftValue;
-                        return true;
-                    }
-
-                    value = EvaluateExpression(binary.Right, environment, context);
-                    return true;
-                case "||":
-                    if (IsTruthy(leftValue))
-                    {
-                        value = leftValue;
-                        return true;
-                    }
-
-                    value = EvaluateExpression(binary.Right, environment, context);
-                    return true;
-                case "??":
-                    if (!IsNullish(leftValue))
-                    {
-                        value = leftValue;
-                        return true;
-                    }
-
-                    value = EvaluateExpression(binary.Right, environment, context);
-                    return true;
-            }
-
-            var rightValue = EvaluateExpression(binary.Right, environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                value = Symbol.Undefined;
-                return true;
-            }
-
-            value = binary.Operator switch
-            {
-                "+" => Add(leftValue, rightValue, context),
-                "-" => Subtract(leftValue, rightValue, context),
-                "*" => Multiply(leftValue, rightValue, context),
-                "/" => Divide(leftValue, rightValue, context),
-                "%" => Modulo(leftValue, rightValue, context),
-                "**" => Power(leftValue, rightValue, context),
-                "==" => LooseEquals(leftValue, rightValue, context),
-                "!=" => !LooseEquals(leftValue, rightValue, context),
-                "===" => StrictEquals(leftValue, rightValue),
-                "!==" => !StrictEquals(leftValue, rightValue),
-                "<" => JsOps.LessThan(leftValue, rightValue, context),
-                "<=" => JsOps.LessThanOrEqual(leftValue, rightValue, context),
-                ">" => JsOps.GreaterThan(leftValue, rightValue, context),
-                ">=" => JsOps.GreaterThanOrEqual(leftValue, rightValue, context),
-                "&" => BitwiseAnd(leftValue, rightValue, context),
-                "|" => BitwiseOr(leftValue, rightValue, context),
-                "^" => BitwiseXor(leftValue, rightValue, context),
-                "<<" => LeftShift(leftValue, rightValue, context),
-                ">>" => RightShift(leftValue, rightValue, context),
-                ">>>" => UnsignedRightShift(leftValue, rightValue, context),
-                "in" => InOperator(leftValue, rightValue, context),
-                "instanceof" => InstanceofOperator(leftValue, rightValue, context),
-                _ => throw new NotSupportedException(
-                    $"Compound assignment operator '{binary.Operator}' is not supported yet.")
-            };
-
+        var leftValue = reference.GetValue();
+        if (context.ShouldStopEvaluation)
+        {
+            value = Symbol.Undefined;
             return true;
         }
+
+        switch (binary.Operator)
+        {
+            case "&&":
+                if (!IsTruthy(leftValue))
+                {
+                    value = leftValue;
+                    return true;
+                }
+
+                value = EvaluateExpression(binary.Right, environment, context);
+                return true;
+            case "||":
+                if (IsTruthy(leftValue))
+                {
+                    value = leftValue;
+                    return true;
+                }
+
+                value = EvaluateExpression(binary.Right, environment, context);
+                return true;
+            case "??":
+                if (!IsNullish(leftValue))
+                {
+                    value = leftValue;
+                    return true;
+                }
+
+                value = EvaluateExpression(binary.Right, environment, context);
+                return true;
+        }
+
+        var rightValue = EvaluateExpression(binary.Right, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            value = Symbol.Undefined;
+            return true;
+        }
+
+        value = binary.Operator switch
+        {
+            "+" => Add(leftValue, rightValue, context),
+            "-" => Subtract(leftValue, rightValue, context),
+            "*" => Multiply(leftValue, rightValue, context),
+            "/" => Divide(leftValue, rightValue, context),
+            "%" => Modulo(leftValue, rightValue, context),
+            "**" => Power(leftValue, rightValue, context),
+            "==" => LooseEquals(leftValue, rightValue, context),
+            "!=" => !LooseEquals(leftValue, rightValue, context),
+            "===" => StrictEquals(leftValue, rightValue),
+            "!==" => !StrictEquals(leftValue, rightValue),
+            "<" => JsOps.LessThan(leftValue, rightValue, context),
+            "<=" => JsOps.LessThanOrEqual(leftValue, rightValue, context),
+            ">" => JsOps.GreaterThan(leftValue, rightValue, context),
+            ">=" => JsOps.GreaterThanOrEqual(leftValue, rightValue, context),
+            "&" => BitwiseAnd(leftValue, rightValue, context),
+            "|" => BitwiseOr(leftValue, rightValue, context),
+            "^" => BitwiseXor(leftValue, rightValue, context),
+            "<<" => LeftShift(leftValue, rightValue, context),
+            ">>" => RightShift(leftValue, rightValue, context),
+            ">>>" => UnsignedRightShift(leftValue, rightValue, context),
+            "in" => InOperator(leftValue, rightValue, context),
+            "instanceof" => InstanceofOperator(leftValue, rightValue, context),
+            _ => throw new NotSupportedException(
+                $"Compound assignment operator '{binary.Operator}' is not supported yet.")
+        };
+
+        return true;
     }
 }

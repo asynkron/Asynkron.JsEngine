@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -22,21 +23,21 @@ public static partial class TypedAstEvaluator
                     return Symbol.Undefined;
                 }
 
-                var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+                var superPropertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
                 }
 
-                var assignedValue = EvaluateExpression(expression.Value, environment, context);
+                var superAssignedValue = EvaluateExpression(expression.Value, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return superAssignedValue;
                 }
 
                 var binding = ExpectSuperBinding(environment, context);
-                binding.SetProperty(propertyName, assignedValue);
-                return assignedValue;
+                binding.SetProperty(superPropertyName, superAssignedValue);
+                return superAssignedValue;
             }
 
             var target = EvaluateExpression(expression.Target, environment, context);
@@ -45,25 +46,41 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            if (expression.IsComputed && IsNullish(target))
-            {
-                throw new InvalidOperationException("Cannot set property on null or undefined.");
-            }
-
             var property = EvaluateExpression(expression.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
-            var value = EvaluateExpression(expression.Value, environment, context);
+            var propertyName = JsOps.GetRequiredPropertyName(property, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
-            AssignPropertyValue(target, property, value, context);
-            return value;
+            var reference = CreatePropertyReference(target, propertyName, context);
+
+            if (expression.IsCompoundAssignment &&
+                TryEvaluateCompoundAssignmentValue(expression.Value, reference, environment, context,
+                    out var compoundValue))
+            {
+                if (context.ShouldStopEvaluation)
+                {
+                    return compoundValue;
+                }
+
+                reference.SetValue(compoundValue);
+                return compoundValue;
+            }
+
+            var assignedValue = EvaluateExpression(expression.Value, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return assignedValue;
+            }
+
+            reference.SetValue(assignedValue);
+            return assignedValue;
         }
     }
 }

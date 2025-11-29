@@ -1,4 +1,8 @@
+using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
+using Asynkron.JsEngine;
+using Asynkron.JsEngine.Tests.Tracing;
 using Xunit;
 
 namespace Asynkron.JsEngine.Tests;
@@ -59,6 +63,63 @@ typeof existing;");
     return typeof param;
 })(123);");
         Assert.Equal("number", result);
+    }
+
+    [Fact]
+    public async Task BlockScopeActivitiesReportAnnexBModeWhenEnabled()
+    {
+        await using var engine = new JsEngine();
+        using var root = new Activity("AnnexB.Scope.Enabled");
+        root.Start();
+        using var recorder = EvaluatorActivityRecorder.Attach(root);
+
+        var result = await engine.Evaluate("""
+
+                                                   {
+                                                       function hoisted() { return 1; }
+                                                       hoisted();
+                                                   }
+
+                                       """);
+
+        Assert.Equal(1d, result);
+        root.Stop();
+
+        var blockModes = recorder.Activities
+            .Where(activity => activity.DisplayName == "Scope:Block")
+            .Select(activity => activity.Tags.FirstOrDefault(tag => tag.Key == "js.scope.mode").Value)
+            .ToArray();
+
+        Assert.Contains(ScopeMode.SloppyAnnexB.ToString(), blockModes);
+    }
+
+    [Fact]
+    public async Task BlockScopeActivitiesReportSloppyModeWhenAnnexBDisabled()
+    {
+        await using var engine = new JsEngine(new JsEngineOptions { EnableAnnexBFunctionExtensions = false });
+        using var root = new Activity("AnnexB.Scope.Disabled");
+        root.Start();
+        using var recorder = EvaluatorActivityRecorder.Attach(root);
+
+        var result = await engine.Evaluate("""
+
+                                                   {
+                                                       function hoisted() { return 1; }
+                                                       hoisted();
+                                                   }
+
+                                       """);
+
+        Assert.Equal(1d, result);
+        root.Stop();
+
+        var blockModes = recorder.Activities
+            .Where(activity => activity.DisplayName == "Scope:Block")
+            .Select(activity => activity.Tags.FirstOrDefault(tag => tag.Key == "js.scope.mode").Value)
+            .ToArray();
+
+        Assert.Contains(ScopeMode.Sloppy.ToString(), blockModes);
+        Assert.DoesNotContain(ScopeMode.SloppyAnnexB.ToString(), blockModes);
     }
 
     [Fact]

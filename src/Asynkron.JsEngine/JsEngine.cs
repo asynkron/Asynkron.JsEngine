@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -834,9 +835,30 @@ public sealed class JsEngine : IAsyncDisposable
     {
         StartEventLoop();
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
+        var capturedActivity = Activity.Current;
 
         Interlocked.Increment(ref _pendingTaskCount);
-        queue.Writer.TryWrite(async () => { await task().ConfigureAwait(false); });
+        queue.Writer.TryWrite(async () =>
+        {
+            var previousActivity = Activity.Current;
+            var activityChanged = !ReferenceEquals(previousActivity, capturedActivity);
+            if (activityChanged)
+            {
+                Activity.Current = capturedActivity;
+            }
+
+            try
+            {
+                await task().ConfigureAwait(false);
+            }
+            finally
+            {
+                if (activityChanged)
+                {
+                    Activity.Current = previousActivity;
+                }
+            }
+        });
     }
 
     /// <summary>

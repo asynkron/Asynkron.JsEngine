@@ -6,8 +6,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(JsArray stringsArray)
+    extension(JsArray stringsArray)
     {
         private JsObject CreateTemplateObject(JsArray rawStringsArray)
         {
@@ -23,7 +22,7 @@ extension(JsArray stringsArray)
         }
     }
 
-extension(JsArray array)
+    extension(JsArray array)
     {
         [MustDisposeResource]
         private IEnumerator<object?> EnumerateArrayElements()
@@ -43,5 +42,4 @@ extension(JsArray array)
             return Enumerate().GetEnumerator();
         }
     }
-
 }

@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(Symbol? key)
+    extension(Symbol? key)
     {
         private DelegatedYieldState? GetDelegatedState(JsEnvironment environment)
         {
@@ -21,7 +20,7 @@ extension(Symbol? key)
         }
     }
 
-extension(Symbol? key)
+    extension(Symbol? key)
     {
         private void StoreDelegatedState(JsEnvironment environment, DelegatedYieldState state)
         {
@@ -41,7 +40,7 @@ extension(Symbol? key)
         }
     }
 
-extension(Symbol? key)
+    extension(Symbol? key)
     {
         private void ClearDelegatedState(JsEnvironment environment)
         {
@@ -56,5 +55,4 @@ extension(Symbol? key)
             }
         }
     }
-
 }

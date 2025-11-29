@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(SequenceExpression expression)
+    extension(SequenceExpression expression)
     {
         private object? EvaluateSequence(JsEnvironment environment,
             EvaluationContext context)
@@ -14,5 +13,4 @@ extension(SequenceExpression expression)
                 : EvaluateExpression(expression.Right, environment, context);
         }
     }
-
 }

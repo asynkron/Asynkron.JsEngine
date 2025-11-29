@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(DestructuringAssignmentExpression expression)
+    extension(DestructuringAssignmentExpression expression)
     {
         private object? EvaluateDestructuringAssignment(JsEnvironment environment, EvaluationContext context)
         {
@@ -19,5 +18,4 @@ extension(DestructuringAssignmentExpression expression)
             return assignedValue;
         }
     }
-
 }

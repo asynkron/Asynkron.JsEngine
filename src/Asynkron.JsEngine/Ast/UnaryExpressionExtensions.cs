@@ -6,8 +6,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(UnaryExpression expression)
+    extension(UnaryExpression expression)
     {
         private object? EvaluateUnary(JsEnvironment environment,
             EvaluationContext context)
@@ -64,5 +63,4 @@ extension(UnaryExpression expression)
             };
         }
     }
-
 }

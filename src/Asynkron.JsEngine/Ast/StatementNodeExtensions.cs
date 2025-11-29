@@ -15,7 +15,8 @@ public static partial class TypedAstEvaluator
             return statement switch
             {
                 BlockStatement block => EvaluateBlock(block, environment, context),
-                ExpressionStatement expressionStatement => EvaluateExpression(expressionStatement.Expression, environment,
+                ExpressionStatement expressionStatement => EvaluateExpression(expressionStatement.Expression,
+                    environment,
                     context),
                 ReturnStatement returnStatement => EvaluateReturn(returnStatement, environment, context),
                 ThrowStatement throwStatement => EvaluateThrow(throwStatement, environment, context),
@@ -24,9 +25,11 @@ public static partial class TypedAstEvaluator
                     context),
                 IfStatement ifStatement => EvaluateIf(ifStatement, environment, context),
                 WhileStatement whileStatement => EvaluateWhile(whileStatement, environment, context, activeLabel),
-                DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context, activeLabel),
+                DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context,
+                    activeLabel),
                 ForStatement forStatement => EvaluateFor(forStatement, environment, context, activeLabel),
-                ForEachStatement forEachStatement => EvaluateForEach(forEachStatement, environment, context, activeLabel),
+                ForEachStatement forEachStatement => EvaluateForEach(forEachStatement, environment, context,
+                    activeLabel),
                 BreakStatement breakStatement => EvaluateBreak(breakStatement, context),
                 ContinueStatement continueStatement => EvaluateContinue(continueStatement, context),
                 LabeledStatement labeledStatement => EvaluateLabeled(labeledStatement, environment, context),
@@ -41,7 +44,7 @@ public static partial class TypedAstEvaluator
         }
     }
 
-extension(StatementNode statement)
+    extension(StatementNode statement)
     {
         private bool IsStrictBlock()
         {
@@ -49,7 +52,7 @@ extension(StatementNode statement)
         }
     }
 
-extension(StatementNode statement)
+    extension(StatementNode statement)
     {
         private void HoistFromStatement(JsEnvironment environment,
             EvaluationContext context,
@@ -214,8 +217,8 @@ extension(StatementNode statement)
                             functionScope.DefineFunctionScoped(
                                 functionDeclaration.Name,
                                 Symbol.Undefined,
-                                hasInitializer: false,
-                                isFunctionDeclaration: false,
+                                false,
+                                false,
                                 context: context,
                                 blocksFunctionScopeOverride: true,
                                 globalVarConfigurable: forceConfigurableGlobal ? true : null);
@@ -234,11 +237,12 @@ extension(StatementNode statement)
                             environment.DefineFunctionScoped(
                                 functionDeclaration.Name,
                                 functionValue,
-                                hasInitializer: true,
-                                isFunctionDeclaration: true,
-                                globalFunctionConfigurable: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
+                                true,
+                                true,
+                                context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
                                 context);
                         }
+
                         break;
                     }
                     case ClassDeclaration:
@@ -251,7 +255,7 @@ extension(StatementNode statement)
         }
     }
 
-extension(StatementNode statement)
+    extension(StatementNode statement)
     {
         private void CollectLexicalNamesFromStatement(HashSet<Symbol> names)
         {
@@ -348,7 +352,7 @@ extension(StatementNode statement)
         }
     }
 
-extension(StatementNode statement)
+    extension(StatementNode statement)
     {
         private void CollectCatchNamesFromStatement(HashSet<Symbol> names)
         {
@@ -421,7 +425,7 @@ extension(StatementNode statement)
         }
     }
 
-extension(StatementNode statement)
+    extension(StatementNode statement)
     {
         private void CollectSimpleCatchNamesFromStatement(HashSet<Symbol> names)
         {
@@ -497,5 +501,4 @@ extension(StatementNode statement)
             }
         }
     }
-
 }

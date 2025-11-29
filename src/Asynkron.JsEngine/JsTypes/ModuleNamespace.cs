@@ -1,19 +1,21 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.StdLib;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
 internal sealed class ModuleNamespace : IJsObjectLike
 {
-    private readonly RealmState _realmState;
-    private readonly object _uninitializedMarker;
-    private readonly ImmutableArray<string> _exportNames;
     private readonly Func<string, object?> _bindingLookup;
+    private readonly ImmutableArray<string> _exportNames;
+    private readonly RealmState _realmState;
+
     private readonly string _toStringTagKey =
         $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+
     private readonly TypedAstSymbol _toStringTagSymbol = TypedAstSymbol.For("Symbol.toStringTag");
+    private readonly object _uninitializedMarker;
 
     internal ModuleNamespace(
         IEnumerable<string> exportNames,
@@ -27,6 +29,8 @@ internal sealed class ModuleNamespace : IJsObjectLike
                        ?? throw new ArgumentNullException(nameof(exportNames));
         _uninitializedMarker = uninitializedMarker ?? throw new ArgumentNullException(nameof(uninitializedMarker));
     }
+
+    internal ImmutableArray<string> ExportNames => _exportNames;
 
     public JsObject? Prototype => null;
     public bool IsSealed => true;
@@ -80,10 +84,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
         {
             return new PropertyDescriptor
             {
-                Value = "Module",
-                Writable = false,
-                Enumerable = false,
-                Configurable = false
+                Value = "Module", Writable = false, Enumerable = false, Configurable = false
             };
         }
 
@@ -93,10 +94,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
             EnsureInitialized(name, lookedUp);
             return new PropertyDescriptor
             {
-                Value = lookedUp,
-                Writable = true,
-                Enumerable = true,
-                Configurable = false
+                Value = lookedUp, Writable = true, Enumerable = true, Configurable = false
             };
         }
 
@@ -107,8 +105,6 @@ internal sealed class ModuleNamespace : IJsObjectLike
     {
         return _exportNames;
     }
-
-    internal ImmutableArray<string> ExportNames => _exportNames;
 
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
@@ -181,16 +177,16 @@ internal sealed class ModuleNamespace : IJsObjectLike
         // Module namespace objects are always non-extensible; nothing to do.
     }
 
-    internal bool HasExport(string name)
-    {
-        return _exportNames.Contains(name, StringComparer.Ordinal) ||
-               string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
-    }
-
     public bool Delete(string name)
     {
         return !_exportNames.Contains(name, StringComparer.Ordinal) &&
                !string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
+    }
+
+    internal bool HasExport(string name)
+    {
+        return _exportNames.Contains(name, StringComparer.Ordinal) ||
+               string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
     }
 
     internal IEnumerable<object?> OwnKeys()

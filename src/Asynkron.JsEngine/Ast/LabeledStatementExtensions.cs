@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(LabeledStatement statement)
+    extension(LabeledStatement statement)
     {
         private object? EvaluateLabeled(JsEnvironment environment,
             EvaluationContext context)
@@ -21,5 +20,4 @@ extension(LabeledStatement statement)
             }
         }
     }
-
 }

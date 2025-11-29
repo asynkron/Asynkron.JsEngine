@@ -17,9 +17,7 @@ internal sealed class TypedProgramExecutor
         CancellationToken cancellationToken = default,
         ExecutionKind executionKind = ExecutionKind.Script)
     {
-        return TypedAstEvaluator.EvaluateProgram(
-            program.Typed,
-            environment,
+        return program.Typed.EvaluateProgram(environment,
             realmState,
             cancellationToken,
             executionKind);

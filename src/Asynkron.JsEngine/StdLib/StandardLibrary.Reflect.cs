@@ -116,7 +116,7 @@ public static partial class StandardLibrary
         var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
         var descriptor = ToPropertyDescriptor(args[2], realm);
 
-        return TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, throwOnFailure: false);
+        return TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, false);
     }
 
     private static object? ReflectDeleteProperty(object? _, IReadOnlyList<object?> args, RealmState? realm)
@@ -141,7 +141,7 @@ public static partial class StandardLibrary
         {
             if (JsOps.TryResolveArrayIndex(propertyKey, out var index))
             {
-                return jsArray.DeleteElement((int)index);
+                return jsArray.DeleteElement(index);
             }
 
             return jsArray.DeleteProperty(propertyKey);

@@ -5,8 +5,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ArrayBinding binding)
+    extension(ArrayBinding binding)
     {
         private void BindArrayPattern(object? value, JsEnvironment environment,
             EvaluationContext context, BindingMode mode)
@@ -98,7 +97,10 @@ extension(ArrayBinding binding)
                     }
 
                     if (usedDefault &&
-                        element is { Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression } &&
+                        element is
+                        {
+                            Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression
+                        } &&
                         IsAnonymousFunctionDefinition(defaultExpression) &&
                         elementValue is IFunctionNameTarget nameTarget)
                     {
@@ -111,7 +113,8 @@ extension(ArrayBinding binding)
                     }
                     else
                     {
-                        ApplyBindingTarget(element.Target, elementValue, environment, context, mode, allowNameInference: false);
+                        ApplyBindingTarget(element.Target, elementValue, environment, context, mode,
+                            allowNameInference: false);
                     }
 
                     if (!context.ShouldStopEvaluation)
@@ -188,7 +191,8 @@ extension(ArrayBinding binding)
                     }
                     else
                     {
-                        ApplyBindingTarget(binding.RestElement, restArray, environment, context, mode, allowNameInference: false);
+                        ApplyBindingTarget(binding.RestElement, restArray, environment, context, mode,
+                            allowNameInference: false);
                     }
                 }
             }
@@ -196,7 +200,7 @@ extension(ArrayBinding binding)
             {
                 if (iterator is not null && !iteratorThrew)
                 {
-                    IteratorClose(iterator, context, preserveExistingThrow: true);
+                    IteratorClose(iterator, context, true);
                 }
 
                 throw;
@@ -217,5 +221,4 @@ extension(ArrayBinding binding)
             }
         }
     }
-
 }

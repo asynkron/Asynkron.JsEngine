@@ -8,13 +8,6 @@ namespace Asynkron.JsEngine.Runtime;
 
 internal static class JsOps
 {
-    private enum NumericKind
-    {
-        Number,
-        BigInt,
-        Error
-    }
-
     public static bool IsNullish(this object? value)
     {
         return value is null ||
@@ -93,16 +86,16 @@ internal static class JsOps
                     return (NumericKind.Number, double.NaN);
                 case Symbol:
                 case TypedAstSymbol:
+                {
+                    var error = CreateTypeError("Cannot convert a Symbol value to a number", context);
+                    if (context is null)
                     {
-                        var error = CreateTypeError("Cannot convert a Symbol value to a number", context);
-                        if (context is null)
-                        {
-                            throw new ThrowSignal(error);
-                        }
-
-                        context.SetThrow(error);
-                        return (NumericKind.Error, null);
+                        throw new ThrowSignal(error);
                     }
+
+                    context.SetThrow(error);
+                    return (NumericKind.Error, null);
+                }
                 case JsBigInt bigInt:
                     return (NumericKind.BigInt, bigInt);
                 case double d:
@@ -228,14 +221,15 @@ internal static class JsOps
         var toStringAttempted = TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context);
         attempted = attempted || toStringAttempted;
         if (!toStringAttempted ||
-            (toStringResult is IJsPropertyAccessor && toStringResult is not TypedAstSymbol && toStringResult is not Symbol) ||
+            (toStringResult is IJsPropertyAccessor && toStringResult is not TypedAstSymbol &&
+             toStringResult is not Symbol) ||
             toStringResult is JsObject)
         {
-
             if (!attempted)
             {
                 return false;
             }
+
             // OrdinaryToPrimitive failure path should be an abrupt completion.
             var error = CreateTypeError("Cannot convert object to primitive value", context);
             if (context is null)
@@ -287,7 +281,8 @@ internal static class JsOps
                     if (result is JsObject ||
                         result is IJsPropertyAccessor { } and not TypedAstSymbol)
                     {
-                        var signal = StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
+                        var signal =
+                            StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
                         if (context is null)
                         {
                             throw signal;
@@ -429,10 +424,10 @@ internal static class JsOps
                 return false;
             }
 
-        if (left?.GetType() == right?.GetType())
-        {
-            return StrictEquals(left, right);
-        }
+            if (left?.GetType() == right?.GetType())
+            {
+                return StrictEquals(left, right);
+            }
 
             if (left is JsBigInt lbi && IsNumeric(right))
             {
@@ -1169,5 +1164,12 @@ internal static class JsOps
 
         // Deleting primitives or other non-object values is a no-op that succeeds
         return true;
+    }
+
+    private enum NumericKind
+    {
+        Number,
+        BigInt,
+        Error
     }
 }

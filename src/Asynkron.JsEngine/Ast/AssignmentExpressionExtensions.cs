@@ -5,14 +5,14 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(AssignmentExpression expression)
+    extension(AssignmentExpression expression)
     {
         private object? EvaluateAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
             var reference = AssignmentReferenceResolver.Resolve(
-                new IdentifierExpression(expression.Source, expression.Target), environment, context, EvaluateExpression);
+                new IdentifierExpression(expression.Source, expression.Target), environment, context,
+                EvaluateExpression);
 
             if (TryEvaluateCompoundAssignmentValue(expression, reference, environment, context, out var compoundValue))
             {
@@ -36,7 +36,8 @@ extension(AssignmentExpression expression)
                 reference.SetValue(targetValue);
                 return targetValue;
             }
-            catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+            catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                           StringComparison.Ordinal))
             {
                 object? errorObject = ex.Message;
 
@@ -55,7 +56,7 @@ extension(AssignmentExpression expression)
         }
     }
 
-extension(AssignmentExpression assignment)
+    extension(AssignmentExpression assignment)
     {
         private bool TryEvaluateCompoundAssignmentValue(AssignmentReference reference,
             JsEnvironment environment,
@@ -146,5 +147,4 @@ extension(AssignmentExpression assignment)
             return true;
         }
     }
-
 }

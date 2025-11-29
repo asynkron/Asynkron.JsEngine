@@ -6,27 +6,25 @@ namespace Asynkron.JsEngine.JsTypes;
 public sealed class JsPromise
 {
     private const string InternalPromiseKey = "__promise__";
+    private readonly JsEngine _engine;
     private readonly List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = [];
     private bool _handlersScheduled;
-    private readonly JsEngine _engine;
 
     private PromiseState _state = PromiseState.Pending;
     private object? _value;
-
-    /// <summary>
-    ///     Gets the underlying JsObject for property access.
-    /// </summary>
-    public JsObject JsObject { get; }
 
     public JsPromise(JsEngine engine)
     {
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         JsObject = new JsObject();
-        JsObject.DefineProperty(InternalPromiseKey, new PropertyDescriptor
-        {
-            Value = this, Writable = false, Enumerable = false, Configurable = false
-        });
+        JsObject.DefineProperty(InternalPromiseKey,
+            new PropertyDescriptor { Value = this, Writable = false, Enumerable = false, Configurable = false });
     }
+
+    /// <summary>
+    ///     Gets the underlying JsObject for property access.
+    /// </summary>
+    public JsObject JsObject { get; }
 
     /// <summary>
     ///     Resolves the promise with the given value.

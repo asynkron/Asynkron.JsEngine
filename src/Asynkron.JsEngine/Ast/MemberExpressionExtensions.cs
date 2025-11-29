@@ -6,8 +6,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(MemberExpression expression)
+    extension(MemberExpression expression)
     {
         private object? EvaluateMember(JsEnvironment environment,
             EvaluationContext context)
@@ -32,7 +31,7 @@ extension(MemberExpression expression)
         }
     }
 
-extension(MemberExpression expression)
+    extension(MemberExpression expression)
     {
         private object? EvaluateDefaultMember(JsEnvironment environment,
             EvaluationContext context)
@@ -88,7 +87,8 @@ extension(MemberExpression expression)
 
                 if (privateScopeForAccess is null)
                 {
-                    throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
+                    throw StandardLibrary.ThrowTypeError("Invalid access of private member", context,
+                        context.RealmState);
                 }
 
                 if (!propertyName.Contains("@", StringComparison.Ordinal))
@@ -99,7 +99,8 @@ extension(MemberExpression expression)
                 var brandToken = privateScopeForAccess.BrandToken;
                 if (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(brandToken))
                 {
-                    throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
+                    throw StandardLibrary.ThrowTypeError("Invalid access of private member", context,
+                        context.RealmState);
                 }
             }
 
@@ -117,9 +118,10 @@ extension(MemberExpression expression)
         }
     }
 
-extension(MemberExpression expression)
+    extension(MemberExpression expression)
     {
-        private (object? Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment, EvaluationContext context)
+        private (object? Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,
+            EvaluationContext context)
         {
             if (!context.IsThisInitialized)
             {
@@ -151,5 +153,4 @@ extension(MemberExpression expression)
             return (value, binding);
         }
     }
-
 }

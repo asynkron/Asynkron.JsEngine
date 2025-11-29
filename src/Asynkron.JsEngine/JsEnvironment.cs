@@ -8,21 +8,16 @@ namespace Asynkron.JsEngine;
 
 public sealed class JsEnvironment
 {
-    internal static readonly object Uninitialized = new();
-
     private const int MaxDepth = 1_000;
+    internal static readonly object Uninitialized = new();
     private readonly SourceReference? _creatingSource;
     private readonly string? _description;
-    private readonly JsEnvironment? _enclosing;
-    private readonly bool _isFunctionScope;
-    private readonly bool _isParameterEnvironment;
-    private HashSet<Symbol>? _bodyLexicalNames;
-    private readonly bool _isBodyEnvironment;
-    private readonly IJsObjectLike? _withObject;
-    private HashSet<Symbol>? _simpleCatchParameters;
 
     private readonly Dictionary<Symbol, Binding> _values = new();
+    private readonly IJsObjectLike? _withObject;
     private Dictionary<Symbol, List<Action<object?>>>? _bindingObservers;
+    private HashSet<Symbol>? _bodyLexicalNames;
+    private HashSet<Symbol>? _simpleCatchParameters;
 
     public JsEnvironment(
         JsEnvironment? enclosing = null,
@@ -34,16 +29,16 @@ public sealed class JsEnvironment
         bool isParameterEnvironment = false,
         bool isBodyEnvironment = false)
     {
-        _enclosing = enclosing;
-        _isFunctionScope = isFunctionScope;
+        Enclosing = enclosing;
+        IsFunctionScope = isFunctionScope;
         _creatingSource = creatingSource;
         _description = description;
         IsStrictLocal = isStrict;
         _withObject = withObject;
-        _isParameterEnvironment = isParameterEnvironment;
-        _isBodyEnvironment = isBodyEnvironment;
+        IsParameterEnvironment = isParameterEnvironment;
+        IsBodyEnvironment = isBodyEnvironment;
 
-        Depth = (_enclosing?.Depth ?? -1) + 1;
+        Depth = (Enclosing?.Depth ?? -1) + 1;
         if (Depth > MaxDepth)
         {
             throw new InvalidOperationException(
@@ -61,7 +56,19 @@ public sealed class JsEnvironment
     /// <summary>
     ///     Returns true if this environment or any enclosing environment is in strict mode.
     /// </summary>
-    public bool IsStrict => IsStrictLocal || (_enclosing?.IsStrict ?? false);
+    public bool IsStrict => IsStrictLocal || (Enclosing?.IsStrict ?? false);
+
+    internal bool IsObjectEnvironment => _withObject is not null;
+
+    internal bool IsParameterEnvironment { get; }
+
+    internal bool IsBodyEnvironment { get; }
+
+    internal bool IsFunctionScope { get; }
+
+    internal JsEnvironment? Enclosing { get; }
+
+    internal bool IsGlobalFunctionScope => IsFunctionScope && Enclosing is null;
 
     public void Define(
         Symbol name,
@@ -116,7 +123,7 @@ public sealed class JsEnvironment
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
         var scope = GetFunctionScope();
-        var isGlobalScope = scope._enclosing is null;
+        var isGlobalScope = scope.Enclosing is null;
         JsObject? globalThis = null;
         PropertyDescriptor? existingDescriptor = null;
         object? existingGlobalValue = null;
@@ -242,7 +249,7 @@ public sealed class JsEnvironment
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
 
-                if (current._enclosing is null &&
+                if (current.Enclosing is null &&
                     current._values.TryGetValue(Symbol.This, out var thisBinding) &&
                     thisBinding.Value is JsObject globalObject &&
                     globalObject.TryGetProperty(name.Name, out var globalValue))
@@ -258,7 +265,7 @@ public sealed class JsEnvironment
                 return withValue;
             }
 
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         if (_values.TryGetValue(Symbol.This, out var rootThis) &&
@@ -286,7 +293,7 @@ public sealed class JsEnvironment
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
 
-                if (current._enclosing is null &&
+                if (current.Enclosing is null &&
                     current._values.TryGetValue(Symbol.This, out var thisBinding) &&
                     thisBinding.Value is JsObject globalObject &&
                     globalObject.TryGetProperty(name.Name, out var globalValue))
@@ -297,7 +304,7 @@ public sealed class JsEnvironment
                 return binding.Value;
             }
 
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         var rootGlobal = GetRootGlobalObject();
@@ -321,7 +328,7 @@ public sealed class JsEnvironment
             return false;
         }
 
-        return _enclosing?.IsConstBinding(name) ?? false;
+        return Enclosing?.IsConstBinding(name) ?? false;
     }
 
     internal bool HasBinding(Symbol name)
@@ -336,7 +343,7 @@ public sealed class JsEnvironment
             return true;
         }
 
-        return _enclosing?.HasBinding(name) ?? false;
+        return Enclosing?.HasBinding(name) ?? false;
     }
 
     internal bool HasOwnBinding(Symbol name)
@@ -358,12 +365,13 @@ public sealed class JsEnvironment
             {
                 binding.Value = value;
                 current.NotifyBindingObservers(name, value);
-                if (current._enclosing is null &&
+                if (current.Enclosing is null &&
                     current._values.TryGetValue(Symbol.This, out var thisBinding) &&
                     thisBinding.Value is JsObject globalObject)
                 {
                     globalObject.SetProperty(name.Name, value);
                 }
+
                 return true;
             }
 
@@ -372,7 +380,7 @@ public sealed class JsEnvironment
                 break;
             }
 
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         return false;
@@ -410,7 +418,7 @@ public sealed class JsEnvironment
                 return true;
             }
 
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         binding = default;
@@ -424,25 +432,25 @@ public sealed class JsEnvironment
             return true;
         }
 
-        return _enclosing?.HasLexicalBinding(name) ?? false;
+        return Enclosing?.HasLexicalBinding(name) ?? false;
     }
 
     internal bool HasBindingBeforeFunctionScope(Symbol name)
     {
         var current = this;
-        while (current is not null && !current._isFunctionScope)
+        while (current is not null && !current.IsFunctionScope)
         {
             if (current._withObject is null && current._values.ContainsKey(name))
             {
                 return true;
             }
 
-            if (current is { _isFunctionScope: true, _isParameterEnvironment: false })
+            if (current is { IsFunctionScope: true, IsParameterEnvironment: false })
             {
                 break;
             }
 
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         return false;
@@ -466,12 +474,10 @@ public sealed class JsEnvironment
         return descriptor is not null && !descriptor.Configurable;
     }
 
-    internal bool IsObjectEnvironment => _withObject is not null;
-
     internal bool HasLexicalBindingBeforeFunctionScope(Symbol name)
     {
         var current = this;
-        while (current is not null && !current._isFunctionScope)
+        while (current is not null && !current.IsFunctionScope)
         {
             if (current._values.TryGetValue(name, out var binding) &&
                 binding.IsLexical)
@@ -479,15 +485,11 @@ public sealed class JsEnvironment
                 return true;
             }
 
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         return false;
     }
-
-    internal bool IsParameterEnvironment => _isParameterEnvironment;
-    internal bool IsBodyEnvironment => _isBodyEnvironment;
-    internal bool IsFunctionScope => _isFunctionScope;
 
     internal void SetBodyLexicalNames(HashSet<Symbol> names)
     {
@@ -509,8 +511,6 @@ public sealed class JsEnvironment
         return _simpleCatchParameters is not null && _simpleCatchParameters.Contains(name);
     }
 
-    internal JsEnvironment? Enclosing => _enclosing;
-
     public bool TryGet(Symbol name, out object? value)
     {
         var current = this;
@@ -526,7 +526,7 @@ public sealed class JsEnvironment
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
 
-                if (current._enclosing is null &&
+                if (current.Enclosing is null &&
                     current._values.TryGetValue(Symbol.This, out var thisBinding) &&
                     thisBinding.Value is JsObject globalObject &&
                     globalObject.TryGetProperty(name.Name, out var globalValue))
@@ -544,7 +544,7 @@ public sealed class JsEnvironment
                 return true;
             }
 
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         if (_values.TryGetValue(Symbol.This, out var rootThis) &&
@@ -579,7 +579,7 @@ public sealed class JsEnvironment
                 return true;
             }
 
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         environment = null!;
@@ -597,7 +597,7 @@ public sealed class JsEnvironment
     private void AssignInternal(Symbol name, object? value, bool isStrictContext)
     {
         JsObject? globalObject = null;
-        if (_enclosing is null && _values.TryGetValue(Symbol.This, out var thisBinding) &&
+        if (Enclosing is null && _values.TryGetValue(Symbol.This, out var thisBinding) &&
             thisBinding.Value is JsObject global)
         {
             globalObject = global;
@@ -614,7 +614,8 @@ public sealed class JsEnvironment
             {
                 if (isStrictContext)
                 {
-                    throw new ThrowSignal(StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable"));
+                    throw new ThrowSignal(
+                        StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable"));
                 }
 
                 return;
@@ -632,9 +633,9 @@ public sealed class JsEnvironment
             return;
         }
 
-        if (_enclosing is not null)
+        if (Enclosing is not null)
         {
-            _enclosing.AssignInternal(name, value, isStrictContext);
+            Enclosing.AssignInternal(name, value, isStrictContext);
             return;
         }
 
@@ -683,7 +684,7 @@ public sealed class JsEnvironment
                     : DeleteBindingResult.NotDeletable;
             }
 
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         var globalObject = GetRootGlobalObject();
@@ -712,9 +713,9 @@ public sealed class JsEnvironment
             return false;
         }
 
-        if (_isFunctionScope)
+        if (IsFunctionScope)
         {
-            if (_enclosing is not null)
+            if (Enclosing is not null)
             {
                 // Function scopes (including parameters) cannot remove declarative bindings.
                 return false;
@@ -745,9 +746,9 @@ public sealed class JsEnvironment
         var current = this;
         var hops = 0;
         const int maxDepth = 10_000;
-        while (current._enclosing is not null && hops++ < maxDepth)
+        while (current.Enclosing is not null && hops++ < maxDepth)
         {
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         if (current._values.TryGetValue(Symbol.This, out var thisBinding) &&
@@ -978,14 +979,12 @@ public sealed class JsEnvironment
         return scope._values.TryGetValue(name, out var binding) && !binding.IsLexical;
     }
 
-    internal bool IsGlobalFunctionScope => _isFunctionScope && _enclosing is null;
-
     internal JsEnvironment GetFunctionScope()
     {
         var current = this;
-        while (!current._isFunctionScope)
+        while (!current.IsFunctionScope)
         {
-            current = current._enclosing
+            current = current.Enclosing
                       ?? throw new InvalidOperationException("Unable to locate function scope for var declaration.");
         }
 
@@ -1013,7 +1012,7 @@ public sealed class JsEnvironment
                 }
             }
 
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         return result;
@@ -1048,7 +1047,7 @@ public sealed class JsEnvironment
             }
 
             // Follow the enclosing chain (lexical scope chain)
-            current = current._enclosing;
+            current = current.Enclosing;
         }
 
         return frames;

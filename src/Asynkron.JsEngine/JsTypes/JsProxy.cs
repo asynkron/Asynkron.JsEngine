@@ -11,39 +11,51 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
 {
-    private readonly IJsObjectLike _target;
     private readonly JsObject _meta = new();
 
     public JsProxy(IJsObjectLike target, IJsObjectLike handler)
     {
-        _target = target ?? throw new ArgumentNullException(nameof(target));
+        Target = target ?? throw new ArgumentNullException(nameof(target));
         Handler = handler ?? throw new ArgumentNullException(nameof(handler));
-        if (_target is JsObject { Prototype: not null } jsObject)
+        if (Target is JsObject { Prototype: not null } jsObject)
         {
             _meta.SetPrototype(jsObject.Prototype);
         }
     }
 
-    public IJsObjectLike Target => _target;
+    public IJsObjectLike Target { get; }
+
     public IJsObjectLike? Handler { get; set; }
+    public bool IsExtensible => Target is IExtensibilityControl extensibility ? extensibility.IsExtensible : true;
+
+    public void PreventExtensions()
+    {
+        if (Target is IExtensibilityControl extensibilityControl)
+        {
+            extensibilityControl.PreventExtensions();
+        }
+        else
+        {
+            Target.Seal();
+        }
+    }
 
     public JsObject? Prototype => _meta.Prototype;
 
-    public bool IsSealed => _target.IsSealed;
-    public bool IsExtensible => _target is IExtensibilityControl extensibility ? extensibility.IsExtensible : true;
+    public bool IsSealed => Target.IsSealed;
 
-    public IEnumerable<string> Keys => _target.Keys;
+    public IEnumerable<string> Keys => Target.Keys;
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {
         if (TryGetTrap("get", out var trap))
         {
-            var args = new[] { (object?)_target, DecodePropertyKey(name), receiver ?? this };
+            var args = new[] { Target, DecodePropertyKey(name), receiver ?? this };
             value = trap.Invoke(args, Handler);
             return true;
         }
 
-        return _target.TryGetProperty(name, receiver ?? this, out value);
+        return Target.TryGetProperty(name, receiver ?? this, out value);
     }
 
     public bool TryGetProperty(string name, out object? value)
@@ -55,7 +67,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (TryGetTrap("set", out var trap))
         {
-            var args = new[] { (object?)_target, DecodePropertyKey(name), value, receiver ?? this };
+            var args = new[] { Target, DecodePropertyKey(name), value, receiver ?? this };
             var result = trap.Invoke(args, Handler);
             if (!JsOps.ToBoolean(result))
             {
@@ -65,7 +77,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        _target.SetProperty(name, value, receiver ?? this);
+        Target.SetProperty(name, value, receiver ?? this);
     }
 
     public void SetProperty(string name, object? value)
@@ -78,7 +90,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryGetTrap("defineProperty", out var trap))
         {
             var descriptorObject = CreateDescriptorObject(descriptor);
-            var args = new[] { (object?)_target, DecodePropertyKey(name), descriptorObject };
+            var args = new[] { Target, DecodePropertyKey(name), descriptorObject };
             var result = trap.Invoke(args, Handler);
             if (!JsOps.ToBoolean(result))
             {
@@ -88,7 +100,47 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        _target.DefineProperty(name, descriptor);
+        Target.DefineProperty(name, descriptor);
+    }
+
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+    {
+        if (TryGetTrap("getOwnPropertyDescriptor", out var trap))
+        {
+            var args = new[] { Target, DecodePropertyKey(name) };
+            var result = trap.Invoke(args, Handler);
+            return ConvertPropertyDescriptor(result);
+        }
+
+        return Target.GetOwnPropertyDescriptor(name);
+    }
+
+    public IEnumerable<string> GetOwnPropertyNames()
+    {
+        return Target.GetOwnPropertyNames();
+    }
+
+    public void SetPrototype(object? candidate)
+    {
+        Target.SetPrototype(candidate);
+        _meta.SetPrototype(candidate);
+    }
+
+    public void Seal()
+    {
+        Target.Seal();
+    }
+
+    public bool Delete(string name)
+    {
+        if (TryGetTrap("deleteProperty", out var trap))
+        {
+            var args = new[] { Target, DecodePropertyKey(name) };
+            var result = trap.Invoke(args, Handler);
+            return JsOps.ToBoolean(result);
+        }
+
+        return Target.Delete(name);
     }
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
@@ -96,14 +148,14 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryGetTrap("defineProperty", out var trap))
         {
             var descriptorObject = CreateDescriptorObject(descriptor);
-            var args = new[] { (object?)_target, DecodePropertyKey(name), descriptorObject };
+            var args = new[] { Target, DecodePropertyKey(name), descriptorObject };
             var result = trap.Invoke(args, Handler);
             return JsOps.ToBoolean(result);
         }
 
         try
         {
-            _target.DefineProperty(name, descriptor);
+            Target.DefineProperty(name, descriptor);
             return true;
         }
         catch (ThrowSignal)
@@ -112,78 +164,26 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
     }
 
-    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
-    {
-        if (TryGetTrap("getOwnPropertyDescriptor", out var trap))
-        {
-            var args = new[] { (object?)_target, DecodePropertyKey(name) };
-            var result = trap.Invoke(args, Handler);
-            return ConvertPropertyDescriptor(result);
-        }
-
-        return _target.GetOwnPropertyDescriptor(name);
-    }
-
-    public IEnumerable<string> GetOwnPropertyNames()
-    {
-        return _target.GetOwnPropertyNames();
-    }
-
-    public void SetPrototype(object? candidate)
-    {
-        _target.SetPrototype(candidate);
-        _meta.SetPrototype(candidate);
-    }
-
-    public void PreventExtensions()
-    {
-        if (_target is IExtensibilityControl extensibilityControl)
-        {
-            extensibilityControl.PreventExtensions();
-        }
-        else
-        {
-            _target.Seal();
-        }
-    }
-
-    public void Seal()
-    {
-        _target.Seal();
-    }
-
-    public bool Delete(string name)
-    {
-        if (TryGetTrap("deleteProperty", out var trap))
-        {
-            var args = new[] { (object?)_target, DecodePropertyKey(name) };
-            var result = trap.Invoke(args, Handler);
-            return JsOps.ToBoolean(result);
-        }
-
-        return _target.Delete(name);
-    }
-
     internal bool HasProperty(string name)
     {
         if (TryGetTrap("has", out var trap))
         {
-            var args = new[] { (object?)_target, DecodePropertyKey(name) };
+            var args = new[] { Target, DecodePropertyKey(name) };
             var result = trap.Invoke(args, Handler);
             return JsOps.ToBoolean(result);
         }
 
-        if (_target is JsObject jsObject && jsObject.HasProperty(name))
+        if (Target is JsObject jsObject && jsObject.HasProperty(name))
         {
             return true;
         }
 
-        if (_target.GetOwnPropertyDescriptor(name) is not null)
+        if (Target.GetOwnPropertyDescriptor(name) is not null)
         {
             return true;
         }
 
-        var prototype = _target.Prototype;
+        var prototype = Target.Prototype;
         while (prototype is not null)
         {
             if (prototype.HasProperty(name))
@@ -194,7 +194,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             prototype = prototype.Prototype;
         }
 
-        return _target.TryGetProperty(name, out _);
+        return Target.TryGetProperty(name, out _);
     }
 
     private bool TryGetTrap(string trapName, out IJsCallable callable)
@@ -234,7 +234,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (candidate is not JsObject descriptorObject)
         {
-            throw StandardLibrary.ThrowTypeError("Proxy getOwnPropertyDescriptor trap must return an object or undefined");
+            throw StandardLibrary.ThrowTypeError(
+                "Proxy getOwnPropertyDescriptor trap must return an object or undefined");
         }
 
         var descriptor = new PropertyDescriptor();

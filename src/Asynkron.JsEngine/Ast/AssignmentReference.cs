@@ -12,7 +12,7 @@ internal static class AssignmentReferenceResolver
         ExpressionNode expression,
         JsEnvironment environment,
         EvaluationContext context,
-            Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression)
+        Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression)
     {
         return expression switch
         {

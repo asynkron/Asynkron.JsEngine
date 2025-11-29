@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ObjectMember member)
+    extension(ObjectMember member)
     {
         private string ResolveObjectMemberName(JsEnvironment environment,
             EvaluationContext context)
@@ -35,5 +34,4 @@ extension(ObjectMember member)
             return context.ShouldStopEvaluation ? string.Empty : propertyName;
         }
     }
-
 }

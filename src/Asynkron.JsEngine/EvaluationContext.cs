@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
-using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine;
 
@@ -15,8 +15,6 @@ public sealed class EvaluationContext(
     CancellationToken cancellationToken = default,
     ExecutionKind executionKind = ExecutionKind.Script)
 {
-    private readonly Stack<ScopeFrame> _scopeStack = new();
-
     /// <summary>
     ///     Stack of enclosing labels (innermost first). Used to determine if a labeled
     ///     break/continue should be handled by the current statement.
@@ -28,6 +26,8 @@ public sealed class EvaluationContext(
     ///     lookups can be mapped to their class-specific brands.
     /// </summary>
     private readonly Stack<PrivateNameScope> _privateNameScopes = new();
+
+    private readonly Stack<ScopeFrame> _scopeStack = new();
 
     /// <summary>
     ///     Realm-specific state (prototypes/constructors) for the current execution.
@@ -125,6 +125,8 @@ public sealed class EvaluationContext(
 
     public ScopeFrame CurrentScope => _scopeStack.Count > 0 ? _scopeStack.Peek() : ScopeFrame.Default;
 
+    public PrivateNameScope? CurrentPrivateNameScope => _privateNameScopes.Count > 0 ? _privateNameScopes.Peek() : null;
+
     public IDisposable PushScope(
         ScopeKind kind,
         ScopeMode mode,
@@ -166,8 +168,6 @@ public sealed class EvaluationContext(
         _privateNameScopes.Push(scope);
         return new PrivateNameScopeHandle(_privateNameScopes);
     }
-
-    public PrivateNameScope? CurrentPrivateNameScope => _privateNameScopes.Count > 0 ? _privateNameScopes.Peek() : null;
 
     /// <summary>
     ///     Pops a label from the label stack.
@@ -373,12 +373,13 @@ public sealed class PrivateNameScope
     private static readonly ConcurrentDictionary<int, PrivateNameScope> _scopes = new();
     private readonly int _id = Interlocked.Increment(ref _nextId);
     private readonly Dictionary<string, string> _map = new(StringComparer.Ordinal);
-    public object BrandToken { get; } = new();
 
     public PrivateNameScope()
     {
         _scopes[_id] = this;
     }
+
+    public object BrandToken { get; } = new();
 
     public string GetKey(string lexeme)
     {

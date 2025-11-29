@@ -1,7 +1,8 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.StdLib;
@@ -36,11 +37,7 @@ public static partial class StandardLibrary
             var pattern = args[0]?.ToString() ?? "";
             var flags = args.Count > 1 ? args[1]?.ToString() ?? "" : "";
             return CreateRegExpLiteral(pattern, flags, realm, target);
-        })
-        {
-            IsConstructor = true,
-            RealmState = realm
-        };
+        }) { IsConstructor = true, RealmState = realm };
 
         constructor.SetProperty("prototype", prototype);
         prototype.SetProperty("constructor", constructor);
@@ -60,7 +57,7 @@ public static partial class StandardLibrary
             // Trigger IsRegExp style side-effects (e.g., Symbol.match getter) before cloning flags/pattern.
             var matchKey = $"@@symbol:{TypedAstSymbol.For("Symbol.match").GetHashCode()}";
             var receiver = thisValue ?? resolved.JsObject;
-            JsOps.TryGetPropertyValue(receiver, matchKey, out _, null);
+            JsOps.TryGetPropertyValue(receiver, matchKey, out _);
 
             // Re-resolve after potential side-effects (e.g., RegExp.prototype.compile).
             resolved = ResolveRegExpInstance(receiver) ?? resolved;
@@ -256,154 +253,6 @@ public static partial class StandardLibrary
         }
     }
 
-    extension(JsObject prototype)
-    {
-        /// <summary>
-        ///     Adds RegExp prototype methods.
-        /// </summary>
-        private void AddRegExpPrototypeMethods(RealmState realm)
-        {
-            // test(string) - returns boolean
-            prototype.SetHostedProperty("test", RegExpTest);
-
-            // exec(string) - returns array with match details or null
-            prototype.SetHostedProperty("exec", RegExpExec);
-
-            // toString() - returns `/pattern/flags`
-            prototype.SetHostedProperty("toString", RegExpToString);
-
-            // RegExp.prototype.compile (Annex B)
-            var compileFn = new HostFunction((thisValue, args) =>
-            {
-                if (thisValue is not JsObject target ||
-                    !ReferenceEquals(target.Prototype, realm.RegExpPrototype) ||
-                    !target.TryGetValue("__regex__", out var existingInner) ||
-                    existingInner is not JsRegExp existingRegExp ||
-                    !ReferenceEquals(existingRegExp.RealmState, realm) ||
-                    !ReferenceEquals(existingRegExp.JsObject, target))
-                {
-                    throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
-                }
-
-                var patternArg = args.Count > 0 ? args[0] : Symbol.Undefined;
-                var flagsArg = args.Count > 1 ? args[1] : Symbol.Undefined;
-                string pattern;
-                string flags;
-
-                if (patternArg is TypedAstSymbol || (!ReferenceEquals(flagsArg, Symbol.Undefined) && flagsArg is TypedAstSymbol))
-                {
-                    throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: realm);
-                }
-
-                JsRegExp? providedRegExp = null;
-                if (patternArg is JsObject patternObj &&
-                    patternObj.TryGetValue("__regex__", out var innerVal) &&
-                    innerVal is JsRegExp regExpFromSlot &&
-                    ReferenceEquals(regExpFromSlot.JsObject, patternObj))
-                {
-                    providedRegExp = regExpFromSlot;
-                }
-                else
-                {
-                    providedRegExp = ResolveRegExpInstance(patternArg);
-                }
-
-                // Debug instrumentation to understand compile coercions.
-                if (providedRegExp is { } otherRegExp)
-                {
-                    if (!ReferenceEquals(flagsArg, Symbol.Undefined))
-                    {
-                        throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
-                    }
-
-                    pattern = otherRegExp.Pattern;
-                    flags = otherRegExp.Flags;
-                }
-                else
-                {
-                    pattern = ReferenceEquals(patternArg, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(patternArg);
-                    flags = ReferenceEquals(flagsArg, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(flagsArg);
-                }
-
-                // Reinitialize the existing RegExp instance per RegExpInitialize(O, P, F)
-                try
-                {
-                    ValidateGroupNames(pattern);
-
-                    if (!target.TryGetProperty("constructor", out var ctor) ||
-                        !ReferenceEquals(ctor, realm.RegExpConstructor))
-                    {
-                        throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
-                    }
-
-                    var lastIndexDescriptor = target.GetOwnPropertyDescriptor("lastIndex");
-
-                    var reinitialized = new JsRegExp(pattern, flags, realm, target);
-                    target.SetProperty("__regex__", reinitialized);
-
-                    if (lastIndexDescriptor is { IsAccessorDescriptor: false, Writable: false })
-                    {
-                        throw ThrowTypeError("Cannot assign to read only property 'lastIndex'", realm: realm);
-                    }
-
-                    target.SetProperty("lastIndex", 0d);
-                }
-                catch (ThrowSignal)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    throw new ThrowSignal(CreateSyntaxError(ex.Message, realm));
-                }
-                return target;
-            });
-            DefineBuiltinFunction(prototype, "compile", compileFn, 2, isConstructor: false);
-        }
-
-        private void DefineRegExpAccessors(RealmState realm)
-        {
-            static string GetSortedFlags(JsRegExp r)
-            {
-                Span<char> buffer = stackalloc char[6];
-                var length = 0;
-                if (r.Global) buffer[length++] = 'g';
-                if (r.IgnoreCase) buffer[length++] = 'i';
-                if (r.Multiline) buffer[length++] = 'm';
-                if (r.DotAll) buffer[length++] = 's';
-                if (r.Unicode) buffer[length++] = 'u';
-                if (r.Sticky) buffer[length++] = 'y';
-                return new string(buffer[..length]);
-            }
-
-            PropertyDescriptor MakeGetter(Func<JsRegExp, object?> getter)
-            {
-                return new PropertyDescriptor
-                {
-                    Get = new HostFunction((thisValue, _) =>
-                        {
-                            var resolved = ResolveRegExpInstance(thisValue);
-                            if (resolved is null)
-                            {
-                                throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
-                            }
-
-                            return getter(resolved);
-                        })
-                        { IsConstructor = false },
-                    Enumerable = false,
-                    Configurable = true
-                };
-            }
-
-            prototype.DefineProperty("flags", MakeGetter(GetSortedFlags));
-            prototype.DefineProperty("source", MakeGetter(r => string.IsNullOrEmpty(r.Pattern) ? "(?:)" : r.Pattern));
-            prototype.DefineProperty("global", MakeGetter(r => r.Global));
-            prototype.DefineProperty("ignoreCase", MakeGetter(r => r.IgnoreCase));
-            prototype.DefineProperty("multiline", MakeGetter(r => r.Multiline));
-        }
-    }
-
     private static object CreateSyntaxError(string message, RealmState? realm)
     {
         if (realm?.SyntaxErrorConstructor is not { } ctor)
@@ -478,9 +327,212 @@ public static partial class StandardLibrary
         return resolved is null ? "/undefined/" : $"/{resolved.Pattern}/{resolved.Flags}";
     }
 
+    private static uint ToUint32(object? value)
+    {
+        var number = JsOps.ToNumber(value);
+        if (double.IsNaN(number) || double.IsInfinity(number))
+        {
+            return 0;
+        }
+
+        var int64 = (long)number;
+        return (uint)(int64 & 0xFFFFFFFF);
+    }
+
+    private static bool IsRegExpLikeInstance(JsObject obj, RealmState realm)
+    {
+        var current = obj.Prototype;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, realm.RegExpPrototype))
+            {
+                return true;
+            }
+
+            current = current.Prototype;
+        }
+
+        return false;
+    }
+
+    extension(JsObject prototype)
+    {
+        /// <summary>
+        ///     Adds RegExp prototype methods.
+        /// </summary>
+        private void AddRegExpPrototypeMethods(RealmState realm)
+        {
+            // test(string) - returns boolean
+            prototype.SetHostedProperty("test", RegExpTest);
+
+            // exec(string) - returns array with match details or null
+            prototype.SetHostedProperty("exec", RegExpExec);
+
+            // toString() - returns `/pattern/flags`
+            prototype.SetHostedProperty("toString", RegExpToString);
+
+            // RegExp.prototype.compile (Annex B)
+            var compileFn = new HostFunction((thisValue, args) =>
+            {
+                if (thisValue is not JsObject target ||
+                    !ReferenceEquals(target.Prototype, realm.RegExpPrototype) ||
+                    !target.TryGetValue("__regex__", out var existingInner) ||
+                    existingInner is not JsRegExp existingRegExp ||
+                    !ReferenceEquals(existingRegExp.RealmState, realm) ||
+                    !ReferenceEquals(existingRegExp.JsObject, target))
+                {
+                    throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
+                }
+
+                var patternArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+                var flagsArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+                string pattern;
+                string flags;
+
+                if (patternArg is TypedAstSymbol ||
+                    (!ReferenceEquals(flagsArg, Symbol.Undefined) && flagsArg is TypedAstSymbol))
+                {
+                    throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: realm);
+                }
+
+                JsRegExp? providedRegExp = null;
+                if (patternArg is JsObject patternObj &&
+                    patternObj.TryGetValue("__regex__", out var innerVal) &&
+                    innerVal is JsRegExp regExpFromSlot &&
+                    ReferenceEquals(regExpFromSlot.JsObject, patternObj))
+                {
+                    providedRegExp = regExpFromSlot;
+                }
+                else
+                {
+                    providedRegExp = ResolveRegExpInstance(patternArg);
+                }
+
+                // Debug instrumentation to understand compile coercions.
+                if (providedRegExp is { } otherRegExp)
+                {
+                    if (!ReferenceEquals(flagsArg, Symbol.Undefined))
+                    {
+                        throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
+                    }
+
+                    pattern = otherRegExp.Pattern;
+                    flags = otherRegExp.Flags;
+                }
+                else
+                {
+                    pattern = ReferenceEquals(patternArg, Symbol.Undefined)
+                        ? string.Empty
+                        : JsOps.ToJsString(patternArg);
+                    flags = ReferenceEquals(flagsArg, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(flagsArg);
+                }
+
+                // Reinitialize the existing RegExp instance per RegExpInitialize(O, P, F)
+                try
+                {
+                    ValidateGroupNames(pattern);
+
+                    if (!target.TryGetProperty("constructor", out var ctor) ||
+                        !ReferenceEquals(ctor, realm.RegExpConstructor))
+                    {
+                        throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
+                    }
+
+                    var lastIndexDescriptor = target.GetOwnPropertyDescriptor("lastIndex");
+
+                    var reinitialized = new JsRegExp(pattern, flags, realm, target);
+                    target.SetProperty("__regex__", reinitialized);
+
+                    if (lastIndexDescriptor is { IsAccessorDescriptor: false, Writable: false })
+                    {
+                        throw ThrowTypeError("Cannot assign to read only property 'lastIndex'", realm: realm);
+                    }
+
+                    target.SetProperty("lastIndex", 0d);
+                }
+                catch (ThrowSignal)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    throw new ThrowSignal(CreateSyntaxError(ex.Message, realm));
+                }
+
+                return target;
+            });
+            DefineBuiltinFunction(prototype, "compile", compileFn, 2);
+        }
+
+        private void DefineRegExpAccessors(RealmState realm)
+        {
+            static string GetSortedFlags(JsRegExp r)
+            {
+                Span<char> buffer = stackalloc char[6];
+                var length = 0;
+                if (r.Global)
+                {
+                    buffer[length++] = 'g';
+                }
+
+                if (r.IgnoreCase)
+                {
+                    buffer[length++] = 'i';
+                }
+
+                if (r.Multiline)
+                {
+                    buffer[length++] = 'm';
+                }
+
+                if (r.DotAll)
+                {
+                    buffer[length++] = 's';
+                }
+
+                if (r.Unicode)
+                {
+                    buffer[length++] = 'u';
+                }
+
+                if (r.Sticky)
+                {
+                    buffer[length++] = 'y';
+                }
+
+                return new string(buffer[..length]);
+            }
+
+            PropertyDescriptor MakeGetter(Func<JsRegExp, object?> getter)
+            {
+                return new PropertyDescriptor
+                {
+                    Get = new HostFunction((thisValue, _) =>
+                    {
+                        var resolved = ResolveRegExpInstance(thisValue);
+                        if (resolved is null)
+                        {
+                            throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
+                        }
+
+                        return getter(resolved);
+                    }) { IsConstructor = false },
+                    Enumerable = false,
+                    Configurable = true
+                };
+            }
+
+            prototype.DefineProperty("flags", MakeGetter(GetSortedFlags));
+            prototype.DefineProperty("source", MakeGetter(r => string.IsNullOrEmpty(r.Pattern) ? "(?:)" : r.Pattern));
+            prototype.DefineProperty("global", MakeGetter(r => r.Global));
+            prototype.DefineProperty("ignoreCase", MakeGetter(r => r.IgnoreCase));
+            prototype.DefineProperty("multiline", MakeGetter(r => r.Multiline));
+        }
+    }
+
     extension(RealmState? realm)
     {
-        internal void UpdateRegExpStatics(string input, System.Text.RegularExpressions.Match match)
+        internal void UpdateRegExpStatics(string input, Match match)
         {
             if (realm is null)
             {
@@ -528,35 +580,35 @@ public static partial class StandardLibrary
                 return new PropertyDescriptor
                 {
                     Get = new HostFunction((thisValue, _) =>
-                        {
-                            var statics = EnsureRegExpReceiver(thisValue);
-                            return getter(statics);
-                        })
-                        { IsConstructor = false },
+                    {
+                        var statics = EnsureRegExpReceiver(thisValue);
+                        return getter(statics);
+                    }) { IsConstructor = false },
                     Set = null,
                     Enumerable = false,
                     Configurable = true
                 };
             }
 
-            object? GetCapture(RegExpStatics s, int index) => index < s.Captures.Length ? s.Captures[index] : string.Empty;
+            object? GetCapture(RegExpStatics s, int index)
+            {
+                return index < s.Captures.Length ? s.Captures[index] : string.Empty;
+            }
 
             var inputDescriptor = new PropertyDescriptor
             {
                 Get = new HostFunction((thisValue, _) =>
-                    {
-                        var statics = EnsureRegExpReceiver(thisValue);
-                        return statics.Input;
-                    })
-                    { IsConstructor = false },
+                {
+                    var statics = EnsureRegExpReceiver(thisValue);
+                    return statics.Input;
+                }) { IsConstructor = false },
                 Set = new HostFunction((thisValue, args) =>
-                    {
-                        var statics = EnsureRegExpReceiver(thisValue);
-                        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
-                        statics.Input = value?.ToString() ?? string.Empty;
-                        return null;
-                    })
-                    { IsConstructor = false },
+                {
+                    var statics = EnsureRegExpReceiver(thisValue);
+                    var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+                    statics.Input = value?.ToString() ?? string.Empty;
+                    return null;
+                }) { IsConstructor = false },
                 Enumerable = false,
                 Configurable = true
             };
@@ -587,41 +639,15 @@ public static partial class StandardLibrary
             // RegExp.multiline legacy accessor aliases RegExp.prototype.flags? Treat as global statics flag.
             var multilineDescriptor = new PropertyDescriptor
             {
-                Get = new HostFunction((thisValue, _) => !ReferenceEquals(thisValue, realm.RegExpConstructor) ? throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm) : false)
-                    { IsConstructor = false },
+                Get = new HostFunction((thisValue, _) =>
+                    !ReferenceEquals(thisValue, realm.RegExpConstructor)
+                        ? throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm)
+                        : false) { IsConstructor = false },
                 Set = null,
                 Enumerable = false,
                 Configurable = true
             };
             constructor.DefineProperty("multiline", multilineDescriptor);
         }
-    }
-
-    private static uint ToUint32(object? value)
-    {
-        var number = JsOps.ToNumber(value);
-        if (double.IsNaN(number) || double.IsInfinity(number))
-        {
-            return 0;
-        }
-
-        var int64 = (long)number;
-        return (uint)(int64 & 0xFFFFFFFF);
-    }
-
-    private static bool IsRegExpLikeInstance(JsObject obj, RealmState realm)
-    {
-        var current = obj.Prototype;
-        while (current is not null)
-        {
-            if (ReferenceEquals(current, realm.RegExpPrototype))
-            {
-                return true;
-            }
-
-            current = current.Prototype;
-        }
-
-        return false;
     }
 }

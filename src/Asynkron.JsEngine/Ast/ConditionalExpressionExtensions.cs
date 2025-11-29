@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ConditionalExpression expression)
+    extension(ConditionalExpression expression)
     {
         private object? EvaluateConditional(JsEnvironment environment,
             EvaluationContext context)
@@ -19,5 +18,4 @@ extension(ConditionalExpression expression)
                 : EvaluateExpression(expression.Alternate, environment, context);
         }
     }
-
 }

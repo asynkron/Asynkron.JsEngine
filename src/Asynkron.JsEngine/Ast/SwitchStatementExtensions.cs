@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(SwitchStatement statement)
+    extension(SwitchStatement statement)
     {
         private object? EvaluateSwitch(JsEnvironment environment,
             EvaluationContext context,
@@ -58,5 +57,4 @@ extension(SwitchStatement statement)
             return lastValue;
         }
     }
-
 }

@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(IdentifierExpression identifier)
+    extension(IdentifierExpression identifier)
     {
         private object? EvaluateIdentifier(JsEnvironment environment,
             EvaluationContext context)
@@ -15,7 +14,8 @@ extension(IdentifierExpression identifier)
             {
                 return reference.GetValue();
             }
-            catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+            catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                           StringComparison.Ordinal))
             {
                 object? errorObject = ex.Message;
 
@@ -37,5 +37,4 @@ extension(IdentifierExpression identifier)
             }
         }
     }
-
 }

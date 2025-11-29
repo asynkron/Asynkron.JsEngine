@@ -5,8 +5,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ArrayExpression expression)
+    extension(ArrayExpression expression)
     {
         private object? EvaluateArray(JsEnvironment environment,
             EvaluationContext context)
@@ -38,6 +37,7 @@ extension(ArrayExpression expression)
                 {
                     array.Push(EvaluateExpression(element.Expression, environment, context));
                 }
+
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
@@ -48,5 +48,4 @@ extension(ArrayExpression expression)
             return array;
         }
     }
-
 }

@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(LoopPlan plan)
+    extension(LoopPlan plan)
     {
         private object? EvaluateLoopPlan(JsEnvironment environment, EvaluationContext context,
             Symbol? loopLabel)
@@ -87,7 +86,7 @@ extension(LoopPlan plan)
         }
     }
 
-extension(LoopPlan plan)
+    extension(LoopPlan plan)
     {
         private bool ExecuteCondition(JsEnvironment environment, EvaluationContext context)
         {
@@ -113,7 +112,7 @@ extension(LoopPlan plan)
         }
     }
 
-extension(LoopPlan plan)
+    extension(LoopPlan plan)
     {
         private bool ExecutePostIteration(JsEnvironment environment, EvaluationContext context,
             ref object? lastValue)
@@ -135,5 +134,4 @@ extension(LoopPlan plan)
             return true;
         }
     }
-
 }

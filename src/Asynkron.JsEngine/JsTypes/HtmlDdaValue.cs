@@ -9,6 +9,12 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike, IProp
     IExtensibilityControl
 {
     private readonly JsObject _backing = new();
+    public bool IsExtensible => _backing.IsExtensible;
+
+    public void PreventExtensions()
+    {
+        _backing.PreventExtensions();
+    }
 
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
     {
@@ -52,7 +58,6 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike, IProp
 
     public JsObject? Prototype => _backing.Prototype;
     public bool IsSealed => _backing.IsSealed;
-    public bool IsExtensible => _backing.IsExtensible;
     public IEnumerable<string> Keys => _backing.Keys;
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
@@ -60,19 +65,9 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike, IProp
         _backing.DefineProperty(name, descriptor);
     }
 
-    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        return _backing.TryDefineProperty(name, descriptor);
-    }
-
     public void SetPrototype(object? candidate)
     {
         _backing.SetPrototype(candidate);
-    }
-
-    public void PreventExtensions()
-    {
-        _backing.PreventExtensions();
     }
 
     public void Seal()
@@ -83,6 +78,11 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike, IProp
     public bool Delete(string name)
     {
         return _backing.Delete(name);
+    }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return _backing.TryDefineProperty(name, descriptor);
     }
 }
 

@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(PropertyAssignmentExpression expression)
+    extension(PropertyAssignmentExpression expression)
     {
         private object? EvaluatePropertyAssignment(JsEnvironment environment,
             EvaluationContext context)
@@ -67,5 +66,4 @@ extension(PropertyAssignmentExpression expression)
             return value;
         }
     }
-
 }

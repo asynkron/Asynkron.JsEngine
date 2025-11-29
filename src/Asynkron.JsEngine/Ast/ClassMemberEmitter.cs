@@ -64,11 +64,7 @@ internal static class ClassMemberEmitter
                 : prototype;
             if (accessorTarget is not null)
             {
-                var descriptor = new PropertyDescriptor
-                {
-                    Enumerable = false,
-                    Configurable = true
-                };
+                var descriptor = new PropertyDescriptor { Enumerable = false, Configurable = true };
 
                 switch (member.Kind)
                 {

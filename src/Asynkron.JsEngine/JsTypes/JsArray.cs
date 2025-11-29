@@ -59,15 +59,16 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// </summary>
     public double Length => _length;
 
+    public bool IsExtensible => _properties.IsExtensible;
+
+    public void PreventExtensions()
+    {
+        _properties.PreventExtensions();
+    }
+
     public void SetPrototype(object? candidate)
     {
         _properties.SetPrototype(candidate);
-    }
-
-    public void PushHole()
-    {
-        _items.Add(ArrayHole);
-        _length++;
     }
 
     public JsObject? Prototype
@@ -85,7 +86,6 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     }
 
     public bool IsSealed => _properties.IsSealed;
-    public bool IsExtensible => _properties.IsExtensible;
     public IEnumerable<string> Keys => _properties.Keys;
 
     public bool TryGetProperty(string name, out object? value)
@@ -140,28 +140,6 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _properties.SetProperty(name, value, receiver ?? this);
     }
 
-    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        if (string.Equals(name, "length", StringComparison.Ordinal))
-        {
-            return DefineLength(descriptor, null, false);
-        }
-
-        if (TryParseArrayIndex(name, out var index))
-        {
-            if (!descriptor.IsAccessorDescriptor)
-            {
-                SetElement(index, descriptor.HasValue ? descriptor.Value : Symbol.Undefined);
-            }
-            else
-            {
-                BumpLength(index + 1);
-            }
-        }
-
-        return _properties.TryDefineProperty(name, descriptor);
-    }
-
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
         TryDefineProperty(name, descriptor);
@@ -188,14 +166,54 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return _properties.GetOwnPropertyNames();
     }
 
-    public void PreventExtensions()
-    {
-        _properties.PreventExtensions();
-    }
-
     public void Seal()
     {
         _properties.Seal();
+    }
+
+    public bool Delete(string name)
+    {
+        if (TryParseArrayIndex(name, out var index))
+        {
+            var descriptor = _properties.GetOwnPropertyDescriptor(name);
+            if (descriptor is not null && !descriptor.Configurable)
+            {
+                return false;
+            }
+
+            _properties.DeleteOwnProperty(name);
+            return DeleteElement((int)index);
+        }
+
+        return DeleteProperty(name);
+    }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            return DefineLength(descriptor, null, false);
+        }
+
+        if (TryParseArrayIndex(name, out var index))
+        {
+            if (!descriptor.IsAccessorDescriptor)
+            {
+                SetElement(index, descriptor.HasValue ? descriptor.Value : Symbol.Undefined);
+            }
+            else
+            {
+                BumpLength(index + 1);
+            }
+        }
+
+        return _properties.TryDefineProperty(name, descriptor);
+    }
+
+    public void PushHole()
+    {
+        _items.Add(ArrayHole);
+        _length++;
     }
 
     public override string ToString()
@@ -401,23 +419,6 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         return _properties.DeleteOwnProperty(name);
-    }
-
-    public bool Delete(string name)
-    {
-        if (TryParseArrayIndex(name, out var index))
-        {
-            var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && !descriptor.Configurable)
-            {
-                return false;
-            }
-
-            _properties.DeleteOwnProperty(name);
-            return DeleteElement((int)index);
-        }
-
-        return DeleteProperty(name);
     }
 
     public void Push(object? value)

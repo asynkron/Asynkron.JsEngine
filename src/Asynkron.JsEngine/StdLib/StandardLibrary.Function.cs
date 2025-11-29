@@ -1,7 +1,7 @@
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.StdLib;
@@ -33,6 +33,7 @@ public static partial class StandardLibrary
             {
                 throw ThrowSyntaxError("Invalid function parameter list", evalContext, realm);
             }
+
             // ECMAScript builds the source with line feeds around the parameter list and body,
             // so HTML-like comments (<!--/-->) are recognized using the Script goal rules.
             var functionSource = $"(function anonymous({paramList}\n) {{\n{bodySource}\n}})";
@@ -51,12 +52,8 @@ public static partial class StandardLibrary
             return engine.ExecuteProgram(
                 program,
                 engine.GlobalEnvironment,
-                System.Threading.CancellationToken.None,
-                ExecutionKind.Script);
-        })
-        {
-            RealmState = realm
-        };
+                CancellationToken.None);
+        }) { RealmState = realm };
 
         // Function.call: when used as `fn.call(thisArg, ...args)` the
         // target function is `fn` (the `this` value). We implement this
@@ -99,21 +96,18 @@ public static partial class StandardLibrary
         {
             functionPrototype.SetPrototype(realm.ObjectPrototype);
         }
+
         functionPrototype.SetProperty("constructor", functionConstructor);
         functionPrototype.SetHostedProperty("toString", FunctionPrototypeToString);
         functionPrototype.SetHostedProperty("valueOf", (thisValue, _) => thisValue);
         var thrower = new HostFunction((_, _) => throw ThrowTypeError(
             "Access to caller or arguments is not allowed", realm: realm))
         {
-            IsConstructor = false,
-            RealmState = realm
+            IsConstructor = false, RealmState = realm
         };
         var poisonDescriptor = new PropertyDescriptor
         {
-            Get = thrower,
-            Set = thrower,
-            Enumerable = false,
-            Configurable = false
+            Get = thrower, Set = thrower, Enumerable = false, Configurable = false
         };
         functionPrototype.DefineProperty("caller", poisonDescriptor);
         functionPrototype.DefineProperty("arguments", poisonDescriptor);
@@ -132,7 +126,7 @@ public static partial class StandardLibrary
                 return false;
             }
 
-            if (!JsOps.TryGetPropertyValue(thisValue, "prototype", out var protoVal, null) ||
+            if (!JsOps.TryGetPropertyValue(thisValue, "prototype", out var protoVal) ||
                 protoVal is not JsObject prototypeObject)
             {
                 throw ThrowTypeError("Function has non-object prototype in instanceof check", null, realm);
@@ -156,10 +150,7 @@ public static partial class StandardLibrary
             }
 
             return false;
-        })
-        {
-            RealmState = realm
-        };
+        }) { RealmState = realm };
         functionPrototype.SetProperty(hasInstanceKey, hasInstance);
         realm.FunctionPrototype ??= functionPrototype;
         functionConstructor.SetProperty("prototype", functionPrototype);

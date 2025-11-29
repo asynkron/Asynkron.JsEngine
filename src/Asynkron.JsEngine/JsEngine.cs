@@ -12,49 +12,46 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public sealed class JsEngine : IAsyncDisposable
 {
+    internal static readonly object UninitializedExportMarker = new();
     private readonly HashSet<Task> _activeTimerTasks = [];
     private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
     private readonly bool _asyncIteratorTracingEnabled;
-    private readonly IJsEngineOptions _options;
 
     //DEBUG code
     private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
     private readonly Channel<ExceptionInfo> _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
-    private readonly JsEnvironment _global = new(isFunctionScope: true);
+
+    private readonly Dictionary<JsObject, ModuleNamespace> _moduleNamespaces =
+        new(ReferenceEqualityComparer<JsObject>.Instance);
 
     //-------
 
     // Module registry: maps module paths to their exported values
     private readonly Dictionary<string, JsObject> _moduleRegistry = new();
-    private readonly Dictionary<JsObject, ModuleNamespace> _moduleNamespaces =
-        new(ReferenceEqualityComparer<JsObject>.Instance);
-    internal static readonly object UninitializedExportMarker = new();
     private readonly Dictionary<int, CancellationTokenSource> _timers = new();
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private Task? _eventLoopTask;
-    internal int PromiseCallDepth { get; set; }
-    internal int MaxCallDepth { get; set; } = 1000;
+    private int? _eventLoopThreadId;
     private Channel<Func<Task>>? _eventQueue;
 
     // Module loader function: allows custom module loading logic
     private Func<string, string?, string>? _moduleLoader;
     private int _nextTimerId = 1;
     private int _pendingTaskCount; // Track pending tasks in the event queue
-    private int? _eventLoopThreadId;
 
     /// <summary>
     ///     Initializes a new instance of JsEngine with standard library objects.
     /// </summary>
     public JsEngine(IJsEngineOptions? options = null)
     {
-        _options = options ?? JsEngineOptions.Default;
+        Options = options ?? JsEngineOptions.Default;
         _asyncIteratorTracingEnabled = false;
-        RealmState.Options = _options;
+        RealmState.Options = Options;
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).
-        _global.Define(Symbol.This, GlobalObject);
+        GlobalEnvironment.Define(Symbol.This, GlobalObject);
 
         // Expose common aliases for the global object that many libraries
         // expect to exist (Node-style `global`, standard `globalThis`).
@@ -235,8 +232,11 @@ public sealed class JsEngine : IAsyncDisposable
             new HostFunction(_ => GlobalObject) { Realm = GlobalObject, RealmState = RealmState }, true);
 
         // Register debug function as a debug-aware host function
-        _global.Define(Symbol.DebugIdentifier, new DebugAwareHostFunction(CaptureDebugMessage));
+        GlobalEnvironment.Define(Symbol.DebugIdentifier, new DebugAwareHostFunction(CaptureDebugMessage));
     }
+
+    internal int PromiseCallDepth { get; set; }
+    internal int MaxCallDepth { get; set; } = 1000;
 
     /// <summary>
     ///     Maximum wall-clock time to allow a single evaluation to run before failing.
@@ -251,10 +251,10 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public JsObject GlobalObject { get; } = new();
 
-    internal JsEnvironment GlobalEnvironment => _global;
+    internal JsEnvironment GlobalEnvironment { get; } = new(isFunctionScope: true);
 
     internal RealmState RealmState { get; } = new();
-    public IJsEngineOptions Options => _options;
+    public IJsEngineOptions Options { get; }
 
     public async ValueTask DisposeAsync()
     {
@@ -341,7 +341,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public ProgramNode Parse(string source)
     {
-        return ParseTypedProgram(source, options: _options);
+        return ParseTypedProgram(source, options: Options);
     }
 
     /// <summary>
@@ -355,7 +355,7 @@ public sealed class JsEngine : IAsyncDisposable
         bool allowTopLevelAwait = false,
         bool allowHtmlComments = true)
     {
-        var typedProgram = ParseTypedProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, _options);
+        var typedProgram = ParseTypedProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, Options);
         if (forceStrict && !typedProgram.IsStrict)
         {
             typedProgram = new ProgramNode(typedProgram.Source, typedProgram.Body, true);
@@ -393,7 +393,7 @@ public sealed class JsEngine : IAsyncDisposable
     public (ProgramNode original, ProgramNode constantFolded, ProgramNode cpsTransformed)
         ParseWithTransformationSteps(string source)
     {
-        var original = ParseTypedProgram(source, options: _options);
+        var original = ParseTypedProgram(source, options: Options);
         var constantFolded = _typedConstantTransformer.Transform(original);
         var cpsTransformed = constantFolded;
         if (TypedCpsTransformer.NeedsTransformation(constantFolded))
@@ -543,8 +543,8 @@ public sealed class JsEngine : IAsyncDisposable
     public Task<object?> EvaluateModule(string source, string? sourcePath = null,
         CancellationToken cancellationToken = default)
     {
-        var program = ParseForExecution(source, forceStrict: true, allowTopLevelAwait: true);
-        return Evaluate(program, cancellationToken, sourcePath, forceModule: true);
+        var program = ParseForExecution(source, true, true);
+        return Evaluate(program, cancellationToken, sourcePath, true);
     }
 
     /// <summary>
@@ -601,12 +601,12 @@ public sealed class JsEngine : IAsyncDisposable
                         exports = new JsObject();
                     }
 
-                    var moduleEnv = new JsEnvironment(_global, isFunctionScope: true, isStrict: true);
+                    var moduleEnv = new JsEnvironment(GlobalEnvironment, true, true);
                     result = EvaluateModule(program, moduleEnv, exports, moduleKey ?? sourcePath);
                 }
                 else
                 {
-                    result = ExecuteProgram(program, _global, combinedToken);
+                    result = ExecuteProgram(program, GlobalEnvironment, combinedToken);
                 }
 
                 tcs.SetResult(result);
@@ -695,11 +695,11 @@ public sealed class JsEngine : IAsyncDisposable
                     exports = new JsObject();
                 }
 
-                var moduleEnv = new JsEnvironment(_global, isFunctionScope: true, isStrict: true);
+                var moduleEnv = new JsEnvironment(GlobalEnvironment, true, true);
                 return EvaluateModule(program, moduleEnv, exports, moduleKey ?? sourcePath);
             }
 
-            return ExecuteProgram(program, _global, combinedToken);
+            return ExecuteProgram(program, GlobalEnvironment, combinedToken);
         }
         finally
         {
@@ -729,7 +729,7 @@ public sealed class JsEngine : IAsyncDisposable
     private void SetGlobal(string name, object? value, bool isGlobalConstant = false)
     {
         var symbol = Symbol.Intern(name);
-        _global.Define(symbol, value, isGlobalConstant: isGlobalConstant);
+        GlobalEnvironment.Define(symbol, value, isGlobalConstant: isGlobalConstant);
 
         // Also mirror globals onto the global object so that code using
         // `this.foo` or `global.foo` can see host-provided bindings.
@@ -767,7 +767,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public void SetGlobalFunction(string name, Func<IReadOnlyList<object?>, object?> handler)
     {
-        _global.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = GlobalObject });
+        GlobalEnvironment.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = GlobalObject });
     }
 
     /// <summary>
@@ -775,7 +775,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public void SetGlobalFunction(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
     {
-        _global.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = GlobalObject });
+        GlobalEnvironment.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = GlobalObject });
     }
 
     /// <summary>
@@ -1109,14 +1109,14 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         // Parse the module
-        var program = ParseForExecution(source, forceStrict: true, allowTopLevelAwait: true);
+        var program = ParseForExecution(source, true, true);
 
         // Create a module exports object
         var exports = new JsObject();
         _moduleRegistry[resolvedPath] = exports;
 
         // Create a module environment (inherits from global)
-        var moduleEnv = new JsEnvironment(_global, isFunctionScope: true, isStrict: true);
+        var moduleEnv = new JsEnvironment(GlobalEnvironment, true, true);
 
         // Evaluate the module with export tracking
         EvaluateModule(program, moduleEnv, exports, resolvedPath);
@@ -1242,11 +1242,12 @@ public sealed class JsEngine : IAsyncDisposable
 
                             var symbol = identifier.Name;
                             var initialValue = variableDeclaration.Kind == VariableKind.Var
-                                ? (object?)Symbol.Undefined
+                                ? Symbol.Undefined
                                 : UninitializedExportMarker;
 
                             exports[symbol.Name] = initialValue;
-                            moduleEnv.Define(symbol, initialValue, isLexical: variableDeclaration.Kind != VariableKind.Var,
+                            moduleEnv.Define(symbol, initialValue,
+                                isLexical: variableDeclaration.Kind != VariableKind.Var,
                                 blocksFunctionScopeOverride: false);
                         }
 
@@ -1329,7 +1330,7 @@ public sealed class JsEngine : IAsyncDisposable
                     break;
                 default:
                     lastValue = ExecuteTypedStatement(statement, moduleEnv, typedProgram.IsStrict,
-                        createStrictEnvironment: false);
+                        false);
                     break;
             }
         }
@@ -1389,7 +1390,7 @@ public sealed class JsEngine : IAsyncDisposable
     private object? EvaluateExportDefaultDeclaration(ExportDefaultDeclaration declaration, JsEnvironment moduleEnv,
         bool isStrict)
     {
-        ExecuteTypedStatement(declaration.Declaration, moduleEnv, isStrict, createStrictEnvironment: false);
+        ExecuteTypedStatement(declaration.Declaration, moduleEnv, isStrict, false);
         return declaration.Declaration switch
         {
             FunctionDeclaration functionDeclaration => moduleEnv.Get(functionDeclaration.Name),
@@ -1428,7 +1429,7 @@ public sealed class JsEngine : IAsyncDisposable
     private void EvaluateExportDeclaration(ExportDeclarationStatement statement, JsEnvironment moduleEnv,
         JsObject exports, bool isStrict)
     {
-        ExecuteTypedStatement(statement.Declaration, moduleEnv, isStrict, createStrictEnvironment: false);
+        ExecuteTypedStatement(statement.Declaration, moduleEnv, isStrict, false);
         foreach (var symbol in GetDeclaredSymbols(statement.Declaration))
         {
             var value = moduleEnv.Get(symbol);
@@ -1498,7 +1499,7 @@ public sealed class JsEngine : IAsyncDisposable
         bool createStrictEnvironment = true)
     {
         var program = new ProgramNode(statement.Source, [statement], isStrict);
-        return TypedAstEvaluator.EvaluateProgram(program, environment, RealmState,
+        return program.EvaluateProgram(environment, RealmState,
             executionKind: ExecutionKind.Script, createStrictEnvironment: createStrictEnvironment);
     }
 }

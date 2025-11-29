@@ -51,15 +51,15 @@ public static partial class StandardLibrary
         }
 
         object? SymbolKeyFor(IReadOnlyList<object?> args)
-    {
-        if (args.Count == 0 || args[0] is not TypedAstSymbol sym)
         {
-            return Symbol.Undefined;
-        }
+            if (args.Count == 0 || args[0] is not TypedAstSymbol sym)
+            {
+                return Symbol.Undefined;
+            }
 
-        var key = TypedAstSymbol.KeyFor(sym);
-        return key ?? (object)Symbol.Undefined;
-    }
+            var key = TypedAstSymbol.KeyFor(sym);
+            return key ?? (object)Symbol.Undefined;
+        }
     }
 
     public static JsObject CreateSymbolWrapper(TypedAstSymbol symbol, EvaluationContext? context = null,
@@ -78,10 +78,11 @@ public static partial class StandardLibrary
             IsConstructor = false
         };
 
-        var toString = new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm).ToString())
-        {
-            IsConstructor = false
-        };
+        var toString =
+            new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm).ToString())
+            {
+                IsConstructor = false
+            };
 
         wrapper.SetHostedProperty("valueOf", valueOf);
         wrapper.SetHostedProperty("toString", toString);

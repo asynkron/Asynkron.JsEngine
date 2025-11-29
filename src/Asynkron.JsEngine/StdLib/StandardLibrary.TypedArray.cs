@@ -40,10 +40,7 @@ public static partial class StandardLibrary
         if (realm.TypedArrayConstructor is null)
         {
             var ctor = new HostFunction((_, _) => throw ThrowTypeError("TypedArray is not a constructor", realm: realm),
-                realm)
-            {
-                IsConstructor = true
-            };
+                realm) { IsConstructor = true };
             ctor.DefineProperty("prototype",
                 new PropertyDescriptor
                 {
@@ -203,26 +200,26 @@ public static partial class StandardLibrary
             });
         prototype.SetHostedProperty("reduce",
             (thisValue, reduceArgs, realmState) =>
-                StandardLibrary.ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduce", false),
+                ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduce", false),
             realm);
         prototype.SetHostedProperty("reduceRight",
             (thisValue, reduceArgs, realmState) =>
-                StandardLibrary.ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight",
+                ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight",
                     true),
             realm);
-            if (sharedPrototype is not null)
-            {
-                prototype.SetPrototype(sharedPrototype);
-            }
+        if (sharedPrototype is not null)
+        {
+            prototype.SetPrototype(sharedPrototype);
+        }
 
-            // Ensure per-constructor prototypes do not own shared methods that should
-            // live on %TypedArray%.prototype.
-            prototype.DeleteOwnProperty("indexOf");
-            prototype.DeleteOwnProperty("lastIndexOf");
-            prototype.DeleteOwnProperty("includes");
+        // Ensure per-constructor prototypes do not own shared methods that should
+        // live on %TypedArray%.prototype.
+        prototype.DeleteOwnProperty("indexOf");
+        prototype.DeleteOwnProperty("lastIndexOf");
+        prototype.DeleteOwnProperty("includes");
 
-            constructor.SetProperty("prototype", prototype);
-            constructor.Properties.SetPrototype(sharedTypedArrayCtor.PropertiesObject);
+        constructor.SetProperty("prototype", prototype);
+        constructor.Properties.SetPrototype(sharedTypedArrayCtor.PropertiesObject);
 
         return constructor;
 
@@ -259,7 +256,9 @@ public static partial class StandardLibrary
                 var byteOffset = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
 
                 var lengthProvided = args.Count > 2 && args[2] is double;
-                var length = lengthProvided ? (int)(double)args[2]! : (buffer.ByteLength - byteOffset) / bytesPerElement;
+                var length = lengthProvided
+                    ? (int)(double)args[2]!
+                    : (buffer.ByteLength - byteOffset) / bytesPerElement;
                 var isLengthTracking = buffer.Resizable && !lengthProvided;
 
                 var ta = fromBuffer(buffer, byteOffset, length, isLengthTracking, realm);

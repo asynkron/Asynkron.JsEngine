@@ -18,7 +18,9 @@ public static partial class TypedAstEvaluator
                               !block.IsStrict;
             var mode = scope.IsStrict
                 ? ScopeMode.Strict
-                : (allowAnnexB ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy);
+                : allowAnnexB
+                    ? ScopeMode.SloppyAnnexB
+                    : ScopeMode.Sloppy;
             using var scopeHandle = context.PushScope(
                 ScopeKind.Block,
                 mode,
@@ -88,13 +90,15 @@ public static partial class TypedAstEvaluator
                 var hasLexicalBeforeFunctionScope =
                     blockEnvironment.HasBindingBeforeFunctionScope(functionDeclaration.Name);
                 var hasBlockingLexicalBeforeFunctionScope = hasLexicalBeforeFunctionScope &&
-                                                            !simpleCatchParameterNames.Contains(functionDeclaration.Name) &&
+                                                            !simpleCatchParameterNames.Contains(
+                                                                functionDeclaration.Name) &&
                                                             !IsSimpleCatchParameterBinding(blockEnvironment,
                                                                 functionDeclaration.Name);
                 var bindingExists =
                     hasLexicalBeforeFunctionScope ||
                     functionScope.HasBodyLexicalName(functionDeclaration.Name) ||
-                    (functionScope.IsGlobalFunctionScope && functionScope.HasOwnLexicalBinding(functionDeclaration.Name));
+                    (functionScope.IsGlobalFunctionScope &&
+                     functionScope.HasOwnLexicalBinding(functionDeclaration.Name));
 
                 var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context);
 
@@ -134,8 +138,8 @@ public static partial class TypedAstEvaluator
                 functionScope.DefineFunctionScoped(
                     functionDeclaration.Name,
                     Symbol.Undefined,
-                    hasInitializer: false,
-                    isFunctionDeclaration: false,
+                    false,
+                    false,
                     context: context,
                     blocksFunctionScopeOverride: true,
                     globalVarConfigurable: forceConfigurableGlobal ? true : null);
@@ -188,7 +192,7 @@ public static partial class TypedAstEvaluator
                 block,
                 environment,
                 context,
-                hoistFunctionValues: false,
+                false,
                 effectiveLexicalNames,
                 effectiveCatchNames,
                 effectiveSimpleCatchNames,
@@ -207,7 +211,8 @@ public static partial class TypedAstEvaluator
         {
             foreach (var statement in block.Statements)
             {
-                HoistFromStatement(statement, environment, context, hoistFunctionValues, lexicalNames, catchParameterNames,
+                HoistFromStatement(statement, environment, context, hoistFunctionValues, lexicalNames,
+                    catchParameterNames,
                     simpleCatchParameterNames,
                     pass,
                     inBlockScope);
@@ -342,5 +347,4 @@ public static partial class TypedAstEvaluator
             return false;
         }
     }
-
 }

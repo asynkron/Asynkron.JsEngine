@@ -141,6 +141,5 @@ public static partial class TypedAstEvaluator
             return iterator.TryGetProperty(GeneratorBrandPropertyName, out var brand) &&
                    ReferenceEquals(brand, GeneratorBrandMarker);
         }
-
     }
 }

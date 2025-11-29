@@ -5,8 +5,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ObjectBinding binding)
+    extension(ObjectBinding binding)
     {
         private void BindObjectPattern(object? value, JsEnvironment environment,
             EvaluationContext context, BindingMode mode)
@@ -56,7 +55,8 @@ extension(ObjectBinding binding)
                     nameTarget.EnsureHasName(identifierTarget.Name.Name);
                 }
 
-                ApplyBindingTarget(property.Target, propertyValue, environment, context, mode, allowNameInference: false);
+                ApplyBindingTarget(property.Target, propertyValue, environment, context, mode,
+                    allowNameInference: false);
             }
 
             if (binding.RestElement is null)
@@ -69,6 +69,7 @@ extension(ObjectBinding binding)
             {
                 restObject.SetPrototype(context.RealmState.ObjectPrototype);
             }
+
             foreach (var key in GetEnumerableOwnPropertyKeysInOrder(obj))
             {
                 if (!usedKeys.Contains(key))
@@ -83,5 +84,4 @@ extension(ObjectBinding binding)
             ApplyBindingTarget(binding.RestElement, restObject, environment, context, mode, allowNameInference: false);
         }
     }
-
 }

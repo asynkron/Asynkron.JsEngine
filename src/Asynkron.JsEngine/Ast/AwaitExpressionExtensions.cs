@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(AwaitExpression expression)
+    extension(AwaitExpression expression)
     {
         private object? EvaluateAwait(JsEnvironment environment,
             EvaluationContext context)
@@ -47,7 +46,7 @@ extension(AwaitExpression expression)
         }
     }
 
-extension(AwaitExpression expression)
+    extension(AwaitExpression expression)
     {
         private Symbol? GetAwaitStateKey()
         {
@@ -60,5 +59,4 @@ extension(AwaitExpression expression)
             return Symbol.Intern(key);
         }
     }
-
 }

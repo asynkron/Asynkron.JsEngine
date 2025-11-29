@@ -470,9 +470,7 @@ public sealed class TypedCpsTransformer
         var transformedBody = RewriteAsyncBody(function.Body);
         return function with
         {
-            Body = transformedBody,
-            IsAsync = false,
-            WasAsync = function.WasAsync || function.IsAsync
+            Body = transformedBody, IsAsync = false, WasAsync = function.WasAsync || function.IsAsync
         };
     }
 

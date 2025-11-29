@@ -39,9 +39,9 @@ public static partial class StandardLibrary
         }
 
         DefineBuiltinFunction(prototype, "toString", new HostFunction(BooleanPrototypeToString), 0,
-            isConstructor: false);
+            false);
         DefineBuiltinFunction(prototype, "valueOf", new HostFunction(BooleanPrototypeValueOf), 0,
-            isConstructor: false);
+            false);
 
         booleanConstructor.SetProperty("prototype", prototype);
 
@@ -64,7 +64,7 @@ public static partial class StandardLibrary
                 bool b => b,
                 JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is bool b => b,
                 IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner)
-                    && inner is bool b => b,
+                                                  && inner is bool b => b,
                 _ => throw ThrowTypeError("Boolean.prototype valueOf called on non-boolean object", realm: realm)
             };
         }

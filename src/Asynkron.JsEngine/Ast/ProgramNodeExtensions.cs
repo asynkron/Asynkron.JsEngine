@@ -18,10 +18,10 @@ public static partial class TypedAstEvaluator
             var context = realmState.CreateContext(
                 ScopeKind.Program,
                 program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
-                skipAnnexBInstantiation: false,
-                cancellationToken: cancellationToken,
-                executionKind: executionKind,
-                pushScope: false);
+                false,
+                cancellationToken,
+                executionKind,
+                false);
             context.SourceReference = program.Source;
             context.IsStrictSource = program.IsStrict;
             var executionEnvironment = program.IsStrict && createStrictEnvironment
@@ -34,7 +34,9 @@ public static partial class TypedAstEvaluator
 
             var programMode = executionEnvironment.IsStrict
                 ? ScopeMode.Strict
-                : (context.Options.EnableAnnexBFunctionExtensions ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy);
+                : context.Options.EnableAnnexBFunctionExtensions
+                    ? ScopeMode.SloppyAnnexB
+                    : ScopeMode.Sloppy;
             using var programScope = context.PushScope(ScopeKind.Program, programMode);
 
             var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);

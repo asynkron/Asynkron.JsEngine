@@ -15,6 +15,12 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     // Use ConditionalWeakTable to track object membership
     // We use a dummy value since we only care about key presence
     private readonly ConditionalWeakTable<object, object?> _values = new();
+    public bool IsExtensible => _properties.IsExtensible;
+
+    public void PreventExtensions()
+    {
+        _properties.PreventExtensions();
+    }
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {
@@ -39,7 +45,6 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     public JsObject? Prototype => _properties.Prototype;
 
     public bool IsSealed => _properties.IsSealed;
-    public bool IsExtensible => _properties.IsExtensible;
 
     public IEnumerable<string> Keys => _properties.Keys;
 
@@ -48,19 +53,9 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         _properties.DefineProperty(name, descriptor);
     }
 
-    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        return _properties.TryDefineProperty(name, descriptor);
-    }
-
     public void SetPrototype(object? candidate)
     {
         _properties.SetPrototype(candidate);
-    }
-
-    public void PreventExtensions()
-    {
-        _properties.PreventExtensions();
     }
 
     public void Seal()
@@ -71,6 +66,11 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     public bool Delete(string name)
     {
         return _properties.DeleteOwnProperty(name);
+    }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return _properties.TryDefineProperty(name, descriptor);
     }
 
     /// <summary>

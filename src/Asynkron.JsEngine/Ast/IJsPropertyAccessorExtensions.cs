@@ -5,8 +5,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(IJsPropertyAccessor target)
+    extension(IJsPropertyAccessor target)
     {
         private bool TryInvokeSymbolMethod(object? thisArg, string symbolName,
             out object? result)
@@ -39,7 +38,7 @@ extension(IJsPropertyAccessor target)
         }
     }
 
-extension(IJsPropertyAccessor accessor)
+    extension(IJsPropertyAccessor accessor)
     {
         private IEnumerable<string> GetEnumerableOwnPropertyKeysInOrder()
         {
@@ -60,7 +59,7 @@ extension(IJsPropertyAccessor accessor)
         }
     }
 
-extension(IJsPropertyAccessor constructor)
+    extension(IJsPropertyAccessor constructor)
     {
         private JsObject EnsurePrototype(RealmState realm)
         {
@@ -84,5 +83,4 @@ extension(IJsPropertyAccessor constructor)
             return created;
         }
     }
-
 }

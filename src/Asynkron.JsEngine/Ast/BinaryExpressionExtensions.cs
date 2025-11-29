@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(BinaryExpression expression)
+    extension(BinaryExpression expression)
     {
         private object? EvaluateBinary(JsEnvironment environment,
             EvaluationContext context)
@@ -66,5 +65,4 @@ extension(BinaryExpression expression)
             };
         }
     }
-
 }

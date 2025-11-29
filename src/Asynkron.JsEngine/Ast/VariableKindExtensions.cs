@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(VariableKind kind)
+    extension(VariableKind kind)
     {
         private void EvaluateVariableDeclarator(VariableDeclarator declarator,
             JsEnvironment environment, EvaluationContext context)
@@ -25,8 +24,8 @@ extension(VariableKind kind)
                 _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
             };
 
-            ApplyBindingTarget(declarator.Target, value, environment, context, mode, declarator.Initializer is not null);
+            ApplyBindingTarget(declarator.Target, value, environment, context, mode,
+                declarator.Initializer is not null);
         }
     }
-
 }

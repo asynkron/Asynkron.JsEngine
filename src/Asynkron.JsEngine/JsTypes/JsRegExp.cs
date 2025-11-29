@@ -13,8 +13,19 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public class JsRegExp
 {
-    private readonly RegexOptions _regexOptions;
+    private const string AnyCodePointPattern =
+        @"(?<![\uD800-\uDBFF])(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u0000-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
+
+    private const string UnicodeDotPattern =
+        @"(?<![\uD800-\uDBFF])(?:[^\n\r\u2028\u2029]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
+
+    private const string UnicodeNonWhitespacePattern =
+        @"(?<![\uD800-\uDBFF])(?:[^\s]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
+
     private readonly string _normalizedPattern;
+    private readonly RegexOptions _regexOptions;
+
+    private Regex? _compiledRegex;
 
     public JsRegExp(string pattern, string flags = "", RealmState? realmState = null, JsObject? existingObject = null)
     {
@@ -44,10 +55,7 @@ public class JsRegExp
         if (existingObject is null)
         {
             JsObject.DefineProperty("lastIndex",
-                new PropertyDescriptor
-                {
-                    Value = 0d, Writable = true, Enumerable = false, Configurable = false
-                });
+                new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
         }
 
         try
@@ -222,8 +230,6 @@ public class JsRegExp
     {
         return _compiledRegex ??= new Regex(_normalizedPattern, _regexOptions);
     }
-
-    private Regex? _compiledRegex;
 
     private static void ValidateFlags(string flags)
     {
@@ -505,6 +511,7 @@ public class JsRegExp
                 {
                     throw new ParseException("Invalid regular expression: invalid group name.");
                 }
+
                 definedSoFar.Add(normalizedName);
                 builder.Append(pattern, i, end - i + 1);
                 i = end;
@@ -650,7 +657,7 @@ public class JsRegExp
 
                             if (octalDigits < 3 && d <= 7)
                             {
-                                octalValue = (octalValue * 8) + d;
+                                octalValue = octalValue * 8 + d;
                                 octalDigits++;
                             }
 
@@ -702,6 +709,7 @@ public class JsRegExp
                         {
                             AppendCodePoint(builder, ch, false, ignoreCase, true);
                         }
+
                         i = end - 1;
                         continue;
 
@@ -1020,6 +1028,7 @@ public class JsRegExp
 
         return builder.ToString();
     }
+
     private static bool ContainsSurrogateCodeUnit(string value)
     {
         foreach (var ch in value)
@@ -1161,7 +1170,8 @@ public class JsRegExp
 
     private static bool IsSyntaxCharacter(char c)
     {
-        return c is '^' or '$' or '\\' or '.' or '*' or '+' or '?' or '(' or ')' or '[' or ']' or '{' or '}' or '|' or '/';
+        return c is '^' or '$' or '\\' or '.' or '*' or '+' or '?' or '(' or ')' or '[' or ']' or '{' or '}' or '|'
+            or '/';
     }
 
     private static bool IsLegacyEscape(char c)
@@ -1590,13 +1600,4 @@ public class JsRegExp
 
         return builder.ToString();
     }
-
-    private const string AnyCodePointPattern =
-        @"(?<![\uD800-\uDBFF])(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u0000-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
-
-    private const string UnicodeDotPattern =
-        @"(?<![\uD800-\uDBFF])(?:[^\n\r\u2028\u2029]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
-
-    private const string UnicodeNonWhitespacePattern =
-        @"(?<![\uD800-\uDBFF])(?:[^\s]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
 }

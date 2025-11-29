@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ImmutableArray<FunctionParameter> parameters)
+    extension(ImmutableArray<FunctionParameter> parameters)
     {
         private int GetExpectedParameterCount()
         {
@@ -23,5 +22,4 @@ extension(ImmutableArray<FunctionParameter> parameters)
             return count;
         }
     }
-
 }

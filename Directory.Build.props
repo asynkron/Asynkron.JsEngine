@@ -1,5 +1,5 @@
 <Project>
   <ItemGroup>
-    <PackageReference Include="Roslynator.Analyzers" Version="4.14.1" PrivateAssets="all" />
+    <PackageReference Include="Roslynator.Analyzers" Version="4.14.1" PrivateAssets="all"/>
   </ItemGroup>
 </Project>

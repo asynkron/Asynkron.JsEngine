@@ -50,11 +50,12 @@ public static partial class TypedAstEvaluator
         }
     }
 
-extension(JsEnvironment environment)
+    extension(JsEnvironment environment)
     {
         private YieldTracker GetYieldTracker()
         {
-            if (!environment.TryGet(Symbol.YieldTrackerSymbol, out var tracker) || tracker is not YieldTracker yieldTracker)
+            if (!environment.TryGet(Symbol.YieldTrackerSymbol, out var tracker) ||
+                tracker is not YieldTracker yieldTracker)
             {
                 throw new InvalidOperationException("'yield' can only be used inside a generator function.");
             }
@@ -63,7 +64,7 @@ extension(JsEnvironment environment)
         }
     }
 
-extension(JsEnvironment environment)
+    extension(JsEnvironment environment)
     {
         private ResumePayload GetResumePayload(int yieldIndex)
         {
@@ -77,7 +78,7 @@ extension(JsEnvironment environment)
         }
     }
 
-extension(JsEnvironment environment)
+    extension(JsEnvironment environment)
     {
         private bool IsGeneratorContext()
         {
@@ -86,7 +87,7 @@ extension(JsEnvironment environment)
         }
     }
 
-extension(JsEnvironment environment)
+    extension(JsEnvironment environment)
     {
         private GeneratorPendingCompletion GetGeneratorPendingCompletion()
         {
@@ -102,7 +103,7 @@ extension(JsEnvironment environment)
         }
     }
 
-extension(JsEnvironment environment)
+    extension(JsEnvironment environment)
     {
         private void EnsureFunctionScopedVarBinding(Symbol name,
             EvaluationContext context)
@@ -112,11 +113,11 @@ extension(JsEnvironment environment)
                 return;
             }
 
-            environment.DefineFunctionScoped(name, Symbol.Undefined, hasInitializer: false, context: context);
+            environment.DefineFunctionScoped(name, Symbol.Undefined, false, context: context);
         }
     }
 
-extension(JsEnvironment environment)
+    extension(JsEnvironment environment)
     {
         private SuperBinding ExpectSuperBinding(EvaluationContext context)
         {
@@ -148,7 +149,7 @@ extension(JsEnvironment environment)
         }
     }
 
-extension(JsEnvironment environment)
+    extension(JsEnvironment environment)
     {
         private Exception CreateSuperReferenceError(EvaluationContext context,
             Exception? inner)
@@ -162,11 +163,10 @@ extension(JsEnvironment environment)
 
             var error = ctor.Invoke([message], Symbol.Undefined);
             return new ThrowSignal(error);
-
         }
     }
 
-extension(JsEnvironment environment)
+    extension(JsEnvironment environment)
     {
         private void SetThisInitializationStatus(bool initialized)
         {
@@ -180,12 +180,12 @@ extension(JsEnvironment environment)
                     environment.Assign(Symbol.Super,
                         new SuperBinding(binding.Constructor, binding.Prototype, binding.ThisValue, true));
                 }
+
                 return;
             }
 
-            environment.Define(Symbol.ThisInitialized, initialized, isConst: false, isLexical: true,
+            environment.Define(Symbol.ThisInitialized, initialized, false, isLexical: true,
                 blocksFunctionScopeOverride: true);
         }
     }
-
 }

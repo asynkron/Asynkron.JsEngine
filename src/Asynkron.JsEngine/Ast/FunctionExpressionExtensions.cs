@@ -59,7 +59,7 @@ public static partial class TypedAstEvaluator
         }
     }
 
-extension(FunctionExpression functionExpression)
+    extension(FunctionExpression functionExpression)
     {
         private IJsCallable CreateFunctionValue(JsEnvironment environment,
             EvaluationContext context)
@@ -74,7 +74,7 @@ extension(FunctionExpression functionExpression)
         }
     }
 
-extension(FunctionExpression function)
+    extension(FunctionExpression function)
     {
         private void CollectParameterNamesFromFunction(List<Symbol> names)
         {
@@ -93,7 +93,7 @@ extension(FunctionExpression function)
         }
     }
 
-extension(FunctionExpression function)
+    extension(FunctionExpression function)
     {
         private void BindFunctionParameters(IReadOnlyList<object?> arguments,
             JsEnvironment environment, EvaluationContext context)
@@ -106,7 +106,8 @@ extension(FunctionExpression function)
 
             foreach (var name in parameterNames)
             {
-                environment.Define(name, JsEnvironment.Uninitialized, isLexical: false, blocksFunctionScopeOverride: true);
+                environment.Define(name, JsEnvironment.Uninitialized, isLexical: false,
+                    blocksFunctionScopeOverride: true);
             }
 
             var argumentIndex = 0;
@@ -148,7 +149,8 @@ extension(FunctionExpression function)
 
                 if (ReferenceEquals(value, Symbol.Undefined) && parameter.DefaultValue is not null)
                 {
-                    if (parameter.Name is not null && DefaultReferencesParameter(parameter.DefaultValue, parameter.Name))
+                    if (parameter.Name is not null &&
+                        DefaultReferencesParameter(parameter.DefaultValue, parameter.Name))
                     {
                         var error = StandardLibrary.ThrowReferenceError(
                             $"{parameter.Name.Name} is not initialized", context, context.RealmState);
@@ -176,7 +178,8 @@ extension(FunctionExpression function)
 
                 if (parameter.Name is null)
                 {
-                    throw new InvalidOperationException("Parameter must have an identifier when no pattern is provided.");
+                    throw new InvalidOperationException(
+                        "Parameter must have an identifier when no pattern is provided.");
                 }
 
                 environment.Define(parameter.Name, value, isLexical: false);
@@ -184,7 +187,7 @@ extension(FunctionExpression function)
 
             return;
 
-            static bool DefaultReferencesParameter( ExpressionNode expression, Symbol parameterName)
+            static bool DefaultReferencesParameter(ExpressionNode expression, Symbol parameterName)
             {
                 switch (expression)
                 {
@@ -201,7 +204,8 @@ extension(FunctionExpression function)
                                DefaultReferencesParameter(cond.Consequent, parameterName) ||
                                DefaultReferencesParameter(cond.Alternate, parameterName);
                     case CallExpression call:
-                        return DefaultReferencesParameter(call.Callee, parameterName) || call.Arguments.Any(arg => DefaultReferencesParameter(arg.Expression, parameterName));
+                        return DefaultReferencesParameter(call.Callee, parameterName) ||
+                               call.Arguments.Any(arg => DefaultReferencesParameter(arg.Expression, parameterName));
 
                     case MemberExpression member:
                         return DefaultReferencesParameter(member.Target, parameterName) ||
@@ -268,7 +272,7 @@ extension(FunctionExpression function)
                 }
             }
 
-            static void CollectParameterNames( FunctionParameter parameter, List<Symbol> names)
+            static void CollectParameterNames(FunctionParameter parameter, List<Symbol> names)
             {
                 if (parameter.Name is not null)
                 {
@@ -281,7 +285,7 @@ extension(FunctionExpression function)
                 }
             }
 
-            static void CollectBindingNames( BindingTarget target, List<Symbol> names)
+            static void CollectBindingNames(BindingTarget target, List<Symbol> names)
             {
                 while (true)
                 {
@@ -332,7 +336,7 @@ extension(FunctionExpression function)
         }
     }
 
-extension(FunctionExpression function)
+    extension(FunctionExpression function)
     {
         private bool HasParameterExpressions()
         {
@@ -352,5 +356,4 @@ extension(FunctionExpression function)
             return false;
         }
     }
-
 }

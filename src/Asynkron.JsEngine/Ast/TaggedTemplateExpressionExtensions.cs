@@ -5,8 +5,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(TaggedTemplateExpression expression)
+    extension(TaggedTemplateExpression expression)
     {
         private object? EvaluateTaggedTemplate(JsEnvironment environment,
             EvaluationContext context)
@@ -92,5 +91,4 @@ extension(TaggedTemplateExpression expression)
             }
         }
     }
-
 }

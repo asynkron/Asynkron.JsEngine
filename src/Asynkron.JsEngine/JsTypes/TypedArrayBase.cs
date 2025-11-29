@@ -15,8 +15,8 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     protected readonly JsArrayBuffer _buffer;
     protected readonly int _byteOffset;
     protected readonly int _bytesPerElement;
-    private readonly HostFunction _indexOfFunction;
     private readonly HostFunction _includesFunction;
+    private readonly HostFunction _indexOfFunction;
     protected readonly int _initialLength;
     protected readonly bool _isLengthTracking;
 
@@ -156,33 +156,23 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     /// </summary>
     public int BytesPerElement => _bytesPerElement;
 
-    public JsObject? Prototype => _properties.Prototype;
-
-    public bool IsSealed => _properties.IsSealed;
-    public bool IsExtensible => _properties.IsExtensible;
-
-    public IEnumerable<string> Keys => _properties.Keys;
-
     /// <summary>
     ///     True when this typed array stores BigInt elements.
     /// </summary>
     public virtual bool IsBigIntArray => false;
 
-    protected int GetCurrentLength()
+    public bool IsExtensible => _properties.IsExtensible;
+
+    public void PreventExtensions()
     {
-        if (_buffer.IsDetached)
-        {
-            return 0;
-        }
-
-        if (_isLengthTracking)
-        {
-            var availableBytes = Math.Max(_buffer.ByteLength - _byteOffset, 0);
-            return availableBytes / _bytesPerElement;
-        }
-
-        return _initialLength;
+        _properties.PreventExtensions();
     }
+
+    public JsObject? Prototype => _properties.Prototype;
+
+    public bool IsSealed => _properties.IsSealed;
+
+    public IEnumerable<string> Keys => _properties.Keys;
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {
@@ -299,6 +289,50 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         }
 
         _properties.SetProperty(name, value, receiver ?? this);
+    }
+
+    /// <summary>
+    ///     Allows consumers (e.g. Object.setPrototypeOf) to attach a prototype object.
+    /// </summary>
+    public void SetPrototype(object? candidate)
+    {
+        _properties.SetPrototype(candidate);
+    }
+
+    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        _properties.DefineProperty(name, descriptor);
+    }
+
+    public void Seal()
+    {
+        _properties.Seal();
+    }
+
+    public bool Delete(string name)
+    {
+        return _properties.DeleteOwnProperty(name);
+    }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return _properties.TryDefineProperty(name, descriptor);
+    }
+
+    protected int GetCurrentLength()
+    {
+        if (_buffer.IsDetached)
+        {
+            return 0;
+        }
+
+        if (_isLengthTracking)
+        {
+            var availableBytes = Math.Max(_buffer.ByteLength - _byteOffset, 0);
+            return availableBytes / _bytesPerElement;
+        }
+
+        return _initialLength;
     }
 
     private static double ToIntegerOrInfinity(object? value, EvaluationContext? context)
@@ -561,39 +595,6 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     }
 
     /// <summary>
-    ///     Allows consumers (e.g. Object.setPrototypeOf) to attach a prototype object.
-    /// </summary>
-    public void SetPrototype(object? candidate)
-    {
-        _properties.SetPrototype(candidate);
-    }
-
-    public void PreventExtensions()
-    {
-        _properties.PreventExtensions();
-    }
-
-    public void DefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        _properties.DefineProperty(name, descriptor);
-    }
-
-    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        return _properties.TryDefineProperty(name, descriptor);
-    }
-
-    public void Seal()
-    {
-        _properties.Seal();
-    }
-
-    public bool Delete(string name)
-    {
-        return _properties.DeleteOwnProperty(name);
-    }
-
-    /// <summary>
     ///     Sets an element using the appropriate coercion for numeric typed arrays.
     ///     BigInt arrays override to enforce BigInt conversion.
     /// </summary>
@@ -773,7 +774,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     private static bool SameValueZero(object? left, object? right)
     {
-        if (left is double and Double.NaN && right is double and Double.NaN)
+        if (left is double and double.NaN && right is double and double.NaN)
         {
             return true;
         }

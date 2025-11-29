@@ -60,8 +60,9 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         ["export"] = TokenType.Export
     };
 
-    private readonly string _source = source ?? string.Empty;
     private readonly bool _allowHtmlComments = allowHtmlComments;
+
+    private readonly string _source = source ?? string.Empty;
     private readonly List<Token> _tokens = [];
     private int _column = 1;
     private int _current;
@@ -455,7 +456,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         var builder = new StringBuilder();
         if (firstChar == '\\')
         {
-            builder.Append(ReadIdentifierEscape(backslashConsumed: true));
+            builder.Append(ReadIdentifierEscape(true));
         }
         else
         {
@@ -646,6 +647,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         return;
                     }
                 }
+
                 var octalBigInt = BigInteger.Zero;
                 foreach (var c in octalDigits)
                 {
@@ -684,6 +686,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         return;
                     }
                 }
+
                 var binaryBigInt = BigInteger.Zero;
                 foreach (var c in binaryDigits)
                 {

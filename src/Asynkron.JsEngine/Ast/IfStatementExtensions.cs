@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(IfStatement statement)
+    extension(IfStatement statement)
     {
         private object? EvaluateIf(JsEnvironment environment, EvaluationContext context)
         {
@@ -28,5 +27,4 @@ extension(IfStatement statement)
             return EvaluateStatement(branch, branchScope, context);
         }
     }
-
 }

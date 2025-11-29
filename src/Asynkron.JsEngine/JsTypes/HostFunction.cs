@@ -81,6 +81,12 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     internal JsObject Properties { get; } = new();
 
     internal JsObject PropertiesObject => Properties;
+    public bool IsExtensible => Properties.IsExtensible;
+
+    public void PreventExtensions()
+    {
+        Properties.PreventExtensions();
+    }
 
     public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
     {
@@ -176,11 +182,6 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         Properties.DefineProperty(name, descriptor);
     }
 
-    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        return Properties.TryDefineProperty(name, descriptor);
-    }
-
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
         return Properties.GetOwnPropertyDescriptor(name);
@@ -201,7 +202,6 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     }
 
     public bool IsSealed => Properties.IsSealed;
-    public bool IsExtensible => Properties.IsExtensible;
 
     public IEnumerable<string> Keys => Properties.Keys;
 
@@ -210,24 +210,24 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         Properties.SetPrototype(candidate);
     }
 
-    public void PreventExtensions()
-    {
-        Properties.PreventExtensions();
-    }
-
     public void Seal()
     {
         Properties.Seal();
     }
 
-    public bool DeleteProperty(string name)
-    {
-        return Properties.DeleteOwnProperty(name);
-    }
-
     public bool Delete(string name)
     {
         return DeleteProperty(name);
+    }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return Properties.TryDefineProperty(name, descriptor);
+    }
+
+    public bool DeleteProperty(string name)
+    {
+        return Properties.DeleteOwnProperty(name);
     }
 
     private void EnsureFunctionPrototype()

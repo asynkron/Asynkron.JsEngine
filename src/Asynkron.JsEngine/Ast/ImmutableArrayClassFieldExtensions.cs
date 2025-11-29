@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             PrivateNameScope? privateNameScope)
         {
-            using var staticFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, skipAnnexBInstantiation: true);
+            using var staticFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, true);
             Func<IDisposable?>? privateScopeFactory = privateNameScope is not null
                 ? () => context.EnterPrivateNameScope(privateNameScope)
                 : null;
@@ -25,7 +25,6 @@ public static partial class TypedAstEvaluator
                     privateNameScope,
                     privateScopeFactory))
             {
-                return;
             }
         }
     }

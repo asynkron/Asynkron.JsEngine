@@ -21,10 +21,7 @@ public static partial class StandardLibrary
 
         var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
         math.DefineProperty(toStringTagKey,
-            new PropertyDescriptor
-            {
-                Value = "Math", Writable = false, Enumerable = false, Configurable = true
-            });
+            new PropertyDescriptor { Value = "Math", Writable = false, Enumerable = false, Configurable = true });
 
         // Constants
         math["E"] = Math.E;

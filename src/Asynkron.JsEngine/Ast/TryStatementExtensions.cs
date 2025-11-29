@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(TryStatement statement)
+    extension(TryStatement statement)
     {
         private object? EvaluateTry(JsEnvironment environment, EvaluationContext context)
         {
@@ -21,6 +20,7 @@ extension(TryStatement statement)
                     catchEnv.SetSimpleCatchParameters(
                         new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { identifierBinding.Name });
                 }
+
                 DefineBindingTarget(statement.Catch.Binding, thrownValue, catchEnv, context, false);
                 result = EvaluateBlock(statement.Catch.Body, catchEnv, context);
             }
@@ -85,5 +85,4 @@ extension(TryStatement statement)
             return result;
         }
     }
-
 }

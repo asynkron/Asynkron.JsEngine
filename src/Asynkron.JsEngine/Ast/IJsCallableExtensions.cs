@@ -5,8 +5,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(IJsCallable targetFunction)
+    extension(IJsCallable targetFunction)
     {
         private object? InvokeWithApply(ImmutableArray<CallArgument> callArguments,
             JsEnvironment environment,
@@ -45,14 +44,14 @@ extension(IJsCallable targetFunction)
             var frozenArguments = FreezeArguments(argsBuilder);
             if (targetFunction is TypedFunction typedFunction)
             {
-                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context, newTarget: null);
+                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context, null);
             }
 
             return targetFunction.Invoke(frozenArguments, thisArg);
         }
     }
 
-extension(IJsCallable targetFunction)
+    extension(IJsCallable targetFunction)
     {
         private object? InvokeWithCall(ImmutableArray<CallArgument> callArguments,
             JsEnvironment environment,
@@ -87,11 +86,10 @@ extension(IJsCallable targetFunction)
             var frozenArguments = FreezeArguments(argsBuilder);
             if (targetFunction is TypedFunction typedFunction)
             {
-                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context, newTarget: null);
+                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context, null);
             }
 
             return targetFunction.Invoke(frozenArguments, thisArg);
         }
     }
-
 }

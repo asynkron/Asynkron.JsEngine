@@ -5,13 +5,12 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ClassDefinition definition)
+    extension(ClassDefinition definition)
     {
         private object? CreateClassValue(JsEnvironment environment,
             EvaluationContext context)
         {
-            using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, skipAnnexBInstantiation: true);
+            using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, true);
             var (superConstructor, superPrototype) = ResolveSuperclass(definition.Extends, environment, context);
             if (context.ShouldStopEvaluation)
             {
@@ -80,7 +79,7 @@ extension(ClassDefinition definition)
         }
     }
 
-extension(ClassDefinition definition)
+    extension(ClassDefinition definition)
     {
         private PrivateNameScope? CreatePrivateNameScope()
         {
@@ -89,5 +88,4 @@ extension(ClassDefinition definition)
             return hasPrivateFields || hasPrivateMembers ? new PrivateNameScope() : null;
         }
     }
-
 }

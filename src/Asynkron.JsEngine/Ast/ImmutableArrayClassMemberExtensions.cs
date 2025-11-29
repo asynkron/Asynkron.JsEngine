@@ -5,8 +5,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ImmutableArray<ClassMember> members)
+    extension(ImmutableArray<ClassMember> members)
     {
         private void AssignClassMembers(IJsPropertyAccessor constructorAccessor,
             JsObject prototype, IJsEnvironmentAwareCallable? superConstructor, JsObject? superPrototype,
@@ -47,6 +46,7 @@ extension(ImmutableArray<ClassMember> members)
                     {
                         typedFunction.SetHomeObject(homeObject);
                     }
+
                     typedFunction.EnsureHasName(propertyName);
                 }
 
@@ -54,5 +54,4 @@ extension(ImmutableArray<ClassMember> members)
             }
         }
     }
-
 }

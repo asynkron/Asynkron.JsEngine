@@ -68,7 +68,8 @@ public sealed record ObjectBinding(
 ///     Represents an assignment-style binding target (e.g. a member expression)
 ///     used in destructuring assignment patterns.
 /// </summary>
-public sealed record AssignmentTargetBinding(SourceReference? Source, ExpressionNode Expression) : BindingTarget(Source);
+public sealed record AssignmentTargetBinding(SourceReference? Source, ExpressionNode Expression)
+    : BindingTarget(Source);
 
 /// <summary>
 ///     Represents a single property inside an object destructuring binding.

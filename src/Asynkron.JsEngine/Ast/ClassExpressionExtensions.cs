@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ClassExpression expression)
+    extension(ClassExpression expression)
     {
         private object? EvaluateClassExpression(JsEnvironment environment,
             EvaluationContext context)
@@ -11,5 +10,4 @@ extension(ClassExpression expression)
             return CreateClassValue(expression.Definition, environment, context);
         }
     }
-
 }

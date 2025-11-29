@@ -5,8 +5,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(NewExpression expression)
+    extension(NewExpression expression)
     {
         private object? EvaluateNew(JsEnvironment environment, EvaluationContext context)
         {
@@ -27,7 +26,8 @@ extension(NewExpression expression)
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([hostFunction.ConstructErrorMessage ?? "is not a constructor"], null)
-                    : new InvalidOperationException(hostFunction.ConstructErrorMessage ?? "Target is not a constructor.");
+                    : new InvalidOperationException(
+                        hostFunction.ConstructErrorMessage ?? "Target is not a constructor.");
                 throw new ThrowSignal(error);
             }
 
@@ -67,7 +67,7 @@ extension(NewExpression expression)
                 if (callable is TypedFunction typedFunction)
                 {
                     result = typedFunction.InvokeWithContext(args.MoveToImmutable(), instance, context,
-                        newTarget: constructor);
+                        constructor);
                 }
                 else
                 {
@@ -94,5 +94,4 @@ extension(NewExpression expression)
             };
         }
     }
-
 }

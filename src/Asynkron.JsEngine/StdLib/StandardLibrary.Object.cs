@@ -61,7 +61,8 @@ public static partial class StandardLibrary
 
         if (descriptor is { IsAccessorDescriptor: true, IsDataDescriptor: true })
         {
-            throw ThrowTypeError("Invalid property descriptor. Cannot both specify accessors and a value or writable attribute",
+            throw ThrowTypeError(
+                "Invalid property descriptor. Cannot both specify accessors and a value or writable attribute",
                 realm: realm);
         }
 
@@ -348,7 +349,7 @@ public static partial class StandardLibrary
             switch (thisValue)
             {
                 case JsObject obj:
-                return obj.GetOwnPropertyDescriptor(propertyName) is not null;
+                    return obj.GetOwnPropertyDescriptor(propertyName) is not null;
                 case JsArray array:
                     return array.GetOwnPropertyDescriptor(propertyName) is not null;
                 case IJsObjectLike accessor:
@@ -445,7 +446,7 @@ public static partial class StandardLibrary
                 }
 
                 var descriptor = ToPropertyDescriptor(descriptorValue, realm);
-                TryDefinePropertyOnTarget(target, key, descriptor, realm, throwOnFailure: true);
+                TryDefinePropertyOnTarget(target, key, descriptor, realm, true);
             }
 
             return target;
@@ -512,7 +513,7 @@ public static partial class StandardLibrary
                 return new JsArray();
             }
 
-            var symbols = new JsArray(realmState: realm);
+            var symbols = new JsArray(realm);
             if (obj is ModuleNamespace moduleNamespace)
             {
                 foreach (var key in moduleNamespace.OwnKeys())
@@ -546,7 +547,7 @@ public static partial class StandardLibrary
                 return new JsArray();
             }
 
-            var keys = new JsArray(realmState: realm);
+            var keys = new JsArray(realm);
             foreach (var key in obj.GetEnumerablePropertyNames())
             {
                 var desc = obj.GetOwnPropertyDescriptor(key);
@@ -578,7 +579,7 @@ public static partial class StandardLibrary
                 return new JsArray();
             }
 
-            var values = new JsArray(realmState: realm);
+            var values = new JsArray(realm);
             foreach (var key in obj.GetEnumerablePropertyNames())
             {
                 if (obj.TryGetProperty(key, out var value))
@@ -609,7 +610,7 @@ public static partial class StandardLibrary
                 return new JsArray();
             }
 
-            var entries = new JsArray(realmState: realm);
+            var entries = new JsArray(realm);
             foreach (var key in obj.GetEnumerablePropertyNames())
             {
                 if (!obj.TryGetProperty(key, out var value))
@@ -813,7 +814,7 @@ public static partial class StandardLibrary
                 }
 
                 var descriptor = ToPropertyDescriptor(descriptorValue, realm);
-                TryDefinePropertyOnTarget(obj, propName, descriptor, realm, throwOnFailure: true);
+                TryDefinePropertyOnTarget(obj, propName, descriptor, realm, true);
             }
 
             return obj;
@@ -937,7 +938,7 @@ public static partial class StandardLibrary
             var propName = JsOps.ToPropertyName(args[1]) ?? string.Empty;
             var descriptor = ToPropertyDescriptor(args[2], realm);
 
-            TryDefinePropertyOnTarget(obj, propName, descriptor, realm, throwOnFailure: true);
+            TryDefinePropertyOnTarget(obj, propName, descriptor, realm, true);
             return obj;
         }
     }

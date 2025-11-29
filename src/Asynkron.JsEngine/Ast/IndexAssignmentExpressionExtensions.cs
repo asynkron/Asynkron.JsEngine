@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(IndexAssignmentExpression expression)
+    extension(IndexAssignmentExpression expression)
     {
         private object? EvaluateIndexAssignment(JsEnvironment environment,
             EvaluationContext context)
@@ -36,5 +35,4 @@ extension(IndexAssignmentExpression expression)
             return value;
         }
     }
-
 }

@@ -18,6 +18,13 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public int Size => _entries.Count;
 
+    public bool IsExtensible => _properties.IsExtensible;
+
+    public void PreventExtensions()
+    {
+        _properties.PreventExtensions();
+    }
+
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {
         // Handle special 'size' property
@@ -48,7 +55,6 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public JsObject? Prototype => _properties.Prototype;
 
     public bool IsSealed => _properties.IsSealed;
-    public bool IsExtensible => _properties.IsExtensible;
 
     IEnumerable<string> IJsObjectLike.Keys => _properties.Keys;
 
@@ -57,19 +63,9 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         _properties.DefineProperty(name, descriptor);
     }
 
-    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        return _properties.TryDefineProperty(name, descriptor);
-    }
-
     public void SetPrototype(object? candidate)
     {
         _properties.SetPrototype(candidate);
-    }
-
-    public void PreventExtensions()
-    {
-        _properties.PreventExtensions();
     }
 
     public void Seal()
@@ -80,6 +76,11 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public bool Delete(string name)
     {
         return _properties.DeleteOwnProperty(name);
+    }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return _properties.TryDefineProperty(name, descriptor);
     }
 
     /// <summary>

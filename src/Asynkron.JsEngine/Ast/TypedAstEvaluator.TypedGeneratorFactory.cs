@@ -5,14 +5,15 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private sealed class TypedGeneratorFactory : IJsCallable, IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
+    private sealed class TypedGeneratorFactory : IJsCallable, IJsObjectLike, IPropertyDefinitionHost,
+        IExtensibilityControl,
         IFunctionNameTarget
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
-        private readonly RealmState _realmState;
-        private readonly JsObject _properties = new();
         private readonly Dictionary<string, object?> _privateSlots = new(StringComparer.Ordinal);
+        private readonly JsObject _properties = new();
+        private readonly RealmState _realmState;
 
         public TypedGeneratorFactory(FunctionExpression function, JsEnvironment closure, RealmState realmState)
         {
@@ -27,6 +28,58 @@ public static partial class TypedAstEvaluator
             InitializeProperties();
         }
 
+        public bool IsExtensible => _properties.IsExtensible;
+
+        public void PreventExtensions()
+        {
+            _properties.PreventExtensions();
+        }
+
+        public void EnsureHasName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return;
+            }
+
+            if (_function.Name is not null)
+            {
+                return;
+            }
+
+            var descriptor = _properties.GetOwnPropertyDescriptor("name");
+            if (descriptor is { Configurable: false })
+            {
+                return;
+            }
+
+            if (descriptor is not null)
+            {
+                if (descriptor.IsAccessorDescriptor || descriptor.Value is IJsCallable)
+                {
+                    return;
+                }
+
+                if (descriptor.Value is string { Length: > 0 })
+                {
+                    return;
+                }
+            }
+
+            _properties.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = name,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = true,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+        }
+
         public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
         {
             var instance = new TypedGeneratorInstance(_function, _closure, arguments, thisValue, this, _realmState);
@@ -34,72 +87,9 @@ public static partial class TypedAstEvaluator
             return instance.CreateGeneratorObject();
         }
 
-        public override string ToString()
-        {
-            return _function.Name is { } name
-                ? $"[GeneratorFunction: {name.Name}]"
-                : "[GeneratorFunction]";
-        }
-
-        private void InitializeProperties()
-        {
-            if (_realmState.FunctionPrototype is JsObject functionPrototype)
-            {
-                _properties.SetPrototype(functionPrototype);
-            }
-
-            if (_realmState.ObjectPrototype is not null)
-            {
-                var generatorPrototype = new JsObject();
-                generatorPrototype.SetPrototype(_realmState.ObjectPrototype);
-                generatorPrototype.DefineProperty("constructor",
-                    new PropertyDescriptor
-                    {
-                        Value = this,
-                        Writable = true,
-                        Enumerable = false,
-                        Configurable = true,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
-                    });
-                _properties.SetProperty("prototype", generatorPrototype);
-            }
-
-            var paramCount = GetExpectedParameterCount(_function.Parameters);
-            _properties.DefineProperty("length",
-                new PropertyDescriptor
-                {
-                    Value = (double)paramCount,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-
-            var functionNameValue = _function.Name?.Name ?? string.Empty;
-            _properties.DefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = functionNameValue,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-        }
-
         public JsObject? Prototype => _properties.Prototype;
 
         public bool IsSealed => _properties.IsSealed;
-        public bool IsExtensible => _properties.IsExtensible;
 
         public IEnumerable<string> Keys => _properties.Keys;
 
@@ -108,19 +98,9 @@ public static partial class TypedAstEvaluator
             _properties.DefineProperty(name, descriptor);
         }
 
-        public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-        {
-            return _properties.TryDefineProperty(name, descriptor);
-        }
-
         public void SetPrototype(object? candidate)
         {
             _properties.SetPrototype(candidate);
-        }
-
-        public void PreventExtensions()
-        {
-            _properties.PreventExtensions();
         }
 
         public void Seal()
@@ -236,6 +216,83 @@ public static partial class TypedAstEvaluator
             return descriptor;
         }
 
+        public IEnumerable<string> GetOwnPropertyNames()
+        {
+            return _properties.GetOwnPropertyNames();
+        }
+
+        public IEnumerable<string> GetEnumerablePropertyNames()
+        {
+            return _properties.GetEnumerablePropertyNames();
+        }
+
+        public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+        {
+            return _properties.TryDefineProperty(name, descriptor);
+        }
+
+        public override string ToString()
+        {
+            return _function.Name is { } name
+                ? $"[GeneratorFunction: {name.Name}]"
+                : "[GeneratorFunction]";
+        }
+
+        private void InitializeProperties()
+        {
+            if (_realmState.FunctionPrototype is JsObject functionPrototype)
+            {
+                _properties.SetPrototype(functionPrototype);
+            }
+
+            if (_realmState.ObjectPrototype is not null)
+            {
+                var generatorPrototype = new JsObject();
+                generatorPrototype.SetPrototype(_realmState.ObjectPrototype);
+                generatorPrototype.DefineProperty("constructor",
+                    new PropertyDescriptor
+                    {
+                        Value = this,
+                        Writable = true,
+                        Enumerable = false,
+                        Configurable = true,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = true,
+                        HasConfigurable = true
+                    });
+                _properties.SetProperty("prototype", generatorPrototype);
+            }
+
+            var paramCount = GetExpectedParameterCount(_function.Parameters);
+            _properties.DefineProperty("length",
+                new PropertyDescriptor
+                {
+                    Value = (double)paramCount,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = true,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+
+            var functionNameValue = _function.Name?.Name ?? string.Empty;
+            _properties.DefineProperty("name",
+                new PropertyDescriptor
+                {
+                    Value = functionNameValue,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = true,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+        }
+
         public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
         {
             var descriptor = _properties.GetOwnPropertyDescriptor(name);
@@ -247,61 +304,6 @@ public static partial class TypedAstEvaluator
             }
 
             return descriptor;
-        }
-
-        public IEnumerable<string> GetOwnPropertyNames()
-        {
-            return _properties.GetOwnPropertyNames();
-        }
-
-        public IEnumerable<string> GetEnumerablePropertyNames()
-        {
-            return _properties.GetEnumerablePropertyNames();
-        }
-
-        public void EnsureHasName(string name)
-        {
-            if (string.IsNullOrEmpty(name))
-            {
-                return;
-            }
-
-            if (_function.Name is not null)
-            {
-                return;
-            }
-
-            var descriptor = _properties.GetOwnPropertyDescriptor("name");
-            if (descriptor is { Configurable: false })
-            {
-                return;
-            }
-
-            if (descriptor is not null)
-            {
-                if (descriptor.IsAccessorDescriptor || descriptor.Value is IJsCallable)
-                {
-                    return;
-                }
-
-                if (descriptor.Value is string { Length: > 0 })
-                {
-                    return;
-                }
-            }
-
-            _properties.DefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = name,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
         }
     }
 }

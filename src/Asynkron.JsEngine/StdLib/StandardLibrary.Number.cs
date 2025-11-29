@@ -380,7 +380,7 @@ public static partial class StandardLibrary
         var integerIndex = double.IsNaN(numberValue) || Math.Abs(numberValue) < double.Epsilon
             ? 0d
             : double.IsInfinity(numberValue)
-                ? (numberValue > 0 ? double.PositiveInfinity : double.NegativeInfinity)
+                ? numberValue > 0 ? double.PositiveInfinity : double.NegativeInfinity
                 : Math.Truncate(numberValue);
 
         if (double.IsPositiveInfinity(integerIndex) || integerIndex < 0)
@@ -461,10 +461,10 @@ public static partial class StandardLibrary
             // without recursing through toString, and expose a proper valueOf.
             numberProtoObj.SetProperty("__value__", 0d);
             DefineBuiltinFunction(numberProtoObj, "valueOf", new HostFunction(NumberPrototypeValueOf), 0,
-                isConstructor: false);
+                false);
 
             DefineBuiltinFunction(numberProtoObj, "toString", new HostFunction(NumberPrototypeToString), 1,
-                isConstructor: false);
+                false);
         }
 
         numberConstructor.SetHostedProperty("isInteger", NumberIsInteger);

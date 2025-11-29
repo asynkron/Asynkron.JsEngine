@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ObjectExpression expression)
+    extension(ObjectExpression expression)
     {
         private object? EvaluateObject(JsEnvironment environment,
             EvaluationContext context)
@@ -41,6 +40,7 @@ extension(ObjectExpression expression)
                         {
                             typed.SetHomeObject(obj);
                         }
+
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
@@ -135,5 +135,4 @@ extension(ObjectExpression expression)
             return obj;
         }
     }
-
 }

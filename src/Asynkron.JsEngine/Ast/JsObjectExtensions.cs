@@ -6,8 +6,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(JsObject iterator)
+    extension(JsObject iterator)
     {
         private object? InvokeIteratorNext(object? sendValue = null, bool hasSendValue = false)
         {
@@ -21,7 +20,7 @@ extension(JsObject iterator)
         }
     }
 
-extension(JsObject iterator)
+    extension(JsObject iterator)
     {
         private bool TryInvokeIteratorMethod(string methodName,
             object? argument,
@@ -52,7 +51,7 @@ extension(JsObject iterator)
         }
     }
 
-extension(JsObject iterator)
+    extension(JsObject iterator)
     {
         private void IteratorClose(EvaluationContext context, bool preserveExistingThrow = false)
         {
@@ -64,7 +63,7 @@ extension(JsObject iterator)
                         Symbol.Undefined,
                         context,
                         out var closeResult,
-                        hasArgument: false))
+                        false))
                 {
                     return;
                 }
@@ -87,7 +86,7 @@ extension(JsObject iterator)
         }
     }
 
-extension(JsObject obj)
+    extension(JsObject obj)
     {
         private void DefineAccessorProperty(string name, IJsCallable? getter, IJsCallable? setter)
         {
@@ -99,5 +98,4 @@ extension(JsObject obj)
             obj.DefineProperty(name, descriptor);
         }
     }
-
 }

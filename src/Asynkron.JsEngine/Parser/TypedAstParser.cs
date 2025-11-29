@@ -15,11 +15,11 @@ public sealed class TypedAstParser(
     bool allowTopLevelAwait = false,
     IJsEngineOptions? options = null)
 {
-    private readonly string _source = source ?? string.Empty;
-    private readonly bool _forceStrict = forceStrict;
     private readonly bool _allowTopLevelAwait = allowTopLevelAwait;
-    private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
+    private readonly bool _forceStrict = forceStrict;
     private readonly IJsEngineOptions _options = options ?? JsEngineOptions.Default;
+    private readonly string _source = source ?? string.Empty;
+    private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
     public ProgramNode ParseProgram()
     {
@@ -38,13 +38,13 @@ public sealed class TypedAstParser(
         bool allowTopLevelAwait,
         IJsEngineOptions options)
     {
+        private readonly bool _allowTopLevelAwait = allowTopLevelAwait;
         private readonly bool _forceStrict = forceStrict;
         private readonly Stack<FunctionContext> _functionContexts = new();
+        private readonly IJsEngineOptions _options = options ?? JsEngineOptions.Default;
         private readonly string _source = source ?? string.Empty;
         private readonly Stack<bool> _strictContexts = new();
-        private readonly bool _allowTopLevelAwait = allowTopLevelAwait;
         private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
-        private readonly IJsEngineOptions _options = options ?? JsEngineOptions.Default;
 
         // Controls whether the `in` token is treated as a relational operator inside
         // expressions. For `for (x in y)` we temporarily disable `in` as an operator
@@ -54,8 +54,10 @@ public sealed class TypedAstParser(
 
         private bool InGeneratorContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsGenerator;
         private bool InAsyncContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsAsync;
+
         private bool IsAwaitAllowed =>
             InAsyncContext || (_allowTopLevelAwait && _functionContexts.Count == 0);
+
         private bool InStrictContext => _strictContexts.Count > 0 && _strictContexts.Peek();
 
         public ProgramNode ParseProgram()
@@ -216,7 +218,7 @@ public sealed class TypedAstParser(
             Consume(TokenType.LeftParen, "Expected '(' after 'with'.");
             var obj = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after with object.");
-            var body = ParseStatement(allowLexicalDeclarations: false);
+            var body = ParseStatement(false);
             return new WithStatement(CreateSourceReference(withToken), obj, body);
         }
 
@@ -250,11 +252,11 @@ public sealed class TypedAstParser(
             Consume(TokenType.LeftParen, "Expected '(' after 'if'.");
             var condition = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after condition.");
-            var thenBranch = ParseStatement(allowLexicalDeclarations: false);
+            var thenBranch = ParseStatement(false);
             StatementNode? elseBranch = null;
             if (Match(TokenType.Else))
             {
-                elseBranch = ParseStatement(allowLexicalDeclarations: false);
+                elseBranch = ParseStatement(false);
             }
 
             return new IfStatement(CreateSourceReference(keyword), condition, thenBranch, elseBranch);
@@ -266,14 +268,14 @@ public sealed class TypedAstParser(
             Consume(TokenType.LeftParen, "Expected '(' after 'while'.");
             var condition = ParseExpression();
             Consume(TokenType.RightParen, "Expected ')' after condition.");
-            var body = ParseStatement(allowLexicalDeclarations: false);
+            var body = ParseStatement(false);
             return new WhileStatement(CreateSourceReference(keyword), condition, body);
         }
 
         private StatementNode ParseDoWhileStatement()
         {
             var keyword = Previous();
-            var body = ParseStatement(allowLexicalDeclarations: false);
+            var body = ParseStatement(false);
             Consume(TokenType.While, "Expected 'while' after do-while body.");
             Consume(TokenType.LeftParen, "Expected '(' after 'while'.");
             var condition = ParseExpression();
@@ -639,7 +641,7 @@ public sealed class TypedAstParser(
             var labelToken = Advance();
             var label = Symbol.Intern(labelToken.Lexeme);
             Consume(TokenType.Colon, "Expected ':' after label.");
-            var statement = ParseStatement(allowLexicalDeclarations: false);
+            var statement = ParseStatement(false);
             return new LabeledStatement(CreateSourceReference(labelToken), label, statement);
         }
 
@@ -702,6 +704,7 @@ public sealed class TypedAstParser(
             {
                 (constructor, members, fields) = ParseClassElements(className);
             }
+
             Consume(TokenType.RightBrace, "Expected '}' after class body.");
             var ctor = constructor ?? CreateDefaultConstructor(className, extendsExpression is not null);
             var source = CreateSourceReference(classToken);
@@ -737,6 +740,7 @@ public sealed class TypedAstParser(
                     {
                         privateLexeme = "#" + privateLexeme;
                     }
+
                     if (Check(TokenType.LeftParen))
                     {
                         var function = ParseClassMethod(null, fieldToken, false, false);
@@ -837,7 +841,7 @@ public sealed class TypedAstParser(
                             var function = ParseClassMethod(null, asyncMethodNameToken, isAsyncGeneratorMethod, true);
                             members.Add(new ClassMember(CreateSourceReference(asyncMethodNameToken),
                                 ClassMemberKind.Method, asyncMethodName, function, isStatic,
-                                IsComputed: computedName is not null, ComputedName: computedName));
+                                computedName is not null, computedName));
                             continue;
                         }
                     }
@@ -878,7 +882,7 @@ public sealed class TypedAstParser(
 
                     var function = ParseClassMethod(null, closing, isGeneratorMethod, false);
                     members.Add(new ClassMember(CreateSourceReference(closing), ClassMemberKind.Method, string.Empty,
-                        function, isStatic, IsComputed: true, ComputedName: nameExpression));
+                        function, isStatic, true, nameExpression));
                     continue;
                 }
 
@@ -971,7 +975,7 @@ public sealed class TypedAstParser(
                     emptyBody, false, false);
             }
 
-            var argsSymbol = Symbol.ArgsIdentifier;
+            var argsSymbol = Symbol.Intern("args");
             var restParameter =
                 new FunctionParameter(null, argsSymbol, true, null, null);
             var callArguments =
@@ -1093,12 +1097,12 @@ public sealed class TypedAstParser(
 
             if (Match(TokenType.Default))
             {
-            if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
-            {
-                Advance(); // async
-                var functionToken = Advance(); // function
-                return ParseExportDefaultFunction(CreateSourceReference(keyword), functionToken, true);
-            }
+                if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
+                {
+                    Advance(); // async
+                    var functionToken = Advance(); // function
+                    return ParseExportDefaultFunction(CreateSourceReference(keyword), functionToken, true);
+                }
 
                 if (Check(TokenType.At))
                 {
@@ -1410,7 +1414,7 @@ public sealed class TypedAstParser(
 
                 var iterable = ParseExpression();
                 Consume(TokenType.RightParen, "Expected ')' after for-each header.");
-                var body = ParseStatement(allowLexicalDeclarations: false);
+                var body = ParseStatement(false);
                 var declarationKind = initializerDeclaration?.Kind;
                 var forEachStatement = new ForEachStatement(CreateSourceReference(forToken), target, iterable, body,
                     eachKind,
@@ -1450,7 +1454,7 @@ public sealed class TypedAstParser(
             }
 
             Consume(TokenType.RightParen, "Expected ')' after for-loop clauses.");
-            var bodyStatement = ParseStatement(allowLexicalDeclarations: false);
+            var bodyStatement = ParseStatement(false);
             return new ForStatement(CreateSourceReference(forToken), initializer, condition, increment, bodyStatement);
         }
 
@@ -2391,7 +2395,8 @@ public sealed class TypedAstParser(
                             Consume(TokenType.RightParen, "Expected ')' after method parameters.");
                             using var _ = EnterFunctionContext(true, isAsyncGeneratorMethod);
                             var body = ParseBlock();
-                            var asyncMethod = new FunctionExpression(body.Source ?? asyncKeySource, null, parameters, body,
+                            var asyncMethod = new FunctionExpression(body.Source ?? asyncKeySource, null, parameters,
+                                body,
                                 true, isAsyncGeneratorMethod, WasAsync: true);
                             members.Add(new ObjectMember(asyncMethod.Source ?? asyncKeySource, ObjectMemberKind.Method,
                                 asyncKey, null, asyncMethod, asyncIsComputed, false, null));
@@ -2491,7 +2496,8 @@ public sealed class TypedAstParser(
             }
 
             Consume(TokenType.RightBrace, "Expected '}' after object literal.");
-            return new ObjectExpression(CreateSourceReference(startToken), members.ToImmutable(), hasCoverInitializedName);
+            return new ObjectExpression(CreateSourceReference(startToken), members.ToImmutable(),
+                hasCoverInitializedName);
         }
 
         private TemplateLiteralExpression ParseTemplateLiteralExpression(Token templateToken)
@@ -2711,6 +2717,7 @@ public sealed class TypedAstParser(
                 {
                     break;
                 }
+
                 if (!Match(TokenType.Comma))
                 {
                     break;
@@ -3376,7 +3383,7 @@ public sealed class TypedAstParser(
                 source = fallbackSource;
             }
 
-            return new FunctionExpression(source, null, parameters, body, isAsync, false, true, WasAsync: isAsync);
+            return new FunctionExpression(source, null, parameters, body, isAsync, false, true, isAsync);
         }
 
         private ExpressionNode FinishArrowFunction(ExpressionNode parameterExpression, bool isAsync, Token arrowToken)
@@ -3408,10 +3415,12 @@ public sealed class TypedAstParser(
                     TokenType.Switch or TokenType.Case or TokenType.Default or TokenType.Break or
                     TokenType.Continue or TokenType.Return or TokenType.Try or TokenType.Catch or
                     TokenType.Finally or TokenType.Throw or TokenType.This or TokenType.Super or
-                TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
-                    TokenType.Undefined or TokenType.Typeof or TokenType.Instanceof or TokenType.Void or TokenType.Delete or
-                TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or
-                    TokenType.Await or TokenType.Static or TokenType.Import or TokenType.Export or TokenType.With => true,
+                    TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
+                    TokenType.Undefined or TokenType.Typeof or TokenType.Instanceof or TokenType.Void
+                    or TokenType.Delete or
+                    TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or
+                    TokenType.Await or TokenType.Static or TokenType.Import or TokenType.Export
+                    or TokenType.With => true,
                 _ => false
             };
         }

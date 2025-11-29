@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(YieldExpression expression)
+    extension(YieldExpression expression)
     {
         private object? EvaluateYield(JsEnvironment environment,
             EvaluationContext context)
@@ -14,7 +13,7 @@ extension(YieldExpression expression)
         }
     }
 
-extension(YieldExpression expression)
+    extension(YieldExpression expression)
     {
         private object? EvaluateSimpleYield(JsEnvironment environment,
             EvaluationContext context)
@@ -56,7 +55,7 @@ extension(YieldExpression expression)
         }
     }
 
-extension(YieldExpression expression)
+    extension(YieldExpression expression)
     {
         private object? EvaluateDelegatedYield(JsEnvironment environment,
             EvaluationContext context)
@@ -161,7 +160,7 @@ extension(YieldExpression expression)
         }
     }
 
-extension(YieldExpression expression)
+    extension(YieldExpression expression)
     {
         private Symbol? GetDelegatedStateKey()
         {
@@ -174,5 +173,4 @@ extension(YieldExpression expression)
             return Symbol.Intern(key);
         }
     }
-
 }

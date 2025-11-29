@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(TemplateLiteralExpression expression)
+    extension(TemplateLiteralExpression expression)
     {
         private object? EvaluateTemplateLiteral(JsEnvironment environment,
             EvaluationContext context)
@@ -36,5 +35,4 @@ extension(TemplateLiteralExpression expression)
             return builder.ToString();
         }
     }
-
 }

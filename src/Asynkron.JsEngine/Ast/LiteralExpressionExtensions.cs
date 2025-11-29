@@ -5,8 +5,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(LiteralExpression literal)
+    extension(LiteralExpression literal)
     {
         private object? EvaluateLiteral(EvaluationContext context)
         {
@@ -18,5 +17,4 @@ extension(LiteralExpression literal)
             };
         }
     }
-
 }

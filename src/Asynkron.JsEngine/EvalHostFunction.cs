@@ -20,6 +20,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         _properties.SetProperty("prototype", new JsObject());
     }
 
+    public EvaluationContext? CallingContext { get; set; }
+
     /// <summary>
     ///     The environment that is calling this function.
     ///     This allows eval to execute code in the caller's scope.
@@ -49,11 +51,11 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             var message = parseException.Message;
             object? errorObject = message;
-        if (!environment.TryGet(Symbol.SyntaxErrorIdentifier, out var ctor) ||
-            ctor is not IJsCallable callable)
-        {
-            throw new ThrowSignal(errorObject);
-        }
+            if (!environment.TryGet(Symbol.SyntaxErrorIdentifier, out var ctor) ||
+                ctor is not IJsCallable callable)
+            {
+                throw new ThrowSignal(errorObject);
+            }
 
             try
             {
@@ -73,8 +75,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
         return result;
     }
-
-    public EvaluationContext? CallingContext { get; set; }
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {

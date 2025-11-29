@@ -9,12 +9,12 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class PropertyDescriptor
 {
-    private object? _value;
-    private bool _writable = true;
-    private bool _enumerable = true;
     private bool _configurable = true;
+    private bool _enumerable = true;
     private IJsCallable? _get;
     private IJsCallable? _set;
+    private object? _value;
+    private bool _writable = true;
 
     public object? Value
     {
@@ -145,35 +145,35 @@ public sealed class PropertyDescriptor
 /// <summary>
 ///     Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal), IJsObjectLike, IPrivateBrandHolder,
+public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal), IJsObjectLike,
+    IPrivateBrandHolder,
     IPropertyDefinitionHost, IExtensibilityControl
 {
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
+    private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
+    private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
     private readonly List<string> _propertyInsertionOrder = [];
     private readonly HashSet<string> _propertyInsertionSet = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
-    private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
-    private IVirtualPropertyProvider? _virtualPropertyProvider;
-    private bool _isExtensible = true;
-
-    public bool IsFrozen { get; private set; }
 
     private IJsPropertyAccessor? _prototypeAccessor;
+    private IVirtualPropertyProvider? _virtualPropertyProvider;
+
+    public bool IsFrozen { get; private set; }
+    public bool IsExtensible { get; private set; } = true;
+
+    public void PreventExtensions()
+    {
+        IsExtensible = false;
+    }
 
     public JsObject? Prototype { get; private set; }
 
     public bool IsSealed { get; private set; }
-    public bool IsExtensible => _isExtensible;
 
     IEnumerable<string> IJsObjectLike.Keys => Keys;
-
-    private static bool IsPrivateName(string name)
-    {
-        return name.Length > 0 && name[0] == '#';
-    }
 
     public void SetPrototype(object? candidate)
     {
@@ -187,6 +187,231 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         else
         {
             Remove(PrototypeKey);
+        }
+    }
+
+    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        DefinePropertyInternal(name, descriptor);
+    }
+
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+    {
+        if (IsPrivateName(name))
+        {
+            return null;
+        }
+
+        if (_descriptors.TryGetValue(name, out var descriptor))
+        {
+            return descriptor;
+        }
+
+        if (_virtualPropertyProvider is not null &&
+            !_descriptors.ContainsKey(name) &&
+            !ContainsKey(name) &&
+            _virtualPropertyProvider.TryGetOwnProperty(name, out _, out var virtualDescriptor))
+        {
+            return virtualDescriptor;
+        }
+
+        // If no explicit descriptor but property exists, return default descriptor
+        if (ContainsKey(name))
+        {
+            return new PropertyDescriptor
+            {
+                Value = this[name], Writable = true, Enumerable = true, Configurable = true
+            };
+        }
+
+        return null;
+    }
+
+    public void SetProperty(string name, object? value)
+    {
+        SetProperty(name, value, this);
+    }
+
+    public void SetProperty(string name, object? value, object? receiver)
+    {
+        if (string.Equals(name, PrototypeKey, StringComparison.Ordinal))
+        {
+            SetPrototype(value);
+            return;
+        }
+
+        if (IsPrivateName(name))
+        {
+            if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor
+                {
+                    IsAccessorDescriptor: true
+                } desc)
+            {
+                if (desc.Set != null)
+                {
+                    desc.Set.Invoke([value], receiver ?? this);
+                }
+
+                return;
+            }
+
+            // If we didn't have an accessor on this object, walk the prototype
+            // chain for a private accessor before falling back to defining a slot.
+            var prototype = Prototype;
+            while (prototype is not null)
+            {
+                if (prototype._privateFields.TryGetValue(name, out var inherited) &&
+                    inherited is PropertyDescriptor { IsAccessorDescriptor: true } inheritedDesc)
+                {
+                    if (inheritedDesc.Set != null)
+                    {
+                        inheritedDesc.Set.Invoke([value], receiver ?? this);
+                    }
+
+                    return;
+                }
+
+                prototype = prototype.Prototype;
+            }
+
+            _privateFields[name] = value;
+            return;
+        }
+
+        var propertyExists = _descriptors.ContainsKey(name) || ContainsKey(name);
+        if (_descriptors.TryGetValue(name, out var descriptor))
+        {
+            if (descriptor.IsAccessorDescriptor)
+            {
+                if (descriptor.Set != null)
+                {
+                    descriptor.Set.Invoke([value], receiver ?? this);
+                }
+
+                return;
+            }
+
+            if (!descriptor.Writable)
+            {
+                return; // Silently ignore in non-strict mode
+            }
+
+            this[name] = value;
+            return;
+        }
+
+        if (TryGetValue(name, out _))
+        {
+            this[name] = value;
+            return;
+        }
+
+        // First check if this object or its prototype chain has a setter
+        var setter = GetSetter(name);
+        if (setter != null)
+        {
+            setter.Invoke([value], receiver ?? this);
+            return;
+        }
+
+        // When the prototype is a non-JsObject accessor (e.g., HostFunction),
+        // inspect its own descriptor and its JsObject prototype chain for a setter.
+        if (_prototypeAccessor is IJsObjectLike accessorObject)
+        {
+            var protoDescriptor = accessorObject.GetOwnPropertyDescriptor(name);
+            if (protoDescriptor is not null && protoDescriptor.IsAccessorDescriptor)
+            {
+                if (protoDescriptor.Set != null)
+                {
+                    protoDescriptor.Set.Invoke([value], receiver ?? this);
+                }
+
+                return;
+            }
+
+            if (accessorObject.Prototype is JsObject protoObj &&
+                protoObj.GetSetter(name) is { } protoSetter)
+            {
+                protoSetter.Invoke([value], receiver ?? this);
+                return;
+            }
+        }
+
+        // Frozen objects cannot have properties modified
+        if (IsFrozen)
+        {
+            return; // Silently ignore in non-strict mode
+        }
+
+        // Non-extensible objects cannot have new properties added
+        if (!IsExtensible && !propertyExists)
+        {
+            return; // Silently ignore in non-strict mode
+        }
+
+        this[name] = value;
+        if (!propertyExists)
+        {
+            TrackPropertyInsertion(name);
+        }
+    }
+
+    public void Seal()
+    {
+        PreventExtensions();
+        IsSealed = true;
+
+        // Update all existing descriptors to be non-configurable
+        foreach (var key in Keys.ToArray())
+        {
+            if (key == PrototypeKey || key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
+            {
+                continue;
+            }
+
+            if (_descriptors.TryGetValue(key, out var desc))
+            {
+                desc.Configurable = false;
+            }
+            else
+            {
+                _descriptors[key] = new PropertyDescriptor
+                {
+                    Value = this[key], Writable = true, Enumerable = true, Configurable = false
+                };
+            }
+        }
+    }
+
+    public bool TryGetProperty(string name, out object? value)
+    {
+        return TryGetProperty(name, this, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), out value);
+    }
+
+    public bool TryGetProperty(string name, object? receiver, out object? value)
+    {
+        return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance),
+            out value);
+    }
+
+    public IEnumerable<string> GetOwnPropertyNames()
+    {
+        foreach (var key in EnumerateOwnKeysInOrder(false, true))
+        {
+            yield return key;
+        }
+    }
+
+    public bool Delete(string name)
+    {
+        return DeleteOwnProperty(name);
+    }
+
+    public IEnumerable<string> GetEnumerablePropertyNames()
+    {
+        foreach (var key in EnumerateOwnKeysInOrder(false, false))
+        {
+            yield return key;
         }
     }
 
@@ -205,9 +430,9 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         return DefinePropertyInternal(name, descriptor);
     }
 
-    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    private static bool IsPrivateName(string name)
     {
-        DefinePropertyInternal(name, descriptor);
+        return name.Length > 0 && name[0] == '#';
     }
 
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor)
@@ -229,7 +454,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
         if (currentDescriptor is null)
         {
-            if (!_isExtensible)
+            if (!IsExtensible)
             {
                 return false;
             }
@@ -264,13 +489,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     private static PropertyDescriptor CreateDataDescriptorFromExistingValue(object? value)
     {
-        return new PropertyDescriptor
-        {
-            Value = value,
-            Writable = true,
-            Enumerable = true,
-            Configurable = true
-        };
+        return new PropertyDescriptor { Value = value, Writable = true, Enumerable = true, Configurable = true };
     }
 
     private static void CompleteDescriptorForNewProperty(PropertyDescriptor descriptor)
@@ -515,38 +734,6 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         return Equals(left, right);
     }
 
-    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
-    {
-        if (IsPrivateName(name))
-        {
-            return null;
-        }
-
-        if (_descriptors.TryGetValue(name, out var descriptor))
-        {
-            return descriptor;
-        }
-
-        if (_virtualPropertyProvider is not null &&
-            !_descriptors.ContainsKey(name) &&
-            !ContainsKey(name) &&
-            _virtualPropertyProvider.TryGetOwnProperty(name, out _, out var virtualDescriptor))
-        {
-            return virtualDescriptor;
-        }
-
-        // If no explicit descriptor but property exists, return default descriptor
-        if (ContainsKey(name))
-        {
-            return new PropertyDescriptor
-            {
-                Value = this[name], Writable = true, Enumerable = true, Configurable = true
-            };
-        }
-
-        return null;
-    }
-
     public bool HasProperty(string name)
     {
         if (IsPrivateName(name))
@@ -582,185 +769,6 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
 
         return false;
-    }
-
-    public void SetProperty(string name, object? value)
-    {
-        SetProperty(name, value, this);
-    }
-
-    public void SetProperty(string name, object? value, object? receiver)
-    {
-        if (string.Equals(name, PrototypeKey, StringComparison.Ordinal))
-        {
-            SetPrototype(value);
-            return;
-        }
-
-        if (IsPrivateName(name))
-        {
-            if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor
-                {
-                    IsAccessorDescriptor: true
-                } desc)
-            {
-                if (desc.Set != null)
-                {
-                    desc.Set.Invoke([value], receiver ?? this);
-                }
-
-                return;
-            }
-
-            // If we didn't have an accessor on this object, walk the prototype
-            // chain for a private accessor before falling back to defining a slot.
-            var prototype = Prototype;
-            while (prototype is not null)
-            {
-                if (prototype._privateFields.TryGetValue(name, out var inherited) &&
-                    inherited is PropertyDescriptor { IsAccessorDescriptor: true } inheritedDesc)
-                {
-                    if (inheritedDesc.Set != null)
-                    {
-                        inheritedDesc.Set.Invoke([value], receiver ?? this);
-                    }
-
-                    return;
-                }
-
-                prototype = prototype.Prototype;
-            }
-
-            _privateFields[name] = value;
-            return;
-        }
-
-        var propertyExists = _descriptors.ContainsKey(name) || ContainsKey(name);
-        if (_descriptors.TryGetValue(name, out var descriptor))
-        {
-            if (descriptor.IsAccessorDescriptor)
-            {
-                if (descriptor.Set != null)
-                {
-                    descriptor.Set.Invoke([value], receiver ?? this);
-                }
-
-                return;
-            }
-
-            if (!descriptor.Writable)
-            {
-                return; // Silently ignore in non-strict mode
-            }
-
-            this[name] = value;
-            return;
-        }
-
-        if (TryGetValue(name, out _))
-        {
-            this[name] = value;
-            return;
-        }
-
-        // First check if this object or its prototype chain has a setter
-        var setter = GetSetter(name);
-        if (setter != null)
-        {
-            setter.Invoke([value], receiver ?? this);
-            return;
-        }
-
-        // When the prototype is a non-JsObject accessor (e.g., HostFunction),
-        // inspect its own descriptor and its JsObject prototype chain for a setter.
-        if (_prototypeAccessor is IJsObjectLike accessorObject)
-        {
-            var protoDescriptor = accessorObject.GetOwnPropertyDescriptor(name);
-            if (protoDescriptor is not null && protoDescriptor.IsAccessorDescriptor)
-            {
-                if (protoDescriptor.Set != null)
-                {
-                    protoDescriptor.Set.Invoke([value], receiver ?? this);
-                }
-
-                return;
-            }
-
-            if (accessorObject.Prototype is JsObject protoObj &&
-                protoObj.GetSetter(name) is { } protoSetter)
-            {
-                protoSetter.Invoke([value], receiver ?? this);
-                return;
-            }
-        }
-
-        // Frozen objects cannot have properties modified
-        if (IsFrozen)
-        {
-            return; // Silently ignore in non-strict mode
-        }
-
-        // Non-extensible objects cannot have new properties added
-        if (!_isExtensible && !propertyExists)
-        {
-            return; // Silently ignore in non-strict mode
-        }
-
-        this[name] = value;
-        if (!propertyExists)
-        {
-            TrackPropertyInsertion(name);
-        }
-    }
-
-    public void PreventExtensions()
-    {
-        _isExtensible = false;
-    }
-
-    public void Seal()
-    {
-        PreventExtensions();
-        IsSealed = true;
-
-        // Update all existing descriptors to be non-configurable
-        foreach (var key in Keys.ToArray())
-        {
-            if (key == PrototypeKey || key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
-            {
-                continue;
-            }
-
-            if (_descriptors.TryGetValue(key, out var desc))
-            {
-                desc.Configurable = false;
-            }
-            else
-            {
-                _descriptors[key] = new PropertyDescriptor
-                {
-                    Value = this[key], Writable = true, Enumerable = true, Configurable = false
-                };
-            }
-        }
-    }
-
-    public bool TryGetProperty(string name, out object? value)
-    {
-        return TryGetProperty(name, this, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), out value);
-    }
-
-    public bool TryGetProperty(string name, object? receiver, out object? value)
-    {
-        return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), out value);
-    }
-
-    public IEnumerable<string> GetOwnPropertyNames()
-    {
-        foreach (var key in EnumerateOwnKeysInOrder(includeSymbols: false, includeNonEnumerable: true))
-        {
-            yield return key;
-        }
     }
 
     public void SetGetter(string name, IJsCallable getter)
@@ -848,11 +856,6 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
         // Property does not exist; delete is a no-op that succeeds.
         return true;
-    }
-
-    public bool Delete(string name)
-    {
-        return DeleteOwnProperty(name);
     }
 
     public void Freeze()
@@ -1000,18 +1003,10 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         return false;
     }
 
-    public IEnumerable<string> GetEnumerablePropertyNames()
-    {
-        foreach (var key in EnumerateOwnKeysInOrder(includeSymbols: false, includeNonEnumerable: false))
-        {
-            yield return key;
-        }
-    }
-
     // Mirrors [[OwnPropertyKeys]] ordering for enumerable keys (ECMA-262 §7.3.23).
     public IEnumerable<string> GetOwnEnumerablePropertyKeysInOrder(bool includeSymbols = true)
     {
-        return EnumerateOwnKeysInOrder(includeSymbols, includeNonEnumerable: false);
+        return EnumerateOwnKeysInOrder(includeSymbols, false);
     }
 
     public void SetVirtualPropertyProvider(IVirtualPropertyProvider provider)

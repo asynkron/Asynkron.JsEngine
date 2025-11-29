@@ -919,5 +919,4 @@ public static partial class TypedAstEvaluator
         iterator.SetProperty("throw", new HostFunction(@throw));
         return iterator;
     }
-
 }

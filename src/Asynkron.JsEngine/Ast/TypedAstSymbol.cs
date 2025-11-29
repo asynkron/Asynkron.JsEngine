@@ -15,6 +15,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     private static readonly ConcurrentDictionary<string, TypedAstSymbol> GlobalRegistry = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<int, TypedAstSymbol> IdRegistry = new();
     private static int NextId;
+
     private static readonly HostFunction SymbolToStringFunction = new((thisValue, _) =>
     {
         if (thisValue is TypedAstSymbol typed)
@@ -23,10 +24,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         }
 
         return "Symbol()";
-    })
-    {
-        IsConstructor = false
-    };
+    }) { IsConstructor = false };
 
     private readonly int _id;
     private readonly string? _key; // null for non-global symbols, non-null for global symbols
@@ -43,6 +41,63 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     ///     Gets the optional description of this symbol.
     /// </summary>
     public string? Description { get; }
+
+    public bool TryGetProperty(string name, out object? value)
+    {
+        if (string.Equals(name, "toString", StringComparison.Ordinal))
+        {
+            value = SymbolToStringFunction;
+            return true;
+        }
+
+        if (string.Equals(name, "valueOf", StringComparison.Ordinal))
+        {
+            value = new HostFunction((thisValue, _) => Unbox(thisValue)) { IsConstructor = false };
+            return true;
+        }
+
+        var toPrimitiveKey = $"@@symbol:{For("Symbol.toPrimitive").GetHashCode()}";
+        if (string.Equals(name, toPrimitiveKey, StringComparison.Ordinal))
+        {
+            value = new HostFunction((thisValue, _) => Unbox(thisValue)) { IsConstructor = false };
+            return true;
+        }
+
+        var toStringTagKey = $"@@symbol:{For("Symbol.toStringTag").GetHashCode()}";
+        if (string.Equals(name, toStringTagKey, StringComparison.Ordinal))
+        {
+            value = "Symbol";
+            return true;
+        }
+
+        value = null;
+        return false;
+
+        TypedAstSymbol Unbox(object? receiver)
+        {
+            switch (receiver)
+            {
+                case TypedAstSymbol sym:
+                    return sym;
+                case JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is TypedAstSymbol s:
+                    return s;
+                default:
+                    throw StandardLibrary.ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver");
+            }
+        }
+    }
+
+    public void SetProperty(string name, object? value)
+    {
+        // Symbols are immutable; ignore assignments.
+    }
+
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+    {
+        return TryGetProperty(name, out var value)
+            ? new PropertyDescriptor { Value = value, Writable = true, Enumerable = false, Configurable = true }
+            : null;
+    }
 
     /// <summary>
     ///     Creates a new unique symbol with an optional description.
@@ -100,65 +155,5 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         }
 
         return IdRegistry.TryGetValue(id, out symbol);
-    }
-
-    public bool TryGetProperty(string name, out object? value)
-    {
-        if (string.Equals(name, "toString", StringComparison.Ordinal))
-        {
-            value = SymbolToStringFunction;
-            return true;
-        }
-
-        if (string.Equals(name, "valueOf", StringComparison.Ordinal))
-        {
-            value = new HostFunction((thisValue, _) => Unbox(thisValue)) { IsConstructor = false };
-            return true;
-        }
-
-        var toPrimitiveKey = $"@@symbol:{For("Symbol.toPrimitive").GetHashCode()}";
-        if (string.Equals(name, toPrimitiveKey, StringComparison.Ordinal))
-        {
-            value = new HostFunction((thisValue, _) => Unbox(thisValue)) { IsConstructor = false };
-            return true;
-        }
-
-        var toStringTagKey = $"@@symbol:{For("Symbol.toStringTag").GetHashCode()}";
-        if (string.Equals(name, toStringTagKey, StringComparison.Ordinal))
-        {
-            value = "Symbol";
-            return true;
-        }
-
-        value = null;
-        return false;
-
-        TypedAstSymbol Unbox(object? receiver)
-        {
-            switch (receiver)
-            {
-                case TypedAstSymbol sym:
-                    return sym;
-                case JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is TypedAstSymbol s:
-                    return s;
-                default:
-                    throw StandardLibrary.ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver");
-            }
-        }
-    }
-
-    public void SetProperty(string name, object? value)
-    {
-        // Symbols are immutable; ignore assignments.
-    }
-
-    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
-    {
-        return TryGetProperty(name, out var value)
-            ? new PropertyDescriptor
-            {
-                Value = value, Writable = true, Enumerable = false, Configurable = true
-            }
-            : null;
     }
 }

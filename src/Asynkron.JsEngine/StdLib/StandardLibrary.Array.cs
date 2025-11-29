@@ -38,12 +38,16 @@ public static partial class StandardLibrary
         array.SetHostedProperty("toString", (thisValue, _) => ArrayToString(thisValue, array));
         array.SetHostedProperty("includes", ArrayIncludes, realm);
         array.SetHostedProperty("indexOf", ArrayIndexOf, realm);
-        var lastIndexOf = new HostFunction((thisValue, args) => ArrayLastIndexOf(thisValue, args, realm), realm)
-        {
-            IsConstructor = false
-        };
+        var lastIndexOf =
+            new HostFunction((thisValue, args) => ArrayLastIndexOf(thisValue, args, realm), realm)
+            {
+                IsConstructor = false
+            };
         lastIndexOf.DefineProperty("name",
-            new PropertyDescriptor { Value = "lastIndexOf", Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor
+            {
+                Value = "lastIndexOf", Writable = false, Enumerable = false, Configurable = true
+            });
         lastIndexOf.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         var lastIndexDescriptor = new PropertyDescriptor
@@ -58,6 +62,7 @@ public static partial class StandardLibrary
         {
             array.SetProperty("lastIndexOf", lastIndexOf);
         }
+
         array.SetHostedProperty("toLocaleString", ArrayToLocaleString, realm);
         array.SetHostedProperty("slice", ArraySlice, realm);
         array.SetHostedProperty("shift", ArrayShift);
@@ -287,6 +292,7 @@ public static partial class StandardLibrary
                 result.Push(element);
             }
         }
+
         AddArrayMethods(result, realm);
         return result;
     }
@@ -470,7 +476,7 @@ public static partial class StandardLibrary
         if (accessor is JsArray jsArr && lenLong > 100000)
         {
             var indices = jsArr.GetOwnIndices()
-                .Where(idx => (long)idx >= start && (long)idx < lenLong)
+                .Where(idx => idx >= start && idx < lenLong)
                 .OrderBy(idx => idx);
             foreach (var idx in indices)
             {
@@ -1645,7 +1651,10 @@ public static partial class StandardLibrary
             realm.ArrayPrototype ??= arrayProtoObj;
             AddArrayMethods(arrayProtoObj, realm);
             arrayProtoObj.DefineProperty("constructor",
-                new PropertyDescriptor { Value = arrayConstructor, Writable = true, Enumerable = false, Configurable = true });
+                new PropertyDescriptor
+                {
+                    Value = arrayConstructor, Writable = true, Enumerable = false, Configurable = true
+                });
             arrayProtoObj.DefineProperty("length",
                 new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
             var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
@@ -1767,6 +1776,7 @@ public static partial class StandardLibrary
 
             return accumulator;
         }
+
         var lengthValue = accessor.TryGetProperty("length", out var len) ? len : 0d;
         var lengthGeneric = (int)ToLengthOrZero(lengthValue);
         var stepGeneric = fromRight ? -1 : 1;
@@ -1845,7 +1855,10 @@ public static partial class StandardLibrary
                     jsObj.DefineProperty("length",
                         new PropertyDescriptor
                         {
-                            Value = (double)sInner.Length, Writable = false, Enumerable = false, Configurable = false
+                            Value = (double)sInner.Length,
+                            Writable = false,
+                            Enumerable = false,
+                            Configurable = false
                         });
                 }
 

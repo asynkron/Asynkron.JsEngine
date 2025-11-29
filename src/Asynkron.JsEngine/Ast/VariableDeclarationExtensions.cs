@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(VariableDeclaration declaration)
+    extension(VariableDeclaration declaration)
     {
         private object? EvaluateVariableDeclaration(JsEnvironment environment,
             EvaluationContext context)
@@ -20,5 +19,4 @@ extension(VariableDeclaration declaration)
             return EmptyCompletion;
         }
     }
-
 }

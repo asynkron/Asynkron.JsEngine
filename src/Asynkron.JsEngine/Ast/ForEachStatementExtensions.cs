@@ -5,8 +5,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ForEachStatement statement)
+    extension(ForEachStatement statement)
     {
         private object? EvaluateForEach(JsEnvironment environment,
             EvaluationContext context, Symbol? loopLabel)
@@ -95,7 +94,7 @@ extension(ForEachStatement statement)
         }
     }
 
-extension(ForEachStatement statement)
+    extension(ForEachStatement statement)
     {
         private object? EvaluateForAwaitOf(JsEnvironment environment,
             EvaluationContext context, Symbol? loopLabel)
@@ -156,5 +155,4 @@ extension(ForEachStatement statement)
             return lastValue;
         }
     }
-
 }

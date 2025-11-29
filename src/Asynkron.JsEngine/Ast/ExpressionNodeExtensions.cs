@@ -6,10 +6,10 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(ExpressionNode? extendsExpression)
+    extension(ExpressionNode? extendsExpression)
     {
-        private (IJsEnvironmentAwareCallable? Constructor, JsObject? Prototype) ResolveSuperclass(JsEnvironment environment, EvaluationContext context)
+        private (IJsEnvironmentAwareCallable? Constructor, JsObject? Prototype) ResolveSuperclass(
+            JsEnvironment environment, EvaluationContext context)
         {
             if (extendsExpression is null)
             {
@@ -42,7 +42,7 @@ extension(ExpressionNode? extendsExpression)
         }
     }
 
-extension(ExpressionNode expression)
+    extension(ExpressionNode expression)
     {
         private object? EvaluateExpression(JsEnvironment environment,
             EvaluationContext context)
@@ -89,9 +89,10 @@ extension(ExpressionNode expression)
         }
     }
 
-extension(ExpressionNode callee)
+    extension(ExpressionNode callee)
     {
-        private (object? Callee, object? ThisValue, bool SkippedOptional) EvaluateCallTarget(JsEnvironment environment, EvaluationContext context)
+        private (object? Callee, object? ThisValue, bool SkippedOptional) EvaluateCallTarget(JsEnvironment environment,
+            EvaluationContext context)
         {
             if (callee is SuperExpression superExpression)
             {
@@ -161,7 +162,7 @@ extension(ExpressionNode callee)
         }
     }
 
-extension(ExpressionNode operand)
+    extension(ExpressionNode operand)
     {
         private bool EvaluateDelete(JsEnvironment environment, EvaluationContext context)
         {
@@ -206,7 +207,7 @@ extension(ExpressionNode operand)
         }
     }
 
-extension(ExpressionNode expression)
+    extension(ExpressionNode expression)
     {
         private string DescribeCallee()
         {
@@ -220,7 +221,7 @@ extension(ExpressionNode expression)
         }
     }
 
-extension(ExpressionNode property)
+    extension(ExpressionNode property)
     {
         private string DescribeMemberName()
         {
@@ -233,7 +234,7 @@ extension(ExpressionNode property)
         }
     }
 
-extension(ExpressionNode expression)
+    extension(ExpressionNode expression)
     {
         private bool IsAnonymousFunctionDefinition()
         {
@@ -246,7 +247,7 @@ extension(ExpressionNode expression)
         }
     }
 
-extension(ExpressionNode expression)
+    extension(ExpressionNode expression)
     {
         private bool ContainsDirectEvalCall()
         {
@@ -274,7 +275,8 @@ extension(ExpressionNode expression)
                     case BinaryExpression binary:
                         return ContainsDirectEvalCall(binary.Left) || ContainsDirectEvalCall(binary.Right);
                     case ConditionalExpression cond:
-                        return ContainsDirectEvalCall(cond.Test) || ContainsDirectEvalCall(cond.Consequent) || ContainsDirectEvalCall(cond.Alternate);
+                        return ContainsDirectEvalCall(cond.Test) || ContainsDirectEvalCall(cond.Consequent) ||
+                               ContainsDirectEvalCall(cond.Alternate);
                     case MemberExpression member:
                         return ContainsDirectEvalCall(member.Target) || ContainsDirectEvalCall(member.Property);
                     case UnaryExpression unary:
@@ -318,7 +320,8 @@ extension(ExpressionNode expression)
 
                         return false;
                     case TaggedTemplateExpression tagged:
-                        if (ContainsDirectEvalCall(tagged.Tag) || ContainsDirectEvalCall(tagged.StringsArray) || ContainsDirectEvalCall(tagged.RawStringsArray))
+                        if (ContainsDirectEvalCall(tagged.Tag) || ContainsDirectEvalCall(tagged.StringsArray) ||
+                            ContainsDirectEvalCall(tagged.RawStringsArray))
                         {
                             return true;
                         }
@@ -341,5 +344,4 @@ extension(ExpressionNode expression)
             }
         }
     }
-
 }

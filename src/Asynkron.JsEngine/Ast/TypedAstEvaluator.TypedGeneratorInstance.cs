@@ -153,7 +153,7 @@ public static partial class TypedAstEvaluator
             var generatorContext = _realmState.CreateContext(
                 ScopeKind.Function,
                 DetermineGeneratorScopeMode(),
-                skipAnnexBInstantiation: true);
+                true);
             HoistVarDeclarations(_function.Body, environment, generatorContext);
 
             BindFunctionParameters(_function, _arguments, environment, generatorContext);
@@ -245,7 +245,7 @@ public static partial class TypedAstEvaluator
                 var throwContext = _context ??= _realmState.CreateContext(
                     ScopeKind.Function,
                     DetermineGeneratorScopeMode(),
-                    skipAnnexBInstantiation: true);
+                    true);
                 throw StandardLibrary.ThrowTypeError("Generator is already executing", throwContext, _realmState);
             }
 
@@ -1026,7 +1026,7 @@ public static partial class TypedAstEvaluator
                 _context = _realmState.CreateContext(
                     ScopeKind.Function,
                     DetermineGeneratorScopeMode(),
-                    skipAnnexBInstantiation: true);
+                    true);
             }
             else
             {
@@ -1091,14 +1091,14 @@ public static partial class TypedAstEvaluator
                 var context = _realmState.CreateContext(
                     ScopeKind.Function,
                     DetermineGeneratorScopeMode(),
-                    skipAnnexBInstantiation: true);
+                    true);
                 _executionEnvironment.Define(Symbol.YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
 
                 var result = EvaluateBlock(
                     _function.Body,
                     _executionEnvironment,
                     context,
-                    skipAnnexBFunctionInstantiation: true);
+                    true);
 
                 if (context.IsThrow)
                 {
@@ -1230,7 +1230,6 @@ public static partial class TypedAstEvaluator
 
             // If TryAwaitPromiseOrSchedule reported an error via the context,
             // let the caller observe the pending throw/return.
-
         }
 
         private bool TryAwaitPromiseOrSchedule(object? candidate, EvaluationContext context, out object? resolvedValue)

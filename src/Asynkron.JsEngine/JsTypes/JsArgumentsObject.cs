@@ -1,22 +1,22 @@
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.StdLib;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
 internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
 {
     private readonly JsObject _backing = new();
-    private readonly JsEnvironment _environment;
-    private readonly Symbol?[] _mappedParameters;
-    private readonly object?[] _values;
-    private readonly bool _mappedEnabled;
-    private readonly bool _isStrict;
     private readonly PropertyDescriptor? _calleeDescriptor;
+    private readonly JsEnvironment _environment;
     private readonly string[] _indexNames;
-    private readonly RealmState _realm;
+    private readonly bool _isStrict;
+    private readonly bool _mappedEnabled;
+    private readonly Symbol?[] _mappedParameters;
     private readonly Dictionary<string, PropertyDescriptor> _ownDescriptors = new(StringComparer.Ordinal);
+    private readonly RealmState _realm;
+    private readonly object?[] _values;
     private bool _suppressObserver;
 
     public JsArgumentsObject(
@@ -47,10 +47,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             _indexNames[i] = name;
             var descriptor = new PropertyDescriptor
             {
-                Value = _values[i],
-                Writable = true,
-                Enumerable = true,
-                Configurable = true
+                Value = _values[i], Writable = true, Enumerable = true, Configurable = true
             };
             _backing.DefineProperty(name, descriptor);
             TrackDescriptor(name, descriptor);
@@ -67,10 +64,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
         var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
         _backing.DefineProperty(tagKey,
-            new PropertyDescriptor
-            {
-                Value = "Arguments", Writable = false, Enumerable = false, Configurable = true
-            });
+            new PropertyDescriptor { Value = "Arguments", Writable = false, Enumerable = false, Configurable = true });
 
         if (callee is not null)
         {
@@ -92,10 +86,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
                 _calleeDescriptor = new PropertyDescriptor
                 {
-                    Get = thrower,
-                    Set = thrower,
-                    Enumerable = false,
-                    Configurable = false
+                    Get = thrower, Set = thrower, Enumerable = false, Configurable = false
                 };
             }
 
@@ -128,83 +119,27 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         }
     }
 
-    public JsObject? Prototype
+    public bool IsExtensible => _backing.IsExtensible;
+
+    public void PreventExtensions()
     {
-        get => _backing.Prototype;
+        _backing.PreventExtensions();
     }
 
+    public JsObject? Prototype => _backing.Prototype;
+
     public bool IsSealed => _backing.IsSealed;
-    public bool IsExtensible => _backing.IsExtensible;
 
     public IEnumerable<string> Keys => _backing.Keys;
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
-        DefinePropertyInternal(name, descriptor, throwOnError: true);
-    }
-
-    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        return DefinePropertyInternal(name, descriptor, throwOnError: false);
-    }
-
-    private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor, bool throwOnError)
-    {
-        var existingDescriptor = GetTrackedDescriptor(name);
-        var normalized = NormalizeDescriptor(name, descriptor, existingDescriptor);
-
-        if (existingDescriptor is not null && !IsDescriptorCompatible(existingDescriptor, descriptor))
-        {
-            return FailDefine(throwOnError);
-        }
-
-        if (TryResolveIndex(name, out var index) &&
-            _mappedEnabled &&
-            index < _mappedParameters.Length &&
-            _mappedParameters[index] is { } mappedSymbol)
-        {
-            var shouldUnmap = descriptor.IsAccessorDescriptor ||
-                              descriptor is { HasWritable: true, Writable: false };
-
-            var success = _backing.TryDefineProperty(name, normalized);
-            if (!success)
-            {
-                return FailDefine(throwOnError);
-            }
-
-            TrackDescriptor(name, normalized);
-
-            if (descriptor.HasValue)
-            {
-                _values[index] = descriptor.Value;
-                WithSuppressedObserver(() => _environment.Assign(mappedSymbol, descriptor.Value));
-            }
-
-            if (shouldUnmap)
-            {
-                _mappedParameters[index] = null;
-            }
-
-            return true;
-        }
-
-        if (!_backing.TryDefineProperty(name, normalized))
-        {
-            return FailDefine(throwOnError);
-        }
-
-        TrackDescriptor(name, normalized);
-        return true;
+        DefinePropertyInternal(name, descriptor, true);
     }
 
     public void SetPrototype(object? candidate)
     {
         _backing.SetPrototype(candidate);
-    }
-
-    public void PreventExtensions()
-    {
-        _backing.PreventExtensions();
     }
 
     public void Seal()
@@ -335,6 +270,60 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         }
 
         return deleted;
+    }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return DefinePropertyInternal(name, descriptor, false);
+    }
+
+    private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor, bool throwOnError)
+    {
+        var existingDescriptor = GetTrackedDescriptor(name);
+        var normalized = NormalizeDescriptor(name, descriptor, existingDescriptor);
+
+        if (existingDescriptor is not null && !IsDescriptorCompatible(existingDescriptor, descriptor))
+        {
+            return FailDefine(throwOnError);
+        }
+
+        if (TryResolveIndex(name, out var index) &&
+            _mappedEnabled &&
+            index < _mappedParameters.Length &&
+            _mappedParameters[index] is { } mappedSymbol)
+        {
+            var shouldUnmap = descriptor.IsAccessorDescriptor ||
+                              descriptor is { HasWritable: true, Writable: false };
+
+            var success = _backing.TryDefineProperty(name, normalized);
+            if (!success)
+            {
+                return FailDefine(throwOnError);
+            }
+
+            TrackDescriptor(name, normalized);
+
+            if (descriptor.HasValue)
+            {
+                _values[index] = descriptor.Value;
+                WithSuppressedObserver(() => _environment.Assign(mappedSymbol, descriptor.Value));
+            }
+
+            if (shouldUnmap)
+            {
+                _mappedParameters[index] = null;
+            }
+
+            return true;
+        }
+
+        if (!_backing.TryDefineProperty(name, normalized))
+        {
+            return FailDefine(throwOnError);
+        }
+
+        TrackDescriptor(name, normalized);
+        return true;
     }
 
     private void UpdateFromBinding(int index, object? value)
@@ -530,10 +519,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     {
         var clone = new PropertyDescriptor
         {
-            Enumerable = source.Enumerable,
-            Configurable = source.Configurable,
-            Get = source.Get,
-            Set = source.Set
+            Enumerable = source.Enumerable, Configurable = source.Configurable, Get = source.Get, Set = source.Set
         };
 
         if (source.HasWritable)

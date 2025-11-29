@@ -7,8 +7,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(CallExpression expression)
+    extension(CallExpression expression)
     {
         private object? EvaluateCall(JsEnvironment environment, EvaluationContext context)
         {
@@ -172,7 +171,7 @@ extension(CallExpression expression)
                 if (callable is TypedFunction typedFunction)
                 {
                     callResult = typedFunction.InvokeWithContext(frozenArguments, thisValue, context,
-                        newTarget: newTargetForCall);
+                        newTargetForCall);
                 }
                 else
                 {
@@ -206,7 +205,8 @@ extension(CallExpression expression)
                     }
 
                     context.MarkThisInitialized();
-                    SetThisInitializationStatus(thisInitializationEnvironment ?? environment, context.IsThisInitialized);
+                    SetThisInitializationStatus(thisInitializationEnvironment ?? environment,
+                        context.IsThisInitialized);
                 }
             }
             catch (ThrowSignal signal)
@@ -261,5 +261,4 @@ extension(CallExpression expression)
             return callResult;
         }
     }
-
 }

@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(EvaluationContext context)
+    extension(EvaluationContext context)
     {
         private string GetSourceInfo(SourceReference? fallback = null)
         {
@@ -26,7 +25,7 @@ extension(EvaluationContext context)
         }
     }
 
-extension(EvaluationContext context)
+    extension(EvaluationContext context)
     {
         private void RestoreSignal(ISignal? signal)
         {
@@ -49,5 +48,4 @@ extension(EvaluationContext context)
             }
         }
     }
-
 }

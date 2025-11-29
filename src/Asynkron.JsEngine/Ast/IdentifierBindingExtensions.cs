@@ -4,8 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(IdentifierBinding identifier)
+    extension(IdentifierBinding identifier)
     {
         private void ApplyIdentifierBinding(object? value,
             JsEnvironment environment,
@@ -63,11 +62,11 @@ extension(IdentifierBinding identifier)
                     {
                         environment.Define(identifier.Name, value, isLexical: false);
                     }
+
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
             }
         }
     }
-
 }

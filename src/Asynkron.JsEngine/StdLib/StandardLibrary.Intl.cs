@@ -225,14 +225,12 @@ public static partial class StandardLibrary
         {
             numberFormatPrototype.SetPrototype(realm.ObjectPrototype);
         }
+
         var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
         numberFormatPrototype.DefineProperty(toStringTagKey,
             new PropertyDescriptor
             {
-                Value = "Intl.NumberFormat",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
+                Value = "Intl.NumberFormat", Writable = false, Enumerable = false, Configurable = true
             });
 
         var numberFormatCtor = new HostFunction((thisValue, _) =>
@@ -242,10 +240,7 @@ public static partial class StandardLibrary
             instance.SetProperty("__numberFormat__", true);
             InitializeNumberFormatInternalSlots(instance, realm);
             return instance;
-        }, realm)
-        {
-            IsConstructor = true
-        };
+        }, realm) { IsConstructor = true };
 
         if (realm.FunctionPrototype is not null)
         {
@@ -260,9 +255,15 @@ public static partial class StandardLibrary
         numberFormatCtor.DefineProperty("length",
             new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
         numberFormatCtor.DefineProperty("name",
-            new PropertyDescriptor { Value = "NumberFormat", Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor
+            {
+                Value = "NumberFormat", Writable = false, Enumerable = false, Configurable = true
+            });
         numberFormatPrototype.DefineProperty("constructor",
-            new PropertyDescriptor { Value = numberFormatCtor, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor
+            {
+                Value = numberFormatCtor, Writable = true, Enumerable = false, Configurable = true
+            });
 
         JsObject ValidateNumberFormatReceiver(object? receiver)
         {
@@ -282,22 +283,13 @@ public static partial class StandardLibrary
                 var value = formatArgs.Count > 0 ? formatArgs[0] : Symbol.Undefined;
                 var formatted = FormatNumberValue(value, realm);
                 return formatted;
-            }, realm)
-            {
-                IsConstructor = false
-            };
-        }, realm)
-        {
-            IsConstructor = false
-        };
+            }, realm) { IsConstructor = false };
+        }, realm) { IsConstructor = false };
         formatGetter.DefineProperty("name",
             new PropertyDescriptor { Value = "get format", Writable = false, Enumerable = false, Configurable = true });
 
         numberFormatPrototype.DefineProperty("format",
-            new PropertyDescriptor
-            {
-                Get = formatGetter, Enumerable = false, Configurable = true
-            });
+            new PropertyDescriptor { Get = formatGetter, Enumerable = false, Configurable = true });
 
         var formatToPartsFn = new HostFunction((thisValue, formatArgs) =>
         {
@@ -352,14 +344,14 @@ public static partial class StandardLibrary
             }
 
             return result;
-        }, realm)
-        {
-            IsConstructor = false
-        };
+        }, realm) { IsConstructor = false };
         numberFormatSupportedLocalesOf.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         numberFormatSupportedLocalesOf.DefineProperty("name",
-            new PropertyDescriptor { Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor
+            {
+                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
+            });
 
         numberFormatCtor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor

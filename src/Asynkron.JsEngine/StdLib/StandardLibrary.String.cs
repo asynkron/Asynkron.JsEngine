@@ -22,8 +22,14 @@ public static partial class StandardLibrary
         stringObj.DefineProperty("length",
             new PropertyDescriptor
             {
-                Value = (double)str.Length, Writable = false, Enumerable = false, Configurable = false,
-                HasValue = true, HasWritable = true, HasEnumerable = true, HasConfigurable = true
+                Value = (double)str.Length,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false,
+                HasValue = true,
+                HasWritable = true,
+                HasEnumerable = true,
+                HasConfigurable = true
             });
 
         // Expose indexed characters as enumerable, non-writable virtual properties to
@@ -40,52 +46,10 @@ public static partial class StandardLibrary
         else
         {
             // Fallback when no realm prototype is available yet.
-            AddStringMethods(stringObj, realmState, forceAttach: true);
+            AddStringMethods(stringObj, realmState, true);
         }
 
         return stringObj;
-    }
-
-    private sealed class StringVirtualPropertyProvider(string value) : IVirtualPropertyProvider
-    {
-        public bool TryGetOwnProperty(string name, out object? valueOut, out PropertyDescriptor? descriptor)
-        {
-            valueOut = null;
-            descriptor = null;
-
-            if (!IsArrayIndex(name, out var index) || index < 0 || index >= value.Length)
-            {
-                return false;
-            }
-
-            var ch = value[index].ToString();
-            valueOut = ch;
-            descriptor = new PropertyDescriptor
-            {
-                Value = ch,
-                Writable = false,
-                Enumerable = true,
-                Configurable = false,
-                HasValue = true,
-                HasWritable = true,
-                HasEnumerable = true,
-                HasConfigurable = true
-            };
-            return true;
-        }
-
-        public IEnumerable<string> GetEnumerableKeys()
-        {
-            for (var i = 0; i < value.Length; i++)
-            {
-                yield return i.ToString(CultureInfo.InvariantCulture);
-            }
-        }
-
-        private static bool IsArrayIndex(string key, out int index)
-        {
-            return int.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out index) && index >= 0;
-        }
     }
 
     private static void EnsureStringPrototypeMethods(JsObject prototype, RealmState? realm)
@@ -117,17 +81,17 @@ public static partial class StandardLibrary
         stringObj.SetHostedProperty("substring", Substring);
         stringObj.SetHostedProperty("slice", Slice);
         var substrFn = new HostFunction(Substr) { IsConstructor = false };
-        DefineBuiltinFunction(stringObj, "substr", substrFn, 2, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "substr", substrFn, 2);
         stringObj.SetHostedProperty("concat", Concat);
         stringObj.SetHostedProperty("toLowerCase", ToLowerCase);
         stringObj.SetHostedProperty("toUpperCase", ToUpperCase);
         var trimStartFn = new HostFunction(TrimStart) { IsConstructor = false };
-        DefineBuiltinFunction(stringObj, "trimStart", trimStartFn, 0, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "trimStart", trimStartFn, 0);
         stringObj.DefineProperty("trimLeft",
             new PropertyDescriptor { Value = trimStartFn, Writable = true, Enumerable = false, Configurable = true });
 
         var trimEndFn = new HostFunction(TrimEnd) { IsConstructor = false };
-        DefineBuiltinFunction(stringObj, "trimEnd", trimEndFn, 0, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "trimEnd", trimEndFn, 0);
         stringObj.DefineProperty("trimRight",
             new PropertyDescriptor { Value = trimEndFn, Writable = true, Enumerable = false, Configurable = true });
 
@@ -148,19 +112,19 @@ public static partial class StandardLibrary
         stringObj.SetHostedProperty("localeCompare", LocaleCompare);
         stringObj.SetHostedProperty("normalize", Normalize);
         stringObj.SetHostedProperty("matchAll", MatchAll);
-        DefineBuiltinFunction(stringObj, "small", new HostFunction(Small), 0, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "strike", new HostFunction(Strike), 0, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "sub", new HostFunction(Sub), 0, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "sup", new HostFunction(Sup), 0, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "anchor", new HostFunction(Anchor), 1, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "big", new HostFunction(Big), 0, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "blink", new HostFunction(Blink), 0, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "bold", new HostFunction(Bold), 0, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "fixed", new HostFunction(Fixed), 0, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "fontcolor", new HostFunction(FontColor), 1, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "fontsize", new HostFunction(FontSize), 1, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "italics", new HostFunction(Italics), 0, isConstructor: false);
-        DefineBuiltinFunction(stringObj, "link", new HostFunction(Link), 1, isConstructor: false);
+        DefineBuiltinFunction(stringObj, "small", new HostFunction(Small), 0);
+        DefineBuiltinFunction(stringObj, "strike", new HostFunction(Strike), 0);
+        DefineBuiltinFunction(stringObj, "sub", new HostFunction(Sub), 0);
+        DefineBuiltinFunction(stringObj, "sup", new HostFunction(Sup), 0);
+        DefineBuiltinFunction(stringObj, "anchor", new HostFunction(Anchor), 1);
+        DefineBuiltinFunction(stringObj, "big", new HostFunction(Big), 0);
+        DefineBuiltinFunction(stringObj, "blink", new HostFunction(Blink), 0);
+        DefineBuiltinFunction(stringObj, "bold", new HostFunction(Bold), 0);
+        DefineBuiltinFunction(stringObj, "fixed", new HostFunction(Fixed), 0);
+        DefineBuiltinFunction(stringObj, "fontcolor", new HostFunction(FontColor), 1);
+        DefineBuiltinFunction(stringObj, "fontsize", new HostFunction(FontSize), 1);
+        DefineBuiltinFunction(stringObj, "italics", new HostFunction(Italics), 0);
+        DefineBuiltinFunction(stringObj, "link", new HostFunction(Link), 1);
 
         var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
@@ -171,6 +135,7 @@ public static partial class StandardLibrary
         {
             realm.StringPrototypeMethodsInitialized = true;
         }
+
         return;
 
         string ResolveString(object? thisValue)
@@ -390,7 +355,7 @@ public static partial class StandardLibrary
                 if (input is Symbol or TypedAstSymbol)
                 {
                     throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number",
-                        context: null, realm: realm));
+                        null, realm));
                 }
 
                 var numericContext = realm?.CreateContext();
@@ -403,7 +368,7 @@ public static partial class StandardLibrary
                 var number = JsOps.ToNumberWithContext(primitive, numericContext);
                 if (numericContext?.IsThrow == true)
                 {
-                    throw new ThrowSignal(numericContext.FlowValue ?? StandardLibrary.CreateTypeError(
+                    throw new ThrowSignal(numericContext.FlowValue ?? CreateTypeError(
                         "Cannot convert object to primitive value", numericContext, realm));
                 }
 
@@ -622,7 +587,7 @@ public static partial class StandardLibrary
                 return matcher.Invoke([value], searchValue);
             }
 
-            var regex = ToRegExpValue(searchValue, string.Empty, requireGlobal: false);
+            var regex = ToRegExpValue(searchValue, string.Empty, false);
             return regex.Global ? regex.MatchAll(value) : regex.Exec(value);
         }
 
@@ -641,7 +606,7 @@ public static partial class StandardLibrary
                 return searchMethod.Invoke([value], searchValue);
             }
 
-            var regex = ToRegExpValue(searchValue, string.Empty, requireGlobal: false);
+            var regex = ToRegExpValue(searchValue, string.Empty, false);
             var result = regex.Exec(value);
             if (result is JsArray arr && arr.TryGetProperty("index", out var indexObj) &&
                 indexObj is double d)
@@ -952,7 +917,7 @@ public static partial class StandardLibrary
                 return method.Invoke([value], matcher);
             }
 
-            var regex = ToRegExpValue(matcher, "g", requireGlobal: true);
+            var regex = ToRegExpValue(matcher, "g", true);
             return regex.MatchAll(value);
         }
 
@@ -1060,7 +1025,7 @@ public static partial class StandardLibrary
 
         IJsCallable? GetMethod(object? value, string methodKey, string opName)
         {
-            if (!JsOps.TryGetPropertyValue(value, methodKey, out var method, null))
+            if (!JsOps.TryGetPropertyValue(value, methodKey, out var method))
             {
                 return null;
             }
@@ -1103,7 +1068,9 @@ public static partial class StandardLibrary
             }
 
             var ctx = realm?.CreateContext();
-            var pattern = ReferenceEquals(candidate, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(candidate, ctx);
+            var pattern = ReferenceEquals(candidate, Symbol.Undefined)
+                ? string.Empty
+                : JsOps.ToJsString(candidate, ctx);
             if (ctx?.IsThrow == true)
             {
                 throw new ThrowSignal(ctx.FlowValue);
@@ -1211,10 +1178,8 @@ public static partial class StandardLibrary
 
             EnsureStringPrototypeMethods(stringProtoObj, realm);
 
-            DefineBuiltinFunction(stringProtoObj, "toString", new HostFunction(StringPrototypeToString), 0,
-                isConstructor: false);
-            DefineBuiltinFunction(stringProtoObj, "valueOf", new HostFunction(StringPrototypeValueOf), 0,
-                isConstructor: false);
+            DefineBuiltinFunction(stringProtoObj, "toString", new HostFunction(StringPrototypeToString), 0);
+            DefineBuiltinFunction(stringProtoObj, "valueOf", new HostFunction(StringPrototypeValueOf), 0);
             DefineBuiltinFunction(stringProtoObj, "parseJSON",
                 new HostFunction((thisValue, args, realmState) =>
                 {
@@ -1223,7 +1188,7 @@ public static partial class StandardLibrary
                     var source = JsOps.ToJsString(thisValue, context);
                     var reviver = args.Count > 0 ? args[0] : null;
                     return ParseJsonWithReviver(source, realmState!, context, reviver);
-                }, realm), 1, isConstructor: false, writable: false, enumerable: false, configurable: true);
+                }, realm), 1, false, false);
         }
 
         // String.fromCodePoint(...codePoints)
@@ -1259,7 +1224,7 @@ public static partial class StandardLibrary
                 string s => s,
                 JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is string s => s,
                 IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner)
-                    && inner is string s => s,
+                                                  && inner is string s => s,
                 _ => throw ThrowTypeError("String.prototype valueOf called on non-string object", realm: realm)
             };
         }
@@ -1397,6 +1362,48 @@ public static partial class StandardLibrary
             }
 
             return result.ToString();
+        }
+    }
+
+    private sealed class StringVirtualPropertyProvider(string value) : IVirtualPropertyProvider
+    {
+        public bool TryGetOwnProperty(string name, out object? valueOut, out PropertyDescriptor? descriptor)
+        {
+            valueOut = null;
+            descriptor = null;
+
+            if (!IsArrayIndex(name, out var index) || index < 0 || index >= value.Length)
+            {
+                return false;
+            }
+
+            var ch = value[index].ToString();
+            valueOut = ch;
+            descriptor = new PropertyDescriptor
+            {
+                Value = ch,
+                Writable = false,
+                Enumerable = true,
+                Configurable = false,
+                HasValue = true,
+                HasWritable = true,
+                HasEnumerable = true,
+                HasConfigurable = true
+            };
+            return true;
+        }
+
+        public IEnumerable<string> GetEnumerableKeys()
+        {
+            for (var i = 0; i < value.Length; i++)
+            {
+                yield return i.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
+        private static bool IsArrayIndex(string key, out int index)
+        {
+            return int.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out index) && index >= 0;
         }
     }
 }

@@ -115,7 +115,7 @@ public static partial class StandardLibrary
             if (args.Count == 0)
             {
                 // No arguments: current date/time
-                timeValue = (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                timeValue = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             }
             else if (args.Count == 1)
             {
@@ -223,7 +223,7 @@ public static partial class StandardLibrary
                 var local = LocalTimeMs(timeValue);
                 return YearFromTime(local) - 1900;
             });
-            DefineBuiltinFunction(dateInstance, "getYear", getYearFn, 0, isConstructor: false);
+            DefineBuiltinFunction(dateInstance, "getYear", getYearFn, 0);
 
             var setYearFn = new HostFunction((thisVal, methodArgs) =>
             {
@@ -271,8 +271,8 @@ public static partial class StandardLibrary
                     {
                         var localDate = new DateTime(
                             (int)fullYear,
-                            (int)month + 1,
-                            (int)date,
+                            month + 1,
+                            date,
                             (int)hour,
                             (int)minute,
                             (int)second,
@@ -297,7 +297,7 @@ public static partial class StandardLibrary
                 StoreInternalDateValue(obj, clipped);
                 return clipped;
             });
-            DefineBuiltinFunction(dateInstance, "setYear", setYearFn, 1, isConstructor: false);
+            DefineBuiltinFunction(dateInstance, "setYear", setYearFn, 1);
 
             dateInstance["getMonth"] = new HostFunction((thisVal, args) =>
             {
@@ -527,7 +527,7 @@ public static partial class StandardLibrary
                 var utc = ConvertMillisecondsToUtc(timeValue);
                 return FormatUtcToJsUtcString(utc);
             });
-            DefineBuiltinFunction(dateInstance, "toUTCString", toUtcStringFn, 0, isConstructor: false);
+            DefineBuiltinFunction(dateInstance, "toUTCString", toUtcStringFn, 0);
             dateInstance.DefineProperty("toGMTString",
                 new PropertyDescriptor
                 {
@@ -587,7 +587,7 @@ public static partial class StandardLibrary
 
                 var local = LocalTimeMs(timeValue);
                 return YearFromTime(local) - 1900;
-            }), 0, isConstructor: false);
+            }), 0);
 
         DefineBuiltinFunction(datePrototype, "setYear",
             new HostFunction((thisVal, methodArgs) =>
@@ -623,7 +623,7 @@ public static partial class StandardLibrary
 
                 StoreInternalDateValue(obj, clipped);
                 return clipped;
-            }), 1, isConstructor: false);
+            }), 1);
 
         var protoToUtcStringFn = new HostFunction((thisVal, args) =>
         {
@@ -636,7 +636,7 @@ public static partial class StandardLibrary
             var utc = ConvertMillisecondsToUtc(timeValue);
             return FormatUtcToJsUtcString(utc);
         });
-        DefineBuiltinFunction(datePrototype, "toUTCString", protoToUtcStringFn, 0, isConstructor: false);
+        DefineBuiltinFunction(datePrototype, "toUTCString", protoToUtcStringFn, 0);
         datePrototype.DefineProperty("toGMTString",
             new PropertyDescriptor
             {
@@ -734,7 +734,7 @@ public static partial class StandardLibrary
         static bool IsLeapYear(double year)
         {
             var y = (long)Math.Truncate(year);
-            return (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
+            return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
         }
 
         static double DayFromYear(double year)

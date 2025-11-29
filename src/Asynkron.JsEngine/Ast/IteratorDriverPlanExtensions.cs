@@ -6,8 +6,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(IteratorDriverPlan plan)
+    extension(IteratorDriverPlan plan)
     {
         private object? ExecuteIteratorDriver(JsObject iterator,
             IEnumerator<object?>? enumerator,
@@ -105,11 +104,10 @@ extension(IteratorDriverPlan plan)
 
             if (state.IteratorObject is not null && !iteratorDone)
             {
-                IteratorClose(state.IteratorObject, context, preserveExistingThrow: context.IsThrow);
+                IteratorClose(state.IteratorObject, context, context.IsThrow);
             }
 
             return lastValue;
         }
     }
-
 }

@@ -114,7 +114,10 @@ public static partial class StandardLibrary
     {
         function.IsConstructor = isConstructor;
         function.DefineProperty("length",
-            new PropertyDescriptor { Value = (double)length, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor
+            {
+                Value = (double)length, Writable = false, Enumerable = false, Configurable = true
+            });
         function.DefineProperty("name",
             new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
 
@@ -124,7 +127,10 @@ public static partial class StandardLibrary
         }
 
         target.DefineProperty(name,
-            new PropertyDescriptor { Value = function, Writable = writable, Enumerable = enumerable, Configurable = configurable });
+            new PropertyDescriptor
+            {
+                Value = function, Writable = writable, Enumerable = enumerable, Configurable = configurable
+            });
     }
 
     private static JsBigInt ThisBigIntValue(object? receiver)
@@ -182,6 +188,7 @@ public static partial class StandardLibrary
                     {
                         throw new ThrowSignal(localContext.FlowValue);
                     }
+
                     continue;
                 case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
                     var numberValue = JsOps.ToNumber(value);
@@ -203,7 +210,8 @@ public static partial class StandardLibrary
                     return new JsBigInt(ParseBigIntString(s, localContext, realmState));
             }
 
-            throw ThrowTypeError($"Cannot convert {value?.GetType().Name ?? "null"} to a BigInt", localContext, realmState);
+            throw ThrowTypeError($"Cannot convert {value?.GetType().Name ?? "null"} to a BigInt", localContext,
+                realmState);
         }
     }
 

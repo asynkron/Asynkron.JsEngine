@@ -2,8 +2,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-
-extension(FunctionDeclaration declaration)
+    extension(FunctionDeclaration declaration)
     {
         private object? EvaluateFunctionDeclaration(JsEnvironment environment,
             EvaluationContext context)
@@ -27,8 +26,10 @@ extension(FunctionDeclaration declaration)
             {
                 environment.Define(declaration.Name, function);
             }
+
             var skipVarBinding = (context.BlockedFunctionVarNames is { } blocked &&
-                                  blocked.Contains(declaration.Name)) || environment.HasBodyLexicalName(declaration.Name);
+                                  blocked.Contains(declaration.Name)) ||
+                                 environment.HasBodyLexicalName(declaration.Name);
 
             var hasBlockingLexicalBeforeFunctionScope =
                 !isStrictScope && HasBlockingLexicalBeforeFunctionScope(environment, declaration.Name);
@@ -52,13 +53,12 @@ extension(FunctionDeclaration declaration)
                 declaration.Name,
                 function,
                 true,
-                isFunctionDeclaration: !isAnnexBBlockFunction,
-                globalFunctionConfigurable: globalFunctionConfigurable,
-                context: context,
+                !isAnnexBBlockFunction,
+                globalFunctionConfigurable,
+                context,
                 globalVarConfigurable: globalVarConfigurable);
 
             return EmptyCompletion;
         }
     }
-
 }

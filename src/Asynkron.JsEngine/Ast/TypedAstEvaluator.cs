@@ -1412,30 +1412,14 @@ public static class TypedAstEvaluator
     {
         foreach (var member in members)
         {
-            var propertyName = member.Name;
-            if (member.IsComputed)
+            if (!ClassPropertyNameResolver.TryResolveMemberName(
+                    member,
+                    expr => EvaluateExpression(expr, environment, context),
+                    context,
+                    privateNameScope,
+                    out var propertyName))
             {
-                if (member.ComputedName is null)
-                {
-                    throw new InvalidOperationException("Computed class member is missing name expression.");
-                }
-
-                var nameValue = EvaluateExpression(member.ComputedName, environment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return;
-                }
-
-                propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return;
-                }
-            }
-
-            if (propertyName.Length > 0 && propertyName[0] == '#' && privateNameScope is not null)
-            {
-                propertyName = privateNameScope.GetKey(propertyName);
+                return;
             }
 
             var value = EvaluateExpression(member.Function, environment, context);
@@ -1466,76 +1450,7 @@ public static class TypedAstEvaluator
                 typedFunction.EnsureHasName(propertyName);
             }
 
-            if (member.Kind == ClassMemberKind.Method)
-            {
-                if (member.IsStatic)
-                {
-                    if (constructorAccessor is IJsObjectLike ctorObject)
-                    {
-                        ctorObject.DefineProperty(propertyName,
-                            new PropertyDescriptor
-                            {
-                                Value = value,
-                                Writable = true,
-                                Enumerable = false,
-                                Configurable = true,
-                                HasValue = true,
-                                HasWritable = true,
-                                HasEnumerable = true,
-                                HasConfigurable = true
-                            });
-                    }
-                    else
-                    {
-                        constructorAccessor.SetProperty(propertyName, value);
-                    }
-                }
-                else
-                {
-                    prototype.DefineProperty(propertyName,
-                        new PropertyDescriptor
-                        {
-                            Value = value,
-                            Writable = true,
-                            Enumerable = false,
-                            Configurable = true,
-                            HasValue = true,
-                            HasWritable = true,
-                            HasEnumerable = true,
-                            HasConfigurable = true
-                        });
-                }
-
-                continue;
-            }
-
-            var accessorTarget = member.IsStatic
-                ? constructorAccessor as IJsObjectLike
-                : prototype;
-            if (accessorTarget is not null)
-            {
-                var descriptor = new PropertyDescriptor
-                {
-                    Enumerable = false,
-                    Configurable = true
-                };
-
-                if (member.Kind == ClassMemberKind.Getter)
-                {
-                    descriptor.Get = callable;
-                }
-
-                if (member.Kind == ClassMemberKind.Setter)
-                {
-                    descriptor.Set = callable;
-                }
-
-                accessorTarget.DefineProperty(propertyName, descriptor);
-            }
-            else
-            {
-                constructorAccessor.SetProperty(propertyName, value);
-            }
+            ClassMemberEmitter.DefineMember(member, propertyName, callable, constructorAccessor, prototype);
         }
     }
 
@@ -1546,29 +1461,14 @@ public static class TypedAstEvaluator
         using var staticFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, skipAnnexBInstantiation: true);
         foreach (var field in fields)
         {
-            var propertyName = field.Name;
-            if (field.IsComputed)
+            if (!ClassPropertyNameResolver.TryResolveFieldName(
+                    field,
+                    expr => EvaluateExpression(expr, environment, context),
+                    context,
+                    privateNameScope,
+                    out var propertyName))
             {
-                if (field.ComputedName is null)
-                {
-                    throw new InvalidOperationException("Computed class field is missing name expression.");
-                }
-
-                var nameValue = EvaluateExpression(field.ComputedName, environment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return;
-                }
-
-                propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return;
-                }
-            }
-            else if (field.IsPrivate && privateNameScope is not null)
-            {
-                propertyName = privateNameScope.GetKey(propertyName);
+                return;
             }
 
             object? value = Symbol.Undefined;

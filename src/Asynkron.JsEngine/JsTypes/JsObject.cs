@@ -556,7 +556,10 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
 
         var currentIsData = current.IsDataDescriptor;
-        if (candidate.IsAccessorDescriptor != currentIsData)
+        var currentIsAccessor = current.IsAccessorDescriptor;
+        var candidateIsAccessor = candidate.IsAccessorDescriptor;
+
+        if (candidateIsAccessor != currentIsAccessor)
         {
             return current.Configurable;
         }

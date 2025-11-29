@@ -149,11 +149,6 @@ public sealed class JsEnvironment
                 }
             }
         }
-        if (name.Name == "legacyFn")
-        {
-            System.Console.WriteLine(
-                $"legacyFn entry: hasInitializer={hasInitializer}, isGlobal={isGlobalScope}, allowRedecl={allowExistingGlobalFunctionRedeclaration}, tracked={wasTrackedAnnexBFunction}, hasDescriptor={existingDescriptor is not null}, loose={hasLooseGlobalValue}");
-        }
 
         if (isGlobalScope &&
             isFunctionDeclaration &&
@@ -231,11 +226,6 @@ public sealed class JsEnvironment
                 var canUpdateExisting =
                     allowExistingGlobalFunctionRedeclaration &&
                     (existingDescriptor is not null || wasTrackedAnnexBFunction || hasLooseGlobalValue);
-                if (name.Name == "legacyFn")
-                {
-                    System.Console.WriteLine(
-                        $"legacyFn call: hasInitializer={hasInitializer}, allowRedecl={allowExistingGlobalFunctionRedeclaration}, tracked={wasTrackedAnnexBFunction}, hasDescriptor={existingDescriptor is not null}, loose={hasLooseGlobalValue}, canUpdate={canUpdateExisting}");
-                }
                 if (canUpdateExisting)
                 {
                     globalThis.SetProperty(name.Name, initialValue);
@@ -280,14 +270,19 @@ public sealed class JsEnvironment
 
             if (isAnnexBFunction)
             {
+                if (context is { ExecutionKind: ExecutionKind.Eval })
+                {
+                    scope._annexBFunctionNames?.Remove(name);
+                    return;
+                }
+
                 scope._annexBFunctionNames ??=
                     new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
                 scope._annexBFunctionNames.Add(name);
+                return;
             }
-            else
-            {
-                scope._annexBFunctionNames?.Remove(name);
-            }
+
+            scope._annexBFunctionNames?.Remove(name);
         }
     }
 
@@ -307,6 +302,7 @@ public sealed class JsEnvironment
                 }
 
                 if (current.Enclosing is null &&
+                    !binding.IsLexical &&
                     current._values.TryGetValue(Symbol.This, out var thisBinding) &&
                     thisBinding.Value is JsObject globalObject &&
                     globalObject.TryGetProperty(name.Name, out var globalValue))
@@ -351,6 +347,7 @@ public sealed class JsEnvironment
                 }
 
                 if (current.Enclosing is null &&
+                    !binding.IsLexical &&
                     current._values.TryGetValue(Symbol.This, out var thisBinding) &&
                     thisBinding.Value is JsObject globalObject &&
                     globalObject.TryGetProperty(name.Name, out var globalValue))

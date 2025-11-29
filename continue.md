@@ -37,6 +37,8 @@
 
 # Next Iteration Plan
 
+> Before we do any way, ensure to verify the below tasks against the actual source code, are they still true?
+
 1. **Grow IR Coverage for Remaining Unsupported Generator Shapes**
    - Use the `_UnsupportedIr` tests (complex `yield` in increments and complex `switch` layouts) as the driver for extending the normalized surface and the IR interpreter once lowering is in place.
    - As shapes become supported, flip the corresponding tests to `*Ir` / `*Ir_UsesIrPlan` variants and update `docs/GENERATOR_IR_LIMITATIONS.md`.
@@ -58,6 +60,9 @@
 ## Annex B Scope Modes
 
 ### Current State
+
+> Before we do any way, ensure to verify the below tasks against the actual source code, are they still true?
+
 - `EvaluationContext` now tracks `ScopeMode` frames (`Strict`, `Sloppy`, `SloppyAnnexB`), and `RealmState.CreateContext` produces pre-scoped strict contexts for host helpers so sloppy vs Annex B semantics flow through the scope stack.
 - The realm context factory now supports cancellation/execution options, and all runtime helpers (program + function invocation) use it instead of `new EvaluationContext`, so scope stacks are created uniformly.
 - Standard library helpers (String/Number/JSON/Array/Function), typed arrays, and `JsArgumentsObject` all rely on the realm factory instead of hand-rolling `EvaluationContext`, so coercion helpers automatically inherit the correct strict/Annex B behaviour.
@@ -72,11 +77,13 @@
 - Identifier member access and call expressions now raise JavaScript `TypeError`s when targeting `null`/`undefined` receivers or non-callable values so `delete`-driven Sputnik tests can observe the abrupt completion they rely on instead of silently receiving `Symbol.Undefined`.
 - Strict-mode identifier resolution no longer rejects plain `eval`/`arguments` reads; `AssignmentReferenceResolver` now enforces that restriction only when a write is attempted, so Annex B strict-code paths can call `eval` without tripping the runtime guard (`StrictMode_CanAccessGlobalEval` / `StrictMode_DirectEvalInvokesSuccessfully` lock this down).
 - Annex B block-level functions now reuse the existing global/eval binding when redeclared: hoisting and runtime instantiation call through the var-binding path (configurable `CreateGlobalVarBinding`) so sloppy `$262.evalScript` snippets can replace non-configurable globals instead of throwing `TypeError: Cannot redeclare non-configurable global function`.
+- Global identifier reads now prefer lexical bindings when resolving the root scope, so Annex B direct-eval block functions no longer mask subsequent `let`/`const` declarations; the Annex B global/eval suites (direct + indirect) now pass their Test262 filters.
 
 ### Next Steps
-1. **RegExp Annex B Behaviour**
-   - Teach `RegExp.prototype.compile` to perform the `lastIndex` reset via ordinary `Set` semantics so immutable `lastIndex` descriptors trigger the user-observable `TypeError` from inside `compile` rather than at script instantiation time (`pattern-regexp-immutable-lastindex.js`).
+1. **Activity-backed Annex B Regression Coverage**
+   - Mirror the previously failing Test262 Annex B global/eval hoist scenarios inside the internal suite, capture their Activity traces, and assert on the spans/tag payload so future regressions surface without rerunning the full Annex B filter.
 2. **Parser/Evaluator Follow-ups**
    - Teach the parser about the `with (...) let` ExpressionStatement carve-out so Annex B’s `let`-as-identifier cases parse without relying on runtime fallbacks.
    - Audit helper paths (`TryFindBinding`, class field initialisers, eval-in-with) and the Annex B scope plumbing to ensure they read `ScopeMode` from the scope stack rather than reaching for global toggles.
-   - Confirm that the new nullish member-access/call behaviour covers every entry-point (e.g. optional chaining fallbacks, destructuring, and host helper paths) so we don’t regress on the Sputnik delete suite.
+3. **Confirm nullish member-access/call coverage**
+   - Ensure the tightened nullish member-access/call behaviour is wired through optional chaining fallbacks, destructuring initialisers, and host helper paths so the Sputnik delete suite stays green.
